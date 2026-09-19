@@ -68,6 +68,19 @@ const audienceCopy: Record<ReportCardAudience, {
 
 type ScopeType = "school" | "class" | "stream" | "students";
 
+type ExamSeriesOption = { id: string; name: string };
+type ExamSeriesResponse = { success: boolean; data: ExamSeriesOption[] } | ExamSeriesOption[];
+
+function selectExamSeries(response: ExamSeriesResponse): ExamSeriesOption[] {
+  // The common API envelope is already unwrapped by requestDashboardApi;
+  // /exams/series also has its own service-level success/data response.
+  const rows = Array.isArray(response) ? response : response?.success === true ? response.data : null;
+  if (!Array.isArray(rows) || rows.some(row => !row || typeof row.id !== "string" || typeof row.name !== "string")) {
+    throw new Error("Exam list could not be read. Retry loading report cards.");
+  }
+  return rows;
+}
+
 interface ActiveScope {
   type: ScopeType;
   examSeriesId?: string;
@@ -223,7 +236,9 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   const reportQuery = useSchoolQuery<LiveExamReportCard[]>(reportPath);
   const summaryQuery = useSchoolQuery<ReportCardScopeSummary>(summaryPath);
   const hierarchyQuery = useSchoolQuery<ReportCardScopeHierarchyNode[]>(hierarchyPath);
-  const seriesQuery = useSchoolQuery<Array<{ id: string; name: string }>>("/exams/series");
+  const seriesQuery = useSchoolQuery<ExamSeriesResponse, ExamSeriesOption[]>("/exams/series", {
+    select: selectExamSeries,
+  });
   const generationQuery = useSchoolQuery<LiveReportCardGenerationScope[]>(
     audience === "exams-manager" && !handoff ? `/exams/report-cards/generation-scopes${scope.classSectionId
       ? `?${scopeQs}${scope.streamLabel ? `&stream_name=${encodeURIComponent(scope.streamLabel)}` : ""}` : ""}` : null,
@@ -377,6 +392,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
       reportQuery.refetch(),
       summaryQuery.refetch(),
       hierarchyQuery.refetch(),
+      seriesQuery.refetch(),
     ]);
   }
 
@@ -748,7 +764,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
     }
   }
 
-  const queryError = reportQuery.error ?? summaryQuery.error ?? hierarchyQuery.error ?? generationQuery.error;
+  const queryError = reportQuery.error ?? summaryQuery.error ?? hierarchyQuery.error ?? generationQuery.error ?? seriesQuery.error;
   const isLoading = reportQuery.isLoading || (audience === "exams-manager" && !handoff && generationQuery.isLoading);
   const primaryAction = bulkActionForAudience(audience);
 

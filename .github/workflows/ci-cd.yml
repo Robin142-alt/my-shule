@@ -51,7 +51,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
       - name: Report-card class generation and recovery interface
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes exams-manager-entry-controls
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-card-api-contract exams-manager-entry-controls
 
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing

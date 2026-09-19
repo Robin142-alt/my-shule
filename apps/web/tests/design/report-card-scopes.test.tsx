@@ -59,7 +59,7 @@ it.each([false,true])('uses the same scoped submission flow in report cards and 
   await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{
     scope_type:'stream',class_section_id:'grade8',stream_id:'north',preview_token:'server-token',action:'submit'}}));
   expect(await screen.findByText('Cara: Notification persistence failed; retry')).toBeInTheDocument();
-  expect(refetch).toHaveBeenCalledTimes(3);
+  expect(refetch).toHaveBeenCalledTimes(4);
 });
 it('All remains scope-wide when rows are selected, and confirmation uses server eligibility',async()=>{
   const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="exams-manager"/>);

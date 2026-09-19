@@ -26,8 +26,8 @@ export class TenantMismatchError extends Error {
   }
 }
 
-interface SchoolQueryOptions<T>
-  extends Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn"> {
+interface SchoolQueryOptions<T, TData = T>
+  extends Omit<UseQueryOptions<T, Error, TData>, "queryKey" | "queryFn"> {
   tenantId?: string;
 }
 
@@ -56,7 +56,7 @@ export function isSchoolQueryForPath(
  * Reusable data fetching hook scoped to the active tenant/school.
  * Enforces `tenantId` in the queryKey.
  */
-export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOptions<T>) {
+export function useSchoolQuery<T, TData = T>(path: string | null, options?: SchoolQueryOptions<T, TData>) {
   const scopedTenantId = useOptionalSchoolTenantId();
   const activeTenantId = options?.tenantId?.trim() || scopedTenantId?.trim() || null;
   const queryTenantId = activeTenantId || "unverified-tenant";
@@ -65,7 +65,7 @@ export function useSchoolQuery<T>(path: string | null, options?: SchoolQueryOpti
   const userId = dashboardRole?.userId ?? "session-user";
   const queryEnabled = options?.enabled ?? true;
 
-  return useQuery<T, Error>({
+  return useQuery<T, Error, TData>({
     queryKey: buildSchoolQueryKey(
       queryTenantId,
       userId,
