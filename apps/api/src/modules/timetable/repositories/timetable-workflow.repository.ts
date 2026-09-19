@@ -239,7 +239,7 @@ export class TimetableWorkflowRepository {
     versionId: string,
   ): Promise<void> {
     await tx.$queryRawUnsafe(
-      `SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text))`,
+      `SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text))::text`,
       tenantId,
       versionId,
     );
@@ -570,7 +570,7 @@ export class TimetableWorkflowRepository {
 
     await this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
       await tx.$queryRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text || ':' || $3::text))`,
+        `SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text || ':' || $3::text))::text`,
         input.tenant_id, input.academic_year, input.term_name,
       );
       const currentRows = this.asRows<any>(await tx.$queryRawUnsafe(
@@ -699,7 +699,7 @@ export class TimetableWorkflowRepository {
                requirement.stream_id, stream.name AS stream_name,
                requirement.subject_id, subject.name AS subject_name,
                requirement.teacher_id,
-               COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email) AS teacher_name,
+               COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, '')) AS teacher_name,
                requirement.periods_per_week, requirement.duration_periods,
                requirement.resource_id::text, resource.name AS resource_name,
                requirement.parallel_key, requirement.preferred_days,
@@ -880,7 +880,7 @@ export class TimetableWorkflowRepository {
   async listAvailability(tenantId: string, academicYear: string, termName: string, teacherId?: string) {
     const result = await this.query<any>(
       `SELECT availability.id::text, availability.teacher_id,
-              COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email) AS teacher_name,
+              COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, '')) AS teacher_name,
               availability.day_of_week, availability.period_id::text,
               period.name AS period_name, period.starts_at::text, period.ends_at::text,
               availability.state, availability.reason, availability.row_version
@@ -1407,7 +1407,7 @@ export class TimetableWorkflowRepository {
               requirement.stream_id, stream.name AS stream_name,
               requirement.subject_id, subject.name AS subject_name,
               requirement.teacher_id,
-              COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email) AS teacher_name,
+              COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, '')) AS teacher_name,
               unresolved.remaining_periods, unresolved.duration_periods,
               requirement.resource_id::text, resource.name AS resource_name,
               requirement.parallel_key, unresolved.reason_code, unresolved.reason_message,
@@ -2227,7 +2227,7 @@ export class TimetableWorkflowRepository {
               slot.stream_id, stream.name AS stream_name,
               slot.subject_id, COALESCE(subject.name, slot.subject_id) AS subject_name,
               slot.teacher_id,
-              COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email, slot.teacher_id) AS teacher_name,
+              COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, ''), slot.teacher_id) AS teacher_name,
               slot.resource_id::text, resource.name AS resource_name, slot.room_id,
               slot.day_of_week, slot.period_id::text, period.name AS period_name,
               slot.starts_at::text, slot.ends_at::text, slot.duration_periods,
@@ -2646,7 +2646,7 @@ export class TimetableWorkflowRepository {
   async getReliefAffected(tenantId: string, absentTeacherId: string, reliefDate: string) {
     const teacher = await this.query<any>(
       `SELECT user_id::text AS teacher_id,
-              COALESCE(full_name, display_name, preferred_name, email, user_id::text) AS teacher_name
+              COALESCE(NULLIF(display_name, ''), NULLIF(staff_number, ''), user_id::text) AS teacher_name
        FROM staff_profiles
        WHERE tenant_id = $1 AND user_id::text = $2 AND COALESCE(status, 'active') = 'active'
        LIMIT 1`,
@@ -2662,7 +2662,7 @@ export class TimetableWorkflowRepository {
               slot.day_of_week, slot.period_id::text, slot.starts_at::text, slot.ends_at::text,
               relief.id::text AS relief_id, COALESCE(relief.status, 'needed') AS relief_status,
               relief.substitute_teacher_id,
-              COALESCE(substitute.full_name, substitute.display_name, substitute.preferred_name, substitute.email) AS substitute_teacher_name,
+              COALESCE(NULLIF(substitute.display_name, ''), NULLIF(substitute.staff_number, '')) AS substitute_teacher_name,
               relief.row_version AS relief_row_version
        FROM timetable_slots slot
        JOIN timetable_versions version
@@ -2716,7 +2716,7 @@ export class TimetableWorkflowRepository {
 
     const candidates = await this.query<any>(
       `SELECT staff.user_id::text AS teacher_id,
-              COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email, staff.user_id::text) AS teacher_name,
+              COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, ''), staff.user_id::text) AS teacher_name,
               EXISTS (
                 SELECT 1 FROM teacher_subject_assignments assignment
                 WHERE assignment.tenant_id = staff.tenant_id
@@ -2851,14 +2851,14 @@ export class TimetableWorkflowRepository {
         throw new BadRequestException('The relief date does not fall on the selected lesson day');
       }
       await tx.$queryRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1::text || ':relief:' || $2::text || ':' || $3::text))`,
+        `SELECT pg_advisory_xact_lock(hashtext($1::text || ':relief:' || $2::text || ':' || $3::text))::text`,
         input.tenant_id,
         input.relief_date,
         input.substitute_teacher_id,
       );
       const substitute = this.asRows<any>(await tx.$queryRawUnsafe(
         `SELECT staff.user_id::text,
-                COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email) AS teacher_name
+                COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, '')) AS teacher_name
          FROM staff_profiles staff
          WHERE staff.tenant_id = $1 AND staff.user_id::text = $2
            AND COALESCE(staff.status, 'active') = 'active'
@@ -3144,17 +3144,17 @@ export class TimetableWorkflowRepository {
               slot.stream_id, stream.name AS stream_name,
               slot.subject_id, COALESCE(subject.name, slot.subject_id) AS subject_name,
               slot.teacher_id,
-              COALESCE(staff.full_name, staff.display_name, staff.preferred_name, staff.email, slot.teacher_id) AS teacher_name,
+              COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, ''), slot.teacher_id) AS teacher_name,
               slot.resource_id::text, resource.name AS resource_name, slot.room_id,
               slot.day_of_week, slot.period_id::text,
               slot.starts_at::text, slot.ends_at::text, slot.duration_periods, slot.parallel_key,
               relief.id::text AS relief_id, relief.relief_date::text AS relief_date,
               relief.substitute_teacher_id,
-              COALESCE(substitute.full_name, substitute.display_name, substitute.preferred_name, substitute.email) AS substitute_teacher_name,
+              COALESCE(NULLIF(substitute.display_name, ''), NULLIF(substitute.staff_number, '')) AS substitute_teacher_name,
               COALESCE(relief.substitute_teacher_id, slot.teacher_id) AS effective_teacher_id,
               COALESCE(
-                substitute.full_name, substitute.display_name, substitute.preferred_name, substitute.email,
-                staff.full_name, staff.display_name, staff.preferred_name, staff.email, slot.teacher_id
+                NULLIF(substitute.display_name, ''), NULLIF(substitute.staff_number, ''),
+                NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, ''), slot.teacher_id
               ) AS effective_teacher_name
        FROM timetable_slots slot
        LEFT JOIN class_sections class_section
