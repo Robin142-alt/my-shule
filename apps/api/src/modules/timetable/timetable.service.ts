@@ -85,6 +85,8 @@ export class TimetableService {
       tenant_id: tenantId,
       ...scope,
       expected_row_version: dto.expected_row_version,
+      school_starts_at: dto.school_starts_at,
+      period_types: dto.period_types,
       days,
       common_blocks: dto.common_blocks ?? [],
       actor_user_id: this.getActorUserId(),

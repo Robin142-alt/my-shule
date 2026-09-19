@@ -56,6 +56,9 @@ jobs:
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
+      - name: School day builder and timetable interface
+        run: npm --prefix apps/web run test:design -- school-day-builder school-day-editor deputy-timetable-management deputy-timetable-class-scope smart-timetable-role-surfaces
+
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
   # ──────────────────────────────────────────────────────────────
@@ -124,6 +127,12 @@ jobs:
 
       - name: Report-card retries and concurrency
         run: node --test dist/apps/api/src/modules/exams/services/report-card-generation-resilience.test.js
+
+      - name: School day configuration persistence and isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/timetable-period-configuration.integration-spec.ts
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'

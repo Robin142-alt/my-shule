@@ -76,6 +76,9 @@ export class TimetableSchemaService implements OnModuleInit {
         CONSTRAINT uq_timetable_configuration_tenant_id UNIQUE (tenant_id, id)
       );
 
+      ALTER TABLE timetable_configurations ADD COLUMN IF NOT EXISTS school_starts_at time;
+      ALTER TABLE timetable_configurations ADD COLUMN IF NOT EXISTS period_types jsonb NOT NULL DEFAULT '[]'::jsonb;
+
       CREATE TABLE IF NOT EXISTS timetable_days (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,

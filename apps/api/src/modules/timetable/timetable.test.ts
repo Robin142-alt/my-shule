@@ -97,6 +97,32 @@ test('Timetable configuration round-trips period times in the DTO HH:mm format',
   assert.match(periodQuery, /to_char\(ends_at, 'HH24:MI'\) AS ends_at/);
 });
 
+test('Saving period types uses the authenticated school and emits the existing refresh event after persistence', async () => {
+  const calls: string[] = [];
+  const types = [{ id: 'tea', name: 'Tea Break', default_duration_minutes: 15, is_teaching: false }];
+  const service = new TimetableService(
+    { getStore: () => ({ tenant_id: 'school-a', user_id: 'deputy-1', role: 'deputy_principal' }) } as never,
+    {} as never,
+    { saveConfiguration: async (input: Record<string, unknown>) => {
+      assert.equal(input.tenant_id, 'school-a');
+      assert.equal(input.actor_user_id, 'deputy-1');
+      assert.equal(input.school_starts_at, '08:00');
+      assert.deepEqual(input.period_types, types);
+      calls.push('saved');
+      return { ...input, id: 'configuration-1', row_version: 2 };
+    } } as never,
+    {} as never,
+    { publish: async (event: Record<string, any>) => {
+      assert.equal(event.event_name, 'timetable.configuration.updated');
+      assert.equal(event.payload.tenant_id, 'school-a');
+      assert.equal(event.source_dashboard, 'deputy_principal');
+      calls.push('event');
+    } } as never,
+  );
+  await service.configure({ academic_year: '2026', term_name: 'Term 1', school_starts_at: '08:00', period_types: types, days: [{ day_of_week: 1, periods: [] }] });
+  assert.deepEqual(calls, ['saved', 'event']);
+});
+
 test('TimetableService blocks canonical constraint conflicts before saving a slot', async () => {
   const service = new TimetableService(
     {
@@ -468,6 +494,8 @@ test('Timetable DTO compatibility aliases remain nested, coercing, and strictly 
       }],
     }],
     expected_row_version: '2',
+    school_starts_at: '08:00',
+    period_types: [{ id: 'tea', name: 'Tea Break', default_duration_minutes: '15', is_teaching: false }],
   });
   const requirements = plainToInstance(BulkUpsertRequirementsDto, {
     academic_year: '2026',
@@ -535,6 +563,8 @@ test('Timetable DTO compatibility aliases remain nested, coercing, and strictly 
 
   assert.equal(configuration.teaching_days?.[0]?.day_of_week, 1);
   assert.equal(configuration.expected_row_version, 2);
+  assert.equal(configuration.period_types?.[0].default_duration_minutes, 15);
+  assert.equal(configuration.period_types?.[0].is_teaching, false);
   assert.equal(requirements.requirements[0]?.weekly_periods, 6);
   assert.equal(availability.availability?.[0]?.day_of_week, 1);
   assert.equal(candidates.include_prefer_free, false);
@@ -575,6 +605,14 @@ test('Timetable DTO compatibility aliases remain nested, coercing, and strictly 
   assert.notEqual((await validate(invalidRequirements)).length, 0);
   assert.notEqual((await validate(invalidCandidates)).length, 0);
   assert.notEqual((await validate(invalidConfiguration)).length, 0);
+  for (const patch of [
+    { school_starts_at: '25:00' },
+    { period_types: [{ id: 'tea', name: 'Tea Break', default_duration_minutes: 0, is_teaching: false }] },
+    { period_types: [{ id: 'tea', name: 'Tea Break', default_duration_minutes: 361, is_teaching: false }] },
+    { period_types: [{ id: 'tea', name: 'Tea Break', default_duration_minutes: 15, is_teaching: 'yes' }] },
+  ]) {
+    assert.notEqual((await validate(plainToInstance(ConfigureTimetableDto, { ...configuration, ...patch }))).length, 0);
+  }
 });
 
 test('Timetable portal parent scope returns all active children, defaults safely, and rejects unlinked children', async () => {
