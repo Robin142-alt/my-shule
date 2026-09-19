@@ -12,6 +12,15 @@ test('admission enrols shared subjects using the selected class curriculum', asy
       assert.equal(tenant, 'school-a');
       assert.equal(actor, 'actor');
       return callback({ $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        if (sql.includes('SELECT version FROM academic_cohort_migrations')) return [{ version: 1 }];
+        if (sql.includes('FROM class_sections WHERE tenant_id = $1')) {
+          assert.deepEqual(params, ['school-a', 'class']);
+          return [{ id: 'class', academic_year_id: 'year' }];
+        }
+        if (sql.includes('SELECT * FROM academic_cohort_placements')) {
+          assert.deepEqual(params, ['school-a', 'class', null]);
+          return [{ id: 'placement', cohort_id: 'cohort', class_section_id: 'class', stream_id: null }];
+        }
         if (sql.includes('FOR UPDATE OF section')) return [{
           id: 'class', name: 'Form 1', curriculum_model: '8-4-4', enrolment_open: true,
           academic_level_id: 'level', academic_year_name: '2026',
@@ -21,10 +30,13 @@ test('admission enrols shared subjects using the selected class curriculum', asy
           admission_number_mode: 'manual', admission_number_prefix: 'ADM', admission_number_separator: '-',
           admission_number_padding: 4, next_sequence: 1, include_academic_year: false,
         }];
-        if (sql.includes('FROM class_subject_assignments assignment')) return [{
-          id: 'math', name: 'Mathematics', code: 'MATH', curriculum_model: 'CBC',
-          subject_type: 'academic', is_compulsory: true, academic_term_id: 'term',
-        }];
+        if (sql.includes('FROM class_subject_assignments assignment')) {
+          assert.deepEqual(params, ['school-a', 'placement']);
+          return [{
+            id: 'math', name: 'Mathematics', code: 'MATH', curriculum_model: 'CBC',
+            subject_type: 'academic', is_compulsory: true, academic_term_id: 'term',
+          }];
+        }
         if (sql.includes('INSERT INTO student_subject_enrollments')) {
           enrollment = params;
           throw stop;

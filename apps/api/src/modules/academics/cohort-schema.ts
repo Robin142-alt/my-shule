@@ -145,11 +145,19 @@ export const COHORT_SCHEMA_SQL = `
   DROP TRIGGER IF EXISTS trg_cohort_teacher_configuration ON teacher_subject_assignments;
   CREATE TRIGGER trg_cohort_teacher_configuration BEFORE INSERT OR UPDATE ON teacher_subject_assignments
     FOR EACH ROW EXECUTE FUNCTION validate_cohort_configuration();
+  ALTER TABLE academic_cohorts ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohorts FORCE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_placements ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_placements FORCE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_migrations ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_migrations FORCE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_migration_issues ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_migration_issues FORCE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_promotion_operations ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE academic_cohort_promotion_operations FORCE ROW LEVEL SECURITY;
   DO $$ DECLARE target_table text; BEGIN
     FOREACH target_table IN ARRAY ARRAY['academic_cohorts', 'academic_cohort_placements',
       'academic_cohort_migrations', 'academic_cohort_migration_issues', 'academic_cohort_promotion_operations'] LOOP
-      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', target_table);
-      EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', target_table);
       EXECUTE format('DROP POLICY IF EXISTS cohort_tenant_policy ON %I', target_table);
       EXECUTE format('CREATE POLICY cohort_tenant_policy ON %I USING
         (tenant_id = current_setting(''app.tenant_id'', true) OR current_setting(''app.role'', true) = ''system'') WITH CHECK
