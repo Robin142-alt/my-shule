@@ -8,7 +8,7 @@ function source(...parts: string[]) {
 describe("Deputy smart timetable and relief management", () => {
   const workspace = source("src", "components", "school", "deputy-principal", "timetable-management-workspace.tsx");
   const schedule = source("src", "components", "school", "deputy-principal", "timetable-schedule-view.tsx");
-  const setup = source("src", "components", "school", "deputy-principal", "timetable-setup-panels.tsx");
+  const setup = source("src", "components", "school", "deputy-principal", "timetable-setup-panels.tsx") + source("src", "components", "school", "deputy-principal", "subject-requirements-panel.tsx");
   const dayBuilder = source("src", "components", "school", "deputy-principal", "school-day-builder.ts");
   const relief = source("src", "components", "school", "deputy-principal", "timetable-relief-workspace.tsx");
   const proxy = source("src", "app", "api", "timetable", "[...path]", "route.ts");

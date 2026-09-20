@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CalendarRange, Clock3, Pencil, Plus, Save, Trash2, UserRoundCheck, Warehouse } from "lucide-react";
+import { AlertTriangle, CalendarRange, Pencil, Plus, Save, Trash2, UserRoundCheck, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 
 import { useSchoolMutation } from "@/lib/data/school-hooks";
@@ -12,12 +12,9 @@ import {
   type ClassSection,
   type ConfigurationResponse,
   type OfflineAware,
-  type RequirementsResponse,
-  type Subject,
   type Teacher,
   type TimetableConfiguration,
   type TimetableCommonBlock,
-  type TimetableRequirement,
   type TimetableResource,
   type ResourcesResponse,
   TIMETABLE_DAYS,
@@ -238,103 +235,7 @@ export function PeriodConfigurationPanel({
   );
 }
 
-export function SubjectRequirementsPanel({
-  response,
-  academicYear,
-  termName,
-  classes,
-  subjects,
-  teachers,
-  resources,
-  loading,
-  error,
-  onRetry,
-  onSaved,
-  onSaveState,
-}: {
-  response?: RequirementsResponse;
-  academicYear: string;
-  termName: string;
-  classes: ClassSection[];
-  subjects: Subject[];
-  teachers: Teacher[];
-  resources: TimetableResource[];
-  loading: boolean;
-  error?: Error | null;
-  onRetry: () => void;
-  onSaved: () => Promise<unknown> | void;
-  onSaveState: (state: "saving" | "saved" | "queued" | "failed") => void;
-}) {
-  const [items, setItems] = useState<TimetableRequirement[]>([]);
-  const saveMutation = useSchoolMutation<OfflineAware<RequirementsResponse>, Record<string, unknown>>("/api/timetable/requirements", "PUT");
-
-  useEffect(() => setItems(structuredClone(response?.items ?? [])), [response]);
-
-  const update = (index: number, patch: Partial<TimetableRequirement>) => setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
-  const add = () => setItems((current) => [...current, {
-    class_section_id: classes[0]?.id ?? "",
-    subject_id: subjects[0]?.id ?? "",
-    teacher_id: null,
-    periods_per_week: 1,
-    duration_periods: 1,
-    resource_id: null,
-    parallel_key: null,
-  }]);
-
-  const save = async () => {
-    if (items.length === 0) {
-      toast.error("Add at least one subject requirement before saving.");
-      return;
-    }
-    if (items.some((item) => !item.class_section_id || !item.subject_id || item.periods_per_week < 1 || item.duration_periods < 1)) {
-      toast.error("Every requirement needs a class, subject, weekly period count, and valid duration.");
-      return;
-    }
-    onSaveState("saving");
-    try {
-      const result = await saveMutation.mutateAsync({
-        academic_year: academicYear,
-        term_name: termName,
-        replace_existing: true,
-        requirements: items.map(({ row_version, ...item }) => ({ ...item, expected_row_version: row_version })),
-      });
-      if (!isOfflineQueued(result) && result.items.length !== items.length) {
-        throw new Error("The server did not confirm a complete transactional replacement of the subject requirements. Refresh before making more changes.");
-      }
-      saveMessage(result, "Subject period requirements", onSaveState);
-      if (!isOfflineQueued(result)) await onSaved();
-    } catch (mutationError) {
-      onSaveState("failed");
-      toast.error(mutationError instanceof Error ? mutationError.message : "Requirements could not be saved.");
-    }
-  };
-
-  if (loading || error) return <SetupState loading={loading} error={error} onRetry={onRetry} />;
-
-  return (
-    <section className="space-y-4" aria-label="Subject period requirements">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><h3 className="flex items-center gap-2 text-lg font-black text-[#071D49]"><Clock3 className="h-5 w-5" /> Subject period requirements</h3><p className="mt-1 text-sm text-[#64748B]">Define weekly frequency and single, double, or extended duration without duplicating teacher allocations.</p></div>
-        <div className="flex gap-2"><button type="button" onClick={add} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-black"><Plus className="h-4 w-4" /> Add requirement</button><button type="button" onClick={save} disabled={saveMutation.isPending} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#174EA6] px-4 text-sm font-black text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saveMutation.isPending ? "Saving..." : "Save requirements"}</button></div>
-      </div>
-      {items.length === 0 ? <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-6 text-center text-sm font-bold text-amber-900">No weekly subject requirements exist. Add the first class-subject requirement before automatic generation.</div> : null}
-      <div className="space-y-3">
-        {items.map((item, index) => (
-          <div key={item.id ?? `new-${index}`} className="grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-2 xl:grid-cols-[1.2fr_1.2fr_1.2fr_.7fr_.7fr_1fr_1fr_auto] xl:items-end">
-            <label className="text-xs font-black uppercase text-[#64748B]">Class<select value={item.class_section_id} onChange={(event) => update(index, { class_section_id: event.target.value })} className={fieldClass}><option value="">Select class</option>{classes.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
-            <label className="text-xs font-black uppercase text-[#64748B]">Subject<select value={item.subject_id} onChange={(event) => update(index, { subject_id: event.target.value })} className={fieldClass}><option value="">Select subject</option>{subjects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
-            <label className="text-xs font-black uppercase text-[#64748B]">Allocated teacher<select value={item.teacher_id ?? ""} onChange={(event) => update(index, { teacher_id: event.target.value || null })} className={fieldClass}><option value="">Use academic allocation</option>{teachers.map((row) => <option key={teacherId(row)} value={teacherId(row)}>{teacherLabel(row)}</option>)}</select></label>
-            <label className="text-xs font-black uppercase text-[#64748B]">Per week<input type="number" min={1} max={30} value={item.periods_per_week} onChange={(event) => update(index, { periods_per_week: Number(event.target.value) })} className={fieldClass} /></label>
-            <label className="text-xs font-black uppercase text-[#64748B]">Duration<input type="number" min={1} max={4} value={item.duration_periods} onChange={(event) => update(index, { duration_periods: Number(event.target.value) })} className={fieldClass} /></label>
-            <label className="text-xs font-black uppercase text-[#64748B]">Resource<select value={item.resource_id ?? ""} onChange={(event) => update(index, { resource_id: event.target.value || null })} className={fieldClass}><option value="">No exclusive resource</option>{resources.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
-            <label className="text-xs font-black uppercase text-[#64748B]">Parallel group<input value={item.parallel_key ?? ""} onChange={(event) => update(index, { parallel_key: event.target.value || null })} placeholder="Optional group" className={fieldClass} /></label>
-            <button type="button" onClick={() => setItems((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove subject requirement" className="grid h-11 w-11 place-items-center rounded-lg border border-rose-200 bg-white text-rose-700"><Trash2 className="h-4 w-4" /></button>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
+export { SubjectRequirementsPanel } from "./subject-requirements-panel";
 
 export function TeacherAvailabilityPanel({
   response,
@@ -359,11 +260,18 @@ export function TeacherAvailabilityPanel({
   onSaved: () => Promise<unknown> | void;
   onSaveState: (state: "saving" | "saved" | "queued" | "failed") => void;
 }) {
-  const [items, setItems] = useState<AvailabilityRule[]>([]);
+  const [items, setSavedItems] = useState<AvailabilityRule[]>([]);
+  const dirty = useRef(false);
+  const setItems = (updater: React.SetStateAction<AvailabilityRule[]>) => {
+    dirty.current = true;
+    setSavedItems(updater);
+  };
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const saveMutation = useSchoolMutation<OfflineAware<AvailabilityResponse>, Record<string, unknown>>("/api/timetable/availability", "PUT");
 
-  useEffect(() => setItems(structuredClone(response?.items ?? [])), [response]);
+  useEffect(() => {
+    if (!dirty.current) setSavedItems(structuredClone(response?.items ?? []));
+  }, [response]);
   useEffect(() => {
     if (!selectedTeacher && teachers.length > 0) setSelectedTeacher(teacherId(teachers[0]));
   }, [selectedTeacher, teachers]);
@@ -372,19 +280,15 @@ export function TeacherAvailabilityPanel({
   const visibleItems = items.map((item, index) => ({ item, index })).filter(({ item }) => item.teacher_id === selectedTeacher);
 
   const add = () => {
-    const period = periods[0];
+    const period = periods.find((candidate) => !items.some((rule) => rule.teacher_id === selectedTeacher && rule.period_id === candidate.id));
     if (!selectedTeacher || !period) {
-      toast.error("Select a teacher and configure at least one period first.");
+      toast.error("Select a teacher with an unconfigured period. Edit an existing rule if all periods already have rules.");
       return;
     }
     setItems((current) => [...current, { teacher_id: selectedTeacher, day_of_week: period.day_of_week, period_id: period.id, state: "unavailable", reason: "" }]);
   };
 
   const save = async () => {
-    if (items.length === 0) {
-      toast.error("Add at least one availability rule before saving.");
-      return;
-    }
     onSaveState("saving");
     try {
       const result = await saveMutation.mutateAsync({
@@ -397,7 +301,11 @@ export function TeacherAvailabilityPanel({
         throw new Error("The server did not confirm a complete transactional replacement of teacher availability. Refresh before making more changes.");
       }
       saveMessage(result, "Teacher availability", onSaveState);
-      if (!isOfflineQueued(result)) await onSaved();
+      if (!isOfflineQueued(result)) {
+        dirty.current = false;
+        setSavedItems(structuredClone(result.items));
+        await onSaved();
+      }
     } catch (mutationError) {
       onSaveState("failed");
       toast.error(mutationError instanceof Error ? mutationError.message : "Teacher availability could not be saved.");

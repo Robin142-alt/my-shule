@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
@@ -723,7 +724,7 @@ export class TimetableWorkflowRepository {
          AND resource.id = requirement.resource_id
         WHERE requirement.tenant_id = $1
           AND requirement.academic_year = $2 AND requirement.term_name = $3
-          AND requirement.status <> 'archived'
+          AND requirement.status = 'active'
         ORDER BY class_name, stream_name NULLS FIRST, subject_name, teacher_name
       `,
       [tenantId, academicYear, termName],
@@ -738,9 +739,14 @@ export class TimetableWorkflowRepository {
     requirements: any[];
     replace_existing?: boolean;
     actor_user_id: string | null;
+    mutation_id?: string;
+    onSaved?: (tx: Prisma.TransactionClient) => Promise<void>;
   }) {
     await this.assertAcademicScope(input.tenant_id, input.academic_year, input.term_name);
+    this.assertUniqueSetupRows(input.requirements, (row) => [row.class_section_id, row.subject_id,
+      row.stream_id ?? null, row.teacher_id ?? null, row.parallel_key ?? null], 'subject requirement');
     await this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
+      await this.lockSetupScope(tx, input);
       const retainedIds: string[] = [];
       for (const requirement of input.requirements) {
         const refs = this.asRows<any>(await tx.$queryRawUnsafe(
@@ -788,18 +794,24 @@ export class TimetableWorkflowRepository {
           throw new BadRequestException('A timetable requirement references a class, stream, subject, teacher, or resource outside this school');
         }
 
-        const existing = this.asRows<any>(await tx.$queryRawUnsafe(
+        const matching = this.asRows<any>(await tx.$queryRawUnsafe(
           `SELECT id::text, row_version FROM timetable_subject_requirements
            WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3
-             AND class_section_id = $4 AND subject_id = $5
+             AND (id::text = $9 OR (class_section_id = $4 AND subject_id = $5
              AND stream_id IS NOT DISTINCT FROM $6::text
              AND teacher_id IS NOT DISTINCT FROM $7::text
-             AND parallel_key IS NOT DISTINCT FROM $8::text
+             AND parallel_key IS NOT DISTINCT FROM $8::text))
            FOR UPDATE`,
           input.tenant_id, input.academic_year, input.term_name,
           String(requirement.class_section_id), String(requirement.subject_id),
           requirement.stream_id ?? null, requirement.teacher_id ?? null, requirement.parallel_key ?? null,
-        ))[0];
+          requirement.id ?? null,
+        ));
+        if (matching.length > 1) throw new ConflictException('This class, subject and teacher already have a requirement. Edit the existing row.');
+        const existing = matching[0];
+        if (requirement.id && existing?.id !== requirement.id) {
+          throw new ConflictException('The subject requirement is no longer available in this school term. Refresh and retry.');
+        }
 
         if (existing && requirement.expected_row_version != null
           && Number(existing.row_version) !== Number(requirement.expected_row_version)) {
@@ -813,12 +825,16 @@ export class TimetableWorkflowRepository {
              SET periods_per_week = $3, duration_periods = $4, resource_id = $5::uuid,
                  preferred_days = $6::jsonb, preferred_start_period_ids = $7::jsonb,
                  status = 'active', row_version = row_version + 1,
-                 updated_by_user_id = $8::uuid, updated_at = NOW()
+                 updated_by_user_id = $8::uuid, updated_at = NOW(),
+                 class_section_id = $9, subject_id = $10, stream_id = $11,
+                 teacher_id = $12, parallel_key = $13
              WHERE tenant_id = $1 AND id = $2::uuid`,
             input.tenant_id, id, Number(requirement.periods_per_week),
             Number(requirement.duration_periods || 1), requirement.resource_id ?? null,
             JSON.stringify(requirement.preferred_days ?? []),
             JSON.stringify(requirement.preferred_start_period_ids ?? []), input.actor_user_id,
+            String(requirement.class_section_id), String(requirement.subject_id), requirement.stream_id ?? null,
+            requirement.teacher_id ?? null, requirement.parallel_key ?? null,
           );
         } else {
           await tx.$executeRawUnsafe(
@@ -863,8 +879,8 @@ export class TimetableWorkflowRepository {
         input.tenant_id, input.academic_year, input.term_name,
       );
       await tx.$executeRawUnsafe(
-        `INSERT INTO timetable_audit_logs (tenant_id, actor_user_id, action, metadata)
-         VALUES ($1, $2::uuid, 'timetable.requirements.updated', $3::jsonb)`,
+        `INSERT INTO timetable_audit_logs (tenant_id, actor_user_id, action, metadata, id)
+         VALUES ($1, $2::uuid, 'timetable.requirements.updated', $3::jsonb, $4::uuid)`,
         input.tenant_id, input.actor_user_id,
         JSON.stringify({
           academic_year: input.academic_year,
@@ -872,7 +888,9 @@ export class TimetableWorkflowRepository {
           count: input.requirements.length,
           replace_existing: Boolean(input.replace_existing),
         }),
+        input.mutation_id ?? randomUUID(),
       );
+      await input.onSaved?.(tx);
     });
     return this.listRequirements(input.tenant_id, input.academic_year, input.term_name);
   }
@@ -905,9 +923,13 @@ export class TimetableWorkflowRepository {
     items: any[];
     replace_existing?: boolean;
     actor_user_id: string | null;
+    mutation_id?: string;
+    onSaved?: (tx: Prisma.TransactionClient) => Promise<void>;
   }) {
     await this.assertAcademicScope(input.tenant_id, input.academic_year, input.term_name);
+    this.assertUniqueSetupRows(input.items, (row) => [row.teacher_id, row.day_of_week, row.period_id], 'availability rule');
     await this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
+      await this.lockSetupScope(tx, input);
       const retainedIds: string[] = [];
       for (const item of input.items) {
         const refs = this.asRows<any>(await tx.$queryRawUnsafe(
@@ -924,14 +946,19 @@ export class TimetableWorkflowRepository {
         if (!refs?.teacher_ok || !refs?.period_ok) {
           throw new BadRequestException('Teacher availability references a teacher or period outside this school configuration');
         }
-        const existing = this.asRows<any>(await tx.$queryRawUnsafe(
+        const matching = this.asRows<any>(await tx.$queryRawUnsafe(
           `SELECT id::text, row_version FROM timetable_teacher_availability
            WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3
-             AND teacher_id = $4 AND day_of_week = $5 AND period_id = $6::uuid
+             AND (id::text = $7 OR (teacher_id = $4 AND day_of_week = $5 AND period_id = $6::uuid))
            FOR UPDATE`,
           input.tenant_id, input.academic_year, input.term_name, String(item.teacher_id),
-          Number(item.day_of_week), String(item.period_id),
-        ))[0];
+          Number(item.day_of_week), String(item.period_id), item.id ?? null,
+        ));
+        if (matching.length > 1) throw new ConflictException('This teacher already has a rule for that period. Edit the existing rule.');
+        const existing = matching[0];
+        if (item.id && existing?.id !== item.id) {
+          throw new ConflictException('The availability rule is no longer available in this school term. Refresh and retry.');
+        }
         if (existing && item.expected_row_version != null
           && Number(existing.row_version) !== Number(item.expected_row_version)) {
           throw new ConflictException('Teacher availability changed since it was loaded; refresh and retry');
@@ -942,9 +969,11 @@ export class TimetableWorkflowRepository {
           await tx.$executeRawUnsafe(
             `UPDATE timetable_teacher_availability
              SET state = $3, reason = $4, row_version = row_version + 1,
-                 updated_by_user_id = $5::uuid, updated_at = NOW()
+                 updated_by_user_id = $5::uuid, updated_at = NOW(),
+                 teacher_id = $6, day_of_week = $7, period_id = $8::uuid
              WHERE tenant_id = $1 AND id = $2::uuid`,
             input.tenant_id, existing.id, String(item.state), item.reason ?? null, input.actor_user_id,
+            String(item.teacher_id), Number(item.day_of_week), String(item.period_id),
           );
         } else {
           await tx.$executeRawUnsafe(
@@ -977,8 +1006,8 @@ export class TimetableWorkflowRepository {
         input.tenant_id, input.academic_year, input.term_name,
       );
       await tx.$executeRawUnsafe(
-        `INSERT INTO timetable_audit_logs (tenant_id, actor_user_id, action, metadata)
-         VALUES ($1, $2::uuid, 'timetable.availability.updated', $3::jsonb)`,
+        `INSERT INTO timetable_audit_logs (tenant_id, actor_user_id, action, metadata, id)
+         VALUES ($1, $2::uuid, 'timetable.availability.updated', $3::jsonb, $4::uuid)`,
         input.tenant_id, input.actor_user_id,
         JSON.stringify({
           academic_year: input.academic_year,
@@ -986,9 +1015,31 @@ export class TimetableWorkflowRepository {
           count: input.items.length,
           replace_existing: Boolean(input.replace_existing),
         }),
+        input.mutation_id ?? randomUUID(),
       );
+      await input.onSaved?.(tx);
     });
     return this.listAvailability(input.tenant_id, input.academic_year, input.term_name);
+  }
+
+  private assertUniqueSetupRows(rows: any[], key: (row: any) => unknown[], label: string) {
+    const keys = new Set<string>();
+    const ids = new Set<string>();
+    for (const row of rows) {
+      const identity = JSON.stringify(key(row));
+      if (keys.has(identity) || (row.id && ids.has(row.id))) {
+        throw new BadRequestException(`Duplicate ${label}. Keep one row for each combination before saving.`);
+      }
+      keys.add(identity);
+      if (row.id) ids.add(row.id);
+    }
+  }
+
+  private async lockSetupScope(tx: Prisma.TransactionClient, input: { tenant_id: string; academic_year: string; term_name: string }) {
+    await tx.$queryRawUnsafe(
+      `SELECT pg_advisory_xact_lock(hashtext($1::text || ':' || $2::text || ':' || $3::text))::text`,
+      input.tenant_id, input.academic_year, input.term_name,
+    );
   }
 
   async listResources(tenantId: string, status?: string) {
