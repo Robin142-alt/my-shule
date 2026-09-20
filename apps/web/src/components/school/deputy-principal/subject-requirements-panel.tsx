@@ -49,12 +49,23 @@ export function SubjectRequirementsPanel({ response, academicYear, termName, cla
   const update = (index: number, patch: Partial<TimetableRequirement>) => edit((current) => current.map((item, i) => i === index ? {
     ...item, ...patch,
     ...(["class_section_id", "subject_id", "stream_id", "teacher_id"].some((key) => key in patch)
-      ? { resolved_teacher_id: undefined, resolved_teacher_name: undefined, allocation_status: undefined } : {}),
+      ? { resolved_teacher_id: undefined, resolved_teacher_name: undefined, resolved_stream_id: undefined, resolved_stream_name: undefined, allocation_status: undefined } : {}),
   } : item));
   const today = new Date().toISOString().slice(0, 10);
   const activeAssignments = assignments.filter((assignment) => (!assignment.status || assignment.status === "active")
     && (!assignment.effective_from || assignment.effective_from.slice(0, 10) <= today)
     && (!assignment.effective_to || assignment.effective_to.slice(0, 10) >= today));
+  const allocationFor = (item: TimetableRequirement) => {
+    let matching = activeAssignments.filter((row) => row.class_section_id === item.class_section_id && row.subject_id === item.subject_id
+      && (!item.stream_id || !row.stream_id || row.stream_id === item.stream_id)
+      && (!item.teacher_id || row.teacher_user_id === item.teacher_id));
+    if (!item.stream_id && matching.some((row) => !row.stream_id)) matching = matching.filter((row) => !row.stream_id);
+    const streams = new Set(matching.map((row) => item.stream_id ?? row.stream_id ?? null));
+    const streamRequired = item.allocation_status === "stream_required" || (!item.allocation_status && streams.size > 1);
+    const streamId = item.stream_id ?? item.resolved_stream_id ?? (streams.size === 1 ? [...streams][0] : null);
+    return { matching, streamRequired, streamId,
+      streamName: item.stream_name || item.resolved_stream_name || matching.find((row) => row.stream_id === streamId)?.stream_name };
+  };
   const add = () => edit((current) => [...current, { class_section_id: classFilter || classes[0]?.id || "", subject_id: "", teacher_id: null, periods_per_week: defaultPeriods, duration_periods: 1 }]);
   const visibleItems = items.map((item, index) => ({ item, index })).filter(({ item }) => !classFilter || item.class_section_id === classFilter);
   const capacity = configuration?.days.filter((day) => day.is_teaching_day).reduce((sum, day) => sum + day.periods.filter((period) => period.is_teaching).length, 0) ?? 0;
@@ -67,7 +78,7 @@ export function SubjectRequirementsPanel({ response, academicYear, termName, cla
       && classes.some((row) => row.id === assignment.class_section_id) && subjects.some((row) => row.id === assignment.subject_id));
     const next = [...items];
     for (const assignment of candidates) {
-      if (!next.some((row) => row.class_section_id === assignment.class_section_id && row.subject_id === assignment.subject_id && (row.stream_id ?? null) === (assignment.stream_id ?? null))) {
+      if (!next.some((row) => row.class_section_id === assignment.class_section_id && row.subject_id === assignment.subject_id && (allocationFor(row).streamId ?? null) === (assignment.stream_id ?? null))) {
         next.push({ class_section_id: assignment.class_section_id, stream_id: assignment.stream_id ?? null, subject_id: assignment.subject_id, teacher_id: null, periods_per_week: defaultPeriods, duration_periods: 1 });
       }
     }
@@ -135,12 +146,15 @@ export function SubjectRequirementsPanel({ response, academicYear, termName, cla
       })}
       {visibleItems.length === 0 ? <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">No requirements for this selection. Use Add allocated subjects to start from your teaching assignments, or add a requirement manually.</div> : null}
       {visibleItems.map(({ item, index }) => {
-        const allocatedIds = new Set(activeAssignments.filter((row) => row.class_section_id === item.class_section_id && row.subject_id === item.subject_id && (!row.stream_id || row.stream_id === item.stream_id)).map((row) => row.teacher_user_id));
+        const allocation = allocationFor(item);
+        const allocatedIds = new Set(activeAssignments.filter((row) => row.class_section_id === item.class_section_id && row.subject_id === item.subject_id
+          && (allocation.streamRequired || !row.stream_id || row.stream_id === allocation.streamId)).map((row) => row.teacher_user_id));
         const allocatedNames = teachers.filter((row) => allocatedIds.has(teacherId(row))).map(teacherLabel);
         const selectedTeacher = teachers.find((row) => teacherId(row) === item.teacher_id);
         const classStreams = activeAssignments.filter((row) => row.class_section_id === item.class_section_id && row.stream_id);
         const streamOptions = [...new Map(classStreams.map((row) => [row.stream_id!, row.stream_name || row.stream_id!])).entries()];
-        const teacherText = item.allocation_status === "missing" ? "No active matching allocation. Review Academic Foundation."
+        const teacherText = allocation.streamRequired ? "Teachers are already allocated. Choose the stream below."
+          : item.allocation_status === "missing" ? "No active matching allocation. Review Academic Foundation."
           : item.allocation_status === "ambiguous" || (!item.teacher_id && !item.resolved_teacher_id && allocatedIds.size > 1)
             ? "Multiple teachers are allocated. Choose the teacher below."
             : selectedTeacher ? teacherLabel(selectedTeacher)
@@ -153,11 +167,12 @@ export function SubjectRequirementsPanel({ response, academicYear, termName, cla
             <label className="text-sm font-bold">Lesson length<select value={item.duration_periods} onChange={(event) => update(index, { duration_periods: Number(event.target.value) })} className={fieldClass}><option value={1}>Single period</option><option value={2}>Double period</option><option value={3}>3 periods</option><option value={4}>4 periods</option></select></label>
             <button type="button" onClick={() => edit((current) => current.filter((_, i) => i !== index))} aria-label="Remove subject requirement" className="grid h-11 w-11 place-items-center rounded-lg border border-rose-200 bg-white text-rose-700"><Trash2 className="h-4 w-4" /></button>
           </div>
-          <p className="text-sm text-[#64748B]">Teacher: {teacherText}{!item.teacher_id && (item.allocation_status === "resolved" || (!item.allocation_status && allocatedIds.size === 1)) ? " (from academic allocation)" : ""}</p>
-          <details open={Boolean(item.resource_id || item.parallel_key || item.teacher_id || item.stream_id || item.allocation_status === "ambiguous" || allocatedIds.size > 1)}>
+          <p className="text-sm text-[#64748B]">Teacher: {teacherText}{!allocation.streamRequired && !item.teacher_id && (item.allocation_status === "resolved" || (!item.allocation_status && allocatedIds.size === 1)) ? " (from academic allocation)" : ""}</p>
+          {allocation.streamId ? <p className="text-sm text-[#64748B]">Stream: {allocation.streamName || allocation.streamId}{!item.stream_id ? " (from academic allocation)" : ""}</p> : null}
+          <details open={Boolean(item.resource_id || item.parallel_key || item.teacher_id || item.stream_id || allocation.streamRequired || item.allocation_status === "ambiguous" || allocatedIds.size > 1)}>
             <summary className="cursor-pointer text-sm font-bold text-[#174EA6]">Teacher, room & parallel options</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {streamOptions.length > 0 || item.stream_id ? <label className="min-w-0 text-sm font-bold">Stream<select value={item.stream_id ?? ""} onChange={(event) => update(index, { stream_id: event.target.value || null, teacher_id: null })} className={fieldClass}><option value="">Whole class</option>{item.stream_id && !streamOptions.some(([id]) => id === item.stream_id) ? <option value={item.stream_id}>{item.stream_name || item.stream_id}</option> : null}{streamOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label> : null}
+              {streamOptions.length > 0 || item.stream_id || allocation.streamId ? <label className="min-w-0 text-sm font-bold">Stream<select value={item.stream_id ?? ""} onChange={(event) => update(index, { stream_id: event.target.value || null, teacher_id: null })} className={fieldClass}><option value="">Use academic allocation automatically</option>{item.stream_id && !streamOptions.some(([id]) => id === item.stream_id) ? <option value={item.stream_id}>{item.stream_name || item.stream_id}</option> : null}{streamOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label> : null}
               <label className="min-w-0 text-sm font-bold">Allocated teacher<select value={item.teacher_id ?? ""} onChange={(event) => update(index, { teacher_id: event.target.value || null })} className={fieldClass}><option value="">Use academic allocation automatically</option>{item.teacher_id && !allocatedIds.has(item.teacher_id) ? <option value={item.teacher_id}>{selectedTeacher ? teacherLabel(selectedTeacher) : "Previous teacher"} (allocation needs review)</option> : null}{teachers.filter((row) => allocatedIds.has(teacherId(row))).map((row) => <option key={teacherId(row)} value={teacherId(row)}>{teacherLabel(row)}</option>)}</select></label>
               <label className="min-w-0 text-sm font-bold">Resource<select value={item.resource_id ?? ""} onChange={(event) => update(index, { resource_id: event.target.value || null })} className={fieldClass}><option value="">No exclusive resource</option>{resources.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
               <label className="text-sm font-bold">Parallel group<input value={item.parallel_key ?? ""} onChange={(event) => update(index, { parallel_key: event.target.value || null })} placeholder="Optional group" className={fieldClass} /></label>

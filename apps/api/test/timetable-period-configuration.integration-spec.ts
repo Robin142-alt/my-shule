@@ -291,6 +291,7 @@ describe('School day configuration persistence', () => {
     expect(blocked.blockers).toContainEqual(expect.objectContaining({ code: 'INVALID_TEACHER_ALLOCATIONS',
       action_url: '/school/deputy-principal/academics', details: [expect.objectContaining({ class_name: 'Form 4', subject_name: 'Mathematics', reason: expect.stringContaining('More than one') })] }));
     await pool.query(`UPDATE teacher_subject_assignments SET status='ended' WHERE id=$1`, [duplicate]);
+    await repository.saveRequirements({ ...input, requirements: [{ ...requirement, id: saved[0].id, stream_id: 'blue' }] });
     for (const patch of ["effective_from=CURRENT_DATE+1", "effective_from=NULL, effective_to=CURRENT_DATE-1", "effective_to=NULL, status='ended'", "status='active', stream_id='red'"]) {
       await pool.query(`UPDATE teacher_subject_assignments SET ${patch} WHERE id=$1`, [assignment]);
       expect((await constraints.readiness(tenant, '2026', 'Term 1')).checks.teacher_allocations).toBe(false);
@@ -303,6 +304,58 @@ describe('School day configuration persistence', () => {
     await pool.query(`UPDATE staff_profiles SET status='active' WHERE tenant_id=$1 AND user_id=$2`, [tenant, replacement]);
     await repository.saveRequirements({ ...input, requirements: [{ ...requirement, id: saved[0].id, stream_id: 'blue', teacher_id: teacher }] });
     expect((await constraints.readiness(tenant, '2026', 'Term 1')).checks.teacher_allocations).toBe(false);
+  });
+
+  it('uses an existing across-term stream allocation for legacy requirements through generation and gap recovery', async () => {
+    const tenant = 'school-yellow'; const year = randomUUID(); const teacher = randomUUID(); const version = randomUUID();
+    await pool.query(`INSERT INTO academic_years VALUES ($1, $2, '2026', 'active', NULL)`, [year, tenant]);
+    await pool.query(`INSERT INTO academic_terms VALUES ($1, $2, $3, 'Term 1', 'active', NULL, '2026-01-01', '2026-12-31')`, [randomUUID(), tenant, year]);
+    await pool.query(`INSERT INTO class_sections (id, tenant_id, academic_year_id, name) VALUES ('form4', $1, $2, 'Form 4')`, [tenant, year]);
+    await pool.query(`INSERT INTO class_streams (id, tenant_id, class_section_id, name) VALUES ('yellow', $1, 'form4', 'Yellow'), ('blue', $1, 'form4', 'Blue')`, [tenant]);
+    await pool.query(`INSERT INTO subjects (id, tenant_id, name) VALUES ('agriculture', $1, 'Agriculture')`, [tenant]);
+    await pool.query(`INSERT INTO staff_profiles (tenant_id, user_id, display_name, staff_number, status) VALUES ($1, $2, 'Allocated Teacher', 'Y1', 'active')`, [tenant, teacher]);
+    const insertAssignment = async (school: string, stream: string | null) => (await pool.query(`INSERT INTO teacher_subject_assignments
+      (tenant_id, class_section_id, stream_id, subject_id, teacher_user_id, academic_term_id)
+      VALUES ($1, 'form4', $2, 'agriculture', $3, NULL) RETURNING id::text`, [school, stream, teacher])).rows[0].id;
+    await insertAssignment(tenant, 'yellow');
+    await insertAssignment('school-b', 'blue');
+    const input = makeInput(tenant); await repository.saveConfiguration(input);
+    const [saved] = await repository.saveRequirements({ ...input, requirements: [{ class_section_id: 'form4', subject_id: 'agriculture',
+      teacher_id: null, stream_id: null, periods_per_week: 1, duration_periods: 1 }] });
+    const constraints = new TimetableConstraintService(repository);
+    expect(saved).toMatchObject({ teacher_id: null, stream_id: null, resolved_teacher_id: teacher,
+      resolved_stream_id: 'yellow', resolved_stream_name: 'Yellow', allocation_status: 'resolved', row_version: 1 });
+    expect((await constraints.readiness(tenant, '2026', 'Term 1')).status).toBe('READY');
+    const generated = constraints.generate(await constraints.getSnapshot(tenant, '2026', 'Term 1'));
+    expect(generated.gaps).toEqual([]);
+    expect(generated.placements).toEqual([expect.objectContaining({ teacher_id: teacher, stream_id: 'yellow', requirement_id: saved.id })]);
+    await pool.query(`INSERT INTO timetable_versions (id, tenant_id, academic_year, term_name, status) VALUES ($1, $2, '2026', 'Term 1', 'draft')`, [version, tenant]);
+    await repository.saveGenerationResult({ tenant_id: tenant, version_id: version, scope: { type: 'school' }, ...generated, required_lessons: 1, actor_user_id: actor });
+    const persisted = await constraints.getSnapshot(tenant, '2026', 'Term 1', version);
+    expect(persisted.slots[0]).toMatchObject({ stream_id: 'yellow', teacher_id: teacher });
+    expect(constraints.validateVersion(persisted)).toMatchObject({ valid: true, summary: { unscheduled: 0 } });
+    await repository.saveGenerationResult({ tenant_id: tenant, version_id: version, scope: { type: 'school' }, placements: [], warnings: [],
+      gaps: [{ requirement_id: saved.id, remaining_periods: 1, duration_periods: 1, reason_code: 'NO_VALID_SLOT', reason_message: 'Review availability' }], required_lessons: 1, actor_user_id: actor });
+    const [gap] = await repository.listUnscheduled(tenant, '2026', 'Term 1', version);
+    expect(gap).toMatchObject({ stream_id: 'yellow', stream_name: 'Yellow', teacher_id: teacher });
+    expect(await repository.getUnscheduled(tenant, gap.id)).toMatchObject({ stream_id: 'yellow', teacher_id: teacher });
+    await repository.saveGenerationResult({ tenant_id: tenant, version_id: version, scope: { type: 'stream', id: 'yellow' }, ...generated, required_lessons: 1, actor_user_id: actor });
+    expect(await repository.countOpenUnscheduled(tenant, version)).toBe(0);
+    // The same teacher teaching two streams must never become a whole-class lesson.
+    const secondStream = await insertAssignment(tenant, 'blue');
+    expect((await repository.listRequirements(tenant, '2026', 'Term 1'))[0]).toMatchObject({ allocation_status: 'stream_required', resolved_teacher_id: null });
+    expect((await constraints.readiness(tenant, '2026', 'Term 1')).blockers).toContainEqual(expect.objectContaining({
+      details: [expect.objectContaining({ reason: expect.stringContaining('Teachers are already allocated to multiple streams') })] }));
+    expect(constraints.generate(await constraints.getSnapshot(tenant, '2026', 'Term 1')).placements).toEqual([]);
+    // An explicit whole-class allocation takes precedence over stream inference.
+    const wholeClass = await insertAssignment(tenant, null);
+    expect((await repository.listRequirements(tenant, '2026', 'Term 1'))[0]).toMatchObject({ allocation_status: 'resolved', resolved_stream_id: null, resolved_teacher_id: teacher });
+    await pool.query(`UPDATE teacher_subject_assignments SET status='ended' WHERE id=ANY($1::uuid[])`, [[secondStream, wholeClass]]);
+    await pool.query(`UPDATE class_streams SET is_active=FALSE WHERE tenant_id=$1 AND id='yellow'`, [tenant]);
+    expect((await repository.listRequirements(tenant, '2026', 'Term 1'))[0].allocation_status).toBe('missing');
+    // Resolution is read-only: no resave, row-version change or migration is required.
+    expect((await pool.query(`SELECT teacher_id, stream_id, row_version FROM timetable_subject_requirements WHERE tenant_id=$1 AND id=$2`, [tenant, saved.id])).rows[0])
+      .toEqual({ teacher_id: null, stream_id: null, row_version: 1 });
   });
 
   it('keeps schools separate and rolls back attempts to reuse another school period ID', async () => {
