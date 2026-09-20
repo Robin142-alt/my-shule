@@ -70,7 +70,9 @@ export class TimetableConstraintService {
         class_name: requirement.class_name,
         stream_name: requirement.stream_name,
         subject_name: requirement.subject_name,
-        reason: requirement.allocation_status === 'ambiguous'
+        reason: requirement.allocation_status === 'stream_required'
+          ? 'Teachers are already allocated to multiple streams. Choose the stream in subject requirements.'
+          : requirement.allocation_status === 'ambiguous'
           ? 'More than one teacher is allocated. Select the allocated teacher in subject requirements.'
           : 'No active allocation matches this class, subject and stream in the selected term.',
       }));

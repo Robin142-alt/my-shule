@@ -108,3 +108,30 @@ it("adds stream allocations separately and excludes ended assignments and unrela
   expect(screen.getAllByText("Teacher: Alex Teacher (from academic allocation)")).toHaveLength(2);
   expect(screen.queryByRole("option", { name: "Unrelated Teacher" })).not.toBeInTheDocument();
 });
+
+it("shows the automatically matched Yellow stream without duplicating or pinning a saved requirement", async () => {
+  render(<SubjectRequirementsPanel {...base} assignments={[{ ...base.assignments[0], stream_id: "yellow", stream_name: "Yellow" }]}
+    response={{ items: [{ ...savedRow, stream_id: null, teacher_id: null, resolved_stream_id: "yellow", resolved_stream_name: "Yellow",
+      resolved_teacher_id: "teacher", resolved_teacher_name: "Alex Teacher", allocation_status: "resolved" }] }} />);
+  expect(screen.getByText("Stream: Yellow (from academic allocation)")).toBeVisible();
+  expect(screen.getByText("Teacher: Alex Teacher (from academic allocation)")).toBeVisible();
+  fireEvent.click(screen.getByText("Add allocated subjects"));
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  fireEvent.change(screen.getByLabelText("Periods/week"), { target: { value: "6" } });
+  fireEvent.click(screen.getByText("Save requirements"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0][0].requirements).toEqual([expect.objectContaining({ id: savedRow.id, stream_id: null, teacher_id: null, periods_per_week: 6 })]);
+  expect(mockSave.mock.calls[0][0].requirements[0]).not.toHaveProperty("resolved_stream_id");
+});
+
+it("asks for the stream when teachers are already allocated to several streams and resolves after selection", () => {
+  render(<SubjectRequirementsPanel {...base} assignments={[
+    { ...base.assignments[0], stream_id: "yellow", stream_name: "Yellow" },
+    { ...base.assignments[0], id: "blue", stream_id: "blue", stream_name: "Blue" },
+  ]} response={{ items: [{ ...savedRow, allocation_status: "stream_required" }] }} />);
+  expect(screen.getByText("Teacher: Teachers are already allocated. Choose the stream below.")).toBeVisible();
+  expect(screen.getByLabelText("Stream")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Stream"), { target: { value: "yellow" } });
+  expect(screen.getByText("Teacher: Alex Teacher (from academic allocation)")).toBeVisible();
+  expect(screen.getByText("Stream: Yellow")).toBeVisible();
+});

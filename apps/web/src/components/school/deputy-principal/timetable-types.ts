@@ -185,7 +185,9 @@ export type TimetableRequirement = {
   teacher_id?: string | null;
   resolved_teacher_id?: string | null;
   resolved_teacher_name?: string | null;
-  allocation_status?: "resolved" | "missing" | "ambiguous";
+  resolved_stream_id?: string | null;
+  resolved_stream_name?: string | null;
+  allocation_status?: "resolved" | "missing" | "ambiguous" | "stream_required";
   stream_name?: string | null;
   periods_per_week: number;
   duration_periods: number;
