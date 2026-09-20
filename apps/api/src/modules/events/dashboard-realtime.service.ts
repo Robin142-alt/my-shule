@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { catchError, concat, from, interval, map, Observable, of, switchMap } from 'rxjs';
+import { catchError, concat, exhaustMap, from, interval, map, Observable, of } from 'rxjs';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ModuleAccessService } from '../module-access/module-access.service';
@@ -578,7 +578,10 @@ export class DashboardRealtimeService {
     let cursor: string | null | undefined;
 
     return concat(of(0), interval(pollMs)).pipe(
-      switchMap(() =>
+      // Database promises cannot be cancelled by RxJS unsubscription. Keep one
+      // snapshot in flight so a slow poll does not queue more transactions or
+      // discard every result before it can advance the cursor.
+      exhaustMap(() =>
         from(this.getCurrentTenantSnapshot({ since: cursor })).pipe(
           map((snapshot) => {
             cursor = snapshot.cursor;

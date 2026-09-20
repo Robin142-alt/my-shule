@@ -37,6 +37,7 @@ export function buildRequestSessionSettingsQuery(context: RequestContextState): 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
+  private readonly connectionPool: Pool;
   private static readonly SCHEMA_BOOTSTRAP_LOCK_KEY = 'my_shule_prisma_schema_bootstrap';
   private static schemaBootstrapQueue: Promise<void> = Promise.resolve();
   private static schemaBootstrapByHash = new Map<string, Promise<void>>();
@@ -46,9 +47,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     private readonly requestContext: RequestContextService,
     private readonly databaseSecurityService: DatabaseSecurityService,
   ) {
-    super({
-      adapter: new PrismaPg(process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL),
+    const connectionPool = new Pool({
+      connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+      application_name: 'my-shule-prisma',
+      connectionTimeoutMillis: 10000,
     });
+    super({
+      adapter: new PrismaPg(connectionPool, { disposeExternalPool: true }),
+    });
+    this.connectionPool = connectionPool;
   }
 
   async onModuleInit() {
@@ -271,7 +278,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       timeout: 60000,
     });
   }
-  async ping(): Promise<"up"> { return "up"; }
-  async getPoolMetrics(): Promise<any> { return { totalCount: 10, idleCount: 10, waitingCount: 0 }; }
+  async ping(): Promise<'up'> {
+    const healthQuery = { text: 'SELECT 1', query_timeout: 5000 };
+    await this.connectionPool.query(healthQuery);
+    return 'up';
+  }
+  getPoolMetrics(): { totalCount: number; idleCount: number; waitingCount: number } {
+    return {
+      totalCount: this.connectionPool.totalCount,
+      idleCount: this.connectionPool.idleCount,
+      waitingCount: this.connectionPool.waitingCount,
+    };
+  }
   async synchronizeRequestSession(sessionId?: any): Promise<void> { return Promise.resolve(); }
 }

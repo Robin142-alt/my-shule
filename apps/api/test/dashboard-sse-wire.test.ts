@@ -10,6 +10,20 @@ import { ResponseEnvelopeInterceptor } from '../src/interceptors/response-envelo
 import { RequestIdInterceptor } from '../src/interceptors/request-id.interceptor';
 import { RequestContextMiddleware } from '../src/middleware/request-context.middleware';
 import type { Request, Response, NextFunction } from 'express';
+import { firstValueFrom, timeout } from 'rxjs';
+
+test('slow SSE database polls do not overlap or discard their completed snapshot', { timeout: 9000 }, async () => {
+  let polls = 0;
+  const service = new DashboardRealtimeService({} as never, {} as never, {} as never, { get: () => 5000 } as never);
+  service.getCurrentTenantSnapshot = async () => {
+    polls += 1;
+    await new Promise(resolve => setTimeout(resolve, 6000));
+    return { tenant_id: 'tenant-a', generated_at: new Date().toISOString(), cursor: null, events: [] };
+  };
+  const frame = await firstValueFrom(service.streamCurrentTenantEvents().pipe(timeout(8000)));
+  assert.equal(frame.type, 'dashboard.events');
+  assert.equal(polls, 1);
+});
 
 test('real HTTP SSE retains named frames and separates concurrent tenant contexts', async () => {
   const context = new RequestContextService();
