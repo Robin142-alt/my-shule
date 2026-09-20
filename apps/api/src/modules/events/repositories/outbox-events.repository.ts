@@ -28,6 +28,7 @@ interface OutboxEventRow {
   source_dashboard: string | null;
   correlation_id: string | null;
   created_at: Date;
+  stream_created_at?: string;
   updated_at: Date;
 }
 
@@ -253,6 +254,7 @@ export class OutboxEventsRepository {
           source_dashboard,
           correlation_id,
           created_at,
+          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS stream_created_at,
           updated_at
         FROM outbox_events
         WHERE tenant_id = $1
@@ -337,7 +339,9 @@ export class OutboxEventsRepository {
       actor_role: row.actor_role,
       source_dashboard: row.source_dashboard,
       correlation_id: row.correlation_id,
-      created_at: row.created_at.toISOString(),
+      // Preserve PostgreSQL microseconds in stream cursors. A JavaScript Date
+      // loses precision and can replay or skip events within that millisecond.
+      created_at: row.stream_created_at ?? row.created_at.toISOString(),
       updated_at: row.updated_at.toISOString(),
     };
   }

@@ -90,6 +90,7 @@ export type MetricOutcome = 'success' | 'failure' | 'ignored';
 
 export type MetricOperation =
   | 'request'
+  | 'stream'
   | 'stk_push'
   | 'callback_process'
   | 'sync_register'

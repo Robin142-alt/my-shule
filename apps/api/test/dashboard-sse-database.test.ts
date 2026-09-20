@@ -51,12 +51,20 @@ test('database-backed SSE releases connections between polls under concurrent te
       INSERT INTO module_registry VALUES ('11111111-1111-4111-8111-111111111111', 'admissions', 'active');
       INSERT INTO school_module_access (tenant_id, module_id, enabled, access_level)
         SELECT t, '11111111-1111-4111-8111-111111111111', true, 'standard' FROM unnest(ARRAY['tenant-a','tenant-b']) t;
-      INSERT INTO outbox_events (tenant_id, school_id, event_key, event_name, aggregate_type)
-        SELECT t,t,'fixture-' || t,'student.created','student' FROM unnest(ARRAY['tenant-a','tenant-b']) t;
+      INSERT INTO outbox_events (tenant_id, school_id, event_key, event_name, aggregate_type, created_at)
+        SELECT t,t,'fixture-' || t,'student.created','student','2026-09-20T00:00:00.123456Z'::timestamptz
+        FROM unnest(ARRAY['tenant-a','tenant-b']) t;
     `);
     await prisma.$connect();
     assert.equal(await prisma.ping(), 'up');
     assert.equal(prisma.getPoolMetrics().totalCount, 1, 'Health must report the real pool, not a fixed count');
+    const repository = new OutboxEventsRepository(prisma);
+    const firstPage = await repository.listDashboardStreamEvents('tenant-a');
+    assert.equal(firstPage[0].created_at, '2026-09-20T00:00:00.123456Z');
+    const nextPage = await repository.listDashboardStreamEvents('tenant-a', {
+      since: `${firstPage[0].created_at}|${firstPage[0].id}`,
+    });
+    assert.equal(nextPage.length, 0, 'PostgreSQL microseconds must not cause the final event to replay');
     const service = new DashboardRealtimeService(context, new OutboxEventsRepository(prisma),
       new ModuleAccessService(context, new ModuleAccessRepository(prisma)), { get: () => 5000 } as never);
     @Module({ controllers: [DashboardRealtimeController], providers: [{ provide: DashboardRealtimeService, useValue: service }] })

@@ -43,6 +43,17 @@ export class RequestLoggingMiddleware implements NestMiddleware {
             : null,
       });
       if (shouldRecordApiSloMetric(safePath)) {
+        const contentType = String(response.getHeader('content-type') ?? '').split(';')[0].trim();
+        if (contentType === 'text/event-stream' && response.statusCode < 400) {
+          this.sloMetrics?.recordApiStream({
+            duration_ms: durationMs,
+            status_code: response.statusCode,
+            method: request.method,
+            path: safePath,
+            event,
+          });
+          return;
+        }
         this.sloMetrics?.recordApiRequest({
           outcome:
             event === 'request.completed' && response.statusCode < 500

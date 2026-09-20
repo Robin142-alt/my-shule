@@ -15,6 +15,30 @@ export class SloMetricsService {
 
   constructor(private readonly configService: ConfigService) {}
 
+  recordApiStream(input: {
+    duration_ms: number;
+    status_code: number;
+    method: string;
+    path: string;
+    event: 'request.completed' | 'request.aborted';
+  }): void {
+    // A stream normally ends when the client disconnects or the proxy rotates
+    // the connection. Its lifetime is not ordinary request latency, and close
+    // alone does not tell us whether event delivery succeeded or failed.
+    this.record({
+      subsystem: 'api',
+      operation: 'stream',
+      outcome: 'ignored',
+      duration_ms: input.duration_ms,
+      metadata: {
+        status_code: input.status_code,
+        method: input.method,
+        path: input.path,
+        event: input.event,
+      },
+    });
+  }
+
   recordApiRequest(input: {
     outcome: Extract<MetricOutcome, 'success' | 'failure'>;
     duration_ms: number;
