@@ -26,6 +26,7 @@ test('database-backed SSE releases connections between polls under concurrent te
   const context = new RequestContextService();
   const prisma = new PrismaService(context, { getRuntimeRoleName: () => 'sse_fixture_runtime' } as never);
   const aborts: AbortController[] = [];
+  let streamResults: Promise<PromiseSettledResult<void>[]> = Promise.resolve([]);
   let app: Awaited<ReturnType<typeof NestFactory.create>> | undefined;
   try {
     await admin.query(`
@@ -106,22 +107,29 @@ test('database-backed SSE releases connections between polls under concurrent te
       assert.equal(snapshots[1].events.length, 0, 'Cursor must prevent replay');
       abort.abort();
     });
+    // Attach rejection handlers immediately, including when another assertion
+    // fails before streams finish. Cleanup must not mask that original failure.
+    streamResults = Promise.allSettled(streams);
     for (let i = 0; i < 35; i++) {
       const started = Date.now();
       const response = await fetch(`${base}/events/dashboard/snapshot`, { headers: { 'x-test-tenant': 'tenant-a' } });
       assert.equal(response.status, 200);
-      assert.ok(Date.now() - started < 2000, 'Ordinary requests must not wait for streams to close');
+      const elapsedMs = Date.now() - started;
+      assert.ok(elapsedMs < 2000, `Ordinary requests must not wait for streams to close: sample ${i}, ${elapsedMs}ms, pool ${JSON.stringify(prisma.getPoolMetrics())}`);
       const body = await response.json() as { data: { events: unknown[] } };
       assert.equal(body.data.events.length, 1);
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    await Promise.all(streams);
+    for (const result of await streamResults) {
+      if (result.status === 'rejected') throw result.reason;
+    }
     const held = await admin.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction'");
     assert.equal(held.rows[0].count, 0);
     assert.equal(prisma.getPoolMetrics().waitingCount, 0);
     assert.equal(prisma.getPoolMetrics().idleCount, prisma.getPoolMetrics().totalCount);
   } finally {
     aborts.forEach(abort => abort.abort());
+    await streamResults;
     await app?.close();
     await prisma.$disconnect();
     await assert.rejects(prisma.ping(), /pool after calling end/);
