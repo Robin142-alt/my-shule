@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "generated_at": "2026-09-20T08:51:39.030Z",
+  "targets": {
+    "webUrl": "https://www.myshule.online",
+    "apiUrl": "https://my-shule-api-production.up.railway.app",
+    "tenant": "kb-high",
+    "email_masked": "t***@example.test"
+  },
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0
+  },
+  "checks": [
+    "API readiness",
+    "school accepted-invite login page",
+    "parent accepted-invite login page",
+    "web CSRF endpoint",
+    "web auth proxy",
+    "public system status"
+  ],
+  "failures": []
+}

@@ -1,0 +1,169 @@
+{
+  "verifiedAt": "2026-09-20T08:51:38.378Z",
+  "project": {
+    "id": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K",
+    "name": "my-shule-erp-web-clean"
+  },
+  "production": "dpl_589F9rdPj1Gz2PjXuM3MmqR4eKhX",
+  "rollback": "dpl_G5kTwQP7r7WFN8byBF8E8gV86TpZ",
+  "counts": {
+    "before": 133,
+    "deleted": 129,
+    "remaining": 4,
+    "failed": 0
+  },
+  "retained": [
+    {
+      "id": "dpl_589F9rdPj1Gz2PjXuM3MmqR4eKhX",
+      "state": "READY",
+      "target": "production",
+      "url": "my-shule-erp-web-clean-jfu92r0y1-robin142-alts-projects.vercel.app"
+    },
+    {
+      "id": "dpl_G5kTwQP7r7WFN8byBF8E8gV86TpZ",
+      "state": "READY",
+      "target": "production",
+      "url": "my-shule-erp-web-clean-90bs7tqmt-robin142-alts-projects.vercel.app"
+    },
+    {
+      "id": "dpl_7shRdKkd1imM54Y4hAKBV35rkKW2",
+      "state": "READY",
+      "target": null,
+      "url": "my-shule-erp-web-clean-78ctzwbvq-robin142-alts-projects.vercel.app"
+    },
+    {
+      "id": "dpl_AKE1rq8s2YRQfJQ5CR4z2QbQBQVm",
+      "state": "READY",
+      "target": "production",
+      "url": "my-shule-erp-web-clean-ns7sirq25-robin142-alts-projects.vercel.app"
+    }
+  ],
+  "aliases": [
+    {
+      "alias": "my-shule-erp-web-clean-git-codex-41a523-robin142-alts-projects.vercel.app",
+      "deploymentId": "dpl_7shRdKkd1imM54Y4hAKBV35rkKW2",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "my-shule-erp-web-clean-git-codex-c4be0e-robin142-alts-projects.vercel.app",
+      "deploymentId": "dpl_HJrthrfGY1veVcgSdUT1Hi6Aaw51",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "www.myshule.online",
+      "deploymentId": "dpl_589F9rdPj1Gz2PjXuM3MmqR4eKhX",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "my-shule-erp-web-clean-git-main-robin142-alts-projects.vercel.app",
+      "deploymentId": "dpl_G5kTwQP7r7WFN8byBF8E8gV86TpZ",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "my-shule-erp-web-clean-git-codex-53a245-robin142-alts-projects.vercel.app",
+      "deploymentId": "dpl_51Bewqb49Cs3R6LpXMeEpQUSchos",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "my-shule-erp-web-clean-robin142-alts-projects.vercel.app",
+      "deploymentId": "dpl_589F9rdPj1Gz2PjXuM3MmqR4eKhX",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "my-shule-erp-web-clean.vercel.app",
+      "deploymentId": "dpl_589F9rdPj1Gz2PjXuM3MmqR4eKhX",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    },
+    {
+      "alias": "myshule.online",
+      "deploymentId": "dpl_589F9rdPj1Gz2PjXuM3MmqR4eKhX",
+      "projectId": "prj_FZMmfzegTNibOQkpTJiLZqybAo1K"
+    }
+  ],
+  "domains": [
+    {
+      "name": "myshule.online",
+      "verified": true,
+      "redirect": "www.myshule.online"
+    },
+    {
+      "name": "www.myshule.online",
+      "verified": true,
+      "redirect": null
+    },
+    {
+      "name": "my-shule-erp-web-clean.vercel.app",
+      "verified": true,
+      "redirect": null
+    }
+  ],
+  "websites": [
+    {
+      "host": "myshule.online",
+      "initialStatus": 308,
+      "redirect": "https://www.myshule.online/school/login",
+      "finalStatus": 200,
+      "finalUrl": "https://www.myshule.online/school/login",
+      "ipv4": [
+        "216.198.79.1",
+        "64.29.17.65"
+      ],
+      "cname": []
+    },
+    {
+      "host": "www.myshule.online",
+      "initialStatus": 200,
+      "redirect": null,
+      "finalStatus": 200,
+      "finalUrl": "https://www.myshule.online/school/login",
+      "ipv4": [
+        "216.198.79.65",
+        "216.198.79.1"
+      ],
+      "cname": []
+    }
+  ],
+  "api": {
+    "status": "ok",
+    "services": {
+      "postgres": "up",
+      "redis": "up",
+      "bullmq": "configured",
+      "transactional_email": "configured",
+      "cors": "configured",
+      "production_env": "configured",
+      "support_notifications": "configured",
+      "object_storage": "configured",
+      "malware_scanning": "configured"
+    },
+    "pool": {
+      "totalCount": 2,
+      "idleCount": 2,
+      "waitingCount": 0
+    },
+    "slo": {
+      "generated_at": "2026-09-20T08:51:39.485Z",
+      "overall_status": "healthy",
+      "active_alert_count": 0,
+      "critical_alert_count": 0,
+      "subsystem_statuses": [
+        {
+          "subsystem": "api",
+          "status": "healthy"
+        },
+        {
+          "subsystem": "mpesa",
+          "status": "healthy"
+        },
+        {
+          "subsystem": "sync",
+          "status": "unknown"
+        },
+        {
+          "subsystem": "queue",
+          "status": "healthy"
+        }
+      ]
+    }
+  }
+}

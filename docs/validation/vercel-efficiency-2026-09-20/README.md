@@ -1,6 +1,8 @@
 # MyShule Vercel efficiency investigation
 
-Investigation: September 19–20, 2026. Baseline: `10e99201e84e70714e68fd2073f85b2949ccdabd`. Changes are isolated on `codex/vercel-efficiency`. No push, deployment, merge, production data mutation, deployment deletion, or retention change was performed.
+Investigation: September 19–20, 2026. Baseline: `10e99201e84e70714e68fd2073f85b2949ccdabd`. Changes are isolated on `codex/vercel-efficiency`.
+
+**Historical investigation snapshot:** the findings below describe the state before release approval. The subsequently authorized API/web release, production verification, additional runtime fixes, and deletion of 129 historical Vercel deployments are documented in [the release and cleanup report](./release-and-cleanup-report.md). Its production IDs, cleanup results, and deployment assessment supersede the pre-release status below. Nothing was pushed or merged.
 
 ## ROOT CAUSE
 
