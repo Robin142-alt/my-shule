@@ -54,7 +54,7 @@ describe("smart timetable role surfaces", () => {
       expect(roleBlock.slice(0, roleBlock.indexOf("],") + 2)).toContain("timetable:read");
     }
     expect(schoolData).toMatch(/"principal"[\s\S]*Master Timetable/);
-    expect(schoolData).toMatch(/"deputy-principal"[\s\S]*Timetable Builder/);
+    expect(schoolData).toMatch(/"deputy-principal"[\s\S]*Timetable & Relief/);
     expect(schoolData).toMatch(/"dean-academics"[\s\S]*Master Timetable/);
     expect(schoolData).toMatch(/"hod"[\s\S]*Department Timetable/);
     expect(schoolData).toMatch(/"class-teacher"[\s\S]*Class Timetable/);

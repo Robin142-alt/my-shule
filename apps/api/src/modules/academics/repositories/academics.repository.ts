@@ -1075,6 +1075,7 @@ export class AcademicsRepository {
       values,]), `
         SELECT assignment.id::text, assignment.tenant_id, assignment.cohort_id,assignment.cohort_placement_id,
           assignment.stream_id,assignment.assignment_type,assignment.is_primary,assignment.effective_from,assignment.effective_to,
+          (SELECT stream.name FROM class_streams stream WHERE stream.tenant_id = assignment.tenant_id AND stream.id::text = assignment.stream_id::text) AS stream_name,
           assignment.academic_term_id::text,
           term.name AS academic_term_name, assignment.class_section_id::text,
           class_section.name AS class_section_name, assignment.subject_id::text,

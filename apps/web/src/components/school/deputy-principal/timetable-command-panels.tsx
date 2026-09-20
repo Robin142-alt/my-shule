@@ -65,7 +65,9 @@ export function TimetableReadinessPanel({
           </div>
           {issues.length > 0 ? <div className="mt-4 space-y-2">{issues.map((issue) => (
             <div key={`${issue.code}-${issue.message}`} className="flex flex-col gap-2 rounded-lg bg-white/75 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <div><span className="mr-2 rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase">{issue.severity}</span><span className="font-bold">{issue.message}</span></div>
+              <div><span className="mr-2 rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase">{issue.severity}</span><span className="font-bold">{issue.message}</span>
+                {issue.details?.length ? <ul className="mt-2 space-y-1 text-xs">{issue.details.map((detail) => <li key={detail.requirement_id}>{[detail.class_name, detail.stream_name, detail.subject_name].filter(Boolean).join(" / ")}: {detail.reason}</li>)}</ul> : null}
+              </div>
               {issue.action_url ? <Link href={issue.action_url} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-current px-3 text-xs font-black">Fix in MyShule</Link> : null}
             </div>
           ))}</div> : <p className="mt-4 text-sm font-bold">All required inputs passed the server readiness check.</p>}

@@ -4621,7 +4621,15 @@ function AuthorizedSchoolPagesContent(
     <SchoolTenantScopeProvider tenantId={tenantId}>
       <DashboardCommunicationProvider tenantId={tenantId}>
         <SchoolCommandIdentityProvider tenantSlug={tenantId} userLabel={props.userLabel}>
-          {!props.studentId && isLiveRoleCommandCenterRole(authorizedProps.role) ? (
+          {!props.studentId && authorizedProps.role === "deputy-principal" ? (
+            <DeputyPrincipalCommandCenter
+              key={`deputy-principal:${props.section ?? "dashboard"}`}
+              activeSection={props.section ?? "dashboard"}
+              routeMode={props.routeMode ?? "hosted"}
+              tenantSlug={tenantId}
+              userLabel={props.userLabel}
+            />
+          ) : !props.studentId && isLiveRoleCommandCenterRole(authorizedProps.role) ? (
             <PermissionProvider schoolId={tenantId}>
               <LiveRoleCommandCenter
                 key={`${authorizedProps.role}:${props.section ?? "dashboard"}`}
@@ -4995,10 +5003,6 @@ function SchoolPagesShell({
         return <DeanAcademicsCommandCenter routeMode={routeMode} activeSection={section} />;
       }
 
-      if (role === "deputy-principal") {
-        // @ts-ignore
-        return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} tenantSlug={tenantSlug} userLabel={userLabel} />;
-      }
 
       if (role === "exams-manager") {
         // @ts-ignore
@@ -5054,10 +5058,6 @@ function SchoolPagesShell({
     }
 
 
-    if (role === "deputy-principal") {
-      // @ts-ignore
-      return <DeputyPrincipalCommandCenter routeMode={routeMode} activeSection={section} tenantSlug={tenantSlug} userLabel={userLabel} />;
-    }
 
     if (role === "exams-manager") {
       // @ts-ignore

@@ -56,15 +56,26 @@ export class TimetableConstraintService {
       action_url: actionUrl,
     });
 
-    if (!metrics.academic_year) blockers.push(issue('ACADEMIC_YEAR_MISSING', 'BLOCKER', 'Select an academic year configured for this school.', '/school/deputy-principal/academic-setup'));
-    if (!metrics.term) blockers.push(issue('TERM_MISSING', 'BLOCKER', 'Select a term that belongs to the academic year.', '/school/deputy-principal/academic-setup'));
+    if (!metrics.academic_year) blockers.push(issue('ACADEMIC_YEAR_MISSING', 'BLOCKER', 'Select an academic year configured for this school.', '/school/deputy-principal/academics'));
+    if (!metrics.term) blockers.push(issue('TERM_MISSING', 'BLOCKER', 'Select a term that belongs to the academic year.', '/school/deputy-principal/academics'));
     if (Number(metrics.teaching_days ?? 0) === 0) blockers.push(issue('TEACHING_DAYS_MISSING', 'BLOCKER', 'Configure at least one teaching day before generating a timetable.'));
     if (Number(metrics.teaching_periods ?? 0) === 0) blockers.push(issue('TEACHING_PERIODS_MISSING', 'BLOCKER', 'Configure teaching periods before generating a timetable.'));
-    if (Number(metrics.classes ?? 0) === 0) blockers.push(issue('CLASSES_MISSING', 'BLOCKER', 'Create the classes or forms that need a timetable.', '/school/deputy-principal/academic-setup'));
-    if (Number(metrics.subjects ?? 0) === 0) blockers.push(issue('SUBJECTS_MISSING', 'BLOCKER', 'Create active subjects before generating a timetable.', '/school/deputy-principal/academic-setup'));
-    if (Number(metrics.active_teachers ?? 0) === 0) blockers.push(issue('TEACHER_ALLOCATIONS_MISSING', 'BLOCKER', 'Assign teachers to subjects and classes before generating.', '/school/deputy-principal/academic-setup'));
+    if (Number(metrics.classes ?? 0) === 0) blockers.push(issue('CLASSES_MISSING', 'BLOCKER', 'Create the classes or forms that need a timetable.', '/school/deputy-principal/academics'));
+    if (Number(metrics.subjects ?? 0) === 0) blockers.push(issue('SUBJECTS_MISSING', 'BLOCKER', 'Create active subjects before generating a timetable.', '/school/deputy-principal/academics'));
+    if (Number(metrics.active_teachers ?? 0) === 0) blockers.push(issue('TEACHER_ALLOCATIONS_MISSING', 'BLOCKER', 'Assign teachers to subjects and classes before generating.', '/school/deputy-principal/academics'));
     if (Number(metrics.requirements ?? 0) === 0) blockers.push(issue('SUBJECT_REQUIREMENTS_MISSING', 'BLOCKER', 'Set weekly subject period requirements before generating.'));
-    if (Number(metrics.invalid_allocations ?? 0) > 0) blockers.push(issue('INVALID_TEACHER_ALLOCATIONS', 'BLOCKER', `${metrics.invalid_allocations} subject requirement(s) do not have a valid active teacher allocation.`, '/school/deputy-principal/academic-setup'));
+    if (Number(metrics.invalid_allocations ?? 0) > 0) {
+      const details = (metrics.allocation_issues ?? []).map((requirement: any) => ({
+        requirement_id: requirement.id,
+        class_name: requirement.class_name,
+        stream_name: requirement.stream_name,
+        subject_name: requirement.subject_name,
+        reason: requirement.allocation_status === 'ambiguous'
+          ? 'More than one teacher is allocated. Select the allocated teacher in subject requirements.'
+          : 'No active allocation matches this class, subject and stream in the selected term.',
+      }));
+      blockers.push({ ...issue('INVALID_TEACHER_ALLOCATIONS', 'BLOCKER', `${metrics.invalid_allocations} subject requirement(s) need their teaching allocation reviewed.`, '/school/deputy-principal/academics'), details });
+    }
     if (Number(metrics.required_lessons ?? 0) > Number(metrics.teaching_periods ?? 0) * Math.max(1, Number(metrics.classes ?? 0))) {
       warnings.push(issue('CAPACITY_PRESSURE', 'WARNING', 'Required weekly periods are close to or above the configured class timetable capacity.'));
     }
