@@ -16,6 +16,16 @@ function unsignedJwt(payload: Record<string, unknown>) {
 }
 
 describe("experience routing", () => {
+  test.each(["attendance", "welfare", "staff-duty", "teaching", "academics"])("routes the deputy's current %s workspace on its school host", (section) => {
+    const cookies = { [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({ experience: "school", role: "deputy-principal", tenantSlug: "barakaacademy", userLabel: "Deputy", homePath: "/dashboard" }) };
+    const refreshToken = unsignedJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    expect(evaluateExperienceRouting({ host: "barakaacademy.myshule.test", pathname: `/${section}`, cookies, refreshToken }))
+      .toMatchObject({ action: "next", rewrittenPath: `/internal/school/${section}` });
+    expect(evaluateExperienceRouting({ host: "other-school.myshule.test", pathname: `/${section}`, cookies, refreshToken }))
+      .toMatchObject({ action: "redirect", location: "/login" });
+    expect(evaluateExperienceRouting({ host: "barakaacademy.myshule.test", pathname: "/academic-setup", cookies, refreshToken }))
+      .toMatchObject({ action: "redirect", location: "/academics" });
+  });
   test("resolves superadmin hosts into the platform experience", () => {
     expect(resolveExperienceHost("superadmin.myshule.test")).toEqual({
       experience: "superadmin",

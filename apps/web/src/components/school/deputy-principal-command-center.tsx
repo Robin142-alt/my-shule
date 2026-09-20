@@ -61,6 +61,10 @@ import { DeputyStaffRolesWorkspace } from "./deputy-principal/staff-roles-worksp
 import { DeputySettingsWorkspace } from "./deputy-principal/settings-workspace";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
+import { resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
+import { CbtModuleScreen } from "@/components/modules/cbt/cbt-module-screen";
+import { LmsModuleScreen } from "@/components/modules/lms/lms-module-screen";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -92,28 +96,6 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "staff-roles", label: "Staff & Roles", icon: ShieldCheck, group: "Administration" },
   { id: "settings", label: "Settings", icon: Settings, group: "Administration" },
 ];
-
-const DEPUTY_WORKSPACE_ALIASES: Record<string, string> = {
-  dashboard: "overview",
-  "attendance-escalations": "attendance",
-  "attendance-monitoring": "attendance",
-  "discipline-cases": "discipline",
-  "incident-routing": "discipline",
-  "staff-coordination": "staff-duty",
-  "duty-roster": "staff-duty",
-  "timetable-conflicts": "timetable",
-  "academic-review": "academics",
-  "academic-setup": "academics",
-  "academic-analytics": "academic-intelligence",
-  "academic-intelligence": "academic-intelligence",
-  "classes-streams": "classes",
-  "reports-downloads": "reports",
-};
-
-function resolveDeputyWorkspace(section?: string) {
-  if (!section) return "overview";
-  return DEPUTY_WORKSPACE_ALIASES[section] ?? section;
-}
 
 function getDeputySchoolId(tenantSlug?: string | null) {
   return tenantSlug?.trim() || "";
@@ -148,6 +130,10 @@ export function DeputyPrincipalCommandCenter({
   const deputyName = userLabel?.trim() || "Deputy Principal";
   const [activeWorkspace, setActiveWorkspaceState] = useState(resolveDeputyWorkspace(activeSection));
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveWorkspaceState(resolveDeputyWorkspace(activeSection));
+  }, [activeSection]);
 
   const setActiveWorkspace = (view: string) => {
     setActiveWorkspaceState(view);
@@ -265,7 +251,14 @@ export function DeputyPrincipalCommandCenter({
       case "reports": return <DeputyReportsDownloadsWorkspace />;
       case "staff-roles": return <DeputyStaffRolesWorkspace />;
       case "settings": return <DeputySettingsWorkspace />;
-      default: return <DeputyOverviewWorkspace schoolId={schoolId} />;
+      case "cbt": return <CbtModuleScreen tenantSlug={schoolId} />;
+      case "lms": return <LmsModuleScreen tenantSlug={schoolId} />;
+      case "support-new-ticket":
+      case "support-my-tickets":
+      case "support-knowledge-base":
+      case "support-system-status":
+        return <SupportCenterWorkspace tenantSlug={schoolId} defaultView={activeWorkspace} />;
+      default: return <section className="rounded-xl bg-white p-6 text-[#071D49]"><h2 className="text-xl font-black">Workspace unavailable</h2><p className="mt-2">Choose a workspace from the deputy menu to continue.</p><button type="button" onClick={() => setActiveWorkspace("overview")} className="mt-4 min-h-11 rounded-lg border px-4 font-bold">Open overview</button></section>;
     }
   };
 

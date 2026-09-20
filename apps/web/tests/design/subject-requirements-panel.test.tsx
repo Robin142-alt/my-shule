@@ -80,3 +80,31 @@ it("rejects invalid frequencies before sending a mutation", () => {
   expect(screen.getByRole("alert")).toHaveTextContent("1–40 weekly periods");
   expect(mockSave).not.toHaveBeenCalled();
 });
+
+it("shows the resolved academic teacher and keeps automatic allocation when saving", async () => {
+  render(<SubjectRequirementsPanel {...base} assignments={[]} response={{ items: [{ ...savedRow,
+    teacher_id: null, resolved_teacher_id: "teacher", resolved_teacher_name: "Alex Teacher", allocation_status: "resolved" }] }} />);
+  expect(screen.getByText("Teacher: Alex Teacher (from academic allocation)")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Periods/week"), { target: { value: "6" } });
+  fireEvent.click(screen.getByText("Save requirements"));
+  await waitFor(() => expect(mockSave).toHaveBeenCalled());
+  const payload = mockSave.mock.calls[0][0].requirements[0];
+  expect(payload.teacher_id).toBeNull();
+  expect(payload).not.toHaveProperty("resolved_teacher_id");
+  expect(payload).not.toHaveProperty("allocation_status");
+});
+
+it("adds stream allocations separately and excludes ended assignments and unrelated teachers", () => {
+  render(<SubjectRequirementsPanel {...base} teachers={[...base.teachers, { user_id: "unrelated", display_name: "Unrelated Teacher" }]}
+    assignments={[
+      { ...base.assignments[0], stream_id: "blue", stream_name: "Blue" },
+      { ...base.assignments[0], id: "red", stream_id: "red", stream_name: "Red" },
+      { ...base.assignments[1], status: "ended" },
+      { ...base.assignments[2], effective_to: "2000-01-01" },
+    ]} response={{ items: [] }} />);
+  fireEvent.click(screen.getByText("Add allocated subjects"));
+  expect(screen.getAllByRole("article")).toHaveLength(2);
+  expect(screen.getAllByLabelText("Stream").map((element) => (element as HTMLSelectElement).value)).toEqual(["blue", "red"]);
+  expect(screen.getAllByText("Teacher: Alex Teacher (from academic allocation)")).toHaveLength(2);
+  expect(screen.queryByRole("option", { name: "Unrelated Teacher" })).not.toBeInTheDocument();
+});

@@ -9,6 +9,7 @@ import { TimetableService } from '../src/modules/timetable/timetable.service';
 import { EventsSchemaService } from '../src/modules/events/events-schema.service';
 import { EventPublisherService } from '../src/modules/events/event-publisher.service';
 import { OutboxEventsRepository } from '../src/modules/events/repositories/outbox-events.repository';
+import { TimetableConstraintService } from '../src/modules/timetable/timetable-constraint.service';
 
 describe('School day configuration persistence', () => {
   let pool: Pool;
@@ -40,7 +41,10 @@ describe('School day configuration persistence', () => {
         is_active boolean DEFAULT TRUE, status text DEFAULT 'active', archived_at timestamptz);
       CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text,
         is_active boolean DEFAULT TRUE, status text DEFAULT 'active', archived_at timestamptz);
-      CREATE TABLE subjects (id text, tenant_id text, name text);`);
+      CREATE TABLE subjects (id text, tenant_id text, name text, status text DEFAULT 'active');
+      CREATE TABLE teacher_subject_assignments (id uuid DEFAULT gen_random_uuid(), tenant_id text,
+        academic_term_id uuid, class_section_id text, stream_id text, subject_id text, teacher_user_id text,
+        department_id uuid, status text DEFAULT 'active', effective_from date, effective_to date);`);
     let hrSchema = '';
     await new HrSchemaService({ runSchemaBootstrap: async (sql: string) => { hrSchema += sql; } } as never).onModuleInit();
     const staffTable = hrSchema.match(/CREATE TABLE IF NOT EXISTS staff_profiles \([\s\S]*?\n      \);/)?.[0];
@@ -105,7 +109,7 @@ describe('School day configuration persistence', () => {
   it('saves periods, requirements and availability with the production Prisma adapter, HR schema and restricted role', async () => {
     await pool.query(`CREATE ROLE timetable_period_test_writer NOLOGIN NOSUPERUSER;
       GRANT USAGE ON SCHEMA public TO timetable_period_test_writer;
-      GRANT SELECT ON academic_years, academic_terms, class_sections, class_streams, subjects, staff_profiles
+      GRANT SELECT ON academic_years, academic_terms, class_sections, class_streams, subjects, staff_profiles, teacher_subject_assignments
         TO timetable_period_test_writer;
       GRANT SELECT, INSERT, UPDATE, DELETE ON timetable_configurations, timetable_days,
         timetable_period_definitions, timetable_common_blocks, timetable_versions, timetable_audit_logs,
@@ -140,7 +144,7 @@ describe('School day configuration persistence', () => {
           VALUES ($1, $2, $3, 'T-001', 'active')`, [tenant, actor, tenant === 'school-a' ? 'Assigned Teacher' : 'Other School Teacher']);
         await pool.query(`INSERT INTO class_sections (id, tenant_id, academic_year_id, name)
           SELECT 'class-1', tenant_id, id, 'Form 1' FROM academic_years WHERE tenant_id=$1`, [tenant]);
-        await pool.query(`INSERT INTO subjects VALUES ('math', $1, 'Mathematics')`, [tenant]);
+        await pool.query(`INSERT INTO subjects (id, tenant_id, name) VALUES ('math', $1, 'Mathematics')`, [tenant]);
         const requirements = await productionRepository.saveRequirements({
           tenant_id: tenant, academic_year: '2026', term_name: 'Term 1', actor_user_id: actor,
           requirements: [{ class_section_id: 'class-1', subject_id: 'math', teacher_id: actor, periods_per_week: 5 }],
@@ -226,6 +230,79 @@ describe('School day configuration persistence', () => {
       await pool.query("UPDATE academic_years SET name='2026'");
       await prisma.$disconnect();
     }
+  });
+
+  it('resolves automatic teachers for readiness, generation and saved lessons without rewriting requirements', async () => {
+    const tenant = 'school-allocations';
+    const year = randomUUID(); const term = randomUUID(); const otherTerm = randomUUID();
+    const teacher = randomUUID(); const replacement = randomUUID(); const version = randomUUID();
+    await pool.query(`INSERT INTO academic_years VALUES ($1, $2, '2026', 'active', NULL)`, [year, tenant]);
+    await pool.query(`INSERT INTO academic_terms VALUES ($1, $3, $4, 'Term 1', 'active', NULL, '2026-01-01', '2026-12-31'),
+      ($2, $3, $4, 'Term 2', 'active', NULL, '2026-01-01', '2026-12-31')`, [term, otherTerm, tenant, year]);
+    await pool.query(`INSERT INTO class_sections (id, tenant_id, academic_year_id, name) VALUES ('class', $1, $2, 'Form 4')`, [tenant, year]);
+    await pool.query(`INSERT INTO class_streams (id, tenant_id, class_section_id, name) VALUES ('blue', $1, 'class', 'Blue'), ('red', $1, 'class', 'Red')`, [tenant]);
+    await pool.query(`INSERT INTO subjects (id, tenant_id, name) VALUES ('math', $1, 'Mathematics')`, [tenant]);
+    await pool.query(`INSERT INTO staff_profiles (tenant_id, user_id, display_name, staff_number, status)
+      VALUES ($1, $2, 'Allocated Teacher', 'T1', 'active'), ($1, $3, 'Replacement Teacher', 'T2', 'active')`, [tenant, teacher, replacement]);
+    const input = makeInput(tenant);
+    await repository.saveConfiguration(input);
+    const requirement = { class_section_id: 'class', subject_id: 'math', teacher_id: null, periods_per_week: 1, duration_periods: 1 };
+    const saved = await repository.saveRequirements({ ...input, requirements: [requirement] });
+    const constraints = new TimetableConstraintService(repository);
+    expect((await constraints.readiness(tenant, '2026', 'Term 1')).checks.teacher_allocations).toBe(false);
+    const insertAssignment = async (school: string, staff: string, termId: string | null = term) => (await pool.query(`INSERT INTO teacher_subject_assignments
+      (tenant_id, academic_term_id, class_section_id, subject_id, teacher_user_id)
+      VALUES ($1, $2, 'class', 'math', $3) RETURNING id::text`, [school, termId, staff])).rows[0].id;
+    const assignment = await insertAssignment(tenant, teacher);
+    await insertAssignment('school-b', replacement); // Identical IDs in another school cannot affect resolution.
+    await insertAssignment(tenant, replacement, otherTerm);
+    const readiness = await constraints.readiness(tenant, '2026', 'Term 1');
+    expect(readiness.status).toBe('READY');
+    expect(readiness.metrics.active_teachers).toBe(1); // A null effective_from is valid.
+    expect((await repository.listRequirements(tenant, '2026', 'Term 1'))[0]).toMatchObject({
+      id: saved[0].id, teacher_id: null, resolved_teacher_id: teacher, resolved_teacher_name: 'Allocated Teacher', row_version: 1,
+    });
+    const snapshot = await constraints.getSnapshot(tenant, '2026', 'Term 1');
+    const generated = constraints.generate(snapshot);
+    expect(generated.gaps).toEqual([]);
+    expect(generated.placements).toEqual([expect.objectContaining({ teacher_id: teacher, requirement_id: saved[0].id })]);
+    await pool.query(`INSERT INTO timetable_versions (id, tenant_id, academic_year, term_name, status) VALUES ($1, $2, '2026', 'Term 1', 'draft')`, [version, tenant]);
+    await repository.saveGenerationResult({ tenant_id: tenant, version_id: version, scope: { type: 'school' },
+      ...generated, required_lessons: 1, actor_user_id: actor });
+    const persisted = await constraints.getSnapshot(tenant, '2026', 'Term 1', version);
+    expect(persisted.slots[0].teacher_id).toBe(teacher);
+    expect(constraints.validateVersion(persisted)).toMatchObject({ valid: true, summary: { unscheduled: 0 } });
+    const partial = { placements: [], gaps: [{ requirement_id: saved[0].id, remaining_periods: 1,
+      duration_periods: 1, reason_code: 'NO_VALID_SLOT', reason_message: 'Review availability' }], warnings: [] };
+    await repository.saveGenerationResult({ tenant_id: tenant, version_id: version, scope: { type: 'school' },
+      ...partial, required_lessons: 1, actor_user_id: actor });
+    const unresolved = await repository.listUnscheduled(tenant, '2026', 'Term 1', version);
+    expect(unresolved[0]).toMatchObject({ teacher_id: teacher, teacher_name: 'Allocated Teacher' });
+    expect(await repository.getUnscheduled(tenant, unresolved[0].id)).toMatchObject({ teacher_id: teacher });
+    await repository.saveGenerationResult({ tenant_id: tenant, version_id: version, scope: { type: 'teacher', id: teacher },
+      ...generated, required_lessons: 1, actor_user_id: actor });
+    expect(await repository.listUnscheduled(tenant, '2026', 'Term 1', version)).toEqual([]);
+    expect(await repository.countOpenUnscheduled(tenant, version)).toBe(0);
+    await pool.query(`UPDATE teacher_subject_assignments SET teacher_user_id=$2 WHERE id=$1`, [assignment, replacement]);
+    expect((await constraints.getSnapshot(tenant, '2026', 'Term 1')).requirements[0].teacher_id).toBe(replacement);
+    expect((await repository.listRequirements(tenant, '2026', 'Term 1'))[0].teacher_id).toBeNull();
+    const duplicate = await insertAssignment(tenant, teacher, null);
+    const blocked = await constraints.readiness(tenant, '2026', 'Term 1');
+    expect(blocked.blockers).toContainEqual(expect.objectContaining({ code: 'INVALID_TEACHER_ALLOCATIONS',
+      action_url: '/school/deputy-principal/academics', details: [expect.objectContaining({ class_name: 'Form 4', subject_name: 'Mathematics', reason: expect.stringContaining('More than one') })] }));
+    await pool.query(`UPDATE teacher_subject_assignments SET status='ended' WHERE id=$1`, [duplicate]);
+    for (const patch of ["effective_from=CURRENT_DATE+1", "effective_from=NULL, effective_to=CURRENT_DATE-1", "effective_to=NULL, status='ended'", "status='active', stream_id='red'"]) {
+      await pool.query(`UPDATE teacher_subject_assignments SET ${patch} WHERE id=$1`, [assignment]);
+      expect((await constraints.readiness(tenant, '2026', 'Term 1')).checks.teacher_allocations).toBe(false);
+    }
+    await pool.query(`UPDATE teacher_subject_assignments SET stream_id='blue' WHERE id=$1`, [assignment]);
+    await repository.saveRequirements({ ...input, requirements: [{ ...requirement, id: saved[0].id, stream_id: 'blue' }] });
+    expect((await constraints.readiness(tenant, '2026', 'Term 1')).status).toBe('READY');
+    await pool.query(`UPDATE staff_profiles SET status='suspended' WHERE tenant_id=$1 AND user_id=$2`, [tenant, replacement]);
+    expect((await constraints.readiness(tenant, '2026', 'Term 1')).checks.teacher_allocations).toBe(false);
+    await pool.query(`UPDATE staff_profiles SET status='active' WHERE tenant_id=$1 AND user_id=$2`, [tenant, replacement]);
+    await repository.saveRequirements({ ...input, requirements: [{ ...requirement, id: saved[0].id, stream_id: 'blue', teacher_id: teacher }] });
+    expect((await constraints.readiness(tenant, '2026', 'Term 1')).checks.teacher_allocations).toBe(false);
   });
 
   it('keeps schools separate and rolls back attempts to reuse another school period ID', async () => {

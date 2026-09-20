@@ -7,6 +7,7 @@ import {
   normalizeSchoolExperienceRole,
 } from "@/lib/auth/school-role-normalization";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
+import { isDeputyWorkspace, resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 import {
   isPortalSection,
   isSchoolSection,
@@ -682,6 +683,16 @@ export function evaluateExperienceRouting(input: {
       action: "next",
       headers,
     };
+  }
+
+  if (experience === "school" && session?.experience === "school" && session.role === "deputy-principal") {
+    const section = input.pathname.replace(/^\/(?:school|dashboard)\/deputy-principal\//, "/").slice(1);
+    if (isDeputyWorkspace(section)) {
+      const currentPath = `/${resolveDeputyWorkspace(section)}`;
+      return input.pathname === currentPath
+        ? { action: "next", headers, rewrittenPath: `/internal/school${currentPath}` }
+        : { action: "redirect", headers, location: currentPath };
+    }
   }
 
   const compatibilityPath = resolveLegacyCompatibilityPath(experience, input.pathname);

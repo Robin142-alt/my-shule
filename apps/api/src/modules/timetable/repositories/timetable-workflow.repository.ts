@@ -701,6 +701,10 @@ export class TimetableWorkflowRepository {
                requirement.subject_id, subject.name AS subject_name,
                requirement.teacher_id,
                COALESCE(NULLIF(staff.display_name, ''), NULLIF(staff.staff_number, '')) AS teacher_name,
+               CASE WHEN allocation.teacher_count = 1 THEN allocation.teacher_id END AS resolved_teacher_id,
+               CASE WHEN allocation.teacher_count = 1 THEN allocation.teacher_name END AS resolved_teacher_name,
+               CASE WHEN allocation.teacher_count = 1 THEN 'resolved'
+                    WHEN allocation.teacher_count > 1 THEN 'ambiguous' ELSE 'missing' END AS allocation_status,
                requirement.periods_per_week, requirement.duration_periods,
                requirement.resource_id::text, resource.name AS resource_name,
                requirement.parallel_key, requirement.preferred_days,
@@ -722,6 +726,27 @@ export class TimetableWorkflowRepository {
         LEFT JOIN timetable_resources resource
           ON resource.tenant_id = requirement.tenant_id
          AND resource.id = requirement.resource_id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(DISTINCT assignment.teacher_user_id)::int AS teacher_count,
+                 MIN(assignment.teacher_user_id::text) AS teacher_id,
+                 MIN(COALESCE(NULLIF(allocated_staff.display_name, ''), allocated_staff.staff_number)) AS teacher_name
+          FROM teacher_subject_assignments assignment
+          JOIN staff_profiles allocated_staff
+            ON allocated_staff.tenant_id = assignment.tenant_id
+           AND allocated_staff.user_id::text = assignment.teacher_user_id::text
+           AND COALESCE(allocated_staff.status, 'active') = 'active'
+          LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
+          LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
+          WHERE assignment.tenant_id = requirement.tenant_id
+            AND assignment.class_section_id::text = requirement.class_section_id
+            AND assignment.subject_id::text = requirement.subject_id
+            AND (assignment.stream_id IS NULL OR assignment.stream_id::text = requirement.stream_id)
+            AND (requirement.teacher_id IS NULL OR assignment.teacher_user_id::text = requirement.teacher_id)
+            AND (assignment.academic_term_id IS NULL OR (year.name = requirement.academic_year AND term.name = requirement.term_name))
+            AND assignment.status = 'active'
+            AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
+            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+        ) allocation ON TRUE
         WHERE requirement.tenant_id = $1
           AND requirement.academic_year = $2 AND requirement.term_name = $3
           AND requirement.status = 'active'
@@ -1170,39 +1195,24 @@ export class TimetableWorkflowRepository {
          (SELECT COUNT(*)::int FROM subjects WHERE tenant_id = $1 AND COALESCE(status, 'active') = 'active') AS subjects,
          (SELECT COUNT(DISTINCT assignment.teacher_user_id)::int
           FROM teacher_subject_assignments assignment
+          JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id
+            AND staff.user_id::text = assignment.teacher_user_id::text AND COALESCE(staff.status, 'active') = 'active'
           LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
           LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
           WHERE assignment.tenant_id = $1
             AND (assignment.academic_term_id IS NULL OR (year.name = $2 AND term.name = $3))
             AND assignment.status = 'active'
-            AND assignment.effective_from <= CURRENT_DATE
+            AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
             AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)) AS active_teachers,
          (SELECT COUNT(*)::int FROM timetable_subject_requirements
           WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3 AND status = 'active') AS requirements,
          (SELECT COALESCE(SUM(periods_per_week), 0)::int FROM timetable_subject_requirements
-          WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3 AND status = 'active') AS required_lessons,
-         (SELECT COUNT(*)::int FROM timetable_subject_requirements requirement
-          WHERE requirement.tenant_id = $1 AND requirement.academic_year = $2 AND requirement.term_name = $3
-            AND requirement.status = 'active'
-            AND (
-              requirement.teacher_id IS NULL OR NOT EXISTS (
-                SELECT 1 FROM teacher_subject_assignments assignment
-                LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
-                LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
-                WHERE assignment.tenant_id = requirement.tenant_id
-                  AND (assignment.academic_term_id IS NULL OR (year.name = requirement.academic_year AND term.name = requirement.term_name))
-                  AND assignment.class_section_id::text = requirement.class_section_id
-                  AND assignment.subject_id::text = requirement.subject_id
-                  AND assignment.teacher_user_id::text = requirement.teacher_id
-                  AND (assignment.stream_id IS NULL OR assignment.stream_id::text = requirement.stream_id)
-                  AND assignment.status = 'active'
-                  AND (assignment.effective_from IS NULL OR assignment.effective_from <= CURRENT_DATE)
-                  AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
-              )
-            )) AS invalid_allocations`,
+          WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3 AND status = 'active') AS required_lessons`,
       [tenantId, academicYear, termName],
     );
-    return result.rows[0] ?? {};
+    const requirements = await this.listRequirements(tenantId, academicYear, termName);
+    const invalid = requirements.filter((requirement) => requirement.allocation_status !== 'resolved');
+    return { ...result.rows[0], invalid_allocations: invalid.length, allocation_issues: invalid };
   }
 
   async getConstraintSnapshot(tenantId: string, academicYear: string, termName: string, versionId?: string) {
@@ -1217,6 +1227,8 @@ export class TimetableWorkflowRepository {
                 assignment.department_id::text, assignment.status,
                 assignment.effective_from::text, assignment.effective_to::text
          FROM teacher_subject_assignments assignment
+         JOIN staff_profiles staff ON staff.tenant_id = assignment.tenant_id
+           AND staff.user_id::text = assignment.teacher_user_id::text AND COALESCE(staff.status, 'active') = 'active'
          LEFT JOIN academic_terms term ON term.tenant_id = assignment.tenant_id AND term.id = assignment.academic_term_id
          LEFT JOIN academic_years year ON year.tenant_id = term.tenant_id AND year.id = term.academic_year_id
          WHERE assignment.tenant_id = $1
@@ -1242,7 +1254,7 @@ export class TimetableWorkflowRepository {
     ]);
     return {
       configuration,
-      requirements,
+      requirements: requirements.map((requirement) => ({ ...requirement, teacher_id: requirement.resolved_teacher_id })),
       availability,
       resources,
       assignments: assignments.rows,
@@ -1313,10 +1325,11 @@ export class TimetableWorkflowRepository {
              $3 = 'school'
              OR ($3 = 'class' AND requirement.class_section_id = $4)
              OR ($3 = 'stream' AND requirement.stream_id = $4)
-             OR ($3 = 'teacher' AND requirement.teacher_id = $4)
+             OR ($3 = 'teacher' AND (requirement.teacher_id = $4 OR requirement.id::text = ANY($5::text[])))
              OR ($3 = 'requirement' AND requirement.id::text = $4)
            )`,
         input.tenant_id, input.version_id, scope.type, scope.id ?? null,
+        [...new Set([...input.placements.map((item) => item.requirement_id), ...input.gaps.map((item) => item.requirement_id)])],
       );
 
       const status = input.gaps.length > 0 ? 'completed_with_gaps' : 'completed';
@@ -1486,7 +1499,12 @@ export class TimetableWorkflowRepository {
        ORDER BY class_name, subject_name, unresolved.created_at`,
       [tenantId, academicYear, termName, versionId ?? null],
     );
-    return result.rows;
+    if (!result.rows.length) return [];
+    const requirements = new Map((await this.listRequirements(tenantId, academicYear, termName)).map((item) => [item.id, item]));
+    return result.rows.map((row) => ({ ...row,
+      teacher_id: requirements.get(row.requirement_id)?.resolved_teacher_id ?? null,
+      teacher_name: requirements.get(row.requirement_id)?.resolved_teacher_name ?? null,
+    }));
   }
 
   async countOpenUnscheduled(tenantId: string, versionId: string): Promise<number> {
@@ -1519,7 +1537,11 @@ export class TimetableWorkflowRepository {
        LIMIT 1`,
       [tenantId, unresolvedId],
     );
-    return result.rows[0] ?? null;
+    const unresolved = result.rows[0];
+    if (!unresolved) return null;
+    const requirement = (await this.listRequirements(tenantId, unresolved.academic_year, unresolved.term_name))
+      .find((item) => item.id === unresolved.requirement_id);
+    return { ...unresolved, teacher_id: requirement?.resolved_teacher_id ?? null };
   }
 
   async placeUnscheduled(input: {

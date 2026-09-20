@@ -9,6 +9,7 @@ export type TimetableIssue = {
   severity: ReadinessStatus;
   message: string;
   action_url?: string | null;
+  details?: { requirement_id: string; class_name?: string; stream_name?: string; subject_name?: string; reason: string }[];
 };
 
 export type ReadinessResponse = {
@@ -60,6 +61,11 @@ export type TeacherAssignment = {
   class_section_id: string;
   subject_id: string;
   teacher_user_id: string;
+  stream_id?: string | null;
+  stream_name?: string | null;
+  status?: string;
+  effective_from?: string | null;
+  effective_to?: string | null;
 };
 
 export type TimetableVersion = {
@@ -177,6 +183,10 @@ export type TimetableRequirement = {
   stream_id?: string | null;
   subject_id: string;
   teacher_id?: string | null;
+  resolved_teacher_id?: string | null;
+  resolved_teacher_name?: string | null;
+  allocation_status?: "resolved" | "missing" | "ambiguous";
+  stream_name?: string | null;
   periods_per_week: number;
   duration_periods: number;
   resource_id?: string | null;

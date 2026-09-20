@@ -50,7 +50,8 @@ describe("Deputy smart timetable and relief management", () => {
     expect(setup).toContain('"/api/timetable/resources"');
     expect(setup).toContain('"PATCH"');
     expect(setup).toMatch(/expected_row_version/);
-    expect(setup).toContain("requirements: items.map(({ row_version, ...item })");
+    expect(setup).toContain("requirements: items.map((item)");
+    expect(setup).toContain("expected_row_version: item.row_version");
     expect(setup).toContain("items: items.map(({ row_version, ...item })");
     expect(setup).toContain("Common timetable blocks");
     expect(setup).toContain("target_scope");

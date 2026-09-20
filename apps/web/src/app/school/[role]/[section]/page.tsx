@@ -8,6 +8,7 @@ import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { isProductionReadyModule } from "@/lib/features/module-readiness";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
+import { isDeputyWorkspace, resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 
 const allowedRoles = [
   "principal",
@@ -57,7 +58,11 @@ export default async function SchoolSectionPage({
     redirect("/school/principal/attendance-monitoring");
   }
 
-  if (!isSchoolSection(section) || !isProductionReadyModule(section)) {
+  if (role === "deputy-principal") {
+    if (!isDeputyWorkspace(section)) notFound();
+    const currentSection = resolveDeputyWorkspace(section);
+    if (currentSection !== section) redirect(`/school/deputy-principal/${currentSection}`);
+  } else if (!isSchoolSection(section) || !isProductionReadyModule(section)) {
     notFound();
   }
 

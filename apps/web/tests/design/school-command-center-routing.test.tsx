@@ -162,6 +162,15 @@ const sharedFallbackRoleCases = [
 ] as const;
 
 describe("school command center routing", () => {
+  it.each(["academic-setup", "academics", "timetable", "attendance", "staff-duty-roster", "student-welfare", "teaching", "support-my-tickets"])(
+    "keeps deputy %s out of the retired generic dashboard shell", async (section) => {
+      renderWithProviders(createElement(SchoolPages, { role: "deputy-principal", section,
+        tenantSlug: "school-a", routeMode: "public", liveDataEnabled: false }));
+      expect(await screen.findByTestId("deputy-principal-command-center")).toHaveTextContent(`Deputy ${section}`);
+      expect(screen.queryByText("School workspace")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
+    },
+  );
   beforeEach(() => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
