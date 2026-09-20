@@ -5,6 +5,10 @@ import { PrismaService } from '../src/database/prisma.service';
 import { HrSchemaService } from '../src/modules/hr/hr-schema.service';
 import { TimetableSchemaService } from '../src/modules/timetable/timetable-schema.service';
 import { TimetableWorkflowRepository } from '../src/modules/timetable/repositories/timetable-workflow.repository';
+import { TimetableService } from '../src/modules/timetable/timetable.service';
+import { EventsSchemaService } from '../src/modules/events/events-schema.service';
+import { EventPublisherService } from '../src/modules/events/event-publisher.service';
+import { OutboxEventsRepository } from '../src/modules/events/repositories/outbox-events.repository';
 
 describe('School day configuration persistence', () => {
   let pool: Pool;
@@ -42,6 +46,11 @@ describe('School day configuration persistence', () => {
     const staffTable = hrSchema.match(/CREATE TABLE IF NOT EXISTS staff_profiles \([\s\S]*?\n      \);/)?.[0];
     if (!staffTable) throw new Error('The canonical HR staff table was not found');
     await pool.query(staffTable);
+    let eventSchema = '';
+    await new EventsSchemaService({ runSchemaBootstrap: async (sql: string) => { eventSchema += sql; } } as never, { onModuleInit: async () => {} } as never).onModuleInit();
+    const outboxTable = eventSchema.match(/CREATE TABLE IF NOT EXISTS outbox_events \([\s\S]*?\n      \);/)?.[0];
+    if (!outboxTable) throw new Error('The canonical event outbox was not found');
+    await pool.query(outboxTable);
     for (const tenant of ['school-a', 'school-b']) {
       const year = randomUUID();
       await pool.query(`INSERT INTO academic_years VALUES ($1, $2, '2026', 'active', NULL)`, [year, tenant]);
@@ -158,6 +167,64 @@ describe('School day configuration persistence', () => {
     } finally {
       await prisma.$disconnect();
       await pool.query('DROP OWNED BY timetable_period_test_writer; DROP ROLE timetable_period_test_writer');
+    }
+  });
+
+  it('saves setup edits and UUID events atomically, removes rows, and rejects duplicate, stale and cross-school edits', async () => {
+    const prisma = new PrismaService(undefined as never, undefined as never);
+    const repo = new TimetableWorkflowRepository(prisma);
+    const context = { tenant_id: 'school-a', user_id: actor, role: 'deputy_principal', is_authenticated: true, request_id: randomUUID(), trace_id: randomUUID() };
+    const requestContext = { getStore: () => context, requireStore: () => context } as never;
+    const publisher = new EventPublisherService(requestContext, new OutboxEventsRepository(prisma));
+    const service = new TimetableService(requestContext, {} as never, repo, {} as never, publisher);
+    try {
+      for (const tenant of ['school-a', 'school-b']) {
+        await pool.query('INSERT INTO staff_profiles (tenant_id, user_id, display_name, staff_number, status) SELECT $1, $2::uuid, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM staff_profiles WHERE tenant_id=$1 AND user_id=$2::uuid)', [tenant, actor, 'Teacher', 'T-001', 'active']);
+        await pool.query("INSERT INTO class_sections (id, tenant_id, academic_year_id, name) SELECT 'class-1', tenant_id, id, 'Form 1' FROM academic_years WHERE tenant_id=$1 AND NOT EXISTS (SELECT 1 FROM class_sections WHERE tenant_id=$1 AND id='class-1')", [tenant]);
+        await pool.query("INSERT INTO subjects SELECT 'math', $1, 'Mathematics' WHERE NOT EXISTS (SELECT 1 FROM subjects WHERE tenant_id=$1 AND id='math')", [tenant]);
+      }
+      // Match production's human-readable academic-year name that cannot be cast to uuid.
+      await pool.query("UPDATE academic_years SET name='2026 Academic year'");
+      const scope = { academic_year: '2026 Academic year', term_name: 'Term 1' };
+      const config = makeInput(); config.academic_year = scope.academic_year;
+      await repo.saveConfiguration(config);
+      const subject = { class_section_id: 'class-1', subject_id: 'math', periods_per_week: 3, duration_periods: 2 };
+      let saved = await service.saveRequirements({ ...scope, replace_existing: true, requirements: [subject] });
+      expect(saved.items).toHaveLength(1);
+      const id = saved.items[0].id;
+      saved = await service.saveRequirements({ ...scope, replace_existing: true, requirements: [{ ...subject, id, teacher_id: actor, expected_row_version: 1, periods_per_week: 5 }] });
+      expect(saved.items[0]).toMatchObject({ id, teacher_id: actor, row_version: 2, periods_per_week: 5 });
+      await expect(service.saveRequirements({ ...scope, requirements: [{ ...subject, id, expected_row_version: 1 }] })).rejects.toThrow('changed since');
+      await expect(service.saveRequirements({ ...scope, requirements: [subject, subject] })).rejects.toThrow('Duplicate');
+      await expect(service.saveRequirements({ ...scope, requirements: [{ ...subject, id: randomUUID() }] })).rejects.toThrow('no longer available');
+      const other = await repo.saveRequirements({ ...scope, tenant_id: 'school-b', actor_user_id: actor, requirements: [subject] });
+      await expect(service.saveRequirements({ ...scope, requirements: [{ ...subject, id: other[0].id }] })).rejects.toThrow('no longer available');
+      expect(await repo.listRequirements('school-b', scope.academic_year, scope.term_name)).toHaveLength(1);
+      const failPublish = jest.spyOn(publisher, 'publish').mockRejectedValueOnce(new Error('Outbox unavailable'));
+      await expect(service.saveRequirements({ ...scope, requirements: [{ ...subject, id, teacher_id: actor, periods_per_week: 8 }] })).rejects.toThrow('Outbox unavailable');
+      failPublish.mockRestore();
+      expect((await repo.listRequirements('school-a', scope.academic_year, scope.term_name))[0]).toMatchObject({ periods_per_week: 5, row_version: 2 });
+      expect(await service.saveRequirements({ ...scope, replace_existing: true, requirements: [] })).toEqual({ items: [] });
+      const rule = { teacher_id: actor, day_of_week: 1, period_id: config.days[0].periods[0].id, state: 'unavailable' as const };
+      const availability = await service.saveAvailability({ ...scope, replace_existing: true, items: [rule] });
+      const edited = await service.saveAvailability({ ...scope, replace_existing: true, items: [{ ...rule, id: availability.items[0].id, period_id: config.days[0].periods[1].id, expected_row_version: 1 }] });
+      expect(edited.items[0]).toMatchObject({ id: availability.items[0].id, row_version: 2, period_id: config.days[0].periods[1].id });
+      await expect(service.saveAvailability({ ...scope, items: [rule, rule] })).rejects.toThrow('Duplicate');
+      const failAvailability = jest.spyOn(publisher, 'publish').mockRejectedValueOnce(new Error('Outbox unavailable'));
+      await expect(service.saveAvailability({ ...scope, replace_existing: true, items: [] })).rejects.toThrow('Outbox unavailable');
+      failAvailability.mockRestore();
+      expect(await repo.listAvailability('school-a', scope.academic_year, scope.term_name)).toHaveLength(1);
+      expect(await service.saveAvailability({ ...scope, replace_existing: true, items: [] })).toEqual({ items: [] });
+      const events = (await pool.query(`SELECT event.aggregate_id::text, event.tenant_id, event.actor_user_id::text, event.payload, audit.id::text AS audit_id
+        FROM outbox_events event LEFT JOIN timetable_audit_logs audit ON audit.id=event.aggregate_id AND audit.tenant_id=event.tenant_id`)).rows;
+      expect(events).toHaveLength(6);
+      for (const event of events) {
+        expect(event.aggregate_id).toBe(event.audit_id);
+        expect(event).toMatchObject({ tenant_id: 'school-a', actor_user_id: actor, payload: { academic_year: scope.academic_year, term_name: scope.term_name } });
+      }
+    } finally {
+      await pool.query("UPDATE academic_years SET name='2026'");
+      await prisma.$disconnect();
     }
   });
 

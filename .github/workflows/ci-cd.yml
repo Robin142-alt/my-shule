@@ -63,7 +63,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
       - name: School day builder and timetable interface
-        run: npm --prefix apps/web run test:design -- school-day-builder school-day-editor deputy-timetable-management deputy-timetable-class-scope smart-timetable-role-surfaces
+        run: npm --prefix apps/web run test:design -- school-day-builder school-day-editor subject-requirements-panel deputy-timetable-management deputy-timetable-class-scope smart-timetable-role-surfaces
 
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests

@@ -118,6 +118,11 @@ export function DeputyTimetableManagementWorkspace() {
   const scopedTenantId = useOptionalSchoolTenantId();
   const activeTenantId = scopedTenantId || getCurrentSchoolId() || undefined;
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("command");
+  const [setupDirty, setSetupDirty] = useState(false);
+  const leaveSetup = () => {
+    if (setupDirty && !window.confirm("Leave this step and discard unsaved subject requirements?")) return false;
+    setSetupDirty(false); return true;
+  };
   const [setupTab, setSetupTab] = useState<SetupTab>("periods");
   const [selectedYearName, setSelectedYearName] = useState("");
   const [selectedTermName, setSelectedTermName] = useState("");
@@ -213,10 +218,10 @@ export function DeputyTimetableManagementWorkspace() {
   const plannerQuery = useSchoolQuery<PlannerResponse>(selectorQuery ? `/api/timetable/planner?${selectorQuery}` : null);
   const configurationQuery = useSchoolQuery<ConfigurationResponse>(selectorQuery ? `/api/timetable/configuration?${selectorQuery}` : null);
   const requirementsQuery = useSchoolQuery<RequirementsResponse>(selectorQuery ? `/api/timetable/requirements?${selectorQuery}` : null);
-  const availabilityQuery = useSchoolQuery<AvailabilityResponse>(selectorQuery ? `/api/timetable/availability?${selectorQuery}` : null);
+  const availabilityQuery = useSchoolQuery<AvailabilityResponse>(selectorQuery ? `/api/timetable/availability?${selectorQuery}` : null, { enabled: activeTab === "setup" && setupTab === "availability" });
   const resourcesQuery = useSchoolQuery<ResourcesResponse>("/api/timetable/resources");
   const unscheduledQuery = useSchoolQuery<UnscheduledResponse>(selectorQuery ? `/api/timetable/unscheduled?${selectorQuery}` : null);
-  const historyQuery = useSchoolQuery<HistoryResponse>(selectorQuery ? `/api/timetable/versions/history?${selectorQuery}` : null);
+  const historyQuery = useSchoolQuery<HistoryResponse>(selectorQuery ? `/api/timetable/versions/history?${selectorQuery}` : null, { enabled: activeTab === "history" || Boolean(copySource) });
   const viewParams = (() => {
     if (!selectorQuery || (view === "class" && !effectiveClassId)) return null;
     const params = new URLSearchParams(selectorQuery);
@@ -229,8 +234,8 @@ export function DeputyTimetableManagementWorkspace() {
   })();
   const draftViewPath = viewParams ? (() => { const params = new URLSearchParams(viewParams); params.set("include_draft", "true"); return `/api/timetable/views?${params.toString()}`; })() : null;
   const publishedViewPath = viewParams ? `/api/timetable/views?${viewParams.toString()}` : null;
-  const draftViewQuery = useSchoolQuery<ViewResponse>(draftViewPath);
-  const publishedViewQuery = useSchoolQuery<ViewResponse>(publishedViewPath);
+  const draftViewQuery = useSchoolQuery<ViewResponse>(draftViewPath, { enabled: activeTab === "draft" });
+  const publishedViewQuery = useSchoolQuery<ViewResponse>(publishedViewPath, { enabled: activeTab === "published" });
 
   const allResources = resourcesQuery.data?.items ?? [];
   const resources = allResources.filter((resource) => resource.status === "active");
@@ -665,8 +670,8 @@ export function DeputyTimetableManagementWorkspace() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div><p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#47658F]"><CalendarClock className="h-4 w-4" /> Smart timetable & relief</p><h2 className="mt-2 text-2xl font-black">Timetable command centre</h2><p className="mt-1 max-w-3xl text-sm text-[#64748B]">Configure scheduling rules, generate the maximum valid draft, review from four perspectives, publish an immutable version, and manage daily relief.</p></div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-black">Academic year<select aria-label="Timetable academic year" value={academicYear} onChange={(event) => { setSelectedYearName(event.target.value); setSelectedTermName(""); setSelectedClassId(""); setSelectedTeacherId(""); setSelectedResourceId(""); setScopeId(""); setValidation(null); }} className={controlClass}>{years.length === 0 ? <option value="">No academic year</option> : years.map((year) => <option key={year.id} value={year.name}>{year.name}</option>)}</select></label>
-            <label className="text-sm font-black">Term<select aria-label="Timetable term" value={termName} onChange={(event) => { setSelectedTermName(event.target.value); setValidation(null); }} className={controlClass}>{terms.length === 0 ? <option value="">No term</option> : terms.map((term) => <option key={term.id} value={term.name}>{term.name}</option>)}</select></label>
+            <label className="text-sm font-black">Academic year<select aria-label="Timetable academic year" value={academicYear} onChange={(event) => { if (!leaveSetup()) return; setSelectedYearName(event.target.value); setSelectedTermName(""); setSelectedClassId(""); setSelectedTeacherId(""); setSelectedResourceId(""); setScopeId(""); setValidation(null); }} className={controlClass}>{years.length === 0 ? <option value="">No academic year</option> : years.map((year) => <option key={year.id} value={year.name}>{year.name}</option>)}</select></label>
+            <label className="text-sm font-black">Term<select aria-label="Timetable term" value={termName} onChange={(event) => { if (!leaveSetup()) return; setSelectedTermName(event.target.value); setValidation(null); }} className={controlClass}>{terms.length === 0 ? <option value="">No term</option> : terms.map((term) => <option key={term.id} value={term.name}>{term.name}</option>)}</select></label>
           </div>
         </div>
       </section>
@@ -678,10 +683,19 @@ export function DeputyTimetableManagementWorkspace() {
 
       <nav className="flex gap-2 overflow-x-auto rounded-xl border border-[#D8E0EC] bg-white p-2" aria-label="Timetable workspace tabs">
         {([[
-          "command", "Command centre"], ["setup", "Scheduler setup"], ["draft", "Draft review"], ["published", "Published"], ["relief", "Relief"], ["history", "History"]] as Array<[WorkspaceTab, string]>).map(([id, label]) => <button key={id} type="button" onClick={() => setActiveTab(id)} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-black ${activeTab === id ? "bg-[#071D49] text-white" : "text-[#47658F] hover:bg-[#EEF4FF]"}`}>{label}</button>)}
+          "command", "Command centre"], ["setup", "Scheduler setup"], ["draft", "Draft review"], ["published", "Published"], ["relief", "Relief"], ["history", "History"]] as Array<[WorkspaceTab, string]>).map(([id, label]) => <button key={id} type="button" onClick={() => { if (id !== activeTab && leaveSetup()) setActiveTab(id); }} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-black ${activeTab === id ? "bg-[#071D49] text-white" : "text-[#47658F] hover:bg-[#EEF4FF]"}`}>{label}</button>)}
       </nav>
 
       {activeTab === "command" ? <>
+        <section aria-label="Build your timetable" className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-[#071D49] sm:p-5">
+          <h3 className="text-lg font-black">Build your timetable in 3 steps</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <button type="button" onClick={() => { setSetupTab("periods"); setActiveTab("setup"); }} className="rounded-lg border border-[#C8D5EA] p-4 text-left"><span className="font-bold">1. Set school days & periods</span><span className="mt-1 block text-sm text-[#64748B]">{configuration ? "Review your saved school week and breaks." : "Set lesson times once and copy them across the week."}</span></button>
+            <button type="button" onClick={() => { setSetupTab("requirements"); setActiveTab("setup"); }} className="rounded-lg border border-[#C8D5EA] p-4 text-left"><span className="font-bold">2. Add subjects & weekly periods</span><span className="mt-1 block text-sm text-[#64748B]">Start from teaching allocations, then adjust each subject.</span></button>
+            <button type="button" onClick={plannerSlots.length ? () => setActiveTab("draft") : generate} disabled={!plannerSlots.length && (readinessBlocksGeneration || generateMutation.isPending)} className="rounded-lg border border-[#C8D5EA] p-4 text-left disabled:opacity-50"><span className="font-bold">3. {plannerSlots.length ? "Review your draft" : generateMutation.isPending ? "Generating..." : "Generate & review"}</span><span className="mt-1 block text-sm text-[#64748B]">Resolve any clashes, then publish when ready.</span></button>
+          </div>
+          <p className="mt-3 text-sm text-[#64748B]">Teacher availability and rooms are optional. Add exceptions only when needed.</p>
+        </section>
         <TimetableReadinessPanel readiness={readinessQuery.data} loading={readinessQuery.isLoading} error={readinessQuery.error} onRetry={() => readinessQuery.refetch()} />
         <section className="rounded-xl border border-[#D8E0EC] bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -706,10 +720,10 @@ export function DeputyTimetableManagementWorkspace() {
 
       {activeTab === "setup" ? <section className="space-y-5 rounded-xl border border-[#D8E0EC] bg-white p-4 sm:p-5">
         <div><h3 className="flex items-center gap-2 text-xl font-black text-[#071D49]"><Settings2 className="h-5 w-5" /> Scheduler setup</h3><p className="mt-1 text-sm text-[#64748B]">Timetable-specific rules live here. Academic years, classes, subjects, and teacher allocations stay in the existing Academic Setup workspace.</p><Link href="/school/deputy-principal/academics" className="mt-2 inline-flex text-sm font-black text-[#174EA6] underline">Open Academic Setup for allocations</Link></div>
-        <div className="flex gap-2 overflow-x-auto border-b border-[#D8E0EC] pb-3">{([ ["periods", "School days & periods"], ["requirements", "Subject requirements"], ["availability", "Teacher availability"], ["resources", "Rooms & resources"] ] as Array<[SetupTab, string]>).map(([id, label]) => <button key={id} type="button" onClick={() => setSetupTab(id)} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-black ${setupTab === id ? "bg-[#174EA6] text-white" : "border border-[#C8D5EA] bg-white"}`}>{label}</button>)}</div>
+        <div className="flex gap-2 overflow-x-auto border-b border-[#D8E0EC] pb-3">{([ ["periods", "School days & periods"], ["requirements", "Subject requirements"], ["availability", "Teacher availability"], ["resources", "Rooms & resources"] ] as Array<[SetupTab, string]>).map(([id, label]) => <button key={id} type="button" onClick={() => { if (id !== setupTab && leaveSetup()) setSetupTab(id); }} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-black ${setupTab === id ? "bg-[#174EA6] text-white" : "border border-[#C8D5EA] bg-white"}`}>{label}</button>)}</div>
         {setupTab === "periods" ? <PeriodConfigurationPanel response={configurationQuery.data} academicYear={academicYear} termName={termName} classes={classes} loading={configurationQuery.isLoading} error={configurationQuery.error} onRetry={() => configurationQuery.refetch()} onSaved={() => Promise.all([configurationQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
-        {setupTab === "requirements" ? <SubjectRequirementsPanel response={requirementsQuery.data} academicYear={academicYear} termName={termName} classes={classes} subjects={subjects} teachers={teachers} resources={resources} loading={requirementsQuery.isLoading} error={requirementsQuery.error} onRetry={() => requirementsQuery.refetch()} onSaved={() => Promise.all([requirementsQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
-        {setupTab === "availability" ? <TeacherAvailabilityPanel response={availabilityQuery.data} configuration={configuration} academicYear={academicYear} termName={termName} teachers={teachers} loading={availabilityQuery.isLoading} error={availabilityQuery.error} onRetry={() => availabilityQuery.refetch()} onSaved={() => Promise.all([availabilityQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
+        {setupTab === "requirements" ? <SubjectRequirementsPanel key={[activeTenantId, academicYear, termName].join(":")} response={requirementsQuery.data} academicYear={academicYear} termName={termName} classes={classes} subjects={subjects} teachers={teachers} resources={resources} assignments={assignments.filter((row) => !row.academic_term_id || row.academic_term_id === selectedTerm?.id)} configuration={configuration} onContinue={() => setActiveTab("command")} onDirtyChange={setSetupDirty} loading={requirementsQuery.isLoading} error={requirementsQuery.error} onRetry={() => requirementsQuery.refetch()} onSaved={() => Promise.all([requirementsQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
+        {setupTab === "availability" ? <TeacherAvailabilityPanel key={[activeTenantId, academicYear, termName].join(":")} response={availabilityQuery.data} configuration={configuration} academicYear={academicYear} termName={termName} teachers={teachers} loading={availabilityQuery.isLoading} error={availabilityQuery.error} onRetry={() => availabilityQuery.refetch()} onSaved={() => Promise.all([availabilityQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
         {setupTab === "resources" ? <TimetableResourcesPanel response={resourcesQuery.data} loading={resourcesQuery.isLoading} error={resourcesQuery.error} onRetry={() => resourcesQuery.refetch()} onSaved={() => Promise.all([resourcesQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
       </section> : null}
 

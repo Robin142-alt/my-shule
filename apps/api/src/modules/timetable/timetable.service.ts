@@ -7,6 +7,8 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { EventPublisherService } from '../events/event-publisher.service';
@@ -120,6 +122,10 @@ export class TimetableService {
   async saveRequirements(dto: BulkUpsertRequirementsDto) {
     const tenantId = this.requireTenantId();
     const scope = this.normalizeAcademicScope(dto);
+    const mutationId = randomUUID();
+    if (!dto.requirements.length && !dto.replace_existing) {
+      throw new BadRequestException('Add at least one subject requirement before saving');
+    }
     const requirements = dto.requirements.map((requirement) => ({
       ...requirement,
       id: requirement.requirement_id ?? requirement.id,
@@ -137,14 +143,12 @@ export class TimetableService {
       requirements,
       replace_existing: dto.replace_existing,
       actor_user_id: this.getActorUserId(),
+      mutation_id: mutationId,
+      onSaved: (tx) => this.publishWorkflowEvent(
+        'timetable.requirements.updated', mutationId, scope, 'requirements_updated',
+        { count: requirements.length }, tx,
+      ),
     });
-    await this.publishWorkflowEvent(
-      'timetable.requirements.updated',
-      `${scope.academic_year}:${scope.term_name}`,
-      scope,
-      'requirements_updated',
-      { count: items.length },
-    );
     return { items };
   }
 
@@ -163,7 +167,8 @@ export class TimetableService {
     const tenantId = this.requireTenantId();
     const scope = this.normalizeAcademicScope(dto);
     const sourceItems = dto.items ?? dto.availability ?? [];
-    if (sourceItems.length === 0) throw new BadRequestException('Add at least one availability entry');
+    const mutationId = randomUUID();
+    if (sourceItems.length === 0 && !dto.replace_existing) throw new BadRequestException('Add at least one availability entry');
     const items = sourceItems.map((item) => ({
       ...item,
       id: item.availability_id ?? item.id,
@@ -178,14 +183,12 @@ export class TimetableService {
       items,
       replace_existing: dto.replace_existing,
       actor_user_id: this.getActorUserId(),
+      mutation_id: mutationId,
+      onSaved: (tx) => this.publishWorkflowEvent(
+        'timetable.availability.updated', mutationId, scope, 'availability_updated',
+        { count: items.length }, tx,
+      ),
     });
-    await this.publishWorkflowEvent(
-      'timetable.availability.updated',
-      `${scope.academic_year}:${scope.term_name}`,
-      scope,
-      'availability_updated',
-      { count: saved.length },
-    );
     return { items: saved };
   }
 
@@ -1459,6 +1462,7 @@ export class TimetableService {
     input: Partial<AcademicScope>,
     action: TimetableLifecyclePayload['action'],
     metadata: Record<string, any> = {},
+    tx?: Prisma.TransactionClient,
   ) {
     if (!this.eventPublisher) return;
     const payload: TimetableLifecyclePayload = {
@@ -1487,11 +1491,13 @@ export class TimetableService {
     await this.eventPublisher.publish({
       event_key: `${eventName}:${entityId}:${Date.now()}`,
       event_name: eventName,
-      aggregate_type: eventName.includes('.slot.') ? 'timetable_slot' : eventName.includes('.relief.') ? 'timetable_relief' : 'timetable_version',
+      aggregate_type: eventName.includes('.requirements.') || eventName.includes('.availability.')
+        ? 'timetable_setup_change'
+        : eventName.includes('.slot.') ? 'timetable_slot' : eventName.includes('.relief.') ? 'timetable_relief' : 'timetable_version',
       aggregate_id: entityId,
       source_dashboard: this.normalizedRole() || 'timetable',
       payload,
-    });
+    }, tx);
   }
 
   private requireTenantId(): string {

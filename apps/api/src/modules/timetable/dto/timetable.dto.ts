@@ -430,7 +430,7 @@ export class UpsertSubjectPeriodRequirementDto {
 
 export class BulkUpsertRequirementsDto extends AcademicTermScopeDto {
   @IsArray()
-  @ArrayMinSize(1)
+  @ArrayMinSize(0)
   @ArrayMaxSize(2000)
   @ValidateNested({ each: true })
   @Type(() => UpsertSubjectPeriodRequirementDto)
@@ -509,7 +509,7 @@ export class BulkSetTeacherAvailabilityDto extends AcademicTermScopeDto {
   /** Canonical service field. */
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
+  @ArrayMinSize(0)
   @ArrayMaxSize(5000)
   @ValidateNested({ each: true })
   @Type(() => SetTeacherAvailabilityDto)
@@ -518,7 +518,7 @@ export class BulkSetTeacherAvailabilityDto extends AcademicTermScopeDto {
   /** Backward-compatible client alias for items. */
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
+  @ArrayMinSize(0)
   @ArrayMaxSize(5000)
   @ValidateNested({ each: true })
   @Type(() => SetTeacherAvailabilityDto)
