@@ -318,6 +318,10 @@ export class ConfigureTimetableDto extends AcademicTermScopeDto {
 
 export class UpsertSubjectPeriodRequirementDto {
   @IsOptional()
+  @IsIn(['auto', 'fixed'])
+  weekly_periods_mode?: 'auto' | 'fixed';
+
+  @IsOptional()
   @IsString()
   requirement_id?: string;
 
@@ -975,6 +979,10 @@ export class FindValidSlotsDto extends AcademicTermScopeDto {
 }
 
 export class MoveTimetableSlotDto {
+  @IsOptional()
+  @IsString()
+  swap_slot_id?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

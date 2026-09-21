@@ -178,6 +178,8 @@ export function configurationFrom(response?: ConfigurationResponse) {
 }
 
 export type TimetableRequirement = {
+  weekly_periods_mode?: "auto" | "fixed";
+  balanced_periods_per_week?: number;
   id?: string;
   class_section_id: string;
   stream_id?: string | null;
@@ -239,6 +241,8 @@ export type ViewResponse = {
 };
 
 export type CandidateSlot = {
+  swap_slot_id?: string;
+  swap_subject_name?: string;
   day_of_week: number;
   period_id: string;
   period_ids?: string[];

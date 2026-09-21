@@ -81,7 +81,7 @@ export function GenerationSummaryPanel({ result, onClose }: { result: Generation
   return (
     <section className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-950" aria-label="Generation summary">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em]"><WandSparkles className="h-4 w-4" /> Generation complete</p><h3 className="mt-1 text-lg font-black">The maximum valid draft was generated</h3><p className="mt-1 text-sm">Run {result.run.id} finished with status {result.run.status}. Review unresolved requirements and warnings before publishing.</p></div>
+        <div className="min-w-0"><p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em]"><WandSparkles className="h-4 w-4" /> Generation complete</p><h3 className="mt-1 text-lg font-black">{result.run.unscheduled_lessons ? "Review the remaining lessons" : "Your timetable is ready to review"}</h3><p className="mt-1 text-sm">Review your saved lessons and check conflicts before publishing.</p></div>
         <button type="button" onClick={onClose} className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-black">Dismiss</button>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -708,7 +708,7 @@ export class TimetableWorkflowRepository {
                CASE WHEN allocation.stream_count > 1 THEN 'stream_required'
                     WHEN allocation.teacher_count = 1 THEN 'resolved'
                     WHEN allocation.teacher_count > 1 THEN 'ambiguous' ELSE 'missing' END AS allocation_status,
-               requirement.periods_per_week, requirement.duration_periods,
+               requirement.periods_per_week, requirement.duration_periods, requirement.weekly_periods_mode,
                requirement.resource_id::text, resource.name AS resource_name,
                requirement.parallel_key, requirement.preferred_days,
                requirement.preferred_start_period_ids, requirement.status,
@@ -871,7 +871,7 @@ export class TimetableWorkflowRepository {
                  status = 'active', row_version = row_version + 1,
                  updated_by_user_id = $8::uuid, updated_at = NOW(),
                  class_section_id = $9, subject_id = $10, stream_id = $11,
-                 teacher_id = $12, parallel_key = $13
+                 teacher_id = $12, parallel_key = $13, weekly_periods_mode = COALESCE($14, weekly_periods_mode)
              WHERE tenant_id = $1 AND id = $2::uuid`,
             input.tenant_id, id, Number(requirement.periods_per_week),
             Number(requirement.duration_periods || 1), requirement.resource_id ?? null,
@@ -879,6 +879,7 @@ export class TimetableWorkflowRepository {
             JSON.stringify(requirement.preferred_start_period_ids ?? []), input.actor_user_id,
             String(requirement.class_section_id), String(requirement.subject_id), requirement.stream_id ?? null,
             requirement.teacher_id ?? null, requirement.parallel_key ?? null,
+            requirement.weekly_periods_mode ?? null,
           );
         } else {
           await tx.$executeRawUnsafe(
@@ -886,10 +887,10 @@ export class TimetableWorkflowRepository {
                id, tenant_id, academic_year, term_name, class_section_id, stream_id,
                subject_id, teacher_id, periods_per_week, duration_periods, resource_id,
                parallel_key, preferred_days, preferred_start_period_ids,
-               created_by_user_id, updated_by_user_id
+               created_by_user_id, updated_by_user_id, weekly_periods_mode
              ) VALUES (
                $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::uuid,
-               $12, $13::jsonb, $14::jsonb, $15::uuid, $15::uuid
+               $12, $13::jsonb, $14::jsonb, $15::uuid, $15::uuid, $16
              )`,
             id, input.tenant_id, input.academic_year, input.term_name,
             String(requirement.class_section_id), requirement.stream_id ?? null,
@@ -897,7 +898,7 @@ export class TimetableWorkflowRepository {
             Number(requirement.periods_per_week), Number(requirement.duration_periods || 1),
             requirement.resource_id ?? null, requirement.parallel_key ?? null,
             JSON.stringify(requirement.preferred_days ?? []),
-            JSON.stringify(requirement.preferred_start_period_ids ?? []), input.actor_user_id,
+            JSON.stringify(requirement.preferred_start_period_ids ?? []), input.actor_user_id, requirement.weekly_periods_mode ?? 'auto',
           );
         }
       }
@@ -1308,6 +1309,7 @@ export class TimetableWorkflowRepository {
     placements: GeneratedPlacement[];
     gaps: GeneratedGap[];
     required_lessons: number;
+    retained_periods?: number;
     warnings: any[];
     actor_user_id: string | null;
     onSaved?: (tx: Prisma.TransactionClient, runId: string) => Promise<void>;
@@ -1364,7 +1366,7 @@ export class TimetableWorkflowRepository {
            created_by_user_id, completed_at
          ) VALUES ($1::uuid, $2, $3::uuid, $4, $5::jsonb, $6, $7, $8, $9::jsonb, $10::uuid, NOW())`,
         runId, input.tenant_id, input.version_id, status, JSON.stringify(scope),
-        input.required_lessons, input.placements.reduce((sum, item) => sum + Number(item.duration_periods), 0),
+        input.required_lessons, input.placements.reduce((sum, item) => sum + Number(item.duration_periods), input.retained_periods ?? 0),
         input.gaps.reduce((sum, item) => sum + Number(item.remaining_periods), 0),
         JSON.stringify(input.warnings), input.actor_user_id,
       );
@@ -1454,7 +1456,7 @@ export class TimetableWorkflowRepository {
       const summary = {
         run_id: runId,
         required_lessons: input.required_lessons,
-        scheduled_lessons: input.placements.reduce((sum, item) => sum + Number(item.duration_periods), 0),
+        scheduled_lessons: input.placements.reduce((sum, item) => sum + Number(item.duration_periods), input.retained_periods ?? 0),
         unscheduled_lessons: input.gaps.reduce((sum, item) => sum + Number(item.remaining_periods), 0),
         warnings: input.warnings,
         scope,
@@ -2706,6 +2708,8 @@ export class TimetableWorkflowRepository {
     expected_version_row_version?: number;
     moves: Array<{ slot_id: string; expected_row_version: number; day_of_week: number; period_id: string; starts_at: string; ends_at: string }>;
     actor_user_id: string | null;
+    action?: string;
+    onSaved?: (tx: Prisma.TransactionClient) => Promise<void>;
   }) {
     await this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async (tx: any) => {
       const version = this.asRows<any>(await tx.$queryRawUnsafe(
@@ -2716,7 +2720,7 @@ export class TimetableWorkflowRepository {
       if (!version || version.status !== 'draft') throw new BadRequestException('Auto-fix requires an editable draft');
       if (input.expected_version_row_version != null
         && Number(version.row_version) !== Number(input.expected_version_row_version)) {
-        throw new ConflictException('The timetable draft changed before auto-fix could be applied');
+        throw new ConflictException('The timetable draft changed before the lesson moves could be applied');
       }
       for (const move of input.moves) {
         const updated = await tx.$executeRawUnsafe(
@@ -2728,7 +2732,7 @@ export class TimetableWorkflowRepository {
           input.tenant_id, input.version_id, move.slot_id, move.expected_row_version,
           move.day_of_week, move.period_id, move.starts_at, move.ends_at,
         );
-        if (Number(updated) !== 1) throw new ConflictException('A lesson changed while auto-fix was being applied');
+        if (Number(updated) !== 1) throw new ConflictException('A lesson changed while the timetable was being updated');
       }
       await tx.$executeRawUnsafe(
         `UPDATE timetable_versions SET row_version = row_version + 1, updated_at = NOW()
@@ -2737,9 +2741,10 @@ export class TimetableWorkflowRepository {
       );
       await tx.$executeRawUnsafe(
         `INSERT INTO timetable_audit_logs (tenant_id, version_id, actor_user_id, action, metadata)
-         VALUES ($1, $2::uuid, $3::uuid, 'timetable.version.auto_fixed', $4::jsonb)`,
-        input.tenant_id, input.version_id, input.actor_user_id, JSON.stringify({ moves: input.moves }),
+         VALUES ($1, $2::uuid, $3::uuid, $5, $4::jsonb)`,
+        input.tenant_id, input.version_id, input.actor_user_id, JSON.stringify({ moves: input.moves }), input.action ?? 'timetable.version.auto_fixed',
       );
+      await input.onSaved?.(tx);
     });
     return this.getVersion(input.tenant_id, input.version_id);
   }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
+import { balanceRequirements, uncoveredTeachingCells } from './timetable-balance';
 
 import { ConflictException } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants';
@@ -1260,4 +1261,72 @@ test('TimetableService normalizes published schedule pagination', async () => {
     limit: 100,
     offset: 0,
   });
+});
+
+function fullWeekFixture() {
+  const time = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  const requirements = Array.from({ length: 10 }, (_, index) => ({ id: `r${index}`, status: 'active', class_section_id: 'form4', stream_id: 'yellow', subject_id: `s${index}`, teacher_id: `t${index}`, periods_per_week: 3, duration_periods: index % 2 ? 1 : 2, weekly_periods_mode: 'auto' }));
+  return { configuration: { days: Array.from({ length: 5 }, (_, day) => ({ day_of_week: day + 1, order_index: day, is_teaching_day: true,
+    periods: Array.from({ length: 10 }, (_, index) => ({ id: `d${day}p${index}`, name: index === 5 ? 'Lunch' : `Period ${index + 1}`, order_index: index, starts_at: time(480 + index * 40), ends_at: time(520 + index * 40), is_teaching: index !== 5 })) })), common_blocks: [] as any[] },
+    requirements, assignments: requirements.map((row) => ({ ...row })), slots: [] as any[], availability: [] as any[], resources: [] as any[] };
+}
+
+test('balanced generation fills all 45 teaching cells, spreads subjects, and displays doubles as covered', () => {
+  const fixture = fullWeekFixture();
+  const balanced = balanceRequirements(fixture);
+  assert.deepEqual(balanced.issues, []);
+  assert.deepEqual(balanced.requirements.map((row) => row.periods_per_week).sort(), [4,4,4,4,4,5,5,5,5,5]);
+  const constraint = new TimetableConstraintService({} as never);
+  const result = constraint.generate({ ...fixture, requirements: balanced.requirements });
+  assert.deepEqual(result.gaps, []);
+  const saved = { ...fixture, requirements: balanced.requirements, slots: result.placements.map((slot, index) => ({ ...slot, id: `slot${index}` })) };
+  assert.equal(uncoveredTeachingCells(saved).length, 0);
+  assert.equal(constraint.validateVersion(saved).valid, true);
+  for (const requirement of balanced.requirements) {
+    const lessons = saved.slots.filter((slot) => slot.requirement_id === requirement.id);
+    assert.equal(lessons.reduce((sum, slot) => sum + slot.duration_periods, 0), requirement.periods_per_week);
+    assert.equal(new Set(lessons.map((slot) => slot.day_of_week)).size, lessons.length, 'spread each subject across different days when feasible');
+  }
+  assert.ok(saved.slots.length < 45, 'double periods remain one lesson');
+  assert.equal(constraint.validateVersion({ ...saved, slots: saved.slots.slice(1) }).valid, false, 'an empty cell blocks publishing');
+});
+
+test('fixed counts, reserved activities and locked lessons constrain balancing without changing saved counts', () => {
+  const fixture = fullWeekFixture();
+  fixture.requirements[0].weekly_periods_mode = 'fixed';
+  fixture.requirements[0].periods_per_week = 7;
+  fixture.configuration.common_blocks.push({ name: 'Assembly', target_scope: 'school', target_ids: [], day_of_week: 1, period_id: 'd0p0', duration_periods: 1 });
+  const plan = balanceRequirements(fixture);
+  assert.deepEqual(plan.issues, []);
+  assert.equal(plan.requirements[0].periods_per_week, 7);
+  assert.equal(plan.requirements.reduce((sum, row) => sum + row.periods_per_week, 0), 44);
+  assert.equal(fixture.requirements[1].periods_per_week, 3, 'automatic targets do not rewrite original counts');
+  fixture.slots.push({ requirement_id: 'r1', locked: true, duration_periods: 8 });
+  assert.equal(balanceRequirements(fixture).requirements[1].periods_per_week, 8);
+  fixture.requirements.forEach((row) => { row.weekly_periods_mode = 'fixed'; row.periods_per_week = 3; });
+  assert.ok(balanceRequirements(fixture).issues.some((issue) => issue.code === 'UNFILLED_WEEK'));
+  fixture.requirements.forEach((row) => { row.periods_per_week = 7; });
+  assert.ok(balanceRequirements(fixture).issues.some((issue) => issue.code === 'WEEK_OVER_CAPACITY'));
+});
+
+test('separate streams can share periods and parallel electives consume one cell', () => {
+  const fixture = fullWeekFixture();
+  fixture.requirements = [fixture.requirements[0], { ...fixture.requirements[1], stream_id: 'blue' }];
+  fixture.requirements.forEach((row) => { row.duration_periods = 1; });
+  const plan = balanceRequirements(fixture);
+  assert.equal(plan.requirements.reduce((sum, row) => sum + row.periods_per_week, 0), 90);
+  const constraint = new TimetableConstraintService({} as never);
+  fixture.assignments = fixture.requirements.map((row) => ({ ...row }));
+  const generated = constraint.generate({ ...fixture, requirements: plan.requirements });
+  assert.deepEqual(generated.gaps, []);
+  assert.equal(uncoveredTeachingCells({ ...fixture, slots: generated.placements }).length, 0);
+  const electives = fullWeekFixture();
+  Object.assign(electives.requirements[0], { parallel_key: 'electives', duration_periods: 1 });
+  Object.assign(electives.requirements[1], { parallel_key: 'electives', duration_periods: 1 });
+  const parallel = balanceRequirements(electives);
+  assert.equal(parallel.requirements[0].periods_per_week, parallel.requirements[1].periods_per_week);
+  assert.equal(parallel.requirements.reduce((sum, row) => sum + row.periods_per_week, 0) - parallel.requirements[0].periods_per_week, 45);
+  const result = constraint.generate({ ...electives, requirements: parallel.requirements });
+  assert.deepEqual(result.gaps, []);
+  assert.equal(uncoveredTeachingCells({ ...electives, slots: result.placements }).length, 0);
 });
