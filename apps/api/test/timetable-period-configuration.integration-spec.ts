@@ -10,6 +10,8 @@ import { EventsSchemaService } from '../src/modules/events/events-schema.service
 import { EventPublisherService } from '../src/modules/events/event-publisher.service';
 import { OutboxEventsRepository } from '../src/modules/events/repositories/outbox-events.repository';
 import { TimetableConstraintService } from '../src/modules/timetable/timetable-constraint.service';
+import { TimetableRepository } from '../src/modules/timetable/repositories/timetable.repository';
+import { TimetableController } from '../src/modules/timetable/timetable.controller';
 
 describe('School day configuration persistence', () => {
   let pool: Pool;
@@ -33,6 +35,20 @@ describe('School day configuration persistence', () => {
     if (process.env.MYSHULE_DISPOSABLE_POSTGRES !== '1' || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
       || !url.pathname.slice(1).startsWith('my_shule_disposable_')) throw new Error('Use disposable local PostgreSQL.');
     pool = new Pool({ connectionString: url.toString() });
+    // Reproduce the production tables created by the legacy Prisma models.
+    // CREATE TABLE IF NOT EXISTS alone cannot repair these constraints.
+    await pool.query(`CREATE TABLE timetable_versions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
+      academic_year text NOT NULL, term_name text NOT NULL, status text NOT NULL,
+      immutable boolean NOT NULL, notes text NOT NULL,
+      published_at timestamp NOT NULL, published_by_user_id uuid NOT NULL,
+      created_at timestamp NOT NULL DEFAULT NOW(), updated_at timestamp NOT NULL);
+      CREATE TABLE timetable_slots (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
+      academic_year text NOT NULL, term_name text NOT NULL, class_section_id text NOT NULL,
+      subject_id text NOT NULL, teacher_id text NOT NULL, room_id text NOT NULL,
+      day_of_week integer NOT NULL, starts_at time NOT NULL, ends_at time NOT NULL,
+      created_by_user_id uuid NOT NULL, created_at timestamp NOT NULL DEFAULT NOW(), updated_at timestamp NOT NULL);`);
     await new TimetableSchemaService({ runSchemaBootstrap: async (sql: string) => pool.query(sql) } as never).onModuleInit();
     await pool.query(`CREATE TABLE academic_years (id uuid, tenant_id text, name text, status text, archived_at timestamptz);
       CREATE TABLE academic_terms (id uuid, tenant_id text, academic_year_id uuid, name text, status text, archived_at timestamptz,
@@ -41,7 +57,8 @@ describe('School day configuration persistence', () => {
         is_active boolean DEFAULT TRUE, status text DEFAULT 'active', archived_at timestamptz);
       CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text,
         is_active boolean DEFAULT TRUE, status text DEFAULT 'active', archived_at timestamptz);
-      CREATE TABLE subjects (id text, tenant_id text, name text, status text DEFAULT 'active');
+      CREATE TABLE subjects (id text, tenant_id text, name text, status text DEFAULT 'active', department_id uuid);
+      CREATE TABLE academics_departments (id uuid, tenant_id text, is_active boolean DEFAULT TRUE);
       CREATE TABLE teacher_subject_assignments (id uuid DEFAULT gen_random_uuid(), tenant_id text,
         academic_term_id uuid, class_section_id text, stream_id text, subject_id text, teacher_user_id text,
         department_id uuid, status text DEFAULT 'active', effective_from date, effective_to date);`);
@@ -185,7 +202,7 @@ describe('School day configuration persistence', () => {
       for (const tenant of ['school-a', 'school-b']) {
         await pool.query('INSERT INTO staff_profiles (tenant_id, user_id, display_name, staff_number, status) SELECT $1, $2::uuid, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM staff_profiles WHERE tenant_id=$1 AND user_id=$2::uuid)', [tenant, actor, 'Teacher', 'T-001', 'active']);
         await pool.query("INSERT INTO class_sections (id, tenant_id, academic_year_id, name) SELECT 'class-1', tenant_id, id, 'Form 1' FROM academic_years WHERE tenant_id=$1 AND NOT EXISTS (SELECT 1 FROM class_sections WHERE tenant_id=$1 AND id='class-1')", [tenant]);
-        await pool.query("INSERT INTO subjects SELECT 'math', $1, 'Mathematics' WHERE NOT EXISTS (SELECT 1 FROM subjects WHERE tenant_id=$1 AND id='math')", [tenant]);
+        await pool.query("INSERT INTO subjects (id,tenant_id,name) SELECT 'math', $1, 'Mathematics' WHERE NOT EXISTS (SELECT 1 FROM subjects WHERE tenant_id=$1 AND id='math')", [tenant]);
       }
       // Match production's human-readable academic-year name that cannot be cast to uuid.
       await pool.query("UPDATE academic_years SET name='2026 Academic year'");
@@ -231,6 +248,89 @@ describe('School day configuration persistence', () => {
       await prisma.$disconnect();
     }
   });
+
+  it('completes Generate against upgraded production tables, persists the draft and events, and safely retries failures', async () => {
+    const tenant = 'school-generate'; const year = randomUUID();
+    const context = { tenant_id: tenant, user_id: actor, role: 'deputy_principal', permissions: ['timetable:write', 'timetable:read'],
+      is_authenticated: true, request_id: randomUUID(), trace_id: randomUUID() };
+    const requestContext = { getStore: () => context, requireStore: () => context } as never;
+    await pool.query(`CREATE ROLE timetable_generation_writer NOLOGIN NOSUPERUSER;
+      GRANT USAGE ON SCHEMA public TO timetable_generation_writer;
+      GRANT SELECT ON academic_years, academic_terms, class_sections, class_streams, subjects, staff_profiles, teacher_subject_assignments, academics_departments TO timetable_generation_writer;
+      GRANT SELECT, INSERT, UPDATE, DELETE ON timetable_configurations, timetable_days, timetable_period_definitions,
+        timetable_common_blocks, timetable_versions, timetable_audit_logs, timetable_subject_requirements, timetable_teacher_availability,
+        timetable_unscheduled_requirements, timetable_resources, timetable_slots, timetable_generation_runs, outbox_events TO timetable_generation_writer;`);
+    const prisma = new PrismaService(requestContext, { getRuntimeRoleName: () => 'timetable_generation_writer' } as never);
+    const repo = new TimetableWorkflowRepository(prisma);
+    const publisher = new EventPublisherService(requestContext, new OutboxEventsRepository(prisma));
+    const constraints = new TimetableConstraintService(repo);
+    const service = new TimetableService(requestContext, new TimetableRepository(prisma), repo, constraints, publisher);
+    const controller = new TimetableController(service);
+    const scope = { academic_year: '2026 Academic year', term_name: 'TERM 3' };
+    try {
+      await pool.query(`INSERT INTO academic_years VALUES ($1,$2,$3,'active',NULL)`, [year,tenant,scope.academic_year]);
+      await pool.query(`INSERT INTO academic_terms VALUES ($1,$2,$3,$4,'active',NULL,'2026-01-01','2026-12-31')`, [randomUUID(),tenant,year,scope.term_name]);
+      await pool.query(`INSERT INTO class_sections (id,tenant_id,academic_year_id,name) VALUES ('form4',$1,$2,'Form 4')`, [tenant,year]);
+      await pool.query(`INSERT INTO class_streams (id,tenant_id,class_section_id,name) VALUES ('yellow',$1,'form4','Yellow')`, [tenant]);
+      const teachers = Array.from({length:10}, () => randomUUID());
+      const periods = [3,3,4,4,3,3,4,3,5,1];
+      for (let i=0;i<10;i++) {
+        await pool.query(`INSERT INTO subjects (id,tenant_id,name) VALUES ($1,$2,$1)`, [`subject-${i}`,tenant]);
+        await pool.query(`INSERT INTO staff_profiles (tenant_id,user_id,display_name,staff_number,status) VALUES ($1,$2,$3,$3,'active')`, [tenant,teachers[i],`Teacher ${i}`]);
+        await pool.query(`INSERT INTO teacher_subject_assignments (tenant_id,class_section_id,stream_id,subject_id,teacher_user_id)
+          VALUES ($1,'form4','yellow',$2,$3)`, [tenant,`subject-${i}`,teachers[i]]);
+      }
+      const time = (minutes: number) => `${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
+      const configuration = await repo.saveConfiguration({ ...makeInput(tenant), ...scope,
+        days: Array.from({length:5}, (_,day) => ({ day_of_week:day+1, name:`Day ${day+1}`, is_teaching_day:true,
+          periods:Array.from({length:9}, (_,index) => ({id:randomUUID(),name:`Period ${index+1}`,starts_at:time(480+index*40),ends_at:time(520+index*40),period_type:'lesson',is_teaching:true})) })) });
+      await repo.saveRequirements({tenant_id:tenant, actor_user_id:actor, ...scope,
+        requirements:periods.map((count,i)=>({class_section_id:'form4',subject_id:`subject-${i}`,teacher_id:null,stream_id:null,periods_per_week:count,duration_periods:1}))});
+      expect((await controller.getReadiness(scope)).status).toBe('READY');
+      const result = await controller.generate({...scope,scope:'whole_school',preserve_locked:true,allow_partial:true});
+      expect(result).toMatchObject({status:'COMPLETED',gaps:[],run:{status:'completed',required_lessons:33,scheduled_lessons:33,unscheduled_lessons:0},
+        version:{status:'draft',row_version:2,immutable:false,notes:null,published_at:null,published_by_user_id:null,created_by_user_id:actor}});
+      const snapshot = await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id);
+      expect(snapshot.slots).toHaveLength(33);
+      expect(snapshot.slots.every((slot:any)=>slot.stream_id==='yellow' && !slot.room_id)).toBe(true);
+      expect((await controller.validate({...scope,version_id:result.version.id})).valid).toBe(true);
+      expect((await service.getPlanner(scope)).slots).toHaveLength(33);
+      expect((await controller.getView({...scope,view:'class',class_section_id:'form4',include_draft:true})).items).toHaveLength(33);
+      expect((await controller.getView({...scope,view:'teacher',teacher_id:teachers[0],include_draft:true})).items).toHaveLength(3);
+      const events = (await pool.query(`SELECT aggregate_id::text,actor_user_id::text,actor_role,source_dashboard,payload FROM outbox_events WHERE tenant_id=$1 AND event_name='timetable.generation.completed'`,[tenant])).rows;
+      expect(events).toEqual([expect.objectContaining({aggregate_id:result.run.id,actor_user_id:actor,actor_role:'deputy_principal',source_dashboard:'deputy_principal',payload:expect.objectContaining({version_id:result.version.id,scheduled_lessons:33})})]);
+      expect((await pool.query(`SELECT COUNT(*)::int AS count FROM timetable_audit_logs WHERE tenant_id=$1 AND action='timetable.generation.completed'`,[tenant])).rows[0].count).toBe(1);
+      // A failed event write must not leave replacement lessons or a false success run.
+      const failPublish = jest.spyOn(publisher,'publish').mockRejectedValueOnce(new Error('Outbox unavailable'));
+      await expect(controller.generate({...scope,version_id:result.version.id,expected_version_row_version:2})).rejects.toThrow('Outbox unavailable');
+      failPublish.mockRestore();
+      expect((await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id)).slots).toEqual(snapshot.slots);
+      expect((await repo.getVersion(tenant,result.version.id)).row_version).toBe(2);
+      expect((await pool.query(`SELECT COUNT(*)::int AS count FROM timetable_generation_runs WHERE tenant_id=$1`,[tenant])).rows[0].count).toBe(1);
+      const lockedSlot = snapshot.slots.find((slot:any)=>slot.teacher_id!==teachers[9]);
+      await pool.query(`UPDATE timetable_slots SET locked=TRUE WHERE tenant_id=$1 AND id=$2`,[tenant,lockedSlot.id]);
+      const retry = await controller.generate({...scope,version_id:result.version.id,expected_version_row_version:2,preserve_locked:true});
+      expect(retry.status).toBe('COMPLETED');
+      const retried = await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id);
+      expect(retried.slots).toHaveLength(33);
+      expect(retried.slots).toContainEqual(expect.objectContaining({id:lockedSlot.id,locked:true}));
+      await expect(controller.generate({...scope,version_id:result.version.id,expected_version_row_version:2})).rejects.toThrow('changed since');
+      await expect(controller.generate({...scope,version_id:randomUUID()})).rejects.toThrow('No draft timetable');
+      // Capacity gaps are saved and returned truthfully, with a partial event.
+      await repo.saveAvailability({tenant_id:tenant,actor_user_id:actor,...scope,items:configuration.days.flatMap((day:any)=>day.periods.map((period:any)=>({teacher_id:teachers[9],day_of_week:day.day_of_week,period_id:period.id,state:'unavailable'})))});
+      const updatedVersion = await repo.getVersion(tenant,result.version.id);
+      const partial = await controller.generate({...scope,version_id:result.version.id,expected_version_row_version:updatedVersion.row_version,allow_partial:true});
+      expect(partial).toMatchObject({status:'PARTIAL',run:{unscheduled_lessons:1}});
+      expect(await repo.countOpenUnscheduled(tenant,result.version.id)).toBe(1);
+      expect((await pool.query(`SELECT COUNT(*)::int AS count FROM outbox_events WHERE tenant_id=$1 AND event_name='timetable.generation.partial'`,[tenant])).rows[0].count).toBe(1);
+      context.tenant_id='school-b';
+      expect(await repo.getVersion('school-b',result.version.id)).toBeNull();
+      expect((await prisma.query('SELECT id FROM timetable_slots WHERE tenant_id=$1 AND version_id=$2::uuid',['school-b',result.version.id])).rows).toEqual([]);
+    } finally {
+      await prisma.$disconnect();
+      await pool.query('DROP OWNED BY timetable_generation_writer; DROP ROLE timetable_generation_writer');
+    }
+  }, 30_000);
 
   it('resolves automatic teachers for readiness, generation and saved lessons without rewriting requirements', async () => {
     const tenant = 'school-allocations';

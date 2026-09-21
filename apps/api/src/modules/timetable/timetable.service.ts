@@ -1092,6 +1092,8 @@ export class TimetableService {
     if (generated.gaps.length > 0 && dto.allow_partial === false) {
       throw new BadRequestException({ message: 'The timetable could not be fully generated under current constraints', gaps: generated.gaps });
     }
+    const action = generated.gaps.length > 0 ? 'generation_partial' : 'generation_completed';
+    const eventName = generated.gaps.length > 0 ? 'timetable.generation.partial' : 'timetable.generation.completed';
     const saved = await this.workflowRepository.saveGenerationResult({
       tenant_id: tenantId,
       version_id: version.id,
@@ -1103,14 +1105,12 @@ export class TimetableService {
       required_lessons: requirements.reduce((sum: number, item: any) => sum + Number(item.periods_per_week ?? 0), 0),
       warnings: generated.warnings,
       actor_user_id: this.getActorUserId(),
-    });
-    const action = generated.gaps.length > 0 ? 'generation_partial' : 'generation_completed';
-    const eventName = generated.gaps.length > 0 ? 'timetable.generation.partial' : 'timetable.generation.completed';
-    await this.publishWorkflowEvent(eventName, saved.run.id, academic, action, {
-      version_id: version.id,
-      scheduled_lessons: generated.placements.reduce((sum, item) => sum + Number(item.duration_periods), 0),
-      unscheduled_lessons: generated.gaps.reduce((sum, item) => sum + Number(item.remaining_periods), 0),
-      scope,
+      onSaved: (tx, runId) => this.publishWorkflowEvent(eventName, runId, academic, action, {
+        version_id: version.id,
+        scheduled_lessons: generated.placements.reduce((sum, item) => sum + Number(item.duration_periods), 0),
+        unscheduled_lessons: generated.gaps.reduce((sum, item) => sum + Number(item.remaining_periods), 0),
+        scope,
+      }, tx),
     });
     return {
       status: generated.gaps.length > 0 ? 'PARTIAL' : 'COMPLETED',
@@ -1248,7 +1248,7 @@ export class TimetableService {
     const version = versionId
       ? await this.workflowRepository.getVersion(tenantId, versionId)
       : create
-        ? await this.timetableRepository.getOrCreateDraftVersion({ tenant_id: tenantId, ...scope })
+        ? await this.timetableRepository.getOrCreateDraftVersion({ tenant_id: tenantId, ...scope, actor_user_id: this.getActorUserId() })
         : await this.timetableRepository.getPlannerVersion({ tenant_id: tenantId, ...scope });
     if (!version) throw new NotFoundException('No draft timetable exists for the selected academic term');
     if (version.academic_year !== scope.academic_year || version.term_name !== scope.term_name) {

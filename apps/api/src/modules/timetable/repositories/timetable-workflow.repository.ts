@@ -1310,6 +1310,7 @@ export class TimetableWorkflowRepository {
     required_lessons: number;
     warnings: any[];
     actor_user_id: string | null;
+    onSaved?: (tx: Prisma.TransactionClient, runId: string) => Promise<void>;
   }) {
     const runId = randomUUID();
     const scope = input.scope ?? { type: 'school' as const };
@@ -1471,6 +1472,7 @@ export class TimetableWorkflowRepository {
         input.gaps.length > 0 ? 'timetable.generation.partial' : 'timetable.generation.completed',
         JSON.stringify(summary),
       );
+      await input.onSaved?.(tx, runId);
     });
 
     const [run, version] = await Promise.all([

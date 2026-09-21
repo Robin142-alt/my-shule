@@ -6552,19 +6552,19 @@ model TenantBankAccounts {
 
 model TimetableSlots {
   academic_year      String
-  class_section_id   String   @db.Uuid
+  class_section_id   String
   created_at         DateTime @default(now())
   created_by_user_id String   @db.Uuid
-  day_of_week        String
-  ends_at            DateTime
+  day_of_week        Int
+  ends_at            DateTime @db.Time(6)
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  room_id            String   @db.Uuid
-  starts_at          DateTime
-  subject_id         String   @db.Uuid
-  teacher_id         String   @db.Uuid
-  tenant_id          String   @db.Uuid
+  room_id            String?
+  starts_at          DateTime @db.Time(6)
+  subject_id         String
+  teacher_id         String
+  tenant_id          String
   term_name          String
-  updated_at         DateTime @updatedAt
+  updated_at         DateTime @default(now()) @updatedAt
 
   @@index([tenant_id])
   @@map("timetable_slots")
@@ -6574,14 +6574,14 @@ model TimetableVersions {
   academic_year        String
   created_at           DateTime @default(now())
   id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  immutable            String
-  notes                String
-  published_at         DateTime
-  published_by_user_id String   @db.Uuid
+  immutable            Boolean @default(false)
+  notes                String?
+  published_at         DateTime?
+  published_by_user_id String?  @db.Uuid
   status               String
-  tenant_id            String   @db.Uuid
+  tenant_id            String
   term_name            String
-  updated_at           DateTime @updatedAt
+  updated_at           DateTime @default(now()) @updatedAt
 
   @@index([tenant_id])
   @@map("timetable_versions")
