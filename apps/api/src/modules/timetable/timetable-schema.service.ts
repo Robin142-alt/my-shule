@@ -216,6 +216,9 @@ export class TimetableSchemaService implements OnModuleInit {
           REFERENCES timetable_period_definitions (tenant_id, id) ON DELETE CASCADE
       );
 
+      ALTER TABLE timetable_subject_requirements ADD COLUMN IF NOT EXISTS weekly_periods_mode text NOT NULL DEFAULT 'auto'
+        CHECK (weekly_periods_mode IN ('auto', 'fixed'));
+
       CREATE TABLE IF NOT EXISTS timetable_slots (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,

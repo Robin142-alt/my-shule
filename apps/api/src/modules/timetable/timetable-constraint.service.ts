@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { balanceRequirements, sameTeachingGroup, uncoveredTeachingCells } from './timetable-balance';
 
 import {
   GeneratedGap,
@@ -82,6 +83,8 @@ export class TimetableConstraintService {
       warnings.push(issue('CAPACITY_PRESSURE', 'WARNING', 'Required weekly periods are close to or above the configured class timetable capacity.'));
     }
 
+    const snapshot = await this.getSnapshot(tenantId, academicYear, termName);
+    for (const problem of snapshot.balance_issues) blockers.push(issue(problem.code, 'BLOCKER', problem.message));
     return {
       status: blockers.length > 0 ? 'BLOCKER' : warnings.length > 0 ? 'WARNING' : 'READY',
       blockers,
@@ -102,13 +105,15 @@ export class TimetableConstraintService {
         classes: Number(metrics.classes ?? 0),
         active_teachers: Number(metrics.active_teachers ?? 0),
         requirements: Number(metrics.requirements ?? 0),
-        required_lessons: Number(metrics.required_lessons ?? 0),
+        required_lessons: snapshot.requirements.reduce((sum: number, row: any) => sum + Number(row.periods_per_week), 0),
       },
     };
   }
 
   async getSnapshot(tenantId: string, academicYear: string, termName: string, versionId?: string) {
-    return this.workflowRepository.getConstraintSnapshot(tenantId, academicYear, termName, versionId);
+    const snapshot = await this.workflowRepository.getConstraintSnapshot(tenantId, academicYear, termName, versionId);
+    const balanced = balanceRequirements(snapshot);
+    return { ...snapshot, requirements: balanced.requirements, balance_issues: balanced.issues };
   }
 
   validatePlacement(snapshot: any, placement: PlacementLike, excludeSlotId?: string): TimetableConflictDetail[] {
@@ -202,7 +207,7 @@ export class TimetableConstraintService {
       }
       const sameParallelGroup = Boolean(placement.parallel_key)
         && String(existing.parallel_key ?? '') === String(placement.parallel_key);
-      if (String(existing.class_section_id) === String(placement.class_section_id) && !sameParallelGroup) {
+      if (sameTeachingGroup(existing, placement) && !sameParallelGroup) {
         conflicts.push({ code: 'CLASS_CLASH', message: 'The class already has another lesson at this time.', slot_ids: slotIds });
       }
       if (placement.stream_id && existing.stream_id
@@ -243,6 +248,9 @@ export class TimetableConstraintService {
 
   validateVersion(snapshot: any, unscheduledCount = 0) {
     const hardConflicts: TimetableConflictDetail[] = [];
+    hardConflicts.push(...(snapshot.balance_issues ?? []));
+    const emptyPeriods = uncoveredTeachingCells(snapshot);
+    if (emptyPeriods.length) hardConflicts.push({ code: 'EMPTY_TEACHING_PERIODS', message: `${emptyPeriods.length} teaching period(s) still need lessons. Regenerate the full timetable before publishing.` });
     for (const slot of snapshot.slots as any[]) {
       hardConflicts.push(...this.validatePlacement(snapshot, slot, String(slot.id)).map((conflict) => ({
         ...conflict,
@@ -290,6 +298,7 @@ export class TimetableConstraintService {
         hard_conflicts: unique.size,
         warnings: warnings.length,
         unscheduled: unresolvedLessons,
+        empty_teaching_periods: emptyPeriods.length,
       },
     };
   }
@@ -336,7 +345,32 @@ export class TimetableConstraintService {
     return { items: candidates, best: candidates[0] ?? null };
   }
 
+  findSwapSlots(snapshot: any, source: any) {
+    if (source.locked || source.parallel_key) return [];
+    return snapshot.slots.filter((target: any) => target.id !== source.id && !target.locked && !target.parallel_key
+      && target.class_section_id === source.class_section_id && (target.stream_id ?? null) === (source.stream_id ?? null)
+      && Number(target.duration_periods || 1) === Number(source.duration_periods || 1)).flatMap((target: any) => {
+        const timing = (slot: any) => ({ day_of_week: Number(slot.day_of_week), period_id: slot.period_id, starts_at: slot.starts_at, ends_at: slot.ends_at });
+        const moved = { ...source, ...timing(target) };
+        const exchanged = { ...target, ...timing(source) };
+        const rest = { ...snapshot, slots: snapshot.slots.filter((slot: any) => slot.id !== source.id && slot.id !== target.id) };
+        if (this.validatePlacement(rest, moved).length || this.validatePlacement(rest, exchanged).length) return [];
+        const name = snapshot.requirements.find((row: any) => row.id === target.requirement_id)?.subject_name || target.subject_id;
+        return [{ ...timing(target), period_ids: [target.period_id], state: 'VALID' as const, score: 100,
+          swap_slot_id: target.id, swap_subject_name: name, reasons: [`Swap with ${name}; both teachers and lesson times have been checked.`] }];
+      });
+  }
+
   generate(snapshot: any): { placements: GeneratedPlacement[]; gaps: GeneratedGap[]; warnings: any[] } {
+    let best = this.generateAttempt(snapshot, 0);
+    for (let attempt = 1; best.gaps.length && attempt < 12; attempt += 1) {
+      const candidate = this.generateAttempt(snapshot, attempt);
+      if (candidate.gaps.reduce((sum, gap) => sum + gap.remaining_periods, 0) < best.gaps.reduce((sum, gap) => sum + gap.remaining_periods, 0)) best = candidate;
+    }
+    return best;
+  }
+
+  private generateAttempt(snapshot: any, attempt: number): { placements: GeneratedPlacement[]; gaps: GeneratedGap[]; warnings: any[] } {
     const placements: GeneratedPlacement[] = [];
     const gaps: GeneratedGap[] = [];
     const warnings: any[] = [];
@@ -352,6 +386,9 @@ export class TimetableConstraintService {
       || String(left.class_section_id).localeCompare(String(right.class_section_id))
       || String(left.subject_id).localeCompare(String(right.subject_id))
       || String(left.id).localeCompare(String(right.id)));
+    // Try alternate orders when scarce teachers or double lessons make a greedy
+    // first pass incomplete. Every alternative still uses the same hard checks.
+    if (attempt && requirements.length) requirements.push(...requirements.splice(0, attempt % requirements.length));
 
     for (const requirement of requirements) {
       let remaining = Number(requirement.periods_per_week);
@@ -444,13 +481,23 @@ export class TimetableConstraintService {
       String(slot.class_section_id) === String(placement.class_section_id)
       && String(slot.subject_id) === String(placement.subject_id)
       && Number(slot.day_of_week) === Number(placement.day_of_week)).length;
-    score -= sameSubjectDay * 12;
+    score -= sameSubjectDay * 30;
     if (sameSubjectDay === 0) reasons.push('Spreads this subject across the week');
+    if (placement.parallel_key && snapshot.slots.some((slot: any) => sameTeachingGroup(slot, placement)
+      && slot.parallel_key === placement.parallel_key && Number(slot.day_of_week) === Number(placement.day_of_week)
+      && this.time(slot.starts_at) === this.time(placement.starts_at))) score += 1000;
     const teacherDayLoad = snapshot.slots.filter((slot: any) =>
       String(slot.teacher_id) === String(placement.teacher_id)
       && Number(slot.day_of_week) === Number(placement.day_of_week)).length;
     score -= teacherDayLoad * 3;
     if (teacherDayLoad <= 2) reasons.push('Balances the teacher daily load');
+    const classDayLoad = snapshot.slots.filter((slot: any) => sameTeachingGroup(slot, placement) && Number(slot.day_of_week) === Number(placement.day_of_week))
+      .reduce((sum: number, slot: any) => sum + Number(slot.duration_periods || 1), 0);
+    score -= classDayLoad * 2;
+    const startHour = this.time(placement.starts_at);
+    const sameTimeSubject = snapshot.slots.filter((slot: any) => sameTeachingGroup(slot, placement)
+      && slot.subject_id === placement.subject_id && Math.abs(this.time(slot.starts_at) - startHour) < 60).length;
+    score -= sameTimeSubject * 4;
     return { score, preferred: score >= 105, reasons };
   }
 

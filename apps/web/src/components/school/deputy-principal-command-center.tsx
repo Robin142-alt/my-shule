@@ -354,8 +354,8 @@ export function DeputyPrincipalCommandCenter({
             />
           </div>
 
-          <div className="rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
-            <h1 className="mb-6 text-3xl font-black text-white">
+          <div className={`min-w-0 rounded-[var(--radius-xl)] bg-[#071D49] ${activeWorkspace === "timetable" ? "p-2 sm:p-5" : "p-5"} shadow-[0_24px_70px_rgba(7,29,73,0.22)]`}>
+            <h1 className="mb-4 px-2 text-2xl font-black text-white sm:text-3xl">
               {navItems.find((n) => n.id === activeWorkspace)?.label ?? "Overview"}
             </h1>
             {renderWorkspace()}

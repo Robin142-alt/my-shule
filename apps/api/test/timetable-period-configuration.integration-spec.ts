@@ -288,17 +288,18 @@ describe('School day configuration persistence', () => {
         requirements:periods.map((count,i)=>({class_section_id:'form4',subject_id:`subject-${i}`,teacher_id:null,stream_id:null,periods_per_week:count,duration_periods:1}))});
       expect((await controller.getReadiness(scope)).status).toBe('READY');
       const result = await controller.generate({...scope,scope:'whole_school',preserve_locked:true,allow_partial:true});
-      expect(result).toMatchObject({status:'COMPLETED',gaps:[],run:{status:'completed',required_lessons:33,scheduled_lessons:33,unscheduled_lessons:0},
+      expect(result).toMatchObject({status:'COMPLETED',gaps:[],run:{status:'completed',required_lessons:45,scheduled_lessons:45,unscheduled_lessons:0},
         version:{status:'draft',row_version:2,immutable:false,notes:null,published_at:null,published_by_user_id:null,created_by_user_id:actor}});
       const snapshot = await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id);
-      expect(snapshot.slots).toHaveLength(33);
+      expect(snapshot.slots).toHaveLength(45);
+      expect(snapshot.requirements.map((row:any) => row.periods_per_week).sort()).toEqual([4,4,4,4,4,5,5,5,5,5]);
       expect(snapshot.slots.every((slot:any)=>slot.stream_id==='yellow' && !slot.room_id)).toBe(true);
       expect((await controller.validate({...scope,version_id:result.version.id})).valid).toBe(true);
-      expect((await service.getPlanner(scope)).slots).toHaveLength(33);
-      expect((await controller.getView({...scope,view:'class',class_section_id:'form4',include_draft:true})).items).toHaveLength(33);
-      expect((await controller.getView({...scope,view:'teacher',teacher_id:teachers[0],include_draft:true})).items).toHaveLength(3);
+      expect((await service.getPlanner(scope)).slots).toHaveLength(45);
+      expect((await controller.getView({...scope,view:'class',class_section_id:'form4',include_draft:true})).items).toHaveLength(45);
+      expect((await controller.getView({...scope,view:'teacher',teacher_id:teachers[0],include_draft:true})).items).toHaveLength(5);
       const events = (await pool.query(`SELECT aggregate_id::text,actor_user_id::text,actor_role,source_dashboard,payload FROM outbox_events WHERE tenant_id=$1 AND event_name='timetable.generation.completed'`,[tenant])).rows;
-      expect(events).toEqual([expect.objectContaining({aggregate_id:result.run.id,actor_user_id:actor,actor_role:'deputy_principal',source_dashboard:'deputy_principal',payload:expect.objectContaining({version_id:result.version.id,scheduled_lessons:33})})]);
+      expect(events).toEqual([expect.objectContaining({aggregate_id:result.run.id,actor_user_id:actor,actor_role:'deputy_principal',source_dashboard:'deputy_principal',payload:expect.objectContaining({version_id:result.version.id,scheduled_lessons:45})})]);
       expect((await pool.query(`SELECT COUNT(*)::int AS count FROM timetable_audit_logs WHERE tenant_id=$1 AND action='timetable.generation.completed'`,[tenant])).rows[0].count).toBe(1);
       // A failed event write must not leave replacement lessons or a false success run.
       const failPublish = jest.spyOn(publisher,'publish').mockRejectedValueOnce(new Error('Outbox unavailable'));
@@ -311,26 +312,58 @@ describe('School day configuration persistence', () => {
       await pool.query(`UPDATE timetable_slots SET locked=TRUE WHERE tenant_id=$1 AND id=$2`,[tenant,lockedSlot.id]);
       const retry = await controller.generate({...scope,version_id:result.version.id,expected_version_row_version:2,preserve_locked:true});
       expect(retry.status).toBe('COMPLETED');
-      const retried = await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id);
-      expect(retried.slots).toHaveLength(33);
+      let retried = await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id);
+      expect(retried.slots).toHaveLength(45);
+      expect(retry.run.scheduled_lessons).toBe(45);
       expect(retried.slots).toContainEqual(expect.objectContaining({id:lockedSlot.id,locked:true}));
       await expect(controller.generate({...scope,version_id:result.version.id,expected_version_row_version:2})).rejects.toThrow('changed since');
       await expect(controller.generate({...scope,version_id:randomUUID()})).rejects.toThrow('No draft timetable');
-      // Capacity gaps are saved and returned truthfully, with a partial event.
+      // A full timetable stays full when two lessons are exchanged, with both writes audited atomically.
+      const source = retried.slots.find((slot:any) => !slot.locked);
+      const options = await service.findValidSlots({...scope,version_id:result.version.id,slot_id:source.id});
+      const destination = options.items.find((item:any) => item.swap_slot_id);
+      expect(destination).toBeDefined();
+      const target = retried.slots.find((slot:any) => slot.id === destination.swap_slot_id);
+      const swap = {destination_day_of_week:destination.day_of_week,destination_period_id:destination.period_id,
+        swap_slot_id:target.id,expected_row_version:Number(source.row_version),expected_version_row_version:retry.version.row_version};
+      const eventFailure = jest.spyOn(publisher,'publish').mockRejectedValueOnce(new Error('Swap outbox unavailable'));
+      await expect(service.moveSlot(source.id,swap)).rejects.toThrow('Swap outbox unavailable');
+      eventFailure.mockRestore();
+      expect((await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id)).slots).toEqual(retried.slots);
+      await expect(service.moveSlot(source.id,{...swap,expected_row_version:999})).rejects.toThrow('changed');
+      await expect(service.moveSlot(source.id,{...swap,swap_slot_id:lockedSlot.id})).rejects.toThrow('cannot be swapped');
+      await expect(service.moveSlot(source.id,{...swap,swap_slot_id:randomUUID()})).rejects.toThrow('cannot be swapped');
+      // Availability of the target teacher at the source time is checked too.
+      await repo.saveAvailability({tenant_id:tenant,actor_user_id:actor,...scope,items:[{teacher_id:target.teacher_id,
+        day_of_week:Number(source.day_of_week),period_id:source.period_id,state:'unavailable'}]});
+      await expect(service.moveSlot(source.id,swap)).rejects.toThrow('cannot be swapped');
+      await repo.saveAvailability({tenant_id:tenant,actor_user_id:actor,...scope,replace_existing:true,items:[]});
+      swap.expected_version_row_version = (await repo.getVersion(tenant,result.version.id)).row_version;
+      await service.moveSlot(source.id,swap);
+      await expect(service.moveSlot(source.id,swap)).rejects.toThrow();
+      retried = await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id);
+      expect(retried.slots.find((slot:any) => slot.id===source.id)).toMatchObject({day_of_week:target.day_of_week,period_id:target.period_id});
+      expect(retried.slots.find((slot:any) => slot.id===target.id)).toMatchObject({day_of_week:source.day_of_week,period_id:source.period_id});
+      expect(constraints.validateVersion(retried)).toMatchObject({valid:true,summary:{empty_teaching_periods:0}});
+      expect((await pool.query(`SELECT COUNT(*)::int AS count FROM timetable_audit_logs WHERE tenant_id=$1 AND action='timetable.slots.swapped'`,[tenant])).rows[0].count).toBe(1);
+      expect((await pool.query(`SELECT payload FROM outbox_events WHERE tenant_id=$1 AND event_name='timetable.slot.updated'`,[tenant])).rows)
+        .toEqual([expect.objectContaining({payload:expect.objectContaining({metadata:expect.objectContaining({swap_slot_id:target.id})})})]);
+      // An impossible full week must keep the saved draft, even for legacy clients requesting partial output.
       await repo.saveAvailability({tenant_id:tenant,actor_user_id:actor,...scope,items:configuration.days.flatMap((day:any)=>day.periods.map((period:any)=>({teacher_id:teachers[9],day_of_week:day.day_of_week,period_id:period.id,state:'unavailable'})))});
       const updatedVersion = await repo.getVersion(tenant,result.version.id);
-      const partial = await controller.generate({...scope,version_id:result.version.id,expected_version_row_version:updatedVersion.row_version,allow_partial:true});
-      expect(partial).toMatchObject({status:'PARTIAL',run:{unscheduled_lessons:1}});
-      expect(await repo.countOpenUnscheduled(tenant,result.version.id)).toBe(1);
-      expect((await pool.query(`SELECT COUNT(*)::int AS count FROM outbox_events WHERE tenant_id=$1 AND event_name='timetable.generation.partial'`,[tenant])).rows[0].count).toBe(1);
+      await expect(controller.generate({...scope,version_id:result.version.id,expected_version_row_version:updatedVersion.row_version,allow_partial:true})).rejects.toThrow('full teaching week could not be filled');
+      expect((await constraints.getSnapshot(tenant,scope.academic_year,scope.term_name,result.version.id)).slots).toEqual(retried.slots);
+      expect(await repo.countOpenUnscheduled(tenant,result.version.id)).toBe(0);
+      expect((await pool.query(`SELECT COUNT(*)::int AS count FROM outbox_events WHERE tenant_id=$1 AND event_name='timetable.generation.partial'`,[tenant])).rows[0].count).toBe(0);
       context.tenant_id='school-b';
+      await expect(service.moveSlot(source.id,swap)).rejects.toThrow('not found for this school');
       expect(await repo.getVersion('school-b',result.version.id)).toBeNull();
       expect((await prisma.query('SELECT id FROM timetable_slots WHERE tenant_id=$1 AND version_id=$2::uuid',['school-b',result.version.id])).rows).toEqual([]);
     } finally {
       await prisma.$disconnect();
       await pool.query('DROP OWNED BY timetable_generation_writer; DROP ROLE timetable_generation_writer');
     }
-  }, 30_000);
+  }, 60_000);
 
   it('resolves automatic teachers for readiness, generation and saved lessons without rewriting requirements', async () => {
     const tenant = 'school-allocations';

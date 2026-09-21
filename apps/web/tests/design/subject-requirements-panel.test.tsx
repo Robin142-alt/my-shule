@@ -20,7 +20,7 @@ const base = {
   ],
   onSaved: jest.fn(), onRetry: jest.fn(), onSaveState: jest.fn(), onContinue: jest.fn(),
 };
-const savedRow = { id: "saved", class_section_id: "class-a", subject_id: "math", periods_per_week: 4, duration_periods: 1, row_version: 3 };
+const savedRow = { id: "saved", class_section_id: "class-a", subject_id: "math", periods_per_week: 4, weekly_periods_mode: "fixed" as const, duration_periods: 1, row_version: 3 };
 
 beforeEach(() => { jest.clearAllMocks(); mockSave.mockImplementation(async (payload) => ({ items: payload.requirements })); });
 
@@ -32,6 +32,7 @@ it("adds only allocated subjects for the selected class, skips duplicates and sa
   expect(screen.getAllByRole("article")).toHaveLength(2);
   expect(mockSave).not.toHaveBeenCalled();
   expect(screen.getByText("Continue to generation")).toBeDisabled();
+  fireEvent.change(within(screen.getAllByRole("article")[0]).getByLabelText("Weekly allocation"), { target: { value: "fixed" } });
   fireEvent.change(within(screen.getAllByRole("article")[0]).getByLabelText("Periods/week"), { target: { value: "6" } });
   fireEvent.click(screen.getByText("Save requirements"));
   await waitFor(() => expect(base.onSaved).toHaveBeenCalled());

@@ -55,7 +55,7 @@ it("disables Generate while pending, opens the saved draft and refreshes its vie
   render(<DeputyTimetableManagementWorkspace />);
   fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
   expect(screen.getByRole("button", { name: "Generating...", exact: true })).toBeDisabled();
-  expect(mockGenerate).toHaveBeenCalledWith("/api/timetable/generate", expect.objectContaining({ academic_year: "2026", term_name: "Term 3", scope: "whole_school", preserve_locked: true, allow_partial: true }));
+  expect(mockGenerate).toHaveBeenCalledWith("/api/timetable/generate", expect.objectContaining({ academic_year: "2026", term_name: "Term 3", scope: "whole_school", preserve_locked: true, allow_partial: false }));
   await act(async () => { mockSaved = true; finish(completed); });
   expect(await screen.findByText("3 saved lessons")).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Class", exact: true })).toHaveValue("class");

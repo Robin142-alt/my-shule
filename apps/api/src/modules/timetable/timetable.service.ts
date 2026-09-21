@@ -1,3 +1,4 @@
+import { balanceRequirements, uncoveredTeachingCells } from './timetable-balance';
 import {
   BadRequestException,
   ConflictException,
@@ -110,8 +111,11 @@ export class TimetableService {
       scope.academic_year,
       scope.term_name,
     );
+    const configuration = await this.workflowRepository.getConfiguration(this.requireTenantId(), scope.academic_year, scope.term_name);
+    const plan = balanceRequirements({ configuration, requirements: items.map((row: any) => ({ ...row, stream_id: row.stream_id ?? row.resolved_stream_id })), slots: [] });
     return {
-      items,
+      items: items.map((item: any) => ({ ...item, balanced_periods_per_week: plan.requirements.find((row: any) => row.id === item.id)?.periods_per_week })),
+      balance_issues: plan.issues,
       metrics: {
         requirements: items.length,
         periods_per_week: items.reduce((total: number, item: any) => total + Number(item.periods_per_week ?? 0), 0),
@@ -395,11 +399,13 @@ export class TimetableService {
       throw new BadRequestException('Class, subject, and teacher are required to find valid timetable slots');
     }
     const candidates = this.constraintService.findValidSlots(snapshot, request, dto.slot_id);
+    const destinations = [...candidates.items.filter((item) => !existing || item.day_of_week !== Number(existing.day_of_week) || item.period_id !== existing.period_id),
+      ...(existing ? this.constraintService.findSwapSlots(snapshot, existing) : [])];
     const limit = Math.max(1, Math.min(Number(dto.limit ?? 50), 250));
     return {
       version,
-      items: forceBest ? (candidates.best ? [candidates.best] : []) : candidates.items.slice(0, limit),
-      best: candidates.best,
+      items: forceBest ? destinations.slice(0, 1) : destinations.slice(0, limit),
+      best: destinations[0] ?? null,
     };
   }
 
@@ -430,6 +436,22 @@ export class TimetableService {
       periodId,
       Number(slot.duration_periods ?? 1),
     );
+    if (dto.swap_slot_id) {
+      const candidate = this.constraintService.findSwapSlots(snapshot, slot).find((item: any) => item.swap_slot_id === dto.swap_slot_id && item.day_of_week === day && item.period_id === periodId);
+      if (!candidate) throw new BadRequestException('These lessons cannot be swapped. Refresh and choose a valid unlocked lesson of the same length.');
+      if (dto.expected_row_version != null && Number(slot.row_version) !== dto.expected_row_version) throw new ConflictException('The lesson changed; refresh before swapping.');
+      const other = snapshot.slots.find((item: any) => item.id === dto.swap_slot_id)!;
+      await this.workflowRepository.applyMovesAtomic({ tenant_id: tenantId, version_id: slot.version_id,
+        expected_version_row_version: dto.expected_version_row_version ?? Number(slot.version_row_version), actor_user_id: this.getActorUserId(),
+        action: 'timetable.slots.swapped',
+        moves: [
+          { slot_id: slot.id, expected_row_version: Number(slot.row_version), day_of_week: day, period_id: periodId, starts_at: other.starts_at, ends_at: other.ends_at },
+          { slot_id: other.id, expected_row_version: Number(other.row_version), day_of_week: Number(slot.day_of_week), period_id: slot.period_id, starts_at: slot.starts_at, ends_at: slot.ends_at },
+        ],
+        onSaved: (tx) => this.publishWorkflowEvent('timetable.slot.updated', slot.id, { academic_year: slot.academic_year, term_name: slot.term_name }, 'updated', { version_id: slot.version_id, swap_slot_id: other.id }, tx),
+      });
+      return this.workflowRepository.getSlotForEdit(tenantId, slotId);
+    }
     const placement = {
       ...slot,
       day_of_week: day,
@@ -1074,6 +1096,7 @@ export class TimetableService {
     }
     const scope = this.normalizeGenerationScope(dto);
     const snapshot = await this.constraintService.getSnapshot(tenantId, academic.academic_year, academic.term_name, version.id);
+    if (snapshot.balance_issues?.length) throw new BadRequestException({ message: snapshot.balance_issues.map((issue: any) => issue.message).join(' '), issues: snapshot.balance_issues });
     const retainedSlots = snapshot.slots.filter((slot: any) =>
       slot.locked
       || slot.source_kind !== 'generated'
@@ -1089,11 +1112,13 @@ export class TimetableService {
       .filter((requirement: any) => Number(requirement.periods_per_week) > 0);
     if (requirements.length === 0) throw new BadRequestException('No unscheduled subject requirements match the selected generation scope');
     const generated = this.constraintService.generate({ ...snapshot, requirements, slots: retainedSlots });
-    if (generated.gaps.length > 0 && dto.allow_partial === false) {
-      throw new BadRequestException({ message: 'The timetable could not be fully generated under current constraints', gaps: generated.gaps });
+    const emptyPeriods = uncoveredTeachingCells({ ...snapshot, slots: [...retainedSlots, ...generated.placements] });
+    if (generated.gaps.length > 0 || emptyPeriods.length > 0) {
+      throw new BadRequestException({ message: `The full teaching week could not be filled: ${emptyPeriods.length} empty periods and ${generated.gaps.reduce((sum, gap) => sum + gap.remaining_periods, 0)} unplaced subject periods. Review teacher availability, fixed counts, lesson lengths and locked lessons, then regenerate. Your saved draft has not been replaced.`, gaps: generated.gaps, empty_periods: emptyPeriods });
     }
     const action = generated.gaps.length > 0 ? 'generation_partial' : 'generation_completed';
     const eventName = generated.gaps.length > 0 ? 'timetable.generation.partial' : 'timetable.generation.completed';
+    const retainedPeriods = retainedSlots.filter((slot: any) => this.matchesGenerationScope(slot, dto, scope)).reduce((sum: number, slot: any) => sum + Number(slot.duration_periods || 1), 0);
     const saved = await this.workflowRepository.saveGenerationResult({
       tenant_id: tenantId,
       version_id: version.id,
@@ -1102,12 +1127,13 @@ export class TimetableService {
       scope,
       placements: generated.placements,
       gaps: generated.gaps,
-      required_lessons: requirements.reduce((sum: number, item: any) => sum + Number(item.periods_per_week ?? 0), 0),
+      required_lessons: requirements.reduce((sum: number, item: any) => sum + Number(item.periods_per_week ?? 0), retainedPeriods),
+      retained_periods: retainedPeriods,
       warnings: generated.warnings,
       actor_user_id: this.getActorUserId(),
       onSaved: (tx, runId) => this.publishWorkflowEvent(eventName, runId, academic, action, {
         version_id: version.id,
-        scheduled_lessons: generated.placements.reduce((sum, item) => sum + Number(item.duration_periods), 0),
+        scheduled_lessons: generated.placements.reduce((sum, item) => sum + Number(item.duration_periods), retainedPeriods),
         unscheduled_lessons: generated.gaps.reduce((sum, item) => sum + Number(item.remaining_periods), 0),
         scope,
       }, tx),
