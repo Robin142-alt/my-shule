@@ -168,19 +168,20 @@ export class TimetableRepository {
     tenant_id: string;
     academic_year: string;
     term_name: string;
+    actor_user_id?: string | null;
   }): Promise<TimetableVersionRecord> {
     const result = await this.executeSql<TimetableVersionRecord>(
       `
         INSERT INTO timetable_versions (
-          tenant_id, academic_year, term_name, status, immutable
+          tenant_id, academic_year, term_name, status, immutable, created_by_user_id
         )
-        VALUES ($1, $2, $3, 'draft', FALSE)
+        VALUES ($1, $2, $3, 'draft', FALSE, $4::uuid)
         ON CONFLICT (tenant_id, academic_year, term_name, status)
           WHERE status IN ('draft', 'published')
         DO UPDATE SET updated_at = NOW()
         RETURNING id::text, tenant_id, academic_year, term_name, status, immutable
       `,
-      [input.tenant_id, input.academic_year, input.term_name],
+      [input.tenant_id, input.academic_year, input.term_name, input.actor_user_id ?? null],
     );
 
     return result.rows[0];
@@ -526,7 +527,7 @@ export class TimetableRepository {
   }): Promise<TimetableVersionRecord | null> {
     const result = await this.executeSql<TimetableVersionRecord>(
       `
-        SELECT id::text, tenant_id, academic_year, term_name, status, immutable,
+        SELECT id::text, tenant_id, academic_year, term_name, status, immutable, row_version, revision_number,
                notes, published_at::text, updated_at::text
         FROM timetable_versions
         WHERE tenant_id = $1
@@ -551,6 +552,14 @@ export class TimetableRepository {
           slot.academic_year,
           slot.term_name,
           slot.class_section_id,
+          slot.stream_id,
+          slot.requirement_id::text,
+          slot.period_id::text,
+          slot.duration_periods,
+          slot.locked,
+          slot.row_version,
+          slot.resource_id::text,
+          slot.parallel_key,
           COALESCE(section.name, slot.class_section_id) AS class_name,
           slot.subject_id,
           COALESCE(subject.name, slot.subject_id) AS subject_name,

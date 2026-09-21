@@ -312,11 +312,26 @@ export function DeputyTimetableManagementWorkspace() {
     setSaveState("saving");
     try {
       const result = await generateMutation.mutateAsync({ academic_year: academicYear, term_name: termName, expected_version_row_version: version?.row_version, scope: "whole_school", preserve_locked: true, allow_partial: true });
-      if (await finishMutation(result, "A maximum-valid timetable draft was generated.")) {
-        setGenerationSummary(result);
-        setActiveTab("draft");
-        setOperations([]);
-        setOperationIndex(0);
+      if (isOfflineQueued(result)) {
+        await finishMutation(result, "");
+        return;
+      }
+      if (!result.version?.id || !result.run?.id) throw new Error("The server did not confirm a saved timetable. Refresh the timetable before retrying.");
+      setGenerationSummary(result);
+      const generatedClassIds = new Set((result.placements ?? []).map((slot) => slot.class_section_id));
+      const reviewClassId = generatedClassIds.has(effectiveClassId) ? effectiveClassId : classes.find((section) => generatedClassIds.has(section.id))?.id;
+      if (reviewClassId) setSelectedClassId(reviewClassId);
+      setView("class");
+      setActiveTab("draft");
+      setOperations([]);
+      setOperationIndex(0);
+      setSaveState("saved");
+      const remaining = Number(result.run.unscheduled_lessons ?? 0);
+      toast[remaining ? "warning" : "success"](`Draft saved: ${result.run.scheduled_lessons} periods scheduled${remaining ? `; ${remaining} still need placement` : ""}.`);
+      try {
+        await refreshTimetable();
+      } catch {
+        toast.warning("The timetable was saved, but the latest view could not be loaded. Refresh the page to view the saved draft.");
       }
     } catch (error) {
       setSaveState("failed");
@@ -686,6 +701,8 @@ export function DeputyTimetableManagementWorkspace() {
           "command", "Command centre"], ["setup", "Scheduler setup"], ["draft", "Draft review"], ["published", "Published"], ["relief", "Relief"], ["history", "History"]] as Array<[WorkspaceTab, string]>).map(([id, label]) => <button key={id} type="button" onClick={() => { if (id !== activeTab && leaveSetup()) setActiveTab(id); }} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-black ${activeTab === id ? "bg-[#071D49] text-white" : "text-[#47658F] hover:bg-[#EEF4FF]"}`}>{label}</button>)}
       </nav>
 
+      {generationSummary && (activeTab === "command" || activeTab === "draft") ? <GenerationSummaryPanel result={generationSummary} onClose={() => setGenerationSummary(null)} /> : null}
+
       {activeTab === "command" ? <>
         <section aria-label="Build your timetable" className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-[#071D49] sm:p-5">
           <h3 className="text-lg font-black">Build your timetable in 3 steps</h3>
@@ -712,7 +729,6 @@ export function DeputyTimetableManagementWorkspace() {
             <div><p className="font-black text-[#071D49]">Scoped regeneration</p><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1.5fr_auto]"><select aria-label="Regeneration scope" value={scopeType} onChange={(event) => { const next = event.target.value as typeof scopeType; setScopeType(next); setScopeId(""); }} className="h-11 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-bold"><option value="school">Whole school</option><option value="class">One class</option><option value="teacher">One teacher</option><option value="requirement">One requirement</option></select><select aria-label="Regeneration target" value={scopeId} onChange={(event) => setScopeId(event.target.value)} disabled={scopeType === "school"} className="h-11 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-bold disabled:opacity-50"><option value="">Select scope</option>{scopeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select><button type="button" onClick={regenerate} disabled={!isEditableDraft || (scopeType !== "school" && !scopeId) || regenerateMutation.isPending} className="min-h-11 rounded-lg bg-[#071D49] px-4 text-sm font-black text-white disabled:opacity-50">Regenerate</button></div><p className="mt-2 text-xs text-[#64748B]">Locked lessons and unaffected scopes remain unchanged.</p></div>
           </div> : null}
         </section>
-        {generationSummary ? <GenerationSummaryPanel result={generationSummary} onClose={() => setGenerationSummary(null)} /> : null}
         {copyReviewIssues.length > 0 ? <section className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h3 className="font-black">Copied timetable needs review</h3><p className="mt-1 text-sm">{copyReviewIssues.length} source lesson{copyReviewIssues.length === 1 ? " was" : "s were"} left out because a current class, stream, allocation, resource, or teaching-period structure no longer matches.</p></div><button type="button" onClick={() => setCopyReviewIssues([])} className="min-h-10 rounded-lg border border-amber-400 bg-white px-3 text-sm font-black">Dismiss</button></div><ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{copyReviewIssues.map((issue, index) => <li key={`${issue.source_slot_id ?? index}-${issue.code}`}><strong>{issue.code}:</strong> {issue.message}</li>)}</ul></section> : null}
         {validation ? <section className={`rounded-xl border p-4 ${validation.valid ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-rose-200 bg-rose-50 text-rose-900"}`}><h3 className="font-black">{validation.valid ? "Server validation passed" : "Hard conflicts block publishing"}</h3><p className="mt-1 text-sm">{validation.summary.slots} slots - {validation.summary.hard_conflicts} hard conflicts - {validation.summary.warnings} warnings - {validation.summary.unscheduled} unscheduled</p>{validation.hard_conflicts.length > 0 ? <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{validation.hard_conflicts.map((conflict) => <li key={`${conflict.code}-${conflict.message}`}><strong>{conflict.code}:</strong> {conflict.message}</li>)}</ul> : null}</section> : null}
         <UnscheduledLessonsPanel items={unscheduledQuery.data?.items ?? []} classes={classes} subjects={subjects} teachers={teachers} resources={resources} loading={unscheduledQuery.isLoading} error={unscheduledQuery.error} onRetry={() => unscheduledQuery.refetch()} onPlace={(item) => openPlacement({ kind: "unscheduled", item })} />

@@ -48,6 +48,12 @@ export class TimetableSchemaService implements OnModuleInit {
       ALTER TABLE timetable_versions ADD COLUMN IF NOT EXISTS generation_summary jsonb NOT NULL DEFAULT '{}'::jsonb;
       ALTER TABLE timetable_versions ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'canonical';
       ALTER TABLE timetable_versions ADD COLUMN IF NOT EXISTS created_by_user_id uuid;
+      -- Legacy Prisma-created tables required publication fields even for a
+      -- new draft, and @updatedAt did not provide a SQL default for raw writes.
+      ALTER TABLE timetable_versions ALTER COLUMN notes DROP NOT NULL;
+      ALTER TABLE timetable_versions ALTER COLUMN published_at DROP NOT NULL;
+      ALTER TABLE timetable_versions ALTER COLUMN published_by_user_id DROP NOT NULL;
+      ALTER TABLE timetable_versions ALTER COLUMN updated_at SET DEFAULT NOW();
 
       DO $$
       BEGIN
@@ -61,6 +67,8 @@ export class TimetableSchemaService implements OnModuleInit {
             USING lower(COALESCE(immutable::text, 'false')) IN ('true', 't', '1', 'yes');
         END IF;
       END $$;
+
+      ALTER TABLE timetable_versions ALTER COLUMN immutable SET DEFAULT FALSE;
 
       CREATE TABLE IF NOT EXISTS timetable_configurations (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -256,6 +264,9 @@ export class TimetableSchemaService implements OnModuleInit {
       ALTER TABLE timetable_slots ADD COLUMN IF NOT EXISTS source_kind text NOT NULL DEFAULT 'canonical';
       ALTER TABLE timetable_slots ADD COLUMN IF NOT EXISTS source_record_id text;
       ALTER TABLE timetable_slots ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft';
+      -- Rooms are optional; generated lessons use the allocated class/stream.
+      ALTER TABLE timetable_slots ALTER COLUMN room_id DROP NOT NULL;
+      ALTER TABLE timetable_slots ALTER COLUMN updated_at SET DEFAULT NOW();
 
       DO $$
       DECLARE target_column text;
