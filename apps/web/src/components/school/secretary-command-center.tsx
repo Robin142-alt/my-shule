@@ -94,7 +94,7 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
   }
 
   return (
-    <div className="min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app min-h-screen bg-[#F3F6FA]">
       <div className="mx-auto flex max-w-[1920px] flex-col gap-6 p-4 lg:flex-row lg:p-6">
         
         {/* Sidebar */}
@@ -145,7 +145,7 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
           <div className="min-h-[calc(100vh-3rem)] rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)] overflow-hidden">
             
             {/* Topbar */}
-            <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
+            <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
                   <MyShuleMark size={36} />

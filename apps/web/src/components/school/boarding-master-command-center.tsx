@@ -1462,7 +1462,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
   }
 
   return (
-    <div className="flex min-h-dvh bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
       {/* Sidebar */}
       <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Boarding command" title="Boarding Master" subtitle="Dormitory and resident oversight" />
@@ -1491,9 +1491,9 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
       </aside>
 
       {/* Main Area */}
-      <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">BM</div>
@@ -1544,7 +1544,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
+        <div className="app-content flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
           <IntegratedSchoolCommandHeader roleTitle="Boarding Master Dashboard" fallbackUserLabel="Boarding Master" />
           {activeView === "overview" && <OverviewWorkspace onNavigate={openView} />}
           {activeView === "register" && <RegisterWorkspace />}

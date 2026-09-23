@@ -91,6 +91,7 @@ async function run() {
           },
         },
         plugins: [
+          new webpack.DefinePlugin({ "process.env": JSON.stringify({ NODE_ENV: "development" }) }),
           new webpack.NormalModuleReplacementPlugin(
             /(^|\/)school-pages$/,
             path.join(out, "routes.ts"),
@@ -162,7 +163,7 @@ async function run() {
     ]) {
       const page = await browser.newPage({ viewport });
       const errors = [];
-      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("pageerror", (error) => { errors.push(error.message); console.error(error.message); });
       await page.goto(base + "/school/dean-academics/overview");
       await page
         .getByRole("heading", { name: "Academic overview", exact: true })

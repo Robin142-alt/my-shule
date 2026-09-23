@@ -43,7 +43,7 @@ export function PrincipalTeachingWorkspace() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-3">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Classes Taught</div>
           <div className="mt-2 text-2xl font-black text-white">{data.totalClasses}</div>

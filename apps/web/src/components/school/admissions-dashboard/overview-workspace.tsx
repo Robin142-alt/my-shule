@@ -11,7 +11,7 @@ export function AdmissionsOverviewWorkspace() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Enquiries</div>
           <div className="mt-2 flex items-center justify-between">

@@ -65,30 +65,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         >
           No live receipts have been posted yet.
         </p>
-        <div
-          class="mt-3"
-        >
-          <svg
-            aria-hidden="true"
-            class="h-10 w-full text-success"
-            preserveAspectRatio="none"
-            viewBox="0 0 100 100"
-          >
-            <polygon
-              fill="currentColor"
-              opacity="0.1"
-              points="0,100 0,100 50,100 100,100 100,100"
-            />
-            <polyline
-              fill="none"
-              points="0,100 50,100 100,100"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="4"
-            />
-          </svg>
-        </div>
       </a>
       <a
         class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
@@ -140,30 +116,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         >
           No live invoices have been created yet.
         </p>
-        <div
-          class="mt-3"
-        >
-          <svg
-            aria-hidden="true"
-            class="h-10 w-full text-success"
-            preserveAspectRatio="none"
-            viewBox="0 0 100 100"
-          >
-            <polygon
-              fill="currentColor"
-              opacity="0.1"
-              points="0,100 0,100 50,100 100,100 100,100"
-            />
-            <polyline
-              fill="none"
-              points="0,100 50,100 100,100"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="4"
-            />
-          </svg>
-        </div>
       </a>
       <a
         class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
@@ -215,30 +167,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         >
           No outstanding balances exist yet.
         </p>
-        <div
-          class="mt-3"
-        >
-          <svg
-            aria-hidden="true"
-            class="h-10 w-full text-warning"
-            preserveAspectRatio="none"
-            viewBox="0 0 100 100"
-          >
-            <polygon
-              fill="currentColor"
-              opacity="0.1"
-              points="0,100 0,100 50,100 100,100 100,100"
-            />
-            <polyline
-              fill="none"
-              points="0,100 50,100 100,100"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="4"
-            />
-          </svg>
-        </div>
       </a>
       <a
         class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
@@ -290,30 +218,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         >
           No students have been onboarded yet.
         </p>
-        <div
-          class="mt-3"
-        >
-          <svg
-            aria-hidden="true"
-            class="h-10 w-full text-warning"
-            preserveAspectRatio="none"
-            viewBox="0 0 100 100"
-          >
-            <polygon
-              fill="currentColor"
-              opacity="0.1"
-              points="0,100 0,100 50,100 100,100 100,100"
-            />
-            <polyline
-              fill="none"
-              points="0,100 50,100 100,100"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="4"
-            />
-          </svg>
-        </div>
       </a>
     </section>
   </div>
@@ -576,10 +480,10 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             </div>
           </div>
           <div
-            class="px-5 py-10"
+            class="p-3 sm:px-5 sm:py-6"
           >
             <div
-              class="rounded-[var(--radius)] border border-dashed border-border bg-surface/50 px-6 py-10 text-center backdrop-blur"
+              class="rounded-[var(--radius)] border border-dashed border-border bg-surface/50 px-4 py-6 text-center sm:px-6 sm:py-10"
             >
               <div
                 class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-strong/80"
@@ -748,30 +652,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     >
       No live receipts have been posted yet.
     </p>
-    <div
-      class="mt-3"
-    >
-      <svg
-        aria-hidden="true"
-        class="h-10 w-full text-success"
-        preserveAspectRatio="none"
-        viewBox="0 0 100 100"
-      >
-        <polygon
-          fill="currentColor"
-          opacity="0.1"
-          points="0,100 0,100 50,100 100,100 100,100"
-        />
-        <polyline
-          fill="none"
-          points="0,100 50,100 100,100"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="4"
-        />
-      </svg>
-    </div>
   </a>
   <a
     class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
@@ -823,30 +703,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     >
       No live invoices have been created yet.
     </p>
-    <div
-      class="mt-3"
-    >
-      <svg
-        aria-hidden="true"
-        class="h-10 w-full text-success"
-        preserveAspectRatio="none"
-        viewBox="0 0 100 100"
-      >
-        <polygon
-          fill="currentColor"
-          opacity="0.1"
-          points="0,100 0,100 50,100 100,100 100,100"
-        />
-        <polyline
-          fill="none"
-          points="0,100 50,100 100,100"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="4"
-        />
-      </svg>
-    </div>
   </a>
   <a
     class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
@@ -898,30 +754,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     >
       No outstanding balances exist yet.
     </p>
-    <div
-      class="mt-3"
-    >
-      <svg
-        aria-hidden="true"
-        class="h-10 w-full text-warning"
-        preserveAspectRatio="none"
-        viewBox="0 0 100 100"
-      >
-        <polygon
-          fill="currentColor"
-          opacity="0.1"
-          points="0,100 0,100 50,100 100,100 100,100"
-        />
-        <polyline
-          fill="none"
-          points="0,100 50,100 100,100"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="4"
-        />
-      </svg>
-    </div>
   </a>
   <a
     class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
@@ -973,30 +805,6 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     >
       No students have been onboarded yet.
     </p>
-    <div
-      class="mt-3"
-    >
-      <svg
-        aria-hidden="true"
-        class="h-10 w-full text-warning"
-        preserveAspectRatio="none"
-        viewBox="0 0 100 100"
-      >
-        <polygon
-          fill="currentColor"
-          opacity="0.1"
-          points="0,100 0,100 50,100 100,100 100,100"
-        />
-        <polyline
-          fill="none"
-          points="0,100 50,100 100,100"
-          stroke="currentColor"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="4"
-        />
-      </svg>
-    </div>
   </a>
 </section>
 `;

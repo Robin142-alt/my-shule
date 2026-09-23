@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { BookOpen, CheckCircle2, Clock3, Download, Eye, FileText, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 
@@ -213,7 +214,7 @@ export function AcademicsWorkspace() {
           <h3 className="font-medium text-slate-900">Published Marks</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left text-sm">
+          <RecordTable className="w-full min-w-[680px] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Subject</th>
@@ -248,7 +249,7 @@ export function AcademicsWorkspace() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       </Card>
 

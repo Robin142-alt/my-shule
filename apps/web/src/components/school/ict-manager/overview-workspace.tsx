@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { Monitor } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -42,7 +43,7 @@ export function OverviewWorkspace() {
 
   return (
     <Panel title="ICT Overview" description="High-level ICT operations dashboard." icon={Monitor}>
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Assets</div>
           <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_assets ?? 0}</div>
@@ -61,7 +62,7 @@ export function OverviewWorkspace() {
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold">Metric</th>
@@ -82,7 +83,7 @@ export function OverviewWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

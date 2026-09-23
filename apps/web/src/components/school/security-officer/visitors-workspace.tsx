@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { BadgeCheck, LogOut, Plus, ShieldAlert, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -264,7 +265,7 @@ export function VisitorsWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full whitespace-nowrap text-left text-sm">
+        <RecordTable className="w-full whitespace-nowrap text-left text-sm">
           <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Name</th><th className="px-4 py-3 font-bold">ID Number</th><th className="px-4 py-3 font-bold">Purpose</th><th className="px-4 py-3 font-bold">Host</th><th className="px-4 py-3 font-bold">Check In</th><th className="px-4 py-3 font-bold">Check Out</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Actions</th></tr></thead>
           <tbody>
             {isLoading ? (
@@ -288,7 +289,7 @@ export function VisitorsWorkspace() {
               })
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

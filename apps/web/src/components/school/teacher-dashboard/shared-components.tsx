@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { type LucideIcon } from "lucide-react";
+import { RecordTable as ResponsiveRecordTable } from "@/components/ui/record-table";
 
 export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -7,7 +8,7 @@ export function cn(...classes: Array<string | false | null | undefined>) {
 
 export function Panel({ title, description, icon: Icon, headerEnd, children }: { title: string; description: string; icon: LucideIcon; headerEnd?: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-[0_18px_50px_rgba(7,29,73,0.08)] sm:p-5">
+    <section className="app-workspace-panel rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-[0_18px_50px_rgba(7,29,73,0.08)] sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
@@ -43,33 +44,19 @@ export function RecordTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#D8E0EC]">
-      <div className="space-y-2 bg-[#F8FAFC] p-3 lg:hidden">
-        {rows.map((row, rowIndex) => (
-          <article key={rowIndex} className="space-y-3 rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
-            {columns.map((column, cellIndex) => (
-              <div key={`${column}-${cellIndex}`} className="grid min-w-0 gap-1 sm:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1fr)] sm:gap-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#64748B]">{column}</p>
-                <div className="min-w-0 break-words text-sm font-semibold text-[#071D49] sm:text-right">{row[cellIndex] ?? "-"}</div>
-              </div>
-            ))}
-          </article>
-        ))}
-      </div>
-      <div className="hidden overflow-x-auto lg:block">
-        <table className="min-w-full divide-y divide-[#E2E8F0] bg-white text-sm">
+    <div className="overflow-x-auto rounded-2xl border border-[#D8E0EC]">
+        <ResponsiveRecordTable className="min-w-full divide-y divide-[#E2E8F0] bg-white text-sm">
           <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">
             <tr>{columns.map((column) => <th key={column} className="px-4 py-3">{column}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-[#E2E8F0]">
             {rows.map((row, index) => (
               <tr key={index} className="align-top">
-                {row.map((cell, cellIndex) => <td key={cellIndex} className="px-4 py-3 font-semibold text-[#071D49]">{cell}</td>)}
+                {columns.map((_, cellIndex) => <td key={cellIndex} className="px-4 py-3 font-semibold text-[#071D49]">{row[cellIndex] ?? "-"}</td>)}
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        </ResponsiveRecordTable>
     </div>
   );
 }

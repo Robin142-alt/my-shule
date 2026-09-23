@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Users, LogIn, LogOut, Printer } from "lucide-react";
 import { toast } from "sonner";
@@ -74,7 +75,7 @@ export function VisitorsWorkspace() {
   return (
     <Panel title="Visitors" description="Track and manage all school visitors. Check in, check out, and print visitor slips." icon={Users}>
       {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><LogIn className="w-4 h-4" /> Checked In Today</div>
           <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.checked_in_today || 0}</div>
@@ -160,7 +161,7 @@ export function VisitorsWorkspace() {
 
       {/* Desktop visitors table */}
       <div className="hidden overflow-x-auto rounded-xl border border-[#D8E0EC] lg:block">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Badge</th>
@@ -206,7 +207,7 @@ export function VisitorsWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

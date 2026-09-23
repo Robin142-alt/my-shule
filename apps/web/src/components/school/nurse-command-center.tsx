@@ -12,6 +12,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useRouter } from "next/navigation";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { DispensingLogWorkspace } from "@/components/school/nurse/dispensing-log-workspace";
 import { HealthReportsWorkspace } from "@/components/school/nurse/health-reports-workspace";
 import { MedicineInventoryWorkspace } from "@/components/school/nurse/medicine-inventory-workspace";
@@ -75,11 +77,12 @@ function renderWorkspace(section: NurseSection) {
 }
 
 export function NurseCommandCenter({ activeSection }: { activeSection?: string }) {
+  const router = useRouter();
   const section = normalizeSection(activeSection);
   const activeItem = nurseNavItems.find((item) => item.id === section) ?? nurseNavItems[0];
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-screen bg-[#F3F6FA]">
       <aside className="hidden h-screen w-[280px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Health command" title="School Nurse" subtitle="Visits, medicine, incidents, and referrals" />
         <nav className="space-y-1" aria-label="Nurse workspace navigation">
@@ -107,8 +110,8 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
           })}
         </nav>
       </aside>
-      <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex min-h-[84px] shrink-0 flex-col justify-center gap-1 border-b border-[#D8E0EC] bg-white px-4 py-4 lg:px-6">
+      <main className="app-command-main flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="app-command-topbar flex min-h-[84px] shrink-0 flex-col justify-center gap-1 border-b border-[#D8E0EC] bg-white px-4 py-4 lg:px-6">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-600">
               <HeartPulse className="h-5 w-5" />
@@ -118,8 +121,9 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
               <p className="text-sm font-semibold text-[#64748B]">{activeItem.description}</p>
             </div>
           </div>
+          <div className="mt-3 lg:hidden"><MobileWorkspaceNavigation label="Health workspace" items={nurseNavItems} value={section} onValueChange={(value) => router.push(`/school/nurse/${value}`)} /></div>
         </header>
-        <div className="flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
+        <div className="app-content flex-1 space-y-6 overflow-y-auto p-4 lg:p-6">
           <IntegratedSchoolCommandHeader roleTitle="Nurse Dashboard" fallbackUserLabel="School Nurse" />
           {renderWorkspace(section)}
         </div>

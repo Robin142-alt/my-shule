@@ -257,7 +257,7 @@ function Topbar({
 }) {
   const { schoolName } = useSchoolCommandIdentity();
   return (
-    <header className="z-20 border-b border-slate-200 bg-white px-4 py-3 lg:sticky lg:top-0 lg:px-6">
+    <header className="app-command-topbar z-20 border-b border-slate-200 bg-white px-4 py-3 lg:sticky lg:top-0 lg:px-6">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
         <div className="min-w-0">
           <h1 className="text-sm font-semibold text-slate-900">
@@ -466,11 +466,11 @@ export function DeanAcademicsCommandCenter({
       data-testid="role-operational-command-center"
       data-role-dashboard="dean-academics"
       data-active-view={activeView}
-      className="min-h-dvh bg-[#F5F7FA] text-slate-800 lg:h-dvh lg:overflow-hidden"
+      className="authenticated-app min-h-dvh bg-[#F5F7FA] text-slate-800 lg:h-dvh lg:overflow-hidden"
     >
       <div className="flex min-h-dvh lg:h-full">
         <Sidebar activeView={activeView} onViewChange={openView} />
-        <main className="min-w-0 flex-1 lg:flex lg:h-full lg:flex-col">
+        <main className="app-command-main min-w-0 flex-1 lg:flex lg:h-full lg:flex-col">
           <Topbar
             activeView={activeView}
             searchTerm={searchTerm}

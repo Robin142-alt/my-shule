@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Calendar, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -211,7 +212,7 @@ export function SessionsWorkspace() {
         <WorkspaceFailure title="Counselling sessions could not be loaded." error={readFailure} onRetry={() => void refetch()} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-          <table className="w-full whitespace-nowrap text-left text-sm">
+          <RecordTable className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F8FAFC] text-[#071D49]"><tr>
               <th className="px-4 py-3 font-bold">Student</th><th className="px-4 py-3 font-bold">Class</th>
               <th className="px-4 py-3 font-bold">Counsellor</th><th className="px-4 py-3 font-bold">When</th>
@@ -237,7 +238,7 @@ export function SessionsWorkspace() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </Panel>

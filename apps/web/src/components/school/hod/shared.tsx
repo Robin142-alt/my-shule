@@ -81,7 +81,7 @@ export function StatusChip({ label, tone = "neutral" }: { label: string; tone?: 
 
 export function Panel({ title, description, icon: Icon, children, actions }: { title: string; description?: string; icon?: LucideIcon; children: ReactNode; actions?: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (<span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]"><Icon className="h-5 w-5" aria-hidden="true" /></span>) : null}

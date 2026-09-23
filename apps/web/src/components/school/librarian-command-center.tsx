@@ -40,6 +40,8 @@ import {
 } from "@/lib/school/school-operational-store";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { NotificationBell } from "@/components/shared/notification-bell";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { TaskQueue } from "@/components/shared/task-queue";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -1907,11 +1909,11 @@ export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSec
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA] font-sans">
+    <div className="authenticated-app flex min-h-screen bg-[#F3F6FA] font-sans">
       <Sidebar activeView={activeViewState} onViewChange={setActiveView} />
-      <main className="flex-1 min-w-0 flex flex-col h-screen">
+      <main className="app-command-main flex-1 min-w-0 flex flex-col h-screen">
         <Topbar activeView={activeViewState} onViewChange={setActiveView} />
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+        <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Librarian Dashboard" fallbackUserLabel="Librarian" />
           {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} />}
           {activeViewState === "issue" && <IssueBooksWorkspace />}
@@ -1972,7 +1974,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: LibrarianView; onVi
 function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onViewChange: (view: LibrarianView) => void }) {
   const label = navItems.find(i => i.id === activeView)?.label || "Dashboard";
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+    <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">LB</div>
@@ -1988,25 +1990,18 @@ function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onVie
             <ApprovalInbox />
             <NotificationBell />
           </div>
-          <div className="relative group">
-            <button
-              type="button"
-              aria-haspopup="menu"
-              onClick={() => onViewChange("issue")}
-              className="flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white gap-2"
-            >
-              Quick Action <ChevronDown className="h-4 w-4" />
-            </button>
-            <div role="menu" className="absolute right-0 mt-2 w-48 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all">
-              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg" onClick={() => onViewChange("issue")}>Scan Book</button>
-              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg" onClick={() => onViewChange("issue")}>Issue Book</button>
-              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-[#071D49] hover:bg-[#F8FAFC] rounded-lg" onClick={() => onViewChange("return")}>Return Book</button>
-              <div className="h-px bg-[#D8E0EC] my-1"></div>
-              <button type="button" role="menuitem" className="w-full text-left px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50 rounded-lg" onClick={() => onViewChange("lost_damaged")}>Record Lost Book</button>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><button type="button" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 text-sm font-semibold text-white">Quick Action <ChevronDown className="h-4 w-4" /></button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onViewChange("issue")}>Scan Book</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onViewChange("issue")}>Issue Book</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onViewChange("return")}>Return Book</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onViewChange("lost_damaged")}>Record Lost Book</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+      <div className="mt-3 lg:hidden"><MobileWorkspaceNavigation label="Library workspace" items={navItems} value={activeView} onValueChange={(value) => onViewChange(value as LibrarianView)} /></div>
     </header>
   );
 }

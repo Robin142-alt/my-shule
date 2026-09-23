@@ -14,13 +14,13 @@ export function OverviewWorkspace({
 }) {
   const liveSession = useLiveTenantSession("school");
 
-  const { data: overview, isLoading: overviewLoading } = useQuery({
+  const { data: overview, isLoading: overviewLoading, error: overviewError, refetch: refreshOverview } = useQuery({
     queryKey: ["teacher-dashboard-overview", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchTeacherDashboardOverviewLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
 
-  const { data: timetable, isLoading: timetableLoading } = useQuery({
+  const { data: timetable, isLoading: timetableLoading, error: timetableError, refetch: refreshTimetable } = useQuery({
     queryKey: ["teacher-timetable", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchTimetableLive(liveSession.session!),
     enabled: !!liveSession.session,
@@ -29,6 +29,8 @@ export function OverviewWorkspace({
   const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const todaysLessons = timetable?.filter(t => t.dayName === todayStr) || [];
 
+  const overviewPending = overviewLoading || liveSession.isLoading;
+  const unavailableLabel = overviewPending ? "Loading…" : "Currently unavailable";
   const summaryCards: Array<[string, string | number, string]> = overview ? [
     ["Today's Lessons", overview.todaysLessons.count, overview.todaysLessons.detail],
     ["Pending Attendance", overview.pendingAttendance.count, overview.pendingAttendance.detail],
@@ -39,14 +41,14 @@ export function OverviewWorkspace({
     ["Unread Messages", overview.unreadMessages.count, overview.unreadMessages.detail],
     ["Store Requests", overview.storeRequests.count, overview.storeRequests.detail],
   ] : [
-    ["Today's Lessons", "-", "Loading..."],
-    ["Pending Attendance", "-", "Loading..."],
-    ["Pending Lesson Logs", "-", "Loading..."],
-    ["Open Mark Entry", "-", "Loading..."],
-    ["Assignments Due", "-", "Loading..."],
-    ["Learners Needing Attention", "-", "Loading..."],
-    ["Unread Messages", "-", "Loading..."],
-    ["Store Requests", "-", "Loading..."],
+    ["Today's Lessons", "—", unavailableLabel],
+    ["Pending Attendance", "—", unavailableLabel],
+    ["Pending Lesson Logs", "—", unavailableLabel],
+    ["Open Mark Entry", "—", unavailableLabel],
+    ["Assignments Due", "—", unavailableLabel],
+    ["Learners Needing Attention", "—", unavailableLabel],
+    ["Unread Messages", "—", unavailableLabel],
+    ["Store Requests", "—", unavailableLabel],
   ];
 
   const quickActions: Array<[string, TeacherView, TeacherAction, string]> = [
@@ -59,15 +61,22 @@ export function OverviewWorkspace({
 
   return (
     <>
-      <section className="rounded-2xl bg-[linear-gradient(135deg,#071D49_0%,#123A7A_68%,#0F172A_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">Academic Year 2026 • Term 2</p>
-        <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-[-0.02em] md:text-5xl">Welcome Back, Teacher</h2>
+      <section className="rounded-2xl bg-[#071D49] p-4 text-white shadow-sm sm:p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-100">Your teaching day</p>
+        <h2 className="mt-2 max-w-3xl text-xl font-semibold tracking-tight md:text-3xl">Welcome back, Teacher</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-100/78">
           Here's a summary of your academic tasks for today.
         </p>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {overviewError || liveSession.error || (!overviewPending && !liveSession.session) ? (
+        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p>{overviewError instanceof Error ? overviewError.message : liveSession.error || "Your teaching summary is unavailable. Check your school session and reload."}</p>
+          {liveSession.session ? <button type="button" className="mt-2 font-semibold underline underline-offset-4" onClick={() => void refreshOverview()}>Retry teaching summary</button> : null}
+        </div>
+      ) : null}
+
+      <section className="app-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map(([label, value, detail]) => (
           <article key={label} className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">{label}</p>
@@ -99,13 +108,18 @@ export function OverviewWorkspace({
         </Panel>
         
         <Panel title="Today's teaching plan" description="Your assigned lessons for today." icon={CalendarDays}>
-          <div className="flex flex-col h-full rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-            {timetableLoading ? (
+          <div className="flex flex-col rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+            {timetableLoading || liveSession.isLoading ? (
                <div className="flex h-32 items-center justify-center">
                  <Loader2 className="h-6 w-6 animate-spin text-[#64748B]" />
                </div>
+            ) : timetableError || !liveSession.session ? (
+              <div role="status" className="py-5 text-center text-sm text-slate-600">
+                <p>Your teaching plan is currently unavailable.</p>
+                {liveSession.session ? <button type="button" onClick={() => void refreshTimetable()} className="mt-2 font-semibold text-blue-700 underline">Retry teaching plan</button> : null}
+              </div>
             ) : todaysLessons.length > 0 ? (
-              <div className="space-y-3 flex-1 overflow-y-auto">
+              <div className="space-y-3">
                 {todaysLessons.map(lesson => (
                   <div key={lesson.id} className="flex justify-between items-center rounded-lg bg-white p-3 border border-[#D8E0EC]">
                     <div>

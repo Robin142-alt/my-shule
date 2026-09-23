@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AlertCircle, Bell, Lock, Monitor, Paintbrush } from "lucide-react";
 import { toast } from "sonner";
-import { Button, buttonClasses } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
@@ -46,7 +46,7 @@ function Toggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="relative inline-flex cursor-pointer items-center">
+    <label className="relative inline-flex min-h-11 shrink-0 cursor-pointer items-center">
       <span className="sr-only">{label}</span>
       <input
         aria-label={label}
@@ -56,7 +56,7 @@ function Toggle({
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="h-6 w-11 rounded-full bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-disabled:cursor-not-allowed peer-disabled:opacity-50" />
+      <span className="relative h-6 w-11 rounded-full bg-white/10 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-disabled:cursor-not-allowed peer-disabled:opacity-50" />
     </label>
   );
 }
@@ -143,24 +143,24 @@ export function PrincipalSettingsWorkspace() {
   return (
     <section aria-label="Principal settings workspace" className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-white">Principal Settings</h2>
+        <h2 className="text-xl font-semibold text-white sm:text-2xl">Principal Settings</h2>
         <p className="mt-1 text-sm text-white/60">Per-user preferences and verified account security for this school membership.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6">
+        <Card className="app-workspace-panel border border-white/10 bg-white/5 p-6">
           <div className="mb-4 flex items-center gap-3 border-b border-white/10 pb-4">
-            <Monitor className="h-6 w-6 text-cyan-400" />
-            <h3 className="text-xl font-bold text-white">Dashboard Preferences</h3>
+            <Monitor className="h-5 w-5 shrink-0 text-cyan-400" />
+            <h3 className="text-base font-semibold text-white sm:text-xl">Dashboard Preferences</h3>
           </div>
 
           <div className="space-y-6">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <p className="font-bold text-white">Teaching workspace access</p>
                 <p className="text-xs text-white/60">Derived from active class and subject assignments; it cannot be self-enabled.</p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${data.dashboard.showTeachingWorkspace ? "bg-emerald-500/15 text-emerald-300" : "bg-white/10 text-white/60"}`}>
+              <span className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${data.dashboard.showTeachingWorkspace ? "bg-emerald-500/15 text-emerald-300" : "bg-white/10 text-white/60"}`}>
                 {data.dashboard.showTeachingWorkspace ? "Assigned" : "Not assigned"}
               </span>
             </div>
@@ -198,10 +198,10 @@ export function PrincipalSettingsWorkspace() {
           </div>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6">
+        <Card className="app-workspace-panel border border-white/10 bg-white/5 p-6">
           <div className="mb-4 flex items-center gap-3 border-b border-white/10 pb-4">
-            <Bell className="h-6 w-6 text-emerald-400" />
-            <h3 className="text-xl font-bold text-white">Notifications</h3>
+            <Bell className="h-5 w-5 shrink-0 text-emerald-400" />
+            <h3 className="text-base font-semibold text-white sm:text-xl">Notifications</h3>
           </div>
 
           <div className="space-y-6">
@@ -220,30 +220,30 @@ export function PrincipalSettingsWorkspace() {
           </div>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6 md:col-span-2">
+        <Card className="app-workspace-panel border border-white/10 bg-white/5 p-6 md:col-span-2">
           <div className="mb-4 flex items-center gap-3 border-b border-white/10 pb-4">
-            <Lock className="h-6 w-6 text-purple-400" />
-            <h3 className="text-xl font-bold text-white">Security</h3>
+            <Lock className="h-5 w-5 shrink-0 text-purple-400" />
+            <h3 className="text-base font-semibold text-white sm:text-xl">Security</h3>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col items-start justify-between gap-3 rounded-lg border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center">
               <div>
                 <p className="font-bold text-white">Multi-factor authentication</p>
                 <p className="text-xs text-white/60">Principal access is governed by the privileged-role MFA policy.</p>
               </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${data.security.twoFactorAuth ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-200"}`}>
+              <span className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${data.security.twoFactorAuth ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-200"}`}>
                 {data.security.twoFactorAuth ? "Enabled" : "Setup required"}
               </span>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/5 p-4">
+            <div className="flex flex-col items-start justify-between gap-3 rounded-lg border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center">
               <div>
                 <p className="font-bold text-white">Password</p>
                 <p className="text-xs text-white/60">Last changed: {passwordChange}</p>
               </div>
               <Link
-                className={buttonClasses({ variant: "outline" })}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
                 href="/school/forgot-password"
               >
                 Open secure reset

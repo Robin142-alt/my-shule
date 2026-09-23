@@ -53,14 +53,14 @@ it("disables Generate while pending, opens the saved draft and refreshes its vie
   let finish!: (value: typeof completed) => void;
   mockGenerate.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
   render(<DeputyTimetableManagementWorkspace />);
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
-  expect(screen.getByRole("button", { name: "Generating...", exact: true })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
+  expect(screen.getByRole("button", { name: "Generating..." })).toBeDisabled();
   expect(mockGenerate).toHaveBeenCalledWith("/api/timetable/generate", expect.objectContaining({ academic_year: "2026", term_name: "Term 3", scope: "whole_school", preserve_locked: true, allow_partial: false }));
   await act(async () => { mockSaved = true; finish(completed); });
   expect(await screen.findByText("3 saved lessons")).toBeVisible();
-  expect(screen.getByRole("combobox", { name: "Class", exact: true })).toHaveValue("class");
+  expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue("class");
   expect(screen.getByRole("region", { name: "Generation summary" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Publish", exact: true })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled();
   expect(toast.success).toHaveBeenCalledWith("Draft saved: 3 periods scheduled.");
   for (const endpoint of ["readiness", "planner", "views", "unscheduled", "versions/history"]) {
     expect(mockRefetch).toHaveBeenCalledWith(expect.stringContaining(`/api/timetable/${endpoint}?`));
@@ -70,18 +70,18 @@ it("disables Generate while pending, opens the saved draft and refreshes its vie
 it("keeps a failed request retryable and does not show a saved draft", async () => {
   mockGenerate.mockRejectedValueOnce(new Error("Generation could not be saved"));
   render(<DeputyTimetableManagementWorkspace />);
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Generation could not be saved"));
   expect(screen.queryByRole("region", { name: "Generation summary" })).not.toBeInTheDocument();
   expect(toast.success).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
   expect(await screen.findByText("3 saved lessons")).toBeVisible();
 });
 
 it("reports partial generation and shows the remaining period count on draft review", async () => {
   mockGenerate.mockImplementation(async () => { mockSaved = true; return { ...completed, status: "PARTIAL", run: { ...completed.run, status: "completed_with_gaps", scheduled_lessons: 2, unscheduled_lessons: 1 } }; });
   render(<DeputyTimetableManagementWorkspace />);
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
   const summary = await screen.findByRole("region", { name: "Generation summary" });
   expect(within(summary).getByText("Unscheduled").parentElement).toHaveTextContent("1");
   expect(toast.warning).toHaveBeenCalledWith("Draft saved: 2 periods scheduled; 1 still need placement.");
@@ -90,7 +90,7 @@ it("reports partial generation and shows the remaining period count on draft rev
 it("retains confirmation of a saved draft if refreshing a view fails", async () => {
   mockRefetch.mockRejectedValue(new Error("View temporarily unavailable"));
   render(<DeputyTimetableManagementWorkspace />);
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
   await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("The timetable was saved")));
   expect(screen.getByRole("region", { name: "Generation summary" })).toBeVisible();
   expect(toast.error).not.toHaveBeenCalled();
@@ -99,10 +99,10 @@ it("retains confirmation of a saved draft if refreshing a view fails", async () 
 it("does not claim generation succeeded for an offline queue or an unconfirmed response", async () => {
   mockGenerate.mockResolvedValueOnce({ _offline: true }).mockResolvedValueOnce({});
   render(<DeputyTimetableManagementWorkspace />);
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
   await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("not yet confirmed")));
   expect(screen.queryByRole("region", { name: "Generation summary" })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Generate Timetable" }));
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("did not confirm")));
   expect(toast.success).not.toHaveBeenCalled();
 });

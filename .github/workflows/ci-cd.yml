@@ -56,6 +56,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
+      - name: Authenticated mobile navigation and action contracts
+        run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
+
       - name: Report-card class generation and recovery interface
         run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-card-api-contract exams-manager-entry-controls
 

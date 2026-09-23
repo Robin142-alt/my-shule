@@ -143,7 +143,7 @@ export function PrincipalCommunicationWorkspace() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="app-metric-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Provider accepted today</div>
           <div className="mt-2 text-2xl font-black text-white">{data.providerAcceptedToday}</div>

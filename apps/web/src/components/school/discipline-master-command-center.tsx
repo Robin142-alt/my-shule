@@ -89,7 +89,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]">
+    <div className="authenticated-app flex min-h-screen bg-[#F8FAFC]">
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -141,9 +141,9 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="app-command-main flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#D8E0EC] bg-white px-4 sm:px-6 shadow-sm">
+        <header className="app-command-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#D8E0EC] bg-white px-4 sm:px-6 shadow-sm">
           <div className="flex items-center gap-4">
             <button 
               className="lg:hidden p-2 -ml-2 text-[#64748B] hover:bg-[#F8FAFC] rounded-lg"

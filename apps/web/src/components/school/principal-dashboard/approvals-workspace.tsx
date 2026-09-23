@@ -1,5 +1,7 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, CheckCircle2, ShieldAlert, Clock, FileCheck2, Loader2, RefreshCw } from "lucide-react";
@@ -143,7 +145,7 @@ export function PrincipalApprovalsWorkspace() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-3">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Pending</div>
           <div className="mt-2 text-2xl font-black text-white">{approvalOverview.pendingTotal + reportCardReleaseCount}</div>
@@ -243,7 +245,7 @@ export function PrincipalApprovalsWorkspace() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="min-w-[780px] w-full text-left text-sm">
+            <RecordTable className="app-record-table-dark min-w-[780px] w-full text-left text-sm">
               <thead className="bg-white/5 text-white/70">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Request</th>
@@ -278,7 +280,7 @@ export function PrincipalApprovalsWorkspace() {
                   );
                 })}
               </tbody>
-            </table>
+            </RecordTable>
           </div>
         )}
       </Card>

@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Plus, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -163,7 +164,7 @@ export function ParentEngagementWorkspace() {
 
       {error ? <WorkspaceFailure title="Parent engagement records could not be loaded." error={error} onRetry={() => void refetch()} /> : (
         <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-          <table className="w-full whitespace-nowrap text-left text-sm">
+          <RecordTable className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Student</th><th className="px-4 py-3 font-bold">Parent</th><th className="px-4 py-3 font-bold">Date</th><th className="px-4 py-3 font-bold">Method</th><th className="px-4 py-3 font-bold">Reason</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Action</th></tr></thead>
             <tbody>
               {isLoading ? <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading parent engagement…</td></tr> : null}
@@ -173,7 +174,7 @@ export function ParentEngagementWorkspace() {
                 <td className="px-4 py-3">{canWrite && row.status !== "Queued" ? <button type="button" disabled={notifyParent.isPending} onClick={() => notifyParent.mutate({ id: row.id })} className="font-black text-blue-700 underline disabled:opacity-50">Queue parent notice</button> : "—"}</td>
               </tr>)}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </Panel>

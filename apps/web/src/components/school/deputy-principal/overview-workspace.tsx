@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { LayoutDashboard, UserX, UserCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -118,7 +119,7 @@ export function DeputyOverviewWorkspace({ schoolId }: { schoolId?: string }) {
     <Panel title="Overview" description="Today's Priority Queue and school state." icon={LayoutDashboard} actions={
       <button type="button" disabled={isSubmitting} onClick={handleStartMorningReview} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">{isSubmitting ? "Starting..." : "Start Morning Review"}</button>
     }>
-      <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 flex flex-col justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><UserCheck className="w-4 h-4"/> Present Today</div>
           <div className="mt-2 text-3xl font-black text-emerald-600">{isLoading ? "..." : presentToday}</div>
@@ -157,7 +158,7 @@ export function DeputyOverviewWorkspace({ schoolId }: { schoolId?: string }) {
       ) : null}
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Priority</th>
@@ -186,7 +187,7 @@ export function DeputyOverviewWorkspace({ schoolId }: { schoolId?: string }) {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

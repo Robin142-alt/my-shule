@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { MessageSquare } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 
@@ -35,7 +36,7 @@ export function MessagesWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold">From</th>
@@ -60,7 +61,7 @@ export function MessagesWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </section>
   );

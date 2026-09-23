@@ -236,7 +236,7 @@ function Topbar({
   onViewChange: (view: HodView) => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/95 px-4 py-3 backdrop-blur">
+    <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/95 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <p className="text-sm font-black text-[#071D49]">Department command controls</p>
 
@@ -395,11 +395,11 @@ export function HodCommandCenter({
       data-testid="role-operational-command-center"
       data-role-dashboard="hod"
       data-active-view={activeView}
-      className="min-h-dvh bg-[#F3F6FA] text-[#071D49] lg:h-dvh lg:overflow-hidden"
+      className="authenticated-app min-h-dvh bg-[#F3F6FA] text-[#071D49] lg:h-dvh lg:overflow-hidden"
     >
       <div className="flex min-h-dvh lg:h-full">
         <Sidebar activeView={activeView} onViewChange={openView} />
-        <main className="min-w-0 flex-1 lg:flex lg:h-full lg:flex-col">
+        <main className="app-command-main min-w-0 flex-1 lg:flex lg:h-full lg:flex-col">
           <Topbar
             activeView={activeView}
             searchTerm={searchTerm}
@@ -408,7 +408,7 @@ export function HodCommandCenter({
             onSearchResult={openSearchResult}
             onViewChange={openView}
           />
-          <div className="space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
+          <div className="app-content space-y-4 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
             <IntegratedSchoolCommandHeader roleTitle="Head of Department Dashboard" fallbackUserLabel="Head of Department" />
             <WorkspaceFrame activeView={activeView}>
               <HodWorkspace activeView={activeView} onNavigate={openView} />

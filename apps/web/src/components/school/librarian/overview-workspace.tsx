@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { LayoutDashboard, BookOpen, Users, Clock, AlertTriangle, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
@@ -69,7 +70,7 @@ export function OverviewWorkspace() {
       }
     >
       {/* Metrics grid */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><BookOpen className="w-4 h-4" /> Total Books</div>
           <div className="mt-2 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_books ?? 0}</div>
@@ -98,7 +99,7 @@ export function OverviewWorkspace() {
 
       {/* Recent activity table */}
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Action</th>
@@ -125,7 +126,7 @@ export function OverviewWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

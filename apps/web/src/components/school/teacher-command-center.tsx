@@ -89,11 +89,11 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
   };
 
   return (
-    <div data-testid="teacher-command-center" className="flex min-h-dvh bg-[#F3F6FA]">
+    <div data-testid="teacher-command-center" className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
-      <main className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar activeView={activeView} onViewChange={setActiveView} />
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+        <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Teacher Dashboard" fallbackUserLabel="Teacher" />
           {notice && (
             <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm font-semibold text-blue-800">
@@ -176,7 +176,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
 
 function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+    <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">TR</div>

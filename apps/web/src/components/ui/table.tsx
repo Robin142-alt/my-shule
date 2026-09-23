@@ -11,7 +11,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className = "", columns, data, renderRow, emptyState, children, ...props }, ref) => {
     if (columns && data && renderRow) {
       return (
-        <div className="relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
+        <div role="region" aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={0} className="app-table-scroll relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
           <table
             ref={ref}
             className={`w-full caption-bottom text-sm transition-colors ${className}`}
@@ -41,7 +41,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
     }
 
     return (
-      <div className="relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
+      <div role="region" aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={0} className="app-table-scroll relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
         <table
           ref={ref}
           className={`w-full caption-bottom text-sm transition-colors ${className}`}

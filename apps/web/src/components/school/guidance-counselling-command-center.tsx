@@ -1333,7 +1333,7 @@ export function GuidanceCounsellingCommandCenter({
   }
 
   return (
-    <div id="top" data-route-mode={routeMode} className="min-h-screen bg-[#F4F7FA] pb-24 lg:pb-6">
+    <div id="top" data-route-mode={routeMode} className="authenticated-app min-h-screen bg-[#F4F7FA] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Sidebar />
         <main className="min-w-0 space-y-5">

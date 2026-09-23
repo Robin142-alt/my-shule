@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Plus, Siren } from "lucide-react";
 import { toast } from "sonner";
@@ -204,7 +205,7 @@ export function IncidentsWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full whitespace-nowrap text-left text-sm">
+        <RecordTable className="w-full whitespace-nowrap text-left text-sm">
           <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Date</th><th className="px-4 py-3 font-bold">Description</th><th className="px-4 py-3 font-bold">Location</th><th className="px-4 py-3 font-bold">Severity</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Actions</th></tr></thead>
           <tbody>
             {isLoading ? (
@@ -226,7 +227,7 @@ export function IncidentsWorkspace() {
               })
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

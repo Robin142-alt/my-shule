@@ -15,7 +15,7 @@ export function buttonClasses({
   className?: string;
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none disabled:active:scale-100";
+    "inline-flex min-w-0 max-w-full touch-manipulation items-center justify-center gap-2 rounded-[var(--radius)] font-medium transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none disabled:active:scale-100";
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useModalLayer } from "@/hooks/use-modal-layer";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
@@ -303,6 +304,13 @@ export function PrincipalCommandCenter({
   );
   const defaultViewApplied = useRef(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const mobileSidebarRef = useModalLayer<HTMLElement>(mobileSidebarOpen, () => setMobileSidebarOpen(false));
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const closeOnDesktop = () => { if (desktop.matches) setMobileSidebarOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
   const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({});
   const [streamedPrincipalDashboard, setStreamedPrincipalDashboard] = useState<{
     schoolId: string;
@@ -538,7 +546,7 @@ export function PrincipalCommandCenter({
         <div
           data-testid={activeWorkspace === "exams-reports" ? undefined : "role-operational-command-center"}
           data-route-mode={routeMode ?? "hosted"}
-          className="min-h-dvh bg-[#F3F4F6] pb-24 lg:pb-6"
+          className="authenticated-app min-h-dvh bg-[#F3F4F6] pb-6"
         >
           {mobileSidebarOpen ? (
             <button
@@ -553,11 +561,18 @@ export function PrincipalCommandCenter({
             className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]"
           >
             <aside
+              ref={mobileSidebarRef}
+              data-open={mobileSidebarOpen}
+              role={mobileSidebarOpen ? "dialog" : undefined}
+              aria-modal={mobileSidebarOpen || undefined}
+              aria-label="Principal navigation"
+              tabIndex={-1}
               className={cn(
-                "fixed inset-y-0 left-0 z-40 flex w-[min(84vw,300px)] min-h-0 flex-col overflow-hidden border-r border-[#C8D5EA]/30 bg-[#071D49] p-4 text-white shadow-2xl transition-transform duration-200 xl:static xl:z-auto xl:h-[calc(100dvh-40px)] xl:w-auto xl:translate-x-0 xl:rounded-[var(--radius-xl)] xl:border-[#C8D5EA]/50 xl:shadow-[0_24px_70px_rgba(7,29,73,0.22)]",
+                "app-principal-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(88vw,320px)] min-h-0 flex-col overflow-hidden border-r border-[#C8D5EA]/30 bg-[#071D49] p-4 text-white shadow-2xl outline-none transition-transform duration-200 xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100dvh-40px)] xl:w-auto xl:translate-x-0 xl:rounded-[var(--radius-xl)] xl:border-[#C8D5EA]/50 xl:shadow-[0_24px_70px_rgba(7,29,73,0.22)]",
                 mobileSidebarOpen ? "translate-x-0" : "-translate-x-full",
               )}
             >
+              <button type="button" onClick={() => setMobileSidebarOpen(false)} className="mb-3 min-h-11 self-end rounded-lg bg-white/10 px-4 text-sm font-semibold xl:hidden">Close navigation</button>
               <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
                 <div className="flex items-center gap-3">
                   {principalSchoolProfile?.logoUrl && failedSchoolLogoUrl !== principalSchoolProfile.logoUrl ? (
@@ -630,7 +645,7 @@ export function PrincipalCommandCenter({
             </aside>
 
             <main className="min-w-0 space-y-5">
-              <header className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
+              <header className="app-workspace-header rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <DashboardGreeting name={principalName} context={`${schoolName} command center`} />
@@ -651,7 +666,7 @@ export function PrincipalCommandCenter({
                 </div>
               </header>
 
-              <div className="rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
+              <div className="app-principal-workspace rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
                 <section className="max-h-none overflow-y-auto">{renderWorkspace()}</section>
               </div>
             </main>

@@ -64,7 +64,7 @@ export function DashboardLayout({
     liveStudentSearchQuery.data ?? buildAdmissionsSearchItems(role);
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="authenticated-app min-h-screen bg-background">
       {/* Desktop sidebar — fixed position */}
       <Sidebar
         role={role}

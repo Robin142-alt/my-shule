@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { DoorOpen, LogOut, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -178,7 +179,7 @@ export function GateRegisterWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full whitespace-nowrap text-left text-sm">
+        <RecordTable className="w-full whitespace-nowrap text-left text-sm">
           <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Time In</th><th className="px-4 py-3 font-bold">Name</th><th className="px-4 py-3 font-bold">Type</th><th className="px-4 py-3 font-bold">ID Number</th><th className="px-4 py-3 font-bold">Purpose</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Action</th></tr></thead>
           <tbody>
             {isLoading ? (
@@ -197,7 +198,7 @@ export function GateRegisterWorkspace() {
               })
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

@@ -19,6 +19,7 @@ export function ActivityListCard({
       <p className="mt-2 text-lg font-semibold text-foreground">{title}</p>
       <p className="mt-1 text-sm leading-6 text-muted">{subtitle}</p>
       <div className="mt-5 space-y-3">
+        {items.length === 0 ? <p className="rounded-xl border border-dashed border-border bg-surface-muted p-4 text-sm leading-6 text-muted">No activity available yet. Recorded events will appear here.</p> : null}
         {items.map((item) => (
           <div
             key={item.id}
@@ -55,6 +56,7 @@ export function SimpleListCard({
       <p className="mt-2 text-lg font-semibold text-foreground">{title}</p>
       <p className="mt-1 text-sm leading-6 text-muted">{subtitle}</p>
       <div className="mt-5 space-y-3">
+        {items.length === 0 ? <p className="rounded-xl border border-dashed border-border bg-surface-muted p-4 text-sm leading-6 text-muted">No records available in this queue yet.</p> : null}
         {items.map((item) => (
           <div
             key={item.id}

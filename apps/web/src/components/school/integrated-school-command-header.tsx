@@ -143,7 +143,7 @@ export function IntegratedSchoolCommandHeader({
 
   return (
     <header
-      className={`rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5 ${className}`}
+      className={`app-workspace-header rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5 ${className}`}
       data-testid="integrated-school-command-header"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -151,7 +151,7 @@ export function IntegratedSchoolCommandHeader({
           <DashboardGreeting name={greetingName} context={`${schoolName} ${contextLabel}`} />
           <h1 className="mt-1 text-2xl font-black">{roleTitle}</h1>
         </div>
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:max-w-[68%] xl:justify-end">
+        <div className="app-header-actions flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:max-w-[68%] xl:justify-end">
           <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
           {actions}
           {showSignOut ? (

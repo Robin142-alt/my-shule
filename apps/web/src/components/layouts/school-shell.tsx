@@ -152,7 +152,7 @@ export function SchoolShell({
     : [];
 
   return (
-    <div className="min-h-screen bg-[#f7f8fa]">
+    <div className="authenticated-app min-h-screen bg-[#f7f8fa]">
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#e8eaed] bg-white lg:flex">
         <div className="border-b border-[#e8eaed] px-5 py-5">
