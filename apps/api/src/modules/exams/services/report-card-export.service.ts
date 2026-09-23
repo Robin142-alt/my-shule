@@ -182,7 +182,7 @@ export class ReportCardExportService implements OnModuleInit, OnModuleDestroy {
           const payload = extractPersistedReportCardPayload(card.metadata);
           if (!payload || !card.verification_code)
             throw new ConflictException('A selected snapshot needs regeneration');
-          yield { payload: await hydrateReportCardLogoForRendering(payload, tenantId, cachedStorage, { includePrincipalSignature: card.status === 'published' }), verificationCode: card.verification_code };
+          yield { payload: await hydrateReportCardLogoForRendering(payload, tenantId, cachedStorage), verificationCode: card.verification_code };
         }
         await progress?.(Math.min(offset + 50, cards.length));
       }

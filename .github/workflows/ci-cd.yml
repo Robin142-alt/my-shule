@@ -60,7 +60,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
 
       - name: Report-card class generation and recovery interface
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-card-api-contract exams-manager-entry-controls
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-card-api-contract report-card-signatures exams-manager-entry-controls
 
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
@@ -110,7 +110,7 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: |
-          node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js
+          node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js dist/apps/api/src/modules/exams/services/report-card-artifact-design.test.js dist/apps/api/src/modules/exams/services/report-card-signatures.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-scope.integration-spec.ts
 
       - name: Install isolated session test dependency

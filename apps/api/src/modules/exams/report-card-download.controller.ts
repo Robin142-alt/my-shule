@@ -8,22 +8,30 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   NotFoundException,
   Optional,
   Param,
+  ParseEnumPipe,
   ParseUUIDPipe,
   Query,
   Req,
   StreamableFile,
+  ServiceUnavailableException,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
 import { ExamsRepository } from './repositories/exams.repository';
-import { hydrateReportCardLogoForRendering } from './services/report-card-logo-hydration';
+import { hydrateReportCardLogoForRendering, isTenantScopedStoragePath } from './services/report-card-logo-hydration';
 import { extractPersistedReportCardPayload } from './services/report-card-template.service';
 import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
+
+enum ReportCardSignatureRole {
+  ClassTeacher = 'class_teacher',
+  Principal = 'principal',
+}
 
 @Controller('exams')
 @UseGuards(JwtAuthGuard)
@@ -40,6 +48,46 @@ export class ReportCardDownloadController {
   async downloadReportCard(
     @Param('reportCardId', new ParseUUIDPipe()) reportCardId: string,
   ) {
+    const { payload, tenantId, verificationCode } = await this.loadReportCardSnapshot(reportCardId);
+    const renderPayload = await hydrateReportCardLogoForRendering(payload, tenantId, this.fileStorage);
+    const pdfArtifact = await createReportCardPdfArtifact(renderPayload, verificationCode);
+
+    return new StreamableFile(pdfArtifact.content, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${pdfArtifact.filename}"`,
+    });
+  }
+
+  @Get('report-cards/:reportCardId/signatures/:signerRole')
+  @Permissions('exams:read')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  async readReportCardSignature(
+    @Param('reportCardId', new ParseUUIDPipe()) reportCardId: string,
+    @Param('signerRole', new ParseEnumPipe(ReportCardSignatureRole)) signerRole: ReportCardSignatureRole,
+  ) {
+    const { payload, tenantId } = await this.loadReportCardSnapshot(reportCardId);
+    const field = signerRole === ReportCardSignatureRole.ClassTeacher
+      ? 'class_teacher_signature_ref' : 'principal_signature_ref';
+    const storagePath = payload.template_fields[field]?.trim() ?? '';
+    if (!isTenantScopedStoragePath(tenantId, storagePath)) {
+      throw new NotFoundException('This report-card snapshot has no saved signature for this signer. Upload the signature and regenerate the report card.');
+    }
+    if (!this.fileStorage) {
+      throw new ServiceUnavailableException('Signature file storage is not available. Retry loading the signature.');
+    }
+    const image = await this.fileStorage.readForTenant({ tenantId, storagePath });
+    if (image.stored_path !== storagePath || !/^image\/(?:png|jpe?g)$/i.test(image.mime_type)) {
+      throw new NotFoundException('The saved report-card signature could not be read. Upload it again and regenerate the report card.');
+    }
+    return new StreamableFile(image.content, {
+      type: image.mime_type,
+      disposition: 'inline',
+      length: image.content.length,
+    });
+  }
+
+  private async loadReportCardSnapshot(reportCardId: string) {
     const tenantId = this.examsService.assertReportCardScopeAccess();
 
     const result = await this.examsRepository.executeSql(
@@ -61,18 +109,7 @@ export class ReportCardDownloadController {
       );
     }
 
-    const renderPayload = await hydrateReportCardLogoForRendering(
-      payload,
-      tenantId,
-      this.fileStorage,
-      { includePrincipalSignature: reportCard.status === 'published' },
-    );
-    const pdfArtifact = await createReportCardPdfArtifact(renderPayload, verificationCode);
-
-    return new StreamableFile(pdfArtifact.content, {
-      type: 'application/pdf',
-      disposition: `attachment; filename="${pdfArtifact.filename}"`,
-    });
+    return { tenantId, payload, verificationCode };
   }
 
   @Get('report-cards/bulk-download-pdf')

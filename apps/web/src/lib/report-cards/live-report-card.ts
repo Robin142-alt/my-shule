@@ -515,7 +515,10 @@ export function mapPersistedReportCardDocument(
     signatures: [
       {
         role: "Class Teacher",
-        name: text(student.class_teacher_name) || undefined,
+        name: text(fields.class_teacher_name, text(student.class_teacher_name)) || undefined,
+        imageUrl: text(fields.class_teacher_signature_ref)
+          ? `/api/exams/report-cards/${encodeURIComponent(card.id)}/signatures/class_teacher?v=${encodeURIComponent(verificationCode || generatedAt)}`
+          : undefined,
         date: formatDate(card.submitted_at),
       },
       {
@@ -524,6 +527,10 @@ export function mapPersistedReportCardDocument(
       },
       {
         role: "Principal",
+        name: text(fields.principal_name) || undefined,
+        imageUrl: text(fields.principal_signature_ref)
+          ? `/api/exams/report-cards/${encodeURIComponent(card.id)}/signatures/principal?v=${encodeURIComponent(verificationCode || generatedAt)}`
+          : undefined,
         date: formatDate(card.published_at),
       },
     ],

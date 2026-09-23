@@ -20,6 +20,7 @@ describe('Report generation with the production staff schema', () => {
   let failArtifact = false;
   let failOutbox = false;
   let sqlReads = 0;
+  const signatureReads: string[] = [];
   const ids = Object.fromEntries(['exam', 'term', 'year', 'class', 'subject', 'assessment', 'teacher', 'principal', 'actor', 'grading', 'role'].map(key => [key, randomUUID()]));
   const students = Array.from({ length: 11 }, () => randomUUID());
   const scope = { tenant_id: 'school-a', exam_series_id: ids.exam, class_section_id: ids.class, actor_user_id: ids.actor };
@@ -105,7 +106,17 @@ describe('Report generation with the production staff schema', () => {
     const events = new SchoolOperationalEventsService(requestContext,
       new EventPublisherService(requestContext, new OutboxEventsRepository(prisma as never)),
       new SchoolOperationNotificationsRepository(prisma as never));
-    generation = new ReportCardGenerationService(repository, new ReportCardTemplateService(), undefined, events);
+    generation = new ReportCardGenerationService(repository, new ReportCardTemplateService(), {
+      readForTenant: async ({ tenantId, storagePath }: { tenantId: string; storagePath: string }) => {
+        expect(tenantId).toBe('school-a');
+        expect(['tenant/school-a/principal.png', 'tenant/school-a/class-teacher.png']).toContain(storagePath);
+        signatureReads.push(storagePath);
+        return {
+          stored_path: storagePath, mime_type: 'image/png',
+          content: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+        };
+      },
+    } as never, events);
     await query(`INSERT INTO tenants VALUES ('school-a','Test School','{}'),('school-b','Other School','{}');
       INSERT INTO academic_years VALUES ('school-a','${ids.year}','2026');
       INSERT INTO academic_terms VALUES ('school-a','${ids.term}','Term 3','${ids.year}','2026-09-01','2026-12-01');
@@ -119,7 +130,8 @@ describe('Report generation with the production staff schema', () => {
       INSERT INTO academics_class_teachers(tenant_id,teacher_user_id,academic_year_id,class_section_id,is_active,status)
         VALUES ('school-a','${ids.teacher}','${ids.year}','${ids.class}',true,'active');
       INSERT INTO exam_report_card_signatures(tenant_id,signer_user_id,signer_role,storage_path,original_file_name,mime_type,size_bytes,checksum_sha256,uploaded_by_user_id)
-        VALUES ('school-a','${ids.principal}','principal','tenant/school-a/principal.png','principal.png','image/png',12,'${'a'.repeat(64)}','${ids.principal}');
+        VALUES ('school-a','${ids.principal}','principal','tenant/school-a/principal.png','principal.png','image/png',12,'${'a'.repeat(64)}','${ids.principal}'),
+          ('school-a','${ids.teacher}','class_teacher','tenant/school-a/class-teacher.png','class-teacher.png','image/png',12,'${'b'.repeat(64)}','${ids.teacher}');
       INSERT INTO academics_grading_systems(tenant_id,id,name,version,is_active,rules) VALUES
         ('school-a','${ids.grading}','School grading',1,true,'[{"min":0,"max":100,"label":"A","points":12,"remark":"Excellent"}]');
       INSERT INTO academics_report_card_settings(tenant_id,grading_system_id,is_active,show_rank,show_attendance,configuration)
@@ -137,6 +149,7 @@ describe('Report generation with the production staff schema', () => {
   afterAll(async () => { await pool?.end(); });
   beforeEach(async () => {
     failArtifact = false; failOutbox = false; sqlReads = 0;
+    signatureReads.length = 0;
     await query('TRUNCATE student_report_cards, report_card_artifacts, student_report_card_audit_logs, report_card_generation_batches, outbox_events');
   });
 
@@ -151,6 +164,21 @@ describe('Report generation with the production staff schema', () => {
   }
   const studentInput = () => ({ ...scope, student_id: students[0] });
   const count = async (table: string) => Number((await query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count);
+
+  it('initial generation loads both school-owned signer images and preserves the draft workflow', async () => {
+    const result = await generation.generateStudentReportCard(studentInput());
+    const card = (await query('SELECT * FROM student_report_cards WHERE id=$1', [result.id])).rows[0];
+    expect(signatureReads.sort()).toEqual(['tenant/school-a/class-teacher.png', 'tenant/school-a/principal.png']);
+    expect(card.status).toBe('draft_generated');
+    expect(card.published_at).toBeNull();
+    expect(card.metadata.report_card.template_fields).toMatchObject({
+      class_teacher_name: 'Assigned Teacher', class_teacher_signature_ref: 'tenant/school-a/class-teacher.png',
+      principal_name: 'School Principal', principal_signature_ref: 'tenant/school-a/principal.png',
+    });
+    expect(await count('report_card_artifacts')).toBe(2);
+    expect(await count('outbox_events')).toBe(1);
+    expect(await count('student_report_card_audit_logs')).toBe(1);
+  });
 
   it('generates all 11 cards using the actual HR staff table without full_name, preferred_name or email columns', async () => {
     const result = await generation.generateReportCardBatch(scope);

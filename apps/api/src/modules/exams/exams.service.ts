@@ -3595,7 +3595,6 @@ export class ExamsService {
       payload,
       tenantId,
       this.fileStorage,
-      { includePrincipalSignature: reportCard.status === 'published' },
     );
 
     return createReportCardPdfArtifact(renderPayload, verificationCode);

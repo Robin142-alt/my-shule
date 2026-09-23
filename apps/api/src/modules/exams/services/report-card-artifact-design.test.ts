@@ -297,7 +297,7 @@ test('report-card renderer hydrates class-teacher and Principal signatures only 
         content: Buffer.from([1, 2, 3]),
       };
     },
-  }, { includePrincipalSignature: true });
+  });
 
   assert.equal(reads.length, 2);
   assert.match(hydrated.template_fields.class_teacher_signature_ref ?? '', /^data:image\/png;base64,/);
@@ -309,11 +309,11 @@ test('report-card renderer hydrates class-teacher and Principal signatures only 
       crossTenantReads += 1;
       throw new Error('must not read across tenants');
     },
-  }, { includePrincipalSignature: true });
+  });
   assert.equal(crossTenantReads, 0);
 });
 
-test('report-card drafts omit the Principal signature until the Principal releases the report', async () => {
+test('report-card drafts include both saved signatures before submission, approval or publication', async () => {
   const payload = referencePayload();
   payload.template_fields.class_teacher_signature_ref = 'tenant/tenant-a/exams/report-card-signatures/class_teacher/teacher-a/signature.png';
   payload.template_fields.principal_signature_ref = 'tenant/tenant-a/exams/report-card-signatures/principal/principal-a/signature.png';
@@ -335,8 +335,11 @@ test('report-card drafts omit the Principal signature until the Principal releas
     },
   });
 
-  assert.equal(reads.length, 1);
+  assert.equal(reads.length, 2);
   assert.match(hydrated.template_fields.class_teacher_signature_ref ?? '', /^data:image\/png;base64,/);
-  assert.equal(hydrated.template_fields.principal_signature_ref, null);
+  assert.match(hydrated.template_fields.principal_signature_ref ?? '', /^data:image\/png;base64,/);
   assert.equal(payload.template_fields.principal_signature_ref, 'tenant/tenant-a/exams/report-card-signatures/principal/principal-a/signature.png');
+  const html = new ReportCardTemplateService().renderHtml(hydrated, 'DRAFT-SIGNED').toString('utf8');
+  assert.match(html, /alt="Class teacher signature"/);
+  assert.match(html, /alt="Principal signature"/);
 });

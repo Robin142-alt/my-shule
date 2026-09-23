@@ -191,7 +191,7 @@ export interface ReportCardDocumentData {
   };
   descriptorLegend: Array<{ code: string; label: string }>;
   gradingScale: Array<{ grade: string; range: string; points?: string }>;
-  signatures: Array<{ role: string; name?: string; date?: string }>;
+  signatures: Array<{ role: string; name?: string; date?: string; imageUrl?: string }>;
   verification: {
     generatedBy: string;
     generatedAt: string;

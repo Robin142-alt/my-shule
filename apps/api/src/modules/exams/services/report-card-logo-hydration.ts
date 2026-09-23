@@ -9,15 +9,11 @@ export async function hydrateReportCardLogoForRendering(
   payload: ReportCardPayload,
   tenantIdValue: string,
   fileStorage?: ReportCardImageStorage,
-  options: { includePrincipalSignature?: boolean } = {},
 ): Promise<ReportCardPayload> {
   const clonedPayload: ReportCardPayload = {
     ...payload,
     template_fields: {
       ...payload.template_fields,
-      principal_signature_ref: options.includePrincipalSignature
-        ? payload.template_fields.principal_signature_ref
-        : null,
     },
   };
   const tenantId = tenantIdValue.trim();
@@ -30,10 +26,8 @@ export async function hydrateReportCardLogoForRendering(
   > = [
     'school_logo_ref',
     'class_teacher_signature_ref',
+    'principal_signature_ref',
   ];
-  if (options.includePrincipalSignature) {
-    imageFields.push('principal_signature_ref');
-  }
   await Promise.all(imageFields.map(async (field) => {
     const storagePath = payload.template_fields[field]?.trim() ?? '';
     if (!isTenantScopedStoragePath(tenantId, storagePath)) return;
@@ -60,7 +54,7 @@ export async function hydrateReportCardLogoForRendering(
   return clonedPayload;
 }
 
-function isTenantScopedStoragePath(tenantId: string, storagePath: string): boolean {
+export function isTenantScopedStoragePath(tenantId: string, storagePath: string): boolean {
   if (!tenantId || !storagePath.startsWith(`tenant/${tenantId}/`)) {
     return false;
   }

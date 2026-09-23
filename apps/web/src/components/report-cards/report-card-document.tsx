@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Award,
   BarChart3,
@@ -367,6 +367,30 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
   );
 }
 
+function ReportSignature({ label, name, imageUrl }: { label: string; name?: string; imageUrl?: string }) {
+  const [status, setStatus] = useState("loading");
+  const [attempt, setAttempt] = useState(0);
+  return (
+    <div>
+      {imageUrl ? (
+        <div className="relative min-h-6">
+          {status === "loading" ? <p role="status" className="text-slate-500 print:hidden">Loading signature...</p> : null}
+          {status === "failed" ? (
+            <p role="alert" className="text-amber-800">
+              Signature could not load. <button type="button" className="font-bold underline print:hidden" onClick={() => { setStatus("loading"); setAttempt((value) => value + 1); }}>Retry {label.toLowerCase()}</button>
+            </p>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={`${imageUrl}${attempt ? `${imageUrl.includes("?") ? "&" : "?"}retry=${attempt}` : ""}`} alt={label} className="mx-auto h-6 w-full object-contain" onLoad={() => setStatus("loaded")} onError={() => setStatus("failed")} />
+          )}
+        </div>
+      ) : <p className="text-slate-500">No saved signature. Upload and regenerate.</p>}
+      <div className="min-h-4 border-b border-slate-500 font-semibold">{name}</div>
+      <p className="mt-1 text-slate-600">{label}</p>
+    </div>
+  );
+}
+
 function Comments({ report }: { report: ReportCardDocumentData }) {
   const teacher = report.signatures.find((item) => /class teacher/i.test(item.role));
   const principal = report.signatures.find((item) => /principal|deputy/i.test(item.role));
@@ -379,8 +403,8 @@ function Comments({ report }: { report: ReportCardDocumentData }) {
       <SectionTitle icon={<MessageCircle className="h-3.5 w-3.5" />}>Comments</SectionTitle>
       {comments.length ? <div className="mt-2 grid divide-x divide-slate-200 text-[7px]" style={{ gridTemplateColumns: `repeat(${comments.length}, minmax(0, 1fr))` }}>{comments.map((comment, index) => <div key={comment.label} className={index ? "pl-3" : "pr-3"}><p className="font-black text-[#08265f]">{comment.label}</p><p className="mt-1 leading-relaxed text-slate-700">{comment.body}</p></div>)}</div> : null}
       <div data-report-section="signatures" className="mt-3 grid grid-cols-2 gap-16 px-14 text-center text-[7px]">
-        <div><div className="min-h-4 border-b border-slate-500 font-semibold">{teacher?.name}</div><p className="mt-1 text-slate-600">Class Teacher Signature</p></div>
-        <div><div className="min-h-4 border-b border-slate-500 font-semibold">{principal?.name}</div><p className="mt-1 text-slate-600">Principal Signature</p></div>
+        <ReportSignature key={`${report.id}-teacher-${teacher?.imageUrl}`} label="Class Teacher Signature" name={teacher?.name} imageUrl={teacher?.imageUrl} />
+        <ReportSignature key={`${report.id}-principal-${principal?.imageUrl}`} label="Principal Signature" name={principal?.name} imageUrl={principal?.imageUrl} />
       </div>
     </section>
   );
