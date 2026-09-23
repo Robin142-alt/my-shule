@@ -33,7 +33,7 @@ export function OverviewWorkspace() {
           onRetry={() => void refetch()}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="app-metric-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Active Cases" value={isLoading ? "…" : data?.metrics.active_cases ?? 0} tone="info" />
           <MetricCard label="Sessions This Week" value={isLoading ? "…" : data?.metrics.sessions_this_week ?? 0} tone="success" />
           <MetricCard label="Referrals Pending" value={isLoading ? "…" : data?.metrics.referrals_pending ?? 0} tone="warning" />

@@ -1,57 +1,36 @@
-import React, { useEffect } from 'react';
-import { X } from 'lucide-react';
+"use client";
+
+import { useId, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+import { useModalLayer } from "@/hooks/use-modal-layer";
 
 export interface DrawerProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
 }
 
-export const ActionDrawer: React.FC<DrawerProps> = ({ isOpen, onClose, title, children, footer }) => {
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <>
-      <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity" 
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      
-      <div className="fixed inset-y-0 right-0 max-w-md w-full bg-white shadow-2xl z-50 transform transition-transform duration-300 flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-slate-100">
-          <h2 className="text-xl font-semibold text-slate-800">{title}</h2>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-          >
+export function ActionDrawer({ isOpen, onClose, title, children, footer }: DrawerProps) {
+  const titleId = useId();
+  const ref = useModalLayer<HTMLDivElement>(isOpen, onClose);
+  if (!isOpen || typeof document === "undefined") return null;
+  return createPortal(
+    <div className="app-modal-backdrop app-action-backdrop fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm" onClick={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="app-modal-panel flex h-full w-full max-w-md flex-col bg-white shadow-xl outline-none sm:!max-h-full sm:rounded-none">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-6">
+          <h2 id={titleId} className="min-w-0 text-base font-semibold text-slate-900">{title}</h2>
+          <button type="button" aria-label="Close dialog" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600">
             <X size={20} />
           </button>
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-          {children}
-        </div>
-        
-        {footer && (
-          <div className="p-6 border-t border-slate-100 bg-white">
-            {footer}
-          </div>
-        )}
+        <div className="app-modal-body min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
+        {footer && <div className="app-modal-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-white p-4 sm:p-6">{footer}</div>}
       </div>
-    </>
+    </div>, document.body,
   );
-};
+}

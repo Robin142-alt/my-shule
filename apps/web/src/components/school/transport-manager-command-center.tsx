@@ -302,7 +302,7 @@ function Topbar({
   const today = "Today";
 
   return (
-    <header className="sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-[#F3F6FA]/92 px-4 py-3 backdrop-blur">
+    <header className="app-command-topbar sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-[#F3F6FA]/92 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <MyShuleMark size={44} />
@@ -1787,10 +1787,10 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
   }
 
   return (
-    <div data-route-mode={routeMode} className="h-dvh overflow-hidden bg-[#F3F6FA] text-[#071D49]">
-      <div className="grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
+    <div data-route-mode={routeMode} className="authenticated-app app-transport-shell h-dvh overflow-hidden bg-[#F3F6FA] text-[#071D49]">
+      <div className="app-transport-grid grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
         <Sidebar activeView={activeView} onViewChange={openView} />
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[#F3F6FA] shadow-[0_20px_70px_rgba(7,29,73,0.1)]">
+        <div className="app-transport-main flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[#F3F6FA] shadow-[0_20px_70px_rgba(7,29,73,0.1)]">
           <Topbar
             activeView={activeView}
             searchTerm={searchTerm}
@@ -1799,7 +1799,7 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
             onSearchResult={openSearchRecord}
             onViewChange={openView}
           />
-          <main className="min-h-0 flex-1 overflow-y-auto p-4">
+          <main className="app-content min-h-0 flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
               <IntegratedSchoolCommandHeader roleTitle="Transport Manager Dashboard" fallbackUserLabel="Transport Manager" />
               <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">

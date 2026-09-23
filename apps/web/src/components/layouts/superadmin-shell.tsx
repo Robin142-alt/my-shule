@@ -68,7 +68,7 @@ export function SuperAdminShell({
   }
 
   return (
-    <div className="sa-shell min-h-screen bg-[#F3F4F6]">
+    <div className="authenticated-app sa-shell min-h-screen bg-[#F3F4F6]">
       {/* ── Desktop Sidebar ── */}
       <aside className="sa-sidebar fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-white/10 bg-[#071D49] lg:flex">
         {/* Brand */}

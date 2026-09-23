@@ -49,7 +49,7 @@ export function HosCommandCenter({ activeSection, routeMode = "hosted" }: { acti
     { id: "academic-intelligence", label: "Subject Analytics", icon: BarChart3, active: !appointmentsView },
     { id: "subjects", label: "My Subject Appointments", icon: BookOpen, active: appointmentsView },
   ];
-  return <div className="min-h-screen bg-slate-50 text-slate-900 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]" data-testid="hos-command-center">
+  return <div className="authenticated-app min-h-screen bg-slate-50 text-slate-900 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]" data-testid="hos-command-center">
     <aside className="border-b border-slate-200 bg-white p-4 lg:border-r lg:border-b-0">
       <SchoolCommandSidebarIdentity eyebrow="Head of Subject" subtitle="Subject oversight and learner support" tone="light" />
       <nav aria-label="Head of Subject workspaces" className="flex flex-wrap gap-2 lg:flex-col">{navigation.map(item => <Link key={item.id} href={buildSchoolSectionHref("hos", item.id, routeMode)} aria-current={item.active ? "page" : undefined} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-3 text-sm font-semibold ${item.active ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}><item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}</Link>)}</nav>

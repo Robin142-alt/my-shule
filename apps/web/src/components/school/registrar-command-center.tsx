@@ -1279,7 +1279,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
   }
 
   return (
-    <div data-route-mode={routeMode} className="min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
+    <div data-route-mode={routeMode} className="authenticated-app min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Sidebar />
         <main className="min-w-0 space-y-5">

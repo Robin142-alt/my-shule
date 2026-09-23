@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
@@ -117,7 +118,7 @@ export function LoansReturnsWorkspace() {
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold">Asset Name</th>
@@ -148,7 +149,7 @@ export function LoansReturnsWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

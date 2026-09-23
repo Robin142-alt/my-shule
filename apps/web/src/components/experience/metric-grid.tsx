@@ -10,7 +10,7 @@ export function MetricGrid({
 }) {
   return (
     <section
-      className={`grid gap-4 ${
+      className={`app-metric-grid grid gap-4 ${
         columns === "three" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-4"
       }`}
     >
@@ -21,7 +21,6 @@ export function MetricGrid({
           value={item.value}
           helper={item.helper}
           trend={item.trend}
-          sparkline={[18, 42, 34, 58, 52, 70, 64]}
         />
       ))}
     </section>

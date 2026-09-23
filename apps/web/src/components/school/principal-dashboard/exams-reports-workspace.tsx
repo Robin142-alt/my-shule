@@ -212,7 +212,7 @@ export function PrincipalExamsReportsWorkspace() {
   return (
     <div className="space-y-6">
       <ExamWorkflowTracker heading="Exam and report-card release workflow" />
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Reports Ready to Publish</div>
           <div className="mt-2 text-2xl font-black text-yellow-500">{data.reportsPending}</div>

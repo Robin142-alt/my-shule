@@ -173,7 +173,7 @@ export function PrincipalFinanceOverviewWorkspace() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
         {/* Summary Cards */}
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Status</div>

@@ -505,9 +505,9 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
   };
 
   return (
-    <div className="flex h-screen flex-col bg-[#F8FAFC]">
+    <div className="authenticated-app flex h-screen flex-col bg-[#F8FAFC]">
       {/* Topbar */}
-      <header className="sticky top-0 z-30 border-b border-[#D8E0EC] bg-white px-4 py-3 shadow-sm sm:px-6">
+      <header className="app-command-topbar sticky top-0 z-30 border-b border-[#D8E0EC] bg-white px-4 py-3 shadow-sm sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <MyShuleMark size={40} />

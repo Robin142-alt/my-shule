@@ -9,6 +9,7 @@ import {
   useState,
   type ElementType,
 } from "react";
+import { useModalLayer } from "@/hooks/use-modal-layer";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, Menu, Search, X } from "lucide-react";
 
@@ -36,8 +37,6 @@ export function MobileWorkspaceNavigation({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const sidebarRef = useRef<HTMLElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const currentDescriptionId = useId();
   const currentItem = items.find((item) => item.id === value) ?? items[0];
@@ -73,66 +72,14 @@ export function MobileWorkspaceNavigation({
     );
   }, [items, query]);
 
+  const sidebarRef = useModalLayer<HTMLElement>(open, requestClose);
   useEffect(() => {
     if (!open) return;
-
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-    const restoreFocusTarget = previousFocusRef.current ?? triggerRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function focusableElements() {
-      return Array.from(
-        sidebarRef.current?.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])",
-        ) ?? [],
-      );
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        requestClose();
-        return;
-      }
-
-      if (event.key !== "Tab") return;
-      const focusable = focusableElements();
-      if (focusable.length === 0) {
-        event.preventDefault();
-        sidebarRef.current?.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === sidebarRef.current)) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === sidebarRef.current)) {
-        event.preventDefault();
-        first?.focus();
-      }
-    }
-
     function handleViewportChange() {
-      if (triggerRef.current?.getClientRects().length === 0) {
-        requestClose();
-      }
+      if (triggerRef.current?.getClientRects().length === 0) requestClose();
     }
-
-    document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", handleViewportChange);
-    window.addEventListener("orientationchange", handleViewportChange);
-    requestAnimationFrame(() => sidebarRef.current?.focus());
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleViewportChange);
-      window.removeEventListener("orientationchange", handleViewportChange);
-      document.body.style.overflow = previousOverflow;
-      restoreFocusTarget?.focus();
-    };
+    return () => window.removeEventListener("resize", handleViewportChange);
   }, [open, requestClose]);
 
   function chooseWorkspace(nextValue: string) {
@@ -151,14 +98,14 @@ export function MobileWorkspaceNavigation({
         aria-expanded={open}
         disabled={items.length === 0}
         onClick={() => setOpen(true)}
-        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-[#C8D5EA] bg-white px-3.5 text-left text-sm font-bold text-[#071D49] shadow-sm outline-none transition hover:border-[#8FA8CC] hover:bg-[#F8FAFC] focus-visible:border-[#FF7A1A] focus-visible:ring-4 focus-visible:ring-orange-200/60 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-semibold text-[#071D49] shadow-sm outline-none transition hover:border-[#8FA8CC] hover:bg-[#F8FAFC] focus-visible:border-[#FF7A1A] focus-visible:ring-4 focus-visible:ring-orange-200/60 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#071D49] text-white">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600">
           <Menu className="h-5 w-5" aria-hidden="true" />
         </span>
         <span id={currentDescriptionId} className="min-w-0 flex-1">
           <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-[#72819A]">
-            Current workspace
+            Workspace
           </span>
           <span className="block truncate">{currentItem?.label ?? "Choose workspace"}</span>
         </span>
@@ -170,7 +117,7 @@ export function MobileWorkspaceNavigation({
 
       {open && typeof document !== "undefined"
         ? createPortal(
-            <div className="fixed inset-0 z-[70]" role="presentation">
+            <div className="app-modal-backdrop app-navigation-backdrop fixed inset-0 z-[70]" role="presentation">
               <div
                 aria-hidden="true"
                 onPointerDown={requestClose}
@@ -182,19 +129,19 @@ export function MobileWorkspaceNavigation({
                 aria-modal="true"
                 aria-labelledby={titleId}
                 tabIndex={-1}
-                className="absolute inset-y-0 left-0 flex w-[min(88vw,22rem)] max-w-full flex-col overflow-hidden bg-[#071D49] text-white shadow-[18px_0_60px_rgba(2,12,35,0.4)] outline-none"
-                style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+                className="app-navigation-sheet absolute inset-y-0 left-0 flex w-[min(88vw,22rem)] max-w-full flex-col overflow-hidden bg-white text-slate-900 shadow-[18px_0_60px_rgba(2,12,35,0.18)] outline-none"
+                style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
               >
-                <div className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                <div className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">Dashboard navigation</p>
-                    <h2 id={titleId} className="mt-1 truncate text-base font-black text-white">{label}</h2>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">MyShule</p>
+                    <h2 id={titleId} className="mt-1 truncate text-base font-semibold text-slate-900">{label}</h2>
                   </div>
                   <button
                     type="button"
                     aria-label={`Close ${label.toLowerCase()} sidebar`}
                     onClick={requestClose}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/40"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
                   >
                     <X className="h-5 w-5" aria-hidden="true" />
                   </button>
@@ -204,7 +151,7 @@ export function MobileWorkspaceNavigation({
                   <label className="relative mx-4 mt-4 block shrink-0">
                     <span className="sr-only">Search workspaces</span>
                     <Search
-                      className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55"
+                      className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
                       aria-hidden="true"
                     />
                     <input
@@ -212,7 +159,7 @@ export function MobileWorkspaceNavigation({
                       value={query}
                       onChange={(event) => setQuery(event.currentTarget.value)}
                       placeholder="Search workspaces"
-                      className="min-h-11 w-full rounded-xl border border-white/15 bg-white/10 pl-10 pr-3 text-base font-semibold text-white outline-none placeholder:text-white/55 focus:border-cyan-300 focus:ring-4 focus:ring-cyan-300/20"
+                      className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                     />
                   </label>
                 ) : null}
@@ -222,7 +169,7 @@ export function MobileWorkspaceNavigation({
                     <div className="space-y-5">
                       {filteredGroups.map((group) => (
                         <section key={group.name}>
-                          <h3 className="mb-1.5 px-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/45">
+                          <h3 className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-500">
                             {group.name}
                           </h3>
                           <div className="grid gap-1">
@@ -235,21 +182,21 @@ export function MobileWorkspaceNavigation({
                                   type="button"
                                   aria-current={selected ? "page" : undefined}
                                   onClick={() => chooseWorkspace(item.id)}
-                                  className={`flex min-h-12 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition focus-visible:ring-4 focus-visible:ring-cyan-300/35 ${
+                                  className={`flex min-h-12 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition focus-visible:ring-4 focus-visible:ring-blue-200 ${
                                     selected
-                                      ? "bg-white text-[#071D49] shadow-[inset_4px_0_0_#38BDF8]"
-                                      : "text-white/78 hover:bg-white/10 hover:text-white"
+                                      ? "bg-blue-50 text-[#071D49] ring-1 ring-inset ring-blue-100"
+                                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                   }`}
                                 >
                                   {Icon ? (
-                                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${selected ? "bg-[#EAF2FF] text-[#174EA6]" : "bg-white/10 text-cyan-100"}`}>
+                                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${selected ? "bg-[#EAF2FF] text-[#174EA6]" : "bg-slate-100 text-slate-500"}`}>
                                       <Icon className="h-4 w-4" aria-hidden="true" />
                                     </span>
                                   ) : null}
                                   <span className="min-w-0 flex-1">
-                                    <span className="block break-words text-sm font-black leading-5">{item.label}</span>
+                                    <span className="block break-words text-sm font-semibold leading-5">{item.label}</span>
                                     {item.description ? (
-                                      <span className={`mt-0.5 block line-clamp-2 text-xs leading-4 ${selected ? "text-[#64748B]" : "text-white/50"}`}>
+                                      <span className={`mt-0.5 block line-clamp-2 text-xs leading-4 ${selected ? "text-[#64748B]" : "text-slate-500"}`}>
                                         {item.description}
                                       </span>
                                     ) : null}
@@ -263,17 +210,17 @@ export function MobileWorkspaceNavigation({
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-white/20 bg-white/5 px-4 py-8 text-center">
-                      <p className="font-black text-white">No matching workspace</p>
-                      <p className="mt-1 text-sm text-white/55">Try a shorter search term.</p>
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                      <p className="font-semibold text-slate-900">No matching workspace</p>
+                      <p className="mt-1 text-sm text-slate-500">Try a shorter search term.</p>
                     </div>
                   )}
                 </nav>
 
-                <div className="shrink-0 border-t border-white/10 bg-black/10 px-4 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/45">Current workspace</p>
-                  <div className="mt-1 flex items-center gap-2 font-black text-white">
-                    {CurrentIcon ? <CurrentIcon className="h-4 w-4 text-cyan-200" aria-hidden="true" /> : null}
+                <div className="shrink-0 border-t border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Current workspace</p>
+                  <div className="mt-1 flex items-center gap-2 font-semibold text-slate-900">
+                    {CurrentIcon ? <CurrentIcon className="h-4 w-4 text-slate-500" aria-hidden="true" /> : null}
                     <span className="truncate">{currentItem?.label ?? "Choose workspace"}</span>
                   </div>
                 </div>

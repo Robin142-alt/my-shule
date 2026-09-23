@@ -49,7 +49,7 @@ export function DataTable<T>({
 
   return (
     <Card className="overflow-hidden">
-      {title || subtitle ? (
+      {title || subtitle || actions ? (
         <div className="border-b border-border bg-surface px-4 py-3.5 sm:px-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0">
@@ -77,7 +77,7 @@ export function DataTable<T>({
       ) : null}
 
       {safeRows.length === 0 ? (
-        <div className="px-5 py-10">
+        <div className="p-3 sm:px-5 sm:py-6">
           <EmptyState
             title="Nothing to show yet"
             description={emptyMessage}
@@ -86,7 +86,7 @@ export function DataTable<T>({
       ) : (
         <>
           {/* Desktop Table */}
-          <div className="hidden overflow-x-auto md:block">
+          <div className="app-table-scroll hidden overflow-x-auto md:block" tabIndex={0} role="region" aria-label={title ?? "Records table"}>
             <table className="min-w-full table-auto border-collapse">
               <thead>
                 <tr className="border-b border-border bg-surface-strong">
@@ -121,27 +121,27 @@ export function DataTable<T>({
           </div>
 
           {/* Mobile Cards */}
-            <div className="space-y-2 p-3 md:hidden">
+          <div className="divide-y divide-border md:hidden">
             {paginatedRows.map((row) => (
               <div
                 key={getRowKey(row)}
-                className="rounded-[var(--radius-sm)] border border-border bg-white px-4 py-3 shadow-sm"
+                className="bg-white px-4 py-4"
               >
-                <div className="space-y-2">
+                <dl className="space-y-2.5">
                   {columns.map((column) => (
                     <div
                       key={column.id}
-                      className="grid min-w-0 gap-1 sm:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1fr)] sm:items-start sm:gap-3"
+                      className="app-record-field grid min-w-0 grid-cols-[minmax(80px,0.75fr)_minmax(0,1.4fr)] items-baseline gap-3"
                     >
-                      <p className="pt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
+                      <dt className="text-xs font-medium text-muted">
                         {column.mobileLabel ?? column.header}
-                      </p>
-                      <div className="min-w-0 break-words text-left text-[13px] text-foreground sm:text-right">
+                      </dt>
+                      <dd className="min-w-0 break-words text-[13px] leading-5 text-foreground">
                         {column.render(row)}
-                      </div>
+                      </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </div>
             ))}
           </div>

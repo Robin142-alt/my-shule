@@ -263,7 +263,7 @@ export function DeputyPrincipalCommandCenter({
   };
 
   return (
-    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="min-h-dvh bg-[#F3F4F6] pb-6">
+    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="authenticated-app min-h-dvh bg-[#F3F4F6] pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Sidebar */}
         <aside className="hidden h-[calc(100dvh-40px)] rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
@@ -320,7 +320,7 @@ export function DeputyPrincipalCommandCenter({
 
         {/* Main Content */}
         <main className="min-w-0 space-y-5">
-          <header className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
+          <header className="app-workspace-header rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <DashboardGreeting name={deputyName} context={`${schoolName} command center`} />
@@ -344,7 +344,7 @@ export function DeputyPrincipalCommandCenter({
             </div>
           </header>
 
-          <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white p-3 shadow-sm xl:hidden">
+          <div className="xl:hidden">
             <MobileWorkspaceNavigation
               label="Deputy workspace"
               items={navItems}
@@ -354,8 +354,8 @@ export function DeputyPrincipalCommandCenter({
             />
           </div>
 
-          <div className={`min-w-0 rounded-[var(--radius-xl)] bg-[#071D49] ${activeWorkspace === "timetable" ? "p-2 sm:p-5" : "p-5"} shadow-[0_24px_70px_rgba(7,29,73,0.22)]`}>
-            <h1 className="mb-4 px-2 text-2xl font-black text-white sm:text-3xl">
+          <div className={`app-workspace-surface min-w-0 rounded-[var(--radius-xl)] bg-[#071D49] ${activeWorkspace === "timetable" ? "p-2 sm:p-5" : "p-5"} shadow-[0_24px_70px_rgba(7,29,73,0.22)]`}>
+            <h1 className="app-workspace-title mb-4 px-2 text-2xl font-black text-white sm:text-3xl">
               {navItems.find((n) => n.id === activeWorkspace)?.label ?? "Overview"}
             </h1>
             {renderWorkspace()}

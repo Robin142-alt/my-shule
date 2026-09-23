@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { BookOpen, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -95,7 +96,7 @@ export function BooksWorkspace() {
       }
     >
       {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Titles</div>
           <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_titles ?? 0}</div>
@@ -146,7 +147,7 @@ export function BooksWorkspace() {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Title</th>
@@ -181,7 +182,7 @@ export function BooksWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

@@ -109,7 +109,7 @@ export function AccountantOverviewWorkspace({
   if (isLoading) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading finance overview">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="app-metric-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((item) => (
             <div key={item} className="h-36 animate-pulse rounded-xl border border-white/10 bg-white/10" />
           ))}
@@ -183,7 +183,7 @@ export function AccountantOverviewWorkspace({
 
   return (
     <div className="space-y-5">
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Live finance metrics">
+      <section className="app-metric-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Live finance metrics">
         {cards.map((card) => {
           const Icon = card.icon;
           return (

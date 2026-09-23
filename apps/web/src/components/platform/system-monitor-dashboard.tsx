@@ -278,7 +278,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
   const activeItem = navItems.find((item) => item.id === activeView) ?? navItems[0];
 
   return (
-    <div className="flex min-h-dvh bg-[#F3F6FA] font-sans">
+    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA] font-sans">
       <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
           <MyShuleBrand markSize={38} nameClassName="text-base" />
@@ -308,8 +308,8 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
         </nav>
       </aside>
 
-      <main className="flex h-dvh min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
+      <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col">
+        <header className="app-command-topbar sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <MyShuleMark size={40} />
@@ -345,7 +345,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
           </div>
         </header>
 
-        <div className="flex-1 space-y-5 overflow-y-auto p-4 lg:p-6">
+        <div className="app-content flex-1 space-y-5 overflow-y-auto p-4 lg:p-6">
           {error ? (
             <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

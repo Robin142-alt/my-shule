@@ -1,0 +1,147 @@
+/* Authenticated design foundations. Public pages and printed documents retain
+   their own composition. Explicit shell slots keep domain layouts independent. */
+.app-cell-label { display: none; }
+.app-cell-value { display: contents; }
+
+@media screen {
+  .authenticated-app {
+    --radius-xs: 6px;
+    --radius-sm: 10px;
+    --radius: 14px;
+    --radius-lg: 18px;
+    --radius-xl: 20px;
+    --shadow-sm: 0 1px 3px rgb(15 35 69 / 4%);
+    --shadow: 0 4px 16px rgb(15 35 69 / 6%);
+    --border: #e2e8f0;
+    --background: #f5f7fa;
+    min-width: 0;
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .authenticated-app :where(main, section, form, fieldset, .grid > *, .flex > *) { min-width: 0; }
+  .authenticated-app :where(h1, h2, h3) { text-wrap: balance; letter-spacing: -0.025em; }
+  .authenticated-app :where(p, label, h1, h2, h3) { overflow-wrap: anywhere; }
+  .authenticated-app :where(button, a, input, select, textarea) { touch-action: manipulation; }
+  .authenticated-app :where(button, a):focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+  .authenticated-app :where(input, select, textarea) { max-width: 100%; scroll-margin-block: 5rem; }
+  .authenticated-app :where(.overflow-x-auto, .overflow-auto) { overscroll-behavior-x: contain; }
+  .authenticated-app .dashboard-card:not(.enterprise-card-hover):hover { box-shadow: var(--shadow-sm); }
+  .authenticated-app .recharts-responsive-container { min-width: 0; }
+  .app-content { min-width: 0; }
+  .app-workspace-header { box-shadow: 0 1px 3px rgb(15 35 69 / 4%); }
+  :is(.app-modal-panel, .app-navigation-sheet, .app-popover-sheet) {
+    --radius-sm: 10px;
+    --radius: 14px;
+    --radius-lg: 18px;
+    --border: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .app-modal-backdrop {
+    top: var(--app-viewport-top, 0px);
+    bottom: auto;
+    height: var(--app-viewport-height, 100dvh);
+    align-items: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .app-modal-panel { max-height: 100%; background: white; backdrop-filter: none; }
+  .app-action-backdrop { padding: 0; align-items: stretch; }
+  .app-navigation-backdrop { padding: 0; }
+  .app-modal-body { overscroll-behavior-y: contain; }
+  .app-navigation-sheet { animation: app-sheet-enter 180ms cubic-bezier(.2,.8,.2,1); }
+  .app-table-scroll { max-width: 100%; overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .app-tabs { scrollbar-width: none; }
+  .app-tabs::-webkit-scrollbar { display: none; }
+
+  @media (max-width: 1023px) {
+    .authenticated-app { padding-left: max(var(--app-gutter, 0px), env(safe-area-inset-left)); padding-right: max(var(--app-gutter, 0px), env(safe-area-inset-right)); }
+    .app-command-main { height: auto; min-height: 100dvh; overflow: visible; }
+    .app-content { flex: 1 0 auto; overflow-y: visible; padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
+    .app-command-topbar { position: relative; top: auto; padding-top: max(.75rem, env(safe-area-inset-top)); }
+    .app-command-topbar > .flex:first-child { flex-direction: row; flex-wrap: wrap; align-items: center; gap: .625rem; }
+    .app-command-topbar > .flex:first-child > .flex { flex-wrap: wrap; }
+    .app-command-topbar :where(button, a, select) { min-height: 44px; }
+    .authenticated-app :where(button:not([role="switch"]):not([role="checkbox"]), input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), select) { min-height: 44px; }
+    .authenticated-app button:has(> svg:only-child) { min-width: 44px; }
+    .authenticated-app label.flex:has(> svg):has(> input) { min-height: 44px; }
+    .authenticated-app label.flex:has(> svg) > input { min-height: 0; }
+    :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; }
+    :is(.app-modal-panel, .app-popover-sheet) :where(button, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select) { min-height: 44px; }
+    .authenticated-app .font-black { font-weight: 650; }
+    .app-command-topbar :where(h1) { font-size: 1rem; line-height: 1.4; }
+    .app-workspace-header { padding: 1rem; border-color: #e2e8f0; border-radius: 16px; }
+    .app-workspace-header h1 { font-size: clamp(1.125rem, 4.5vw, 1.5rem); line-height: 1.25; font-weight: 650; }
+    .app-workspace-header > .flex { gap: .875rem; }
+    .app-workspace-panel { padding: 16px; box-shadow: var(--shadow-sm); }
+    .app-workspace-panel > div:first-child h2 { font-size: 1.125rem; line-height: 1.4; }
+    .app-workspace-panel > div:first-child p { line-height: 1.5; }
+    .app-principal-workspace, .app-dark-workspace { padding: 12px; border-radius: 16px; box-shadow: none; }
+    .app-workspace-surface { padding: 0; background: transparent; box-shadow: none; }
+    .app-workspace-heading > h2 { color: #0f2345; font-size: 1.25rem; }
+    .app-workspace-surface > .app-workspace-title { color: #0f2345; font-size: 1.25rem; padding-left: 0; }
+    .app-workspace-heading > p { color: #64748b; }
+    .app-workspace-heading { margin-bottom: 1rem; }
+    .app-transport-shell, .app-transport-grid, .app-transport-main { height: auto; min-height: 100dvh; overflow: visible; }
+    .app-transport-main { border: 0; box-shadow: none; }
+    .app-frame-grid { padding-top: max(.75rem, env(safe-area-inset-top)); }
+    .app-sidebar { width: min(88vw, 320px); padding-top: max(1rem, env(safe-area-inset-top)); padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+    .app-sidebar:not([data-open="true"]) { visibility: hidden; }
+    .app-sidebar a { min-height: 44px; }
+    .authenticated-app :where(.app-table-scroll) { border-radius: 12px; }
+  }
+  @media (max-width: 1279px) {
+    .app-principal-sidebar:not([data-open="true"]) { visibility: hidden; }
+    .app-principal-sidebar { padding-top: max(1rem, env(safe-area-inset-top)); padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  }
+
+  @media (max-width: 639px) {
+    .authenticated-app { --app-gutter: 0px; }
+    .authenticated-app.app-padded { --app-gutter: 12px; padding-top: max(12px, env(safe-area-inset-top)); }
+    .app-content { padding-left: 12px; padding-right: 12px; }
+    .app-frame-grid .app-content { padding-left: 0; padding-right: 0; }
+    .app-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .app-metric-grid > :is(div, section, article, button) { padding: 12px; border-radius: 12px; }
+    .app-metric-grid :is(.text-3xl, .text-2xl) { font-size: 1.375rem; line-height: 1.25; overflow-wrap: anywhere; }
+    .app-metric-grid .text-sm { font-size: .75rem; line-height: 1.4; }
+    .app-metric-grid svg { flex-shrink: 0; }
+    .app-workspace-header .app-header-actions { flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .app-workspace-header .app-header-actions > * { max-width: 100%; }
+    .app-navigation-sheet { inset: auto 0 0; width: 100%; max-height: calc(var(--app-viewport-height, 100dvh) - max(12px, env(safe-area-inset-top))); border-radius: 24px 24px 0 0; }
+    .app-navigation-sheet::before { content: ""; width: 32px; height: 4px; margin: 10px auto 0; flex-shrink: 0; border-radius: 4px; background: #cbd5e1; }
+    .app-modal-backdrop { align-items: flex-end; padding: max(12px, env(safe-area-inset-top)) 0 0; overflow: hidden; }
+    .app-navigation-backdrop { padding: 0; }
+    .app-modal-panel { max-height: 100%; min-height: 0; border-radius: 22px 22px 0 0; overflow: hidden; }
+    .app-modal-panel[data-fullscreen="true"] { height: 100%; border-radius: 0; }
+    .app-modal-body { max-height: none; flex: 1 1 auto; padding: 16px; }
+    .app-modal-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    .app-popover-sheet { inset: auto 0 0; max-height: min(85dvh, var(--app-viewport-height, 100dvh)); border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+    .app-topbar-panel { position: fixed; inset: max(72px, env(safe-area-inset-top)) 12px auto; width: auto; max-height: calc(100dvh - 96px); overflow-y: auto; overscroll-behavior: contain; }
+    .app-topbar-panel[data-testid="workspace-search-panel"] { position: absolute; inset: calc(100% + 6px) 0 auto; max-height: 45dvh; }
+    .app-record-field { display: grid; grid-template-columns: minmax(80px, .75fr) minmax(0, 1.4fr); gap: 12px; align-items: baseline; }
+    .app-record-field:first-child { display: block; padding-bottom: 10px; border-bottom: 1px solid #edf1f5; }
+    .app-record-field:first-child > dt { margin-bottom: 4px; }
+    .app-record-field:first-child > dd { font-weight: 650; font-size: 15px; }
+    .app-record-field > dd :where(button, a) { white-space: normal; }
+    .authenticated-app .app-record-table { display: block; width: 100%; min-width: 0; white-space: normal; }
+    .app-record-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .app-record-table tbody { display: block; }
+    .app-record-table tbody > tr { display: block; padding: 14px; border-bottom: 1px solid #e2e8f0; }
+    .app-record-table tbody > tr:last-child { border-bottom: 0; }
+    .app-record-table td { display: grid; grid-template-columns: minmax(72px, .75fr) minmax(0, 1.4fr); gap: 12px; padding: 5px 0; border: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+    .app-record-table td:first-child:not([colspan]) { display: block; padding-bottom: 10px; margin-bottom: 5px; border-bottom: 1px solid #edf1f5; }
+    .app-record-table td:first-child .app-cell-value { margin-top: 3px; font-size: 15px; font-weight: 650; }
+    .app-record-table .app-cell-label { display: block; color: #64748b; font: 500 12px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .app-record-table .app-cell-value { display: block; min-width: 0; font-size: 13px; line-height: 1.5; }
+    .app-record-table td[colspan] { display: block; padding: 12px 0; text-align: center; }
+    .app-record-table .app-cell-value > :is(button, a, span) { max-width: 100%; white-space: normal; }
+    .app-record-table-dark .app-cell-label { color: #b8c8df; }
+    .app-record-table-dark tbody > tr, .app-record-table-dark td:first-child:not([colspan]) { border-color: rgb(255 255 255 / 12%); }
+  }
+}
+
+@keyframes app-sheet-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

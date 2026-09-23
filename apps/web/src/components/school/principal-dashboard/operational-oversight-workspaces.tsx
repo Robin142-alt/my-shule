@@ -1,5 +1,7 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
+
 import { Activity, ClipboardCheck, HeartPulse, ShieldCheck, UsersRound } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -127,7 +129,7 @@ export function PrincipalVisitorsOversightWorkspace() {
         title="Parents & Visitors"
         description="Tenant-scoped reception and gate movement. Contact details and identity numbers remain with authorized front-office staff."
       />
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="app-metric-grid grid gap-3 md:grid-cols-4">
         <OversightMetric label="Checked in today" value={data.metrics.checkedInToday} />
         <OversightMetric label="On premises" value={data.metrics.currentlyOnPremises} />
         <OversightMetric label="Checked out today" value={data.metrics.checkedOutToday} />
@@ -142,7 +144,7 @@ export function PrincipalVisitorsOversightWorkspace() {
         </Card>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-white/10">
-          <table className="w-full min-w-[720px] text-left text-sm text-white">
+          <RecordTable className="app-record-table-dark w-full min-w-[720px] text-left text-sm text-white">
             <thead className="bg-white/10 text-cyan-100">
               <tr>
                 <th className="px-4 py-3 font-black">Visitor</th>
@@ -163,7 +165,7 @@ export function PrincipalVisitorsOversightWorkspace() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </section>
@@ -195,7 +197,7 @@ export function PrincipalHealthOversightWorkspace() {
         title="Sick Bay"
         description="Summary-only clinic oversight. Diagnoses, confidential notes, and individual treatment details stay restricted to authorized health staff."
       />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="app-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <OversightMetric label="Visits today" value={data.metrics.visitsToday} />
         <OversightMetric label="Open cases" value={data.metrics.openCases} />
         <OversightMetric label="Referred today" value={data.metrics.referredToday} />
@@ -259,7 +261,7 @@ export function PrincipalAuditOversightWorkspace() {
         title="Audit Logs"
         description="Recent tenant-scoped actions for accountability, security follow-up, and governed workflow review."
       />
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="app-metric-grid grid gap-3 md:grid-cols-3">
         <OversightMetric label="Actions today" value={data.metrics.actionsToday} />
         <OversightMetric label="Sensitive changes" value={data.metrics.sensitiveChanges} />
         <OversightMetric label="Failed actions" value={data.metrics.failedActions} />
@@ -273,7 +275,7 @@ export function PrincipalAuditOversightWorkspace() {
         </Card>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-white/10">
-          <table className="w-full min-w-[760px] text-left text-sm text-white">
+          <RecordTable className="app-record-table-dark w-full min-w-[760px] text-left text-sm text-white">
             <thead className="bg-white/10 text-cyan-100">
               <tr>
                 <th className="px-4 py-3 font-black">Time</th>
@@ -299,7 +301,7 @@ export function PrincipalAuditOversightWorkspace() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </section>

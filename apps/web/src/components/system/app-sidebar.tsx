@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { useModalLayer } from "@/hooks/use-modal-layer";
 
 import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { Card } from "@/components/ui/card";
@@ -62,6 +64,14 @@ export function AppSidebar({
   onClose: () => void;
 }) {
   const styles = variantStyles[variant];
+  const sidebarRef = useModalLayer<HTMLElement>(mobileOpen, onClose);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const media = window.matchMedia("(min-width: 1024px)");
+    function closeOnDesktop() { if (media.matches) onClose(); }
+    media.addEventListener("change", closeOnDesktop);
+    return () => media.removeEventListener("change", closeOnDesktop);
+  }, [mobileOpen, onClose]);
   const groupedItems = navItems.reduce<Array<{ group: string; items: ExperienceNavItem[] }>>(
     (groups, item) => {
       const groupLabel = item.group ?? "Sections";
@@ -80,7 +90,13 @@ export function AppSidebar({
 
   return (
     <aside
-      className={`custom-scrollbar fixed inset-y-0 left-0 z-40 w-[260px] transform overflow-y-auto border-r px-4 py-5 transition duration-150 lg:static lg:translate-x-0 ${styles.shell} ${
+      ref={sidebarRef}
+      data-open={mobileOpen}
+      role={mobileOpen ? "dialog" : undefined}
+      aria-modal={mobileOpen ? true : undefined}
+      aria-label={`${brand.title} navigation`}
+      tabIndex={-1}
+      className={`app-sidebar custom-scrollbar fixed inset-y-0 left-0 z-40 w-[260px] transform overflow-y-auto border-r px-4 py-5 outline-none transition duration-150 lg:sticky lg:top-3 lg:h-[calc(100dvh-1.5rem)] lg:translate-x-0 ${styles.shell} ${
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
@@ -121,6 +137,7 @@ export function AppSidebar({
                 <Link
                   key={item.id}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   onClick={onClose}
                   className={`flex items-center justify-between gap-3 rounded-[var(--radius-sm)] px-3 py-2.5 text-sm font-medium transition duration-150 ${
                     isActive ? styles.active : styles.idle

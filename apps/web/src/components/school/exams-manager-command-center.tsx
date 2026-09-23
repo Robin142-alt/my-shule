@@ -362,7 +362,7 @@ export function ExamsManagerCommandCenter({
     <div
       data-testid="role-operational-command-center"
       data-route-mode={actualRouteMode}
-      className="min-h-dvh bg-slate-50 text-slate-900"
+      className="authenticated-app min-h-dvh bg-slate-50 text-slate-900"
     >
       <div className="flex min-h-dvh">
         <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col border-r border-white/10 bg-[#101F36] p-3 text-white lg:flex">

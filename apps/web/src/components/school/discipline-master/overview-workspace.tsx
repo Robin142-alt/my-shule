@@ -36,7 +36,7 @@ export function OverviewWorkspace() {
         <DisciplineWorkspaceActions title="Overview" records={records} />
       </div>
       
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="app-metric-grid grid gap-4 md:grid-cols-4">
         <Card className="p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">Open Cases</p>
           <p className="mt-2 text-3xl font-bold text-rose-600">{dashboardLoading ? "..." : openCases}</p>

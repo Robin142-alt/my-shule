@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, ChevronDown, LogOut, Menu, Plus, Search } from "lucide-react";
-import { startTransition, useDeferredValue, useState, type ReactNode } from "react";
+import { startTransition, useDeferredValue, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
@@ -307,6 +307,34 @@ export function AppTopbar({
   const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
   const [showQuickActionsPanel, setShowQuickActionsPanel] = useState(false);
   const [showUrgentPanel, setShowUrgentPanel] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!showSearchPanel && !showNotificationsPanel && !showQuickActionsPanel && !showUrgentPanel) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    const closePanels = () => {
+      setShowSearchPanel(false);
+      setShowNotificationsPanel(false);
+      setShowQuickActionsPanel(false);
+      setShowUrgentPanel(false);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) closePanels();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // A portalled dialog owns Escape while it is above this header.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      event.preventDefault();
+      closePanels();
+      if (trigger?.isConnected) trigger.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showSearchPanel, showNotificationsPanel, showQuickActionsPanel, showUrgentPanel]);
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const normalizedSearchTerm = deferredSearchTerm.trim().toLowerCase();
   const filteredSearchItems =
@@ -380,14 +408,16 @@ export function AppTopbar({
 
   return (
     <header
-      className={`sticky top-3 z-20 mb-5 rounded-[var(--radius)] px-4 py-3 md:px-5 ${shellStyles[variant]}`}
+      ref={headerRef}
+      className={`app-workspace-header relative z-20 mb-5 rounded-[var(--radius)] px-4 py-3 md:px-5 lg:sticky lg:top-3 ${shellStyles[variant]}`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <button
             type="button"
             onClick={onOpenSidebar}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted text-primary lg:hidden"
+            aria-label="Open navigation"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-muted text-primary lg:hidden"
           >
             <Menu className="h-4 w-4" />
           </button>
@@ -409,7 +439,7 @@ export function AppTopbar({
           {variant === "school" ? (
             <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
           ) : null}
-          <div className="relative min-w-[240px]">
+          <div className="relative min-w-0 w-full sm:w-auto sm:min-w-[240px]">
             <label className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-surface-muted px-3 py-2 transition duration-150 focus-within:border-border-strong focus-within:shadow-[var(--shadow-focus)]">
               <Search className="h-4 w-4 text-muted" />
               <input
@@ -424,8 +454,8 @@ export function AppTopbar({
                   setShowQuickActionsPanel(false);
                   setShowUrgentPanel(false);
                 }}
-                onBlur={() => {
-                  window.setTimeout(() => setShowSearchPanel(false), 120);
+                onBlur={(event) => {
+                  if (!headerRef.current?.contains(event.relatedTarget as Node | null)) setShowSearchPanel(false);
                 }}
                 onKeyDown={(event) => {
                   const firstSearchHref = filteredSearchItems[0]
@@ -442,7 +472,7 @@ export function AppTopbar({
             {showSearchPanel && normalizedSearchTerm ? (
               <div
                 data-testid="workspace-search-panel"
-                className="fade-in-panel glass-panel absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-[var(--radius)] p-2"
+                className="app-topbar-panel fade-in-panel glass-panel absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-[var(--radius)] p-2"
               >
                 {filteredSchoolEntities.length > 0 || filteredSearchItems.length > 0 ? (
                   <>
@@ -525,7 +555,7 @@ export function AppTopbar({
                 {showUrgentPanel ? (
                   <div
                     data-testid="workspace-urgent-actions-panel"
-                    className="fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[320px] rounded-[var(--radius)] p-2"
+                    className="app-topbar-panel fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[320px] rounded-[var(--radius)] p-2"
                   >
                     <p className="px-2 py-1 text-xs font-bold uppercase tracking-[0.16em] text-muted">
                       Needs attention today
@@ -571,7 +601,7 @@ export function AppTopbar({
                 {showQuickActionsPanel ? (
                   <div
                     data-testid="workspace-quick-actions-panel"
-                    className="fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[280px] rounded-[var(--radius)] p-2"
+                    className="app-topbar-panel fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[280px] rounded-[var(--radius)] p-2"
                   >
                     <p className="px-2 py-1 text-xs font-bold uppercase tracking-[0.16em] text-muted">
                       Quick school actions
@@ -638,7 +668,7 @@ export function AppTopbar({
             {showNotificationsPanel ? (
               <div
                 data-testid="workspace-notifications-panel"
-                className="fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[320px] rounded-[var(--radius)] p-2"
+                className="app-topbar-panel fade-in-panel glass-panel absolute right-0 top-[calc(100%+6px)] z-30 w-[320px] rounded-[var(--radius)] p-2"
               >
                 <div className="flex items-center justify-between gap-3 px-2 py-1">
                   <p className="text-sm font-semibold text-foreground">Notifications</p>

@@ -2458,7 +2458,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
   };
 
   return (
-    <div className="flex min-h-dvh bg-[#F3F6FA] font-sans">
+    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA] font-sans">
       <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Security command" title="Security Officer" subtitle="Gate, visitor, and safety operations" />
         <nav className="space-y-1" aria-label="Security navigation">
@@ -2484,8 +2484,8 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
           })}
         </nav>
       </aside>
-      <main className="flex h-dvh min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+      <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">SO</div>
@@ -2527,7 +2527,7 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
             />
           </div>
             </header>
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+            <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
               <IntegratedSchoolCommandHeader roleTitle="Security Officer Dashboard" fallbackUserLabel="Security Officer" />
               {searchOpen ? (
                 <section className="rounded-xl border border-[#D8E0EC] bg-white p-4">

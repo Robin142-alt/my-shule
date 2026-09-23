@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -133,7 +134,7 @@ export function FollowUpsWorkspace() {
 
       {error ? <WorkspaceFailure title="Counselling follow-ups could not be loaded." error={error} onRetry={() => void refetch()} /> : (
         <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-          <table className="w-full whitespace-nowrap text-left text-sm">
+          <RecordTable className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F8FAFC] text-[#071D49]"><tr>
               <th className="px-4 py-3 font-bold">Student</th><th className="px-4 py-3 font-bold">Class</th><th className="px-4 py-3 font-bold">Reason</th>
               <th className="px-4 py-3 font-bold">Due</th><th className="px-4 py-3 font-bold">Priority</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Action</th>
@@ -148,7 +149,7 @@ export function FollowUpsWorkspace() {
                 <td className="px-4 py-3">{canWrite && ["pending", "open"].includes(row.status.toLowerCase()) ? <button type="button" disabled={completeFollowUp.isPending} onClick={() => completeFollowUp.mutate({ id: row.id })} className="font-black text-emerald-700 underline disabled:opacity-50">Mark done</button> : "—"}</td>
               </tr>)}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </Panel>

@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Download, FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -97,7 +98,7 @@ export function ReportsWorkspace() {
 
       {error ? <WorkspaceFailure title="Counselling reports could not be loaded." error={error} onRetry={() => void refetch()} /> : (
         <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-          <table className="w-full whitespace-nowrap text-left text-sm">
+          <RecordTable className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Title</th><th className="px-4 py-3 font-bold">Generated</th><th className="px-4 py-3 font-bold">Format</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Download</th></tr></thead>
             <tbody>
               {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading counselling reports…</td></tr> : null}
@@ -107,7 +108,7 @@ export function ReportsWorkspace() {
                 <td className="px-4 py-3"><button type="button" disabled={downloadingId === row.id} onClick={() => void downloadReport(row)} className="inline-flex items-center gap-1 font-black text-blue-700 underline disabled:opacity-50"><Download className="h-4 w-4" /> {downloadingId === row.id ? "Preparing…" : "Download"}</button></td>
               </tr>)}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </Panel>

@@ -702,7 +702,7 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
   };
 
   return (
-    <div className="flex min-h-dvh bg-[#F3F6FA] font-sans">
+    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA] font-sans">
       <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Laboratory command" title="Laboratory Technician" subtitle="Laboratory inventory, safety, and issue control" />
         <nav className="space-y-1" aria-label="Lab navigation">
@@ -728,8 +728,8 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
           })}
         </nav>
       </aside>
-      <main className="flex h-dvh min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+      <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">LT</div>
@@ -765,7 +765,7 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
             />
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+        <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Laboratory Technician Dashboard" fallbackUserLabel="Laboratory Technician" />
           {activeViewState === "overview" && <OverviewWorkspace onNavigate={setActiveView} openLabWorkflow={setLabWorkflowDraft} />}
           {activeViewState === "requests" && <TeacherRequestsWorkspace openLabWorkflow={setLabWorkflowDraft} />}

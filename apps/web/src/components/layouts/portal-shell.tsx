@@ -48,7 +48,7 @@ export function PortalShell({
   const basePath = `/portal/${viewer}`;
 
   return (
-    <div className="min-h-screen bg-[#f0f4ff]">
+    <div className="authenticated-app min-h-screen bg-[#f0f4ff]">
       {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-blue-100/60 bg-white lg:flex">
         {/* Brand */}

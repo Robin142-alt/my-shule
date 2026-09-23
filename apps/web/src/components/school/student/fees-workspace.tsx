@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { AlertTriangle, CheckCircle, ReceiptText, Wallet } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -120,7 +121,7 @@ export function FeesWorkspace() {
             <h3 className="font-medium text-slate-900">Invoices and receipts</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <RecordTable className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">Date</th>
@@ -167,7 +168,7 @@ export function FeesWorkspace() {
                   </tr>
                 ) : null}
               </tbody>
-            </table>
+            </RecordTable>
           </div>
         </Card>
       ) : null}

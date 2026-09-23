@@ -147,7 +147,7 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Departments</div>
           <div className="mt-2 text-2xl font-black text-white">{data.departments}</div>

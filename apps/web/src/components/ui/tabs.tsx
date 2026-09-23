@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface TabItem {
@@ -22,12 +22,36 @@ export function Tabs({
 }) {
   const [localTab, setActiveTab] = useState(defaultTab ?? items[0]?.id ?? "");
   const activeTab = controlledTab ?? localTab;
+  const id = useId();
+  const tabListRef = useRef<HTMLDivElement>(null);
+
+  function selectTab(next: string) {
+    setActiveTab(next);
+    onTabChange?.(next);
+  }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-4">
       <div
+        ref={tabListRef}
         role="tablist"
-        className="flex flex-wrap gap-1 rounded-[var(--radius-sm)] border border-border bg-white p-1 shadow-sm"
+        aria-label="Workspace sections"
+        className="app-tabs flex max-w-full gap-1 overflow-x-auto overscroll-x-contain rounded-xl border border-border bg-white p-1 sm:flex-wrap"
+        onKeyDown={(event) => {
+          const index = items.findIndex((item) => item.id === activeTab);
+          let nextIndex = index;
+          if (event.key === "ArrowRight") nextIndex = (index + 1) % items.length;
+          else if (event.key === "ArrowLeft") nextIndex = (index - 1 + items.length) % items.length;
+          else if (event.key === "Home") nextIndex = 0;
+          else if (event.key === "End") nextIndex = items.length - 1;
+          else return;
+          if (!items[nextIndex]) return;
+          event.preventDefault();
+          selectTab(items[nextIndex].id);
+          const button = tabListRef.current?.querySelectorAll<HTMLButtonElement>("[role=tab]")[nextIndex];
+          button?.focus();
+          button?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        }}
       >
         {items.map((item) => {
           const active = item.id === activeTab;
@@ -37,11 +61,14 @@ export function Tabs({
               key={item.id}
               type="button"
               role="tab"
+              id={`${id}-tab-${item.id}`}
+              aria-controls={`${id}-panel-${item.id}`}
               aria-selected={active}
-              onClick={() => { setActiveTab(item.id); onTabChange?.(item.id); }}
-              className={`rounded-[var(--radius-xs)] px-3.5 py-1.5 text-[13px] font-semibold transition-all duration-150 ${
+              tabIndex={active ? 0 : -1}
+              onClick={() => selectTab(item.id)}
+              className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-[13px] font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
                 active
-                  ? "bg-accent text-white shadow-[0_10px_22px_rgba(255,122,26,0.22)]"
+                  ? "bg-primary text-white shadow-sm"
                   : "text-muted hover:bg-surface-strong hover:text-foreground"
               }`}
             >
@@ -50,7 +77,7 @@ export function Tabs({
           );
         })}
       </div>
-      <div className="page-enter">{items.find((item) => item.id === activeTab)?.panel}</div>
+      <div role="tabpanel" id={`${id}-panel-${activeTab}`} aria-labelledby={`${id}-tab-${activeTab}`} tabIndex={0} className="min-w-0 outline-none">{items.find((item) => item.id === activeTab)?.panel}</div>
     </div>
   );
 }

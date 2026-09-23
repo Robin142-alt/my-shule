@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { CheckCircle2, LogIn, LogOut, ShieldAlert, Ticket } from "lucide-react";
 import { toast } from "sonner";
@@ -182,7 +183,7 @@ export function StudentExitPassesWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full whitespace-nowrap text-left text-sm">
+        <RecordTable className="w-full whitespace-nowrap text-left text-sm">
           <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Student Name</th><th className="px-4 py-3 font-bold">Class</th><th className="px-4 py-3 font-bold">Authorized By</th><th className="px-4 py-3 font-bold">Exit Time</th><th className="px-4 py-3 font-bold">Return Time</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Actions</th></tr></thead>
           <tbody>
             {isLoading ? (
@@ -208,7 +209,7 @@ export function StudentExitPassesWorkspace() {
               })
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

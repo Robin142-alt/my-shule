@@ -106,7 +106,7 @@ export function WorkspaceShell({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="authenticated-app min-h-screen bg-background">
       <div className="mx-auto grid min-h-screen max-w-[1400px] gap-6 px-4 py-4 md:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-8">
         <aside
           className={`fixed inset-y-0 left-0 z-40 w-[240px] transform border-r border-border bg-white px-4 py-5 shadow-sm transition duration-150 lg:static lg:translate-x-0 lg:rounded-2xl lg:border lg:shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${

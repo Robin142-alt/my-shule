@@ -43,7 +43,7 @@ it("offers labelled move, edit, lock and remove controls and protects locked les
 
 it("switches days by touch and exposes unfilled teaching periods without treating breaks as gaps", () => {
   const { rerender } = render(<TimetableScheduleView {...props} />);
-  fireEvent.click(screen.getByRole("button", { name: "Tue", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Tue" }));
   expect(handlers.onSelectedDayChange).toHaveBeenCalledWith(2);
   rerender(<TimetableScheduleView {...props} selectedDay={2} />);
   const day = within(screen.getByRole("list", { name: "Tuesday lesson timeline" }));

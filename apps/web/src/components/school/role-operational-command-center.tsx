@@ -8160,7 +8160,7 @@ function GenericRoleOperationalCommandCenter({
   }
 
   return (
-    <div className="min-h-dvh bg-[#F3F6FA] lg:h-dvh lg:overflow-hidden" data-testid="role-operational-command-center">
+    <div className="authenticated-app min-h-dvh bg-[#F3F6FA] lg:h-dvh lg:overflow-hidden" data-testid="role-operational-command-center">
       <div className="mx-auto grid min-h-dvh max-w-none gap-0 lg:h-full lg:min-h-0 lg:grid-cols-[292px_minmax(0,1fr)]">
         {mobileSidebarOpen ? (
           <button
@@ -8245,7 +8245,7 @@ function GenericRoleOperationalCommandCenter({
           </nav>
         </aside>
 
-        <main className="flex min-h-dvh min-w-0 flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
+        <main className="app-command-main flex min-h-dvh min-w-0 flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
           <div className="shrink-0 px-3 pt-3 md:px-5 md:pt-5">
             <IntegratedSchoolCommandHeader
               roleTitle={`${roleTitle} Dashboard`}
@@ -8279,7 +8279,7 @@ function GenericRoleOperationalCommandCenter({
             />
           </div>
 
-          <section className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5" data-testid="role-operational-workspace">
+          <section className="app-content min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5" data-testid="role-operational-workspace">
             <div className="flex min-h-full flex-col gap-4">
             {activeWorkspaceIndex === 0 && !isSearching ? (
               <div className="space-y-6">

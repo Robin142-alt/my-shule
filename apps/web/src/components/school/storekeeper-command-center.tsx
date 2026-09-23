@@ -1787,7 +1787,7 @@ export function StorekeeperCommandCenter({
   const activeKpis = kpis(summaryData, isLoadingSummary);
 
   return (
-    <div className={cn("relative overflow-hidden rounded-[2rem] pb-24 lg:pb-6", surface.page)}>
+    <div className={cn("authenticated-app relative overflow-hidden rounded-[2rem] pb-24 lg:pb-6", surface.page)}>
       <div className="pointer-events-none absolute inset-0 opacity-70">
         <div className="absolute left-1/4 top-0 h-72 w-72 rounded-full bg-[#FF7A1A]/12 blur-3xl" />
         <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full bg-emerald-400/10 blur-3xl" />

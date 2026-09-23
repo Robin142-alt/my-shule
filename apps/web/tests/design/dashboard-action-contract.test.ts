@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ts from "typescript";
 
 import {
   assertDashboardActionContract,
@@ -7,6 +8,31 @@ import {
   type DashboardActionContract,
 } from "@/lib/dashboard/dashboard-action-contract";
 import { resolveDashboardActionHref } from "@/lib/dashboard/action-routes";
+
+// Read actual calls so generics and formatting cannot hide an endpoint or body regression.
+function dashboardApiCalls(source: string) {
+  const file = ts.createSourceFile("workspace.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const calls: Array<{ endpoint: string; method: string | undefined; objectBody: boolean }> = [];
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "requestDashboardApi") {
+      const [endpoint, options] = node.arguments;
+      const properties = options && ts.isObjectLiteralExpression(options) ? options.properties : [];
+      const property = (name: string) => properties.find((item): item is ts.PropertyAssignment =>
+        ts.isPropertyAssignment(item) && item.name.getText(file).replace(/["']/g, "") === name,
+      )?.initializer;
+      const method = property("method");
+      const body = property("body");
+      calls.push({
+        endpoint: endpoint && ts.isStringLiteral(endpoint) ? endpoint.text : endpoint?.getText(file) ?? "",
+        method: method && ts.isStringLiteral(method) ? method.text : undefined,
+        objectBody: Boolean(body && ts.isObjectLiteralExpression(body)),
+      });
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  return calls;
+}
 
 describe("dashboard action contract safety", () => {
   it("does not leave principal attendance actions on fake-only success phrases", () => {
@@ -376,10 +402,14 @@ describe("dashboard action contract safety", () => {
 
   it("keeps deputy principal exam and report actions operational", () => {
     const examsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/exams-marks-workspace.tsx"), "utf8");
+    const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/deputy-command.controller.ts"), "utf8");
+    const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/deputy-command.service.ts"), "utf8");
     const reportsSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/repositories/deputy-command.repository.ts"), "utf8");
 
     expect(examsSource).not.toMatch(/Opening gradebook module/i);
-    expect(examsSource).toMatch(/buildSchoolSectionHref\("teacher", "exams"/);
+    expect(examsSource).toMatch(/<ExamWorkflowTracker\s+endpoint="\/admin-command\/deputy\/exams"/);
+    expect(controllerSource).toMatch(/@Get\('exams'\)\s+@Permissions\('deputy:read'\)/);
+    expect(serviceSource).toMatch(/getExams\(\)\s*\{\s*return this\.examsService\.getWorkflowOverview\(\)/);
     expect(reportsSource).not.toMatch(/'Generated' AS status/);
     expect(reportsSource).toMatch(/reportArtifactStatus\(report\.type, report\.artifact, report\.manifest\)/);
     expect(reportsSource).toMatch(/artifact\.checksum_sha256 !== createHash\('sha256'\)/);
@@ -440,7 +470,8 @@ describe("dashboard action contract safety", () => {
 
   it("keeps deputy named actions aligned with persisted command semantics", () => {
     const academicsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/academics-monitoring-workspace.tsx"), "utf8");
-    const examsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/exams-marks-workspace.tsx"), "utf8");
+    const apiClientSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/api-client.ts"), "utf8");
+    const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/deputy-command.controller.ts"), "utf8");
     const reportsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/reports-workspace.tsx"), "utf8");
     const staffSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/deputy-principal/staff-roles-workspace.tsx"), "utf8");
     const repositorySource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/repositories/deputy-command.repository.ts"), "utf8");
@@ -453,7 +484,12 @@ describe("dashboard action contract safety", () => {
     expect(academicsSource).toMatch(/\/api\/academics\/class-sections/);
     expect(academicsSource).toMatch(/\/api\/academics\/subjects/);
     expect(academicsSource).toMatch(/\/api\/academics\/teachers/);
-    expect(examsSource).toMatch(/flagExamDelay/);
+    expect(apiClientSource).toMatch(/flagExamDelay\(id: string\)/);
+    expect(dashboardApiCalls(apiClientSource)).toContainEqual({
+      endpoint: "`/admin-command/deputy/exams/${id}/flag-delay`", method: "POST", objectBody: false,
+    });
+    expect(controllerSource).toMatch(/@Post\('exams\/:id\/flag-delay'\)\s+@Permissions\('deputy:write'\)/);
+    expect(deputyServiceSource).toMatch(/this\.repository\.flagExamDelay\(this\.requireTenantId\(\), id\)/);
     expect(reportsSource).toMatch(/format:\s*"xlsx"/);
     expect(staffSource).toMatch(/staffId/);
     expect(staffSource).toMatch(/assignRole\(\{\s*staffId:/);
@@ -717,7 +753,10 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/Scan action recorded/);
     expect(source).not.toMatch(/Issue action recorded/);
     expect(source).not.toMatch(/Return action recorded/);
-    expect(source).toMatch(/group-focus-within:visible/);
+    expect(source).toMatch(/<DropdownMenuTrigger asChild>/);
+    expect(source).toMatch(/<DropdownMenuItem onClick=\{\(\) => onViewChange\("issue"\)\}>Issue Book/);
+    expect(source).toMatch(/<DropdownMenuItem onClick=\{\(\) => onViewChange\("return"\)\}>Return Book/);
+    expect(source).toMatch(/<DropdownMenuItem onClick=\{\(\) => onViewChange\("lost_damaged"\)\}>Record Lost Book/);
   });
 
   it("persists laboratory technician workflow actions through the backend", () => {
@@ -1584,12 +1623,20 @@ describe("dashboard action contract safety", () => {
     const controllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/dean-academics-command.controller.ts"), "utf8");
     const serviceSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/admin-command/dean-academics-command.service.ts"), "utf8");
 
-    expect(assessmentsSource).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/lock-batch"/);
-    expect(assessmentsSource).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/action"/);
-    expect(reportsSource).toMatch(/requestDashboardApi\("\/admin-command\/dean-academics\/reports\/generate"/);
-    expect(`${assessmentsSource}\n${reportsSource}`).not.toMatch(/requestDashboardApi\("[^"]*dean-academics[\s\S]*?body:\s*JSON\.stringify/);
+    expect(dashboardApiCalls(assessmentsSource)).toEqual(expect.arrayContaining([
+      { endpoint: "/admin-command/dean-academics/lock-batch", method: "POST", objectBody: true },
+      { endpoint: "/exams/marks/moderate", method: "POST", objectBody: true },
+      { endpoint: "`/exams/report-cards/${encodeURIComponent(reportCard.id)}/transition`", method: "PATCH", objectBody: true },
+    ]));
+    expect(dashboardApiCalls(reportsSource)).toContainEqual({
+      endpoint: "/admin-command/dean-academics/reports/generate", method: "POST", objectBody: true,
+    });
+    expect(dashboardApiCalls(`${assessmentsSource}\n${reportsSource}`).every((call) => call.objectBody)).toBe(true);
     expect(assessmentsSource).not.toMatch(/\$\{selectedAction\} recorded/);
-    expect(assessmentsSource).toMatch(/Dean academic workflow saved/);
+    expect(assessmentsSource).toMatch(/if \(!result\.locked_count\)/);
+    expect(assessmentsSource).toMatch(/if \(!result\.updated_count\)/);
+    expect(assessmentsSource).toMatch(/No mark changes were confirmed/);
+    expect(controllerSource).toMatch(/@Post\('lock-batch'\)\s+@RequiresModule\('exams'\)\s+@Permissions\('exams:approve'\)/);
     expect(controllerSource).toMatch(/@Post\('action'\)/);
     expect(controllerSource).toMatch(/@Post\('reports\/generate'\)/);
     expect(serviceSource).toMatch(/recordDeanAction/);

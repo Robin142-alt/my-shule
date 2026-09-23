@@ -247,9 +247,9 @@ export function CommandMetricCard({
       </div>
       <p data-testid="kpi-value" className="mt-3 text-3xl font-bold leading-none text-foreground finance-number">{value}</p>
       <p className="mt-2 min-h-8 text-xs leading-5 text-muted">{helper}</p>
-      <div className="mt-3">
+      {sparkline.length > 0 ? <div className="mt-3">
         <MiniSparkline values={sparkline} tone={tone} />
-      </div>
+      </div> : null}
     </>
   );
 

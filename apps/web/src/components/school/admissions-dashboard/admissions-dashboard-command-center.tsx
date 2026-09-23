@@ -163,7 +163,7 @@ export function AdmissionsDashboardCommandCenter({
   return (
     <main
       data-testid="admissions-dashboard-command-center"
-      className="min-h-dvh bg-[#F1F5F9] p-4 text-[#071D49] md:p-6"
+      className="authenticated-app app-padded min-h-dvh bg-[#F1F5F9] p-4 text-[#071D49] md:p-6"
     >
       <div className="grid min-h-[calc(100dvh-3rem)] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="hidden rounded-3xl bg-[#071D49] p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)] lg:sticky lg:top-6 lg:block lg:self-start">
@@ -217,7 +217,7 @@ export function AdmissionsDashboardCommandCenter({
             actions={<span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{activeItem.label} - live school scoped</span>}
           />
 
-          <div className="rounded-3xl bg-[#071D49] p-4 shadow-[0_24px_60px_rgba(7,29,73,0.14)] md:p-5">
+          <div className="app-dark-workspace rounded-3xl bg-[#071D49] p-4 shadow-[0_24px_60px_rgba(7,29,73,0.14)] md:p-5">
             <Workspace />
           </div>
         </section>

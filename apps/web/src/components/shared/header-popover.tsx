@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useModalLayer } from "@/hooks/use-modal-layer";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -34,16 +35,15 @@ export function HeaderPopover({
   const [compactViewport, setCompactViewport] = useState(true);
   const [anchorPosition, setAnchorPosition] = useState({ top: 64, left: 12, maxHeight: 480 });
   const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const restoreFocusOnCloseRef = useRef(true);
   const titleId = useId();
   const close = useCallback(() => setOpen(false), []);
+  const panelRef = useModalLayer<HTMLDivElement>(open, close, { lockScroll: compactViewport, restoreFocus: () => restoreFocusOnCloseRef.current });
 
   useEffect(() => {
     if (!open) return;
 
-    const restoreFocusTarget = triggerRef.current;
     restoreFocusOnCloseRef.current = true;
 
     function updatePosition() {
@@ -67,45 +67,6 @@ export function HeaderPopover({
     }
 
     updatePosition();
-    const previousOverflow = document.body.style.overflow;
-    if (window.innerWidth < 640) {
-      document.body.style.overflow = "hidden";
-    }
-
-    function focusableElements() {
-      if (!panelRef.current) return [] as HTMLElement[];
-      return Array.from(
-        panelRef.current.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
-        ),
-      );
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        close();
-        return;
-      }
-
-      if (event.key !== "Tab") return;
-      const focusable = focusableElements();
-      if (focusable.length === 0) {
-        event.preventDefault();
-        panelRef.current?.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    }
-
     function handlePointerDown(event: PointerEvent) {
       const target = event.target as Node;
       if (!panelRef.current?.contains(target) && !triggerRef.current?.contains(target)) {
@@ -114,23 +75,16 @@ export function HeaderPopover({
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("pointerdown", handlePointerDown);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
-    requestAnimationFrame(() => panelRef.current?.focus());
 
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
-      document.body.style.overflow = previousOverflow;
-      if (restoreFocusOnCloseRef.current) {
-        restoreFocusTarget?.focus();
-      }
     };
-  }, [close, desktopWidth, open]);
+  }, [close, desktopWidth, open, panelRef]);
 
   return (
     <div ref={rootRef} className="relative">
@@ -159,11 +113,11 @@ export function HeaderPopover({
           <div
             ref={panelRef}
             role="dialog"
-            aria-modal="true"
+            aria-modal={compactViewport || undefined}
             tabIndex={-1}
             aria-labelledby={titleId}
             style={compactViewport ? undefined : { top: anchorPosition.top, left: anchorPosition.left, maxHeight: anchorPosition.maxHeight }}
-            className={`fixed z-50 flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 outline-none ${compactViewport ? "inset-3" : desktopWidth}`}
+            className={`fixed z-50 flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 outline-none ${compactViewport ? "app-popover-sheet inset-3" : desktopWidth}`}
           >
             <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/90 px-4 backdrop-blur">
               <h3 id={titleId} className="font-semibold text-slate-800">{title}</h3>

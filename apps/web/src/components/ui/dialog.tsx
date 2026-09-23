@@ -5,13 +5,14 @@ import {
   createContext,
   isValidElement,
   useContext,
-  useEffect,
   useId,
   type HTMLAttributes,
   type ReactElement,
   type ReactNode,
 } from "react";
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { useModalLayer } from "@/hooks/use-modal-layer";
 
 import { Button } from "@/components/ui/button";
 
@@ -94,32 +95,15 @@ export function DialogContent({
 }) {
   const { open, onOpenChange, titleId, descriptionId } = useDialogContext("DialogContent");
 
-  useEffect(() => {
-    if (!open) return;
+  const dialogRef = useModalLayer<HTMLDivElement>(open, () => onOpenChange(false));
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onOpenChange(false);
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onOpenChange, open]);
-
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 pb-8 pt-[10vh] backdrop-blur-md"
+      className="app-modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 pb-8 pt-[10vh] backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onOpenChange(false);
@@ -127,11 +111,13 @@ export function DialogContent({
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className={`dashboard-card w-full max-w-xl overflow-hidden rounded-[var(--radius-lg)] bg-white p-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] outline-none ${className}`}
+        className={`app-modal-panel relative flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white p-0 shadow-xl outline-none ${className}`}
       >
         <Button
           type="button"
@@ -139,19 +125,20 @@ export function DialogContent({
           size="icon"
           aria-label="Close dialog"
           onClick={() => onOpenChange(false)}
-          className="absolute right-[calc(50%-18rem)] top-[calc(10vh+0.75rem)] h-8 w-8 text-muted hover:text-foreground"
+          className="absolute right-2 top-2 z-10 h-11 w-11 shrink-0 rounded-full bg-white text-muted hover:text-foreground"
         >
           <X className="h-4 w-4" />
         </Button>
-        <div className="px-5 py-5">{children}</div>
+        <div className="app-modal-body min-h-0 overflow-y-auto px-5 py-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 export function DialogHeader({ children, className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`mb-4 space-y-1.5 border-b border-border pb-4 ${className}`} {...props}>
+    <div className={`mb-4 space-y-1.5 border-b border-border pb-4 pr-10 ${className}`} {...props}>
       {children}
     </div>
   );
@@ -181,7 +168,7 @@ export function DialogDescription({
 
 export function DialogFooter({ children, className = "", ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4 ${className}`} {...props}>
+    <div className={`app-modal-footer sticky -bottom-4 mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-white py-4 ${className}`} {...props}>
       {children}
     </div>
   );

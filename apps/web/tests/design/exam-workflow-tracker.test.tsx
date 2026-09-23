@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { ExamWorkflowTracker, type ExamWorkflowData } from "@/components/school/exam-workflow-tracker";
 import { PrincipalExamsReportsWorkspace } from "@/components/school/principal-dashboard/exams-reports-workspace";
+import { DeputyExamsMarksWorkspace } from "@/components/school/deputy-principal/exams-marks-workspace";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { buildSchoolQueryKey } from "@/lib/data/school-hooks";
 import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
@@ -110,6 +111,23 @@ it("shows loading and retryable errors without claiming all cycles are published
   expect(await screen.findByRole("alert")).toHaveTextContent("Workflow unavailable");
   expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
   expect(screen.queryByText("No exam cycle is configured yet.")).not.toBeInTheDocument();
+});
+
+it("loads and refreshes deputy exam oversight through the school-scoped workflow endpoint", async () => {
+  const user = userEvent.setup();
+  const data = workflow([exam("dean_review", "Submitted teacher marks")]);
+  data.scope.role = "deputy_principal";
+  mockRequest.mockResolvedValue(data);
+  renderWorkspace(<DeputyExamsMarksWorkspace />);
+
+  expect(await screen.findByRole("heading", { name: "Submitted teacher marks" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "School exam and report-card progress" })).toBeVisible();
+  expect(mockRequest).toHaveBeenCalledWith("/admin-command/deputy/exams", { tenantId: "school-a" });
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(2));
+  expect(mockRequest.mock.calls.every(([endpoint, options]) =>
+    endpoint === "/admin-command/deputy/exams" && !options?.method,
+  )).toBe(true);
 });
 
 it.each([true, false])("removes a workflow only after confirmed publication (success: %s)", async (succeeds) => {

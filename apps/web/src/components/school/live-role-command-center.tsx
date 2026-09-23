@@ -566,7 +566,7 @@ export function LiveRoleCommandCenter({
       data-route-mode={routeMode}
       data-testid="live-role-command-center"
       data-role={role}
-      className="min-h-dvh bg-[#F3F6FA] p-3 md:p-5"
+      className="authenticated-app app-padded min-h-dvh bg-[#F3F6FA] p-3 md:p-5"
     >
       <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
@@ -638,7 +638,7 @@ export function LiveRoleCommandCenter({
             )}
           />
 
-          <div className="rounded-xl border border-[#C8D5EA] bg-white p-3 shadow-sm xl:hidden">
+          <div className="xl:hidden">
             <MobileWorkspaceNavigation
               label={`${config.roleLabel} workspace`}
               items={navItems}
@@ -648,8 +648,8 @@ export function LiveRoleCommandCenter({
             />
           </div>
 
-          <section className="rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
-            <div className="mb-5">
+          <section className="app-workspace-surface rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
+            <div className="app-workspace-heading mb-5 hidden lg:block">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
                 {config.liveLabel}
               </p>

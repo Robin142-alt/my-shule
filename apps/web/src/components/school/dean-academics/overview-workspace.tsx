@@ -119,7 +119,7 @@ export function OverviewWorkspace({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="app-metric-grid grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           {
             label: "Marks to review",

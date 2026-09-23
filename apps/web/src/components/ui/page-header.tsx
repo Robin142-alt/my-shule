@@ -14,7 +14,7 @@ export function PageHeader({
   meta?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-2xl min-w-0">
         <p className="eyebrow">
           {eyebrow}
@@ -24,7 +24,7 @@ export function PageHeader({
         {meta ? <div className="mt-2.5 flex flex-wrap gap-2">{meta}</div> : null}
       </div>
       {actions ? (
-        <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 lg:shrink-0">{actions}</div>
       ) : null}
     </div>
   );

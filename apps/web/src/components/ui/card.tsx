@@ -21,7 +21,7 @@ export function Card({
 }
 
 export function CardHeader({ children, className = "", ...props }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
-  return <div className={`flex flex-col space-y-1.5 p-6 ${className}`} {...props}>{children}</div>
+  return <div className={`flex flex-col space-y-1.5 p-4 sm:p-6 ${className}`} {...props}>{children}</div>
 }
 
 export function CardTitle({ children, className = "", ...props }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
@@ -33,5 +33,5 @@ export function CardDescription({ children, className = "", ...props }: { childr
 }
 
 export function CardContent({ children, className = "", ...props }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
-  return <div className={`p-6 pt-0 ${className}`} {...props}>{children}</div>
+  return <div className={`p-4 pt-0 sm:p-6 sm:pt-0 ${className}`} {...props}>{children}</div>
 }

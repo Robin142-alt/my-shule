@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { FileHeart, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -126,7 +127,7 @@ export function WelfareNotesWorkspace() {
 
       {error ? <WorkspaceFailure title="Welfare notes could not be loaded." error={error} onRetry={() => void refetch()} /> : (
         <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-          <table className="w-full whitespace-nowrap text-left text-sm">
+          <RecordTable className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Student</th><th className="px-4 py-3 font-bold">Class</th><th className="px-4 py-3 font-bold">Date</th><th className="px-4 py-3 font-bold">Category</th><th className="px-4 py-3 font-bold">Observation</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Action</th></tr></thead>
             <tbody>
               {isLoading ? <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading welfare notes…</td></tr> : null}
@@ -137,7 +138,7 @@ export function WelfareNotesWorkspace() {
                 <td className="px-4 py-3">{canWrite && row.status.toLowerCase() !== "flagged" ? <button type="button" disabled={flagNote.isPending} onClick={() => flagNote.mutate({ id: row.id })} className="font-black text-rose-700 underline disabled:opacity-50">Flag for review</button> : "—"}</td>
               </tr>)}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       )}
     </Panel>

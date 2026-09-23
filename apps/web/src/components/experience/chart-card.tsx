@@ -21,14 +21,18 @@ export function ChartCard({
         </div>
       </div>
 
-      <div className="mt-6">
-        <div className="flex h-56 items-end gap-3">
+      {points.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-border bg-surface-muted px-4 py-6 text-center text-sm leading-6 text-muted">
+          No data available yet. {subtitle} will appear here when source records are available.
+        </p>
+      ) : <div className="app-table-scroll mt-5 overflow-x-auto" tabIndex={0} role="region" aria-label={`${title} chart`}>
+        <div className="flex items-end gap-3 pb-1">
           {points.map((point) => (
-            <div key={point.label} className="flex min-w-0 flex-1 flex-col items-center gap-3">
-              <div className="flex h-48 w-full items-end rounded-2xl bg-surface-muted px-2 py-2">
+            <div key={point.label} className="flex min-w-12 flex-1 flex-col items-center gap-2">
+              <div aria-hidden="true" className="flex h-36 w-full items-end rounded-xl bg-surface-muted p-2 sm:h-48">
                 <div
-                  className="w-full rounded-xl bg-accent transition-all duration-150"
-                  style={{ height: `${Math.max((point.value / maxValue) * 100, 10)}%` }}
+                  className="w-full rounded-lg bg-accent transition-[height] duration-150"
+                  style={{ height: `${Math.max((point.value / maxValue) * 100, 0)}%` }}
                 />
               </div>
               <div className="space-y-1 text-center">
@@ -38,7 +42,7 @@ export function ChartCard({
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </Card>
   );
 }

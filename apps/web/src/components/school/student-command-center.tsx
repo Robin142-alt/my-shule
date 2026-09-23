@@ -12,14 +12,14 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
   const dashboard = response?.data || response;
 
   return (
-    <div className="min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app min-h-screen bg-[#F3F6FA]">
       <div className="mx-auto max-w-7xl p-4 lg:p-6">
         
         {/* Main Content */}
         <main className="w-full">
           <div className="min-h-[calc(100vh-3rem)] rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)] overflow-hidden">
             
-            <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-4 backdrop-blur sm:px-8">
+            <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-4 backdrop-blur sm:px-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                   <MyShuleMark size={48} />

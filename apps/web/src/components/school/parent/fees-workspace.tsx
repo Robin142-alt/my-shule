@@ -1,5 +1,6 @@
 "use client";
 
+import { RecordTable } from "@/components/ui/record-table";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertTriangle, CheckCircle, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -336,7 +337,7 @@ export function FeesWorkspace() {
               )}
             </div>
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[760px] text-left text-sm">
+              <RecordTable className="w-full min-w-[760px] text-left text-sm">
                 <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">Date</th>
@@ -397,7 +398,7 @@ export function FeesWorkspace() {
                     </>
                   )}
                 </tbody>
-              </table>
+              </RecordTable>
             </div>
           </Card>
         </>

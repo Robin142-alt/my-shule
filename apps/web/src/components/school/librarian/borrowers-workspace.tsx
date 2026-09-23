@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Users, Search } from "lucide-react";
 import { Panel, StatusChip, Tone } from "./shared";
@@ -48,7 +49,7 @@ export function BorrowersWorkspace() {
   return (
     <Panel title="Borrowers" description="Track registered library borrowers and their borrowing history." icon={Users}>
       {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="text-sm font-semibold text-[#64748B]">Total Borrowers</div>
           <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_borrowers ?? 0}</div>
@@ -80,7 +81,7 @@ export function BorrowersWorkspace() {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student Name</th>
@@ -113,7 +114,7 @@ export function BorrowersWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

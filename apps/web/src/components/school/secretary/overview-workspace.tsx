@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { LayoutDashboard, Users, Clock, Phone, FileText, Mail, UserCheck, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -45,7 +46,7 @@ export function OverviewWorkspace() {
   return (
     <Panel title="Front Office Overview" description="Today's reception activity at a glance." icon={LayoutDashboard}>
       {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
+      <div className="app-metric-grid grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
         <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><Users className="w-4 h-4" /> Visitors Today</div>
           <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.visitors_today || 0}</div>
@@ -74,7 +75,7 @@ export function OverviewWorkspace() {
 
       {/* Recent Activity Table */}
       <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-[#F8FAFC] text-[#071D49]">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
@@ -101,7 +102,7 @@ export function OverviewWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

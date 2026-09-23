@@ -29,7 +29,7 @@ export function OverviewWorkspace({ onNavigate }: {
         <button type="button" onClick={() => onNavigate?.("exam-setup")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"><Plus className="h-4 w-4" /> Set up exam</button>
       </div>
       {error ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><span>Exam summary could not be loaded. {error.message}</span><button onClick={() => void refetch()} disabled={isFetching} className="inline-flex min-h-10 items-center gap-2 font-medium"><RefreshCw className="h-4 w-4" /> Retry summary</button></div> : null}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="app-metric-grid grid grid-cols-2 gap-3 xl:grid-cols-4">
         {cards.map(card => <button key={card.label} type="button" onClick={() => onNavigate?.(card.view)} className="rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-400"><span className="text-xs font-medium text-slate-500">{card.label}</span><span className="mt-2 block text-2xl font-semibold tabular-nums text-slate-900">{isLoading ? "…" : error || !metrics ? "—" : card.value ?? 0}</span><span className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">{card.hint}<ArrowRight className="h-3.5 w-3.5 shrink-0" /></span></button>)}
       </div>
       <TeacherMarksProgress onOpenSetup={() => onNavigate?.("exam-setup")} />

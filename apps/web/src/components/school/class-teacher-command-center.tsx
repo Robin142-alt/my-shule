@@ -181,11 +181,11 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 
   return (
-    <div className="flex min-h-dvh bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="app-command-main flex-1 min-w-0 flex flex-col">
         <Topbar activeView={activeView} onViewChange={setActiveView} />
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+        <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Class Teacher Dashboard" fallbackUserLabel="Class Teacher" />
           {activeView === "home" && <OverviewWorkspace />}
           {activeView === "register" && <ClassRegisterWorkspace onSelectLearner={setSelectedLearner} />}
@@ -249,7 +249,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
 
 function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (view: TeacherView) => void }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
+    <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">CT</div>
