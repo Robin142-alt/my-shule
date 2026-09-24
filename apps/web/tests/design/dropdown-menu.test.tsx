@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
@@ -55,6 +55,26 @@ function DialogMenuHarness() {
 }
 
 describe("dropdown menu", () => {
+  it("ignores delayed opening focus after an outside dismissal", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const user = userEvent.setup();
+    try {
+      render(<><MenuHarness /><button type="button">Outside control</button></>);
+      await user.click(screen.getByRole("button", { name: "Exam actions" }));
+      const outside = screen.getByRole("button", { name: "Outside control" });
+      await user.click(outside);
+      act(() => frames.forEach((callback) => callback(0)));
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      expect(outside).toHaveFocus();
+    } finally {
+      requestFrame.mockRestore();
+    }
+  });
+
   it("opens on tap, exposes menu semantics, selects once, and restores focus on Escape", async () => {
     const user = userEvent.setup();
     const onPublish = jest.fn();

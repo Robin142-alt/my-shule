@@ -77,6 +77,7 @@ function DropdownMenuTrigger({ children, asChild = false }: { children: React.Re
 
   function focusFirstItem() {
     requestAnimationFrame(() => {
+      if (contentRef.current?.getAttribute("role") !== "menu") return;
       contentRef.current
         ?.querySelector<HTMLElement>("[role='menuitem']:not([aria-disabled='true'])")
         ?.focus();
@@ -190,11 +191,13 @@ function DropdownMenuContent({
 
   React.useEffect(() => {
     if (!open) return;
-    requestAnimationFrame(() => {
+    const frame = requestAnimationFrame(() => {
+      if (contentRef.current?.getAttribute("role") !== "menu") return;
       contentRef.current
         ?.querySelector<HTMLElement>("[role='menuitem']:not([aria-disabled='true'])")
         ?.focus();
     });
+    return () => cancelAnimationFrame(frame);
   }, [contentRef, open]);
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {

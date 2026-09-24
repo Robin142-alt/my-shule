@@ -116,6 +116,14 @@ jobs:
       - name: Install isolated session test dependency
         run: sudo apt-get update && sudo apt-get install -y redis-server
 
+      - name: Durable report jobs, private storage and worker isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/exams/services/report-infrastructure.test.js dist/apps/api/src/modules/exams/services/reports-worker-module.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-infrastructure.integration-spec.ts
+
       - name: Persistent authentication contracts with real Redis
         run: node -r ts-node/register/transpile-only -r tsconfig-paths/register --test apps/api/src/auth/persistent-session.test.ts apps/api/src/auth/auth-recovery.service.test.ts
 

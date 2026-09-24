@@ -1,14 +1,14 @@
 # Report infrastructure deployment — 24 September 2026
 
-Status: the API, both dedicated report workers and the promoted Vercel frontend are live. Publication of the release to `main` is underway.
+Status: the API, both dedicated report workers and the promoted Vercel frontend are live. Report infrastructure was published to `main` in commit `c2b33dba4ef062179aac3539907ff2f8dd9d73fd`; all three Railway services are connected to that repository branch.
 
 ## Release targets
 
 - Railway project: `striking-energy`, production environment.
-- API deployment: `fff70ba2-eb75-460f-b599-99dd933d22d1` (tested image from `3c3959f2-f43c-41d6-92bd-4adb76c820b6`).
-- Interactive worker: service `93622f5e-8b1c-44fb-b6bb-d0076fcde185`, deployment `5b458d55-2860-4d1d-b46e-a00d6559d4ee`.
-- Bulk worker: service `5abe2f0c-7bbd-476a-b77c-959937a09e36`, deployment `4aa11806-2c5b-486d-b375-243d06595ebd`.
-- Vercel project: `my-shule-erp-web-clean`; deployment `dpl_5r4yd8TNE5EsQicUWn6wz75geF8H`.
+- API deployment from `main`: `13384113-bf00-4e59-8c2a-e81da3b5ceed`.
+- Interactive worker: service `93622f5e-8b1c-44fb-b6bb-d0076fcde185`, deployment `c551cdef-8049-4b97-82c0-5382bc75dab6`.
+- Bulk worker: service `5abe2f0c-7bbd-476a-b77c-959937a09e36`, deployment `659915c3-8fc2-4f6f-965a-8bafafa196f8`.
+- Vercel project: `my-shule-erp-web-clean`; initial promoted deployment `dpl_5r4yd8TNE5EsQicUWn6wz75geF8H`, followed by successful Git build `dpl_3sJieKCfYEcCtAnYedx1gAHyYSwd` from `main`.
 - Website: https://www.myshule.online.
 
 The release uses the tested working tree, including new report files, without uploading local environment credentials, caches, temporary outputs or the unrelated old web project configuration. Local manifests and deployment logs are under `tmp/report-*` and are not production source inputs.
@@ -47,7 +47,8 @@ During runtime-setting verification, `serviceInstanceRedeploy` started a build f
 - Signed GET returned 200; unsigned S3 access returned 400; altered-tenant and expired signatures returned 403. Every connectivity object and local spool was deleted after its check.
 - Account-side R2 public development URL/custom-domain settings: user confirmed both disabled before frontend promotion.
 - API readiness returned 200 with PostgreSQL/Redis up and no production configuration errors; unauthenticated report-job access returned 401. The public web page returned 200.
-- Worker startup logs confirm the report-only application, database/Redis connectivity, and periodic successful bulk retention sweeps. The four report tables exist in `myshule_final`.
+- Worker startup logs confirm the report-only application, database/Redis connectivity, and periodic successful bulk retention sweeps. All four report tables exist in `myshule_final` with RLS enabled and forced; 31 report-source triggers are installed. A read-only runtime-role check for an unrelated tenant returned no jobs (the production job table was empty at this check).
+- GitHub CodeQL passed for the infrastructure commit. Its broader CI run exposed a pre-existing dropdown focus race; a deterministic regression reproduced delayed focus moving to a hidden menu item. The follow-up cancels/guards opening focus after dismissal. The new durable report integration and worker tests are also wired into CI after installing Redis.
 - Authenticated production generation/export and production-scale load tests: not yet run. No real school marks, approvals or reports were edited for these connectivity checks.
 
 This rollout does not certify ten million new report cards per day. Real tenant acceptance, peak-load measurement, alert routing, long-term backup storage and restore drills remain operational acceptance work.
