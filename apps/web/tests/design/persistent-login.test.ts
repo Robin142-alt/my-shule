@@ -81,7 +81,7 @@ describe("persistent regular login", () => {
     expect(await restored.text()).not.toContain("signature");
   });
 
-  test("an authentication outage preserves cookies but genuine expiry clears them", async () => {
+  test("outages preserve credentials and expiry denies access without deleting a newer browser session", async () => {
     jar.set(AUDIENCE_COOKIE, "school"); jar.set(TENANT_COOKIE, "school-a"); jar.set(REFRESH_COOKIE, token(100));
     jest.mocked(fetch).mockResolvedValueOnce(Response.json({ message: "Unavailable" }, { status: 503 }));
     const unavailable = await me(new Request("https://school.example.test/api/auth/me?audience=school"));
@@ -90,7 +90,8 @@ describe("persistent regular login", () => {
     jest.mocked(fetch).mockResolvedValueOnce(Response.json({ message: "Expired" }, { status: 401 }));
     const expired = await me(new Request("https://school.example.test/api/auth/me?audience=school"));
     expect(expired.status).toBe(401);
-    expect(expired.cookies.get(REFRESH_COOKIE)?.maxAge).toBe(0);
+    expect(expired.cookies.getAll()).toEqual([]);
+    expect(await expired.json()).toMatchObject({ message: expect.any(String) });
   });
 
   test("logout revokes the backend family before deleting regular cookies and can retry outages", async () => {

@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import {
@@ -253,6 +254,7 @@ function unwrapDashboardRoleContext(response: BackendDashboardRolesResponse) {
 async function requestBackendAuth<T>(
   path: string,
   input: {
+    request: Request;
     audience: ExperienceAudience;
     tenantSlug?: string | null;
     method: "GET" | "POST";
@@ -269,6 +271,12 @@ async function requestBackendAuth<T>(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  // Vercel overwrites this header with the connecting browser's address. Without
+  // forwarding it, each function's egress IP looks like a different refresh client.
+  const clientIp = process.env.VERCEL === "1"
+    ? input.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    : undefined;
+  const userAgent = input.request.headers.get("user-agent");
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -276,6 +284,8 @@ async function requestBackendAuth<T>(
       headers: {
         Accept: "application/json",
         "x-auth-audience": input.audience,
+        ...(clientIp && isIP(clientIp) ? { "x-forwarded-for": clientIp } : {}),
+        ...(userAgent ? { "user-agent": userAgent } : {}),
         ...(tenantSlug ? { "x-tenant-id": tenantSlug } : {}),
         ...(input.body ? { "Content-Type": "application/json" } : {}),
         ...(input.accessToken ? { Authorization: `Bearer ${input.accessToken}` } : {}),
@@ -314,8 +324,9 @@ async function requestBackendAuth<T>(
   }
 }
 
-async function loginSchoolAudience(input: LoginInput) {
+async function loginSchoolAudience(input: LoginInput, request: Request) {
   const response = await requestBackendAuth<BackendAuthResponse>("/auth/login", {
+    request,
     audience: "school",
     tenantSlug: input.tenantSlug?.trim() || null,
     method: "POST",
@@ -339,8 +350,9 @@ async function loginSchoolAudience(input: LoginInput) {
   });
 }
 
-async function loginSuperadminAudience(input: LoginInput) {
+async function loginSuperadminAudience(input: LoginInput, request: Request) {
   const response = await requestBackendAuth<BackendAuthResponse>("/auth/login", {
+    request,
     audience: "superadmin",
     tenantSlug: null,
     method: "POST",
@@ -363,8 +375,9 @@ async function loginSuperadminAudience(input: LoginInput) {
   });
 }
 
-async function loginPortalAudience(input: LoginInput) {
+async function loginPortalAudience(input: LoginInput, request: Request) {
   const response = await requestBackendAuth<BackendAuthResponse>("/auth/login", {
+    request,
     audience: "portal",
     tenantSlug: input.tenantSlug?.trim() || null,
     method: "POST",
@@ -400,11 +413,11 @@ export function createServerAuthClient(request: Request) {
 
       switch (normalizedInput.audience) {
         case "superadmin":
-          return loginSuperadminAudience(normalizedInput);
+          return loginSuperadminAudience(normalizedInput, request);
         case "school":
-          return loginSchoolAudience(normalizedInput);
+          return loginSchoolAudience(normalizedInput, request);
         case "portal":
-          return loginPortalAudience(normalizedInput);
+          return loginPortalAudience(normalizedInput, request);
       }
     },
 
@@ -425,6 +438,7 @@ export function createServerAuthClient(request: Request) {
       }
 
       const response = await requestBackendAuth<BackendAuthResponse>("/auth/refresh", {
+        request,
         audience: input.audience,
         tenantSlug,
         method: "POST",
@@ -457,6 +471,7 @@ export function createServerAuthClient(request: Request) {
       if (!refreshToken && !accessToken) return;
       try {
         await requestBackendAuth(refreshToken ? "/auth/logout/refresh" : "/auth/logout", {
+          request,
           audience,
           tenantSlug: readTenantCookie(cookies),
           method: "POST",
@@ -492,6 +507,7 @@ export function createServerAuthClient(request: Request) {
       }
 
       const response = await requestBackendAuth<BackendMeResponse>("/auth/me", {
+        request,
         audience: requestedAudience,
         tenantSlug,
         method: "GET",
@@ -526,6 +542,7 @@ export function createServerAuthClient(request: Request) {
       const response = await requestBackendAuth<BackendDashboardRolesResponse>(
         "/auth/dashboard-roles",
         {
+          request,
           audience: "school",
           tenantSlug,
           method: "GET",
@@ -555,6 +572,7 @@ export function createServerAuthClient(request: Request) {
       }
 
       const response = await requestBackendAuth<BackendAuthResponse>("/auth/active-role", {
+        request,
         audience: "school",
         tenantSlug,
         method: "POST",

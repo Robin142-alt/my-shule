@@ -8,11 +8,11 @@ import {
   TENANT_COOKIE,
 } from "@/lib/auth/session-cookies";
 
-function buildRequest(host: string) {
+function buildRequest(host: string, headers: Record<string, string> = {}) {
   return {
     headers: {
       get(name: string) {
-        return name.toLowerCase() === "host" ? host : null;
+        return name.toLowerCase() === "host" ? host : headers[name.toLowerCase()] ?? null;
       },
     },
   } as unknown as Request;
@@ -38,15 +38,18 @@ function cookieReader(values: Record<string, string>) {
 describe("server auth client production gateway", () => {
   const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalApiBaseDomain = process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
+  const originalVercel = process.env.VERCEL;
 
   beforeEach(() => {
     jest.restoreAllMocks();
     Object.assign(global, { fetch: jest.fn() });
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
+    delete process.env.VERCEL;
   });
 
   afterAll(() => {
+    if (originalVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = originalVercel;
     if (originalApiBaseUrl === undefined) {
       delete process.env.NEXT_PUBLIC_API_BASE_URL;
     } else {
@@ -171,6 +174,37 @@ describe("server auth client production gateway", () => {
       "https://api.example.invalid/auth/login",
       expect.any(Object),
     );
+  });
+
+  it.each([
+    ["1", "203.0.113.12", "203.0.113.12"],
+    ["1", "2001:db8::1", "2001:db8::1"],
+    ["1", "not-an-ip", undefined],
+    [undefined, "203.0.113.12", undefined],
+  ])("keeps browser identity stable through login, switch and concurrent refresh (Vercel %s, IP %s)", async (vercel, forwardedIp, expectedIp) => {
+    if (vercel) process.env.VERCEL = vercel;
+    process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
+    const user = { user_id: "staff-a", tenant_id: "school-a", role: "teacher", audience: "school",
+      email: "teacher@example.test", display_name: "Teacher", permissions: ["auth:read"], session_id: "session-a" };
+    jest.mocked(fetch).mockResolvedValue(jsonResponse({ user, tokens: { access_token: "access-a", refresh_token: "refresh-a" } }));
+    const client = createServerAuthClient(buildRequest("myshule.online", {
+      "x-forwarded-for": forwardedIp!, "user-agent": "School browser",
+    }));
+    const cookies = cookieReader({
+      [ACCESS_COOKIE]: "access-a", [REFRESH_COOKIE]: "refresh-a", [AUDIENCE_COOKIE]: "school", [TENANT_COOKIE]: "school-a",
+      [getExperienceSessionCookieName("school")]: serializeExperienceSession({
+        experience: "school", role: "teacher", tenantSlug: "school-a", userLabel: "Teacher", homePath: "/school/teacher",
+      }),
+    });
+    await client.login({ audience: "school", tenantSlug: "school-a", identifier: "teacher@example.test", password: "test-only-password" });
+    await client.switchActiveRole("teacher", cookies);
+    await Promise.all([client.refresh({ audience: "school" }, cookies), client.refresh({ audience: "school" }, cookies)]);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    for (const [, init] of jest.mocked(fetch).mock.calls) {
+      const sent = init?.headers as Record<string, string>;
+      expect(sent["user-agent"]).toBe("School browser");
+      expect(sent["x-forwarded-for"]).toBe(expectedIp);
+    }
   });
 
   it("strips a trailing api segment from configured backend auth origins", async () => {

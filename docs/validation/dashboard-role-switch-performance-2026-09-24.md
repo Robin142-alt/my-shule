@@ -51,3 +51,11 @@ The later production report showed the destination stuck on “Verifying your da
 Verification: 42 authentication/session tests passed, including real Redis concurrency and token-reuse rejection; 25 PostgreSQL authentication/security and tenant-isolation integration tests passed. The integration workflow switches Admissions Officer to Teacher and back, injects old-role refreshes from another gateway, then verifies both new sessions, exact permissions, unchanged membership and two audit entries. Frontend coverage totals 101 passing tests across role changes, fresh document initialization, cookie races, cache isolation, route recovery, service failures and logout. Web TypeScript and API compilation passed; targeted lint has no errors (four existing React warnings).
 
 The multi-role verification uses disposable test accounts and databases. No live school assignments were changed for testing.
+
+## Gateway identity follow-up
+
+The live verification window at 12:52:21 UTC exposed eight concurrent refresh requests for one session, arriving through six gateway IPs. The auth gateway previously omitted browser user-agent and client IP, so the Redis replay protection fingerprinted the changing gateway addresses. One refresh succeeded, then another invalidated the session as token reuse.
+
+The web auth client now forwards the browser user-agent on authentication calls and a validated client IP only when running on Vercel, where the platform overwrites `x-forwarded-for` ([Vercel request header contract](https://vercel.com/docs/headers/request-headers)). Login, role switching and concurrent refresh use the same browser identity. Tests cover IPv4, IPv6, invalid addresses and ignoring forwarded addresses outside the trusted runtime. Token replay detection remains enforced. The expiry contract now explicitly asserts HTTP 401 with no destructive cookie update; explicit logout still asserts backend revocation and cookie deletion.
+
+API release `03c47ee9-95db-45a2-b974-073e8a8a7d93` passed production readiness after commit `fd00d6fd`. The browser smoke test reached the Teacher workspace, then exposed the gateway refresh issue above; it is not evidence of a completed live multi-role switch.
