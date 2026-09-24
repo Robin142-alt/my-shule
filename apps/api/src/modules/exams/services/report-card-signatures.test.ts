@@ -3,8 +3,11 @@ import { createReportCardPdfArtifact } from './report-card-pdf-artifact';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Module, NotFoundException } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { HEADERS_METADATA } from '@nestjs/common/constants';
+import type { Request, Response, NextFunction } from 'express';
+import { Readable } from 'node:stream';
 import PDFDocument from 'pdfkit';
 
 import { PERMISSIONS_KEY } from '../../../auth/auth.constants';
@@ -12,6 +15,15 @@ import { ReportCardDownloadController } from '../report-card-download.controller
 import { ReportCardGenerationService } from './report-card-generation.service';
 import { ReportCardExportService } from './report-card-export.service';
 import { ReportCardTemplateService, type ReportCardPayload } from './report-card-template.service';
+import { ReportCardArtifactsService } from './report-card-artifacts.service';
+import { REPORT_RENDERER_VERSION } from './report-artifact-identity';
+import { ExamsRepository } from '../repositories/exams.repository';
+import { ExamsService } from '../exams.service';
+import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
+import { RequestContextService } from '../../../common/request-context/request-context.service';
+import { RequestContextMiddleware } from '../../../middleware/request-context.middleware';
+import { ResponseEnvelopeInterceptor } from '../../../interceptors/response-envelope.interceptor';
+import { RequestIdInterceptor } from '../../../interceptors/request-id.interceptor';
 
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 const paths = {
@@ -137,4 +149,94 @@ test('preview refuses absent, cross-school, external or traversal signature refe
     assert.equal(files.reads.length, 0);
   }
   await assert.rejects(controller(null).service.readReportCardSignature('card', 'principal' as never), /Regenerate/);
+});
+
+test('report HTTP endpoints deliver signature and PDF bytes through the global response interceptor', async () => {
+  const context = new RequestContextService();
+  const card = {
+    id: '10000000-0000-4000-8000-000000000001', tenant_id: 'school-a', student_id: 'learner',
+    is_current: true, status: 'draft_generated', verification_code: 'VERIFY',
+    metadata: { report_card: payload(), source_revision: '[]', renderer_version: REPORT_RENDERER_VERSION },
+  };
+  const repository = { executeSql: async (sql: string, values: unknown[]) => {
+    if (sql.includes('report_source_versions')) return { rows: [] };
+    assert.match(sql, /WHERE tenant_id=\$1 AND id=\$2::uuid/);
+    const rows = values[0] === card.tenant_id && values[1] === card.id ? [card] : [];
+    return { rows, rowCount: rows.length };
+  } };
+  const files = storage();
+  const artifacts = new ReportCardArtifactsService(repository as never, files as never, {} as never, context, {} as never);
+  const pdf = await createReportCardPdfArtifact(await hydrateReportCardLogoForRendering(payload(), 'school-a', files as never, true), 'VERIFY');
+  const access = { assertReportCardScopeAccess: () => {
+    const actor = context.requireStore();
+    if (actor.role !== 'exams_manager' || !actor.permissions.includes('exams:read')) throw new ForbiddenException();
+    return actor.tenant_id;
+  } };
+  @Module({
+    controllers: [ReportCardDownloadController],
+    providers: [
+      { provide: RequestContextService, useValue: context },
+      { provide: ExamsRepository, useValue: repository },
+      { provide: ExamsService, useValue: access },
+      { provide: DatabaseFileStorageService, useValue: files },
+      { provide: ReportCardArtifactsService, useValue: {
+        load: artifacts.load.bind(artifacts),
+        prepare: async (id: string) => { await artifacts.load(id); return { state: 'ready' }; },
+        read: async (id: string) => { await artifacts.load(id); return pdf; },
+      } },
+      { provide: ReportCardExportService, useValue: {
+        status: async () => ({ state: 'ready' }),
+        download: async () => ({ stream: Readable.from([pdf.content]) }),
+        recent: async () => [],
+      } },
+    ],
+  })
+  class SignatureWireModule {}
+  const app = await NestFactory.create(SignatureWireModule, { logger: false });
+  const middleware = new RequestContextMiddleware(context);
+  // Fixed local fixture sessions exercise the real JWT guard; no production
+  // identity or credential is used by this transport regression test.
+  app.use((req: Request, res: Response, next: NextFunction) => middleware.use(req, res, () => {
+    context.setTenantId(String(req.headers['x-test-tenant'] ?? 'school-a'));
+    context.setRole(req.headers['x-test-role'] === 'parent' ? 'parent' : 'exams_manager');
+    context.setPermissions(['exams:read']);
+    context.setAuthenticated(req.headers['x-test-auth'] !== 'anonymous');
+    context.setSessionId('fixture-session');
+    next();
+  }));
+  app.useGlobalInterceptors(new ResponseEnvelopeInterceptor(context, new Reflector()), new RequestIdInterceptor(context));
+  await app.listen(0, '127.0.0.1');
+  const base = `${await app.getUrl()}/exams/report-cards`;
+  const signatureUrl = `${base}/${card.id}/signatures/principal`;
+  try {
+    for (const status of ['draft_generated', 'under_review', 'approved', 'published']) {
+      card.status = status;
+      for (const role of ['class_teacher', 'principal']) {
+        const response = await fetch(`${base}/${card.id}/signatures/${role}?v=VERIFY`, {
+          headers: { Accept: 'image/avif,image/webp,image/*,*/*;q=0.8' },
+        });
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('content-type'), 'image/png');
+        assert.equal(response.headers.get('cache-control'), 'private, no-store');
+        assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+        assert.equal(response.headers.get('content-disposition'), 'inline');
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()), image);
+      }
+    }
+    for (const path of [`${card.id}/download`, 'exports/export-fixture/download']) {
+      const response = await fetch(`${base}/${path}`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('content-type'), 'application/pdf');
+      assert.match(response.headers.get('content-disposition') ?? '', /^attachment;/);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), pdf.content);
+    }
+    const jobs = await fetch(`${base}/jobs`);
+    assert.deepEqual((await jobs.json() as { data: unknown }).data, [], 'JSON endpoints still use their envelope');
+    assert.equal((await fetch(signatureUrl, { headers: { 'x-test-auth': 'anonymous' } })).status, 401);
+    assert.equal((await fetch(signatureUrl, { headers: { 'x-test-role': 'parent' } })).status, 403);
+    assert.equal((await fetch(signatureUrl, { headers: { 'x-test-tenant': 'school-b' } })).status, 404);
+    assert.equal((await fetch(`${base}/${card.id}/signatures/invalid`)).status, 400);
+    card.metadata.source_revision = 'old';
+    assert.equal((await fetch(signatureUrl)).status, 409, 'stale reports still require controlled regeneration');
+  } finally { await app.close(); }
 });

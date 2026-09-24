@@ -46,4 +46,24 @@ describe("dashboard streaming proxy", () => {
     expect(response.status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it.each(["class_teacher", "principal"])("preserves %s signature bytes for report preview images", async (signer) => {
+    const image = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff]);
+    const fetchMock = jest.fn().mockResolvedValue(new Response(image, { headers: {
+      "content-type": "image/png", "content-disposition": "inline", "cache-control": "private, no-store",
+    } }));
+    global.fetch = fetchMock;
+    const response = await proxySchoolApiRequest(new NextRequest(
+      `https://school.example.invalid/api/exams/report-cards/card/signatures/${signer}?v=VERIFY`,
+      { headers: { Accept: "image/avif,image/webp,image/*,*/*;q=0.8" } },
+    ), { params: Promise.resolve({ path: ["report-cards", "card", "signatures", signer] }) }, "/exams");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("content-disposition")).toBe("inline");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(image);
+    expect(fetchMock.mock.calls[0][1].headers).toMatchObject({
+      Authorization: "Bearer fixture-access-token", "x-tenant-id": "school-a",
+    });
+  });
 });

@@ -1,0 +1,9 @@
+# Report-card signature delivery repair
+
+The saved class-teacher and principal signatures displayed in their profile settings but failed in report previews. Production HTTP logs showed both report signature requests returning 200. The global GET response interceptor wrapped Nest `StreamableFile` objects in a JSON envelope, so the response contained serialized stream internals instead of image bytes. The profile endpoints explicitly skipped that interceptor, explaining the difference.
+
+The response interceptor now preserves `StreamableFile` objects. Nest sends their original bytes, MIME type, disposition and length. This also repairs the same transport problem for individual and bulk report PDF downloads. Ordinary JSON responses retain their envelope, and SSE keeps its existing wire format.
+
+The change is a read-response repair. It does not alter saved signatures, report snapshots, marks, approval status, permissions, freshness validation, tenant filters, events or audit records. Existing current reports that contain signature references can load them after refresh. Uploading a new signature after generating a report still requires controlled regeneration so the report and PDF use the same saved snapshot.
+
+Validation includes a regression that failed before the interceptor fix, real Nest HTTP requests for both signatures across draft, review, approved and published states, exact-byte comparisons for images and individual/bulk PDFs, and 401/403/404/400/409 checks for unauthenticated, unauthorized, foreign-school, invalid-role and stale-report requests. Frontend tests cover binary forwarding through the authenticated gateway, visible signature failures/retry, and signature rendering. Existing report scope/export and SSE compatibility tests are also run. The backend compiles and the changed frontend test passes ESLint.

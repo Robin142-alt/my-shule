@@ -1,4 +1,4 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor, StreamableFile } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { SSE_METADATA } from '@nestjs/common/constants';
 import type { Request } from 'express';
@@ -37,7 +37,9 @@ export class ResponseEnvelopeInterceptor implements NestInterceptor {
   }
 
   private wrap<T>(body: T, request: Request): ResponseEnvelope<T> | T {
-    if (this.isEnveloped(body)) {
+    // Nest must receive the original file to send its bytes and image/PDF headers.
+    // Serializing a stream into the JSON envelope produces an unreadable file.
+    if (body instanceof StreamableFile || this.isEnveloped(body)) {
       return body;
     }
 
