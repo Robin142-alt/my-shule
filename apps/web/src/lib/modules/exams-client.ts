@@ -31,6 +31,7 @@ export interface LiveExamReportCard {
   student_class_section_id?: string | null;
   student_stream_id?: string | null;
   submission_ineligible_reason?: string | null;
+  artifact_ineligible_reason?: string | null;
   filtered_total?: number;
   id: string;
   exam_series_id?: string | null;
@@ -257,7 +258,7 @@ function withSession<T>(
   return requestSchoolApiProxy<T | { data?: T }>(path, {
     method: options?.method,
     body: options?.body,
-    unwrapEnvelope: false,
+    unwrapEnvelope: !/^\/exams\/report-cards\/(generate|regenerate|batches)$/.test(path) ? false : true,
   }).then(unwrapApiData);
 }
 
@@ -372,7 +373,7 @@ export function mapLiveReportCardToPreview(card: LiveExamReportCard): ExamReport
         text(reportCard.generated_at, text(metadata.generated_at, card.published_at ?? "")),
       ),
     ),
-    summary,
+    summary:card.artifact_ineligible_reason ?? summary,
   };
 }
 

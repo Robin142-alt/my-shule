@@ -226,6 +226,10 @@ export class ExamsController {
     return this.examsService.generateReportCardBatch(dto);
   }
 
+  @Post('report-cards/generation-scope')
+  @Permissions('exams:write')
+  generateReportCardScope(@Body() dto: GenerateReportCardBatchDto) { return this.examsService.generateReportCardScope(dto); }
+
   @Get('report-cards/batches/:batchId')
   @Permissions('exams:read')
   getReportCardBatchStatus(@Param('batchId') batchId: string) {
@@ -316,15 +320,16 @@ export class ExamsController {
   @Get('report-cards/download/:token')
   @Permissions('portal:read_own_children')
   async downloadParentReportCard(@Param('token') token: string, @Res({ passthrough: true }) res: any) {
-    const data = await this.examsService.readParentReportCardDownloadToken(token);
-    const pdfService = new PdfService();
-    const stream = pdfService.generatePdfStream(JSON.stringify(data, null, 2), { title: 'Report Card' });
+      const data = await this.examsService.readParentReportCardDownloadToken(token);
+      const artifact = await this.examsService.createGuardianReportCardPdfArtifact(data.report_card_id);
     
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="report_card_${token}.pdf"`,
+        'Content-Disposition': `attachment; filename="${artifact.filename}"`,
+        'Cache-Control': 'private, no-store',
+        'Referrer-Policy': 'no-referrer',
     });
-    return new StreamableFile(stream);
+      return new StreamableFile(artifact.content);
   }
 
   @Get('mark-sheets')

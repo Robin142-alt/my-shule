@@ -4,6 +4,7 @@ import { mkdtemp, unlink, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import { setImmediate as yieldToEventLoop, setTimeout as waitForWriter } from 'node:timers/promises';
 import PDFDocument from 'pdfkit';
 import { normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';
@@ -50,18 +51,29 @@ export interface BulkReportCardEntry {
 
 // Disk spooling bounds memory and lets generation fail before any PDF bytes are sent.
 // The caller streams the completed file and removes it when the response closes.
-export async function createBulkReportCardPdfFile(entries: AsyncIterable<BulkReportCardEntry>) {
+export async function createBulkReportCardPdfFile(entries: AsyncIterable<BulkReportCardEntry>, limits = { maxBytes:512*1024*1024,maxPages:20000,maxDurationMs:15*60*1000 }) {
   const directory = await mkdtemp(join(tmpdir(), 'myshule-report-cards-'));
   const path = join(directory, 'report-cards.pdf');
   const cleanup = async () => { await unlink(path).catch(() => undefined); await rmdir(directory).catch(() => undefined); };
-  const document = new PDFDocument({ autoFirstPage: false, bufferPages: false, compress: true, margin: 0, size: 'A4' });
-  const written = pipeline(document, createWriteStream(path, { flags: 'wx', mode: 0o600 }));
+  const document = new PDFDocument({ autoFirstPage: false, bufferPages: false, compress: true, margin: 0, size: 'A4',
+    info:{ CreationDate:new Date(0),ModDate:new Date(0) } });
+  let bytes=0;
+  const bounded=new Transform({ transform(chunk:Buffer,_encoding,callback) {
+    bytes+=chunk.length;
+    callback(bytes>limits.maxBytes ? new Error('Report export exceeds its file size limit; select a smaller scope') : null,chunk);
+  } });
+  const written = pipeline(document,bounded, createWriteStream(path, { flags: 'wx', mode: 0o600 }));
   // Attach immediately: disk errors must not become unhandled rejections during rendering.
   void written.catch(() => undefined);
   let count = 0;
+  const started=Date.now();
   try {
     for await (const entry of entries) {
-      if (document.destroyed) throw new Error('Report PDF output stream closed');
+      if (count>=limits.maxPages || Date.now()-started>limits.maxDurationMs) throw new Error('Report export exceeds its work limit; select a smaller scope');
+      if (document.destroyed) {
+        await written; // Preserve the actual disk/size failure for useful recovery.
+        throw new Error('Report PDF output stream closed');
+      }
       document.addPage({ size: 'A4', margin: 0 });
       renderReportCardPageContent(document, entry.payload, entry.verificationCode, normalizeReportGeneratedAt(entry.payload.generated_at));
       count++;
@@ -209,7 +221,7 @@ function drawHeader(document: PDFKit.PDFDocument, payload: ReportCardPayload, ve
 
   document.roundedRect(PAGE_WIDTH - MARGIN - 68, 28, 68, 38, 6).fillAndStroke(SOFT, LINE);
   document.font('Helvetica-Bold').fontSize(5.5).fillColor(MUTED).text('REPORT NO.', PAGE_WIDTH - MARGIN - 64, 34, { width: 60, align: 'center' });
-  document.fontSize(7).fillColor(NAVY).text(verificationCode, PAGE_WIDTH - MARGIN - 64, 44, { width: 60, align: 'center', ellipsis: true, lineBreak: false });
+  document.fontSize(verificationCode.length>12?4.5:7).fillColor(NAVY).text(verificationCode, PAGE_WIDTH - MARGIN - 64, 44, { width: 60, align: 'center', lineBreak: false });
 
   const term = reportPeriod(fields.term, fields.academic_year);
   const curriculum = recordText(series, 'curriculum_model', 'reporting_mode', 'curriculum');

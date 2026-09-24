@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 
 import { DatabaseService } from '../../database/database.service';
 import {
   S3CompatibleObjectStorageService,
+  isReportArtifactStoragePath,
   type ObjectStoragePutResult,
 } from './s3-object-storage.service';
 
@@ -70,6 +72,52 @@ export class DatabaseFileStorageService {
     @Optional() private readonly configService?: ConfigService,
   ) {}
 
+  async saveFile(input: { tenantId: string; storagePath: string; path: string; originalFileName: string;
+    mimeType: string; retentionPolicy: string; retentionExpiresAt?: string | null }): Promise<StoredFileObject> {
+    this.assertTenantScopedStoragePath(input.tenantId, input.storagePath);
+    if (!this.isObjectStorageEnabled(input.storagePath)) {
+      if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Production reports require private R2 storage');
+      const size = (await stat(input.path)).size;
+      if (size > 16 * 1024 * 1024) throw new BadRequestException('Local report storage supports files up to 16 MiB; configure R2');
+      return this.save({ ...input, sizeBytes: size, buffer: await readFile(input.path) });
+    }
+    if (!this.objectStorage) throw new ServiceUnavailableException('Report object storage is unavailable');
+    await this.reserveReportUpload(input.tenantId,input.storagePath);
+    const stored = await this.objectStorage.putFile(input);
+    // The random attempt path is registered before promotion. An interrupted promotion
+    // leaves an expiring object rather than a falsely completed report.
+    const result = await this.databaseService.query<StoredFileObjectRow>(`
+      INSERT INTO file_objects(tenant_id,storage_path,original_file_name,mime_type,size_bytes,sha256,content,
+        storage_backend,object_storage_provider,object_storage_bucket,object_storage_key,object_storage_etag,
+        retention_policy,retention_expires_at)
+      VALUES($1,$2,$3,$4,$5,$6,NULL,'object_storage',$7,$8,$2,$9,$10,$11)
+      ON CONFLICT(tenant_id,storage_path) DO UPDATE SET sha256=EXCLUDED.sha256,
+        size_bytes=EXCLUDED.size_bytes,object_storage_etag=EXCLUDED.object_storage_etag
+      RETURNING *,retention_expires_at::text`, [input.tenantId,input.storagePath,input.originalFileName,input.mimeType,
+      stored.size_bytes,stored.sha256,stored.provider,stored.bucket,stored.etag ?? null,
+      normalizeRetentionPolicy(input.retentionPolicy),normalizeRetentionExpiry(input.retentionExpiresAt)]);
+    await this.finishReportUpload(input.tenantId,input.storagePath);
+    return mapStoredFileObjectRow(result.rows[0]);
+  }
+
+  async deliveryForTenant(input: { tenantId: string; storagePath: string; filename?: string }) {
+    this.assertTenantScopedStoragePath(input.tenantId,input.storagePath);
+    const result = await this.databaseService.query<StoredFileObjectRow>(`SELECT storage_path,original_file_name,
+      mime_type,size_bytes,sha256,storage_backend,retention_policy,retention_expires_at::text
+      FROM file_objects WHERE tenant_id=$1 AND storage_path=$2
+        AND (retention_expires_at IS NULL OR retention_expires_at > now())`, [input.tenantId,input.storagePath]);
+    const row = result.rows[0];
+    if (!row) throw new BadRequestException('Report artifact is missing or expired. Prepare the report again.');
+    if (row.storage_backend === 'object_storage') {
+      if (!this.objectStorage) throw new ServiceUnavailableException('Report object storage is unavailable');
+      const remaining = row.retention_expires_at ? Math.floor((Date.parse(row.retention_expires_at)-Date.now())/1000) : 60;
+      if (remaining < 1) throw new BadRequestException('Report artifact expired');
+      return { download_url: this.objectStorage.signedGetUrl({ ...input, expiresSeconds: Math.min(60,remaining) }),
+        expires_at: new Date(Date.now()+Math.min(60,remaining)*1000).toISOString() };
+    }
+    return { download_url: null, expires_at: null };
+  }
+
   async save(input: {
     tenantId: string;
     storagePath: string;
@@ -86,6 +134,8 @@ export class DatabaseFileStorageService {
     const retentionPolicy = normalizeRetentionPolicy(input.retentionPolicy);
     const retentionExpiresAt = normalizeRetentionExpiry(input.retentionExpiresAt);
     const sha256 = createHash('sha256').update(input.buffer).digest('hex');
+    const reportUpload=input.retentionPolicy==='report-staging' && this.isObjectStorageEnabled(input.storagePath);
+    if (reportUpload) await this.reserveReportUpload(input.tenantId,input.storagePath);
     const objectStorage = await this.writeObjectStorageIfEnabled({
       tenantId: input.tenantId,
       storagePath: input.storagePath,
@@ -160,7 +210,27 @@ export class DatabaseFileStorageService {
 
     const row = result.rows[0];
 
+    if (reportUpload) await this.finishReportUpload(input.tenantId,input.storagePath);
     return mapStoredFileObjectRow(row);
+  }
+
+  private async reserveReportUpload(tenantId:string,storagePath:string) {
+    await this.databaseService.query(`INSERT INTO report_object_uploads(tenant_id,storage_path) VALUES($1,$2)
+      ON CONFLICT(tenant_id,storage_path) DO NOTHING`,[tenantId,storagePath]);
+  }
+  private async finishReportUpload(tenantId:string,storagePath:string) {
+    await this.databaseService.query('DELETE FROM report_object_uploads WHERE tenant_id=$1 AND storage_path=$2',[tenantId,storagePath]);
+  }
+  async purgeOrphanedReportUploads() {
+    if (!this.objectStorage) return;
+    const result=await this.databaseService.query<{tenant_id:string;storage_path:string;registered:boolean}>(`
+      SELECT upload.tenant_id,upload.storage_path,EXISTS(SELECT 1 FROM file_objects file
+        WHERE file.tenant_id=upload.tenant_id AND file.storage_path=upload.storage_path) AS registered
+      FROM report_object_uploads upload WHERE expires_at<=now() ORDER BY expires_at LIMIT 100`);
+    for (const row of result.rows) {
+      if (!row.registered) await this.objectStorage.deleteObject({ tenantId:row.tenant_id,storagePath:row.storage_path });
+      await this.finishReportUpload(row.tenant_id,row.storage_path);
+    }
   }
 
   async readForTenant(input: {
@@ -191,6 +261,7 @@ export class DatabaseFileStorageService {
         FROM file_objects
         WHERE tenant_id = $1
           AND storage_path = $2
+          AND (retention_expires_at IS NULL OR retention_expires_at > now())
         LIMIT 1
       `,
       [tenantId, storagePath],
@@ -300,6 +371,7 @@ export class DatabaseFileStorageService {
         FROM file_objects
         WHERE tenant_id = $1
           AND storage_path = $2
+          AND (retention_expires_at IS NULL OR retention_expires_at > now())
         LIMIT 1
       `,
       [payload.tenant_id, payload.storage_path],
@@ -328,6 +400,7 @@ export class DatabaseFileStorageService {
   async purgeExpiredFileObjects(input: {
     now: string;
     batchSize?: number;
+    retentionPolicies?: string[];
   }): Promise<ExpiredFileObjectPurgeResult> {
     const now = normalizeRetentionExpiry(input.now);
 
@@ -341,32 +414,30 @@ export class DatabaseFileStorageService {
       throw new BadRequestException('Retention purge batch size must be between 1 and 1000');
     }
 
-    const result = await this.databaseService.query<{
-      storage_path: string;
-      size_bytes: string | number;
-    }>(
-      `
-        WITH expired_file_objects AS (
-          SELECT id
-          FROM file_objects
-          WHERE retention_expires_at IS NOT NULL
-            AND retention_expires_at <= $1
-          ORDER BY retention_expires_at ASC, created_at ASC
-          LIMIT $2
-        )
-        DELETE FROM file_objects file_object
-        USING expired_file_objects expired
-        WHERE file_object.id = expired.id
-        RETURNING file_object.storage_path, file_object.size_bytes
-      `,
-      [now, batchSize],
-    );
+    const candidates = await this.databaseService.query<{
+      tenant_id: string; storage_path: string; storage_backend: string; size_bytes: string | number;
+    }>(`SELECT tenant_id,storage_path,storage_backend,size_bytes FROM file_objects
+        WHERE retention_expires_at IS NOT NULL AND retention_expires_at <= $1
+          AND ($3::text[] IS NULL OR retention_policy=ANY($3::text[]))
+        ORDER BY retention_expires_at,created_at LIMIT $2`, [now,batchSize,input.retentionPolicies ?? null]);
+    const removed: typeof candidates.rows = [];
+    let cursor=0;
+    const worker=async()=>{ while(cursor<candidates.rows.length) {
+      const row=candidates.rows[cursor++];
+      // Delete remote bytes first. On any failure keep the metadata for the next sweep.
+      // Paths are immutable; the second expiry check protects concurrent promotion.
+      if (row.storage_backend === 'object_storage') {
+        if (!this.objectStorage) throw new ServiceUnavailableException('Object cleanup requires storage');
+        await this.objectStorage.deleteObject({ tenantId: row.tenant_id,storagePath: row.storage_path });
+      }
+      const deleted = await this.databaseService.query(`DELETE FROM file_objects WHERE tenant_id=$1 AND storage_path=$2
+        AND retention_expires_at <= $3 RETURNING storage_path`, [row.tenant_id,row.storage_path,now]);
+      if (deleted.rows.length) removed.push(row);
+    } };
+    await Promise.all(Array.from({ length:Math.min(4,candidates.rows.length) },()=>worker()));
+    return { deleted_count: removed.length, deleted_bytes: removed.reduce((total,row)=>total+Number(row.size_bytes),0),
+      storage_paths: candidates.rows.filter(row=>removed.includes(row)).map(row=>row.storage_path) };
 
-    return {
-      deleted_count: result.rows.length,
-      deleted_bytes: result.rows.reduce((total, row) => total + Number(row.size_bytes), 0),
-      storage_paths: result.rows.map((row) => row.storage_path),
-    };
   }
 
   private assertTenantScopedStoragePath(tenantId: string, storagePath: string): void {
@@ -393,7 +464,7 @@ export class DatabaseFileStorageService {
     buffer: Buffer;
     sha256: string;
   }): Promise<ObjectStoragePutResult | undefined> {
-    if (!this.isObjectStorageEnabled()) {
+    if (!this.isObjectStorageEnabled(input.storagePath)) {
       return undefined;
     }
 
@@ -446,7 +517,14 @@ export class DatabaseFileStorageService {
     return object.content;
   }
 
-  private isObjectStorageEnabled(): boolean {
+  private isObjectStorageEnabled(storagePath: string): boolean {
+    const reportEnabled = this.configService?.get<boolean | string>('REPORT_OBJECT_STORAGE_ENABLED')
+      ?? process.env.REPORT_OBJECT_STORAGE_ENABLED;
+    const reportEndpoint = this.configService?.get<string>('REPORT_OBJECT_STORAGE_ENDPOINT')
+      ?? process.env.REPORT_OBJECT_STORAGE_ENDPOINT;
+    if (isReportArtifactStoragePath(storagePath) && (reportEnabled !== undefined || reportEndpoint !== undefined)) {
+      return parseBooleanConfig(reportEnabled);
+    }
     const value =
       this.configService?.get<boolean | string | undefined>('UPLOAD_OBJECT_STORAGE_ENABLED')
       ?? this.configService?.get<boolean | string | undefined>('uploads.objectStorageEnabled')

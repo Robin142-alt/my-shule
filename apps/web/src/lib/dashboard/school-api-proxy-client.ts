@@ -20,6 +20,7 @@ export async function requestSchoolApiProxy<T>(
     unwrapEnvelope?: boolean;
     method?: "GET" | "POST" | "PATCH" | "DELETE";
     body?: BodyInit | object | null;
+    onProgress?: (progress: Record<string,number|string>)=>void;
   },
 ): Promise<T> {
   const method = options?.method ?? "GET";
@@ -63,5 +64,24 @@ export async function requestSchoolApiProxy<T>(
     return json as T;
   }
 
-  return isEnvelope<T>(json) ? json.data : (json as T);
+  const data=isEnvelope<T>(json) ? json.data : (json as T);
+  if (method==='POST' && /^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope)$/.test(path)) {
+    const job=data as { job_id?:string;state?:string;result?:T;progress?:Record<string,number|string>;message?:string };
+    if (job.job_id) {
+      let current=job;
+      const started=Date.now();
+      while (current.state!=='completed') {
+        if (current.state==='failed') {
+          if (current.result && typeof current.result==='object' && 'failed_students' in current.result) return current.result;
+          throw new Error(current.message ?? 'Report generation failed. Retry to reuse completed reports.');
+        }
+        if (Date.now()-started>15*60*1000) throw new Error('Report generation is still running. It is saved and can be followed in Recent report tasks.');
+        options?.onProgress?.({ ...current.progress,job_id:job.job_id });
+        await new Promise(resolve=>setTimeout(resolve,Math.min(5000,1000+(Date.now()-started)/30)));
+        current=await requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}`);
+      }
+      return current.result as T;
+    }
+  }
+  return data;
 }

@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import type { Readable } from 'node:stream';
 
 export interface ObjectStoragePutInput {
   tenantId: string;
@@ -35,6 +38,10 @@ export type ObjectStorageFetchInit = {
   headers: Record<string, string>;
   body: Buffer;
 } | {
+  method: 'PUT_FILE';
+  headers: Record<string,string>;
+  body: Readable;
+} | {
   method: 'GET';
   headers: Record<string, string>;
 } | {
@@ -65,9 +72,65 @@ interface S3CompatibleObjectStorageConfig {
   secretAccessKey: string;
 }
 
+export function isReportArtifactStoragePath(path: string): boolean {
+  return /^tenant\/[^/]+\/reports\/(academic|temporary)\//.test(path);
+}
+
 @Injectable()
 export class S3CompatibleObjectStorageService {
   constructor(private readonly configService: ConfigService) {}
+
+  /** One bounded-memory PUT. The report worker caps exports below R2's PUT limit. */
+  async putFile(input: { tenantId: string; storagePath: string; mimeType: string; path: string },
+    fetchImpl: ObjectStorageFetch = defaultObjectStorageFetch): Promise<ObjectStoragePutResult & { size_bytes: number }> {
+    this.assertTenantScopedStoragePath(input.tenantId, input.storagePath);
+    const config = this.resolveConfig(input.storagePath);
+    const size = (await stat(input.path)).size;
+    if (size <= 0 || size > 512 * 1024 * 1024) throw new BadRequestException('Report export exceeds the 512 MiB file limit; select a smaller scope');
+    const hash = createHash('sha256');
+    for await (const chunk of createReadStream(input.path)) hash.update(chunk);
+    const sha256 = hash.digest('hex');
+    const amzDate = formatAmzDate(undefined);
+    const objectPath = `/${encodePathSegment(config.bucket)}/${encodeObjectKey(input.storagePath)}`;
+    const headers: Record<string, string> = { 'Content-Type': normalizeMimeType(input.mimeType),
+      'Content-Length': String(size), 'Cache-Control': 'private, no-store',
+      'x-amz-content-sha256': sha256, 'x-amz-date': amzDate };
+    headers.Authorization = signS3Request({ method: 'PUT', ...config, dateStamp: amzDate.slice(0, 8),
+      amzDate, host: config.endpoint.host, canonicalUri: objectPath, headers, payloadHash: sha256 });
+    const stream = createReadStream(input.path, { highWaterMark: 256 * 1024 });
+    // A transport can fail before the asynchronous file open completes. Wait for
+    // close before the caller unlinks its spool, and handle errors on that path.
+    const closed = new Promise<void>(resolve => stream.once('close', resolve));
+    stream.on('error', () => undefined);
+    try {
+      const response = await fetchImpl(`${config.endpoint.origin}${objectPath}`, { method: 'PUT_FILE', headers, body: stream });
+      if (!response.ok) throw new Error('Upload rejected');
+      return { provider: config.provider, bucket: config.bucket, key: input.storagePath,
+        storage_path: input.storagePath, sha256, size_bytes: size, etag: normalizeEtag(response.headers?.get('etag') ?? undefined) };
+    } catch { throw new ServiceUnavailableException('Report object storage upload failed; the job will retry'); }
+    finally { stream.destroy(); await closed; }
+  }
+
+  /** A tightly scoped, short-lived bearer URL. Call only after live authorization. */
+  signedGetUrl(input: ObjectStorageGetInput & { expiresSeconds?: number; filename?: string }): string {
+    this.assertTenantScopedStoragePath(input.tenantId, input.storagePath);
+    const config = this.resolveConfig(input.storagePath);
+    const ttl = input.expiresSeconds ?? 60;
+    if (!Number.isInteger(ttl) || ttl < 1 || ttl > 120) throw new BadRequestException('Report URL expiry must be 1–120 seconds');
+    const amzDate = formatAmzDate(input.now), dateStamp = amzDate.slice(0, 8);
+    const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
+    const objectPath = `/${encodePathSegment(config.bucket)}/${encodeObjectKey(input.storagePath)}`;
+    const params: Record<string, string> = { 'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+      'X-Amz-Credential': `${config.accessKeyId}/${scope}`, 'X-Amz-Date': amzDate,
+      'X-Amz-Expires': String(ttl), 'X-Amz-SignedHeaders': 'host',
+      'response-content-type': 'application/pdf', 'response-cache-control': 'private, no-store',
+      'response-content-disposition': `inline; filename="${(input.filename ?? 'report-cards.pdf').replace(/[^a-zA-Z0-9_.-]/g, '-') }"` };
+    const query = Object.keys(params).sort().map(key => `${encodePathSegment(key)}=${encodePathSegment(params[key])}`).join('&');
+    const canonical = ['GET', objectPath, query, `host:${config.endpoint.host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+    const signature = createHmac('sha256', getSignatureKey(config.secretAccessKey, dateStamp, config.region, 's3'))
+      .update(['AWS4-HMAC-SHA256', amzDate, scope, createHash('sha256').update(canonical).digest('hex')].join('\n')).digest('hex');
+    return `${config.endpoint.origin}${objectPath}?${query}&X-Amz-Signature=${signature}`;
+  }
 
   async putObject(
     input: ObjectStoragePutInput,
@@ -75,7 +138,7 @@ export class S3CompatibleObjectStorageService {
   ): Promise<ObjectStoragePutResult> {
     this.assertTenantScopedStoragePath(input.tenantId, input.storagePath);
 
-    const config = this.resolveConfig();
+    const config = this.resolveConfig(input.storagePath);
     const payloadHash = createHash('sha256').update(input.buffer).digest('hex');
     const amzDate = formatAmzDate(input.now);
     const dateStamp = amzDate.slice(0, 8);
@@ -84,6 +147,7 @@ export class S3CompatibleObjectStorageService {
     const url = `${config.endpoint.origin}${objectPath}`;
     const headers: Record<string, string> = {
       'Content-Type': normalizeMimeType(input.mimeType),
+      'Cache-Control': 'private, no-store',
       'x-amz-content-sha256': payloadHash,
       'x-amz-date': amzDate,
       'x-amz-meta-tenant-id': input.tenantId.trim(),
@@ -140,7 +204,7 @@ export class S3CompatibleObjectStorageService {
   ): Promise<ObjectStorageGetResult> {
     this.assertTenantScopedStoragePath(input.tenantId, input.storagePath);
 
-    const config = this.resolveConfig();
+    const config = this.resolveConfig(input.storagePath);
     const amzDate = formatAmzDate(input.now);
     const dateStamp = amzDate.slice(0, 8);
     const objectKey = input.storagePath.trim();
@@ -194,7 +258,7 @@ export class S3CompatibleObjectStorageService {
   ): Promise<void> {
     this.assertTenantScopedStoragePath(input.tenantId, input.storagePath);
 
-    const config = this.resolveConfig();
+    const config = this.resolveConfig(input.storagePath);
     const amzDate = formatAmzDate(input.now);
     const dateStamp = amzDate.slice(0, 8);
     const objectKey = input.storagePath.trim();
@@ -235,8 +299,13 @@ export class S3CompatibleObjectStorageService {
     }
   }
 
-  private resolveConfig(): S3CompatibleObjectStorageConfig {
-    const provider = (this.readConfig('UPLOAD_OBJECT_STORAGE_PROVIDER') ?? 's3').toLowerCase();
+  private resolveConfig(storagePath: string): S3CompatibleObjectStorageConfig {
+    // Report objects have a distinct namespace and optional R2 configuration.
+    // Existing uploads, logos and signatures keep their original bucket/keys.
+    const dedicated = isReportArtifactStoragePath(storagePath)
+      && (this.readConfig('REPORT_OBJECT_STORAGE_ENABLED') !== undefined || this.readConfig('REPORT_OBJECT_STORAGE_ENDPOINT') !== undefined);
+    const prefix = dedicated ? 'REPORT_OBJECT_STORAGE_' : 'UPLOAD_OBJECT_STORAGE_';
+    const provider = (this.readConfig(prefix + 'PROVIDER') ?? 'r2').toLowerCase();
 
     if (provider !== 's3' && provider !== 'r2') {
       throw new BadRequestException('Unsupported upload object storage provider');
@@ -244,11 +313,11 @@ export class S3CompatibleObjectStorageService {
 
     return {
       provider,
-      endpoint: parseHttpsUrl(this.readConfig('UPLOAD_OBJECT_STORAGE_ENDPOINT')),
-      bucket: parseBucketName(this.readConfig('UPLOAD_OBJECT_STORAGE_BUCKET')),
-      region: this.readConfig('UPLOAD_OBJECT_STORAGE_REGION') ?? (provider === 'r2' ? 'auto' : 'us-east-1'),
-      accessKeyId: requireConfigSecret(this.readConfig('UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID'), 'access key'),
-      secretAccessKey: requireConfigSecret(this.readConfig('UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY'), 'secret key'),
+      endpoint: parseHttpsUrl(this.readConfig(prefix + 'ENDPOINT')),
+      bucket: parseBucketName(this.readConfig(prefix + 'BUCKET')),
+      region: this.readConfig(prefix + 'REGION') ?? 'auto',
+      accessKeyId: requireConfigSecret(this.readConfig(prefix + 'ACCESS_KEY_ID'), 'access key'),
+      secretAccessKey: requireConfigSecret(this.readConfig(prefix + 'SECRET_ACCESS_KEY'), 'secret key'),
     };
   }
 
@@ -283,10 +352,12 @@ export class S3CompatibleObjectStorageService {
 
 const defaultObjectStorageFetch: ObjectStorageFetch = async (url, init) => {
   const response = await fetch(url, {
-    method: init.method,
+    method: init.method === 'PUT_FILE' ? 'PUT' : init.method,
     headers: init.headers,
-    body: init.method === 'PUT' ? new Uint8Array(init.body) : undefined,
-  });
+    body: init.method === 'PUT' ? new Uint8Array(init.body) : init.method === 'PUT_FILE' ? init.body : undefined,
+    signal: AbortSignal.timeout(120_000),
+    ...(init.method === 'PUT_FILE' ? { duplex: 'half' } : {}),
+  } as RequestInit);
 
   return {
     ok: response.ok,

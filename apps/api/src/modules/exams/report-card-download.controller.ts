@@ -1,6 +1,4 @@
-import { randomUUID } from 'node:crypto';
 import { ReportCardExportService } from './services/report-card-export.service';
-import { createReadStream } from 'node:fs';
 import { ExamsService } from './exams.service';
 import {
   ConflictException,
@@ -16,6 +14,7 @@ import {
   ParseUUIDPipe,
   Query,
   Req,
+  Res,
   StreamableFile,
   ServiceUnavailableException,
   UseGuards,
@@ -24,9 +23,9 @@ import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
 import { ExamsRepository } from './repositories/exams.repository';
-import { hydrateReportCardLogoForRendering, isTenantScopedStoragePath } from './services/report-card-logo-hydration';
+import { isTenantScopedStoragePath } from './services/report-card-logo-hydration';
 import { extractPersistedReportCardPayload } from './services/report-card-template.service';
-import { createReportCardPdfArtifact } from './services/report-card-pdf-artifact';
+import { ReportCardArtifactsService } from './services/report-card-artifacts.service';
 
 enum ReportCardSignatureRole {
   ClassTeacher = 'class_teacher',
@@ -41,16 +40,25 @@ export class ReportCardDownloadController {
     private readonly examsService: ExamsService,
     private readonly exports: ReportCardExportService,
     @Optional() private readonly fileStorage?: DatabaseFileStorageService,
+    @Optional() private readonly artifacts?: ReportCardArtifactsService,
   ) {}
 
   @Get('report-cards/:reportCardId/download')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
   @Permissions('exams:read')
   async downloadReportCard(
     @Param('reportCardId', new ParseUUIDPipe()) reportCardId: string,
+    @Res({ passthrough:true }) res?: any,
   ) {
-    const { payload, tenantId, verificationCode } = await this.loadReportCardSnapshot(reportCardId);
-    const renderPayload = await hydrateReportCardLogoForRendering(payload, tenantId, this.fileStorage);
-    const pdfArtifact = await createReportCardPdfArtifact(renderPayload, verificationCode);
+    this.examsService.assertReportCardScopeAccess();
+    if (!this.artifacts) throw new ServiceUnavailableException('Report artifact storage is unavailable');
+    const prepared=await this.artifacts.prepare(reportCardId);
+    if ('download_url' in prepared && prepared.download_url?.startsWith('https://') && res) {
+      res.redirect(302,prepared.download_url); return;
+    }
+    if (prepared.state!=='ready') throw new ConflictException('PDF preparation is queued. Use the report preparation endpoint to follow progress.');
+    const pdfArtifact = await this.artifacts.read(reportCardId);
 
     return new StreamableFile(pdfArtifact.content, {
       type: 'application/pdf',
@@ -58,9 +66,35 @@ export class ReportCardDownloadController {
     });
   }
 
-  @Get('report-cards/:reportCardId/signatures/:signerRole')
-  @Permissions('exams:read')
+  @Post('report-cards/:reportCardId/prepare-download')
   @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Permissions('exams:read')
+  prepareReportCard(@Param('reportCardId',new ParseUUIDPipe()) reportCardId:string) {
+    this.examsService.assertReportCardScopeAccess();
+    if (!this.artifacts) throw new ServiceUnavailableException('Report artifact storage is unavailable');
+    return this.artifacts.prepare(reportCardId);
+  }
+
+  @Get('report-cards/jobs/:jobId')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Permissions('exams:read')
+  reportJobStatus(@Param('jobId',new ParseUUIDPipe()) jobId:string) { return this.exports.status(jobId); }
+
+  @Get('report-cards/jobs')
+  @Header('Cache-Control','private, no-store')
+  @Permissions('exams:read')
+  recentJobs() { return this.exports.recent(); }
+
+  @Post('report-cards/jobs/:jobId/retry')
+  @Permissions('exams:read')
+  retryJob(@Param('jobId',new ParseUUIDPipe()) jobId:string) { return this.exports.retry(jobId); }
+
+  @Get('report-cards/:reportCardId/signatures/:signerRole')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Permissions('exams:read')
   @Header('X-Content-Type-Options', 'nosniff')
   async readReportCardSignature(
     @Param('reportCardId', new ParseUUIDPipe()) reportCardId: string,
@@ -89,6 +123,10 @@ export class ReportCardDownloadController {
 
   private async loadReportCardSnapshot(reportCardId: string) {
     const tenantId = this.examsService.assertReportCardScopeAccess();
+    if (this.artifacts) {
+      const card=await this.artifacts.load(reportCardId);
+      return { tenantId,payload:extractPersistedReportCardPayload(card.metadata)!,verificationCode:String(card.verification_code) };
+    }
 
     const result = await this.examsRepository.executeSql(
       `SELECT * FROM student_report_cards WHERE tenant_id = $1 AND id = $2::uuid`,
@@ -113,31 +151,38 @@ export class ReportCardDownloadController {
   }
 
   @Get('report-cards/bulk-download-pdf')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
   @Permissions('exams:read')
   async bulkDownloadReportCards(
     @Query() query: Record<string, string | undefined>,
     @Req() req: any,
   ) {
-    const artifact = await this.exports.generate(query, undefined, () => req.aborted);
-    try {
-      await this.exports.recordExport(artifact.cardIds, artifact.scope, artifact.count, randomUUID());
-      const stream = createReadStream(artifact.path);
-      stream.once('close', () => { void artifact.cleanup(); });
-      return new StreamableFile(stream, { type: 'application/pdf', disposition: 'attachment; filename="report-cards.pdf"' });
-    } catch(error) { await artifact.cleanup(); throw error; }
+    // Kept as a compatibility entry point; large work never renders on an HTTP process.
+    return this.exports.prepare(query);
   }
 
   @Post('report-cards/exports')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
   @Permissions('exams:read')
   prepareExport(@Body() query: Record<string,string|undefined>) { return this.exports.prepare(query); }
 
   @Get('report-cards/exports/:jobId')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
   @Permissions('exams:read')
   exportStatus(@Param('jobId') jobId: string) { return this.exports.status(jobId); }
 
   @Get('report-cards/exports/:jobId/download')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
   @Permissions('exams:read')
-  async downloadExport(@Param('jobId') jobId: string) {
+  async downloadExport(@Param('jobId') jobId: string, @Res({ passthrough:true }) res?:any) {
+    const prepared=await this.exports.status(jobId);
+    if ('download_url' in prepared && prepared.download_url?.startsWith('https://') && res) {
+      res.redirect(302,prepared.download_url); return;
+    }
     const result = await this.exports.download(jobId);
     return new StreamableFile(result.stream, { type: 'application/pdf', disposition: 'attachment; filename="report-cards.pdf"' });
   }

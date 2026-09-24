@@ -64,6 +64,8 @@ export default () => ({
     shutdownTimeoutMs: parseNumber(process.env.APP_SHUTDOWN_TIMEOUT_MS, 15000),
   },
   reportCards: {
+    workerConcurrency: parseNumber(process.env.REPORT_WORKER_CONCURRENCY, 1),
+    workerLane: process.env.REPORT_WORKER_LANE ?? 'all',
     downloadSigningSecret: process.env.REPORT_CARD_DOWNLOAD_SIGNING_SECRET ?? '',
     downloadTtlSeconds: parseNumber(process.env.REPORT_CARD_DOWNLOAD_TTL_SECONDS, 900),
   },
@@ -86,7 +88,7 @@ export default () => ({
     connectRetryDelayMs: parseNumber(process.env.DATABASE_CONNECT_RETRY_DELAY_MS, 2000),
   },
   redis: {
-    url: process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
+    url: (appRuntime==='reports-worker' ? process.env.REPORT_REDIS_URL : undefined) ?? process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
     required: parseBoolean(process.env.REDIS_REQUIRED, !isServerlessRuntime),
     tlsEnabled: parseBoolean(process.env.REDIS_TLS_ENABLED, false),
     connectTimeoutMs: parseNumber(process.env.REDIS_CONNECT_TIMEOUT_MS, isServerlessRuntime ? 1500 : 10000),

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { REPORT_RENDERER_VERSION } from './services/report-artifact-identity';
 export type ReportCardScopeType = 'school' | 'class' | 'stream' | 'students';
 export interface ReportCardScope {
   scopeType: ReportCardScopeType;
@@ -104,6 +105,16 @@ export const REPORT_CARD_TRANSITION_TARGET_STATUS: Record<string, string> = {
 export function reportCardIneligibilitySql(action: string): string {
   return `CASE
   WHEN NOT card.is_current THEN 'This revision has been superseded'
+  WHEN ${action} = 'export' AND card.status NOT IN ('draft_generated','draft','under_review','approved','published')
+    THEN 'This report was withdrawn or needs regeneration'
+  WHEN ${action} IN ('export','submit','approve','publish') AND (
+    card.metadata->>'renderer_version' IS DISTINCT FROM '${REPORT_RENDERER_VERSION}'
+    OR (card.metadata->>'source_valid_until')::timestamptz <= now()
+    OR COALESCE(card.metadata->>'source_revision','null')::jsonb IS DISTINCT FROM
+      COALESCE((SELECT jsonb_agg(jsonb_build_array(source.scope_key,source.version::text) ORDER BY source.scope_key)
+        FROM report_source_versions source WHERE source.tenant_id=card.tenant_id
+          AND source.scope_key IN ('school','student:' || card.student_id::text)), '[]'::jsonb)
+  ) THEN 'Report inputs changed; regenerate this card'
   WHEN ${action} <> 'export' AND card.status <> ALL(CASE ${action}
     ${Object.entries(REPORT_CARD_TRANSITION_SOURCE_STATUSES).map(([key, statuses]) => `WHEN '${key}' THEN ARRAY[${statuses.map(status => `'${status}'`).join(',')}]::text[]`).join('\n')}
     ELSE ARRAY[]::text[] END) THEN CASE WHEN card.status = 'regeneration_required'

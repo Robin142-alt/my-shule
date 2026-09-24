@@ -10,5 +10,11 @@ coverage
 .env
 .env.local
 .env.production
+.env.vercel.production
+.deploy-staging
+tmp
+**/.npm-cache
+**/.next
+**/.swc
 .DS_Store
 mpesa-official.pdf

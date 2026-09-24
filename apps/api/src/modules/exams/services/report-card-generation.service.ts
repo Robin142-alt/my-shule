@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit, Optional } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { SchoolOperationalEventsService } from '../../events/school-operational-events.service';
@@ -10,6 +10,10 @@ import { createPdfReportArtifact } from './report-card-pdf-artifact';
 import { ExamsRepository, type ReportCardReadCache } from '../repositories/exams.repository';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
 import { ReportCardTemplateService } from './report-card-template.service';
+import { ReportWorkService } from './report-work.service';
+import { ReportCardArtifactsService } from './report-card-artifacts.service';
+import { REPORT_RENDERER_VERSION, reportIdentity } from './report-artifact-identity';
+import { REPORT_SCHOOL_REVISION_SQL } from './report-infrastructure-schema';
 
 export interface GenerateStudentReportCardInput {
   tenant_id: string;
@@ -45,7 +49,7 @@ export interface ReportCardBatchStatus {
 }
 
 @Injectable()
-export class ReportCardGenerationService {
+export class ReportCardGenerationService implements OnModuleInit {
   private readonly logger = new Logger(ReportCardGenerationService.name);
   private readonly workLimiter = new ReportCardWorkLimiter(4);
 
@@ -54,15 +58,48 @@ export class ReportCardGenerationService {
     private readonly templateService: ReportCardTemplateService,
     @Optional() private readonly fileStorage?: DatabaseFileStorageService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly work?: ReportWorkService,
+    @Optional() private readonly artifactStore?: ReportCardArtifactsService,
   ) {}
 
+  onModuleInit() {
+    this.work?.register('generate', async row => {
+      const card=await this.generateStudentReportCard({ ...row.input,tenant_id:row.tenant_id,actor_user_id:row.actor_user_id } as GenerateStudentReportCardInput);
+      return { id:card.id,status:card.status,reused:card.reused,verification_code:card.verification_code,revision_number:card.revision_number };
+    });
+    this.work?.register('generate_batch', async (row, progress) => this.generateReportCardBatch({ ...row.input,
+      tenant_id:row.tenant_id,actor_user_id:row.actor_user_id } as GenerateReportCardBatchInput, progress));
+    this.work?.register('generate_scope', async (row, progress) => {
+      const versions=await this.repository.executeSql(REPORT_SCHOOL_REVISION_SQL,[row.tenant_id]);
+      if(versions.rows[0].revision!==row.input.source_revision) throw new ConflictException('Class data changed. Refresh readiness and retry generation.');
+      const previous=row.result ?? { completed_students:0,failed_students:0,reused_students:0,failures:[],duration_ms:0 };
+      const batch=await this.generateReportCardBatch({ ...row.input,tenant_id:row.tenant_id,actor_user_id:row.actor_user_id,
+        batch_size:25 } as GenerateReportCardBatchInput, value=>progress({ ...value,
+          completed_students:previous.completed_students+Number(value.completed_students ?? 0),total_students:row.input.total_students }));
+      const result={ ...batch,total_students:row.input.total_students,
+        completed_students:previous.completed_students+batch.completed_students,failed_students:previous.failed_students+batch.failed_students,
+        reused_students:previous.reused_students+(batch.reused_students ?? 0),duration_ms:previous.duration_ms+(batch.duration_ms ?? 0),
+        failures:[...previous.failures,...batch.failures ?? []].slice(0,200) };
+      const offset=Number(row.input.offset ?? 0)+batch.total_students;
+      if(offset<row.input.total_students) return { __continue:true,input:{ ...row.input,offset },result };
+      return { ...result,queue_status:result.failed_students?'failed':'completed' };
+    });
+  }
+
   async generateStudentReportCard(input: GenerateStudentReportCardInput): Promise<Record<string, unknown>> {
+    if(input.reuse_existing && this.artifactStore) {
+      const reusable=await this.artifactStore.reusableSnapshot(input.tenant_id,input.exam_series_id,input.student_id,true);
+      if(reusable)return reusable;
+    }
+    const sourceRevision=await this.artifactStore?.sourceVersion(input.tenant_id,input.student_id);
+    const sourceValidUntil=await this.artifactStore?.sourceValidUntil(input.tenant_id);
     const generatedAt = normalizeTimestamp(input.generated_at);
     const data = await this.repository.loadReportCardData({
       tenant_id: input.tenant_id,
       exam_series_id: input.exam_series_id,
       student_id: input.student_id,
       read_cache: input.read_cache,
+      read_cache_version: sourceRevision ? JSON.stringify(JSON.parse(sourceRevision).filter(([key]:[string,string])=>key==='school')) : undefined,
     });
     if (!data.student || !data.exam_series) {
       throw new NotFoundException("Learner or exam was not found in this school");
@@ -71,9 +108,7 @@ export class ReportCardGenerationService {
     this.assertReportCardGradeBoundaries(payload);
     const gradingPolicy = asRecord(data.grading_policy);
     const templateVersion = 3;
-    const generationSourceVersion = createHash('sha256')
-      .update(JSON.stringify({ templateVersion, data }))
-      .digest('hex');
+    const generationSourceVersion = reportIdentity({ templateVersion, renderer:REPORT_RENDERER_VERSION, sourceRevision, data });
     const approvedResultVersion = buildApprovedResultVersion({
       tenantId: input.tenant_id,
       examSeriesId: input.exam_series_id,
@@ -86,6 +121,7 @@ export class ReportCardGenerationService {
       examSeriesId: input.exam_series_id,
       studentId: input.student_id,
       generatedAt,
+      sourceVersion:generationSourceVersion,
     });
     const reportSnapshotId = buildReportSnapshotId(
       input.tenant_id,
@@ -102,11 +138,7 @@ export class ReportCardGenerationService {
       payload,
       input.tenant_id,
       this.fileStorage,
-    );
-    const htmlArtifact = createHtmlArtifact(
-      this.templateService.renderHtml(renderPayload, verificationCode),
-      verificationCode,
-      generatedAt,
+      Boolean(this.artifactStore),
     );
     const pdfArtifact = await createPdfReportArtifact(
       renderPayload,
@@ -132,24 +164,38 @@ export class ReportCardGenerationService {
         template_version: templateVersion,
         approved_result_version: approvedResultVersion,
         generation_source_version: generationSourceVersion,
+        source_revision: sourceRevision,
+        source_valid_until: sourceValidUntil,
+        renderer_version: REPORT_RENDERER_VERSION,
         report_card: payload,
-        artifact_count: 2,
+        ...(asRecord(data.comments)?.class_teacher_source==='manual' ? { class_teacher_comment:asRecord(data.comments)?.class_teacher } : {}),
+        ...(asRecord(data.comments)?.principal_source==='manual' ? { principal_comment:asRecord(data.comments)?.principal } : {}),
+        artifact_count: 1,
       },
       reuse_existing: input.reuse_existing === true,
       generation_source_version: generationSourceVersion,
     };
-    const artifacts = [htmlArtifact, pdfArtifact].map((artifact, index) => ({
-      artifact_type: index === 0 ? 'html' : 'pdf',
+    const artifacts = await Promise.all([pdfArtifact].map(async (artifact) => ({
+      artifact_type: 'pdf',
       checksum_sha256: artifact.checksumSha256,
       byte_size: artifact.byteLength,
       verification_code: verificationCode,
       generated_by_user_id: input.actor_user_id,
+      ...(this.artifactStore && this.fileStorage ? { storage_key:(await this.fileStorage.save({
+        tenantId:input.tenant_id,storagePath:`tenant/${input.tenant_id}/reports/academic/${randomUUID()}.pdf`,
+        originalFileName:artifact.filename,mimeType:artifact.contentType,sizeBytes:artifact.byteLength,buffer:artifact.content,
+        retentionPolicy:'report-staging',retentionExpiresAt:new Date(Date.now()+86400000).toISOString(),
+      })).stored_path } : {}),
       metadata: {
         filename: artifact.filename,
         content_type: artifact.contentType,
         generated_at: artifact.generatedAt,
       },
-    }));
+    })));
+    if (this.artifactStore && (sourceRevision!==await this.artifactStore.sourceVersion(input.tenant_id,input.student_id)
+      || (sourceValidUntil && Date.parse(sourceValidUntil)<=Date.now()))) {
+      throw new ConflictException('Report inputs changed during generation. Retry with current marks and settings.');
+    }
     const action = input.regeneration_reason ? 'report_card.regenerated' : 'report_card.generated';
     return this.repository.saveGeneratedReportCard(snapshot, artifacts, {
       exam_series_id: input.exam_series_id,
@@ -159,7 +205,7 @@ export class ReportCardGenerationService {
       metadata: {
         report_snapshot_id: reportSnapshotId,
         verification_code: verificationCode,
-        artifact_types: ['html', 'pdf'],
+        artifact_types: ['pdf'],
       },
     }, this.schoolEvents ? (card, tx) => this.schoolEvents!.recordSchoolOperation({
       event: {
@@ -171,7 +217,7 @@ export class ReportCardGenerationService {
     }, tx) : undefined);
   }
 
-  async generateReportCardBatch(input: GenerateReportCardBatchInput): Promise<ReportCardBatchStatus> {
+  async generateReportCardBatch(input: GenerateReportCardBatchInput, progress?: (value: Record<string, any>)=>Promise<void>): Promise<ReportCardBatchStatus> {
     const readiness = await this.repository.getReportCardBatchReadiness({
       tenant_id: input.tenant_id,
       exam_series_id: input.exam_series_id,
@@ -224,8 +270,9 @@ export class ReportCardGenerationService {
     const failures: ReportCardFailure[] = [];
     const readCache: ReportCardReadCache = new Map();
     let cursor = 0;
+    let abortChunk:unknown;
     const worker = async () => {
-      while (cursor < students.length) {
+      while (cursor < students.length && !abortChunk) {
         const student = students[cursor++];
         // Keep the same verification identity across retries, including ambiguous commit responses.
         const generatedAt = new Date().toISOString();
@@ -239,7 +286,7 @@ export class ReportCardGenerationService {
               });
               completedStudents += 1;
               if (card.reused) reusedStudents += 1;
-              return;
+              break;
             } catch (error) {
               const failure = classifyReportCardFailure(error);
               if (failure.retryable && attempt < 3) {
@@ -253,13 +300,19 @@ export class ReportCardGenerationService {
                 `Report-card generation failed: batch ${batch.id}, tenant ${input.tenant_id}, series ${input.exam_series_id}, student ${student.id}, code ${failure.code}, attempt ${attempt}`,
                 error instanceof Error ? error.stack : undefined,
               );
-              return;
+              break;
             }
           }
+          // Lease/progress failures abort the chunk; they must not count an
+          // already saved card again or be misclassified as invalid student data.
+          try {
+            await progress?.({ completed_students:completedStudents,failed_students:failedStudents,total_students:students.length });
+          } catch(error) { abortChunk=error; }
         });
       }
     };
     await Promise.all(Array.from({ length: Math.min(4, students.length) }, () => worker()));
+    if(abortChunk) throw abortChunk;
 
     const status = failedStudents > 0 ? 'failed' : 'draft_generated';
     const updated = await this.repository.updateReportCardGenerationBatch({
@@ -414,11 +467,12 @@ function buildVerificationCode(input: {
   examSeriesId: string;
   studentId: string;
   generatedAt: string;
+  sourceVersion: string;
 }): string {
   return createHash('sha256')
-    .update([input.tenantId, input.examSeriesId, input.studentId, input.generatedAt].join(':'))
+    .update([input.tenantId, input.examSeriesId, input.studentId, input.generatedAt,input.sourceVersion].join(':'))
     .digest('hex')
-    .slice(0, 12)
+    .slice(0, 20)
     .toUpperCase();
 }
 
@@ -429,16 +483,4 @@ function buildReportSnapshotId(
   verificationCode: string,
 ): string {
   return `report-card:${tenantId}:${examSeriesId}:${studentId}:${verificationCode}`;
-}
-
-function createHtmlArtifact(content: Buffer, verificationCode: string, generatedAt: string) {
-  return {
-    filename: `report-card-${verificationCode.toLowerCase()}.html`,
-    contentType: 'text/html; charset=utf-8',
-    byteLength: content.length,
-    checksumSha256: createHash('sha256').update(content).digest('hex'),
-    generatedAt,
-    rowCount: 1,
-    content,
-  };
 }

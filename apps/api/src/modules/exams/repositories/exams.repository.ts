@@ -1,4 +1,5 @@
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
+import { reportPdfIdentity } from '../services/report-artifact-identity';
 import { buildScopeSqlClause, parseReportCardScope, reportCardIneligibilitySql, reportCardPreviewToken,
   REPORT_CARD_SCOPE_ORDER, REPORT_CARD_TRANSITION_SOURCE_STATUSES, type ReportCardScopeQuery } from '../report-card-scope';
 import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
@@ -2002,13 +2003,13 @@ export class ExamsRepository {
        WHERE card.tenant_id = $1 AND card.exam_series_id = $2::uuid AND card.student_id = $3::uuid
          AND card.is_current = TRUE
          AND card.status IN ('draft_generated', 'draft', 'under_review', 'approved', 'published')
-         AND (card.verification_code = $4 OR ($5::boolean AND card.approved_result_version = $6
-           AND (card.status IN ('under_review', 'approved', 'published') OR card.metadata->>'generation_source_version' = $7)))
+         AND (card.verification_code = $4 OR ($5::boolean AND card.approved_result_version = $6))
+         AND card.metadata->>'generation_source_version' = $7
          AND card.metadata->'report_card' IS NOT NULL
          AND (SELECT COUNT(DISTINCT artifact.artifact_type) FROM report_card_artifacts artifact
            WHERE artifact.tenant_id = card.tenant_id AND artifact.report_card_id = card.id
              AND artifact.verification_code = card.verification_code
-             AND artifact.artifact_type IN ('html', 'pdf')) = 2
+             AND artifact.artifact_type = 'pdf') = 1
        LIMIT 1`,
       [input.tenant_id, input.exam_series_id, input.student_id, input.verification_code ?? null,
         input.reuse_existing === true, input.approved_result_version ?? null, input.generation_source_version ?? null],
@@ -2045,12 +2046,28 @@ export class ExamsRepository {
         }
       }
       const card = await scoped.createGeneratedReportCardSnapshot(input);
+      if (artifacts.some(artifact=>artifact.storage_key) && !card.published_at) {
+        // Schedule obsolete draft bytes at replacement time. A global periodic
+        // scan of every permanent academic PDF would grow without bound.
+        await scoped.executeSql(`UPDATE file_objects SET retention_policy='report-staging',retention_expires_at=now()+interval '30 days'
+          WHERE tenant_id=$1 AND retention_policy='academic-record' AND retention_expires_at IS NULL
+            AND storage_path IN (
+              SELECT storage_key FROM report_card_artifacts WHERE tenant_id=$1 AND report_card_id=$2::uuid AND verification_code<>$3
+              UNION SELECT storage_path FROM report_pdf_cache WHERE tenant_id=$1 AND report_card_id=$2::uuid AND identity<>$4
+            ) RETURNING storage_path`,[tenantId,card.id,card.verification_code,reportPdfIdentity(card)]);
+      }
       const savedArtifacts = [];
       for (const artifact of artifacts) {
         savedArtifacts.push(await scoped.recordReportCardArtifact({
           ...artifact, tenant_id: tenantId, report_card_id: card.id,
-          storage_key: `tenant/${tenantId}/exams/report-cards/${card.id}/${input.verification_code}.${artifact.artifact_type}`,
+          storage_key: artifact.storage_key ?? `tenant/${tenantId}/exams/report-cards/${card.id}/${input.verification_code}.${artifact.artifact_type}`,
+          metadata: { ...(artifact.metadata as Record<string,unknown>), pdf_identity:reportPdfIdentity(card) },
         }));
+        if (artifact.storage_key) {
+          const promoted=await scoped.executeSql(`UPDATE file_objects SET retention_policy='academic-record',retention_expires_at=NULL
+            WHERE tenant_id=$1 AND storage_path=$2 AND retention_expires_at>now() RETURNING storage_path`,[tenantId,artifact.storage_key]);
+          if (!promoted.rows.length) throw new ConflictException('Generated report file expired before it could be saved');
+        }
       }
       await scoped.appendReportCardAuditLog({ ...audit, tenant_id: tenantId, report_card_id: card.id });
       await onSaved?.(card, tx);
@@ -2136,7 +2153,10 @@ export class ExamsRepository {
          AND series.id = card.exam_series_id
         WHERE artifact.tenant_id = $1
           AND artifact.verification_code = $2
+          AND card.verification_code = artifact.verification_code
+          AND card.is_current = TRUE
           AND card.status = 'published'
+          AND (${reportCardIneligibilitySql("'export'")}) IS NULL
         GROUP BY card.id, student.id, series.id
         LIMIT 1
       `,
@@ -2151,10 +2171,11 @@ export class ExamsRepository {
     exam_series_id: string;
     student_id: string;
     read_cache?: ReportCardReadCache;
+    read_cache_version?: string;
   }): Promise<Record<string, unknown>> {
     const readShared = (sql: string, params: unknown[]) => {
       if (!input.read_cache) return this.executeSql(sql, params);
-      const key = JSON.stringify([sql, params]);
+      const key = JSON.stringify([input.read_cache_version, sql, params]);
       const cached = input.read_cache.get(key);
       if (cached) return cached;
       const pending = this.executeSql(sql, params).catch((error) => {
@@ -2843,6 +2864,7 @@ export class ExamsRepository {
         student.admission_number, cs.name AS class_name, stream.name AS stream_name,
         sca.class_section_id AS student_class_section_id, sca.stream_id AS student_stream_id,
         (${reportCardIneligibilitySql("'submit'")}) AS submission_ineligible_reason,
+        (${reportCardIneligibilitySql("'export'")}) AS artifact_ineligible_reason,
         COUNT(*) OVER()::integer AS filtered_total
       FROM student_report_cards card ${clause.joins}
       LEFT JOIN exam_series series ON series.tenant_id = card.tenant_id AND series.id = card.exam_series_id
@@ -2864,7 +2886,8 @@ export class ExamsRepository {
         concat_ws(' ', student.first_name, student.middle_name, student.last_name) AS student_name,
         (${reportCardIneligibilitySql('$' + clause.paramOffset + '::text')}) AS ineligible_reason
       FROM student_report_cards card ${clause.joins}
-      WHERE ${clause.where} ORDER BY ${REPORT_CARD_SCOPE_ORDER}`, [...clause.params, action]);
+      WHERE ${clause.where} ORDER BY ${REPORT_CARD_SCOPE_ORDER} LIMIT 20001`, [...clause.params, action]);
+    if(result.rows.length>20000) throw new ConflictException('Select an exam, form or class with at most 20,000 reports per operation');
     return { scope, cards: result.rows, preview_token: reportCardPreviewToken(scope, action, result.rows) };
   }
 
@@ -4112,7 +4135,8 @@ export class ExamsRepository {
             COUNT(*)::integer AS total_count,
             COUNT(*) FILTER (WHERE card.status = 'approved')::integer AS approved_count,
             COUNT(*) FILTER (WHERE card.status = 'published')::integer AS already_published_count,
-            COUNT(*) FILTER (WHERE card.status NOT IN ('approved', 'published'))::integer AS blocked_count
+            COUNT(*) FILTER (WHERE card.status NOT IN ('approved', 'published')
+              OR (${reportCardIneligibilitySql("'export'")}) IS NOT NULL)::integer AS blocked_count
           FROM student_report_cards card
           WHERE card.tenant_id = $1
             AND card.exam_series_id = $2::uuid

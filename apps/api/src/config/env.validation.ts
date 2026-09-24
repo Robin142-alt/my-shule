@@ -58,6 +58,7 @@ export function collectEnvValidationIssues(env: Record<string, unknown>): Enviro
     ...validateSupportSmsEnv(env),
     ...validateUploadMalwareScanEnv(env),
     ...validateUploadObjectStorageEnv(env),
+    ...validateReportInfrastructureEnv(env),
   ];
 
   const hasJwtSecret =
@@ -82,6 +83,34 @@ export function collectEnvValidationIssues(env: Record<string, unknown>): Enviro
       ...invalidEnvVars.map((message) => ({ type: 'invalid' as const, message })),
     ],
   };
+}
+
+export function validateReportInfrastructureEnv(env: Record<string, unknown>): string[] {
+  const errors:string[]=[];
+  const dedicated=Object.keys(env).some(key=>key.startsWith('REPORT_OBJECT_STORAGE_') && getString(env,key));
+  const prefix=dedicated?'REPORT_OBJECT_STORAGE_':'UPLOAD_OBJECT_STORAGE_';
+  if (dedicated) {
+    const reportEnv=Object.fromEntries(Object.entries(env).filter(([key])=>key.startsWith(prefix))
+      .map(([key,value])=>[key.replace(prefix,'UPLOAD_OBJECT_STORAGE_'),value]));
+    errors.push(...validateUploadObjectStorageEnv(reportEnv).map(error=>error.replaceAll('UPLOAD_OBJECT_STORAGE_',prefix)));
+  }
+  const concurrency=getString(env,'REPORT_WORKER_CONCURRENCY') || '1';
+  if (!/^[1-4]$/.test(concurrency)) errors.push('REPORT_WORKER_CONCURRENCY must be an integer from 1 to 4');
+  if(!['all','interactive','bulk'].includes(getString(env,'REPORT_WORKER_LANE') || 'all')) errors.push('REPORT_WORKER_LANE must be all, interactive or bulk');
+  const runtime=getString(env,'APP_RUNTIME') || 'server';
+  if (getString(env,'NODE_ENV')==='production' && (runtime==='reports-worker' || !runtime.includes('worker'))) {
+    if(getString(env,'APP_RUNTIME')==='reports-worker' && !['interactive','bulk'].includes(getString(env,'REPORT_WORKER_LANE')))
+      errors.push('Production report workers require REPORT_WORKER_LANE=interactive or bulk for workload isolation');
+    if (!parseBoolean(getString(env,prefix+'ENABLED'),false)) errors.push(`Production report artifacts require ${prefix}ENABLED=true`);
+    const endpoint=getString(env,prefix+'ENDPOINT');
+    try {
+      const url=new URL(endpoint);
+      if (url.protocol!=='https:' || !/^[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/.test(url.hostname)
+        || url.pathname!=='/' || url.search || url.username || url.password) throw new Error('Invalid R2 endpoint');
+    } catch { errors.push('Production report storage must use the private Cloudflare R2 account HTTPS endpoint'); }
+    if (!['r2','s3'].includes(getString(env,prefix+'PROVIDER') || 'r2')) errors.push('Report storage must use the R2 S3-compatible protocol');
+  }
+  return errors;
 }
 
 function validateTransactionalEmailEnv(env: Record<string, unknown>): string[] {

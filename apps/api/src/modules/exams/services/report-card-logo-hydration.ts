@@ -1,5 +1,6 @@
 import type { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import type { ReportCardPayload } from './report-card-template.service';
+import { BadRequestException,ServiceUnavailableException } from '@nestjs/common';
 
 type ReportCardImageStorage = Pick<DatabaseFileStorageService, 'readForTenant'>;
 
@@ -9,6 +10,7 @@ export async function hydrateReportCardLogoForRendering(
   payload: ReportCardPayload,
   tenantIdValue: string,
   fileStorage?: ReportCardImageStorage,
+  strict = false,
 ): Promise<ReportCardPayload> {
   const clonedPayload: ReportCardPayload = {
     ...payload,
@@ -30,12 +32,16 @@ export async function hydrateReportCardLogoForRendering(
   ];
   await Promise.all(imageFields.map(async (field) => {
     const storagePath = payload.template_fields[field]?.trim() ?? '';
-    if (!isTenantScopedStoragePath(tenantId, storagePath)) return;
+    if (!isTenantScopedStoragePath(tenantId, storagePath)) {
+      if(strict && storagePath) throw new BadRequestException('Report logos and signatures must be uploaded to this school before generating the PDF.');
+      return;
+    }
 
     let storedImage: Awaited<ReturnType<ReportCardImageStorage['readForTenant']>>;
     try {
       storedImage = await fileStorage.readForTenant({ tenantId, storagePath });
     } catch {
+      if (strict) throw new ServiceUnavailableException('A report signature or school logo could not be read. Retry after storage recovers.');
       return;
     }
     const mimeType = storedImage.mime_type.trim().toLowerCase();
@@ -44,6 +50,7 @@ export async function hydrateReportCardLogoForRendering(
       storedImage.stored_path !== storagePath
       || !IMAGE_MIME_TYPE_PATTERN.test(mimeType)
     ) {
+      if (strict) throw new ServiceUnavailableException('A report image is invalid. Repair the image and regenerate the report.');
       return;
     }
 

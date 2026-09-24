@@ -1,3 +1,5 @@
+import { REPORT_INFRASTRUCTURE_SCHEMA } from '../src/modules/exams/services/report-infrastructure-schema';
+import { REPORT_RENDERER_VERSION } from '../src/modules/exams/services/report-artifact-identity';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
@@ -28,6 +30,7 @@ describe('Report-card scopes and batch transitions', () => {
     for (const name of ['student_report_cards', 'student_report_card_audit_logs']) {
       await query(bootstrap.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${name} \\([\\s\\S]*?\\n      \\);`))![0]);
     }
+    await query(REPORT_INFRASTRUCTURE_SCHEMA);
     await query(`CREATE TABLE students(tenant_id text,id text,first_name text,middle_name text,last_name text,admission_number text);
       CREATE TABLE class_sections(tenant_id text,id text,name text);
       CREATE TABLE class_streams(tenant_id text,id text,name text);
@@ -69,7 +72,7 @@ describe('Report-card scopes and batch transitions', () => {
       if (i===2) snapshot.template_fields.class_teacher_comment = null;
       await query(`INSERT INTO student_report_cards(id,tenant_id,exam_series_id,student_id,report_snapshot_id,status,verification_code,metadata)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb)`,[cards[i],tenant,exam,students[i],`snapshot-${i}`,
-        i===1?'under_review':i===5?'regeneration_required':'draft_generated',`VERIFY-${i}`,JSON.stringify({report_card:snapshot})]);
+        i===1?'under_review':i===5?'regeneration_required':'draft_generated',`VERIFY-${i}`,JSON.stringify({report_card:snapshot,source_revision:"[]",renderer_version:REPORT_RENDERER_VERSION})]);
       await query("INSERT INTO exam_marks VALUES($1,$2,$3,'locked')",[tenant,exam,students[i]]);
     }
   });

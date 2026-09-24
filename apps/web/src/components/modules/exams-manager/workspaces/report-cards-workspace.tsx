@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { MoreHorizontal, FileText, Send, Download, MessageSquare, Eye, Edit, Loader2 } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
-import { openPrintDocument } from "@/lib/dashboard/export";
+import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
+import { awaitReportDelivery,openReportDelivery,type ReportDeliveryJob } from "@/lib/report-cards/report-delivery";
 import { buildSchoolSectionHref } from "@/components/school/school-pages";
 
 interface ReportCardRow {
@@ -96,45 +97,40 @@ export function ReportCardsWorkspace({ model }: { model: unknown }) {
   }
 
   function previewReport(row: ReportCardRow) {
-    openPrintDocument({
-      eyebrow: "Report card preview",
-      title: `Student ${row.student_id}`,
-      subtitle: `Exam series ${row.exam_series_id}`,
-      rows: [
-        { label: "Class teacher comment", value: row.metadata?.class_teacher_comment || "Not entered" },
-        { label: "Principal comment", value: row.metadata?.principal_comment || "Not entered" },
-        { label: "Attendance data", value: row.metadata?.report_card?.attendance ? "Included" : "Not included" },
-        { label: "Fee balance", value: row.metadata?.report_card?.fee_balance ? "Included" : "Not included" },
-        { label: "Snapshot", value: row.report_snapshot_id || "Not generated" },
-        { label: "Status", value: row.status || "draft" },
-      ],
-      footer: "This preview is scoped to the current school and must be approved before parent portal publication.",
-    });
-    setNotice(`Report preview ready for student ${row.student_id}.`);
+    void downloadSingleReport(row, true);
   }
 
-  function downloadSingleReport(row: ReportCardRow) {
+  async function downloadSingleReport(row: ReportCardRow, preview = false) {
     if (!row.id) {
       setNotice("Generate and persist this report card before downloading its PDF.");
       return;
     }
-    const link = document.createElement("a");
-    link.href = `/api/exams/report-cards/${encodeURIComponent(row.id)}/download`;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const previewWindow = preview ? window.open("about:blank", "_blank") : null;
+    setSavingAction('download');
+    try {
+      const job=await requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/${encodeURIComponent(row.id)}/prepare-download`,{method:'POST'});
+      openReportDelivery(await awaitReportDelivery(job,value=>setNotice(`Report preparation ${value.state}.`)),previewWindow);
+      setNotice('The official report PDF has opened. Use its viewer to print or save it.');
+    } catch(error){previewWindow?.close();setNotice(error instanceof Error?error.message:'Report download failed. Retry.');}
+    finally{setSavingAction(null);}
   }
 
-  function downloadAllReports(rows: ReportCardRow[]) {
+  async function downloadAllReports(rows: ReportCardRow[]) {
     const downloadable = rows.filter((row) => row.id);
     if (!downloadable.length) {
       setNotice("No generated report-card PDFs are available for download.");
       return;
     }
-    downloadable.forEach((row, index) => window.setTimeout(() => downloadSingleReport(row), index * 150));
-    setNotice(`${downloadable.length} report-card PDF download${downloadable.length === 1 ? "" : "s"} started.`);
+    setSavingAction('download');
+    try {
+      const params=new URLSearchParams({scope_type:'students',report_card_ids:downloadable.map(row=>row.id!).join(',')});
+      const scope=await requestSchoolApiProxy<{preview_token:string}>(`/exams/report-cards/scope-summary?${params}&target_action=export`);
+      const job=await requestSchoolApiProxy<ReportDeliveryJob>('/exams/report-cards/exports',{
+        method:'POST',body:{...Object.fromEntries(params),preview_token:scope.preview_token}});
+      openReportDelivery(await awaitReportDelivery(job,value=>setNotice(`Export ${value.state}: ${value.progress?.rendered ?? 0} reports prepared.`)),null);
+      setNotice('The combined PDF download has opened.');
+    } catch(error){setNotice(error instanceof Error?error.message:'Export failed. Retry.');}
+    finally{setSavingAction(null);}
   }
 
   async function generateReports(rows: ReportCardRow[]) {
@@ -144,10 +140,11 @@ export function ReportCardsWorkspace({ model }: { model: unknown }) {
       return;
     }
     setSavingAction("generate");
-    const outcomes = await Promise.allSettled(eligible.map((row) => requestDashboardApi("/api/exams/report-cards/generate", {
-      method: "POST",
-      body: { exam_series_id: row.exam_series_id, student_id: row.student_id },
-    })));
+    const outcomes:PromiseSettledResult<unknown>[]=[];
+    for(let offset=0;offset<eligible.length;offset+=4) {
+      outcomes.push(...await Promise.allSettled(eligible.slice(offset,offset+4).map(row=>requestSchoolApiProxy('/exams/report-cards/generate',{
+        method:'POST',body:{exam_series_id:row.exam_series_id,student_id:row.student_id}}))));
+    }
     await refetch();
     const succeeded = outcomes.filter((outcome) => outcome.status === "fulfilled").length;
     setNotice(`${succeeded} report card${succeeded === 1 ? "" : "s"} generated${succeeded < eligible.length ? `; ${eligible.length - succeeded} failed and can be retried` : ""}.`);
@@ -174,7 +171,7 @@ export function ReportCardsWorkspace({ model }: { model: unknown }) {
         <PageHeader eyebrow="Outputs" title="Report Cards" description="Generate report cards, manage teacher comments, and compile attendance data." />
         <div className="flex flex-wrap gap-2">
           <ReportCardCommentsDialog reportCards={visibleCards} onSuccess={refetch} onNotice={setNotice}><Button type="button" variant="outline" disabled={!!savingAction}><MessageSquare className="mr-2 h-4 w-4" /> Bulk Comments</Button></ReportCardCommentsDialog>
-          <Button variant="outline" onClick={() => downloadAllReports(visibleCards)}><Download className="mr-2 h-4 w-4" /> Download All PDFs</Button>
+          <Button variant="outline" disabled={!!savingAction} onClick={() => void downloadAllReports(visibleCards)}><Download className="mr-2 h-4 w-4" /> Download Listed PDFs</Button>
           <Button variant="outline" disabled={!!savingAction} onClick={() => void submitReports(visibleCards)}><Send className="mr-2 h-4 w-4" /> Send to Approval</Button>
           <Button disabled={!!savingAction} onClick={() => void generateReports(visibleCards)}>{savingAction === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Generate Reports</Button>
         </div>
@@ -200,9 +197,9 @@ export function ReportCardsWorkspace({ model }: { model: unknown }) {
                   <TableCell><Badge variant={row.status === "published" ? "success" : row.status === "under_review" || row.status === "approved" ? "warning" : "secondary"}>{row.status || "draft"}</Badge></TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => previewReport(row)}><Eye className="mr-2 h-4 w-4" /> Preview Report</DropdownMenuItem>
+                      <DropdownMenuItem disabled={!!savingAction} onClick={() => previewReport(row)}><Eye className="mr-2 h-4 w-4" /> Preview Report</DropdownMenuItem>
                       <ReportCardCommentsDialog reportCards={[row]} onSuccess={refetch} onNotice={setNotice}><DropdownMenuItem asChild><button type="button" disabled={["published", "withdrawn"].includes(row.status ?? "")}><Edit className="mr-2 h-4 w-4" /> Edit Comments</button></DropdownMenuItem></ReportCardCommentsDialog>
-                      <DropdownMenuItem disabled={!row.id} onClick={() => downloadSingleReport(row)}><Download className="mr-2 h-4 w-4" /> Download PDF</DropdownMenuItem>
+                      <DropdownMenuItem disabled={!row.id || !!savingAction} onClick={() => void downloadSingleReport(row)}><Download className="mr-2 h-4 w-4" /> Download PDF</DropdownMenuItem>
                       <DropdownMenuItem disabled={!row.id || !["draft_generated", "draft", "regeneration_required"].includes(row.status ?? "") || !!savingAction} onClick={() => void submitReports([row])}><Send className="mr-2 h-4 w-4" /> Submit for Approval</DropdownMenuItem>
                     </DropdownMenuContent></DropdownMenu>
                   </TableCell>

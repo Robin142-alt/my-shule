@@ -47,6 +47,9 @@ import {
 import { ExamsRepository } from './repositories/exams.repository';
 import { parseAnalyticsFilters, type ExamAnalyticsScopeLevel } from './analytics/analytics-scope';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
+import { ReportWorkService } from './services/report-work.service';
+import { REPORT_SCHOOL_REVISION_SQL } from './services/report-infrastructure-schema';
+import { ReportCardArtifactsService } from './services/report-card-artifacts.service';
 import {
   extractPersistedReportCardPayload,
   ReportCardTemplateService,
@@ -235,6 +238,8 @@ export class ExamsService {
     @Optional() private readonly workflowRepository?: WorkflowRepository,
     @Optional() private readonly reportCardTemplateService?: ReportCardTemplateService,
     @Optional() private readonly fileStorage?: DatabaseFileStorageService,
+    @Optional() private readonly reportWork?: ReportWorkService,
+    @Optional() private readonly reportArtifacts?: ReportCardArtifactsService,
   ) {}
 
   async uploadOwnedReportCardSignature(input: {
@@ -1518,6 +1523,11 @@ export class ExamsService {
     const examSeriesId = this.requireText(dto.exam_series_id, 'Exam series');
     const studentId = this.requireText(dto.student_id, 'Student');
 
+    if (this.reportWork) {
+      const reusable=await this.reportArtifacts?.reusableSnapshot(tenantId,examSeriesId,studentId);
+      if(reusable)return {id:reusable.id,status:reusable.status,reused:true,verification_code:reusable.verification_code,revision_number:reusable.revision_number};
+      return this.queueReportGeneration('generate',{ exam_series_id:examSeriesId,student_id:studentId,reuse_existing:true });
+    }
     if (this.reportCardGenerationService) {
       return this.reportCardGenerationService.generateStudentReportCard({
         tenant_id: tenantId,
@@ -1571,6 +1581,9 @@ export class ExamsService {
 
     const generationService = this.requireReportCardGenerationService();
 
+    if (this.reportWork) return this.queueReportGeneration('generate',{
+      exam_series_id:this.requireText(dto.exam_series_id,'Exam series'),student_id:this.requireText(dto.student_id,'Student'),
+      regeneration_reason:dto.reason?.trim() || 'Manual regeneration' });
     return generationService.generateStudentReportCard({
       tenant_id: this.requireTenantId(),
       actor_user_id: this.requireUserId(),
@@ -1596,6 +1609,9 @@ export class ExamsService {
 
     const generationService = this.requireReportCardGenerationService();
 
+    if (this.reportWork) return this.queueReportGeneration('generate_batch',{
+      exam_series_id:this.requireText(dto.exam_series_id,'Exam series'),class_section_id:this.optionalText(dto.class_section_id),
+      stream_name:this.optionalText(dto.stream_name),batch_size:this.parsePageLimit(dto.batch_size,200,200),offset:this.parsePageOffset(dto.offset) });
     return generationService.generateReportCardBatch({
       tenant_id: this.requireTenantId(),
       actor_user_id: this.requireUserId(),
@@ -1612,6 +1628,22 @@ export class ExamsService {
       tenant_id: this.requireTenantId(),
       batch_id: this.requireText(batchId, 'Report-card batch'),
     });
+  }
+
+  async generateReportCardScope(dto: GenerateReportCardBatchDto) {
+    if(!this.isExamsOfficer()) throw new ForbiddenException('Exam approval permission is required to generate report cards');
+    const input={ exam_series_id:this.requireText(dto.exam_series_id,'Exam series'),
+      class_section_id:this.requireText(dto.class_section_id,'Class'),stream_name:this.optionalText(dto.stream_name) };
+    const readiness=await this.repository.getReportCardBatchReadiness({ ...input,tenant_id:this.requireTenantId() });
+    const count=Number(readiness.learner_count ?? 0);
+    if(!count || count>20000 || Number(readiness.not_ready_mark_count)>0) throw new ConflictException('Select a class with 1–20,000 learners whose marks are moderated and locked');
+    return this.queueReportGeneration('generate_scope',{ ...input,total_students:count,offset:0 });
+  }
+
+  private async queueReportGeneration(kind: 'generate'|'generate_batch'|'generate_scope', input: Record<string,unknown>) {
+    const tenant=this.requireTenantId();
+    const versions=await this.repository.executeSql(REPORT_SCHOOL_REVISION_SQL,[tenant]);
+    return this.reportWork!.submit(kind,{ ...input,source_revision:versions.rows[0]?.revision,generated_at:new Date().toISOString() },[input,versions.rows[0]?.revision]);
   }
 
   async verifyReportCard(verificationCode: string) {
@@ -1709,23 +1741,37 @@ export class ExamsService {
     return this.repository.resolveReportCardScope({ ...query, tenant_id: this.assertReportCardScopeAccess(), target_action: 'export' });
   }
 
-  listGuardianReportCards(query: Record<string, string | undefined> = {}) {
-    return this.repository.listGuardianReportCards({
+  async listGuardianReportCards(query: Record<string, string | undefined> = {}) {
+    const cards=await this.repository.listGuardianReportCards({
       tenant_id: this.requireTenantId(),
       guardian_user_id: this.requireUserId(),
       student_id: this.optionalText(query.student_id ?? query.studentId),
       limit: this.parsePageLimit(query.limit, 25, 50),
       offset: this.parsePageOffset(query.offset),
     });
+    return this.portalReportFreshness(cards);
   }
 
-  listStudentPortalReportCards(query: Record<string, string | undefined> = {}) {
-    return this.repository.listStudentReportCards({
+  async listStudentPortalReportCards(query: Record<string, string | undefined> = {}) {
+    const cards=await this.repository.listStudentReportCards({
       tenant_id: this.requireTenantId(),
       student_id: this.requireUserId(),
       limit: this.parsePageLimit(query.limit, 25, 50),
       offset: this.parsePageOffset(query.offset),
     });
+    return this.portalReportFreshness(cards);
+  }
+
+  private async portalReportFreshness(cards:Record<string,any>[]) {
+    if(!this.reportArtifacts)return cards;
+    return Promise.all(cards.map(async card=>{
+      try {await this.reportArtifacts!.assertFresh({...card,is_current:true});return card;}
+      catch(error) {
+        if(!(error instanceof ConflictException))throw error;
+        return {...card,artifact_ineligible_reason:'The school needs to refresh and review this report before it can be viewed or downloaded.',
+          metadata:{...card.metadata,report_card:null}};
+      }
+    }));
   }
 
   async transitionReportCard(reportCardIdValue: string, actionValue?: string, reasonValue?: string) {
@@ -2055,7 +2101,7 @@ export class ExamsService {
     }
     if (blockedReportCards > 0 || !release?.series_published) {
       throw new ConflictException(
-        `${blockedReportCards || totalReportCards} report card(s) have not completed Dean approval`,
+        `${blockedReportCards || totalReportCards} report card(s) have not completed Dean approval or need regeneration after input changes`,
       );
     }
     const publishedCards = Array.isArray(release.published_cards) ? release.published_cards : [];
@@ -3583,6 +3629,11 @@ export class ExamsService {
     reportCard: Record<string, unknown>,
     tenantId: string,
   ): Promise<ReportArtifact> {
+    if (this.reportArtifacts) {
+      // Guardian/student relationship checks are performed by the caller. Cached
+      // official bytes are shared with staff; no second PDF implementation exists.
+      return this.reportArtifacts.read(String(reportCard.id));
+    }
     const payload = extractPersistedReportCardPayload(reportCard.metadata);
     if (!payload) {
       throw new ConflictException(

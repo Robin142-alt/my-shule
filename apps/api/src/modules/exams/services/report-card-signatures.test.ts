@@ -1,3 +1,5 @@
+import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
+import { createReportCardPdfArtifact } from './report-card-pdf-artifact';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -55,16 +57,15 @@ function controller(cardPayload: ReportCardPayload | null = payload()) {
     service: new ReportCardDownloadController(repository as never, access as never, {} as never, files as never) };
 }
 
-test('initial generation embeds both saved signatures in HTML and PDF while remaining a draft', async (t) => {
+test('initial generation embeds both saved signatures in the durable PDF while remaining a draft', async (t) => {
   const files = storage();
   const template = new ReportCardTemplateService();
-  const render = t.mock.method(template, 'renderHtml');
   const images = t.mock.method(PDFDocument.prototype, 'image');
   const service = new ReportCardGenerationService({
     loadReportCardData: async () => source(), findReusableReportCard: async () => null,
     saveGeneratedReportCard: async (snapshot: Record<string, unknown>, artifacts: unknown[], audit: { action: string }) => {
       assert.equal(audit.action, 'report_card.generated');
-      assert.equal(artifacts.length, 2);
+      assert.equal(artifacts.length, 1);
       return { id: 'card', ...snapshot };
     },
   } as never, template, files as never);
@@ -74,9 +75,6 @@ test('initial generation embeds both saved signatures in HTML and PDF while rema
   assert.equal(result.status, 'draft_generated');
   assert.equal(result.template_version, 3);
   assert.deepEqual(files.reads.sort(), Object.values(paths).sort());
-  const html = render.mock.calls[0]!.result!.toString();
-  assert.match(html, /alt="Class teacher signature"/);
-  assert.match(html, /alt="Principal signature"/);
   assert.equal(images.mock.calls.filter((call: { arguments: unknown[] }) => Buffer.isBuffer(call.arguments[0]) && call.arguments[0].equals(image)).length, 2);
   const persisted = (result.metadata as { report_card: ReportCardPayload }).report_card;
   assert.equal(persisted.template_fields.class_teacher_signature_ref, paths.teacher);
@@ -88,8 +86,8 @@ test('single and bulk PDFs include both signatures throughout the review lifecyc
   for (const status of ['draft_generated', 'under_review', 'approved', 'published']) {
     const { service, files, card } = controller();
     card.status = status;
-    const result = await service.downloadReportCard('card');
-    assert.equal(result.getHeaders().type, 'application/pdf');
+    const result = await createReportCardPdfArtifact(await hydrateReportCardLogoForRendering(payload(), 'school-a', files as never, true), 'VERIFY');
+    assert.equal(result.contentType, 'application/pdf');
     assert.deepEqual(files.reads.sort(), Object.values(paths).sort());
   }
   const files = storage();
@@ -101,7 +99,7 @@ test('single and bulk PDFs include both signatures throughout the review lifecyc
     assertReportCardScopeAccess: () => 'school-a',
     bulkDownloadReportCards: async () => ({ cards, preview_token: 'confirmed', scope: { scopeType: 'school' } }),
   } as never, { listReportCardIdsForBulkDownload: async () => cards } as never, {} as never, files as never,
-  {} as never, {} as never, {} as never, {} as never, {} as never);
+  {} as never, {} as never, {} as never);
   const artifact = await service.generate({ preview_token: 'confirmed' });
   try {
     assert.equal(artifact.count, 4);

@@ -20,6 +20,7 @@ interface ManagedFunctionState {
 }
 
 const MANAGED_SECURITY_DEFINER_FUNCTIONS = [
+  'public.myshule_report_signer_changed()',
   'app.claim_outbox_events(integer,integer)',
   'app.claim_communication_sms_outbox(integer,integer)',
   'app.find_user_by_email_for_auth(text)',
@@ -39,6 +40,7 @@ const MANAGED_SECURITY_DEFINER_FUNCTIONS = [
 ] as const;
 
 const WORKER_ONLY_SECURITY_DEFINER_FUNCTIONS = [
+  'public.myshule_report_signer_changed()',
   'app.claim_outbox_events(integer,integer)',
   'app.claim_communication_sms_outbox(integer,integer)',
 ] as const;

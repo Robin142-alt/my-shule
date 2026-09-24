@@ -6,6 +6,26 @@ import { DatabaseFileStorageService } from './database-file-storage.service';
 import { FILE_OBJECT_STORAGE_SCHEMA_SQL } from './file-object-schema';
 import { S3CompatibleObjectStorageService, type ObjectStorageFetch } from './s3-object-storage.service';
 
+test('dedicated report storage can be enabled without moving ordinary uploads', async () => {
+  const bytes=Buffer.from('%PDF-1.7 test');
+  const hash=createHash('sha256').update(bytes).digest('hex');
+  const uploaded:string[]=[];
+  const database={query:async (_sql:string,values:unknown[])=>({rows:[{
+    storage_path:values[1],original_file_name:values[2],mime_type:values[3],size_bytes:values[4],sha256:values[5],
+    storage_backend:values[10],retention_policy:values[8],retention_expires_at:values[9],
+  }]})};
+  const storage=new DatabaseFileStorageService(database as never,{
+    putObject:async (input:{storagePath:string})=>{
+      uploaded.push(input.storagePath);
+      return {sha256:hash,provider:'r2',bucket:'reports',key:input.storagePath};
+    },
+  } as never,{get:(key:string)=>({REPORT_OBJECT_STORAGE_ENABLED:'true',UPLOAD_OBJECT_STORAGE_ENABLED:'false'} as Record<string,string>)[key]} as never);
+  const input={tenantId:'school-a',buffer:bytes,sizeBytes:bytes.length,mimeType:'application/pdf',originalFileName:'report.pdf'};
+  assert.equal((await storage.save({...input,storagePath:'tenant/school-a/reports/academic/report.pdf',retentionPolicy:'report-staging'})).storage_backend,'object_storage');
+  assert.equal((await storage.save({...input,storagePath:'tenant/school-a/school_logo/image.png'})).storage_backend,'database');
+  assert.deepEqual(uploaded,['tenant/school-a/reports/academic/report.pdf']);
+});
+
 test('file object schema tracks retention policy and expiry for stored uploads', () => {
   assert.match(FILE_OBJECT_STORAGE_SCHEMA_SQL, /retention_policy text NOT NULL DEFAULT 'operational'/);
   assert.match(FILE_OBJECT_STORAGE_SCHEMA_SQL, /retention_expires_at timestamptz/);
@@ -566,11 +586,11 @@ test('DatabaseFileStorageService purges expired file objects in bounded batches'
       'tenant/tenant-a/support/old-2.pdf',
     ],
   });
-  assert.match(queries[0]?.sql ?? '', /WITH expired_file_objects AS/);
-  assert.match(queries[0]?.sql ?? '', /DELETE FROM file_objects/);
+  assert.match(queries[0]?.sql ?? '', /SELECT tenant_id,storage_path/);
+  assert.match(queries[1]?.sql ?? '', /DELETE FROM file_objects/);
   assert.match(queries[0]?.sql ?? '', /retention_expires_at <= \$1/);
   assert.match(queries[0]?.sql ?? '', /LIMIT \$2/);
-  assert.deepEqual(queries[0]?.values, ['2026-05-14T13:30:00.000Z', 50]);
+  assert.deepEqual(queries[0]?.values, ['2026-05-14T13:30:00.000Z', 50, null]);
 });
 
 test('S3CompatibleObjectStorageService stores tenant-scoped objects with signed PUT requests', async () => {

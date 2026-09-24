@@ -12,6 +12,9 @@ import { EventsModule } from '../events/events.module';
 import { AnalyticsReportController } from './analytics/analytics-report.controller';
 import { AnalyticsReportService } from './analytics/analytics-report.service';
 import { ReportCardExportService } from './services/report-card-export.service';
+import { ReportWorkService } from './services/report-work.service';
+import { ReportCardArtifactsService } from './services/report-card-artifacts.service';
+import { ReportRetentionService } from './services/report-retention.service';
 
 @Module({
   imports: [EventsModule],
@@ -25,6 +28,9 @@ import { ReportCardExportService } from './services/report-card-export.service';
     ReportCardGenerationService,
     ReportCardTemplateService,
     ReportCardExportService,
+    ReportWorkService,
+    ReportCardArtifactsService,
+    ReportRetentionService,
   ],
   exports: [ExamsService, ExamsRepository, ReportCardGenerationService],
 })

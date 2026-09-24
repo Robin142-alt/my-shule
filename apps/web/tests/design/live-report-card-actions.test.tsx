@@ -175,7 +175,7 @@ describe("live report-card action controls", () => {
     expect(reportRefetch).toHaveBeenCalledTimes(1);
   });
 
-  it("downloads the authenticated PDF as a blob using the upstream filename", async () => {
+  it("prepares an authenticated PDF and opens private delivery without buffering it in JavaScript", async () => {
     const report = reportCard();
     installQueries([report]);
     const pdfBlob = new Blob(["official report card"], { type: "application/pdf" });
@@ -204,24 +204,21 @@ describe("live report-card action controls", () => {
     });
     const user = userEvent.setup();
 
+    const privateUrl='https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/reports/random.pdf?X-Amz-Signature=test';
+    mockRequestSchoolApiProxy.mockResolvedValue({state:'ready',download_url:privateUrl});
+
     render(<LiveReportCardsWorkspace audience="exams-manager" />);
     await user.click(screen.getByRole("button", { name: "Download" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/exams/report-cards/report-1/download",
-      {
-        method: "GET",
-        headers: { Accept: "application/pdf" },
-        credentials: "same-origin",
-        cache: "no-store",
-      },
-    ));
-    expect(createObjectURL).toHaveBeenCalledWith(pdfBlob);
-    expect(downloadedFilename).toBe("Robinson_Ogada_Term_3.pdf");
+    await waitFor(() => expect(mockRequestSchoolApiProxy).toHaveBeenCalledWith(
+      "/exams/report-cards/report-1/prepare-download", {method:'POST'}));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(downloadedFilename).toBe("report-card-report-1.pdf");
     expect(clickSpy).toHaveBeenCalledTimes(1);
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:report-card-1");
+    expect(revokeObjectURL).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(screen.getAllByText("Official report-card PDF downloaded.")).toHaveLength(2);
+      expect(screen.getAllByText("Official report-card download opened.")).toHaveLength(2);
     });
   });
 });

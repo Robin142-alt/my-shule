@@ -1,4 +1,6 @@
 "use client";
+import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
+import { awaitReportDelivery,openReportDelivery,type ReportDeliveryJob } from "@/lib/report-cards/report-delivery";
 
 import {
   useEffect,
@@ -1837,24 +1839,11 @@ function ReportCardsPanel({
 
     setNotice(`${report.learner.fullName}: downloading PDF...`);
     try {
-      const res = await fetch(`/api/exams/report-cards/${report.id}/download`, {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error("Failed to download PDF");
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Report_Card_${report.learner.fullName.replace(/\s+/g, "_")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      setNotice(`${report.learner.fullName}: PDF download complete.`);
-    } catch {
-      openPrintPreview(report);
-      setNotice(`${report.learner.fullName}: Choose "Save as PDF" in the print dialog as a fallback.`);
+      const job=await requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/${encodeURIComponent(report.id)}/prepare-download`,{method:'POST'});
+      openReportDelivery(await awaitReportDelivery(job,value=>setNotice(`${report.learner.fullName}: PDF preparation ${value.state}.`)),null);
+      setNotice(`${report.learner.fullName}: PDF download opened.`);
+    } catch (error) {
+      setNotice(error instanceof Error?error.message:'PDF preparation failed. Retry after correcting the report.');
     }
   }
 

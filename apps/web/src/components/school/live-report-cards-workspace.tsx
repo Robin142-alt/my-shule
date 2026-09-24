@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useSchoolCommandIdentity } from "@/components/school/integrated-school-command-header";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { awaitReportDelivery, openReportDelivery, type ReportDeliveryJob } from "@/lib/report-cards/report-delivery";
 import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
 import type {
   LiveReportCardGenerationScope,
@@ -233,6 +234,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   const hierarchyPath = `/exams/report-cards/scope-hierarchy?${scopeQs}`;
 
   // --- Data queries ---
+  const recentJobs=useSchoolQuery<Array<{ job_id:string;kind:string;state:string;progress:Record<string,number|string> }>>("/exams/report-cards/jobs",{ refetchInterval:5000 });
   const reportQuery = useSchoolQuery<LiveExamReportCard[]>(reportPath);
   const summaryQuery = useSchoolQuery<ReportCardScopeSummary>(summaryPath);
   const hierarchyQuery = useSchoolQuery<ReportCardScopeHierarchyNode[]>(hierarchyPath);
@@ -559,31 +561,17 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
     };
     try {
       setBatchStatus(progress);
-      let offset = 0;
-      while (offset < batchScope.learner_count) {
-        const result = await requestSchoolApiProxy<LiveReportCardBatchStatus>("/exams/report-cards/batches", {
-          method: "POST",
-          body: {
-            exam_series_id: batchScope.exam_series_id,
-            class_section_id: batchScope.class_section_id,
-            ...(scope.streamLabel ? { stream_name: scope.streamLabel } : {}),
-            batch_size: 25,
-            offset,
-          },
-        });
-        if (result.total_students <= 0) throw new Error("No learners were processed. Refresh class readiness before retrying.");
-        progress = {
-          ...progress, id: result.id,
-          completed_students: progress.completed_students + result.completed_students,
-          failed_students: (progress.failed_students ?? 0) + (result.failed_students ?? 0),
-          reused_students: (progress.reused_students ?? 0) + (result.reused_students ?? 0),
-          duration_ms: (progress.duration_ms ?? 0) + (result.duration_ms ?? 0),
-          failures: [...(progress.failures ?? []), ...(result.failures ?? [])],
-        };
-        offset += result.total_students;
-        setBatchStatus(progress);
-        if (result.failures?.some(failure => failure.code === "REPORT_SCHEMA_MISMATCH")) break;
-      }
+      const result=await requestSchoolApiProxy<LiveReportCardBatchStatus>("/exams/report-cards/generation-scope",{
+        method:"POST",body:{ exam_series_id:batchScope.exam_series_id,class_section_id:batchScope.class_section_id,
+          ...(scope.streamLabel ? { stream_name:scope.streamLabel } : {}) },
+        onProgress:value=>{
+          progress={ ...progress,id:String(value.job_id ?? progress.id),
+            completed_students:Number(value.completed_students ?? progress.completed_students),
+            failed_students:Number(value.failed_students ?? progress.failed_students ?? 0) };
+          setBatchStatus(progress);
+        },
+      });
+      progress={ ...progress,...result };
       const pending = Math.max(0, progress.total_students - progress.completed_students - (progress.failed_students ?? 0));
       progress = { ...progress, queue_status: progress.failed_students || pending ? "failed" : "completed" };
       setBatchStatus(progress);
@@ -628,7 +616,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
       );
       setFeedback({
         tone: "ok",
-        message: "Official comments were saved into the working draft. Submitting it will freeze the snapshot for review.",
+        message: "Official comments were saved. Regenerate the report to include them, then submit it for review.",
       });
       await refreshAll();
     } catch (error) {
@@ -649,30 +637,10 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
     setFeedback(null);
     setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message: "Preparing the official PDF..." } }));
     try {
-      const response = await fetch(`/api/exams/report-cards/${encodeURIComponent(report.id)}/download`, {
-        method: "GET",
-        headers: { Accept: "application/pdf" },
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error(await reportCardDownloadError(response));
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("The generated report-card PDF was empty. Regenerate it and retry.");
-      const objectUrl = window.URL.createObjectURL(blob);
-      if (printWindow) {
-        printWindow.location.href = objectUrl;
-        setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
-        setFeedback({ tone: "ok", message: "Official PDF opened. Use the PDF viewer's Print control." });
-        return;
-      }
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = reportCardFilename(response, report);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(objectUrl);
-      const message = "Official report-card PDF downloaded.";
+      const prepared=await requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/${encodeURIComponent(report.id)}/prepare-download`,{ method:"POST" });
+      const url=await awaitReportDelivery(prepared,job=>setRowFeedback(current=>({ ...current,[report.id]:{ tone:"ok",message:`Report preparation ${job.state}. You may leave this page; the task is saved.` } })));
+      openReportDelivery(url,printWindow,`report-card-${report.id}.pdf`);
+      const message=printWindow ? "Official PDF opened. Use the PDF viewer’s Print control." : "Official report-card download opened.";
       setFeedback({ tone: "ok", message });
       setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message } }));
     } catch (error) {
@@ -716,37 +684,12 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
     const printWindow = action === "print" ? window.open("", "_blank") : null;
     setBusyAction(`bulk:${action}`);
     try {
-      let exportJob = await requestSchoolApiProxy<{ state: string; job_id?: string; download_url?: string; message?: string;
-        progress?: { rendered?: number } }>("/exams/report-cards/exports", {
-          method: "POST", body: Object.fromEntries(new URLSearchParams(params)),
-        });
-      const jobId = exportJob.job_id;
-      while (!exportJob.download_url) {
-        if (exportJob.state === "failed") throw new Error(exportJob.message ?? "Export failed. Preview the scope and retry.");
-        if (!jobId) throw new Error("The export queue did not return a job. Preview the scope and retry.");
-        setFeedback({ tone: "ok", message: `Report-card export ${exportJob.state}. ${exportJob.progress?.rendered ?? 0} of ${count} cards prepared.` });
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        exportJob = await requestSchoolApiProxy(`/exams/report-cards/exports/${jobId}`);
-      }
-      const response = await fetch(`/api${exportJob.download_url}`, {
-        method: "GET", headers: { Accept: "application/pdf" }, credentials: "same-origin", cache: "no-store",
+      const prepared=await requestSchoolApiProxy<ReportDeliveryJob>("/exams/report-cards/exports",{
+        method:"POST",body:Object.fromEntries(new URLSearchParams(params)),
       });
-      if (!response.ok) throw new Error(await reportCardDownloadError(response));
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("The report-card PDF was empty. Retry the export.");
-      const url = window.URL.createObjectURL(blob);
-      if (printWindow) {
-        printWindow.location.href = url;
-      } else {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `report-cards-${count}.pdf`;
-        document.body.appendChild(link); link.click(); link.remove();
-      }
-      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
-      setFeedback({ tone: "ok", message: printWindow
-        ? `${count} report cards opened in a combined PDF. Use the PDF viewer's Print control.`
-        : `${count} report cards downloaded in a combined PDF.${action === "print" ? " The popup was blocked; open the download to print." : ""}` });
+      const url=await awaitReportDelivery(prepared,job=>setFeedback({ tone:"ok",message:`Export ${job.state}. ${job.progress?.rendered ?? 0} of ${count} reports prepared. You may leave this page; the task is saved.` }));
+      openReportDelivery(url,printWindow,`report-cards-${count}.pdf`);
+      setFeedback({ tone:"ok",message:printWindow ? `${count} report cards opened. Use the PDF viewer’s Print control.` : `${count} report cards prepared; the download has opened.` });
     } catch (error) {
       printWindow?.close();
       setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Report-card export failed. Retry." });
@@ -848,6 +791,19 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
           {feedback.message}
         </div>
       ) : null}
+      {recentJobs.error ? <p role="alert" className="text-sm text-rose-700">Report task history could not be loaded. <button onClick={()=>void recentJobs.refetch()}>Retry</button></p> : null}
+      {recentJobs.data?.length ? <details className="rounded-xl border border-slate-200 bg-white p-3">
+        <summary className="cursor-pointer text-sm font-semibold">Recent report tasks</summary>
+        <p className="mt-2 text-xs text-slate-600">Tasks continue when you leave this page. Exports remain available for 24 hours.</p>
+        <ul className="mt-2 space-y-2">{recentJobs.data.map(job=><li key={job.job_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span>{job.kind.replaceAll("_"," ")} · {job.state}{job.progress.rendered ? ` · ${job.progress.rendered} reports` : job.progress.completed_students ? ` · ${job.progress.completed_students} ready` : ""}</span>
+          {job.state==="failed" ? <Button size="sm" variant="secondary" onClick={()=>void requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}/retry`,{ method:"POST" }).then(()=>recentJobs.refetch()).catch(error=>setFeedback({ tone:"critical",message:error instanceof Error ? error.message : "Retry failed" }))}>Retry task</Button> : null}
+          {job.state==="completed" && (job.kind==="pdf" || job.kind==="export") ? <Button size="sm" variant="secondary" onClick={()=>void requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/jobs/${job.job_id}`).then(result=>{
+            if(!result.download_url) throw new Error("Prepare the current report again.");openReportDelivery(result.download_url,null);
+          }).catch(error=>setFeedback({ tone:"critical",message:error instanceof Error ? error.message : "Download unavailable" }))}>Open PDF</Button> : null}
+          {job.state==="completed" && job.kind.startsWith("generate") ? <Button size="sm" variant="secondary" onClick={()=>void refreshAll()}>Refresh reports</Button> : null}
+        </li>)}</ul>
+      </details> : null}
 
       {/* Bulk result summary */}
       {bulkResult ? (
@@ -1503,6 +1459,11 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
               </Button>
             </div>
             <ReportCardVerificationStrip report={selectedDocument} />
+            {selectedReport.artifact_ineligible_reason ? (
+              <p role="status" className="my-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                Saved snapshot requires attention: {selectedReport.artifact_ineligible_reason}. Official PDF delivery remains subject to current validation.
+              </p>
+            ) : null}
             {audience === "exams-manager"
               && ["draft_requested", "draft_generated", "draft", "regeneration_required"].includes(
                 selectedReport.status,

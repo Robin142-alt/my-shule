@@ -53,9 +53,9 @@ it('generates the selected complete exam even while a different exam is incomple
   render(<LiveReportCardsWorkspace audience="exams-manager" />);
   await user.selectOptions(screen.getByLabelText('Class and exam cycle'), 'mid-term:form-4');
   await user.click(screen.getByRole('button', { name: 'Generate class report cards' }));
-  expect(requestSchoolApiProxy).toHaveBeenCalledWith('/exams/report-cards/batches', { method: 'POST', body: {
-    exam_series_id: 'mid-term', class_section_id: 'form-4', batch_size: 25, offset: 0,
-  } });
+  expect(requestSchoolApiProxy).toHaveBeenCalledWith('/exams/report-cards/generation-scope', { method: 'POST', body: {
+    exam_series_id: 'mid-term', class_section_id: 'form-4',
+  }, onProgress:expect.any(Function) });
   await waitFor(() => expect(screen.getByText('50 report-card snapshots generated for MID TERM 3 - Form 4.')).toBeVisible());
   expect(reports.refetch).toHaveBeenCalledTimes(1);
   expect(generation.refetch).toHaveBeenCalledTimes(1);
@@ -124,26 +124,28 @@ it('shows loading and enrollment guidance rather than a Ready label for an empty
 });
 
 
-it('generates every page for a class larger than 200 learners and displays saved progress', async () => {
+it('submits one durable task for a class larger than 200 learners and displays saved progress', async () => {
   queries([scope({ ready: true, learner_count: 211, ready_mark_count: 211, expected_mark_count: 211, not_ready_mark_count: 0, blockers: [] })]);
-  (requestSchoolApiProxy as jest.Mock).mockImplementation(async (_path, { body }) => ({
-    id: `batch-${body.offset}`, total_students: Math.min(25, 211 - body.offset),
-    completed_students: Math.min(25, 211 - body.offset), failed_students: 0, reused_students: body.offset === 0 ? 10 : 0,
-  }));
+  (requestSchoolApiProxy as jest.Mock).mockImplementation(async (_path, { onProgress }) => {
+    onProgress({job_id:'batch-1',completed_students:100});
+    return {id:'batch-1',total_students:211,completed_students:211,failed_students:0,reused_students:10};
+  });
   const user = userEvent.setup();
   render(<LiveReportCardsWorkspace audience="exams-manager" />);
   await user.selectOptions(screen.getByLabelText('Class and exam cycle'), 'end-term:form-4');
   await user.click(screen.getByRole('button', { name: 'Generate class report cards' }));
   await waitFor(() => expect(screen.getByText(/211 report-card snapshots generated/)).toBeVisible());
-  expect((requestSchoolApiProxy as jest.Mock).mock.calls.map(([, { body }]) => body.offset)).toEqual([0,25,50,75,100,125,150,175,200]);
+  expect(requestSchoolApiProxy).toHaveBeenCalledTimes(1);
+  expect((requestSchoolApiProxy as jest.Mock).mock.calls[0][0]).toBe('/exams/report-cards/generation-scope');
   expect(screen.getByText(/10 unchanged cards reused/, { selector: 'p[role="status"]' })).toBeVisible();
 });
 
 it('keeps completed progress after a later page fails and permits a safe retry', async () => {
   const { reports } = queries([scope({ ready: true, learner_count: 50, ready_mark_count: 50, not_ready_mark_count: 0, blockers: [] })]);
-  (requestSchoolApiProxy as jest.Mock).mockReset()
-    .mockResolvedValueOnce({ id: 'batch-1', total_students: 25, completed_students: 25, failed_students: 0 })
-    .mockRejectedValueOnce(new Error('Connection interrupted'));
+  (requestSchoolApiProxy as jest.Mock).mockReset().mockImplementation(async (_path,{onProgress})=>{
+    onProgress({job_id:'batch-1',completed_students:25});
+    throw new Error('Connection interrupted');
+  });
   const user = userEvent.setup();
   render(<LiveReportCardsWorkspace audience="exams-manager" />);
   await user.selectOptions(screen.getByLabelText('Class and exam cycle'), 'end-term:form-4');
@@ -156,7 +158,7 @@ it('keeps completed progress after a later page fails and permits a safe retry',
 
 it('stops subsequent pages on a schema failure and identifies the affected learner', async () => {
   queries([scope({ ready: true, learner_count: 60, ready_mark_count: 60, not_ready_mark_count: 0, blockers: [] })]);
-  (requestSchoolApiProxy as jest.Mock).mockReset().mockResolvedValue({ id: 'batch-1', total_students: 25,
+  (requestSchoolApiProxy as jest.Mock).mockReset().mockResolvedValue({ id: 'batch-1', total_students: 60,
     completed_students: 24, failed_students: 1, failures: [{ student_id: 'learner-1', student_name: 'Test Learner',
       code: 'REPORT_SCHEMA_MISMATCH', message: 'Service compatibility repair required.' }] });
   const user = userEvent.setup();

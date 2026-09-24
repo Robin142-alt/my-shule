@@ -3086,7 +3086,7 @@ test('ExamsService reports duplicate and unauthorized rows during bulk mark uplo
   assert.match(preview.row_results[2]?.errors.join(' '), /not assigned/);
 });
 
-test('ReportCardGenerationService generates HTML and PDF artifacts with a verification code', async () => {
+test('ReportCardGenerationService generates PDF artifacts with a verification code', async () => {
   const calls: Array<{ name: string; input?: Record<string, unknown> }> = [];
   const service = new ReportCardGenerationService(
     {
@@ -3151,11 +3151,11 @@ test('ReportCardGenerationService generates HTML and PDF artifacts with a verifi
   });
 
   assert.equal(result.status, 'draft_generated');
-  assert.match(String(result.verification_code), /^[A-Z0-9]{12}$/);
-  assert.deepEqual(calls.map((call) => call.name), ['snapshot', 'artifact', 'artifact', 'audit']);
+  assert.match(String(result.verification_code), /^[A-Z0-9]{20}$/);
+  assert.deepEqual(calls.map((call) => call.name), ['snapshot', 'artifact', 'audit']);
   assert.deepEqual(
     calls.filter((call) => call.name === 'artifact').map((call) => call.input?.artifact_type).sort(),
-    ['html', 'pdf'],
+    ['pdf'],
   );
   assert.equal(
     (
@@ -3400,6 +3400,7 @@ test('ExamsService starts class report-card batches and returns progress status'
   });
   const status = await service.getReportCardBatchStatus('batch-1');
 
+  assert.ok('queue_status' in batch);
   assert.equal(batch.queue_status, 'completed');
   assert.equal(status.completed_students, 2);
   assert.deepEqual(calls, [

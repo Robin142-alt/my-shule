@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, NotFoundException } from '@nestjs/common';
 
 export interface ReportCardFailure {
   student_id: string;
@@ -13,6 +13,9 @@ export function classifyReportCardFailure(error: unknown) {
   const record = error && typeof error === 'object' ? error as Record<string, any> : {};
   // Prisma wraps PostgreSQL SQLSTATE in meta; never send SQL or driver messages to the browser.
   const code = String(record.meta?.code ?? record.meta?.driverAdapterError?.cause?.originalCode ?? record.code ?? '');
+  if (error instanceof HttpException && error.getStatus() >= 500) {
+    return { code: 'GENERATION_TEMPORARILY_UNAVAILABLE', message: 'Storage or report processing is temporarily unavailable. Retry; completed cards will be reused.', retryable: true };
+  }
   if (error instanceof BadRequestException) {
     return { code: 'INVALID_REPORT_DATA', message: error.message.slice(0, 240), retryable: false };
   }

@@ -144,9 +144,10 @@ it('waits for a server export job and downloads one combined PDF',async()=>{
     expect(request).toHaveBeenCalledWith('/exams/report-cards/exports',{method:'POST',body:{scope_type:'school',preview_token:'server-token'}});
     expect(globalThis.fetch).not.toHaveBeenCalled();
     await act(async()=>{await jest.advanceTimersByTimeAsync(1500);});
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/exams/report-cards/exports/job-1/download',expect.objectContaining({headers:{Accept:'application/pdf'}}));
+    expect(request).toHaveBeenCalledWith('/exams/report-cards/jobs/job-1');
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(click).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('3 report cards downloaded in a combined PDF.')).toBeVisible();
+    expect(screen.getByText('3 report cards prepared; the download has opened.')).toBeVisible();
   } finally {
     jest.clearAllTimers();jest.useRealTimers();click.mockRestore();
     globalThis.fetch=originalFetch;URL.createObjectURL=originalCreate;URL.revokeObjectURL=originalRevoke;
@@ -160,5 +161,5 @@ it('shows a queue failure without pretending a PDF was downloaded',async()=>{
   await user.click(screen.getByRole('button',{name:'Download all 3'}));
   await user.click(within(await screen.findByRole('dialog')).getByRole('button',{name:'Download All (3)'}));
   expect(await screen.findByText('Export storage is unavailable. Retry.')).toBeVisible();
-  expect(screen.queryByText('3 report cards downloaded in a combined PDF.')).not.toBeInTheDocument();
+  expect(screen.queryByText('3 report cards prepared; the download has opened.')).not.toBeInTheDocument();
 });

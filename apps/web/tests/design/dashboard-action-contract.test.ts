@@ -16,7 +16,7 @@ function dashboardApiCalls(source: string) {
   function visit(node: ts.Node) {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "requestDashboardApi") {
       const [endpoint, options] = node.arguments;
-      const properties = options && ts.isObjectLiteralExpression(options) ? options.properties : [];
+      const properties: readonly ts.ObjectLiteralElementLike[] = options && ts.isObjectLiteralExpression(options) ? options.properties : [];
       const property = (name: string) => properties.find((item): item is ts.PropertyAssignment =>
         ts.isPropertyAssignment(item) && item.name.getText(file).replace(/["']/g, "") === name,
       )?.initializer;
@@ -1782,7 +1782,9 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/report-cards\/generate/);
     expect(source).toMatch(/report-cards\/\$\{encodeURIComponent\(reportCardId\)\}\/transition/);
     expect(source).toMatch(/report-cards\/\$\{encodeURIComponent\(reportCard\.id\)\}\/comments/);
-    expect(source).toMatch(/report-cards\/\$\{encodeURIComponent\(row\.id\)\}\/download/);
+    expect(source).toMatch(/report-cards\/\$\{encodeURIComponent\(row\.id\)\}\/prepare-download/);
+    expect(source).toMatch(/awaitReportDelivery\(/);
+    expect(source).toMatch(/openReportDelivery\(/);
     expect(controllerSource).toMatch(/report-cards\/:reportCardId\/comments/);
     expect(controllerSource.match(/@Get\('report-cards'\)/g)).toHaveLength(1);
   });

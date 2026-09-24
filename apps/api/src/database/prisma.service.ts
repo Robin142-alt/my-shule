@@ -50,6 +50,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const connectionPool = new Pool({
       connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
       application_name: 'my-shule-prisma',
+      max: Number(process.env.APP_RUNTIME?.includes('worker')
+        ? process.env.DATABASE_WORKER_MAX_CONNECTIONS ?? 5
+        : process.env.DATABASE_API_MAX_CONNECTIONS ?? process.env.DATABASE_MAX_CONNECTIONS ?? 20),
       connectionTimeoutMillis: 10000,
     });
     super({

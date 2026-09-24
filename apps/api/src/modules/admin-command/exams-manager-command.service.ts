@@ -1514,6 +1514,7 @@ export class ExamsManagerCommandService {
       ...(dto?.stream_name ? { stream_name: String(dto.stream_name) } : {}),
       ...(dto?.batch_size ? { batch_size: Number(dto.batch_size) } : {}),
     });
+    if ('job_id' in generated) return { ...generated,message:'Report generation is queued. Follow its progress in Report cards.' };
     const generatedCount = Number(generated.completed_students ?? 0);
     if (generatedCount === 0) {
       throw new BadRequestException('No eligible students with locked marks are ready for report-card generation.');
