@@ -1,10 +1,34 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { Modal } from "@/components/ui/modal";
 
 describe("modal", () => {
+  it("preserves a field selected before the opening animation frame runs", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const user = userEvent.setup();
+    try {
+      render(
+        <Modal open title="Create exam series" onClose={jest.fn()}>
+          <input aria-label="Exam name" />
+        </Modal>,
+      );
+      const input = screen.getByLabelText("Exam name");
+      await user.click(input);
+      act(() => frames.forEach((callback) => callback(0)));
+      expect(input).toHaveFocus();
+      await user.keyboard("Term 2 Midterm");
+      expect(input).toHaveValue("Term 2 Midterm");
+    } finally {
+      requestFrame.mockRestore();
+    }
+  });
+
   it("traps keyboard focus inside the dialog while it is open", async () => {
     const user = userEvent.setup();
     render(

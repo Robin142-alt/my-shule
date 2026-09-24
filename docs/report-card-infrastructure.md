@@ -1,6 +1,6 @@
 # Report-card engineering report and operations guide
 
-Repository implementation: September 2026. Changes are local and validated with disposable infrastructure; they have **not been deployed to Railway, Vercel or Cloudflare**. This is a horizontally scalable implementation, not a certification of 10,000,000 reports/day. The remaining capacity and delivery guarantees are stated explicitly below.
+Repository implementation: September 2026. The API, isolated workers, private R2 storage and Vercel frontend are deployed; see [the deployment record](report-card-deployment-2026-09-24.md). Validation combines disposable-infrastructure tests with live connectivity and authorization checks. This is a horizontally scalable implementation, not a certification of 10,000,000 reports/day. The remaining capacity and delivery guarantees are stated explicitly below.
 
 ## Engineering report
 

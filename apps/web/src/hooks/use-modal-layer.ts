@@ -62,7 +62,13 @@ export function useModalLayer<T extends HTMLElement>(open: boolean, onClose: () 
       }
     }
     updateViewport();
-    const frame = requestAnimationFrame(() => ref.current?.focus());
+    const frame = requestAnimationFrame(() => {
+      const panel = ref.current;
+      // A user or a child dialog may have selected a field before this frame.
+      if (layers.at(-1) === id && panel && !panel.contains(document.activeElement)) {
+        panel.focus();
+      }
+    });
     document.addEventListener("keydown", handleKeyDown);
     window.addEventListener("resize", updateViewport);
     window.visualViewport?.addEventListener("resize", updateViewport);
