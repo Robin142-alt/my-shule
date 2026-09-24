@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
 import {
@@ -1824,6 +1824,19 @@ test('refresh replay from a different client invalidates the session', async () 
   assert.equal(await service.getSession(SESSION_ROTATION_ID), null);
 });
 
+test('a refresh started before a role switch cannot revoke the switched session', async () => {
+  const service = await createDegradedSessionService();
+  const switchedPair = createSessionRotationTokenPair('switched-refresh');
+  await service.rotateRefreshToken({ ...createSessionRotationInput(switchedPair), role: 'principal' });
+  await assert.rejects(() => service.rotateRefreshToken({
+    ...createSessionRotationInput(createSessionRotationTokenPair('late-refresh')),
+    ip_address: '203.0.113.20',
+  }), ConflictException);
+  const current = await service.getSession(SESSION_ROTATION_ID);
+  assert.equal(current?.role, 'principal');
+  assert.equal(current?.refresh_token_id, switchedPair.refresh_token_id);
+});
+
 test('refresh replay outside the grace period invalidates the session', async () => {
   const service = await createDegradedSessionService();
 
@@ -2317,6 +2330,7 @@ test('UserRoleAssignmentsRepository binds active assignments to the requested us
 
 test('AuthService switches and refreshes the active role with exact permissions and one identity', async () => {
   const requestContext = new RequestContextService();
+  let baselineWrites = 0;
   const roleContext = {
     primary_role: 'principal',
     active_role: 'teacher',
@@ -2426,7 +2440,7 @@ test('AuthService switches and refreshes the active role with exact permissions 
       }),
     } as never,
     {
-      ensureTenantAuthorizationBaseline: async () => undefined,
+      ensureTenantAuthorizationBaseline: async () => { baselineWrites += 1; },
       getPermissionsByRoleId: async (_tenantId: string, roleId: string) => {
         assert.equal(roleId, 'role-teacher');
         return ['auth:read', 'teacher:read', 'teacher:write'];
@@ -2529,6 +2543,7 @@ test('AuthService switches and refreshes the active role with exact permissions 
       assert.equal(switched.user.role, 'teacher');
       assert.deepEqual(switched.user.permissions, ['auth:read', 'teacher:read', 'teacher:write']);
       assert.equal(switched.role_context.active_role, 'teacher');
+      assert.equal(baselineWrites, 0, 'Role switching must not rewrite the school permission catalogue');
       assert.equal(synchronizedRole, 'teacher');
       assert.deepEqual(auditMetadata, {
         previous_role: 'principal',
@@ -2539,7 +2554,7 @@ test('AuthService switches and refreshes the active role with exact permissions 
 
       await assert.rejects(
         () => service.authenticateAccessToken('old-access-token', 'tenant-a', 'school'),
-        /out of sync with the active session/,
+        /dashboard role changed/,
       );
 
       const refreshed = await service.refresh(

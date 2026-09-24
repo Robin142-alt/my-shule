@@ -9,7 +9,6 @@ import {
   isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
 import {
-  clearExperienceSessionCookies,
   readAccessCookie,
   readExperienceSessionCookie,
   readRefreshCookie,
@@ -96,6 +95,8 @@ export async function proxySchoolApiRequest(
   upstreamPrefix: string,
   options?: ProxyOptions,
 ) {
+  // Never clear cookies from a background request's stale snapshot. A successful
+  // role change may already have issued a newer session to the same browser.
   if (request.method !== "GET" && !validateCsrfRequest(request)) {
     return NextResponse.json(
       { message: "Security check expired. Refresh the page and try again." },
@@ -124,7 +125,7 @@ export async function proxySchoolApiRequest(
       "A signed-in session is required.",
       options?.responseEnvelope,
     );
-    clearExperienceSessionCookies(response);
+
     return response;
   }
 
@@ -216,7 +217,6 @@ export async function proxySchoolApiRequest(
         );
 
         if (sessionExpired) {
-          clearExperienceSessionCookies(response);
           response.headers.set("x-myshule-session-expired", "1");
         }
 
@@ -249,7 +249,6 @@ export async function proxySchoolApiRequest(
       }
 
       if (sessionExpired) {
-        clearExperienceSessionCookies(response);
         response.headers.set("x-myshule-session-expired", "1");
       }
 
@@ -343,7 +342,6 @@ export async function proxySchoolApiRequest(
     }
 
     if (sessionExpired) {
-      clearExperienceSessionCookies(response);
       response.headers.set("x-myshule-session-expired", "1");
     }
 
@@ -407,7 +405,6 @@ export async function proxySchoolApiRequest(
   }
 
   if (sessionExpired) {
-    clearExperienceSessionCookies(response);
     response.headers.set("x-myshule-session-expired", "1");
   }
 

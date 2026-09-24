@@ -217,6 +217,9 @@ export class SessionService {
       }
 
       if (currentSession.refresh_token_id !== input.current_refresh_token_id) {
+        if (currentSession.role !== input.role) {
+          throw new ConflictException('Session role changed during a concurrent token rotation');
+        }
         const replay = this.readFallbackRotationReplay(
           rotationKey,
           clientFingerprint,
@@ -434,6 +437,11 @@ export class SessionService {
         throw new UnauthorizedException('Session has expired');
       }
       if (session.refresh_token_id !== input.current_refresh_token_id) {
+        // A refresh may have read the old role before a concurrent switch won.
+        // It cannot replace the new role or revoke it as suspected token reuse.
+        if (session.role !== input.role) {
+          throw new ConflictException('Session role changed during a concurrent token rotation');
+        }
         const replay = await this.readRedisRotationReplay(rotationKey, clientFingerprint, session);
         if (replay) {
           if (replay.role !== input.role) throw new ConflictException('Session role changed during a concurrent token rotation');

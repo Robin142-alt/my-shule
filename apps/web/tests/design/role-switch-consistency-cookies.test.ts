@@ -1,10 +1,13 @@
 /** @jest-environment node */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { GET as me } from "@/app/api/auth/me/route";
 import { GET as roles } from "@/app/api/auth/dashboard-roles/route";
 import { setExperienceSessionCookies, type ExperienceGatewaySession } from "@/lib/auth/server-session";
+import { proxySchoolApiRequest as proxyDashboard } from "@/lib/dashboard/server-api-proxy";
+import { proxySchoolApiRequest as proxySchool } from "@/lib/auth/school-api-proxy";
 
 let jar = new Map<string, string>();
+jest.mock("@/lib/dashboard/api-client", () => ({ getDashboardApiBaseUrl: () => "https://api.example.test" }));
 jest.mock("next/headers", () => ({ cookies: async () => {
   const snapshot = new Map(jar);
   return { get: (name: string) => snapshot.has(name) ? { value: snapshot.get(name) } : undefined };
@@ -63,5 +66,38 @@ describe("role switch response cookies", () => {
     expect(result.cookies.getAll()).toEqual([]);
     saveCookies(result);
     expect(jar).toEqual(expected);
+  });
+
+  test.each(["session", "dashboard", "school"])("a delayed rejected %s request cannot erase the new document's cookies", async (kind) => {
+    issueCookies("principal");
+    let finish!: (value: Response) => void;
+    let started!: () => void;
+    const pending = new Promise<Response>((resolve) => { finish = resolve; });
+    const requested = new Promise<void>((resolve) => { started = resolve; });
+    jest.mocked(fetch).mockImplementationOnce(() => { started(); return pending; })
+      .mockImplementation(async () => Response.json({ message: "Session is no longer valid" }, { status: 401 }));
+    const reading = kind === "session"
+      ? me(new Request("https://school.example.test/api/auth/me?audience=school"))
+      : kind === "dashboard"
+        ? proxyDashboard(new NextRequest("https://school.example.test/api/school/tasks"), { params: { path: ["tasks"] } }, "/school")
+        : proxySchool({ request: new Request("https://school.example.test/api/school/tasks"), path: "/school/tasks", method: "GET", unavailableMessage: "Unavailable" });
+    await requested;
+    issueCookies("teacher");
+    const expected = new Map(jar);
+    finish(Response.json({ message: "Session is no longer valid" }, { status: 401 }));
+    const result = await reading;
+    expect(result.status).toBe(401);
+    expect(result.cookies.getAll()).toEqual([]);
+    saveCookies(result);
+    expect(jar).toEqual(expected);
+  });
+
+  test("old role conflicts pass through without attempting refresh", async () => {
+    issueCookies("principal");
+    jest.mocked(fetch).mockResolvedValue(Response.json({ message: "Your dashboard role changed." }, { status: 409 }));
+    const result = await proxyDashboard(new NextRequest("https://school.example.test/api/school/tasks"), { params: { path: ["tasks"] } }, "/school");
+    expect(result.status).toBe(409);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result.cookies.getAll()).toEqual([]);
   });
 });

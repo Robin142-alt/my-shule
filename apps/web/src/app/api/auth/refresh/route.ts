@@ -7,10 +7,8 @@ import { isExperienceAudience } from "@/lib/auth/experience-audience";
 import {
   createServerAuthClient,
   getServerAuthErrorStatus,
-  isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
 import {
-  clearExperienceSessionCookies,
   readAudienceCookie,
   readRememberSessionCookie,
   readTenantCookie,
@@ -80,9 +78,8 @@ export async function POST(request: NextRequest) {
       },
       { status: getServerAuthErrorStatus(error) },
     );
-    if (isServerAuthUnauthorized(error)) {
-      clearExperienceSessionCookies(response);
-    }
+    // A rejected refresh may belong to the dashboard that just closed.
+    // Return the failure without deleting newer browser credentials.
     return response;
   }
 }

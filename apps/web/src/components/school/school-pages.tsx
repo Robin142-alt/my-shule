@@ -66,6 +66,7 @@ import { SchoolStudentsPage } from "./student-directory-workspace";
 import { SchoolAcademicsPage } from "./academics-workspace-admin";
 import { SchoolReportsPage } from "./reports-workspace";
 import { SchoolPageHeader } from "./school-page-header";
+import { SchoolDashboardSessionGate } from "./school-dashboard-session-gate";
 
 import { getSchoolWorkspace, schoolSectionLabels, type SchoolExperienceRole, type SchoolSubscriptionView } from "@/lib/experiences/school-data";
 import { getExtremeErpBlueprint, isExtremeErpWorkspaceId } from "@/lib/operational/extreme-erp-blueprints";
@@ -4526,10 +4527,12 @@ export function SchoolPages(props: SchoolPagesProps) {
       routeMode={props.routeMode ?? "hosted"}
       liveDataEnabled={props.sessionVerificationEnabled === true}
     >
-      <AuthorizedSchoolPagesContent
-        {...props}
-        tenantId={props.tenantSlug?.trim() || null}
-      />
+      <SchoolDashboardSessionGate>
+        <AuthorizedSchoolPagesContent
+          {...props}
+          tenantId={props.tenantSlug?.trim() || null}
+        />
+      </SchoolDashboardSessionGate>
     </SchoolDashboardRoleProvider>
   );
 }
@@ -4538,33 +4541,6 @@ function AuthorizedSchoolPagesContent(
   props: SchoolPagesProps & { tenantId: string | null },
 ) {
   const roleState = useSchoolDashboardRole();
-
-  if (roleState.liveDataEnabled && !roleState.authenticatedSession) {
-    return (
-      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
-        <div
-          role={roleState.error ? "alert" : "status"}
-          aria-live="polite"
-          className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-center shadow-sm"
-        >
-          <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-          <p className="mt-3 text-sm font-black text-foreground">
-            {roleState.error ? "Dashboard access could not be verified" : "Verifying your dashboard access"}
-          </p>
-          <p className="mt-2 text-xs font-semibold leading-5 text-muted">
-            {roleState.error
-              ? roleState.error
-              : "Confirming your school, identity, and active working role."}
-          </p>
-          {roleState.error ? (
-            <Button className="mt-4" variant="secondary" onClick={() => window.location.reload()}>
-              Retry session verification
-            </Button>
-          ) : null}
-        </div>
-      </main>
-    );
-  }
 
   if (roleState.activeRole !== props.role) {
     return (

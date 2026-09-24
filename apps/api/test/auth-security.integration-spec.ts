@@ -199,6 +199,16 @@ describe('Authentication and authorization hardening', () => {
     expect(teacher.body.user.permissions).not.toContain('admissions:write');
     expect(teacher.body.user.permissions).not.toContain('roles:write');
 
+    // Old dashboard requests can arrive after the switch response. Even from a
+    // different gateway instance, they must not revoke the new role's session.
+    const staleRead = await request(app.getHttpServer()).get('/auth/me')
+      .set('host', officer.host).set('authorization', `Bearer ${officer.access_token}`).expect(409);
+    expect(staleRead.body.message).toContain('dashboard role changed');
+    await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', officer.host).set('x-forwarded-for', '203.0.113.20')
+      .set('user-agent', 'Another gateway instance')
+      .send({ refresh_token: officer.refresh_token }).expect(409);
+
     const refreshed = await request(app.getHttpServer()).post('/auth/refresh')
       .set('host', officer.host).send({ refresh_token: teacher.body.tokens.refresh_token }).expect(201);
     expect(refreshed.body.user.role).toBe('teacher');
@@ -213,6 +223,11 @@ describe('Authentication and authorization hardening', () => {
     expect(returned.body.user.role).toBe('admissions_officer');
     expect(returned.body.user.permissions).toContain('admissions:write');
     expect(returned.body.user.permissions).not.toContain('teacher:write');
+    await request(app.getHttpServer()).post('/auth/refresh')
+      .set('host', officer.host).send({ refresh_token: refreshed.body.tokens.refresh_token }).expect(409);
+    const verifiedReturn = await request(app.getHttpServer()).get('/auth/me')
+      .set('host', officer.host).set('authorization', `Bearer ${returned.body.tokens.access_token}`).expect(200);
+    expect(verifiedReturn.body.data.user.role).toBe('admissions_officer');
     const membership = await pool.query(`SELECT r.code FROM tenant_memberships m
       JOIN roles r ON r.id = m.role_id AND r.tenant_id = m.tenant_id
       WHERE m.tenant_id = $1 AND m.user_id = $2`, [officer.tenant_id, officer.user_id]);
@@ -276,9 +291,9 @@ describe('Authentication and authorization hardening', () => {
       .get('/security-probe/owner-only')
       .set('host', tenantOwner.host)
       .set('authorization', `Bearer ${escalatedToken}`)
-      .expect(401);
+      .expect(409);
 
-    expect(response.body.message).toContain('out of sync with the active session');
+    expect(response.body.message).toContain('dashboard role changed');
   });
 
   test('denies tenant login when the user has no membership in that tenant', async () => {

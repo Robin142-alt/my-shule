@@ -4,6 +4,7 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ModuleRef } from '@nestjs/core';
@@ -19,6 +20,7 @@ import { StructuredLoggerService } from '../modules/observability/structured-log
 import { DATABASE_POOL } from './database.constants';
 import { retryDatabaseOperation } from './database-retry';
 import { DatabaseSecurityService } from './database-security.service';
+import { PrismaService } from './prisma.service';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -34,6 +36,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     private readonly requestContext: RequestContextService,
     private readonly databaseSecurityService: DatabaseSecurityService,
     private readonly moduleRef: ModuleRef,
+    @Optional() private readonly prisma?: PrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -125,6 +128,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     text: string,
     values: unknown[] = [],
   ): Promise<QueryResult<T>> {
+    if (this.prisma?.getActiveTransaction()) {
+      // SQL repositories used by a Prisma workflow must participate in that
+      // transaction too (including authorization, audit and outbox writes).
+      return this.executeObservedQuery(text, values, async () => {
+        const result = await this.prisma!.query<T>(text, values);
+        return { ...result, command: '', oid: 0, fields: [] };
+      });
+    }
     const requestContext = this.requestContext.getStore();
 
     if (requestContext?.db_client) {
@@ -196,7 +207,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   async withRequestTransaction<T>(callback: () => Promise<T>): Promise<T> {
     const requestContext = this.requestContext.requireStore();
 
-    if (requestContext.db_client) {
+    if (this.prisma?.getActiveTransaction() || requestContext.db_client) {
       return callback();
     }
 

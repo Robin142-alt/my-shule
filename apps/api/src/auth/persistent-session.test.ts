@@ -112,6 +112,20 @@ test('reusing an older refresh token from a different client revokes its family'
   assert.equal(await sessions.getSession(session.session_id), null);
 });
 
+test('a delayed old-role refresh cannot revoke a role switch stored in Redis', async () => {
+  const { subject, session, pair } = await login();
+  const switched = await tokens.issueTokenPair({ ...subject, role: 'class_teacher' });
+  const input = { session_id: session.session_id, current_refresh_token_id: pair.refresh_token_id,
+    next_token_pair: switched, role: 'class_teacher', permissions: ['auth:read'],
+    email_verified_at: session.email_verified_at, ip_address: session.ip_address, user_agent: session.user_agent };
+  await sessions.rotateRefreshToken(input);
+  await assert.rejects(sessions.rotateRefreshToken({ ...input, role: session.role,
+    ip_address: '203.0.113.20', user_agent: 'another-gateway' }), /role changed/);
+  const current = await sessions.getSession(session.session_id);
+  assert.equal(current?.role, 'class_teacher');
+  assert.equal(current?.refresh_token_id, switched.refresh_token_id);
+});
+
 test('legacy regular sessions over 14 days are rejected even if the Redis key survives', async () => {
   const { session } = await login();
   session.created_at = new Date(Date.now() - 15 * 86400000).toISOString();

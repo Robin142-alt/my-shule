@@ -277,6 +277,13 @@ export function SchoolDashboardRoleProvider({
       return;
     }
 
+    // /auth/me already resolves current assignments on the backend. Do not block
+    // every workspace on a second request for the same authorization context.
+    if (sessionRoleContext) {
+      setIsLoadingRoles(false);
+      return;
+    }
+
     let cancelled = false;
     const requestVersion = roleRequestVersion.current;
     if (switchInProgress.current) return;
@@ -307,7 +314,7 @@ export function SchoolDashboardRoleProvider({
     return () => {
       cancelled = true;
     };
-  }, [auth.isLoading, auth.session, auth.user, liveDataEnabled]);
+  }, [auth.isLoading, auth.session, auth.user, liveDataEnabled, sessionRoleContext]);
 
   const reloadDashboardRoles = useCallback(async () => {
     if (switchInProgress.current) return;
@@ -316,7 +323,10 @@ export function SchoolDashboardRoleProvider({
     setRoleError(null);
 
     try {
-      const nextContext = await auth.loadDashboardRoles();
+      // A failed initial authentication read leaves the workspace without its
+      // identity and tenant. Recovery must restore that session as well as roles.
+      const recoveredSession = !auth.session ? await auth.reloadSession() : null;
+      const nextContext = recoveredSession?.session.roleContext ?? await auth.loadDashboardRoles();
       if (requestVersion !== roleRequestVersion.current) return;
       setRoleContext(nextContext);
     } catch (error) {
@@ -380,6 +390,11 @@ export function SchoolDashboardRoleProvider({
     });
 
     try {
+      // Cancel outgoing reads before rotating credentials. Requests already at
+      // the server are rejected as role conflicts without refreshing the session.
+      await queryClient.cancelQueries({
+        queryKey: ["school", normalizedTenantSlug ?? "session", userId ?? "session-user", roleContext.activeAuthorizationRoleCode],
+      });
       const result = await auth.switchRole(selectedOption.authorizationRoleCode);
       const nextContext = result.roleContext ?? result.session.roleContext;
 
@@ -393,16 +408,6 @@ export function SchoolDashboardRoleProvider({
       }
 
       setRoleContext(nextContext);
-      const tenantKey = normalizedTenantSlug ?? "session";
-      const userKey = userId ?? "session-user";
-      await queryClient.cancelQueries({
-        queryKey: [
-          "school",
-          tenantKey,
-          userKey,
-          roleContext.activeAuthorizationRoleCode,
-        ],
-      });
       // Do not refetch the outgoing workspace under the newly issued role.
       // The new document creates fresh query and permission caches.
 

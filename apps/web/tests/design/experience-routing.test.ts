@@ -330,6 +330,17 @@ describe("experience routing", () => {
     });
   });
 
+  test.each(["/school/login", "/login"])("allows explicit session recovery at %s even when stale cookies remain", (pathname) => {
+    const result = evaluateExperienceRouting({
+      host: "barakaacademy.myshule.test", pathname, reauthenticate: true,
+      cookies: { [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({
+        experience: "school", homePath: "/dashboard", role: "teacher",
+        tenantSlug: "barakaacademy", userLabel: "Teacher",
+      }) },
+    });
+    expect(result).toMatchObject({ action: "next", rewrittenPath: "/internal/school/login" });
+  });
+
   test("treats stale school sessions with expired refresh tokens as logged out", () => {
     expect(
       evaluateExperienceRouting({

@@ -54,7 +54,34 @@ async function parseResponse(response: Response) {
     );
   }
 
-  return json as SessionResponse;
+  if (!json || !("session" in json) || !json.session || !json.user) {
+    throw new Error("The session could not be verified. Please retry.");
+  }
+  return json;
+}
+
+export const SESSION_VERIFICATION_TIMEOUT_MS = 15_000;
+
+async function requestSession(audience: ExperienceAudience, tenantSlug?: string | null) {
+  const query = new URLSearchParams({ audience });
+  if (tenantSlug) query.set("tenantSlug", tenantSlug);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SESSION_VERIFICATION_TIMEOUT_MS);
+  try {
+    return await parseResponse(await fetch(`/api/auth/me?${query.toString()}`, {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller.signal,
+    }));
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Session verification took too long. Please retry.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function useExperienceSession(
@@ -88,40 +115,7 @@ export function useExperienceSession(
       setIsLoading(true);
 
       try {
-        const query = new URLSearchParams({
-          audience,
-        });
-
-        if (options?.tenantSlug) {
-          query.set("tenantSlug", options.tenantSlug);
-        }
-
-        const response = await fetch(`/api/auth/me?${query.toString()}`, {
-          method: "GET",
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => null)) as
-            | { message?: string }
-            | null;
-
-          if (!cancelled && requestVersion === sessionVersion.current) {
-            if (response.status === 401) {
-              setSession(null);
-              setUser(null);
-            } else {
-              setError(
-                payload?.message
-                ?? "Unable to verify the current session. Please retry shortly.",
-              );
-            }
-          }
-          return;
-        }
-
-        const payload = (await response.json()) as SessionResponse;
+        const payload = await requestSession(audience, options?.tenantSlug);
 
         if (!cancelled && requestVersion === sessionVersion.current) {
           setSession(payload.session);
@@ -149,6 +143,27 @@ export function useExperienceSession(
       cancelled = true;
     };
   }, [audience, options?.autoLoad, options?.tenantSlug]);
+
+  const reloadSession = async () => {
+    const requestVersion = ++sessionVersion.current;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const payload = await requestSession(audience, options?.tenantSlug);
+      if (requestVersion === sessionVersion.current) {
+        setSession(payload.session);
+        setUser(payload.user);
+      }
+      return payload;
+    } catch (loadError) {
+      if (requestVersion === sessionVersion.current) {
+        setError(loadError instanceof Error ? loadError.message : "Unable to load the current session.");
+      }
+      throw loadError;
+    } finally {
+      if (requestVersion === sessionVersion.current) setIsLoading(false);
+    }
+  };
 
   const login = async (input: LoginInput) => {
     setIsSubmitting(true);
@@ -341,6 +356,7 @@ export function useExperienceSession(
     login,
     logout,
     refresh,
+    reloadSession,
     loadDashboardRoles,
     switchRole,
     clearError: () => setError(null),

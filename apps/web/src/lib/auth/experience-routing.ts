@@ -565,6 +565,7 @@ export function resolveExperienceHost(
 }
 
 export function evaluateExperienceRouting(input: {
+  reauthenticate?: boolean;
   host: string | null | undefined;
   pathname: string;
   refreshToken?: string | null;
@@ -697,6 +698,9 @@ export function evaluateExperienceRouting(input: {
 
   const compatibilityPath = resolveLegacyCompatibilityPath(experience, input.pathname);
   if (compatibilityPath) {
+    if (input.reauthenticate && compatibilityPath === "/login") {
+      return { action: "next", headers, rewrittenPath: mapPublicPathToInternal(experience, "/login") };
+    }
     if (session && sharedPublicPaths.has(compatibilityPath)) {
       return {
         action: "redirect",
@@ -720,7 +724,7 @@ export function evaluateExperienceRouting(input: {
   }
 
   if (sharedPublicPaths.has(input.pathname)) {
-    if (session) {
+    if (session && !(input.reauthenticate && input.pathname === "/login")) {
       return {
         action: "redirect",
         location: session.homePath,

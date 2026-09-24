@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
@@ -123,11 +124,12 @@ export class AuthService {
     if (
       session.user_id !== payload.user_id ||
       session.tenant_id !== payload.tenant_id ||
-      session.role !== payload.role ||
       session.audience !== payload.audience
     ) {
       throw new UnauthorizedException('Access token is out of sync with the active session');
     }
+
+    this.assertCurrentDashboardRole(payload.role, session.role);
 
     if (session.tenant_id && session.audience === 'school' && this.dashboardRoleService) {
       try {
@@ -246,6 +248,10 @@ export class AuthService {
       await this.sessionService.invalidateSession(payload.session_id);
       throw new UnauthorizedException('Refresh token does not match this session');
     }
+
+    // Requests already in flight when a dashboard switches still carry the old
+    // role's refresh token. Reject them without rotating/revoking the new session.
+    this.assertCurrentDashboardRole(payload.role, session.role);
 
     const user = await this.usersRepository.findById(payload.user_id);
 
@@ -529,7 +535,8 @@ export class AuthService {
       throw new UnauthorizedException('User account is no longer active');
     }
 
-    await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+    // Login/onboarding establishes the catalogue. Switching only reads current
+    // assignments and permissions; rewriting every school role adds lock contention.
     const selectedRole = await this.requireDashboardRoleService().authorizeRole({
       user_id: user.id,
       tenant_id: tenantId,
@@ -601,6 +608,15 @@ export class AuthService {
       selectedRole.context,
       selectedRole.role_code,
     );
+  }
+
+  private assertCurrentDashboardRole(tokenRole: string, sessionRole: string) {
+    if (tokenRole !== sessionRole) {
+      throw new ConflictException({
+        code: 'SESSION_ROLE_CHANGED',
+        message: 'Your dashboard role changed. Reload this dashboard to continue.',
+      });
+    }
   }
 
   private requireTenantScopedAudience(requestedAudience: AuthAudience | undefined): AuthAudience {

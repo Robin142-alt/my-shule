@@ -8,7 +8,6 @@ import {
   isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
 import {
-  clearExperienceSessionCookies,
   readRememberSessionCookie,
   readTenantCookie,
   setExperienceSessionCookies,
@@ -73,9 +72,8 @@ export async function GET(request: Request) {
       },
       { status: getServerAuthErrorStatus(error) },
     );
-    if (isServerAuthUnauthorized(error)) {
-      clearExperienceSessionCookies(response);
-    }
+    // An in-flight read has an older cookie snapshot. Only explicit logout may
+    // clear credentials; this response must not erase a completed role switch.
     return response;
   }
 }

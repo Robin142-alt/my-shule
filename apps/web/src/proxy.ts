@@ -39,6 +39,7 @@ export function proxy(request: NextRequest) {
       request.headers.get("x-forwarded-host") ??
       request.headers.get("host"),
     pathname: request.nextUrl.pathname,
+    reauthenticate: request.nextUrl.searchParams.get("expired") === "1",
     refreshToken: request.cookies.get(REFRESH_COOKIE)?.value,
     cookies: {
       [SUPERADMIN_SESSION_COOKIE]:

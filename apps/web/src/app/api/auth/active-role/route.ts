@@ -6,10 +6,8 @@ import { validateCsrfRequest } from "@/lib/auth/csrf";
 import {
   createServerAuthClient,
   getServerAuthErrorStatus,
-  isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
 import {
-  clearExperienceSessionCookies,
   readRememberSessionCookie,
   setExperienceSessionCookies,
   toPublicExperienceGatewaySession,
@@ -59,9 +57,7 @@ export async function POST(request: NextRequest) {
       { status: getServerAuthErrorStatus(error) },
     );
 
-    if (isServerAuthUnauthorized(error)) {
-      clearExperienceSessionCookies(response);
-    }
+    // Do not erase credentials issued by a newer request in this browser.
 
     return response;
   }

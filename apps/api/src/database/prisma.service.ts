@@ -1,13 +1,20 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { createHash } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Pool } from 'pg';
 import { RequestContextService } from '../common/request-context/request-context.service';
 import type { RequestContextState } from '../common/request-context/request-context.types';
 import { DatabaseSecurityService } from './database-security.service';
 
 const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/shule_hub';
+
+interface ScopedPrismaTransaction {
+  client: Prisma.TransactionClient;
+  tenantId: string | null;
+  closed: boolean;
+}
 
 export function buildTenantSessionSettingsQuery(tenantId: string, userId: string | null | undefined): Prisma.Sql {
   return Prisma.sql`
@@ -38,6 +45,7 @@ export function buildRequestSessionSettingsQuery(context: RequestContextState): 
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   private readonly connectionPool: Pool;
+  private transactionStorage?: AsyncLocalStorage<ScopedPrismaTransaction>;
   private static readonly SCHEMA_BOOTSTRAP_LOCK_KEY = 'my_shule_prisma_schema_bootstrap';
   private static schemaBootstrapQueue: Promise<void> = Promise.resolve();
   private static schemaBootstrapByHash = new Map<string, Promise<void>>();
@@ -77,10 +85,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     userId: string | null | undefined,
     callback: (tx: Prisma.TransactionClient) => Promise<T>
   ): Promise<T> {
+    const existing = this.getScopedTransaction(tenantId);
+    if (existing) return callback(existing.client);
+
     return this.$transaction(async (tx) => {
       await this.applyRuntimeRole(tx);
       await tx.$queryRaw(buildTenantSessionSettingsQuery(tenantId, userId));
-      return callback(tx);
+      return this.runInTransactionScope(tx, tenantId, callback);
     }, {
       maxWait: 30000,
       timeout: 60000,
@@ -91,12 +102,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const requestContext = this.requestContext?.getStore();
     const inferredTenantId = this.inferFirstParameterTenantId(sql, params[0]);
     const expectsRows = this.rawSqlReturnsRows(sql);
+    const existing = this.getScopedTransaction(requestContext ? requestContext.tenant_id : inferredTenantId);
+
+    if (existing) {
+      // Repository calls inside a transaction must use its connection. Opening
+      // another transaction here can exhaust the pool and also commit partial work.
+      return this.executeRawQuery<T>(existing.client, sql, params, expectsRows);
+    }
 
     if (requestContext) {
       return this.$transaction(async (tx) => {
         await this.applyRuntimeRole(tx);
         await tx.$queryRaw(buildRequestSessionSettingsQuery(requestContext));
-        return this.executeRawQuery<T>(tx, sql, params, expectsRows);
+        return this.runInTransactionScope(tx, requestContext.tenant_id, () =>
+          this.executeRawQuery<T>(tx, sql, params, expectsRows));
       }, {
         maxWait: 30000,
         timeout: 60000,
@@ -110,6 +129,36 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     }
 
     return this.executeRawQuery<T>(this, sql, params, expectsRows);
+  }
+
+  getActiveTransaction(): Prisma.TransactionClient | undefined {
+    return this.getScopedTransaction(this.requestContext?.getStore()?.tenant_id)?.client;
+  }
+
+  private getScopedTransaction(tenantId: string | null | undefined): ScopedPrismaTransaction | undefined {
+    const transaction = this.transactionStorage?.getStore();
+    if (!transaction) return undefined;
+    if (transaction.closed) throw new Error('The database transaction has already completed');
+    if (tenantId && tenantId !== transaction.tenantId) {
+      throw new ForbiddenException('A database transaction cannot change its school scope');
+    }
+    return transaction;
+  }
+
+  private async runInTransactionScope<T>(
+    client: Prisma.TransactionClient,
+    tenantId: string | null,
+    callback: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    this.transactionStorage ??= new AsyncLocalStorage<ScopedPrismaTransaction>();
+    const transaction = { client, tenantId, closed: false };
+    return this.transactionStorage.run(transaction, async () => {
+      try {
+        return await callback(client);
+      } finally {
+        transaction.closed = true;
+      }
+    });
   }
 
   private async applyRuntimeRole(
@@ -267,6 +316,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async withRequestTransaction<T>(callback: (tx: any) => Promise<T>): Promise<T> {
     const store = this.requestContext.getStore();
+    const existing = this.getScopedTransaction(store?.tenant_id);
+    if (existing) return callback(existing.client);
     if (store && store.tenant_id) {
       return this.executeWithTenant(store.tenant_id, store.user_id, callback);
     }
@@ -275,7 +326,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       if (store) {
         await tx.$queryRaw(buildRequestSessionSettingsQuery(store));
       }
-      return callback(tx);
+      return this.runInTransactionScope(tx, store?.tenant_id ?? null, callback);
     }, {
       maxWait: 30000,
       timeout: 60000,

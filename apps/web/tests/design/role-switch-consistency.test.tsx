@@ -1,11 +1,12 @@
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 
 import { normalizeDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import { replaceDashboardDocument } from "@/lib/auth/dashboard-role-navigation";
 import { SchoolDashboardRoleProvider, useSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
-import { useExperienceSession } from "@/lib/auth/use-experience-session";
+import { SESSION_VERIFICATION_TIMEOUT_MS, useExperienceSession } from "@/lib/auth/use-experience-session";
+import { SchoolDashboardSessionGate } from "@/components/school/school-dashboard-session-gate";
 import { routerReplaceMock } from "./router-mock";
 
 jest.mock("@/lib/auth/dashboard-role-navigation", () => ({ replaceDashboardDocument: jest.fn() }));
@@ -74,6 +75,10 @@ describe("role switch consistency", () => {
       </SchoolDashboardRoleProvider>
     </QueryClientProvider>);
     await waitFor(() => expect(roleState.availableRoles).toHaveLength(2));
+    // Start an explicit access refresh to exercise a real in-flight role read.
+    // Dashboard initialization itself must reuse the authenticated context.
+    let reloading!: Promise<void>;
+    await act(async () => { reloading = roleState.reloadDashboardRoles(); });
     let switching!: Promise<void>;
     await act(async () => {
       switching = roleState.switchDashboardRole("teacher");
@@ -89,12 +94,44 @@ describe("role switch consistency", () => {
     expect(replaceDashboardDocument).toHaveBeenCalledWith(routeMode === "public" ? "/school/teacher" : "/dashboard");
     expect(roleState.isSwitching).toBe(true);
     expect(invalidate).not.toHaveBeenCalled();
-    await act(async () => { oldRoles.resolve(response({ roleContext: context("principal") })); });
+    await act(async () => {
+      oldRoles.resolve(response({ roleContext: context("principal") }));
+      await reloading;
+    });
     expect(screen.getByTestId("active-role")).toHaveTextContent("teacher");
     expect(replaceDashboardDocument).toHaveBeenCalledTimes(1);
     expect(routerReplaceMock).not.toHaveBeenCalled();
     await act(async () => { await roleState.switchDashboardRole("principal"); });
     expect(jest.mocked(fetch).mock.calls.filter(([url]) => url === "/api/auth/active-role")).toHaveLength(1);
+  });
+
+  test("dashboard initialization makes one session request and does not wait on duplicate role access", async () => {
+    jest.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/auth/me")) return response(payload("principal"));
+      throw new Error(`Unnecessary request ${url}`);
+    });
+    render(<SchoolDashboardRoleProvider initialRole="principal" tenantSlug="school-a" routeMode="public"><Probe /></SchoolDashboardRoleProvider>, { wrapper });
+    await waitFor(() => expect(roleState.isLoading).toBe(false));
+    expect(roleState.availableRoles).toHaveLength(2);
+    expect(roleState.error).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("retry after an authentication outage restores identity, tenant and dashboard access", async () => {
+    jest.mocked(fetch)
+      .mockResolvedValueOnce(response({ message: "Authentication service is temporarily unavailable." }, 503))
+      .mockResolvedValueOnce(response(payload("principal")));
+    render(<SchoolDashboardRoleProvider initialRole="principal" tenantSlug="school-a" routeMode="public"><Probe /></SchoolDashboardRoleProvider>, { wrapper });
+    await waitFor(() => expect(roleState.error).toMatch(/temporarily unavailable/));
+    expect(roleState.authenticatedUser).toBeNull();
+    await act(async () => { await roleState.reloadDashboardRoles(); });
+    await waitFor(() => expect(roleState.isLoading).toBe(false));
+    expect(roleState.error).toBeNull();
+    expect(roleState.userId).toBe("user-a");
+    expect(roleState.tenantSlug).toBe("school-a");
+    expect(roleState.availableRoles).toHaveLength(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(jest.mocked(fetch).mock.calls.every(([url]) => String(url).startsWith("/api/auth/me"))).toBe(true);
   });
 
   test("a delayed session read cannot overwrite a confirmed switch", async () => {
@@ -106,6 +143,67 @@ describe("role switch consistency", () => {
     expect(result.current.session?.roleContext?.activeAuthorizationRoleCode).toBe("teacher");
     await act(async () => { oldSession.resolve(response(payload("principal"))); });
     expect(result.current.session?.roleContext?.activeAuthorizationRoleCode).toBe("teacher");
+  });
+
+  test("an unauthorized new dashboard stops loading and retries without logout", async () => {
+    jest.mocked(fetch)
+      .mockResolvedValueOnce(response({ message: "No active session found." }, 401))
+      .mockResolvedValueOnce(response(payload("teacher")));
+    render(<SchoolDashboardRoleProvider initialRole="teacher" tenantSlug="school-a" routeMode="public">
+      <SchoolDashboardSessionGate><p>Verified teacher workspace</p><Probe /></SchoolDashboardSessionGate>
+    </SchoolDashboardRoleProvider>, { wrapper });
+    expect(await screen.findByRole("alert")).toHaveTextContent("No active session found");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Verified teacher workspace")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry session verification" }));
+    expect(await screen.findByText("Verified teacher workspace")).toBeInTheDocument();
+    expect(roleState.activeRole).toBe("teacher");
+    expect(roleState.userId).toBe("user-a");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test("a stalled session request ends with recovery controls", async () => {
+    jest.useFakeTimers();
+    try {
+      jest.mocked(fetch).mockImplementation((_url, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      }));
+      render(<SchoolDashboardRoleProvider initialRole="teacher" routeMode="public">
+        <SchoolDashboardSessionGate><p>Protected workspace</p></SchoolDashboardSessionGate>
+      </SchoolDashboardRoleProvider>, { wrapper });
+      await act(async () => { jest.advanceTimersByTime(SESSION_VERIFICATION_TIMEOUT_MS); });
+      expect(screen.getByRole("alert")).toHaveTextContent("took too long");
+      expect(screen.getByRole("button", { name: "Retry session verification" })).toBeEnabled();
+      expect(screen.queryByText("Protected workspace")).not.toBeInTheDocument();
+    } finally { jest.useRealTimers(); }
+  });
+
+  test.each(["public", "hosted"] as const)("%s verifies a fresh document after switching and can switch back", async (routeMode) => {
+    let active = "principal";
+    jest.mocked(fetch).mockImplementation(async (url, init) => {
+      if (url === "/api/auth/active-role") active = JSON.parse(String(init?.body)).role_code;
+      return response(payload(active));
+    });
+    const open = (role: "principal" | "teacher") => render(
+      <SchoolDashboardRoleProvider initialRole={role} tenantSlug="school-a" routeMode={routeMode}>
+        <SchoolDashboardSessionGate><Probe /></SchoolDashboardSessionGate>
+      </SchoolDashboardRoleProvider>, { wrapper });
+    const first = open("principal");
+    await waitFor(() => expect(screen.getByTestId("active-role")).toHaveTextContent("principal"));
+    await waitFor(() => expect(roleState.availableRoles).toHaveLength(2));
+    await act(async () => { await roleState.switchDashboardRole("teacher"); });
+    first.unmount();
+    const second = open("teacher");
+    await waitFor(() => expect(screen.getByTestId("active-role")).toHaveTextContent("teacher"));
+    await waitFor(() => expect(roleState.availableRoles).toHaveLength(2));
+    expect(roleState.isSwitching).toBe(false);
+    await act(async () => { await roleState.switchDashboardRole("principal"); });
+    second.unmount();
+    open("principal");
+    await waitFor(() => expect(screen.getByTestId("active-role")).toHaveTextContent("principal"));
+    await waitFor(() => expect(roleState.isLoading).toBe(false));
+    expect(roleState.error).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(5);
   });
 
   test("a rejected switch retains the current dashboard and permits retry", async () => {

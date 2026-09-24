@@ -7,7 +7,6 @@ import {
   isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
 import {
-  clearExperienceSessionCookies,
   readAccessCookie,
   readAudienceCookie,
   readExperienceSessionCookie,
@@ -34,6 +33,8 @@ type SchoolProxyRequest = {
 };
 
 export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
+  // Failures report access status without deleting browser cookies: an older
+  // request may finish after a successful role change. Logout owns deletion.
   let session = await getSchoolApiSession();
   let didRefreshSession = false;
 
@@ -42,7 +43,7 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
       { message: "A signed-in school session is required." },
       { status: 401 },
     );
-    clearExperienceSessionCookies(response);
+
     return response;
   }
 
@@ -87,7 +88,6 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
   if (didRefreshSession) {
     const nextResponse = createSchoolApiResponse(response, payload, input);
     if (response.status === 401) {
-      clearExperienceSessionCookies(nextResponse);
       nextResponse.headers.set("x-myshule-session-expired", "1");
     } else if (refreshedSession) {
       setExperienceSessionCookies(nextResponse, refreshedSession.session, {
@@ -116,7 +116,6 @@ export async function proxySchoolApiRequest(input: SchoolProxyRequest) {
   const nextResponse = createSchoolApiResponse(response, payload, input);
 
   if (response.status === 401) {
-    clearExperienceSessionCookies(nextResponse);
     nextResponse.headers.set("x-myshule-session-expired", "1");
   } else {
     setExperienceSessionCookies(nextResponse, refreshedSession.session, {
@@ -222,7 +221,6 @@ function createSchoolAuthFailureResponse(error: unknown, payload?: unknown) {
   );
 
   if (sessionExpired) {
-    clearExperienceSessionCookies(response);
     response.headers.set("x-myshule-session-expired", "1");
   }
 
