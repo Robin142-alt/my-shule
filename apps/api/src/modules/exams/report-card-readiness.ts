@@ -1,12 +1,19 @@
 // Shared by the generation preflight and the report-card selector. Do not derive
 // readiness from paginated mark sheets: missing learner marks have no row there.
 // Parameters: school, optional exam, optional class, optional stream name.
-export const REPORT_CARD_READINESS_CTES = `WITH selected_windows AS (
+export function reportCardReadinessCtes(options: {
+  selectedWindowsSql?: string;
+  streamNameSql?: string;
+} = {}): string {
+  const selectedWindowsSql = options.selectedWindowsSql ?? `
   SELECT DISTINCT exam_series_id, class_section_id, subject_id
   FROM exam_mark_entry_windows
   WHERE tenant_id = $1
     AND ($2::uuid IS NULL OR exam_series_id = $2::uuid)
-    AND ($3::uuid IS NULL OR class_section_id = $3::uuid)
+    AND ($3::uuid IS NULL OR class_section_id = $3::uuid)`;
+  const streamNameSql = options.streamNameSql ?? '$4::text';
+  return `selected_windows AS (
+  ${selectedWindowsSql}
 ), expected AS (
   SELECT DISTINCT student.id::text AS student_id,
     mark_window.exam_series_id, mark_window.class_section_id, mark_window.subject_id
@@ -28,7 +35,7 @@ export const REPORT_CARD_READINESS_CTES = `WITH selected_windows AS (
   LEFT JOIN class_streams stream
     ON stream.tenant_id = assignment.tenant_id
    AND stream.id::text = assignment.stream_id::text
-  WHERE ($4::text IS NULL OR stream.name = $4::text)
+  WHERE (${streamNameSql} IS NULL OR stream.name = ${streamNameSql})
 ), readiness AS (
   SELECT expected.*, COALESCE(evidence.is_ready, FALSE) AS is_ready,
     COALESCE(evidence.mark_state, 0) AS mark_state
@@ -45,6 +52,9 @@ export const REPORT_CARD_READINESS_CTES = `WITH selected_windows AS (
       AND mark.subject_id = expected.subject_id
   ) evidence ON TRUE
 )`;
+}
+
+export const REPORT_CARD_READINESS_CTES = `WITH ${reportCardReadinessCtes()}`;
 
 export const REPORT_CARD_READINESS_COUNTS = `
   COUNT(student_id)::integer AS expected_mark_count,

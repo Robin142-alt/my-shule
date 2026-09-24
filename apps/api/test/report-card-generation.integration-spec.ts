@@ -5,6 +5,9 @@ import { performance } from 'node:perf_hooks';
 import { writeFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { ExamsSchemaService } from '../src/modules/exams/exams-schema.service';
+import { EXAM_SETUP_INTEGRITY_SCHEMA } from '../src/modules/exams/exam-setup-integrity-schema';
+import { ExamsService } from '../src/modules/exams/exams.service';
+import { DeanAcademicsCommandService } from '../src/modules/admin-command/dean-academics-command.service';
 import { HrSchemaService } from '../src/modules/hr/hr-schema.service';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
 import { ReportCardGenerationService } from '../src/modules/exams/services/report-card-generation.service';
@@ -57,7 +60,7 @@ describe('Report generation with the production staff schema', () => {
       CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,class_section_id text,subject_id text,status text);
       CREATE TABLE class_sections(tenant_id text,id text,name text,custom_label text);
       CREATE TABLE class_streams(tenant_id text,id text,name text);
-      CREATE TABLE subjects(tenant_id text,id text,name text);
+      CREATE TABLE subjects(tenant_id text,id text,name text,department_id text,code text);
       CREATE TABLE academics_class_teachers(tenant_id text,teacher_user_id uuid,academic_year_id text,class_section_id text,
         is_active boolean,status text,effective_from date,effective_to date,updated_at timestamptz DEFAULT NOW());
       CREATE TABLE users(id uuid PRIMARY KEY,full_name text,display_name text,email text,status text);
@@ -78,6 +81,12 @@ describe('Report generation with the production staff schema', () => {
         correlation_id uuid,created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),UNIQUE(tenant_id,event_key));
     `);
     await query(REPORT_INFRASTRUCTURE_SCHEMA);
+    await query(EXAM_SETUP_INTEGRITY_SCHEMA);
+    // Older installations already have this guard on artifact writes. The full
+    // generation path must exercise it, including on upgraded databases.
+    await query(`DROP TRIGGER IF EXISTS exam_setup_parent_guard ON report_card_artifacts;
+      CREATE TRIGGER exam_setup_parent_guard BEFORE INSERT OR UPDATE ON report_card_artifacts
+        FOR EACH ROW EXECUTE FUNCTION enforce_exam_setup_parent()`);
     await query(`CREATE TABLE file_objects(id uuid DEFAULT gen_random_uuid(),tenant_id text,storage_path text,original_file_name text,
       mime_type text,size_bytes bigint,sha256 text,content bytea,metadata jsonb DEFAULT '{}',storage_backend text,
       object_storage_provider text,object_storage_bucket text,object_storage_key text,object_storage_etag text,
@@ -144,7 +153,7 @@ describe('Report generation with the production staff schema', () => {
       INSERT INTO academic_years VALUES ('school-a','${ids.year}','2026');
       INSERT INTO academic_terms VALUES ('school-a','${ids.term}','Term 3','${ids.year}','2026-09-01','2026-12-01');
       INSERT INTO class_sections VALUES ('school-a','${ids.class}','Form 4',NULL);
-      INSERT INTO subjects VALUES ('school-a','${ids.subject}','Mathematics');
+      INSERT INTO subjects(tenant_id,id,name) VALUES ('school-a','${ids.subject}','Mathematics');
       INSERT INTO users VALUES ('${ids.teacher}','Teacher Account','Teacher Account','teacher@example.test','active'),
         ('${ids.principal}','Principal Account','Principal Account','principal@example.test','active');
       INSERT INTO staff_profiles(tenant_id,user_id,display_name) VALUES ('school-a','${ids.teacher}','Assigned Teacher'),('school-a','${ids.principal}','School Principal');
@@ -189,6 +198,40 @@ describe('Report generation with the production staff schema', () => {
   const studentInput = () => ({ ...scope, student_id: students[0] });
   const count = async (table: string) => Number((await query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count);
 
+  it('keeps a fully locked exam at report generation and reports genuine missing marks separately', async () => {
+    const service = new ExamsService({ getStore: () => context } as never, repository, {} as never);
+    const current = async () => (await service.getWorkflowOverview()).series.find(row => row.id === ids.exam)!;
+    expect(await current()).toMatchObject({ stage: 'report_card_generation', can_generate_report_cards: true,
+      counts: { learners: 11, expected_marks: 11, ready_marks: 11, locked_marks: 11, missing_marks: 0 } });
+    const student = (await query('SELECT id FROM students WHERE tenant_id=$1 LIMIT 1', ['school-a'])).rows[0];
+    await query("UPDATE exam_marks SET status='submitted' WHERE tenant_id='school-a' AND student_id=$1::uuid", [student.id]);
+    expect(await current()).toMatchObject({ stage: 'dean_review', can_generate_report_cards: false });
+    await query("UPDATE exam_marks SET status='reviewed' WHERE tenant_id='school-a' AND student_id=$1::uuid", [student.id]);
+    expect(await current()).toMatchObject({ stage: 'dean_lock', can_generate_report_cards: false });
+    await query("UPDATE exam_marks SET status='locked' WHERE tenant_id='school-a' AND student_id=$1::uuid", [student.id]);
+    expect(await current()).toMatchObject({ stage: 'report_card_generation', can_generate_report_cards: true });
+    const extra = randomUUID();
+    await addStudents([extra]);
+    await query("DELETE FROM exam_marks WHERE tenant_id='school-a' AND student_id=$1::uuid", [extra]);
+    expect(await current()).toMatchObject({ stage: 'mark_entry', can_generate_report_cards: false,
+      counts: { learners: 12, expected_marks: 12, ready_marks: 11, missing_marks: 1 } });
+    await query("DELETE FROM student_subject_enrollments WHERE tenant_id='school-a' AND student_id=$1", [extra]);
+    await query("DELETE FROM student_class_assignments WHERE tenant_id='school-a' AND student_id=$1", [extra]);
+    await query("DELETE FROM students WHERE tenant_id='school-a' AND id=$1", [extra]);
+  });
+
+  it('counts enrolled students for Dean submissions instead of the assessment maximum score', async () => {
+    await query("UPDATE exam_marks SET status='submitted' WHERE tenant_id='school-a'");
+    await query(`INSERT INTO student_subject_enrollments SELECT * FROM student_subject_enrollments WHERE tenant_id='school-a';
+      INSERT INTO student_subject_enrollments SELECT 'school-b',student_id,class_section_id,subject_id,status
+        FROM student_subject_enrollments WHERE tenant_id='school-a';`);
+    const dean = new DeanAcademicsCommandService({ getStore: () => context } as never,
+      { query: (sql: string, values: unknown[]) => repository.executeSql(sql, values) } as never, {} as never, {} as never);
+    const result = await dean.getAssessments();
+    expect(result.assessmentsList[0]).toMatchObject({ submissions: 11, student_count: 11, total_marks: 100 });
+    await query("UPDATE exam_marks SET status='locked' WHERE tenant_id='school-a'");
+  });
+
   it('initial generation loads both school-owned signer images and preserves the draft workflow', async () => {
     const result = await generation.generateStudentReportCard(studentInput());
     const card = (await query('SELECT * FROM student_report_cards WHERE id=$1', [result.id])).rows[0];
@@ -222,6 +265,32 @@ describe('Report generation with the production staff schema', () => {
     expect(card.metadata.report_card.template_fields.principal_name).toBe('School Principal');
     expect((await generation.getReportCardBatchStatus({ tenant_id: 'school-a', batch_id: result.id })).completed_students).toBe(11);
     await expect(generation.getReportCardBatchStatus({ tenant_id: 'school-b', batch_id: result.id })).rejects.toThrow('not found');
+  });
+
+  it('rejects artifact links to missing or foreign-school cards while retaining the parent guard', async () => {
+    const card = await generation.generateStudentReportCard(studentInput());
+    const artifact = { tenant_id: 'school-b', report_card_id: card.id, artifact_type: 'pdf',
+      storage_key: 'tenant/school-b/report.pdf', checksum_sha256: 'a'.repeat(64), byte_size: 100,
+      verification_code: 'foreign-test', generated_by_user_id: ids.actor };
+    await expect(repository.recordReportCardArtifact(artifact)).rejects.toMatchObject({ code: '23503' });
+    await expect(repository.recordReportCardArtifact({ ...artifact, tenant_id: 'school-a', report_card_id: randomUUID() }))
+      .rejects.toMatchObject({ code: '23503' });
+    expect(await count('report_card_artifacts')).toBe(1);
+  });
+
+  it('resolves legacy mark-history and import-item guards through school-owned marks', async () => {
+    const mark = (await query("SELECT id FROM exam_marks WHERE tenant_id='school-a' LIMIT 1")).rows[0];
+    const version = { tenant_id: 'school-a', mark_id: mark.id, original_score: 84, correction_score: 85,
+      corrected_by_user_id: ids.actor, reason: 'Checked total', approval_state: 'pending' };
+    expect(await repository.createMarkVersion(version)).toHaveProperty('mark_id', mark.id);
+    await expect(repository.createMarkVersion({ ...version, tenant_id: 'school-b' })).rejects.toMatchObject({ code: '23503' });
+    const batch = randomUUID();
+    await query(`INSERT INTO exam_mark_import_batches(id,tenant_id,file_name,total_rows,valid_rows,committed_rows,preview_hash,imported_by_user_id)
+      VALUES ($1,'school-a','marks.csv',1,1,1,$2,$3)`, [batch, 'a'.repeat(64), ids.actor]);
+    const insertItem = (markId: string) => query(`INSERT INTO exam_mark_import_batch_items(tenant_id,batch_id,mark_id,row_number,
+      previous_exists,imported_score,imported_status) VALUES ('school-a',$1,$2,1,true,84,'draft') RETURNING id`, [batch, markId]);
+    expect((await insertItem(mark.id)).rows).toHaveLength(1);
+    await expect(insertItem(randomUUID())).rejects.toMatchObject({ code: '23503' });
   });
 
   it('rolls back the snapshot, artifact and audit when file metadata persistence fails', async () => {

@@ -6,15 +6,16 @@ import { renderWithProviders } from './test-utils';
 const mockQuery = jest.fn();
 const mockRequest = jest.fn();
 const mockRefresh = jest.fn();
+const mockWorkflowRefresh = jest.fn();
 jest.mock('@/lib/data/school-hooks', () => ({ useSchoolQuery: (...args: unknown[]) => mockQuery(...args) }));
 jest.mock('@/lib/dashboard/api-client', () => ({ requestDashboardApi: (...args: unknown[]) => mockRequest(...args) }));
 
 beforeEach(() => {
-  mockRequest.mockReset(); mockRefresh.mockReset(); mockQuery.mockReset();
+  mockRequest.mockReset(); mockRefresh.mockReset(); mockWorkflowRefresh.mockReset(); mockQuery.mockReset();
   mockRequest.mockResolvedValue({ success: true, updated_count: 1 });
-  mockQuery.mockImplementation((url: string) => ({ isLoading: false, error: null, refetch: mockRefresh,
+  mockQuery.mockImplementation((url: string) => ({ isLoading: false, error: null, refetch: url === '/exams/workflow' ? mockWorkflowRefresh : mockRefresh,
     data: url.includes('/assessments') ? { assessmentsList: [{ id: 'batch-1', title: 'Term exam', subject: 'Maths',
-      mark_ids: ['mark-1'], status: 'submitted', submissions: 1 }], metrics: {} }
+      mark_ids: ['mark-1'], status: 'submitted', submissions: 1, student_count: 11, total_marks: 100 }], metrics: {} }
       : url.includes('/report-cards') ? [] : { series: [], moderation_batches: [], metrics: {} } }));
 });
 
@@ -32,6 +33,30 @@ it('lets the Dean approve a direct teacher submission and refreshes the queue', 
     method: 'POST', body: { action: 'approve', mark_ids: ['mark-1'] },
   }));
   await waitFor(() => expect(mockRefresh).toHaveBeenCalled());
+  await waitFor(() => expect(mockWorkflowRefresh).toHaveBeenCalled());
+});
+
+it('shows submissions out of enrolled students, independently of the score maximum', () => {
+  renderWithProviders(<AssessmentsWorkspace />);
+  expect(screen.getByText('1 submitted')).toBeVisible();
+  expect(screen.getByText('Out of 11 students')).toBeVisible();
+  expect(screen.queryByText('Out of 100')).not.toBeInTheDocument();
+});
+
+it('refreshes the shared workflow after locking reviewed marks', async () => {
+  mockQuery.mockImplementation((url: string) => ({ isLoading: false, error: null,
+    refetch: url === '/exams/workflow' ? mockWorkflowRefresh : mockRefresh,
+    data: url.includes('/assessments') ? { assessmentsList: [{ id: 'batch-1', title: 'Term exam', subject: 'Maths',
+      mark_ids: ['mark-1'], status: 'reviewed', submissions: 1, student_count: 11 }], metrics: {} }
+      : url.includes('/report-cards') ? [] : { series: [], metrics: {} } }));
+  mockRequest.mockResolvedValue({ locked_count: 1 });
+  renderWithProviders(<AssessmentsWorkspace />);
+  fireEvent.click(screen.getByRole('button', { name: 'Lock reviewed batch' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm lock' }));
+  await waitFor(() => expect(mockWorkflowRefresh).toHaveBeenCalled());
+  expect(mockRequest).toHaveBeenCalledWith('/admin-command/dean-academics/lock-batch', {
+    method: 'POST', body: { markIds: ['mark-1'] },
+  });
 });
 
 it('requires a correction reason and sends the Dean return through the marks API', async () => {

@@ -10,6 +10,12 @@ export const EXAM_SETUP_INTEGRITY_SCHEMA = `
     ELSIF TG_TABLE_NAME = 'exam_assessment_components' THEN
       SELECT exam_series_id INTO series_id FROM exam_assessments
       WHERE tenant_id = NEW.tenant_id AND id = NEW.assessment_id;
+    ELSIF TG_TABLE_NAME = 'report_card_artifacts' THEN
+      SELECT exam_series_id INTO series_id FROM student_report_cards
+      WHERE tenant_id = NEW.tenant_id AND id = NEW.report_card_id FOR SHARE;
+    ELSIF TG_TABLE_NAME IN ('exam_mark_versions', 'exam_mark_import_batch_items') THEN
+      SELECT exam_series_id INTO series_id FROM exam_marks
+      WHERE tenant_id = NEW.tenant_id AND id = NEW.mark_id FOR SHARE;
     ELSE
       series_id := NEW.exam_series_id;
       IF series_id IS NULL THEN RETURN NEW; END IF;
@@ -36,7 +42,8 @@ export const EXAM_SETUP_INTEGRITY_SCHEMA = `
     FOREACH target IN ARRAY ARRAY['exam_marks', 'exam_assessments', 'exam_mark_entry_windows',
       'student_report_cards', 'exam_result_snapshots', 'report_card_generation_batches',
       'exam_timetable_slots', 'exam_student_cases', 'academic_interventions', 'exam_grade_boundaries',
-      'exam_grading_policies', 'exam_invigilators', 'exam_attendance_records', 'exam_assessment_components'] LOOP
+      'exam_grading_policies', 'exam_invigilators', 'exam_attendance_records', 'exam_assessment_components',
+      'report_card_artifacts', 'exam_mark_versions', 'exam_mark_import_batch_items'] LOOP
       EXECUTE format('DROP TRIGGER IF EXISTS exam_setup_parent_guard ON %I', target);
       EXECUTE format('CREATE TRIGGER exam_setup_parent_guard BEFORE INSERT OR UPDATE ON %I
         FOR EACH ROW EXECUTE FUNCTION enforce_exam_setup_parent()', target);

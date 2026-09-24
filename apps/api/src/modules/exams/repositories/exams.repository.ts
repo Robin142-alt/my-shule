@@ -9,7 +9,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { markEntryAccessSql } from '../mark-entry-window-policy';
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
-import { REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
+import { reportCardReadinessCtes, REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
 
 import { ANALYTICS_APPOINTMENTS_SQL, type AnalyticsFilters, type ExamAnalyticsScope, type ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
 import { analyticsQuery } from '../analytics/analytics-query';
@@ -137,6 +137,17 @@ export class ExamsRepository {
            )
          ORDER BY series.created_at DESC
          LIMIT $3::integer
+       ), ${reportCardReadinessCtes({
+         selectedWindowsSql: `SELECT DISTINCT mark_window.exam_series_id, mark_window.class_section_id, mark_window.subject_id
+           FROM exam_mark_entry_windows mark_window
+           JOIN series_scope series ON series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
+           LEFT JOIN subjects subject ON subject.tenant_id = mark_window.tenant_id AND subject.id = mark_window.subject_id::text
+           WHERE mark_window.tenant_id = $1
+             AND ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))`,
+         streamNameSql: 'NULL::text',
+       })}, readiness_rollup AS (
+         SELECT exam_series_id, ${REPORT_CARD_READINESS_COUNTS}
+         FROM readiness GROUP BY exam_series_id
        ), assessment_rollup AS (
          SELECT
            assessment.exam_series_id,
@@ -232,7 +243,11 @@ export class ExamsRepository {
          COALESCE(mark.reviewed_marks, 0) AS reviewed_marks,
          COALESCE(mark.locked_marks, 0) AS locked_marks,
          COALESCE(mark.published_marks, 0) AS published_marks,
-         COALESCE(mark.learner_count, 0) AS learner_count,
+         COALESCE(ready.learner_count, mark.learner_count, 0) AS learner_count,
+         COALESCE(ready.expected_mark_count, 0) AS expected_mark_count,
+         COALESCE(ready.ready_mark_count, 0) AS ready_mark_count,
+         COALESCE(ready.not_ready_mark_count, 0) AS not_ready_mark_count,
+         COALESCE(ready.missing_mark_count, 0) AS missing_mark_count,
          COALESCE(mark.marked_class_count, 0) AS marked_class_count,
          COALESCE(mark.marked_subject_count, 0) AS marked_subject_count,
          mark.marks_updated_at,
@@ -258,6 +273,7 @@ export class ExamsRepository {
        LEFT JOIN assessment_rollup assessment ON assessment.exam_series_id = series.id
        LEFT JOIN window_rollup mark_window ON mark_window.exam_series_id = series.id
        LEFT JOIN mark_rollup mark ON mark.exam_series_id = series.id
+       LEFT JOIN readiness_rollup ready ON ready.exam_series_id = series.id
        LEFT JOIN card_rollup card ON card.exam_series_id = series.id
        LEFT JOIN generation_rollup generation ON generation.exam_series_id = series.id
        ORDER BY series.created_at DESC`,

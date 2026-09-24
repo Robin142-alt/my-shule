@@ -30,6 +30,7 @@ type AssessmentsRecord = {
   date?: string;
   created_at?: string;
   total_marks?: number | string;
+  student_count?: number | string;
   submissions?: number | string;
   status?: string;
   [key: string]: unknown;
@@ -78,6 +79,7 @@ export function AssessmentsWorkspace({
   const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<
     AssessmentsData | AssessmentsRecord[]
   >("/admin-command/dean-academics/assessments");
+  const { refetch: refetchWorkflow } = useSchoolQuery("/exams/workflow");
   const {
     data: reportCards,
     error: reportCardsError,
@@ -204,13 +206,13 @@ export function AssessmentsWorkspace({
         `${lockedCount} reviewed marks locked for report-card generation.`,
       );
       setConfirmLock(false);
-      await refetch();
+      await Promise.all([refetch(), refetchWorkflow()]);
     } catch (err: unknown) {
       const message = `${lockedCount ? `${lockedCount} marks were locked before the request failed. ` : ""}${err instanceof Error ? err.message : "Assessment batch could not be locked."}`;
       setActionError(message);
       toast.error(message);
       setConfirmLock(false);
-      await refetch();
+      await Promise.all([refetch(), refetchWorkflow()]);
     } finally {
       setIsLocking(false);
     }
@@ -265,12 +267,12 @@ export function AssessmentsWorkspace({
       );
       setReturningAssessmentId(null);
       setAssessmentReturnReason("");
-      await refetch();
+      await Promise.all([refetch(), refetchWorkflow()]);
     } catch (err: unknown) {
       const message = `${updatedCount ? `${updatedCount} marks changed before this request failed. ` : ""}${err instanceof Error ? err.message : "Dean assessment action could not be saved."}`;
       setActionError(message);
       toast.error(message);
-      await refetch();
+      await Promise.all([refetch(), refetchWorkflow()]);
     } finally {
       setSubmittingActionId(null);
     }
@@ -311,7 +313,7 @@ export function AssessmentsWorkspace({
       );
       setRecallId(null);
       setRecallReason("");
-      await Promise.all([refetchReportCards(), refetch()]);
+      await Promise.all([refetchReportCards(), refetch(), refetchWorkflow()]);
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -599,9 +601,9 @@ export function AssessmentsWorkspace({
                                   Out of{" "}
                                   {fieldValue(
                                     row,
-                                    ["total_marks", "max_score"],
+                                    ["student_count"],
                                     "—",
-                                  )}
+                                  )}{" "}students
                                 </div>
                               </td>
                               <td data-label="Status" className="px-4 py-3">

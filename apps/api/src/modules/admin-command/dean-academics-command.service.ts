@@ -85,6 +85,18 @@ export class DeanAcademicsCommandService {
     const tenantId = this.requireTenantId();
     const res = await this.executeSql(
       `
+        WITH enrolled_students AS (
+          SELECT enrollment.class_section_id, enrollment.subject_id,
+            COUNT(DISTINCT student.id)::int AS student_count
+          FROM student_subject_enrollments enrollment
+          JOIN students student ON student.tenant_id = enrollment.tenant_id
+            AND student.id::text = enrollment.student_id::text AND student.status = 'active'
+          JOIN student_class_assignments assignment ON assignment.tenant_id = enrollment.tenant_id
+            AND assignment.student_id::text = enrollment.student_id::text
+            AND assignment.class_section_id = enrollment.class_section_id AND assignment.status = 'active'
+          WHERE enrollment.tenant_id = $1 AND enrollment.status = 'active'
+          GROUP BY enrollment.class_section_id, enrollment.subject_id
+        )
         SELECT
           concat_ws(
             ':',
@@ -103,6 +115,7 @@ export class DeanAcademicsCommandService {
           ) AS class_name,
           MAX(mark.updated_at)::text AS date,
           assessment.max_score::float AS total_marks,
+          COALESCE(MAX(enrolled.student_count), 0)::int AS student_count,
           COUNT(mark.id)::int AS submissions,
           mark.status,
           array_agg(mark.id::text ORDER BY mark.id::text) AS mark_ids
@@ -119,6 +132,9 @@ export class DeanAcademicsCommandService {
         LEFT JOIN class_sections class_section
           ON class_section.tenant_id = mark.tenant_id
          AND class_section.id = mark.class_section_id::text
+        LEFT JOIN enrolled_students enrolled
+          ON enrolled.class_section_id = mark.class_section_id::text
+         AND enrolled.subject_id = mark.subject_id::text
         WHERE mark.tenant_id = $1
           AND mark.status IN ('submitted', 'reviewed')
         GROUP BY
