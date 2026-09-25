@@ -60,7 +60,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
 
       - name: Report-card class generation and recovery interface
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-card-api-contract report-card-signatures report-card-reference-layout exams-manager-entry-controls
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-regeneration-job report-card-api-contract report-card-signatures report-card-reference-layout exams-manager-entry-controls
 
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing

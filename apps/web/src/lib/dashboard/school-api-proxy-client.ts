@@ -65,7 +65,7 @@ export async function requestSchoolApiProxy<T>(
   }
 
   const data=isEnvelope<T>(json) ? json.data : (json as T);
-  if (method==='POST' && /^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope)$/.test(path)) {
+  if (method==='POST' && /^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope|regeneration-scope)$/.test(path)) {
     const job=data as { job_id?:string;state?:string;result?:T;progress?:Record<string,number|string>;message?:string };
     if (job.job_id) {
       let current=job;

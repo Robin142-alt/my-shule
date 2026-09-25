@@ -372,6 +372,36 @@ export class GenerateReportCardBatchDto {
   offset?: number;
 }
 
+export class RegenerateReportCardScopeDto {
+  @IsString()
+  @MaxLength(64)
+  preview_token!: string;
+
+  @IsString()
+  @MaxLength(1000)
+  reason!: string;
+
+  @IsString()
+  exam_series_id!: string;
+
+  @IsOptional()
+  @IsIn(['school', 'class', 'stream', 'students'])
+  scope_type?: string;
+
+  @IsOptional()
+  @IsString()
+  class_section_id?: string;
+
+  @IsOptional()
+  @IsString()
+  stream_id?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  student_ids?: string[];
+}
+
 export class BulkReportCardTransitionDto {
   @IsString()
   @MaxLength(64)

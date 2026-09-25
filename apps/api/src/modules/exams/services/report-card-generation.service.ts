@@ -10,7 +10,7 @@ import { createPdfReportArtifact } from './report-card-pdf-artifact';
 import { ExamsRepository, type ReportCardReadCache } from '../repositories/exams.repository';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
 import { ReportCardTemplateService } from './report-card-template.service';
-import { ReportWorkService } from './report-work.service';
+import { ReportWorkService, type ReportWorkRow } from './report-work.service';
 import { ReportCardArtifactsService } from './report-card-artifacts.service';
 import { REPORT_RENDERER_VERSION, reportIdentity } from './report-artifact-identity';
 import { REPORT_SCHOOL_REVISION_SQL } from './report-infrastructure-schema';
@@ -24,6 +24,8 @@ export interface GenerateStudentReportCardInput {
   regeneration_reason?: string;
   reuse_existing?: boolean;
   read_cache?: ReportCardReadCache;
+  expected_report_card_id?: string;
+  expected_updated_at?: string;
 }
 
 export interface GenerateReportCardBatchInput {
@@ -69,6 +71,8 @@ export class ReportCardGenerationService implements OnModuleInit {
     });
     this.work?.register('generate_batch', async (row, progress) => this.generateReportCardBatch({ ...row.input,
       tenant_id:row.tenant_id,actor_user_id:row.actor_user_id } as GenerateReportCardBatchInput, progress));
+    // A distinct kind prevents older workers from treating regeneration as initial class generation during rollout.
+    this.work?.register('generate_regeneration_scope', (row, progress) => this.regenerateReportCardScopeChunk(row, progress));
     this.work?.register('generate_scope', async (row, progress) => {
       const versions=await this.repository.executeSql(REPORT_SCHOOL_REVISION_SQL,[row.tenant_id]);
       if(versions.rows[0].revision!==row.input.source_revision) throw new ConflictException('Class data changed. Refresh readiness and retry generation.');
@@ -86,6 +90,53 @@ export class ReportCardGenerationService implements OnModuleInit {
     });
   }
 
+  private async regenerateReportCardScopeChunk(row: ReportWorkRow, progress: (value: Record<string, any>) => Promise<void>) {
+    const targets = row.input.targets as Array<{ id: string; student_id: string; student_name: string; updated_at: string }>;
+    const offset = Number(row.input.offset ?? 0);
+    const previous = row.result ?? {};
+    const result = { id: row.id, status: 'draft_generated', total_students: targets.length,
+      completed_students: Number(previous.completed_students ?? 0), failed_students: Number(previous.failed_students ?? 0),
+      reused_students: Number(previous.reused_students ?? 0), skipped_students: Number(row.input.skipped_students ?? 0),
+      failures: [...(previous.failures ?? [])] as ReportCardFailure[] };
+    // The confirmed list is persisted with the job, so pagination and later enrolments cannot widen it.
+    for (const target of targets.slice(offset, offset + 25)) {
+      await this.workLimiter.run(async () => {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const card = await this.generateStudentReportCard({ tenant_id: row.tenant_id, actor_user_id: row.actor_user_id,
+              exam_series_id: row.input.exam_series_id, student_id: target.student_id,
+              regeneration_reason: row.input.regeneration_reason, generated_at: row.input.generated_at,
+              reuse_existing: true, expected_report_card_id: target.id, expected_updated_at: target.updated_at });
+            result.completed_students++;
+            if (card.reused) result.reused_students++;
+            break;
+          } catch (error) {
+            const failure = classifyReportCardFailure(error);
+            if (failure.retryable && attempt < 3) { await delay(100 * (2 ** (attempt - 1))); continue; }
+            result.failed_students++;
+            if (result.failures.length < 200) result.failures.push({ student_id: target.student_id,
+              student_name: target.student_name, ...failure, attempts: attempt });
+            break;
+          }
+        }
+      });
+      await progress(result);
+    }
+    const nextOffset = Math.min(offset + 25, targets.length);
+    if (nextOffset < targets.length) return { __continue: true, input: { ...row.input, offset: nextOffset }, result };
+    await this.schoolEvents?.recordSchoolOperation({ event: {
+      id: `report-regeneration:${row.id}:${row.dispatch_version}`, module: 'exams', entityId: row.id,
+      type: result.failed_students ? 'report_generation.failed' : 'report_generation.completed',
+      title: result.failed_students ? 'Report regeneration needs attention' : 'Report regeneration completed',
+      body: `${result.completed_students} cards ready; ${result.failed_students} failed.`,
+      severity: result.failed_students ? 'warning' : 'info',
+      payload: { job_id: row.id, exam_series_id: row.input.exam_series_id,
+        completed_students: result.completed_students, failed_students: result.failed_students,
+        skipped_students: result.skipped_students, reason: row.input.regeneration_reason },
+    } });
+    return { ...result, queue_status: result.failed_students ? 'failed' : 'completed' };
+  }
+
   async generateStudentReportCard(input: GenerateStudentReportCardInput): Promise<Record<string, unknown>> {
     if(input.reuse_existing && this.artifactStore) {
       const reusable=await this.artifactStore.reusableSnapshot(input.tenant_id,input.exam_series_id,input.student_id,true);
@@ -93,6 +144,12 @@ export class ReportCardGenerationService implements OnModuleInit {
     }
     const sourceRevision=await this.artifactStore?.sourceVersion(input.tenant_id,input.student_id);
     const sourceValidUntil=await this.artifactStore?.sourceValidUntil(input.tenant_id);
+    if (input.expected_report_card_id) {
+      const readiness = await this.repository.getReportCardStudentReadiness(input);
+      if (!Number(readiness?.expected_mark_count) || Number(readiness?.not_ready_mark_count) > 0) {
+        throw new ConflictException('All enrolled subject marks must be entered, moderated and locked before regenerating this report.');
+      }
+    }
     const generatedAt = normalizeTimestamp(input.generated_at);
     const data = await this.repository.loadReportCardData({
       tenant_id: input.tenant_id,
@@ -173,6 +230,8 @@ export class ReportCardGenerationService implements OnModuleInit {
         artifact_count: 1,
       },
       reuse_existing: input.reuse_existing === true,
+      expected_report_card_id: input.expected_report_card_id,
+      expected_updated_at: input.expected_updated_at,
       generation_source_version: generationSourceVersion,
     };
     const artifacts = await Promise.all([pdfArtifact].map(async (artifact) => ({

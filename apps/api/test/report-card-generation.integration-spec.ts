@@ -349,6 +349,30 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE tenants SET name='Test School' WHERE tenant_id='school-a'");
   });
 
+  it('regenerates a confirmed draft transactionally and rejects changed snapshots or unlocked marks', async () => {
+    const first=await generation.generateStudentReportCard(studentInput());
+    const read=async()=> (await query('SELECT id,updated_at::text FROM student_report_cards WHERE id=$1',[first.id])).rows[0];
+    const preview=await read();
+    const input={...studentInput(),reuse_existing:true,regeneration_reason:'Refresh report',
+      expected_report_card_id:preview.id,expected_updated_at:preview.updated_at};
+    await query("UPDATE student_report_cards SET metadata=metadata-'source_revision' WHERE id=$1",[first.id]);
+    await query("UPDATE exam_marks SET score=83 WHERE student_id=$1",[students[0]]);
+    const regenerated=await generation.generateStudentReportCard(input);
+    expect(regenerated.reused).toBe(false);
+    expect(regenerated.status).toBe('draft_generated');
+    const audits=await query("SELECT action FROM student_report_card_audit_logs WHERE report_card_id=$1",[first.id]);
+    expect(audits.rows.some(row=>row.action==='report_card.regenerated')).toBe(true);
+    await query("UPDATE student_report_cards SET status='under_review',updated_at=now() WHERE id=$1",[first.id]);
+    await query("UPDATE exam_marks SET score=82 WHERE student_id=$1",[students[0]]);
+    await expect(generation.generateStudentReportCard(input)).rejects.toThrow(/changed after the preview/);
+    expect((await query('SELECT status FROM student_report_cards WHERE id=$1',[first.id])).rows[0].status).toBe('under_review');
+    await query("UPDATE student_report_cards SET status='draft_generated',updated_at=now() WHERE id=$1",[first.id]);
+    const fresh=await read();
+    await query("UPDATE exam_marks SET status='submitted' WHERE student_id=$1",[students[0]]);
+    await expect(generation.generateStudentReportCard({...input,expected_updated_at:fresh.updated_at})).rejects.toThrow(/moderated and locked/);
+    await query("UPDATE exam_marks SET score=84,status='locked' WHERE student_id=$1",[students[0]]);
+  });
+
   it('migrates an identical legacy published report through class generation without changing its academic identity',async()=>{
     const first=await generation.generateStudentReportCard(studentInput());
     await query(`UPDATE student_report_cards SET status='published',published_at=now(),

@@ -17,6 +17,7 @@ import {
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
   RegenerateReportCardDto,
+  RegenerateReportCardScopeDto,
   TransitionReportCardDto,
   UpdateReportCardCommentsDto,
   LockExamMarksDto,
@@ -224,6 +225,12 @@ export class ExamsController {
   @Permissions('exams:write')
   generateReportCardBatch(@Body() dto: GenerateReportCardBatchDto) {
     return this.examsService.generateReportCardBatch(dto);
+  }
+
+  @Post('report-cards/regeneration-scope')
+  @Permissions('exams:write')
+  regenerateReportCardScope(@Body() dto: RegenerateReportCardScopeDto) {
+    return this.examsService.regenerateReportCardScope(dto);
   }
 
   @Post('report-cards/generation-scope')

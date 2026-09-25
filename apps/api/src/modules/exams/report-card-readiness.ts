@@ -4,6 +4,7 @@
 export function reportCardReadinessCtes(options: {
   selectedWindowsSql?: string;
   streamNameSql?: string;
+  studentIdSql?: string;
 } = {}): string {
   const selectedWindowsSql = options.selectedWindowsSql ?? `
   SELECT DISTINCT exam_series_id, class_section_id, subject_id
@@ -36,6 +37,7 @@ export function reportCardReadinessCtes(options: {
     ON stream.tenant_id = assignment.tenant_id
    AND stream.id::text = assignment.stream_id::text
   WHERE (${streamNameSql} IS NULL OR stream.name = ${streamNameSql})
+    ${options.studentIdSql ? `AND student.id::text = ${options.studentIdSql}` : ''}
 ), readiness AS (
   SELECT expected.*, COALESCE(evidence.is_ready, FALSE) AS is_ready,
     COALESCE(evidence.mark_state, 0) AS mark_state

@@ -306,11 +306,11 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
     expect((await state(job.job_id)).attempts).toBe(2);
   });
 
-  it('checkpoints chunks without losing completed work on the next delivery', async () => {
+  it.each(['generate_scope', 'generate_regeneration_scope'] as const)('checkpoints %s without losing completed work on the next delivery', async (kind) => {
     const job = await inSchool('school-a', () =>
-      work.submit('generate_scope', { offset: 0 }, 'checkpoint'),
+      work.submit(kind, { offset: 0 }, 'checkpoint'),
     );
-    work.register('generate_scope', async (row) =>
+    work.register(kind, async (row) =>
       row.input.offset === 0
         ? {
             __continue: true,
@@ -326,11 +326,11 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
     expect((await state(job.job_id)).result.completed_students).toBe(30);
   });
 
-  it('reports partial failure truthfully and explicit retry resets the class cursor', async () => {
+  it.each(['generate_scope', 'generate_regeneration_scope'] as const)('reports partial failure truthfully and retry resets the %s cursor', async (kind) => {
     const job = await inSchool('school-a', () =>
-      work.submit('generate_scope', { offset: 25 }, 'partial'),
+      work.submit(kind, { offset: 25 }, 'partial'),
     );
-    work.register('generate_scope', async () => ({
+    work.register(kind, async () => ({
       queue_status: 'failed',
       completed_students: 24,
       failed_students: 1,

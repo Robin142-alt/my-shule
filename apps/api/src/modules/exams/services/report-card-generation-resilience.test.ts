@@ -5,6 +5,47 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { BadRequestException } from '@nestjs/common';
 import { classifyReportCardFailure, ReportCardWorkLimiter } from './report-card-generation-resilience';
 import { ReportCardGenerationService } from './report-card-generation.service';
+import type { ReportWorkHandler, ReportWorkRow } from './report-work.service';
+
+test('scoped regeneration resumes confirmed targets across chunks with partial failures and safe reuse', async () => {
+  const handlers = new Map<string, ReportWorkHandler>();
+  const events: any[] = [];
+  const calls: any[] = [];
+  const service = new ReportCardGenerationService({} as never, {} as never, undefined,
+    { recordSchoolOperation: async (event: unknown) => { events.push(event); } } as never,
+    { register: (kind: string, handler: ReportWorkHandler) => handlers.set(kind, handler) } as never);
+  service.onModuleInit();
+  service.generateStudentReportCard = async input => {
+    calls.push(input);
+    if (input.student_id === 'student-26') throw new BadRequestException('Marks are not locked');
+    return { id: input.student_id, reused: input.student_id === 'student-1' };
+  };
+  const row = { id: 'job', tenant_id: 'school-a', actor_user_id: 'manager', dispatch_version: 1,
+    input: { operation: 'regenerate', exam_series_id: 'exam', regeneration_reason: 'Refresh signatures',
+      generated_at: '2026-09-25T09:00:00Z', skipped_students: 2,
+      targets: Array.from({length: 27}, (_,i)=>({id:`card-${i}`,student_id:`student-${i}`,student_name:`Learner ${i}`,updated_at:'2026-09-24T09:00:00Z'})) },
+    result: null } as unknown as ReportWorkRow;
+  const handler = handlers.get('generate_regeneration_scope')!;
+  const progress: any[] = [];
+  const first = await handler(row, async value => { progress.push({...value}); });
+  assert.equal(first.__continue, true);
+  assert.equal(first.input.offset, 25);
+  assert.equal(first.result.completed_students, 25);
+  assert.equal(events.length, 0);
+  const last = await handler({...row,input:first.input,result:first.result}, async value => { progress.push({...value}); });
+  assert.equal(last.queue_status, 'failed');
+  assert.equal(last.completed_students, 26);
+  assert.equal(last.failed_students, 1);
+  assert.equal(last.reused_students, 1);
+  assert.equal(last.skipped_students, 2);
+  assert.equal(last.failures[0].message, 'Marks are not locked');
+  assert.equal(new Set(calls.map(input=>input.student_id)).size, 27);
+  assert.ok(calls.every(input=>input.tenant_id==='school-a' && input.actor_user_id==='manager' && input.reuse_existing));
+  assert.equal(calls[0].expected_report_card_id, 'card-0');
+  assert.equal(calls[0].expected_updated_at, '2026-09-24T09:00:00Z');
+  assert.equal(events[0].event.type, 'report_generation.failed');
+  assert.equal(progress.at(-1).completed_students, 26);
+});
 
 test('failure classification explains schema errors without leaking SQL and never retries validation', () => {
   assert.deepEqual(classifyReportCardFailure(new BadRequestException('Mathematics has no grade boundary match')), {

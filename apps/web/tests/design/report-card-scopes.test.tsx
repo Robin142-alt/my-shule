@@ -111,6 +111,108 @@ it('gives an empty handoff desk a working next step without loading generation r
   expect(screen.getByRole('link',{name:'Open Report Cards'})).toHaveAttribute('href','/school/exams-manager/report-cards');
   expect(queries.mock.calls.some(([path])=>path?.includes('/generation-scopes'))).toBe(false);
 });
+
+it('previews all regeneration targets in the exam and requires a reason before queuing',async()=>{
+  const base=queries.getMockImplementation()!;
+  queries.mockImplementation((path:string|null,...args:unknown[])=>path==='/exams/series'
+    ? {data:[{id:'exam1',name:'End term'}],isLoading:false,error:null,refetch} : base(path,...args));
+  request.mockImplementation(async(path:string,options?:{onProgress?:(value:unknown)=>void})=>{
+    if(path.includes('/scope-summary?')) return {...summary(new URLSearchParams(path.split('?')[1])),total_cards:123,eligible_cards:122,ineligible_cards:1};
+    options?.onProgress?.({job_id:'job-1',completed_students:50,failed_students:0});
+    return {id:'job-1',total_students:122,completed_students:121,failed_students:1,reused_students:20,queue_status:'failed',
+      failures:[{student_id:'student-2',student_name:'Cara',message:'Marks changed. Refresh and retry.'}]};
+  });
+  const user=userEvent.setup();render(<PublishingWorkspace/>);
+  await user.click(screen.getByRole('button',{name:'Next page'}));
+  await user.click(screen.getByRole('button',{name:'Regenerate all'}));
+  const dialog=await screen.findByRole('dialog',{name:'Regenerate all'});
+  expect(within(dialog).getByText('123')).toBeVisible();
+  expect(within(dialog).getByRole('button',{name:'Regenerate all (122)'})).toBeDisabled();
+  await user.type(within(dialog).getByLabelText(/Regeneration reason/),'Update signatures');
+  await user.click(within(dialog).getByRole('button',{name:'Regenerate all (122)'}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/regeneration-scope',expect.objectContaining({method:'POST',
+    body:{scope_type:'school',exam_series_id:'exam1',preview_token:'server-token',reason:'Update signatures'}})));
+  expect(await screen.findByText(/121 report cards ready.*20 unchanged cards reused.*1 failed/)).toBeVisible();
+  expect(screen.getByText('Marks changed. Refresh and retry.')).toBeVisible();
+});
+
+it('keeps regeneration scoped to the chosen class and disables it for All exams',async()=>{
+  const base=queries.getMockImplementation()!;
+  queries.mockImplementation((path:string|null,...args:unknown[])=>path==='/exams/series'
+    ? {data:[{id:'exam1',name:'End term'}],isLoading:false,error:null,refetch} : base(path,...args));
+  const user=userEvent.setup();render(<PublishingWorkspace/>);
+  await user.click(screen.getByRole('button',{name:/Grade 8.*2 cards/}));
+  await user.click(screen.getByRole('button',{name:'Regenerate all'}));
+  expect(request).toHaveBeenCalledWith(expect.stringMatching(/scope_type=class.*exam_series_id=exam1.*class_section_id=grade8.*target_action=regenerate/));
+  await user.click(screen.getByRole('button',{name:'Cancel'}));
+  await user.click(within(screen.getByRole('navigation',{name:'Report card scope'})).getByRole('button',{name:'Kibabi School'}));
+  await user.selectOptions(screen.getByLabelText('Filter by exam'),'');
+  expect(screen.getByRole('button',{name:'Regenerate all'})).toBeDisabled();
+});
+
+it('reopens persisted partial results after returning to the handoff page',async()=>{
+  const base=queries.getMockImplementation()!;
+  queries.mockImplementation((path:string|null,...args:unknown[])=>path==='/exams/report-cards/jobs'
+    ? {data:[{job_id:'saved-job',kind:'generate_scope',state:'failed',progress:{completed_students:10,failed_students:1}}],isLoading:false,error:null,refetch}
+    : base(path,...args));
+  request.mockResolvedValue({result:{total_students:11,completed_students:10,failed_students:1,queue_status:'failed',
+    failures:[{student_id:'student-2',student_name:'Cara',message:'Complete the missing marks.'}]}});
+  const user=userEvent.setup();render(<PublishingWorkspace/>);
+  await user.click(screen.getByText('Recent report tasks'));
+  await user.click(screen.getByRole('button',{name:'View results'}));
+  expect(await screen.findByText('Complete the missing marks.')).toBeVisible();
+  expect(request).toHaveBeenCalledWith('/exams/report-cards/jobs/saved-job');
+  expect(screen.getByText(/Batch reference: saved-job/)).toBeVisible();
+});
+
+it('waits for exams then defaults every handoff query to the latest exam date',async()=>{
+  let exams: Array<{id:string;name:string;starts_on?:string;created_at?:string}> | undefined;
+  queries.mockImplementation((path:string|null,options?:{select?:(response:unknown)=>unknown})=>({
+    data:path==='/exams/series' ? exams && options?.select?.({success:true,data:exams}) : [],
+    isLoading:path==='/exams/series' && !exams,error:null,refetch,
+  }));
+  const view=render(<PublishingWorkspace/>);
+  expect(queries.mock.calls.some(([path])=>/report-cards\/(scoped|scope-summary|scope-hierarchy)\?/.test(path ?? ''))).toBe(false);
+  exams=[
+    {id:'old',name:'Term 1',starts_on:'2026-03-01',created_at:'2026-09-24'},
+    {id:'latest',name:'Term 3',starts_on:'2026-09-24',created_at:'2026-09-01'},
+    {id:'undated',name:'Unscheduled exam'},
+  ];
+  view.rerender(<PublishingWorkspace/>);
+  expect(screen.getByRole('combobox',{name:'Filter by exam'})).toHaveValue('latest');
+  for(const prefix of ['scoped','scope-summary','scope-hierarchy']) {
+    expect(queries).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`/report-cards/${prefix}\\?.*exam_series_id=latest`)));
+  }
+  exams=[{id:'newer',name:'Newer exam',starts_on:'2026-10-01'},...exams];
+  view.rerender(<PublishingWorkspace/>);
+  expect(screen.getByRole('combobox',{name:'Filter by exam'})).toHaveValue('latest');
+});
+
+it('preserves an older exam or All exams selected manually across query refreshes',async()=>{
+  let exams=[{id:'latest',name:'Term 3',starts_on:'2026-09-24'},{id:'old',name:'Term 1',starts_on:'2026-03-01'}];
+  queries.mockImplementation((path:string|null,options?:{select?:(response:unknown)=>unknown})=>({
+    data:path==='/exams/series' ? options?.select?.(exams) : [],isLoading:false,error:null,refetch,
+  }));
+  const user=userEvent.setup();
+  const view=render(<PublishingWorkspace/>);
+  const filter=screen.getByRole('combobox',{name:'Filter by exam'});
+  await user.selectOptions(filter,'old');
+  exams=[...exams];view.rerender(<PublishingWorkspace/>);
+  expect(filter).toHaveValue('old');
+  expect(queries).toHaveBeenCalledWith(expect.stringMatching(/scope-hierarchy\?.*exam_series_id=old/));
+  await user.selectOptions(filter,'');
+  exams=[...exams];view.rerender(<PublishingWorkspace/>);
+  expect(filter).toHaveValue('');
+  expect(queries).toHaveBeenCalledWith('/exams/report-cards/scope-hierarchy?scope_type=school');
+});
+
+it('does not fall back to all exams when the initial exam list fails',()=>{
+  queries.mockImplementation((path:string|null)=>({data:path==='/exams/series'?undefined:[],isLoading:false,
+    error:path==='/exams/series'?new Error('Exam list unavailable'):null,refetch}));
+  render(<PublishingWorkspace/>);
+  expect(screen.getByText('Exam list unavailable')).toBeVisible();
+  expect(queries.mock.calls.some(([path])=>/report-cards\/(scoped|scope-summary|scope-hierarchy)\?/.test(path ?? ''))).toBe(false);
+});
 it('previews the exact export count for selected and whole scopes',async()=>{
   const user=userEvent.setup();render(<PublishingWorkspace/>);
   await user.click(screen.getByRole('checkbox',{name:'Select Ada'}));

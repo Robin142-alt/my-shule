@@ -2010,6 +2010,13 @@ export class ExamsRepository {
     };
   }
 
+  async getReportCardStudentReadiness(input: { tenant_id: string; exam_series_id: string; student_id: string }) {
+    const result = await this.executeSql(`WITH ${reportCardReadinessCtes({ studentIdSql: '$5::text' })}
+      SELECT ${REPORT_CARD_READINESS_COUNTS} FROM readiness`,
+      [input.tenant_id, input.exam_series_id, null, null, input.student_id]);
+    return result.rows[0];
+  }
+
   async findReusableReportCard(input: Record<string, unknown>) {
     const result = await this.executeSql(
       `SELECT card.*, COALESCE((SELECT jsonb_agg(artifact.*) FROM report_card_artifacts artifact
@@ -2051,6 +2058,15 @@ export class ExamsRepository {
       scoped.reportTransaction = { tenantId, client: tx };
       const existing = await scoped.findReusableReportCard(input);
       if (existing) return existing;
+      if (input.expected_report_card_id) {
+        const expected = await scoped.executeSql(`SELECT id FROM student_report_cards
+          WHERE tenant_id=$1 AND exam_series_id=$2::uuid AND student_id=$3::uuid
+            AND id=$4::uuid AND updated_at=$5::timestamptz AND is_current=TRUE
+            AND status IN ('draft_requested','draft_generated','draft','regeneration_required','withdrawn')
+          FOR UPDATE`, [tenantId, input.exam_series_id, input.student_id,
+          input.expected_report_card_id, input.expected_updated_at]);
+        if (!expected.rows.length) throw new ConflictException('This report changed after the preview. Refresh and preview regeneration again.');
+      }
       if (input.reuse_existing === true) {
         const protectedCard = await scoped.executeSql(
           `SELECT id FROM student_report_cards WHERE tenant_id = $1 AND exam_series_id = $2::uuid
@@ -2895,7 +2911,7 @@ export class ExamsRepository {
     const scope = parseReportCardScope(input.tenant_id, input);
     const clause = buildScopeSqlClause(scope);
     const action = input.target_action ?? 'submit';
-    if (action !== 'export' && !REPORT_CARD_TRANSITION_SOURCE_STATUSES[action]) throw new ConflictException('Unsupported report-card action');
+    if (action !== 'export' && action !== 'regenerate' && !REPORT_CARD_TRANSITION_SOURCE_STATUSES[action]) throw new ConflictException('Unsupported report-card action');
     const result = await this.executeSql(`
       SELECT card.id::text, card.student_id::text, card.exam_series_id::text, card.status,
         card.workflow_version, card.updated_at::text,

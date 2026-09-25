@@ -33,6 +33,7 @@ import {
   GenerateReportCardBatchDto,
   GenerateReportCardDto,
   RegenerateReportCardDto,
+  RegenerateReportCardScopeDto,
   LockExamMarksDto,
   ModerateExamMarksDto,
   PublishReportCardDto,
@@ -1640,7 +1641,25 @@ export class ExamsService {
     return this.queueReportGeneration('generate_scope',{ ...input,total_students:count,offset:0 });
   }
 
-  private async queueReportGeneration(kind: 'generate'|'generate_batch'|'generate_scope', input: Record<string,unknown>) {
+  async regenerateReportCardScope(dto: RegenerateReportCardScopeDto) {
+    this.assertReportCardTransitionAllowed('regenerate');
+    const tenantId = this.requireTenantId();
+    const examSeriesId = this.requireText(dto.exam_series_id, 'Exam series');
+    const reason = this.requireText(dto.reason, 'Regeneration reason');
+    if (!this.reportWork) throw new ServiceUnavailableException('Report generation is temporarily unavailable. Retry shortly.');
+    const resolved = await this.repository.resolveReportCardScope({ ...dto, tenant_id: tenantId,
+      exam_series_id: examSeriesId, target_action: 'regenerate' });
+    if (!dto.preview_token || dto.preview_token !== resolved.preview_token) {
+      throw new ConflictException('Report cards changed. Preview the affected cards again before regenerating.');
+    }
+    const targets = resolved.cards.filter(card => !card.ineligible_reason);
+    if (!targets.length) throw new ConflictException('No report cards in this scope are ready for regeneration.');
+    return this.queueReportGeneration('generate_regeneration_scope', { exam_series_id: examSeriesId,
+      regeneration_reason: reason, targets, total_students: targets.length, offset: 0,
+      skipped_students: resolved.cards.length - targets.length });
+  }
+
+  private async queueReportGeneration(kind: 'generate'|'generate_batch'|'generate_scope'|'generate_regeneration_scope', input: Record<string,unknown>) {
     const tenant=this.requireTenantId();
     const versions=await this.repository.executeSql(REPORT_SCHOOL_REVISION_SQL,[tenant]);
     return this.reportWork!.submit(kind,{ ...input,source_revision:versions.rows[0]?.revision,generated_at:new Date().toISOString() },[input,versions.rows[0]?.revision]);
@@ -2777,7 +2796,7 @@ export class ExamsService {
   }
 
   private assertReportCardTransitionAllowed(action: string): void {
-    const allowed = action === 'submit'
+    const allowed = action === 'submit' || action === 'regenerate'
       ? this.isExamsOfficer()
       : action === 'approve'
         ? this.canApproveExamCorrections()
@@ -2789,7 +2808,7 @@ export class ExamsService {
 
     if (allowed) return;
 
-    const requiredRole = action === 'submit'
+    const requiredRole = action === 'submit' || action === 'regenerate'
       ? 'Exams Manager'
       : action === 'approve'
         ? 'Dean of Academics'

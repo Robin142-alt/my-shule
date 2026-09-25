@@ -69,7 +69,7 @@ const audienceCopy: Record<ReportCardAudience, {
 
 type ScopeType = "school" | "class" | "stream" | "students";
 
-type ExamSeriesOption = { id: string; name: string };
+type ExamSeriesOption = { id: string; name: string; starts_on?: string | null; created_at?: string | null };
 type ExamSeriesResponse = { success: boolean; data: ExamSeriesOption[] } | ExamSeriesOption[];
 
 function selectExamSeries(response: ExamSeriesResponse): ExamSeriesOption[] {
@@ -79,7 +79,9 @@ function selectExamSeries(response: ExamSeriesResponse): ExamSeriesOption[] {
   if (!Array.isArray(rows) || rows.some(row => !row || typeof row.id !== "string" || typeof row.name !== "string")) {
     throw new Error("Exam list could not be read. Retry loading report cards.");
   }
-  return rows;
+  const timestamp = (value?: string | null) => value ? Date.parse(value) || 0 : 0;
+  return [...rows].sort((left, right) => timestamp(right.starts_on) - timestamp(left.starts_on)
+    || timestamp(right.created_at) - timestamp(left.created_at));
 }
 
 interface ActiveScope {
@@ -227,7 +229,17 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [examSeriesFilter, setExamSeriesFilter] = useState("");
+  const [examSeriesSelection, setExamSeriesFilter] = useState<string | null>(handoff ? null : "");
+  const seriesQuery = useSchoolQuery<ExamSeriesResponse, ExamSeriesOption[]>("/exams/series", {
+    select: selectExamSeries,
+  });
+  const waitingForDefaultExam = examSeriesSelection === null && seriesQuery.data === undefined;
+  const examSeriesFilter = examSeriesSelection ?? seriesQuery.data?.[0]?.id ?? "";
+  // Resolve once after the exam list loads. Refetches must not switch the
+  // active handoff scope, and an explicit "All exams" selection stays empty.
+  if (examSeriesSelection === null && seriesQuery.data !== undefined) {
+    setExamSeriesFilter(examSeriesFilter);
+  }
   const scopeQs = buildScopeQueryString(scope, examSeriesFilter);
   const reportPath = `/exams/report-cards/scoped?limit=50&offset=${page * 50}&search=${encodeURIComponent(search)}${statusFilter === "all" ? "" : `&status=${statusFilter}`}&${scopeQs}`;
   const summaryPath = `/exams/report-cards/scope-summary?target_action=${bulkActionForAudience(audience) ?? "submit"}${scopeQs ? `&${scopeQs}` : ""}`;
@@ -235,12 +247,9 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
 
   // --- Data queries ---
   const recentJobs=useSchoolQuery<Array<{ job_id:string;kind:string;state:string;progress:Record<string,number|string> }>>("/exams/report-cards/jobs",{ refetchInterval:5000 });
-  const reportQuery = useSchoolQuery<LiveExamReportCard[]>(reportPath);
-  const summaryQuery = useSchoolQuery<ReportCardScopeSummary>(summaryPath);
-  const hierarchyQuery = useSchoolQuery<ReportCardScopeHierarchyNode[]>(hierarchyPath);
-  const seriesQuery = useSchoolQuery<ExamSeriesResponse, ExamSeriesOption[]>("/exams/series", {
-    select: selectExamSeries,
-  });
+  const reportQuery = useSchoolQuery<LiveExamReportCard[]>(waitingForDefaultExam ? null : reportPath);
+  const summaryQuery = useSchoolQuery<ReportCardScopeSummary>(waitingForDefaultExam ? null : summaryPath);
+  const hierarchyQuery = useSchoolQuery<ReportCardScopeHierarchyNode[]>(waitingForDefaultExam ? null : hierarchyPath);
   const generationQuery = useSchoolQuery<LiveReportCardGenerationScope[]>(
     audience === "exams-manager" && !handoff ? `/exams/report-cards/generation-scopes${scope.classSectionId
       ? `?${scopeQs}${scope.streamLabel ? `&stream_name=${encodeURIComponent(scope.streamLabel)}` : ""}` : ""}` : null,
@@ -268,6 +277,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   const [batchStatus, setBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkTransitionResult | null>(null);
   const [bulkReason, setBulkReason] = useState("");
+  const [regenerationReason, setRegenerationReason] = useState("");
   const [confirmAction, setConfirmAction] = useState<{ action: string; label: string; params: string; summary: ReportCardScopeSummary } | null>(null);
   const selectedScope = generationScopes.find((s) => s.key === selectedScopeKey);
 
@@ -698,17 +708,50 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
 
   function confirmAndRunBulkAction() {
     if (!confirmAction || busyAction) return;
+    if (confirmAction.action === "regenerate" && !regenerationReason.trim()) return;
     const confirmed = confirmAction;
     setConfirmAction(null);
     if (confirmed.action === "print" || confirmed.action === "download") {
       void runBulkExport(confirmed.action, confirmed.params, confirmed.summary.eligible_cards);
+    } else if (confirmed.action === "regenerate") {
+      void runBulkRegeneration(confirmed.params, confirmed.summary.eligible_cards);
     } else {
       void runBulkTransition(confirmed.action as "submit" | "approve" | "recall" | "publish" | "unpublish", confirmed.params);
     }
   }
 
+  async function runBulkRegeneration(params: string, total: number) {
+    setBusyAction("bulk:regenerate");
+    setFeedback(null);
+    let progress: LiveReportCardBatchStatus = { id: "", status: "draft_requested", queue_status: "running",
+      total_students: total, completed_students: 0, failed_students: 0 };
+    setBatchStatus(progress);
+    const body: Record<string, unknown> = { ...Object.fromEntries(new URLSearchParams(params)), reason: regenerationReason.trim() };
+    if (typeof body.student_ids === "string") body.student_ids = body.student_ids.split(",");
+    try {
+      const result = await requestSchoolApiProxy<LiveReportCardBatchStatus>("/exams/report-cards/regeneration-scope", {
+        method: "POST", body, onProgress: value => {
+          progress = { ...progress, id: String(value.job_id ?? progress.id),
+            completed_students: Number(value.completed_students ?? progress.completed_students),
+            failed_students: Number(value.failed_students ?? progress.failed_students) };
+          setBatchStatus(progress);
+        },
+      });
+      progress = { ...progress, ...result };
+      setBatchStatus(progress);
+      setFeedback({ tone: progress.failed_students ? "critical" : "ok",
+        message: `${progress.completed_students} report cards ready. ${progress.reused_students ?? 0} unchanged cards reused. ${progress.failed_students ?? 0} failed.${progress.failed_students ? " Review the generation issues below and retry from Recent report tasks." : ""}` });
+    } catch (error) {
+      setBatchStatus({ ...progress, queue_status: "failed" });
+      setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Regeneration failed. Check Recent report tasks before retrying." });
+    } finally {
+      await Promise.allSettled([refreshAll(), recentJobs.refetch()]);
+      setBusyAction("");
+    }
+  }
+
   const queryError = reportQuery.error ?? summaryQuery.error ?? hierarchyQuery.error ?? generationQuery.error ?? seriesQuery.error;
-  const isLoading = reportQuery.isLoading || (audience === "exams-manager" && !handoff && generationQuery.isLoading);
+  const isLoading = (waitingForDefaultExam && !seriesQuery.error) || reportQuery.isLoading || (audience === "exams-manager" && !handoff && generationQuery.isLoading);
   const primaryAction = bulkActionForAudience(audience);
 
   return (
@@ -754,7 +797,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
       </nav>
 
       {/* Exam series filter */}
-      {scope.type === "school" && examSeriesOptions.length > 1 ? (
+      {scope.type === "school" && examSeriesOptions.length > 0 ? (
         <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4">
           <label className="text-sm font-black text-[#071D49]">
             Filter by exam
@@ -778,6 +821,22 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
         </div>
       ) : null}
 
+      {audience === "exams-manager" && handoff ? (
+        <section aria-label="Regenerate report cards" className="rounded-2xl border border-[#C8D5EA] bg-white p-5 text-[#071D49]">
+          <h3 className="text-lg font-black">Regenerate all report cards</h3>
+          <p className="mt-2 text-sm text-[#64748B]">
+            Refresh existing drafts for {examSeriesOptions.find(exam => exam.id === examSeriesFilter)?.name ?? "a selected exam"}
+            {scope.classLabel ? ` / ${scope.classLabel}` : " across all classes"}{scope.streamLabel ? ` / ${scope.streamLabel}` : ""}{scope.studentLabel ? ` / ${scope.studentLabel}` : ""}.
+            This includes all pages. Unchanged cards are reused; reports under review, approved or published must follow the recall or withdrawal workflow first.
+          </p>
+          <Button className="mt-4" variant="secondary" disabled={Boolean(busyAction) || !examSeriesFilter || isLoading || Boolean(queryError)}
+            onClick={() => void requestBulkAction("regenerate", "Regenerate all")}>
+            <RefreshCw className="h-4 w-4" />Regenerate all
+          </Button>
+          {!examSeriesFilter ? <p className="mt-2 text-sm text-amber-800">Select one exam above to regenerate its report cards.</p> : null}
+        </section>
+      ) : null}
+
       {/* Feedback banner */}
       {feedback ? (
         <div
@@ -791,12 +850,51 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
           {feedback.message}
         </div>
       ) : null}
+      {batchStatus ? (
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Learners", batchStatus.total_students],
+              ["Generated", batchStatus.completed_students],
+              ["Failed", batchStatus.failed_students ?? 0],
+              ["Not yet processed", Math.max(0, batchStatus.total_students - batchStatus.completed_students - (batchStatus.failed_students ?? 0))],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
+                <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
+                <p className="mt-1 text-xl font-black">{value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="break-all text-xs text-[#64748B]" role="status" aria-live="polite">
+            {batchStatus.queue_status === "running" ? "Generating report cards… " : ""}
+            {batchStatus.id ? `Batch reference: ${batchStatus.id}. ` : ""}
+            {batchStatus.reused_students ? `${batchStatus.reused_students} unchanged cards reused. ` : ""}
+            {batchStatus.duration_ms ? `Processing time: ${(batchStatus.duration_ms / 1000).toFixed(1)} seconds.` : ""}
+          </p>
+          {batchStatus.failures?.length ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+              <p className="font-black">Generation issues</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {batchStatus.failures.map((failure) => (
+                  <li key={`${failure.student_id}:${failure.message}`}>
+                    <span className="font-black">{failure.student_name || `Learner ${failure.student_id}`}:</span> {failure.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {recentJobs.error ? <p role="alert" className="text-sm text-rose-700">Report task history could not be loaded. <button onClick={()=>void recentJobs.refetch()}>Retry</button></p> : null}
       {recentJobs.data?.length ? <details className="rounded-xl border border-slate-200 bg-white p-3">
         <summary className="cursor-pointer text-sm font-semibold">Recent report tasks</summary>
         <p className="mt-2 text-xs text-slate-600">Tasks continue when you leave this page. Exports remain available for 24 hours.</p>
         <ul className="mt-2 space-y-2">{recentJobs.data.map(job=><li key={job.job_id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span>{job.kind.replaceAll("_"," ")} · {job.state}{job.progress.rendered ? ` · ${job.progress.rendered} reports` : job.progress.completed_students ? ` · ${job.progress.completed_students} ready` : ""}</span>
+          <span>{job.kind.startsWith("generate") ? "Report generation" : job.kind.replaceAll("_"," ")} · {job.state}{job.progress.rendered ? ` · ${job.progress.rendered} reports` : job.progress.completed_students ? ` · ${job.progress.completed_students} ready` : ""}{job.progress.failed_students ? ` · ${job.progress.failed_students} failed` : ""}</span>
+          {(job.state === "completed" || job.state === "failed") && job.kind.startsWith("generate_") ? <Button size="sm" variant="secondary" onClick={() => void requestSchoolApiProxy<{result?: LiveReportCardBatchStatus}>(`/exams/report-cards/jobs/${job.job_id}`).then(value => {
+            if (!value.result || typeof value.result.total_students !== "number") throw new Error("No batch results are available for this task. Refresh reports to see saved cards.");
+            setBatchStatus({ ...value.result, id: job.job_id });
+          }).catch(error => setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Task results could not be loaded." }))}>View results</Button> : null}
           {job.state==="failed" ? <Button size="sm" variant="secondary" onClick={()=>void requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}/retry`,{ method:"POST" }).then(()=>recentJobs.refetch()).catch(error=>setFeedback({ tone:"critical",message:error instanceof Error ? error.message : "Retry failed" }))}>Retry task</Button> : null}
           {job.state==="completed" && (job.kind==="pdf" || job.kind==="export") ? <Button size="sm" variant="secondary" onClick={()=>void requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/jobs/${job.job_id}`).then(result=>{
             if(!result.download_url) throw new Error("Prepare the current report again.");openReportDelivery(result.download_url,null);
@@ -999,41 +1097,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
               ) : null}
             </div>
           ) : null}
-          {batchStatus ? (
-            <div className="mt-4 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  ["Learners", batchStatus.total_students],
-                  ["Generated", batchStatus.completed_students],
-                  ["Failed", batchStatus.failed_students ?? 0],
-                  ["Not yet processed", Math.max(0, batchStatus.total_students - batchStatus.completed_students - (batchStatus.failed_students ?? 0))],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-                    <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
-                    <p className="mt-1 text-xl font-black">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="break-all text-xs text-[#64748B]" role="status" aria-live="polite">
-                {batchStatus.queue_status === "running" ? "Generating report cards… " : ""}
-                {batchStatus.id ? `Batch reference: ${batchStatus.id}. ` : ""}
-                {batchStatus.reused_students ? `${batchStatus.reused_students} unchanged cards reused. ` : ""}
-                {batchStatus.duration_ms ? `Processing time: ${(batchStatus.duration_ms / 1000).toFixed(1)} seconds.` : ""}
-              </p>
-              {batchStatus.failures?.length ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
-                  <p className="font-black">Generation issues</p>
-                  <ul className="mt-1 list-disc space-y-1 pl-5">
-                    {batchStatus.failures.map((failure) => (
-                      <li key={`${failure.student_id}:${failure.message}`}>
-                        <span className="font-black">{failure.student_name || `Learner ${failure.student_id}`}:</span> {failure.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+
         </div>
       ) : null}
 
@@ -1153,6 +1217,9 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#071D49]/60 backdrop-blur-sm" onClick={() => setConfirmAction(null)}>
           <div role="dialog" aria-modal="true" aria-label={confirmAction.label} className="mx-4 max-h-[90vh] overflow-y-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-[#071D49]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-black">{confirmAction.label}?</h3>
+            {new URLSearchParams(confirmAction.params).get("exam_series_id") ? <p className="mt-2 text-sm font-semibold">
+              Exam: {examSeriesOptions.find(exam => exam.id === new URLSearchParams(confirmAction.params).get("exam_series_id"))?.name ?? "Selected exam"}
+            </p> : null}
             <div className="mt-4 space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-[#64748B]">Scope:</span>
@@ -1180,9 +1247,15 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
             </div>
             <ul className="mt-3 max-h-40 overflow-auto text-xs">{confirmAction.summary.skipped_cards?.map(card =>
               <li key={card.id}>{card.student_name}: {card.reason}</li>)}</ul>
+            {confirmAction.action === "regenerate" ? <label className="mt-4 block text-sm font-semibold">
+              Regeneration reason
+              <textarea value={regenerationReason} onChange={event => setRegenerationReason(event.target.value)} maxLength={1000}
+                className="mt-2 block w-full rounded-lg border border-[#C8D5EA] p-3" placeholder="What needs updating on these report cards?" />
+              <span className="mt-2 block text-xs text-[#64748B]">The task continues if you leave this page. Follow its progress in Recent report tasks.</span>
+            </label> : null}
             <div className="mt-5 flex items-center gap-3">
               <Button variant="secondary" onClick={() => setConfirmAction(null)}>Cancel</Button>
-              <Button disabled={!confirmAction.summary.eligible_cards || Boolean(busyAction)} onClick={confirmAndRunBulkAction}>
+              <Button disabled={!confirmAction.summary.eligible_cards || Boolean(busyAction) || (confirmAction.action === "regenerate" && !regenerationReason.trim())} onClick={confirmAndRunBulkAction}>
                 <Send className="h-4 w-4" />
                 {confirmAction.label} ({confirmAction.summary.eligible_cards})
               </Button>

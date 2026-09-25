@@ -12,6 +12,7 @@ import {
   GenerateReportCardBatchDto,
   ModerateExamMarksDto,
   RegenerateReportCardDto,
+  RegenerateReportCardScopeDto,
   TransitionReportCardDto,
 } from './dto/exams.dto';
 import { ExamsRepository } from './repositories/exams.repository';
@@ -29,6 +30,38 @@ import { RbacGuard } from '../../guards/rbac.guard';
 import { Reflector } from '@nestjs/core';
 import { PRINCIPAL_SIGNATURE_ROLES } from './services/report-card-signature-policy';
 import { signaturePng } from './services/testing/signature-image.fixture';
+
+test('bulk regeneration validates the role, selected exam, reason and fresh preview before freezing school-scoped targets', async () => {
+  const context = { tenant_id: 'school-a', user_id: 'manager', role: 'exams_manager', permissions: ['exams:read', 'exams:write'] };
+  const queued: any[] = [];
+  const targets = [{ id: 'draft', student_id: 'student', ineligible_reason: null }, { id: 'published', ineligible_reason: 'Protected' }];
+  const service = new ExamsService({getStore:()=>context} as never, {
+    resolveReportCardScope: async (input: any) => {
+      assert.equal(input.tenant_id, 'school-a'); assert.equal(input.exam_series_id, 'exam');
+      assert.equal(input.class_section_id, 'class'); assert.equal(input.target_action, 'regenerate');
+      return {cards: targets, preview_token: 'fresh'};
+    },
+    executeSql: async () => ({rows:[{revision:'school-version'}]}),
+  } as never, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+  {submit:async (...args: any[])=>{queued.push(args);return {job_id:'job'};}} as never);
+  const input = {exam_series_id:'exam',class_section_id:'class',reason:'Refresh signatures',preview_token:'fresh'};
+  context.role='teacher';
+  await assert.rejects(()=>service.regenerateReportCardScope(input),ForbiddenException);
+  context.role='exams_manager'; context.permissions=['exams:read'];
+  await assert.rejects(()=>service.regenerateReportCardScope(input),ForbiddenException);
+  context.permissions.push('exams:write');
+  await assert.rejects(()=>service.regenerateReportCardScope({...input,exam_series_id:''}),/Exam series/);
+  await assert.rejects(()=>service.regenerateReportCardScope({...input,reason:' '}),/Regeneration reason/);
+  await assert.rejects(()=>service.regenerateReportCardScope({...input,preview_token:'stale'}),/changed/);
+  assert.equal(queued.length,0);
+  assert.deepEqual(await service.regenerateReportCardScope(input),{job_id:'job'});
+  assert.equal(queued[0][0],'generate_regeneration_scope');
+  assert.deepEqual(queued[0][1].targets,[targets[0]]);
+  assert.equal(queued[0][1].skipped_students,1);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY,ExamsController.prototype.regenerateReportCardScope),['exams:write']);
+  const pipe = new ValidationPipe({transform:true,whitelist:true,forbidNonWhitelisted:true});
+  await assert.rejects(()=>pipe.transform({...input,tenant_id:'other-school'},{type:'body',metatype:RegenerateReportCardScopeDto}));
+});
 
 test('ExamsSchemaService creates exam and report-card tables with tenant RLS', async () => {
   let schemaSql = '';

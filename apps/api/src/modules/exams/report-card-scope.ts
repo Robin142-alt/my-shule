@@ -105,6 +105,9 @@ export const REPORT_CARD_TRANSITION_TARGET_STATUS: Record<string, string> = {
 export function reportCardIneligibilitySql(action: string): string {
   return `CASE
   WHEN NOT card.is_current THEN 'This revision has been superseded'
+  WHEN ${action} = 'regenerate' THEN CASE
+    WHEN card.status IN ('draft_requested','draft_generated','draft','regeneration_required','withdrawn') THEN NULL
+    ELSE 'Recall or withdraw this report through its review workflow before regeneration' END
   WHEN ${action} = 'export' AND card.status NOT IN ('draft_generated','draft','under_review','approved','published')
     THEN 'This report was withdrawn or needs regeneration'
   WHEN ${action} IN ('export','submit','approve','publish') AND (

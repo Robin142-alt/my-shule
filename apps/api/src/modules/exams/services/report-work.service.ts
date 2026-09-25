@@ -35,6 +35,7 @@ export type ReportWorkKind =
   | 'generate'
   | 'generate_batch'
   | 'generate_scope'
+  | 'generate_regeneration_scope'
   | 'pdf'
   | 'export';
 export interface ReportWorkRow {
@@ -318,8 +319,8 @@ export class ReportWorkService
       const updated = await this.db.query<ReportWorkRow>(
         `UPDATE report_work SET state='queued',attempts=0,error_code=NULL,
         lease_token=NULL,lease_until=NULL,available_at=now(),updated_at=now(),
-        input=CASE WHEN kind='generate_scope' THEN input || '{"offset":0}'::jsonb ELSE input END,
-        result=CASE WHEN kind='generate_scope' THEN NULL ELSE result END,progress='{}'::jsonb
+        input=CASE WHEN kind IN ('generate_scope','generate_regeneration_scope') THEN input || '{"offset":0}'::jsonb ELSE input END,
+        result=CASE WHEN kind IN ('generate_scope','generate_regeneration_scope') THEN NULL ELSE result END,progress='{}'::jsonb
         WHERE tenant_id=$1 AND actor_user_id=$2 AND id=$3::uuid AND state='failed'
           AND (SELECT count(*) FROM report_work WHERE tenant_id=$1 AND state IN ('queued','running'))<20 RETURNING *`,
         [row.tenant_id, row.actor_user_id, row.id],
@@ -405,16 +406,16 @@ export class ReportWorkService
           `
           WITH candidates AS (SELECT work.id FROM report_work work
             WHERE work.expires_at>now() AND work.available_at<=now() AND work.attempts<3
-              AND (work.kind IN ('export','generate_batch','generate_scope'))=$1
+              AND (work.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=$1
               AND (work.state='queued' OR (work.state='running' AND work.lease_until<now()))
               AND work.id=(SELECT first.id FROM report_work first WHERE first.tenant_id=work.tenant_id
                 AND first.expires_at>now() AND first.available_at<=now() AND first.attempts<3
-                AND (first.kind IN ('export','generate_batch','generate_scope'))=$1
+                AND (first.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=$1
                 AND (first.state='queued' OR (first.state='running' AND first.lease_until<now()))
                 ORDER BY first.available_at,first.created_at,first.id LIMIT 1)
               AND NOT EXISTS(SELECT 1 FROM report_work busy WHERE busy.tenant_id=work.tenant_id
                 AND busy.id<>work.id AND busy.state='running' AND busy.lease_until>now()
-                AND (busy.kind IN ('export','generate_batch','generate_scope'))=$1)
+                AND (busy.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=$1)
             ORDER BY work.available_at,work.created_at LIMIT $2 FOR UPDATE SKIP LOCKED)
           UPDATE report_work work SET available_at=now()+interval '5 minutes',dispatch_version=dispatch_version+1
           FROM candidates WHERE work.id=candidates.id RETURNING work.id,work.tenant_id,work.dispatch_version`,
@@ -482,7 +483,7 @@ export class ReportWorkService
             AND (state='queued' OR (state='running' AND lease_until<now()))
             AND NOT EXISTS(SELECT 1 FROM report_work other WHERE other.tenant_id=$1 AND other.id<>work.id
               AND other.state='running' AND other.lease_until>now()
-              AND (other.kind IN ('export','generate_batch','generate_scope'))=(work.kind IN ('export','generate_batch','generate_scope'))) RETURNING *`,
+              AND (other.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=(work.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))) RETURNING *`,
           [initial.tenant_id, initial.id, token, delivery.dispatch_version],
         );
         return claimed.rows[0];
