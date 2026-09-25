@@ -119,6 +119,46 @@ test('report-card PDF remains a single A4 page with all learner rows represented
   assert.ok(artifact.byteLength > 4_000);
 });
 
+for (const withHistory of [false, true]) {
+  test(`HTML and PDF subject keys include all 12 full names without clipping (history: ${withHistory})`, async (t) => {
+    const payload = referencePayload();
+    const names = ['Agriculture', 'Biology', 'Chemistry', 'History', 'Kiswahili', 'Mathematics', 'Computer Studies', 'English', 'Physics', 'Christian Religious Education', 'Business Studies', 'Home Science'];
+    payload.subjects = names.map((subject_name, index) => ({ ...payload.subjects[0], subject_id: `subject-${index}`, subject_name, score: index * 8, percentage: index * 8 }));
+    payload.analytics.subject_history = withHistory ? ['exam-one', 'exam-two'].flatMap((exam_series_id, term) => names.map((subject_name, index) => ({
+      exam_series_id, label: `Term ${term + 1}`, subject_id: `subject-${index}`, subject_name, percentage: index * 8,
+    }))) : [];
+    const before = structuredClone(payload);
+    const html = new ReportCardTemplateService().renderHtml(payload, 'RC-KEY').toString('utf8');
+    const key = html.match(/<ul class="subject-key"[^>]*>([\s\S]*?)<\/ul>/)?.[1] ?? '';
+    assert.equal((key.match(/<li>/g) ?? []).length, names.length);
+    names.forEach(name => assert.ok(key.includes(`<span>${name}</span>`), name));
+    const series = [...html.matchAll(/<g data-subject-id="[^"]+">([\s\S]*?)<\/g>/g)];
+    assert.equal(series.length, names.length);
+    const keyColors = [...key.matchAll(/background:(#[a-f0-9]+)/g)].map(match => match[1]);
+    assert.equal(new Set(keyColors).size, names.length);
+    series.forEach((group, index) => {
+      assert.equal((group[1].match(/<circle /g) ?? []).length, withHistory ? 2 : 1);
+      assert.ok(group[1].includes(`fill="${keyColors[index]}"`));
+    });
+    const text = t.mock.method(PDFDocument.prototype, 'text');
+    const pdf = await createReportCardPdfArtifact(payload, 'RC-KEY');
+    const calls: unknown[][] = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments);
+    const chartStart = calls.findIndex(call => call[0] === 'Subject Performance');
+    const comments = calls.find(call => call[0] === 'COMMENTS')!;
+    const legend = calls.slice(chartStart).filter(call => names.includes(String(call[0])));
+    // The best-subject overview repeats one subject after the chart.
+    const printedKey = legend.slice(0, names.length);
+    assert.deepEqual(new Set(printedKey.map(call => call[0])), new Set(names));
+    for (const call of printedKey) {
+      assert.ok(Number(call[2]) > Number(calls[chartStart][2]) + 60);
+      assert.ok(Number(call[2]) + 16 < Number(comments[2]), `key overlaps comments: ${call[0]}`);
+      assert.equal((call[3] as Record<string, unknown>).ellipsis, undefined);
+    }
+    assert.equal((pdf.content.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
+    assert.deepEqual(payload, before, 'rendering must not change report inputs or approval data');
+  });
+}
+
 for (const examName of ['End Term 1', 'Mid Term', 'End Term 3', 'CAT 1']) {
   test(`report-card HTML and PDF use four columns with the actual ${examName} name`, async (t) => {
     const payload = referencePayload();

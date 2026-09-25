@@ -304,13 +304,14 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
   }));
   const historyRows = report.analytics?.subjectHistory ?? [];
   const historyTerms = [...new Map(historyRows.map((entry) => [entry.examSeriesId, entry.label])).entries()].map(([id, label]) => ({ id, label }));
-  const subjectNames = [...new Set(historyRows.map((entry) => entry.subjectName))].slice(0, 4);
-  const palette = [navy, gold, "#6fa83a", "#7244b8"];
-  const subjectLines = subjectNames.map((subjectName, subjectIndex) => ({
+  const subjects = [...new Map(historyRows.map((entry) => [entry.subjectId, entry.subjectName])).entries()];
+  const palette = [navy, gold, "#6fa83a", "#7244b8", "#c43c39", "#00838f", "#a05178", "#76552b", "#3b78bc", "#db6b20", "#4c6b35", "#c34f91"];
+  const subjectLines = subjects.map(([subjectId, subjectName], subjectIndex) => ({
+    subjectId,
     subjectName,
-    color: palette[subjectIndex] ?? navy,
+    color: palette[subjectIndex % palette.length],
     points: historyTerms.map((term, termIndex) => {
-      const entry = historyRows.find((row) => row.examSeriesId === term.id && row.subjectName === subjectName);
+      const entry = historyRows.find((row) => row.examSeriesId === term.id && row.subjectId === subjectId);
       return entry ? {
         x: 30 + ((136 * termIndex) / Math.max(1, historyTerms.length - 1)),
         y: 72 - (Math.min(100, Math.max(0, entry.percentage)) * 0.52),
@@ -318,10 +319,11 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
       } : null;
     }).filter((point): point is { x: number; y: number; percentage: number } => point !== null),
   })).filter((line) => line.points.length);
-  const currentSubjectLines = subjectLines.length ? subjectLines : rows.slice(0, 4).map((entry, index) => ({
+  const currentSubjectLines = subjectLines.length ? subjectLines : rows.map((entry, index) => ({
+    subjectId: entry.row.subjectCode || entry.row.subjectName,
     subjectName: entry.row.subjectName,
-    color: palette[index] ?? navy,
-    points: [{ x: 166, y: 72 - (entry.percent * 0.52), percentage: entry.percent }],
+    color: palette[index % palette.length],
+    points: [{ x: 30, y: 72 - (entry.percent * 0.52), percentage: entry.percent }],
   }));
   const subjectTermLabels = historyTerms.length ? historyTerms : currentTermLabel ? [{ id: report.id, label: currentTermLabel }] : [];
   const metrics: Array<{ label: string; metric: string; icon: ReactNode; accent: "navy" | "gold" }> = [];
@@ -347,13 +349,15 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
           </div>
           <div className="rounded-md border border-slate-200 bg-[#fbfdff] p-1.5">
             <p className="text-center text-[7px] font-black text-[#08265f]">Subject Performance</p>
-            <svg viewBox="0 0 190 100" className="mt-0.5 h-[96px] w-full" role="img" aria-label="Current term subject performance">
+            <svg viewBox="0 0 190 90" className="mt-0.5 h-[86px] w-full" role="img" aria-label="Subject performance over recorded reporting periods">
               {[20, 46, 72].map((y, index) => <g key={y}><line x1="25" y1={y} x2="174" y2={y} stroke={index === 2 ? "#8795a9" : "#e1e7ef"} strokeWidth="0.8" /><text x="20" y={y + 2} textAnchor="end" fontSize="5" fill="#607087">{100 - (index * 50)}</text></g>)}
               <line x1="25" y1="20" x2="25" y2="72" stroke="#8795a9" strokeWidth="0.8" />
-              {currentSubjectLines.map((line) => <g key={line.subjectName}>{line.points.length > 1 ? <polyline points={line.points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={line.color} strokeWidth="1.7" strokeLinejoin="round" /> : null}{line.points.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="3" fill={line.color} />)}</g>)}
+              {currentSubjectLines.map((line) => <g key={line.subjectId} data-subject-id={line.subjectId}><title>{line.subjectName}</title>{line.points.length > 1 ? <polyline points={line.points.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke={line.color} strokeWidth="1.7" strokeLinejoin="round" /> : null}{line.points.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r="3" fill={line.color} />)}</g>)}
               {subjectTermLabels.map((term, index) => <text key={term.id} x={30 + ((136 * index) / Math.max(1, subjectTermLabels.length - 1))} y="83" textAnchor="middle" fontSize="5" fill="#607087">{term.label.length > 9 ? `${term.label.slice(0, 8)}.` : term.label}</text>)}
-              {currentSubjectLines.map((line, index) => <g key={`legend-${line.subjectName}`}><circle cx={31 + ((index % 2) * 83)} cy={91 + (Math.floor(index / 2) * 8)} r="2.2" fill={line.color} /><text x={36 + ((index % 2) * 83)} y={93 + (Math.floor(index / 2) * 8)} fontSize="5" fill="#607087">{line.subjectName.length > 13 ? `${line.subjectName.slice(0, 12)}.` : line.subjectName}</text></g>)}
             </svg>
+            <ul aria-label="Subject performance key" className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-[6px] leading-tight text-slate-600">
+              {currentSubjectLines.map((line) => <li key={line.subjectId} className="flex min-w-0 items-start gap-1"><span aria-hidden="true" className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: line.color }} /><span className="min-w-0 break-words">{line.subjectName}</span></li>)}
+            </ul>
           </div>
         </div>
       </section>

@@ -294,6 +294,11 @@ export class ReportCardTemplateService {
     .chart { width:100%; min-height:38mm; border:.3mm solid var(--line); border-radius:1.8mm; background:#fbfdff; }
     .chart-title { color:var(--navy); font-size:2.1mm; font-weight:800; text-anchor:middle; }
     .chart-label { fill:var(--muted); font-size:1.65mm; }
+    .subject-chart { border:.3mm solid var(--line); border-radius:1.8mm; background:#fbfdff; min-width:0; }
+    .subject-chart .chart { border:0; min-height:0; display:block; }
+    .subject-key { list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:1mm 2mm; margin:0; padding:1mm 2mm 2mm; color:var(--muted); font-size:1.65mm; }
+    .subject-key li { display:flex; align-items:flex-start; gap:1mm; min-width:0; overflow-wrap:anywhere; }
+    .subject-key i { display:block; flex-shrink:0; width:1.5mm; height:1.5mm; margin-top:.3mm; border-radius:50%; }
     .performance-list { padding:1mm 3mm 2mm; }
     .performance-row { display:grid; grid-template-columns:29mm 1fr 11mm; align-items:center; gap:2mm; min-height:5mm; font-size:2mm; }
     .performance-row span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -957,10 +962,10 @@ function renderSubjectHistoryChart(
       ? [{ id: 'current', label: payload.template_fields.term ?? payload.template_fields.exam_series ?? '' }]
       : [];
   const subjects = history.length
-    ? [...new Map(history.map((entry) => [entry.subject_id, entry.subject_name])).entries()].slice(0, 4).map(([id, name]) => ({ id, name }))
-    : currentEntries.slice(0, 4).map((entry) => ({ id: entry.subject.subject_id, name: entry.subject.subject_name }));
+    ? [...new Map(history.map((entry) => [entry.subject_id, entry.subject_name])).entries()].map(([id, name]) => ({ id, name }))
+    : currentEntries.map((entry) => ({ id: entry.subject.subject_id, name: entry.subject.subject_name }));
   if (!terms.length || !subjects.length) return '';
-  const colors = ['#071d49', '#efa500', '#6fa83a', '#7244b8'];
+  const colors = ['#08265f', '#f2a900', '#6fa83a', '#7244b8', '#c43c39', '#00838f', '#a05178', '#76552b', '#3b78bc', '#db6b20', '#4c6b35', '#c34f91'];
   const lines = subjects.map((subject, subjectIndex) => {
     const points = terms.map((term, termIndex) => {
       const persisted = history.find((entry) => entry.exam_series_id === term.id && entry.subject_id === subject.id);
@@ -971,15 +976,16 @@ function renderSubjectHistoryChart(
         y: 77 - ((Math.max(0, Math.min(100, percentage)) / 100) * 55),
       };
     }).filter((point): point is { x: number; y: number } => point !== null);
-    const color = colors[subjectIndex] ?? '#071d49';
-    return `${points.length > 1 ? `<polyline points="${points.map((point) => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="${color}" stroke-width="1.7"/>` : ''}${points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="2.7" fill="${color}"/>`).join('')}<circle cx="${28 + ((subjectIndex % 2) * 84)}" cy="${96 + (Math.floor(subjectIndex / 2) * 6)}" r="2" fill="${color}"/><text class="chart-label" x="${34 + ((subjectIndex % 2) * 84)}" y="${98 + (Math.floor(subjectIndex / 2) * 6)}">${escapeHtml(shortLabel(subject.name, 13))}</text>`;
+    const color = colors[subjectIndex % colors.length];
+    return `<g data-subject-id="${escapeHtml(subject.id)}"><title>${escapeHtml(subject.name)}</title>${points.length > 1 ? `<polyline points="${points.map((point) => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="${color}" stroke-width="1.7"/>` : ''}${points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="2.7" fill="${color}"/>`).join('')}</g>`;
   }).join('');
-  return `<svg class="chart" viewBox="0 0 190 110" role="img" aria-label="Subject performance over recorded reporting periods">
-    <text class="chart-title" x="95" y="12">Subject Performance Over Time</text>
+  const key = subjects.map((subject, index) => `<li><i aria-hidden="true" style="background:${colors[index % colors.length]}"></i><span>${escapeHtml(subject.name)}</span></li>`).join('');
+  return `<div class="subject-chart"><svg class="chart" viewBox="0 0 190 94" role="img" aria-label="Subject performance over recorded reporting periods">
+    <text class="chart-title" x="95" y="12">Subject Performance</text>
     ${renderChartAxes()}
     ${lines}
     ${terms.map((term, index) => `<text class="chart-label" x="${28 + ((144 * index) / Math.max(1, terms.length - 1))}" y="88" text-anchor="middle">${escapeHtml(shortLabel(term.label, 9))}</text>`).join('')}
-  </svg>`;
+  </svg><ul class="subject-key" aria-label="Subject performance key">${key}</ul></div>`;
 }
 
 function renderChartAxes(): string {

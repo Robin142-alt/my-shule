@@ -296,6 +296,8 @@ test('artifact reuse performs no rendering and rejects stale, foreign and withdr
   assert.equal(signed, 1);
   card.metadata.renderer_version = 'pdfkit-report-card-4';
   assert.equal((await artifacts.load('one')).status, 'published', 'the signature-only layout change preserves approval validity');
+  card.metadata.renderer_version = 'pdfkit-report-card-5';
+  assert.equal((await artifacts.load('one')).status, 'published', 'the expanded subject key preserves approval validity');
   card.metadata.renderer_version = 'pdfkit-report-card-3';
   await assert.rejects(() => artifacts.load('one'), /changed/);
   card.metadata.renderer_version = REPORT_RENDERER_VERSION;

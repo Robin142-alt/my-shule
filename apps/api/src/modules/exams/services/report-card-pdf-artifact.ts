@@ -422,12 +422,6 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
   const gap = 8;
   const leftWidth = 385;
   const rightWidth = CONTENT_WIDTH - leftWidth - gap;
-  const height = 165;
-  drawCard(document, MARGIN, y, leftWidth, height);
-  drawCard(document, MARGIN + leftWidth + gap, y, rightWidth, height);
-  drawSectionTitle(document, 'PERFORMANCE ANALYTICS', MARGIN + 12, y + 8);
-  drawSectionTitle(document, 'SUMMARY OVERVIEW', MARGIN + leftWidth + gap + 12, y + 8);
-
   const entries = payload.subjects
     .map((subject) => ({ subject, percentage: subjectPercentage(subject) }))
     .filter((entry): entry is { subject: ReportCardSubjectPayload; percentage: number } => entry.percentage !== null)
@@ -442,6 +436,21 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
       }].filter((entry) => Boolean(entry.label));
   const chartGap = 8;
   const chartWidth = (leftWidth - 30 - chartGap) / 2;
+  const subjectHistory = payload.analytics?.subject_history ?? [];
+  const subjects = subjectHistory.length
+    ? [...new Map(subjectHistory.map((entry) => [entry.subject_id, entry.subject_name])).entries()].map(([id, name]) => ({ id, name }))
+    : entries.map((entry) => ({ id: entry.subject.subject_id, name: entry.subject.subject_name }));
+  document.font('Helvetica').fontSize(5.5);
+  const legendRows = Array.from({ length: Math.ceil(subjects.length / 2) }, (_, row) => {
+    const names = subjects.slice(row * 2, row * 2 + 2);
+    return Math.max(9, ...names.map(subject => document.heightOfString(subject.name, { width: (chartWidth - 30) / 2, lineGap: 1 }) + 3));
+  });
+  const legendHeight = legendRows.reduce((total, row) => total + row, 0);
+  const height = Math.max(165, 148 + legendHeight);
+  drawCard(document, MARGIN, y, leftWidth, height);
+  drawCard(document, MARGIN + leftWidth + gap, y, rightWidth, height);
+  drawSectionTitle(document, 'PERFORMANCE ANALYTICS', MARGIN + 12, y + 8);
+  drawSectionTitle(document, 'SUMMARY OVERVIEW', MARGIN + leftWidth + gap + 12, y + 8);
   const chartY = y + 27;
   const chartHeight = height - 38;
   drawTermTrendChart(document, MARGIN + 11, chartY, chartWidth, chartHeight, termHistory);
@@ -451,9 +460,11 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
     chartY,
     chartWidth,
     chartHeight,
-    payload.analytics?.subject_history ?? [],
-    entries.slice(0, 4),
+    subjectHistory,
+    entries,
     payload.template_fields.term ?? payload.template_fields.exam_series ?? '',
+    subjects,
+    legendRows,
   );
 
   const attendance = asRecord(payload.attendance);
@@ -516,19 +527,20 @@ function drawSubjectPerformanceChart(
   history: Array<{ exam_series_id: string; label: string; subject_id: string; subject_name: string; percentage: number }>,
   currentEntries: Array<{ subject: ReportCardSubjectPayload; percentage: number }>,
   currentLabel: string,
+  subjects: Array<{ id: string; name: string }>,
+  legendRows: number[],
 ) {
   document.roundedRect(x, y, width, height, 5).fillAndStroke('#fbfdff', LINE);
   document.font('Helvetica-Bold').fontSize(6.5).fillColor(NAVY).text('Subject Performance', x + 5, y + 7, { width: width - 10, align: 'center', lineBreak: false });
-  const plot = { x: x + 24, y: y + 24, width: width - 34, height: height - 47 };
+  const legendHeight = legendRows.reduce((total, row) => total + row, 0);
+  const plot = { x: x + 24, y: y + 24, width: width - 34, height: height - 47 - legendHeight };
   drawChartAxes(document, plot.x, plot.y, plot.width, plot.height);
   const terms = history.length
     ? [...new Map(history.map((entry) => [entry.exam_series_id, entry.label])).entries()].map(([id, label]) => ({ id, label }))
     : currentLabel ? [{ id: 'current', label: currentLabel }] : [];
-  const subjects = history.length
-    ? [...new Map(history.map((entry) => [entry.subject_id, entry.subject_name])).entries()].slice(0, 4).map(([id, name]) => ({ id, name }))
-    : currentEntries.map((entry) => ({ id: entry.subject.subject_id, name: entry.subject.subject_name }));
-  const colors = [NAVY, GOLD, '#6fa83a', '#7244b8'];
+  const colors = [NAVY, GOLD, '#6fa83a', '#7244b8', '#c43c39', '#00838f', '#a05178', '#76552b', '#3b78bc', '#db6b20', '#4c6b35', '#c34f91'];
   subjects.forEach((subject, subjectIndex) => {
+    const color = colors[subjectIndex % colors.length];
     const points = terms.map((term, termIndex) => {
       const persisted = history.find((entry) => entry.exam_series_id === term.id && entry.subject_id === subject.id);
       const current = !history.length ? currentEntries.find((entry) => entry.subject.subject_id === subject.id) : null;
@@ -542,13 +554,13 @@ function drawSubjectPerformanceChart(
     if (points.length > 1) {
       document.moveTo(points[0]?.x ?? plot.x, points[0]?.y ?? plot.y);
       points.slice(1).forEach((point) => document.lineTo(point.x, point.y));
-      document.lineWidth(1.1).strokeColor(colors[subjectIndex] ?? NAVY).stroke();
+      document.lineWidth(1.1).strokeColor(color).stroke();
     }
-    points.forEach((point) => document.circle(point.x, point.y, 2.4).fill(colors[subjectIndex] ?? NAVY));
+    points.forEach((point) => document.circle(point.x, point.y, 2.4).fill(color));
     const legendX = x + 8 + ((subjectIndex % 2) * ((width - 16) / 2));
-    const legendY = y + height - 16 + (Math.floor(subjectIndex / 2) * 7);
-    document.circle(legendX + 2, legendY + 2, 2).fill(colors[subjectIndex] ?? NAVY);
-    document.font('Helvetica').fontSize(4.3).fillColor(MUTED).text(abbreviate(subject.name, 13), legendX + 7, legendY, { width: (width - 30) / 2, ellipsis: true, lineBreak: false });
+    const legendY = plot.y + plot.height + 17 + legendRows.slice(0, Math.floor(subjectIndex / 2)).reduce((total, row) => total + row, 0);
+    document.circle(legendX + 2, legendY + 3, 2).fill(color);
+    document.font('Helvetica').fontSize(5.5).fillColor(MUTED).text(subject.name, legendX + 7, legendY, { width: (width - 30) / 2, lineGap: 1 });
   });
   terms.forEach((term, index) => {
     const labelX = plot.x + 8 + (((plot.width - 16) * index) / Math.max(1, terms.length - 1));

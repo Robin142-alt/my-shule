@@ -150,6 +150,38 @@ function getReportSection(name: string) {
 }
 
 describe("reference report-card layout", () => {
+  it.each([false, true])("shows every subject with full names and matching chart colours (history: %s)", (withHistory) => {
+    const names = ["Agriculture", "Biology", "Chemistry", "History", "Kiswahili", "Mathematics", "Computer Studies", "English", "Physics", "Christian Religious Education", "Business Studies", "Home Science"];
+    const report: ReportCardDocumentData = {
+      ...referenceReport,
+      marksSupplement: [
+        ...names.map((subjectName, index) => ({ subjectName, percentage: `${index * 8}%` })),
+        { subjectName: "Unassessed subject", score: "Absent" },
+      ],
+      analytics: withHistory ? {
+        subjectHistory: ["exam-one", "exam-two"].flatMap((examSeriesId, term) => names.map((subjectName, index) => ({
+          examSeriesId, label: `Term ${term + 1}`, subjectId: `subject-${index}`, subjectName, percentage: index * 8,
+        }))),
+      } : undefined,
+    };
+    renderWithProviders(<ReportCardDocument report={report} />);
+    const key = screen.getByRole("list", { name: "Subject performance key" });
+    const items = within(key).getAllByRole("listitem");
+    expect(items).toHaveLength(names.length);
+    for (const name of names) expect(within(key).getByText(name, { exact: true })).toBeInTheDocument();
+    expect(key).not.toHaveTextContent("Unassessed subject");
+    expect(key.closest("svg")).toBeNull();
+    const chart = screen.getByRole("img", { name: "Subject performance over recorded reporting periods" });
+    const series = [...chart.querySelectorAll("g[data-subject-id]")];
+    expect(series).toHaveLength(names.length);
+    expect(new Set(series.map(group => group.querySelector("circle")?.getAttribute("fill"))).size).toBe(names.length);
+    series.forEach((group, index) => {
+      expect(group.querySelectorAll("circle")).toHaveLength(withHistory ? 2 : 1);
+      expect(items[index].querySelector("[aria-hidden]")).toHaveStyle({ backgroundColor: group.querySelector("circle")!.getAttribute("fill")! });
+      expect(items[index]).toHaveTextContent(group.querySelector("title")!.textContent!);
+    });
+  });
+
   it("renders the approved information hierarchy and academic result columns", () => {
     renderWithProviders(<ReportCardDocument report={referenceReport} />);
 
