@@ -28,6 +28,7 @@ import { AdminCommandController } from '../admin-command/admin-command.controlle
 import { RbacGuard } from '../../guards/rbac.guard';
 import { Reflector } from '@nestjs/core';
 import { PRINCIPAL_SIGNATURE_ROLES } from './services/report-card-signature-policy';
+import { signaturePng } from './services/testing/signature-image.fixture';
 
 test('ExamsSchemaService creates exam and report-card tables with tenant RLS', async () => {
   let schemaSql = '';
@@ -5302,7 +5303,7 @@ test('personalized report-card comments use only real learner results and remain
 for (const role of PRINCIPAL_SIGNATURE_ROLES) {
   test(`report-card signature upload, preview and access remain school-owned for ${role}`, async () => {
     const calls: Array<{ name: string; input: Record<string, unknown> }> = [];
-    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+    const png = signaturePng();
     const signerUserId = '11111111-1111-4111-8111-111111111111';
     const context = {
       tenant_id: 'tenant-a', user_id: signerUserId, role,
@@ -5387,6 +5388,11 @@ for (const role of PRINCIPAL_SIGNATURE_ROLES) {
     const owner = { tenant_id: 'tenant-a', signer_user_id: signerUserId, signer_role: 'principal' as const };
     assert.equal((await service.getOwnedReportCardSignature(owner)).available, true);
     assert.deepEqual((await service.readOwnedReportCardSignature(owner)).content, png);
+    const portrait = signaturePng(400, 600);
+    await assert.rejects(service.uploadOwnedReportCardSignature(owner, {
+      originalname: 'whole-page.png', mimetype: 'image/png', size: portrait.length, buffer: portrait,
+    }), /landscape/);
+    assert.equal(calls.length, 4, 'rejected images must not change storage, the saved signature, audit or events');
 });
 }
 

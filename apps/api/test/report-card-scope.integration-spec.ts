@@ -115,6 +115,15 @@ describe('Report-card scopes and batch transitions', () => {
     expect((await repository.getReportCardScopeSummary(base)).eligible_cards).toBe(1);
   });
 
+  it('keeps compatible signature-layout snapshots eligible while rejecting older renderers and changed inputs', async () => {
+    await query(`UPDATE student_report_cards SET metadata=jsonb_set(metadata,'{renderer_version}','"pdfkit-report-card-4"') WHERE id=$1`, [cards[0]]);
+    expect((await repository.getReportCardScopeSummary({ ...base, report_card_ids: [cards[0]] })).eligible_cards).toBe(1);
+    await query(`UPDATE student_report_cards SET metadata=jsonb_set(metadata,'{renderer_version}','"pdfkit-report-card-3"') WHERE id=$1`, [cards[0]]);
+    expect((await repository.getReportCardScopeSummary({ ...base, report_card_ids: [cards[0]] })).eligible_cards).toBe(0);
+    await query(`UPDATE student_report_cards SET metadata=metadata || $2::jsonb WHERE id=$1`, [cards[0], JSON.stringify({ renderer_version: 'pdfkit-report-card-4', source_revision: '[["school","old"]]' })]);
+    expect((await repository.getReportCardScopeSummary({ ...base, report_card_ids: [cards[0]] })).eligible_cards).toBe(0);
+  });
+
   it('isolates failed rows and rolls back their transition, audit and event together', async () => {
     const result=await repository.bulkTransitionReportCards(command,async(card,tx)=>{
       await tx.$queryRawUnsafe('INSERT INTO test_outbox VALUES ($1,$2::uuid,$3::integer) RETURNING card_id',base.tenant_id,card.id,card.workflow_version);

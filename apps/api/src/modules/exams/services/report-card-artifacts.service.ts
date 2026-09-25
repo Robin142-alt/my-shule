@@ -14,6 +14,7 @@ import {
   reportIdentity,
   reportPdfIdentity,
   REPORT_RENDERER_VERSION,
+  isCompatibleReportRenderer,
 } from './report-artifact-identity';
 import { createReportCardPdfArtifact } from './report-card-pdf-artifact';
 import {
@@ -86,7 +87,7 @@ export class ReportCardArtifactsService implements OnModuleInit {
     const current = await this.sourceVersion(card.tenant_id, card.student_id);
     if (
       card.metadata?.source_revision !== current ||
-      card.metadata?.renderer_version !== REPORT_RENDERER_VERSION
+      !isCompatibleReportRenderer(card.metadata?.renderer_version)
     ) {
       throw new ConflictException(
         'Report inputs or layout changed. Regenerate this report and complete its review before publishing again.',
@@ -129,6 +130,9 @@ export class ReportCardArtifactsService implements OnModuleInit {
         await this.ensurePdf(card);
       }
       await this.assertFresh(card);
+      if (certifyLegacy && card.metadata?.renderer_version !== REPORT_RENDERER_VERSION) {
+        await this.ensurePdf(card);
+      }
     } catch (error) {
       if (error instanceof ConflictException) return null;
       throw error;

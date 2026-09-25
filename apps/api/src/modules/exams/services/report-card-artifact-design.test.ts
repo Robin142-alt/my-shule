@@ -84,21 +84,25 @@ test('report-card HTML uses the approved branded information hierarchy', () => {
   assert.doesNotMatch(html, /Not recorded|History unavailable|No marks entered/i);
 });
 
-test('report-card HTML and PDF place the uploaded role-owned signatures and real signer names', async () => {
+test('report-card HTML and PDF display signature images and role labels without signer names', async (t) => {
   const payload = referencePayload();
   const signature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-  payload.template_fields.class_teacher_name = 'Ms. Wanjiku';
+  payload.template_fields.class_teacher_name = 'SignatureOnly Teacher';
   payload.template_fields.class_teacher_signature_ref = signature;
-  payload.template_fields.principal_name = 'Dr. Kamau';
+  payload.template_fields.principal_name = 'SignatureOnly Principal';
   payload.template_fields.principal_signature_ref = signature;
 
   const html = new ReportCardTemplateService().renderHtml(payload, 'RC-2026-0001').toString('utf8');
   assert.match(html, /alt="Class teacher signature"/);
   assert.match(html, /alt="Principal signature"/);
-  assert.match(html, /Ms\. Wanjiku/);
-  assert.match(html, /Dr\. Kamau/);
+  assert.doesNotMatch(html, /SignatureOnly|signature-name/);
 
+  const text = t.mock.method(PDFDocument.prototype, 'text');
   const pdf = await createReportCardPdfArtifact(payload, 'RC-2026-0001');
+  const renderedText = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments[0]).join('\n');
+  assert.doesNotMatch(renderedText, /SignatureOnly/);
+  assert.match(renderedText, /Class Teacher Signature/);
+  assert.match(renderedText, /Principal Signature/);
   assert.equal(pdf.content.subarray(0, 5).toString('ascii'), '%PDF-');
   assert.ok(pdf.byteLength > 4_000);
 });

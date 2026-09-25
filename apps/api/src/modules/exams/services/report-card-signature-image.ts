@@ -39,6 +39,15 @@ export async function assertDecodableReportCardSignatureImage(content: Buffer): 
     );
   }
 
+  if (width < 300 || height < 80 || width > 1600 || height > 600) {
+    document.end();
+    throw new BadRequestException('Signature images must be 300–1600 pixels wide and 80–600 pixels high. A cropped 600 × 200 image is recommended.');
+  }
+  if (width / height < 2 || width / height > 6) {
+    document.end();
+    throw new BadRequestException('Crop the signature to a landscape image, 2–6 times wider than it is tall. Do not upload a photograph of the whole page.');
+  }
+
   await new Promise<void>((resolve, reject) => {
     let settled = false;
     const complete = (error?: unknown) => {

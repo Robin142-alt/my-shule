@@ -589,13 +589,13 @@ function drawOverviewIcon(document: PDFKit.PDFDocument, index: number, x: number
 }
 
 function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
-  const height = Math.max(92, Math.min(205, 803 - y));
+  const height = Math.max(118, Math.min(205, 803 - y));
   drawCard(document, MARGIN, y, CONTENT_WIDTH, height);
   drawSectionTitle(document, 'COMMENTS', MARGIN + 12, y + 8);
   const commentsY = y + 26;
   const fields = payload.template_fields;
 
-  const commentHeight = Math.max(42, Math.min(96, height - 58));
+  const commentHeight = Math.max(32, Math.min(96, height - 86));
   const comments: Array<[string, string | null]> = [
     ['Class Teacher Comment', fields.class_teacher_comment],
     ['Principal Comment', fields.principal_comment],
@@ -605,13 +605,12 @@ function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: Report
   availableComments.forEach(([label, comment], index) => {
     drawComment(document, MARGIN + 8 + (index * (availableCommentWidth + 12)), commentsY, availableCommentWidth, commentHeight, label, comment);
   });
-  const signatureY = y + height - 25;
+  const signatureY = y + height - 16;
   drawSignature(
     document,
     MARGIN + 80,
     signatureY,
     130,
-    fields.class_teacher_name ?? '',
     'Class Teacher Signature',
     fields.class_teacher_signature_ref,
   );
@@ -620,7 +619,6 @@ function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: Report
     PAGE_WIDTH - MARGIN - 210,
     signatureY,
     130,
-    fields.principal_name ?? '',
     'Principal Signature',
     fields.principal_signature_ref,
   );
@@ -642,21 +640,19 @@ function drawSignature(
   x: number,
   y: number,
   width: number,
-  name: string,
   label: string,
   imageRef: string | null,
 ) {
   const image = dataImage(imageRef);
   if (image) {
     try {
-      document.image(image, x, y - 24, { fit: [width, 21], align: 'center', valign: 'bottom' });
+      document.image(image, x, y - 36, { fit: [width, 32], align: 'center', valign: 'bottom' });
     } catch {
       // Invalid image bytes must not prevent a real report card from rendering.
     }
   }
   document.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(NAVY).stroke();
-  document.font('Helvetica').fontSize(5.4).fillColor(MUTED).text(name, x, y + 3, { width, align: 'center', ellipsis: true, lineBreak: false });
-  document.font('Helvetica-Bold').fontSize(6).fillColor(NAVY).text(label, x, y + 10, { width, align: 'center', lineBreak: false });
+  document.font('Helvetica-Bold').fontSize(6).fillColor(NAVY).text(label, x, y + 5, { width, align: 'center', lineBreak: false });
 }
 
 function drawFooter(document: PDFKit.PDFDocument, verificationCode: string, generatedAt: string) {

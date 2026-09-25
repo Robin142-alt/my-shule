@@ -27,8 +27,10 @@ it.each(['draft_generated', 'under_review', 'approved', 'published'])('shows bot
   expect(teacher).toHaveAttribute('src', '/api/exams/report-cards/card-1/signatures/class_teacher?v=VERIFY');
   expect(principal).toHaveAttribute('src', '/api/exams/report-cards/card-1/signatures/principal?v=VERIFY');
   const signatures = screen.getByTestId('report-card-document').querySelector('[data-report-section="signatures"]')!;
-  expect(signatures).toHaveTextContent('Assigned Teacher');
-  expect(signatures).toHaveTextContent('School Principal');
+  expect(signatures).not.toHaveTextContent('Assigned Teacher');
+  expect(signatures).not.toHaveTextContent('School Principal');
+  expect(signatures).toHaveTextContent('Class Teacher Signature');
+  expect(signatures).toHaveTextContent('Principal Signature');
   fireEvent.load(teacher);
   fireEvent.load(principal);
   expect(within(signatures as HTMLElement).queryByRole('status')).not.toBeInTheDocument();

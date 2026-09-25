@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { REPORT_RENDERER_VERSION } from './services/report-artifact-identity';
+import { COMPATIBLE_REPORT_RENDERER_VERSIONS } from './services/report-artifact-identity';
 export type ReportCardScopeType = 'school' | 'class' | 'stream' | 'students';
 export interface ReportCardScope {
   scopeType: ReportCardScopeType;
@@ -108,7 +108,7 @@ export function reportCardIneligibilitySql(action: string): string {
   WHEN ${action} = 'export' AND card.status NOT IN ('draft_generated','draft','under_review','approved','published')
     THEN 'This report was withdrawn or needs regeneration'
   WHEN ${action} IN ('export','submit','approve','publish') AND (
-    card.metadata->>'renderer_version' IS DISTINCT FROM '${REPORT_RENDERER_VERSION}'
+    COALESCE(card.metadata->>'renderer_version','') NOT IN (${COMPATIBLE_REPORT_RENDERER_VERSIONS.map(version => `'${version}'`).join(',')})
     OR (card.metadata->>'source_valid_until')::timestamptz <= now()
     OR COALESCE(card.metadata->>'source_revision','null')::jsonb IS DISTINCT FROM
       COALESCE((SELECT jsonb_agg(jsonb_build_array(source.scope_key,source.version::text) ORDER BY source.scope_key)

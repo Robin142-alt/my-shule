@@ -24,6 +24,8 @@ import { RequestContextService } from '../../../common/request-context/request-c
 import { RequestContextMiddleware } from '../../../middleware/request-context.middleware';
 import { ResponseEnvelopeInterceptor } from '../../../interceptors/response-envelope.interceptor';
 import { RequestIdInterceptor } from '../../../interceptors/request-id.interceptor';
+import { assertDecodableReportCardSignatureImage } from './report-card-signature-image';
+import { signaturePng } from './testing/signature-image.fixture';
 
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 const paths = {
@@ -41,6 +43,19 @@ const source = () => ({
   subjects: [{ subject_id: 'math', subject_name: 'Mathematics', score: 84, max_score: 100, grade_label: 'A' }],
 });
 const payload = () => new ReportCardTemplateService().buildPayload(source(), '2026-09-23T09:00:00.000Z');
+
+test('signature uploads enforce readable dimensions and landscape shape using decoded image bytes', async () => {
+  for (const [width, height] of [[600, 200], [300, 80], [1600, 600], [400, 200], [1200, 200]]) {
+    await assertDecodableReportCardSignatureImage(signaturePng(width, height));
+  }
+  for (const [width, height] of [[299, 100], [400, 79], [1601, 400], [1300, 601]]) {
+    await assert.rejects(assertDecodableReportCardSignatureImage(signaturePng(width, height)), /pixels/);
+  }
+  for (const [width, height] of [[400, 600], [400, 400], [399, 200], [1201, 200]]) {
+    await assert.rejects(assertDecodableReportCardSignatureImage(signaturePng(width, height)), /landscape/);
+  }
+  await assert.rejects(assertDecodableReportCardSignatureImage(Buffer.from('not an image')), /damaged/);
+});
 
 function storage() {
   const reads: string[] = [];

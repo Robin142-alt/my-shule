@@ -4,6 +4,7 @@ import { AlertCircle, Building2, CheckCircle2, Loader2, PenTool, Save, Upload } 
 import { useEffect, useRef, useState } from "react";
 
 import { Card } from "@/components/ui/card";
+import { SignatureUploadButton } from "@/components/report-cards/signature-upload-button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
 
@@ -88,7 +89,6 @@ export function PrincipalSchoolProfileWorkspace() {
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const [failedSignatureVersion, setFailedSignatureVersion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const signatureInputRef = useRef<HTMLInputElement>(null);
   const isDirtyRef = useRef(false);
 
   useEffect(() => {
@@ -165,25 +165,12 @@ export function PrincipalSchoolProfileWorkspace() {
     }
   };
 
-  const handleSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
+  const handleSignatureUpload = async (file: File) => {
     setActionError(null);
     setSuccessMessage(null);
-    if (!["image/png", "image/jpeg"].includes(file.type)) {
-      setActionError("Choose a PNG or JPEG signature image.");
-      event.currentTarget.value = "";
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setActionError("Signature images must not exceed 2 MB.");
-      event.currentTarget.value = "";
-      return;
-    }
-
-    setIsUploadingSignature(true);
     const body = new FormData();
     body.append("signature", file);
+    setIsUploadingSignature(true);
     try {
       await requestPrincipalApi<ReportCardSignatureStatus>("/admin-command/principal/report-card-signature", {
         method: "POST",
@@ -193,12 +180,7 @@ export function PrincipalSchoolProfileWorkspace() {
       await signatureQuery.refetch();
       setFailedSignatureVersion(null);
       setSuccessMessage("Principal signature uploaded. It will be placed automatically on newly generated report cards.");
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Principal signature could not be uploaded.");
-    } finally {
-      setIsUploadingSignature(false);
-      if (signatureInputRef.current) signatureInputRef.current.value = "";
-    }
+    } finally { setIsUploadingSignature(false); }
   };
 
   if (isLoading) {
@@ -287,16 +269,13 @@ export function PrincipalSchoolProfileWorkspace() {
             </div>
           </div>
           <div className="shrink-0">
-            <input ref={signatureInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleSignatureUpload} />
-            <button
-              type="button"
-              onClick={() => signatureInputRef.current?.click()}
-              disabled={isUploadingSignature || isSaving || isUploading}
+            <SignatureUploadButton
+              available={Boolean(signature?.available)}
+              label="Principal Signature"
+              onUpload={handleSignatureUpload}
+              disabled={isSaving || isUploading}
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-200/30 bg-cyan-200/10 px-4 py-2.5 text-sm font-black text-cyan-100 disabled:opacity-50 sm:w-auto"
-            >
-              {isUploadingSignature ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {isUploadingSignature ? "Uploading..." : signature?.available ? "Replace signature" : "Upload signature"}
-            </button>
+            />
           </div>
         </div>
         {signatureQuery.error ? (

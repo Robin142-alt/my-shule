@@ -309,9 +309,8 @@ export class ReportCardTemplateService {
     .comment b { color:var(--navy); font-size:2.2mm; }
     .comment p { margin:1mm 0 0; font-size:2.15mm; line-height:1.35; }
     .signatures { display:grid; grid-template-columns:1fr 1fr; gap:20mm; padding:1.5mm 16mm 1mm; text-align:center; }
-    .signature-line { height:9mm; border-bottom:.35mm solid var(--navy); display:flex; align-items:flex-end; justify-content:center; }
-    .signature-line img { display:block; max-width:42mm; max-height:8mm; object-fit:contain; }
-    .signature-name { min-height:3mm; margin-top:.7mm; color:var(--muted); font-size:1.9mm; }
+    .signature-line { height:12mm; border-bottom:.35mm solid var(--navy); display:flex; align-items:flex-end; justify-content:center; padding-bottom:1mm; }
+    .signature-line img { display:block; max-width:42mm; max-height:11mm; object-fit:contain; }
     .signature-label { margin-top:1mm; color:var(--navy); font-size:2mm; font-weight:700; }
     .footer { display:flex; justify-content:space-between; align-items:center; margin-top:2mm; padding:1.8mm 3mm 0; border-top:.45mm solid var(--gold); color:var(--navy); font-size:1.9mm; }
     .empty-note { margin:3mm; color:var(--muted); font-size:2.1mm; }
@@ -389,12 +388,10 @@ export class ReportCardTemplateService {
       <div class="signatures">
         <div>
           <div class="signature-line">${classTeacherSignatureSource ? `<img src="${escapeHtml(classTeacherSignatureSource)}" alt="Class teacher signature">` : ''}</div>
-          <div class="signature-name">${escapeHtml(fields.class_teacher_name ?? '')}</div>
           <div class="signature-label">Class Teacher Signature</div>
         </div>
         <div>
           <div class="signature-line">${principalSignatureSource ? `<img src="${escapeHtml(principalSignatureSource)}" alt="Principal signature">` : ''}</div>
-          <div class="signature-name">${escapeHtml(fields.principal_name ?? '')}</div>
           <div class="signature-label">Principal Signature</div>
         </div>
       </div>

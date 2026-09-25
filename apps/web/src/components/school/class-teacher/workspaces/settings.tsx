@@ -1,6 +1,7 @@
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
-import { CheckCircle2, Loader2, PenTool, Settings, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, PenTool, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { SignatureUploadButton } from "@/components/report-cards/signature-upload-button";
 import { toast } from "sonner";
 import { Panel } from "../shared";
 import {
@@ -19,8 +20,6 @@ export function SettingsWorkspace() {
   const uploadSignature = useUploadClassTeacherReportCardSignature(streamId);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [defaultView, setDefaultView] = useState("Overview");
-  const signatureInputRef = useRef<HTMLInputElement>(null);
-  const [signatureError, setSignatureError] = useState<string | null>(null);
   const [failedSignatureVersion, setFailedSignatureVersion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,30 +41,10 @@ export function SettingsWorkspace() {
     }
   }
 
-  async function handleSignatureUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
-    setSignatureError(null);
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
-      setSignatureError('Choose a PNG or JPEG signature image.');
-      event.currentTarget.value = '';
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setSignatureError('Signature images must not exceed 2 MB.');
-      event.currentTarget.value = '';
-      return;
-    }
-
-    try {
-      await uploadSignature.mutateAsync(file);
-      setFailedSignatureVersion(null);
-      toast.success('Your signature will be placed automatically on newly generated report cards.');
-    } catch (caught) {
-      setSignatureError(caught instanceof Error ? caught.message : 'Signature could not be uploaded.');
-    } finally {
-      if (signatureInputRef.current) signatureInputRef.current.value = '';
-    }
+  async function handleSignatureUpload(file: File) {
+    await uploadSignature.mutateAsync(file);
+    setFailedSignatureVersion(null);
+    toast.success('Your signature will be placed automatically on newly generated report cards.');
   }
 
   if (isLoading) {
@@ -147,22 +126,13 @@ export function SettingsWorkspace() {
               </div>
             </div>
             <div className="shrink-0">
-              <input
-                ref={signatureInputRef}
-                type="file"
-                accept="image/png,image/jpeg"
-                className="hidden"
-                onChange={handleSignatureUpload}
-              />
-              <button
-                type="button"
+              <SignatureUploadButton
+                available={Boolean(signature?.available)}
+                label="Class Teacher Signature"
                 disabled={!streamId || uploadSignature.isPending}
-                onClick={() => signatureInputRef.current?.click()}
+                onUpload={handleSignatureUpload}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#071D49] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50 sm:w-auto"
-              >
-                {uploadSignature.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {uploadSignature.isPending ? 'Uploading...' : signature?.available ? 'Replace signature' : 'Upload signature'}
-              </button>
+              />
             </div>
           </div>
           {signatureQuery.isError ? (
@@ -172,9 +142,6 @@ export function SettingsWorkspace() {
                 Retry signature
               </button>
             </div>
-          ) : null}
-          {signatureError ? (
-            <p role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{signatureError}</p>
           ) : null}
         </section>
       </div>
