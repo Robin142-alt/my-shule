@@ -32,7 +32,6 @@ describe("Exams manager command center", () => {
       "ModerationWorkspace",
       "AnalysisWorkspace",
       "ReportCardsWorkspace",
-      "PublishingWorkspace",
       "ReportsWorkspace",
     ]) {
       expect(source).toContain(workspace);
@@ -44,9 +43,12 @@ describe("Exams manager command center", () => {
     expect(source).toContain('"exam-timetable"');
   });
 
-  it("hands report cards to the dean without granting publication authority", () => {
-    expect(source).toContain("Report Card Handoff");
-    expect(handoffSource).toMatch(/<LiveReportCardsWorkspace audience="exams-manager" handoff/);
+  it("keeps one report workspace while preserving legacy handoff links", () => {
+    expect(source).not.toContain('label: "Report Card Handoff"');
+    expect(source).toContain('publishing: "report-cards"');
+    expect(source).toContain('handoff: "report-cards"');
+    expect(source).toContain('"dean-approval": "report-cards"');
+    expect(handoffSource).toContain("<ReportCardsWorkspace />");
     expect(handoffSource).not.toMatch(/Publish to parents|Unpublish report cards/);
   });
 });

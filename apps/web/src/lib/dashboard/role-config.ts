@@ -57,7 +57,6 @@ export const sidebarItems: SidebarItem[] = [
   { id: "moderation", label: "Moderation & Validation", href: "moderation", roles: ["exam-manager"] },
   { id: "analysis", label: "Grade Processing", href: "analysis", roles: ["exam-manager"] },
   { id: "report-cards", label: "Report Cards", href: "report-cards", roles: ["exam-manager"] },
-  { id: "publishing", label: "Publishing", href: "publishing", roles: ["exam-manager"] },
   { id: "reports", label: "Reports & Audit", href: "reports", roles: ["exam-manager"] },
   
   // Dean of Academics workspaces

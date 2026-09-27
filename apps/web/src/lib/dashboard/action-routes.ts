@@ -20,7 +20,7 @@ export function resolveDashboardActionHref(role: string, action: string) {
 
   if (action === "exams.publish") {
     if (normalizedRole === "exams-manager") {
-      return "/school/exams-manager/publishing";
+      return "/school/exams-manager/report-cards";
     }
 
     return `/school/${normalizedRole}/exams?view=publishing`;

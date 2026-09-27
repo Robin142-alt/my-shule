@@ -1,12 +1,12 @@
-# Scope-aware report cards and handoff
+# Scope-aware report cards
 
 ## Existing architecture and repair
 
-The Exams Manager command center routes Report Cards to `LiveReportCardsWorkspace` and Handoff to `PublishingWorkspace`. Both use the authenticated Next school API proxy, Nest Exams controllers, `ExamsService`, and `ExamsRepository`. Durable cards and their generated snapshots live in `student_report_cards`; transitions are audited in `student_report_card_audit_logs`. Existing operational events, notification rules, and publication events connect the Exams Manager, Dean, Principal, and parent workflows.
+The Exams Manager command center has one Report Cards workspace backed by `LiveReportCardsWorkspace`. Legacy publishing links open this same workspace and normalize to the Report Cards URL, preserving query parameters and fragments. `PublishingWorkspace` remains a compatibility wrapper. The workspace uses the authenticated Next school API proxy, Nest Exams controllers, `ExamsService`, and `ExamsRepository`. Durable cards and their generated snapshots live in `student_report_cards`; transitions are audited in `student_report_card_audit_logs`. Existing operational events, notification rules, and publication events connect the Exams Manager, Dean, Principal, and parent workflows.
 
 The original scope helper was not used consistently. Repository queries duplicated scope rules; selected IDs could replace parent constraints; UI and server summary/result contracts differed; hierarchy rows were not grouped; pagination/export limits silently narrowed operations. Handoff duplicated the workflow UI. Bulk transitions did not preserve the individual notification path.
 
-Both workspaces now use the same component and backend scope/transition implementation. The existing report-card state machine and PDF renderer remain authoritative.
+Generation and handoff now share one sidebar entry, exam filter, table and backend scope/transition implementation. The existing report-card state machine and PDF renderer remain authoritative.
 
 ## Scope contract
 
@@ -20,13 +20,15 @@ Ordering is class name, stream name, learner surname/first/middle name, admissio
 
 ## Frontend behavior
 
+- Exams Manager defaults to the most recent exam once the exam list loads. Manual exam selections, including All exams, survive refreshes. Generation readiness follows the same exam/class/stream scope.
+- Class generation, scope-wide regeneration, submission and recall are available together. Regeneration includes every page and retains server eligibility checks and a required correction reason. Readiness errors block generation but leave existing report actions available with their own server checks.
 - Breadcrumbs support school, class, optional stream, and student. Streamless classes go straight to students.
 - Scope changes clear row selections, preview state, and pending confirmations.
 - All actions use the active server scope even when checkboxes are selected. Selected actions explicitly add the custom subset.
 - Table search, status filters, and 50-row pagination affect the table only. The interface keeps scope totals visible; scope-wide operations never send the table's offset or limit.
 - Every bulk action first requests fresh server eligibility and shows its total, eligible count, exclusions, and reasons. Confirmation freezes those scope parameters and its preview token.
 - Partial results display successful, skipped, and failed counts with learner-level reasons, then refresh cards, counts, and hierarchy.
-- Individual preview, comments, submission, recall, regeneration, print, and download remain available according to the existing audience/status rules. Handoff uses the Exams Manager audience and grants no publication authority.
+- Individual preview, comments, submission, recall, regeneration, print, and download remain available according to the existing audience/status rules. Consolidation grants no additional publication authority.
 - Export jobs show progress, errors, and one combined PDF download or print preview. Popup blocking falls back to downloading the PDF with a truthful explanation.
 
 ## Endpoints

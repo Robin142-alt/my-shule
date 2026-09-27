@@ -208,7 +208,7 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/resolveDashboardActionHref/);
     expect(resolveDashboardActionHref("admissions_officer", "students.admit")).toBe("/school/admissions/applications?action=start-admission");
     expect(resolveDashboardActionHref("accountant", "finance.record_payment")).toBe("/school/accountant/payments");
-    expect(resolveDashboardActionHref("exams-manager", "exams.publish")).toBe("/school/exams-manager/publishing");
+    expect(resolveDashboardActionHref("exams-manager", "exams.publish")).toBe("/school/exams-manager/report-cards");
   });
 
   it("does not leave dean workspace primary buttons as static controls", () => {

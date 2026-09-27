@@ -49,8 +49,8 @@ const audienceCopy: Record<ReportCardAudience, {
 }> = {
   "exams-manager": {
     eyebrow: "Exams publication desk",
-    title: "Report Card Generation",
-    summary: "Generate persisted working drafts from locked marks, complete comments, then submit to freeze each card for academic review.",
+    title: "Report Cards",
+    summary: "Generate and refresh reports, complete comments, submit cards to the Dean, or recall submitted cards for correction. Only the Principal can publish approved results.",
     empty: "No report cards have been generated. Select a marked class and generate the first working-draft batch.",
   },
   dean: {
@@ -215,28 +215,23 @@ function bulkActionLabel(action: string): string {
   return labels[action] ?? action;
 }
 
-export function LiveReportCardsWorkspace({ audience, handoff = false }: { audience: ReportCardAudience; handoff?: boolean }) {
+export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAudience }) {
   const identity = useSchoolCommandIdentity();
-  const copy = handoff ? {
-    ...audienceCopy[audience],
-    title: "Report Card Handoff",
-    summary: "Submit ready report cards to the Dean, or recall submitted cards with a correction reason.",
-    empty: "No report cards are available in this scope. Generate working drafts from locked marks in Report Cards, then return here for handoff.",
-  } : audienceCopy[audience];
+  const copy = audienceCopy[audience];
 
   // --- Scope state ---
   const [scope, setScope] = useState<ActiveScope>({ type: "school" });
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [examSeriesSelection, setExamSeriesFilter] = useState<string | null>(handoff ? null : "");
+  const [examSeriesSelection, setExamSeriesFilter] = useState<string | null>(audience === "exams-manager" ? null : "");
   const seriesQuery = useSchoolQuery<ExamSeriesResponse, ExamSeriesOption[]>("/exams/series", {
     select: selectExamSeries,
   });
   const waitingForDefaultExam = examSeriesSelection === null && seriesQuery.data === undefined;
   const examSeriesFilter = examSeriesSelection ?? seriesQuery.data?.[0]?.id ?? "";
   // Resolve once after the exam list loads. Refetches must not switch the
-  // active handoff scope, and an explicit "All exams" selection stays empty.
+  // active report scope, and an explicit "All exams" selection stays empty.
   if (examSeriesSelection === null && seriesQuery.data !== undefined) {
     setExamSeriesFilter(examSeriesFilter);
   }
@@ -251,8 +246,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   const summaryQuery = useSchoolQuery<ReportCardScopeSummary>(waitingForDefaultExam ? null : summaryPath);
   const hierarchyQuery = useSchoolQuery<ReportCardScopeHierarchyNode[]>(waitingForDefaultExam ? null : hierarchyPath);
   const generationQuery = useSchoolQuery<LiveReportCardGenerationScope[]>(
-    audience === "exams-manager" && !handoff ? `/exams/report-cards/generation-scopes${scope.classSectionId
-      ? `?${scopeQs}${scope.streamLabel ? `&stream_name=${encodeURIComponent(scope.streamLabel)}` : ""}` : ""}` : null,
+    audience === "exams-manager" && !waitingForDefaultExam ? `/exams/report-cards/generation-scopes?${scopeQs}${scope.streamLabel ? `&stream_name=${encodeURIComponent(scope.streamLabel)}` : ""}` : null,
     { refetchInterval: 60_000 },
   );
 
@@ -279,7 +273,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   const [bulkReason, setBulkReason] = useState("");
   const [regenerationReason, setRegenerationReason] = useState("");
   const [confirmAction, setConfirmAction] = useState<{ action: string; label: string; params: string; summary: ReportCardScopeSummary } | null>(null);
-  const selectedScope = generationScopes.find((s) => s.key === selectedScopeKey);
+  const selectedScope = visibleGenerationScopes.find((s) => s.key === selectedScopeKey);
 
   const selectedReport = reports.find((report) => report.id === selectedReportId) ?? null;
   const selectedDocument = selectedReport
@@ -751,7 +745,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
   }
 
   const queryError = reportQuery.error ?? summaryQuery.error ?? hierarchyQuery.error ?? generationQuery.error ?? seriesQuery.error;
-  const isLoading = (waitingForDefaultExam && !seriesQuery.error) || reportQuery.isLoading || (audience === "exams-manager" && !handoff && generationQuery.isLoading);
+  const isLoading = (waitingForDefaultExam && !seriesQuery.error) || reportQuery.isLoading;
   const primaryAction = bulkActionForAudience(audience);
 
   return (
@@ -819,22 +813,6 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
             </select>
           </label>
         </div>
-      ) : null}
-
-      {audience === "exams-manager" && handoff ? (
-        <section aria-label="Regenerate report cards" className="rounded-2xl border border-[#C8D5EA] bg-white p-5 text-[#071D49]">
-          <h3 className="text-lg font-black">Regenerate all report cards</h3>
-          <p className="mt-2 text-sm text-[#64748B]">
-            Refresh existing drafts for {examSeriesOptions.find(exam => exam.id === examSeriesFilter)?.name ?? "a selected exam"}
-            {scope.classLabel ? ` / ${scope.classLabel}` : " across all classes"}{scope.streamLabel ? ` / ${scope.streamLabel}` : ""}{scope.studentLabel ? ` / ${scope.studentLabel}` : ""}.
-            This includes all pages. Unchanged cards are reused; reports under review, approved or published must follow the recall or withdrawal workflow first.
-          </p>
-          <Button className="mt-4" variant="secondary" disabled={Boolean(busyAction) || !examSeriesFilter || isLoading || Boolean(queryError)}
-            onClick={() => void requestBulkAction("regenerate", "Regenerate all")}>
-            <RefreshCw className="h-4 w-4" />Regenerate all
-          </Button>
-          {!examSeriesFilter ? <p className="mt-2 text-sm text-amber-800">Select one exam above to regenerate its report cards.</p> : null}
-        </section>
       ) : null}
 
       {/* Feedback banner */}
@@ -959,7 +937,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
             className="mt-3"
             onClick={() => {
               void refreshAll();
-              if (audience === "exams-manager" && !handoff) void generationQuery.refetch();
+              if (audience === "exams-manager") void generationQuery.refetch();
             }}
           >
             <RefreshCw className="h-4 w-4" />
@@ -1019,85 +997,101 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
       })() : null}
 
       {/* Generation panel (exams-manager only) */}
-      {audience === "exams-manager" && !handoff && scope.type !== "students" ? (
+      {audience === "exams-manager" ? (
         <div className="rounded-2xl border border-[#C8D5EA] bg-white p-5 text-[#071D49]">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="min-w-0 flex-1">
-              <label htmlFor="report-generation-scope" className="text-sm font-black">
-                Class and exam cycle
-              </label>
-              <select
-                id="report-generation-scope"
-                value={selectedScopeKey}
-                disabled={Boolean(busyAction) || generationQuery.isLoading}
-                onChange={(event) => {
-                  setSelectedScopeKey(event.target.value);
-                  setFeedback(null);
-                  setBatchStatus(null);
-                }}
-                className="mt-2 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8] xl:max-w-xl"
-              >
-                <option value="">Select class generation scope</option>
-                {visibleGenerationScopes.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label} - {generationQuery.error ? "Readiness unavailable" : s.ready ? "Ready" : s.guidance}
-                  </option>
-                ))}
-              </select>
-              {generationQuery.isLoading ? <p className="mt-2 text-sm">Checking exam readiness...</p> : null}
-              {!generationQuery.isLoading && !generationQuery.error && generationScopes.length === 0 ? (
-                <p className="mt-2 text-sm font-semibold text-amber-700">
-                  No mark sheets are available. Create the exam, assign subjects, enter marks, and lock the mark sheets first.
-                </p>
-              ) : null}
-              {!generationQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((s) => s.ready) ? (
-                <p className="mt-2 text-sm font-semibold text-amber-700">
-                  Select an exam to see its outstanding subjects. Teachers submit marks, then the Dean reviews and locks them before report cards can be generated.
-                </p>
-              ) : null}
-            </div>
-            <Button variant="secondary" onClick={() => void generationQuery.refetch()} disabled={Boolean(busyAction) || generationQuery.isFetching}>
-              <RefreshCw className="h-4 w-4" />
-              {generationQuery.isFetching ? "Checking..." : "Refresh readiness"}
-            </Button>
-            <Button
-              onClick={() => void generateBatch()}
-              disabled={!selectedScope?.ready || Boolean(busyAction) || Boolean(generationQuery.error) || generationQuery.isFetching}
-            >
-              <FileCheck2 className="h-4 w-4" />
-              {busyAction === "generate-batch" ? "Generating..." : "Generate class report cards"}
-            </Button>
-          </div>
-          {selectedScope && !generationQuery.error ? (
-            <div className="mt-4 space-y-3" aria-live="polite">
-              <p className="text-sm font-semibold">
-                {selectedScope.ready_mark_count} of {selectedScope.expected_mark_count} learner-subject marks finalized for {selectedScope.learner_count} learners.
-              </p>
-              {selectedScope.expected_mark_count === 0 ? <p className="text-sm">Check this class’s learner enrollments and subject assignments, then refresh readiness.</p> : null}
-              {selectedScope.blockers.length > 0 ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-                  <p className="font-bold">Complete these subjects before generating this class:</p>
-                  <ul className="mt-2 space-y-2">
-                    {selectedScope.blockers.map((subject) => (
-                      <li key={subject.subject_id}>
-                        <strong>{subject.subject_name}:</strong> {[
-                          subject.missing_mark_count > 0 && `${subject.missing_mark_count} missing`,
-                          subject.draft_mark_count > 0 && `${subject.draft_mark_count} awaiting submission`,
-                          subject.submitted_mark_count > 0 && `${subject.submitted_mark_count} awaiting Dean review`,
-                          subject.reviewed_mark_count > 0 && `${subject.reviewed_mark_count} awaiting locking`,
-                        ].filter(Boolean).join("; ")}.
-                      </li>
+          {scope.type !== "students" ? (
+            <>
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="report-generation-scope" className="text-sm font-black">
+                    Class and exam cycle
+                  </label>
+                  <select
+                    id="report-generation-scope"
+                    value={selectedScopeKey}
+                    disabled={Boolean(busyAction) || generationQuery.isLoading}
+                    onChange={(event) => {
+                      setSelectedScopeKey(event.target.value);
+                      setFeedback(null);
+                      setBatchStatus(null);
+                    }}
+                    className="mt-2 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8] xl:max-w-xl"
+                  >
+                    <option value="">Select class generation scope</option>
+                    {visibleGenerationScopes.map((s) => (
+                      <option key={s.key} value={s.key}>
+                        {s.label} - {generationQuery.error ? "Readiness unavailable" : s.ready ? "Ready" : s.guidance}
+                      </option>
                     ))}
-                  </ul>
-                  <p className="mt-3">Open Marks Entry Hub to identify the learners and assigned teachers. After submission, the Dean reviews and locks the marks.</p>
-                  <Link className="mt-3 inline-flex min-h-11 items-center font-bold underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
+                  </select>
+                  {generationQuery.isLoading ? <p className="mt-2 text-sm">Checking exam readiness...</p> : null}
+                  {!generationQuery.isLoading && !generationQuery.error && generationScopes.length === 0 ? (
+                    <p className="mt-2 text-sm font-semibold text-amber-700">
+                      No mark sheets are available. Create the exam, assign subjects, enter marks, and lock the mark sheets first.
+                    </p>
+                  ) : null}
+                  {!generationQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((s) => s.ready) ? (
+                    <p className="mt-2 text-sm font-semibold text-amber-700">
+                      Select an exam to see its outstanding subjects. Teachers submit marks, then the Dean reviews and locks them before report cards can be generated.
+                    </p>
+                  ) : null}
                 </div>
-              ) : selectedScope.expected_mark_count === 0 ? (
-                <p className="text-sm text-amber-800">Check this class&apos;s learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
+                <Button variant="secondary" onClick={() => void generationQuery.refetch()} disabled={Boolean(busyAction) || generationQuery.isFetching}>
+                  <RefreshCw className="h-4 w-4" />
+                  {generationQuery.isFetching ? "Checking..." : "Refresh readiness"}
+                </Button>
+                <Button
+                  onClick={() => void generateBatch()}
+                  disabled={!selectedScope?.ready || Boolean(busyAction) || Boolean(generationQuery.error) || generationQuery.isFetching}
+                >
+                  <FileCheck2 className="h-4 w-4" />
+                  {busyAction === "generate-batch" ? "Generating..." : "Generate class report cards"}
+                </Button>
+              </div>
+              {selectedScope && !generationQuery.error ? (
+                <div className="mt-4 space-y-3" aria-live="polite">
+                  <p className="text-sm font-semibold">
+                    {selectedScope.ready_mark_count} of {selectedScope.expected_mark_count} learner-subject marks finalized for {selectedScope.learner_count} learners.
+                  </p>
+                  {selectedScope.expected_mark_count === 0 ? <p className="text-sm">Check this class’s learner enrollments and subject assignments, then refresh readiness.</p> : null}
+                  {selectedScope.blockers.length > 0 ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                      <p className="font-bold">Complete these subjects before generating this class:</p>
+                      <ul className="mt-2 space-y-2">
+                        {selectedScope.blockers.map((subject) => (
+                          <li key={subject.subject_id}>
+                            <strong>{subject.subject_name}:</strong> {[
+                              subject.missing_mark_count > 0 && `${subject.missing_mark_count} missing`,
+                              subject.draft_mark_count > 0 && `${subject.draft_mark_count} awaiting submission`,
+                              subject.submitted_mark_count > 0 && `${subject.submitted_mark_count} awaiting Dean review`,
+                              subject.reviewed_mark_count > 0 && `${subject.reviewed_mark_count} awaiting locking`,
+                            ].filter(Boolean).join("; ")}.
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-3">Open Marks Entry Hub to identify the learners and assigned teachers. After submission, the Dean reviews and locks the marks.</p>
+                      <Link className="mt-3 inline-flex min-h-11 items-center font-bold underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
+                    </div>
+                  ) : selectedScope.expected_mark_count === 0 ? (
+                    <p className="text-sm text-amber-800">Check this class&apos;s learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
+                  ) : null}
+                </div>
               ) : null}
-            </div>
+            </>
           ) : null}
-
+          <section aria-label="Regenerate report cards" className="mt-5 border-t border-[#C8D5EA] pt-4">
+            <h3 className="text-lg font-black">Regenerate all report cards</h3>
+            <p className="mt-2 text-sm text-[#64748B]">
+              Refresh existing drafts for {examSeriesOptions.find(exam => exam.id === examSeriesFilter)?.name ?? "a selected exam"}
+              {scope.classLabel ? ` / ${scope.classLabel}` : " across all classes"}{scope.streamLabel ? ` / ${scope.streamLabel}` : ""}{scope.studentLabel ? ` / ${scope.studentLabel}` : ""}.
+              This includes all pages. Unchanged cards are reused; reports under review, approved or published must follow the recall or withdrawal workflow first.
+            </p>
+            <Button className="mt-4" variant="secondary" disabled={Boolean(busyAction) || !examSeriesFilter || isLoading || Boolean(reportQuery.error || summaryQuery.error || hierarchyQuery.error || seriesQuery.error)}
+              onClick={() => void requestBulkAction("regenerate", "Regenerate all")}>
+              <RefreshCw className="h-4 w-4" />Regenerate all
+            </Button>
+            {!examSeriesFilter ? <p className="mt-2 text-sm text-amber-800">Select one exam above to regenerate its report cards.</p> : null}
+          </section>
         </div>
       ) : null}
 
@@ -1167,7 +1161,7 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
               {busyAction === `bulk:${primaryAction}` ? "Processing..." : `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} all ${counts.eligible} eligible${primaryAction === "submit" ? " to Dean" : ""}`}
             </Button>
           ) : null}
-          {handoff ? <>
+          {audience === "exams-manager" ? <>
             <Button variant="secondary" size="sm" disabled={Boolean(busyAction) || !counts.review || !bulkReason.trim()}
               onClick={() => void requestBulkAction("recall", "Recall All Under Review")}>Recall all under review</Button>
             {selectedIds.size ? <Button variant="secondary" size="sm" disabled={Boolean(busyAction) || !bulkReason.trim()}
@@ -1329,8 +1323,8 @@ export function LiveReportCardsWorkspace({ audience, handoff = false }: { audien
                     </p>
                     {search || statusFilter !== "all" || page > 0 ? (
                       <Button variant="secondary" className="mt-3" onClick={() => { setSearch(""); setStatusFilter("all"); setPage(0); setSelectedIds(new Set()); }}>Clear filters</Button>
-                    ) : handoff ? (
-                      <Link className="mt-3 inline-flex min-h-11 items-center font-bold text-[#1D4ED8] underline" href="/school/exams-manager/report-cards">Open Report Cards</Link>
+                    ) : audience === "exams-manager" && visibleGenerationScopes.length === 0 ? (
+                      <Link className="mt-3 inline-flex min-h-11 items-center font-bold text-[#1D4ED8] underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
                     ) : null}
                   </td>
                 </tr>

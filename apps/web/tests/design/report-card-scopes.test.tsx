@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LiveReportCardsWorkspace } from '@/components/school/live-report-cards-workspace';
+import { ReportCardsWorkspace } from '@/components/school/exams-manager/report-cards-workspace';
 import { PublishingWorkspace } from '@/components/school/exams-manager/publishing-workspace';
 import { useSchoolQuery } from '@/lib/data/school-hooks';
 import { requestSchoolApiProxy } from '@/lib/dashboard/school-api-proxy-client';
@@ -24,7 +25,8 @@ function resolve(params:URLSearchParams){return cards.filter(c=>(!params.has('cl
   &&(!params.has('student_ids')||params.get('student_ids')!.split(',').includes(c.student_id))
   &&(!params.has('report_card_ids')||params.get('report_card_ids')!.split(',').includes(c.id)));}
 function summary(params:URLSearchParams){
-  const selected=resolve(params),eligible=selected.filter(c=>params.get('target_action')==='export'||c.status==='draft_generated');
+  const action=params.get('target_action');
+  const selected=resolve(params),eligible=selected.filter(c=>action==='export'||(action==='recall'?c.status==='under_review':c.status==='draft_generated'));
   return {total_cards:selected.length,eligible_cards:eligible.length,ineligible_cards:selected.length-eligible.length,
     preview_token:'server-token',status_counts:{under_review:selected.length-eligible.length},
     skipped_cards:selected.filter(c=>!eligible.includes(c)).map(c=>({id:c.id,student_name:c.student_name,reason:'Already under review'}))};
@@ -47,7 +49,7 @@ beforeEach(()=>{
   });
 });
 
-it.each([false,true])('uses the same scoped submission flow in report cards and handoff (handoff=%s)',async(handoff)=>{
+it.each([false,true])('preserves scoped submission through the canonical and legacy entry points (legacy=%s)',async(handoff)=>{
   const user=userEvent.setup();render(handoff?<PublishingWorkspace/>:<LiveReportCardsWorkspace audience="exams-manager"/>);
   expect(screen.queryByRole('button',{name:/Publish|Unpublish/i})).not.toBeInTheDocument();
   await user.click(screen.getByRole('button',{name:/^Grade 8/}));
@@ -105,11 +107,42 @@ it('does not execute an action when server preflight fails',async()=>{
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();expect(request).toHaveBeenCalledTimes(1);
 });
 
-it('gives an empty handoff desk a working next step without loading generation readiness',()=>{
+it('offers generation and mark-entry guidance from the same empty report workspace',()=>{
   queries.mockReturnValue({data:[],isLoading:false,error:null,refetch});
   render(<PublishingWorkspace/>);
-  expect(screen.getByRole('link',{name:'Open Report Cards'})).toHaveAttribute('href','/school/exams-manager/report-cards');
-  expect(queries.mock.calls.some(([path])=>path?.includes('/generation-scopes'))).toBe(false);
+  expect(screen.getByRole('link',{name:'Open Marks Entry Hub'})).toHaveAttribute('href','/school/exams-manager/marks-entry');
+  expect(screen.getByRole('button',{name:'Generate class report cards'})).toBeDisabled();
+  expect(screen.getByRole('heading',{name:'Report Cards'})).toBeVisible();
+  expect(queries.mock.calls.some(([path])=>path?.includes('/generation-scopes'))).toBe(true);
+});
+
+it('recalls submitted cards in the unified workspace with a reason and server-checked scope',async()=>{
+  const user=userEvent.setup();render(<ReportCardsWorkspace/>);
+  await user.click(screen.getByRole('button',{name:/^Grade 8/}));
+  expect(screen.getByRole('button',{name:'Generate class report cards'})).toBeInTheDocument();
+  expect(screen.getByRole('button',{name:'Regenerate all'})).toBeInTheDocument();
+  expect(screen.getByRole('button',{name:/Submit all 1 eligible to Dean/})).toBeEnabled();
+  expect(screen.getByRole('button',{name:'Recall all under review'})).toBeDisabled();
+  await user.type(screen.getByLabelText('Reason for recall or withdrawal'),'Correct comments');
+  await user.click(screen.getByRole('button',{name:'Recall all under review'}));
+  const dialog=await screen.findByRole('dialog');
+  await user.click(within(dialog).getByRole('button',{name:'Recall All Under Review (1)'}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{
+    scope_type:'class',class_section_id:'grade8',preview_token:'server-token',action:'recall',reason:'Correct comments'}}));
+});
+
+it('keeps existing report actions available when generation readiness fails',()=>{
+  const base=queries.getMockImplementation()!;
+  queries.mockImplementation((path:string|null,...args:unknown[])=>path==='/exams/series'
+    ? {data:[{id:'exam1',name:'End term'}],isLoading:false,error:null,refetch}
+    : path?.includes('/generation-scopes')
+      ? {data:[],isLoading:false,error:new Error('Readiness unavailable'),refetch}:base(path,...args));
+  render(<ReportCardsWorkspace/>);
+  expect(screen.getByText('Readiness unavailable')).toBeVisible();
+  expect(screen.getByRole('button',{name:'Generate class report cards'})).toBeDisabled();
+  expect(screen.getByRole('button',{name:/Submit all 2 eligible to Dean/})).toBeEnabled();
+  expect(screen.getByRole('button',{name:'Regenerate all'})).toBeEnabled();
+  expect(screen.getByRole('button',{name:'Download all 3'})).toBeEnabled();
 });
 
 it('previews all regeneration targets in the exam and requires a reason before queuing',async()=>{
@@ -165,26 +198,26 @@ it('reopens persisted partial results after returning to the handoff page',async
   expect(screen.getByText(/Batch reference: saved-job/)).toBeVisible();
 });
 
-it('waits for exams then defaults every handoff query to the latest exam date',async()=>{
+it.each([ReportCardsWorkspace,PublishingWorkspace])('defaults reports and generation to the latest exam through either entry point',async(Workspace)=>{
   let exams: Array<{id:string;name:string;starts_on?:string;created_at?:string}> | undefined;
   queries.mockImplementation((path:string|null,options?:{select?:(response:unknown)=>unknown})=>({
     data:path==='/exams/series' ? exams && options?.select?.({success:true,data:exams}) : [],
     isLoading:path==='/exams/series' && !exams,error:null,refetch,
   }));
-  const view=render(<PublishingWorkspace/>);
-  expect(queries.mock.calls.some(([path])=>/report-cards\/(scoped|scope-summary|scope-hierarchy)\?/.test(path ?? ''))).toBe(false);
+  const view=render(<Workspace/>);
+  expect(queries.mock.calls.some(([path])=>/report-cards\/(scoped|scope-summary|scope-hierarchy|generation-scopes)\?/.test(path ?? ''))).toBe(false);
   exams=[
     {id:'old',name:'Term 1',starts_on:'2026-03-01',created_at:'2026-09-24'},
     {id:'latest',name:'Term 3',starts_on:'2026-09-24',created_at:'2026-09-01'},
     {id:'undated',name:'Unscheduled exam'},
   ];
-  view.rerender(<PublishingWorkspace/>);
+  view.rerender(<Workspace/>);
   expect(screen.getByRole('combobox',{name:'Filter by exam'})).toHaveValue('latest');
-  for(const prefix of ['scoped','scope-summary','scope-hierarchy']) {
-    expect(queries).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`/report-cards/${prefix}\\?.*exam_series_id=latest`)));
+  for(const prefix of ['scoped','scope-summary','scope-hierarchy','generation-scopes']) {
+    expect(queries.mock.calls.some(([path])=>new RegExp(`/report-cards/${prefix}\\?.*exam_series_id=latest`).test(path??''))).toBe(true);
   }
   exams=[{id:'newer',name:'Newer exam',starts_on:'2026-10-01'},...exams];
-  view.rerender(<PublishingWorkspace/>);
+  view.rerender(<Workspace/>);
   expect(screen.getByRole('combobox',{name:'Filter by exam'})).toHaveValue('latest');
 });
 

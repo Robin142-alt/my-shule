@@ -131,7 +131,6 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "marks-entry", label: "Marks Entry", href: toSchoolPath("marks-entry"), icon: GraduationCap },
     { id: "moderation", label: "Moderation", href: toSchoolPath("moderation"), icon: ShieldAlert },
     { id: "report-cards", label: "Report Cards", href: toSchoolPath("report-cards"), icon: FileSpreadsheet },
-    { id: "publishing", label: "Publishing", href: toSchoolPath("publishing"), icon: LayoutGrid },
     { id: "analysis", label: "Analysis", href: toSchoolPath("analysis"), icon: Activity },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,

@@ -12,7 +12,6 @@ import {
   LockKeyhole,
   PenLine,
   Search,
-  Send,
   Upload,
   type LucideIcon,
 } from "lucide-react";
@@ -32,7 +31,6 @@ import { ExamTimetableWorkspace } from "./exams-manager/exam-timetable-workspace
 import { MarksEntryWorkspace } from "./exams-manager/marks-entry-workspace";
 import { ModerationWorkspace } from "./exams-manager/moderation-workspace";
 import { OverviewWorkspace } from "./exams-manager/overview-workspace";
-import { PublishingWorkspace } from "./exams-manager/publishing-workspace";
 import { ReportCardsWorkspace } from "./exams-manager/report-cards-workspace";
 import { ReportsWorkspace } from "./exams-manager/reports-workspace";
 import type { TeacherMarkSheet } from "./exams-manager/teacher-marks-progress";
@@ -48,11 +46,11 @@ type ExamsManagerCanonicalView =
   | "moderation"
   | "analysis"
   | "report-cards"
-  | "publishing"
   | "imports-templates"
   | "reports";
 
 type ExamsManagerLegacyView =
+  | "publishing"
   | "dashboard"
   | "exams"
   | "builder"
@@ -107,9 +105,9 @@ const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   drafts: "report-cards",
   "report-templates": "report-cards",
   "report-cards": "report-cards",
-  publishing: "publishing",
-  handoff: "publishing",
-  "dean-approval": "publishing",
+  publishing: "report-cards",
+  handoff: "report-cards",
+  "dean-approval": "report-cards",
   imports: "imports-templates",
   templates: "imports-templates",
   "imports-templates": "imports-templates",
@@ -165,16 +163,9 @@ const navItems: NavItem[] = [
   {
     id: "report-cards",
     label: "Report Cards",
-    summary: "Track generated report cards and readiness for school approval.",
+    summary: "Generate, regenerate, preview and submit report cards to the Dean, or recall them for correction.",
     icon: FileSpreadsheet,
-    aliases: ["drafts", "report-templates", "report-cards"],
-  },
-  {
-    id: "publishing",
-    label: "Report Card Handoff",
-    summary: "Submit generated report cards to the Dean and recall cards that need correction.",
-    icon: Send,
-    aliases: ["publishing", "handoff", "dean-approval"],
+    aliases: ["drafts", "report-templates", "report-cards", "publishing", "handoff", "dean-approval"],
   },
   {
     id: "imports-templates",
@@ -251,8 +242,6 @@ function Workspace({
       );
     case "report-cards":
       return <ReportCardsWorkspace />;
-    case "publishing":
-      return <PublishingWorkspace />;
     case "imports-templates":
       return <ImportsTemplatesWorkspace model={{}} />;
     case "reports":
@@ -283,7 +272,11 @@ export function ExamsManagerCommandCenter({
 
   useEffect(() => {
     setActiveViewState(canonicalizeExamsManagerView(activeSection));
-  }, [activeSection]);
+    if (["publishing", "handoff", "dean-approval"].includes(activeSection ?? "")) {
+      window.history.replaceState(window.history.state, "",
+        `${buildSchoolSectionHref("exams-manager", "report-cards", actualRouteMode)}${window.location.search}${window.location.hash}`);
+    }
+  }, [activeSection, actualRouteMode]);
 
   const lockedReason = !examsEnabled
     ? "The Exams module is not enabled for this school. Ask the platform owner to enable Exams before creating exam cycles or report cards."

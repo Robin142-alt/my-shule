@@ -12,7 +12,7 @@ type OverviewData = {
 };
 
 export function OverviewWorkspace({ onNavigate }: {
-  onNavigate: (view: "exam-setup" | "moderation" | "report-cards" | "publishing") => void;
+  onNavigate: (view: "exam-setup" | "moderation" | "report-cards") => void;
 }) {
   const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<OverviewData>("/admin-command/exams-manager/overview");
   const metrics = data?.metrics;
@@ -20,7 +20,7 @@ export function OverviewWorkspace({ onNavigate }: {
     { label: "Exam cycles", value: metrics?.active_exams, view: "exam-setup" as const, hint: "Configure and schedule" },
     { label: "Awaiting moderation", value: metrics?.pending_moderation, view: "moderation" as const, hint: "Submitted marks to review" },
     { label: "Report cards", value: metrics?.total_report_cards, view: "report-cards" as const, hint: "Prepare student reports" },
-    { label: "Published reports", value: metrics?.published_results, view: "publishing" as const, hint: "Released to families" },
+    { label: "Published reports", value: metrics?.published_results, view: "report-cards" as const, hint: "Released to families" },
   ];
   return (
     <div className="space-y-5">
