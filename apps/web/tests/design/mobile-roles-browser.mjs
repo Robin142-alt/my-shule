@@ -62,11 +62,13 @@ const globals=fs.readFileSync(globalsPath,'utf8').replace('@import "tailwindcss"
 const css=(await require('postcss')([require('@tailwindcss/postcss')()]).process(globals,{from:globalsPath})).css+'\n'+fs.readFileSync(path.join(web,'src/components/school/dean-academics/dean-workspace.module.css'),'utf8').replaceAll('.workspace','.dean-workspace').replaceAll('.table','.dean-table').replace(/:global\(([^)]+)\)/g,'$1');
 const server=http.createServer((req,res)=>{
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','public, max-age=3600');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
+ else if(req.url==='/fonts/InterVariable.woff2'){res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
  else if(req.url?.startsWith('/_next/image?')||req.url?.startsWith('/brand/')){res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
  else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:[]}));}
  else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+await new Promise(resolve=>server.listen(process.argv.includes('--preview')?3016:0,'127.0.0.1',resolve));
+if(process.argv.includes('--preview')){console.log('Isolated role preview: http://127.0.0.1:3016/school/principal/overview');await new Promise(()=>{});}
 const browser=await chromium.launch({headless:true});const results=[];
 let cases=[...['teacher','class-teacher','grade-master','hod','dean-academics','exams-manager','system-monitor','superadmin'].map(role=>[role,'overview']),['principal','overview'],['principal','students'],['principal','settings'],['deputy-principal','overview'],['deputy-principal','timetable'],['accountant','overview'],['accountant','payments'],['admissions','overview'],...['secretary','librarian','storekeeper','nurse','guidance-counselling','discipline-master','laboratory-technician','ict-manager','security-officer','transport-manager','boarding-master'].map(role=>[role,'overview']),['librarian','books'],['nurse','visits'],['parent','dashboard'],['parent','fees'],['student','dashboard'],['student','academics']];
 if(process.argv.includes('--all-workspaces')){
@@ -101,6 +103,7 @@ try{
    const errors=[];const handler=error=>errors.push(error.message);page.on('pageerror',handler);
    await page.goto(`http://127.0.0.1:${server.address().port}/school/${role}/${section}`);
    await page.locator('.authenticated-app').waitFor({timeout:10000}).catch(()=>{});
+   await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
    const metrics=await page.evaluate(()=>({pageWidth:document.documentElement.scrollWidth,hasShell:!!document.querySelector('.authenticated-app'),headings:[...document.querySelectorAll('main h1,main h2')].map(el=>el.textContent),overflow:[...document.querySelectorAll('main *')].filter(el=>{const r=el.getBoundingClientRect();return r.right>innerWidth+1&&r.width>0&&!el.closest('.overflow-x-auto,.overflow-auto,aside');}).slice(0,8).map(el=>({tag:el.tagName,cls:el.className,text:el.textContent?.slice(0,80)}))}));
    if(width<640){
@@ -115,7 +118,7 @@ try{
    }
    const passed=metrics.hasShell&&metrics.pageWidth<=width&&errors.length===0;
    results.push({role,section,width,height,passed,...metrics,errors});
-   if(width===390||role==='principal'&&width===320||!passed)await page.screenshot({path:path.join(out,`${role}-${section}-${width}.png`),fullPage:true});
+   if(width===390||width===1440||role==='principal'&&width===320||!passed)await page.screenshot({path:path.join(out,`${role}-${section}-${width}.png`),fullPage:true});
    console.log(`${passed?'PASS':'FAIL'} ${role}/${section} ${width}${passed?'':' '+JSON.stringify({errors,metrics})}`);
    if(role==='librarian'&&section==='books'&&width===320){
     await page.emulateMedia({media:'print'});

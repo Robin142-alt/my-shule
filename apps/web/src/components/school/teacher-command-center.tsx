@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { NotificationBell } from "@/components/shared/notification-bell";
@@ -160,6 +160,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
             <div key={item.group + '-' + item.label}>
               {showGroup ? <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">{item.group}</p> : null}
               <button
+                aria-current={activeView === item.id ? "page" : undefined}
                 onClick={() => onViewChange(item.id)}
                 className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white", activeView === item.id && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]")}
               >
@@ -175,20 +176,44 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
 }
 
 function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
+  const [search, setSearch] = useState("");
+  const searchResults = search.trim()
+    ? navItems.filter((item) => `${item.label} ${item.group}`.toLowerCase().includes(search.trim().toLowerCase()))
+    : [];
+
   return (
     <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">TR</div>
-          <p className="text-sm font-black text-[#071D49]">Teacher workspace controls</p>
+          <div className="flex min-w-0 items-center gap-2 text-sm">
+            <span className="hidden text-slate-500 sm:inline">Workspace</span>
+            <ChevronRight className="hidden h-3.5 w-3.5 text-slate-400 sm:block" aria-hidden="true" />
+            <p className="truncate font-semibold text-[#071D49]">{navItems.find((item) => item.id === activeView)?.label ?? "Teacher"}</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-64 hidden md:block">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
             <input 
               className="h-10 w-full rounded-xl border border-[#D8E0EC] pl-9 pr-4 text-sm outline-none focus:border-[#071D49]" 
-              placeholder="Search..." 
+              aria-label="Search teacher workspaces"
+              placeholder="Find a workspace…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Escape") setSearch(""); }}
             />
+            {search.trim() ? (
+              <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg" aria-label="Workspace search results">
+                {searchResults.length ? searchResults.map((item) => (
+                  <button key={item.id} type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100"
+                    onClick={() => { onViewChange(item.id); setSearch(""); }}>
+                    <item.icon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                    {item.label}
+                  </button>
+                )) : <p role="status" className="px-3 py-3 text-xs text-slate-500">No workspace matches. Try attendance, marks, or classes.</p>}
+              </div>
+            ) : null}
           </div>
           <TaskQueue />
           <ApprovalInbox />

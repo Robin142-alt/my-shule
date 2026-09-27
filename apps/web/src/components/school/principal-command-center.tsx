@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react";
 import { useModalLayer } from "@/hooks/use-modal-layer";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { PermissionProvider } from "@/components/providers/permission-context";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
@@ -433,6 +434,7 @@ export function PrincipalCommandCenter({
           executiveDashboardLoading={principalDashboardLoading}
           executiveDashboardStreamDegraded={principalDashboardStreamDegraded}
           riskCenterLabel="Alerts and risk center"
+          onNavigate={setActiveWorkspace}
         />
       );
     }
@@ -573,6 +575,7 @@ export function PrincipalCommandCenter({
               )}
             >
               <button type="button" onClick={() => setMobileSidebarOpen(false)} className="mb-3 min-h-11 self-end rounded-lg bg-white/10 px-4 text-sm font-semibold xl:hidden">Close navigation</button>
+              <div className="app-sidebar-brand mb-4 px-2"><MyShuleBrand markSize={30} nameClassName="text-base" /></div>
               <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
                 <div className="flex items-center gap-3">
                   {principalSchoolProfile?.logoUrl && failedSchoolLogoUrl !== principalSchoolProfile.logoUrl ? (
@@ -666,7 +669,7 @@ export function PrincipalCommandCenter({
                 </div>
               </header>
 
-              <div className="app-principal-workspace rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
+              <div className={cn("app-principal-workspace rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]", activeWorkspace === "overview" && "app-overview-canvas")}>
                 <section className="max-h-none overflow-y-auto">{renderWorkspace()}</section>
               </div>
             </main>

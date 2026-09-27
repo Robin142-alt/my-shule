@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { SessionSignOutButton } from "@/components/auth/session-sign-out-button";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
@@ -91,24 +92,27 @@ export function SchoolCommandSidebarIdentity({
   const isLight = tone === "light";
 
   return (
-    <div className={`${compact ? "border-b px-4 py-5" : "mb-5 rounded-2xl border p-4"} ${isLight ? "border-[#D8E0EC] bg-[#F8FAFC]" : "border-white/12 bg-white/[0.08] backdrop-blur"} ${className}`}>
+    <div data-tone={tone} className={`app-school-identity ${compact ? "border-b px-4 py-5" : "mb-5 rounded-2xl border p-4"} ${isLight ? "border-[#D8E0EC] bg-[#F8FAFC]" : "border-white/12 bg-white/[0.08] backdrop-blur"} ${className}`}>
+      <div className="app-sidebar-brand mb-4">
+        <MyShuleBrand markSize={26} tone={isLight ? "brand" : "light"} nameClassName="text-sm" />
+      </div>
       <div className="flex items-center gap-3">
         {canShowLogo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl ?? undefined}
             alt={`${schoolName} logo`}
-            className={`${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 border bg-white object-contain p-1.5 ${isLight ? "border-[#D8E0EC]" : "border-white/15"}`}
+            className={`app-school-emblem ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 border bg-white object-contain p-1.5 ${isLight ? "border-[#D8E0EC]" : "border-white/15"}`}
             onError={() => setFailedLogoUrl(logoUrl)}
           />
         ) : (
-          <span className={`grid ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center border ${isLight ? "border-[#D8E0EC] bg-white" : "border-white/15 bg-white/10"}`}>
+          <span className={`app-school-emblem grid ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center border ${isLight ? "border-[#D8E0EC] bg-white" : "border-white/15 bg-white/10"}`}>
             <Icon className={`${compact ? "h-5 w-5" : "h-7 w-7"} ${isLight ? "text-[#1D4ED8]" : "text-cyan-200"}`} aria-hidden="true" />
           </span>
         )}
         <div className="min-w-0">
-          <p className={`${compact ? "text-[10px] font-semibold tracking-wide" : "text-xs font-black tracking-[0.16em]"} uppercase ${isLight ? "text-[#1D4ED8]" : "text-cyan-200"}`}>{eyebrow}</p>
-          <p className={`mt-1 truncate ${compact ? "text-sm font-semibold" : "text-xl font-black"} ${isLight ? "text-[#071D49]" : "text-white"}`} title={schoolName}>{schoolName}</p>
+          <p className={`app-school-eyebrow ${compact ? "text-[10px] font-semibold tracking-wide" : "text-xs font-black tracking-[0.16em]"} uppercase ${isLight ? "text-[#1D4ED8]" : "text-cyan-200"}`}>{eyebrow}</p>
+          <p className={`app-school-name mt-1 truncate ${compact ? "text-sm font-semibold" : "text-xl font-black"} ${isLight ? "text-[#071D49]" : "text-white"}`} title={schoolName}>{schoolName}</p>
         </div>
       </div>
       {title ? <p className={`mt-3 text-sm font-black ${isLight ? "text-[#071D49]" : "text-white"}`}>{title}</p> : null}

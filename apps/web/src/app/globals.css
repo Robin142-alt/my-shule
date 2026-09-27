@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./authenticated.css";
+@import "./authenticated-premium.css";
 
 /* Feedback stays readable above dialogs, long forms, and the mobile keyboard. */
 [data-sonner-toaster].myshule-feedback {

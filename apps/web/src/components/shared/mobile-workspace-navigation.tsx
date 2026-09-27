@@ -98,7 +98,7 @@ export function MobileWorkspaceNavigation({
         aria-expanded={open}
         disabled={items.length === 0}
         onClick={() => setOpen(true)}
-        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-semibold text-[#071D49] shadow-sm outline-none transition hover:border-[#8FA8CC] hover:bg-[#F8FAFC] focus-visible:border-[#FF7A1A] focus-visible:ring-4 focus-visible:ring-orange-200/60 disabled:cursor-not-allowed disabled:opacity-60"
+        className="app-mobile-nav-trigger flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-semibold text-[#071D49] shadow-sm outline-none transition hover:border-[#8FA8CC] hover:bg-[#F8FAFC] focus-visible:border-[#FF7A1A] focus-visible:ring-4 focus-visible:ring-orange-200/60 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600">
           <Menu className="h-5 w-5" aria-hidden="true" />

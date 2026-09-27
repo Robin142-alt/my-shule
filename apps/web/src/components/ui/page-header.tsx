@@ -14,7 +14,7 @@ export function PageHeader({
   meta?: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className="app-page-header flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-2xl min-w-0">
         <p className="eyebrow">
           {eyebrow}

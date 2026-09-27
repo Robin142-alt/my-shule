@@ -13,8 +13,8 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-[var(--radius)] border border-dashed border-border bg-surface/50 px-4 py-6 text-center sm:px-6 sm:py-10">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-strong/80">
+    <div className="app-empty-state rounded-[var(--radius)] border border-dashed border-border bg-surface/50 px-4 py-6 text-center sm:px-6 sm:py-10">
+      <div className="app-empty-state-icon mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-strong/80">
         <Inbox className="h-5 w-5 text-muted" />
       </div>
       <p className="mt-4 eyebrow">

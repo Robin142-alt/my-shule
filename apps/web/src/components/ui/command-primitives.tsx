@@ -258,12 +258,12 @@ export function CommandMetricCard({
       <a
         href={href}
         data-testid="kpi-card"
-        className={`dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 ${className}`}
+        className={`app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 ${className}`}
       >
         {body}
       </a>
     );
   }
 
-  return <Card className={`p-4 ${className}`}>{body}</Card>;
+  return <Card className={`app-metric-card p-4 ${className}`}>{body}</Card>;
 }

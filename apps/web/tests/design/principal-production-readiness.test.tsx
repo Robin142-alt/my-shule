@@ -348,6 +348,30 @@ describe("principal production readiness", () => {
     );
   });
 
+  it.each([
+    ["Review approvals", "approvals"],
+    ["View students", "students"],
+  ])("opens the governed %s workspace from the overview banner", async (label, section) => {
+    const user = userEvent.setup();
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
+    await user.click(await screen.findByRole("button", { name: label, exact: true }));
+    expect(window.location.pathname).toBe(`/school/principal/${section}`);
+    expect(requestDashboardApiMock).toHaveBeenCalledWith(
+      `/admin-command/principal/${section}`,
+      expect.objectContaining({ tenantId: "maranda-high" }),
+    );
+  });
+
+  it("renders recent activity from the school overview response", async () => {
+    responseOverrides.set("/admin-command/principal/overview", {
+      ...(canonicalResponses["/admin-command/principal/overview"] as Record<string, unknown>),
+      recentActivity: [{ label: "School admission completed", time: "09:30" }],
+    });
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" />);
+    expect(await screen.findByText("School admission completed")).toBeVisible();
+    expect(screen.getByText("09:30")).toBeVisible();
+  });
+
   it("keeps the required Principal sidebar order and child hierarchy", async () => {
     const user = userEvent.setup();
     renderWithProviders(

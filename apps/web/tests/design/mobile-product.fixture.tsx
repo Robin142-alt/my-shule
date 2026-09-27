@@ -40,7 +40,7 @@ function Fixture() {
     </header>}
   >
     <div className="lg:hidden"><MobileWorkspaceNavigation label="School workspace" items={items} value={workspace} onValueChange={setWorkspace} /></div>
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[["Students", "482"], ["Attendance", "96.8%"], ["Receipts today", "18"], ["Pending approvals", "4"]].map(([label, value]) => <Card key={label} className="p-4"><p className="text-xs text-muted">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></Card>)}</div>
+    <div className="app-metric-grid grid grid-cols-2 gap-3 lg:grid-cols-4">{[["Students", "482"], ["Attendance", "96.8%"], ["Receipts today", "18"], ["Pending approvals", "4"]].map(([label, value]) => <Card key={label} className="p-4"><p className="text-xs text-muted">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></Card>)}</div>
     <Tabs items={["Students", "Payments", "Attendance registers", "Academic reports", "Settings"].map(label => ({ id: label, label, panel: <DataTable title="Student directory" subtitle="Current enrolment and balances" rows={rows} getRowKey={row => row.id} columns={[
       { id: "name", header: "Student", render: row => row.name },
       { id: "admission", header: "Admission", render: row => row.admission },

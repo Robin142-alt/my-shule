@@ -43,7 +43,7 @@ export function buttonClasses({
     icon: "h-11 w-11 p-0 flex items-center justify-center xl:h-10 xl:w-10",
   };
 
-  return [base, variantClasses[variant], sizeClasses[size], block ? "w-full" : "", className]
+  return ["app-button", `app-button-${variant === "default" ? "primary" : variant}`, base, variantClasses[variant], sizeClasses[size], block ? "w-full" : "", className]
     .filter(Boolean)
     .join(" ");
 }

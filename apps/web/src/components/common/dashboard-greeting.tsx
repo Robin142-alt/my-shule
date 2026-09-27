@@ -34,7 +34,7 @@ export function DashboardGreeting({
   }, []);
 
   return (
-    <div className={className} data-testid="dashboard-time-greeting">
+    <div className={`app-greeting ${className}`} data-tone={tone} data-testid="dashboard-time-greeting">
       {asHeading ? (
         <h1 className={`text-sm font-black leading-tight tracking-normal sm:text-base ${textTone}`}>
           {greetingText}

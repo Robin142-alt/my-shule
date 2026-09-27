@@ -28,6 +28,7 @@ const globals = fs.readFileSync(globalsPath, 'utf8').replace('@import "tailwindc
 const css = (await require('postcss')([require('@tailwindcss/postcss')()]).process(globals, { from: globalsPath })).css;
 const server = http.createServer((req, res) => {
   if (req.url === '/bundle.js') {res.setHeader('Content-Type','application/javascript');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
+  else if (req.url === '/fonts/InterVariable.woff2') {res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
   else if (req.url?.startsWith('/_next/image?') || req.url === '/brand/myshule-mark-512.png') {res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
   else {res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });
@@ -40,6 +41,8 @@ try {
     const errors=[];page.on('pageerror',error=>{ errors.push(error.message); console.error(error.message); });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByRole('heading',{name:'Student directory'}).waitFor().catch(async error => {await page.screenshot({path:path.join(out,'failure.png')});throw error;});
+    await page.evaluate(()=>document.fonts.ready);
+    assert.ok(await page.evaluate(()=>document.fonts.check('14px Inter')), 'Workspace font must load locally');
     const fits = async label => assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),`${label}: page overflows ${width}x${height}`);
     const inside = async locator => {const b=await locator.boundingBox();assert.ok(b && b.x>=-1 && b.y>=-1 && b.x+b.width<=width+1 && b.y+b.height<=height+1,`Offscreen control at ${width}: ${JSON.stringify(b)}`);};
     await fits('Directory');

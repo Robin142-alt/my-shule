@@ -345,8 +345,8 @@ export function AccountantCommandCenter({
             />
           </div>
 
-          <section className="app-dark-workspace rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
-            <div className="mb-5">
+          <section className="app-dark-workspace app-finance-canvas rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
+            <div className="app-workspace-heading mb-5">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
                 Live school finance
               </p>

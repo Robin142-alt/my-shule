@@ -16,7 +16,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
       data-testid="kpi-strip"
     >
       <a
-        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-1"
+        class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-1"
         data-testid="kpi-card"
         href="/school/admin/finance"
       >
@@ -67,7 +67,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         </p>
       </a>
       <a
-        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
+        class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
         data-testid="kpi-card"
         href="/school/admin/finance"
       >
@@ -118,7 +118,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         </p>
       </a>
       <a
-        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
+        class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
         data-testid="kpi-card"
         href="/school/admin/finance"
       >
@@ -169,7 +169,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
         </p>
       </a>
       <a
-        class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
+        class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
         data-testid="kpi-card"
         href="/school/admin/students"
       >
@@ -483,10 +483,10 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 1`] = `
             class="p-3 sm:px-5 sm:py-6"
           >
             <div
-              class="rounded-[var(--radius)] border border-dashed border-border bg-surface/50 px-4 py-6 text-center sm:px-6 sm:py-10"
+              class="app-empty-state rounded-[var(--radius)] border border-dashed border-border bg-surface/50 px-4 py-6 text-center sm:px-6 sm:py-10"
             >
               <div
-                class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-strong/80"
+                class="app-empty-state-icon mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface-strong/80"
               >
                 <svg
                   aria-hidden="true"
@@ -603,7 +603,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
   data-testid="kpi-strip"
 >
   <a
-    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-1"
+    class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-1"
     data-testid="kpi-card"
     href="/school/admin/finance"
   >
@@ -654,7 +654,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     </p>
   </a>
   <a
-    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
+    class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-2"
     data-testid="kpi-card"
     href="/school/admin/finance"
   >
@@ -705,7 +705,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     </p>
   </a>
   <a
-    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
+    class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-3"
     data-testid="kpi-card"
     href="/school/admin/finance"
   >
@@ -756,7 +756,7 @@ exports[`STEP 1: Layout tests matches the dashboard regression snapshots 2`] = `
     </p>
   </a>
   <a
-    class="dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
+    class="app-metric-card dashboard-card block rounded-[var(--radius)] p-4 transition hover:-translate-y-0.5 widget-enter widget-enter-delay-4"
     data-testid="kpi-card"
     href="/school/admin/students"
   >

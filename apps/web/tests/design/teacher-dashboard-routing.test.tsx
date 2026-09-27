@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { createElement } from "react";
 
 import { SchoolPages } from "@/components/school/school-pages";
@@ -46,6 +46,24 @@ describe("teacher dashboard routing", () => {
     expect(shell).toBeVisible();
     expect(screen.getByRole("button", { name: /Assignments/i })).toHaveClass("bg-white/15");
     expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
+  });
+
+  it("finds and opens a workspace from the header search, with a recoverable empty result", async () => {
+    renderWithProviders(createElement(SchoolPages, {
+      role: "teacher", tenantSlug: "homabay-high", routeMode: "public", liveDataEnabled: false,
+    }));
+    await screen.findByTestId("teacher-command-center");
+    const search = screen.getByRole("textbox", { name: "Search teacher workspaces" });
+    fireEvent.change(search, { target: { value: "unmatched-workspace" } });
+    expect(screen.getByText(/No workspace matches/)).toBeVisible();
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(search).toHaveValue("");
+    fireEvent.change(search, { target: { value: "Exams & Marks" } });
+    const results = screen.getByLabelText("Workspace search results");
+    fireEvent.click(within(results).getByRole("button", { name: "Exams & Marks" }));
+    expect(search).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Exams & Marks" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByRole("heading", { name: "Exams & Marks", level: 2 })).toBeVisible();
   });
 
   it.each([

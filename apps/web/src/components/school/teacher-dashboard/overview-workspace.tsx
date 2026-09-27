@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, Loader2 } from "lucide-react";
+import { ArrowUpRight, Bell, CalendarDays, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { TeacherView, TeacherAction } from "./types";
 import { Panel } from "./shared-components";
@@ -61,12 +61,17 @@ export function OverviewWorkspace({
 
   return (
     <>
-      <section className="rounded-2xl bg-[#071D49] p-4 text-white shadow-sm sm:p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-100">Your teaching day</p>
-        <h2 className="mt-2 max-w-3xl text-xl font-semibold tracking-tight md:text-3xl">Welcome back, Teacher</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-100/78">
-          Here's a summary of your academic tasks for today.
-        </p>
+      <section className="app-teaching-welcome relative overflow-hidden rounded-2xl bg-[#071D49] p-5 text-white sm:p-7">
+        <div className="relative z-10 max-w-xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-100">Your teaching day</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">A little clarity. A better school day.</h2>
+          <p className="mt-2 max-w-md text-sm leading-6 text-blue-100">Your lessons, learners, and next steps, together in one place.</p>
+          <button type="button" onClick={() => onViewChange("timetable")} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#173559] transition hover:bg-orange-50">
+            <CalendarDays className="h-4 w-4" aria-hidden="true" />
+            View my timetable
+            <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </section>
 
       {overviewError || liveSession.error || (!overviewPending && !liveSession.session) ? (
@@ -99,9 +104,10 @@ export function OverviewWorkspace({
                   onViewChange(view);
                   onStartAction(action, view, message);
                 }}
-                className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left text-sm font-black text-[#071D49] transition hover:bg-[#F1F5F9]"
+                className="app-quick-action flex items-center justify-between gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left text-sm font-black text-[#071D49] transition hover:bg-[#F1F5F9]"
               >
                 {label}
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
               </button>
             ))}
           </div>

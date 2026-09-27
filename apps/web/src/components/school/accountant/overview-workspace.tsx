@@ -111,28 +111,28 @@ export function AccountantOverviewWorkspace({
       <div className="space-y-4" aria-busy="true" aria-label="Loading finance overview">
         <div className="app-metric-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="h-36 animate-pulse rounded-xl border border-white/10 bg-white/10" />
+            <div key={item} className="h-36 animate-pulse rounded-xl border border-slate-200 bg-slate-200/60" />
           ))}
         </div>
-        <div className="h-56 animate-pulse rounded-xl border border-white/10 bg-white/10" />
+        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-slate-200/60" />
       </div>
     );
   }
 
   if (isError || !isAccountantOverviewResponse(data)) {
     return (
-      <section className="rounded-xl border border-rose-300/30 bg-rose-400/10 p-5 text-white" role="alert">
+      <section className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-900" role="alert">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-200" aria-hidden="true" />
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
           <div className="min-w-0">
             <h2 className="text-lg font-black">Finance overview could not be loaded</h2>
-            <p className="mt-1 text-sm font-semibold text-white/70">
+            <p className="mt-1 text-sm text-rose-800">
               {error?.message || "The live school finance read model is unavailable."}
             </p>
             <button
               type="button"
               onClick={() => void refetch()}
-              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-black text-white hover:bg-white/15"
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-900 hover:bg-rose-100"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Retry live finance data
@@ -278,9 +278,9 @@ export function AccountantOverviewWorkspace({
       </section>
 
       {isFreshFinanceWorkspace ? (
-        <section className="rounded-xl border border-cyan-300/30 bg-cyan-300/10 p-5 text-white">
+        <section className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-[#173559]">
           <h2 className="text-xl font-black">No school finance records yet</h2>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-white/72">
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
             Create the first fee structure, generate student invoices after learners are admitted, then record or reconcile payments. This school starts at zero by design.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -294,7 +294,7 @@ export function AccountantOverviewWorkspace({
             <button
               type="button"
               onClick={() => onNavigate("invoices")}
-              className="min-h-10 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-black text-white hover:bg-white/15"
+              className="min-h-10 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-[#173559] hover:bg-blue-100"
             >
               Open student invoicing
             </button>
