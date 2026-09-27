@@ -2,7 +2,7 @@ import { updateStudentCohortPosition, updateStudentCohortSubjects } from '../coh
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
-import { ACADEMIC_TEACHING_ROLE_CODES } from '../../../auth/auth.constants';
+import { ACADEMIC_TEACHING_ROLE_CODES, SCHOOL_STAFF_ROLE_CODES } from '../../../auth/auth.constants';
 import { PrismaService } from '../../../database/prisma.service';
 import { ensureCohortContexts, ensureCohortMigration, lockCohortSchool } from '../cohort-configuration';
 import { writeCohortSubjects, writeCohortTeacher } from '../cohort-assignment-writes';
@@ -10,6 +10,8 @@ import { writeCohortSubjects, writeCohortTeacher } from '../cohort-assignment-wr
 const ACADEMIC_TEACHING_ROLE_SQL = ACADEMIC_TEACHING_ROLE_CODES
   .map((roleCode) => `'${roleCode}'`)
   .join(', ');
+
+const SCHOOL_STAFF_ROLE_SQL = SCHOOL_STAFF_ROLE_CODES.map((code) => `'${code}'`).join(', ');
 
 const ACADEMIC_STAFF_ROLE_CODES_SQL = `
   ARRAY(
@@ -490,7 +492,6 @@ export class AcademicsRepository {
                   ON staff.tenant_id = assignment.tenant_id AND staff.user_id::text = assignment.teacher_user_id
                 WHERE assignment.tenant_id = $1
                 ORDER BY assignment.created_at DESC
-                LIMIT 300
               ) item
             ), '[]'::jsonb) AS teacher_assignments,
             COALESCE((SELECT jsonb_agg(to_jsonb(item) ORDER BY item.name)
@@ -1119,7 +1120,7 @@ export class AcademicsRepository {
     });
   }
 
-  async listTeacherOptions(tenantId: string) {
+  async listTeacherOptions(tenantId: string, includeAllStaff = false) {
     const result = await this.executeSql(tenantId, `
         SELECT teacher_option.*
         FROM (
@@ -1153,18 +1154,17 @@ export class AcademicsRepository {
             AND membership.status = 'active'
             AND user_account.status = 'active'
             AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
-            AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
+            AND role.code = ANY (ARRAY[${includeAllStaff ? SCHOOL_STAFF_ROLE_SQL : ACADEMIC_TEACHING_ROLE_SQL}]::text[])
           ORDER BY membership.user_id, role.code ASC
         ) teacher_option
         ORDER BY teacher_option.label ASC
-        LIMIT 300
       `,
       [tenantId]);
 
     return result.rows;
   }
 
-  async findTeacherOptionByUserId(tenantId: string, teacherUserId: string) {
+  async findTeacherOptionByUserId(tenantId: string, teacherUserId: string, includeAllStaff = false) {
     const result = await this.executeSql(tenantId, `
         SELECT
           COALESCE(staff.id, membership.user_id)::text AS id,
@@ -1197,7 +1197,7 @@ export class AcademicsRepository {
           AND membership.status = 'active'
           AND user_account.status = 'active'
           AND COALESCE(staff.status, 'active') IN ('active', 'reactivated')
-          AND role.code = ANY (ARRAY[${ACADEMIC_TEACHING_ROLE_SQL}]::text[])
+          AND role.code = ANY (ARRAY[${includeAllStaff ? SCHOOL_STAFF_ROLE_SQL : ACADEMIC_TEACHING_ROLE_SQL}]::text[])
         ORDER BY role.code ASC
         LIMIT 1
       `,
@@ -2284,7 +2284,7 @@ export class AcademicsRepository {
     return result.rows;
   }
 
-  async assignAcademicRole(tenantId: string, input: Record<string, unknown>) {
+  async assignAcademicRole(tenantId: string, input: Record<string, unknown>, governance?: (tx: any, result: any) => Promise<void>) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
       const scopeValues = [
         input.department_id ?? null,
@@ -2293,6 +2293,13 @@ export class AcademicsRepository {
         input.stream_id ?? null,
         input.subject_id ?? null,
       ];
+      // Serialize initial assignment as well as replacement, including when no row exists yet.
+      await this.executeSqlTx(tx, 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text',
+        [JSON.stringify(['academic-role', tenantId, input.role_type, ...scopeValues])]);
+      const finish = async (result: { previous: any; appointment: any; changed_holder: boolean }) => {
+        if (governance) await governance(tx, result);
+        return result;
+      };
       const existing = await this.executeSqlTx(tx, `
         SELECT * FROM academics_role_appointments
         WHERE tenant_id = $1 AND role_type = $2 AND status = 'active'
@@ -2315,7 +2322,7 @@ export class AcademicsRepository {
           RETURNING *
         `, [tenantId, previous.id, input.appointment_type ?? 'permanent', input.effective_from,
           input.effective_to ?? null, input.reason ?? null, input.actor_user_id ?? null]);
-        return { previous, appointment: updated.rows[0], changed_holder: false };
+        return finish({ previous, appointment: updated.rows[0], changed_holder: false });
       }
 
       if (previous) {
@@ -2341,7 +2348,7 @@ export class AcademicsRepository {
         input.academic_year_id ?? null, input.class_section_id ?? null, input.stream_id ?? null,
         input.appointment_type ?? 'permanent', input.effective_from, input.effective_to ?? null,
         input.reason ?? null, input.actor_user_id ?? null, input.subject_id ?? null]);
-      return { previous, appointment: created.rows[0], changed_holder: Boolean(previous) };
+      return finish({ previous, appointment: created.rows[0], changed_holder: Boolean(previous) });
     });
   }
 

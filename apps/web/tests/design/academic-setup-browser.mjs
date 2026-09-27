@@ -21,12 +21,13 @@ const fixture = {
   subjects: [{ id: 'math', name: 'Mathematics', department_id: 'science', curriculum_model: 'CBC', status: 'active' }],
   departments: [{ id: 'science', name: 'Sciences', status: 'active' }],
   teachers: [{ user_id: 'teacher', label: 'Alex Teacher', role_code: 'teacher' }],
+  hosStaff: [{ user_id: 'librarian', label: 'Alex Librarian', role_code: 'librarian' }],
   classTeachers: [], teacherAssignments: [], classSubjectAssignments: [], gradingSystems: [], attendanceSettings: [], reportCardSettings: [], roleAppointments: [], curriculumConfigurations: [],
 };
 fs.writeFileSync(path.join(out, 'hooks.ts'), `const data=${JSON.stringify(fixture)};export function useSchoolQuery(){return {data,isLoading:false,error:null,refetch:async()=>({data,error:null})};}export function useSchoolMutation(){return {isPending:false,mutateAsync:async()=>({})};}`);
 fs.writeFileSync(path.join(out, 'api.ts'), `export async function requestDashboardApi(path,options){window.__lastRequest={path,...options};return {id:'saved'};}`);
 fs.writeFileSync(path.join(out, 'role.ts'), 'export function useOptionalSchoolDashboardRole(){return null;}');
-fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {AcademicFoundationWorkspace} from ${source(path.join(web, 'src/components/school/academic-foundation-workspace'))};createRoot(document.getElementById('root')).render(<main className="mx-auto max-w-7xl p-4"><AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="QA School" tenantId="qa-school" initialTab="allocations"/></main>);`);
+fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {AcademicFoundationWorkspace} from ${source(path.join(web, 'src/components/school/academic-foundation-workspace'))};createRoot(document.getElementById('root')).render(<main className="authenticated-app mx-auto max-w-7xl p-3"><div className="app-workspace-surface bg-[#071D49] p-3"><AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="QA School" tenantId="qa-school" initialTab="allocations"/></div></main>);`);
 
 async function run() {
   await new Promise((resolve, reject) => webpack({ mode: 'development', devtool: false, entry: path.join(out, 'entry.tsx'),
@@ -48,7 +49,7 @@ async function run() {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const width of [1440, 390]) {
+    for (const width of [1440, 768, 390, 320]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
       const errors = []; page.on('pageerror', error => errors.push(error.message));
       await page.goto(`http://127.0.0.1:${server.address().port}`);
@@ -70,11 +71,36 @@ async function run() {
       const body = await page.evaluate(() => window.__lastRequest.body);
       assert.equal(body.stream_id, 'red'); assert.equal(body.subject_id, 'math');
       for (const field of ['effective_from', 'effective_to', 'department_id', 'curriculum_model']) assert.equal(field in body, false);
-      for (const tab of ['Classes & Streams', 'Subjects & Departments', 'Roles & Curriculum', 'Grading & Policies']) {
-        await page.getByRole('tab', { name: tab, exact: true }).click();
+      const openArea = async (label) => {
+        if (width >= 1024) await page.getByRole('tab', { name: label, exact: true }).click();
+        else {
+          const selector = page.getByRole('combobox', { name: 'Setup area', exact: true });
+          const option = selector.locator('option').filter({ hasText: label });
+          await selector.selectOption(await option.getAttribute('value'));
+        }
+      };
+      for (const tab of ['Academic Calendar', 'Classes & Streams', 'Subjects & Departments', 'Roles & Curriculum', 'Grading & Policies']) {
+        await openArea(tab);
         assert.equal(await page.locator('input[name="code"],input[name="abbreviation"],input[name="effective_from"],input[name="effective_to"]').count(), 0);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${tab} overflows at ${width}px`);
       }
+      await openArea('Subjects & Departments');
+      await page.getByLabel('Go to action or saved records').selectOption('Assign or change HOS');
+      const hos = page.getByRole('form', { name: 'Assign or change HOS' });
+      assert.equal(await hos.getByRole('combobox').count(), 2);
+      assert.equal(await hos.getByRole('textbox').count(), 0);
+      await hos.getByRole('combobox', { name: 'Subject', exact: true }).selectOption('math');
+      await hos.getByLabel('Head of Subject').selectOption('librarian');
+      assert.ok((await hos.getByLabel('Head of Subject').boundingBox()).height >= 44);
+      await hos.getByRole('button', { name: 'Save HOS' }).click();
+      await page.waitForFunction(() => window.__lastRequest?.path === '/academics/subject-heads');
+      assert.deepEqual(await page.evaluate(() => window.__lastRequest.body), { subject_id: 'math', teacher_user_id: 'librarian' });
+      await hos.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(out, `hos-${width}.png`) });
+      await openArea('Academic Calendar');
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: path.join(out, `calendar-${width}.png`) });
+      assert.equal(await page.getByText('Setup readiness', { exact: true }).count(), 0);
       assert.deepEqual(errors, []);
       await page.close();
       console.log(`Academic setup ${width}px: passed`);

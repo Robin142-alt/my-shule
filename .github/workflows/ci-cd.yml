@@ -54,7 +54,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
 
       - name: Academic intelligence workspace contracts
-        run: npm --prefix apps/web run test:design -- academic-intelligence head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
+        run: npm --prefix apps/web run test:design -- academic-intelligence academic-foundation academic-setup-simplification academic-policy-builders academic-curriculum-builder head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
       - name: Authenticated mobile navigation and action contracts
         run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
@@ -103,7 +103,7 @@ jobs:
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts node -r ts-node/register/transpile-only --test apps/api/test/dashboard-sse-database.test.ts
 
       - name: Academic analytics print authorization and pagination
-        run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/auth/head-of-subject.test.js
+        run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/auth/head-of-subject.test.js dist/apps/api/src/modules/academics/academic-hos-assignment.test.js dist/apps/api/src/modules/academics/academic-setup-simplification.test.js
 
       - name: Report-card scopes, exports and workflow isolation
         env:
@@ -137,7 +137,7 @@ jobs:
         env:
           DATABASE_URL: ""
           NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts apps/api/test/academic-hos-assignment.integration-spec.ts
 
       - name: Exam setup transactions, deletion and teacher mark entry
         env:

@@ -2317,6 +2317,7 @@ test('UserRoleAssignmentsRepository binds active assignments to the requested us
   let capturedValues: unknown[] = [];
   const repository = new UserRoleAssignmentsRepository({
     query: async (sql: string, values: unknown[]) => {
+      if (sql.includes('to_regclass')) return { rows: [{ available: false }] };
       capturedSql = sql;
       capturedValues = values;
       return { rows: [] };

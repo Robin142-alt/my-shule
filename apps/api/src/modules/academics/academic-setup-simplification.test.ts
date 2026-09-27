@@ -33,10 +33,12 @@ function fixture() {
     },
     findTeacherOptionByUserId: async () => ({ id: 'staff', user_id: 'teacher' }),
     createSubject: async (input: any) => { writes.push(input); return { id: 'subject', ...input }; },
-    assignAcademicRole: async (tenant: string, input: any) => {
+    assignAcademicRole: async (tenant: string, input: any, persist: (tx: unknown, result: unknown) => Promise<void>) => {
       assert.equal(tenant, 'school-a');
       writes.push(input);
-      return { appointment: { id: 'role', ...input }, previous: null, changed_holder: false };
+      const result = { appointment: { id: 'role', ...input }, previous: null, changed_holder: false };
+      await persist({}, result);
+      return result;
     },
     createCurriculumConfiguration: async (tenant: string, input: any) => {
       assert.equal(tenant, 'school-a');

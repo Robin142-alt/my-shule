@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   GraduationCap,
   Layers3,
   Loader2,
@@ -34,6 +35,7 @@ import { permissionAllows } from "@/components/providers/permission-context";
 import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { buildSchoolStaffOptions, type SchoolStaffOptionInput } from "@/lib/school/staff-option-label";
+import { academicFoundationCompletion } from "@/lib/school/academic-foundation-completion";
 
 export type AcademicFoundationTab = "calendar" | "classes" | "subjects" | "allocations" | "roles-curriculum" | "policies";
 
@@ -107,6 +109,7 @@ type AcademicFoundationResponse = {
   classSubjectAssignments: ClassSubjectAssignment[];
   departments: Department[];
   teachers: TeacherOption[];
+  hosStaff?: TeacherOption[];
   classTeachers: ClassTeacherAssignment[];
   teacherAssignments: SubjectTeacherAssignment[];
   gradingSystems: PolicySetting[];
@@ -133,9 +136,9 @@ type BulkRecord = LifecycleRecord & { name?: string; code?: string };
 type BulkGroup = { entityType: BulkEntityType; label: string; records: BulkRecord[] };
 
 const fieldClass =
-  "mt-1 w-full rounded-lg border border-white/15 bg-[#0D2A5B] px-3 py-2.5 text-sm font-semibold text-white outline-none placeholder:text-white/40 focus:border-cyan-300";
+  "mt-1 min-h-11 min-w-0 w-full rounded-lg border border-white/20 bg-[#0D2A5B] px-3 py-2.5 text-base font-medium text-white outline-none placeholder:text-white/40 focus-visible:ring-2 focus-visible:ring-cyan-300 sm:text-sm";
 const primaryButtonClass =
-  "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-bold text-[#071D49] transition hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 disabled:cursor-not-allowed disabled:opacity-50";
 function value(form: FormData, name: string) {
   return String(form.get(name) ?? "").trim();
 }
@@ -148,10 +151,10 @@ function dateLabel(input?: string) {
 
 function SetupForm({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <Card className="border-white/10 bg-white/5 p-4 text-white md:p-5">
-      <h3 className="text-lg font-black">{title}</h3>
-      <p className="mt-1 text-sm font-semibold text-white/60">{description}</p>
-      <div className="mt-4">{children}</div>
+    <Card id={`setup-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} className="min-w-0 scroll-mt-24 border-white/10 bg-white/[0.035] p-4 text-white md:p-5">
+      <h3 className="text-base font-bold">{title}</h3>
+      <p className="mt-1 text-sm leading-relaxed text-white/60">{description}</p>
+      <div className="mt-4 min-w-0">{children}</div>
     </Card>
   );
 }
@@ -317,6 +320,7 @@ export function AcademicFoundationWorkspace({
   const [subjectClassId, setSubjectClassId] = useState("");
   const [teacherClassId, setTeacherClassId] = useState("");
   const [teacherSubjectId, setTeacherSubjectId] = useState("");
+  const [hosSubjectId, setHosSubjectId] = useState("");
   const [promotionOpen, setPromotionOpen] = useState(false);
   const dashboardRole = useOptionalSchoolDashboardRole();
   const promotionPermissions = dashboardRole?.authenticatedSession?.user.permissions ?? [];
@@ -350,12 +354,10 @@ export function AcademicFoundationWorkspace({
   const curriculumConfigurations = foundationQuery.data?.curriculumConfigurations ?? [];
   const activeYears = years.filter(isActive);
   const activeTerms = terms.filter(isActive);
-  const activeCalendarPeriods = calendarPeriods.filter(isActive);
   const activeClasses = classes.filter(isActive);
   const activeStreams = streams.filter(isActive);
   const activeSubjects = subjects.filter(isActive);
   const selectedTeacherSubject = activeSubjects.find((subject) => subject.id === teacherSubjectId);
-  const activeClassSubjectAssignments = classSubjectAssignments.filter(isActive);
   const activeDepartments = departments.filter(isActive);
   const activeClassTeachers = classTeachers.filter(isActive);
   const activeSubjectTeachers = subjectTeachers.filter(isActive);
@@ -363,7 +365,6 @@ export function AcademicFoundationWorkspace({
   const activeAttendanceSettings = attendanceSettings.filter(isActive);
   const activeReportCardSettings = reportCardSettings.filter(isActive);
   const activeRoleAppointments = roleAppointments.filter(isActive);
-  const activeCurriculumConfigurations = curriculumConfigurations.filter(isActive);
   const teachers = useMemo(
     () => buildSchoolStaffOptions(foundationQuery.data?.teachers).map((teacher) => ({
       id: teacher.value,
@@ -371,6 +372,8 @@ export function AcademicFoundationWorkspace({
     })),
     [foundationQuery.data?.teachers],
   );
+  const hosStaff = useMemo(() => buildSchoolStaffOptions(foundationQuery.data?.hosStaff ?? foundationQuery.data?.teachers), [foundationQuery.data]);
+  const canAssignHos = !dashboardRole || permissionAllows(promotionPermissions, "academics:assign-teachers");
 
   const labels = useMemo(() => ({
     years: new Map(years.map((item) => [item.id, item.name])),
@@ -539,6 +542,21 @@ export function AcademicFoundationWorkspace({
     }, "Subject or learning area created.", form);
   };
 
+  const handleAssignHos = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canAssignHos || busyAction) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const saved = await submit("hos", "/academics/subject-heads", {
+      subject_id: value(data, "subject_id"),
+      teacher_user_id: value(data, "teacher_user_id"),
+    }, "Head of Subject assigned. HOS dashboard access is now available alongside their existing role.", form);
+    if (saved) {
+      setHosSubjectId("");
+      void dashboardRole?.reloadDashboardRoles().catch(() => { /* The role switcher exposes its own retry state. */ });
+    }
+  };
+
   const handleAssignClassSubject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -678,20 +696,15 @@ export function AcademicFoundationWorkspace({
     }, "Curriculum configuration created.", form);
   };
 
-  const setupChecks = [
-    ["Academic year", activeYears.length > 0],
-    ["Current term", activeTerms.length > 0],
-    ["Classes/forms/grades", activeClasses.length > 0],
-    ["Streams", activeStreams.length > 0],
-    ["Subjects/learning areas", activeSubjects.length > 0],
-    ["Class subject offerings", activeClassSubjectAssignments.length > 0],
-    ["Curriculum configuration", activeCurriculumConfigurations.length > 0],
-    ["Departments", activeDepartments.length > 0],
-    ["Class teachers", activeClassTeachers.length > 0],
-    ["HODs", activeDepartments.some((department) => department.head_of_department_user_id)],
-    ["Subject teachers", activeSubjectTeachers.length > 0],
-  ] as const;
-  const completedChecks = setupChecks.filter(([, complete]) => complete).length;
+  const completion = foundationQuery.data && !loadError ? academicFoundationCompletion(foundationQuery.data) : null;
+  const setupActions: Record<AcademicFoundationTab, string[]> = {
+    calendar: ["Create academic year", "Create term", "Add reporting, exam, holiday, or activity period", "Academic years", "Terms", "Calendar periods"],
+    classes: ["Create class, form, or grade", "Create stream", "Configured classes and streams"],
+    subjects: ["Create department", "Create subject or learning area", "Assign or change HOD", "Assign or change HOS", "Assign subjects to cohort", "Departments", "Subjects and learning areas", "Cohort subject offerings"],
+    allocations: ["Assign class teacher", "Assign subject teacher", "Class teachers", "Subject teachers"],
+    "roles-curriculum": ["Assign academic leadership role", "Create curriculum configuration", "Academic role appointments", "Curriculum configurations"],
+    policies: [],
+  };
 
   const tabs: Array<{ id: AcademicFoundationTab; label: string; icon: typeof CalendarDays }> = [
     { id: "calendar", label: "Academic Calendar", icon: CalendarDays },
@@ -701,6 +714,7 @@ export function AcademicFoundationWorkspace({
     { id: "roles-curriculum", label: "Roles & Curriculum", icon: GraduationCap },
     { id: "policies", label: "Grading & Policies", icon: Settings2 },
   ];
+  const currentArea = tabs.find(tab => tab.id === activeTab)!;
   const policySteps = [
     {
       id: "grading",
@@ -745,36 +759,20 @@ export function AcademicFoundationWorkspace({
   ] : [];
 
   return (
-    <section aria-label="Academic foundation setup" className="space-y-5 text-white">
+    <section aria-label="Academic foundation setup" className="academic-foundation min-w-0 space-y-4 text-white [&_label]:min-w-0 [&_input[type=checkbox]]:size-4 [&_button]:min-h-11 [&_summary]:min-h-11 [&_label:has(input[type=checkbox])]:min-h-11">
       {promotionOpen ? <CohortPromotionDialog onClose={() => setPromotionOpen(false)} onPromoted={async () => { await refreshAll(); }} /> : null}
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">{actorRole} academic administration</p>
-            <h2 className="mt-2 text-2xl font-black md:text-3xl">Academic Foundation</h2>
-            <p className="mt-2 max-w-3xl text-sm font-semibold text-white/65">
-              Configure the school-owned academic structure used by admissions, timetables, attendance, teaching, exams, marks, and report cards for {schoolName}.
-            </p>
-            {canPromote ? <button type="button" className={`${primaryButtonClass} mt-4`} onClick={() => setPromotionOpen(true)}><GraduationCap className="h-4 w-4" />Annual cohort promotion</button> : null}
-          </div>
-          <div className="rounded-xl border border-cyan-200/25 bg-cyan-200/10 px-4 py-3">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">Setup readiness</p>
-            <p className="mt-1 text-2xl font-black">{completedChecks} / {setupChecks.length}</p>
-          </div>
+      <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold sm:text-2xl">Academic Foundation</h2>
+          <p className="mt-1 text-sm leading-relaxed text-white/65">Set up the calendar, teaching structure, and policies for {schoolName}.</p>
         </div>
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {setupChecks.map(([label, complete]) => (
-            <div key={label} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-bold">
-              <CheckCircle2 className={`h-4 w-4 ${complete ? "text-emerald-300" : "text-white/25"}`} />
-              <span className={complete ? "text-white" : "text-white/55"}>{label}</span>
-            </div>
-          ))}
-        </div>
+        {canPromote ? <button type="button" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/10" onClick={() => setPromotionOpen(true)}><GraduationCap className="h-4 w-4" />Annual cohort promotion</button> : null}
       </div>
 
       {loadError ? (
         <div role="alert" className="rounded-xl border border-red-300/30 bg-red-400/10 p-4 text-sm font-bold text-red-100">
-          Academic setup could not be loaded: {loadError.message}. Retry the live school setup request. If it fails again, the error has been recorded for platform support.
+          Academic setup could not be loaded: {loadError.message}.
+          <button type="button" disabled={foundationQuery.isFetching} onClick={() => void foundationQuery.refetch()} className="ml-2 rounded-lg px-3 underline">{foundationQuery.isFetching ? "Retrying…" : "Retry setup"}</button>
         </div>
       ) : null}
       {actionError ? (
@@ -783,7 +781,14 @@ export function AcademicFoundationWorkspace({
         </div>
       ) : null}
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6" role="tablist" aria-label="Academic setup areas">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-6">
+      <div className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+      <label className="block text-sm font-semibold lg:hidden">Setup area
+        <select className={fieldClass} value={activeTab} onChange={event => setActiveTab(event.target.value as AcademicFoundationTab)}>
+          {tabs.map(tab => <option key={tab.id} value={tab.id}>{tab.label}{completion ? ` · ${completion[tab.id].percent}%` : ""}</option>)}
+        </select>
+      </label>
+      <div className="hidden space-y-1 lg:block" role="tablist" aria-orientation="vertical" aria-label="Academic setup areas">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -792,18 +797,47 @@ export function AcademicFoundationWorkspace({
               key={tab.id}
               type="button"
               role="tab"
+              id={`foundation-tab-${tab.id}`}
+              aria-controls={`foundation-panel-${tab.id}`}
+              aria-label={tab.label}
               aria-selected={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex min-h-12 items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm font-black transition ${
-                active ? "border-cyan-300 bg-cyan-300 text-[#071D49]" : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+              onKeyDown={event => {
+                const index = tabs.findIndex(item => item.id === tab.id);
+                const nextIndex = event.key === "ArrowDown" ? (index + 1) % tabs.length : event.key === "ArrowUp" ? (index - 1 + tabs.length) % tabs.length : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+                if (nextIndex < 0) return;
+                event.preventDefault();
+                setActiveTab(tabs[nextIndex].id);
+                document.getElementById(`foundation-tab-${tabs[nextIndex].id}`)?.focus();
+              }}
+              className={`flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-cyan-200 ${
+                active ? "border-cyan-200/35 bg-cyan-200/10 text-cyan-100" : "border-transparent text-white/70 hover:bg-white/5 hover:text-white"
               }`}
             >
-              <Icon className="h-5 w-5" />
-              {tab.label}
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1"><span className="block font-semibold">{tab.label}</span><span className="mt-1 block text-xs font-normal text-white/50">{completion ? `${completion[tab.id].percent}% complete` : isLoading ? "Loading…" : "Unavailable"}</span></span>
             </button>
           );
         })}
       </div>
+      </div>
+
+      <div className="min-w-0 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 className="text-lg font-bold">{currentArea.label}</h3>
+          {completion ? <details className="max-w-full text-xs text-white/60">
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-2 focus-visible:outline-2 focus-visible:outline-cyan-200">{completion[activeTab].percent}% complete <ChevronDown className="h-3.5 w-3.5" /></summary>
+            <ul className="space-y-2 rounded-lg border border-white/10 bg-[#0D2A5B] p-3">{completion[activeTab].checks.map(check => <li key={check.label} className="flex justify-between gap-4"><span>{check.label}</span><span>{check.percent}%</span></li>)}</ul>
+          </details> : null}
+        </div>
+        {setupActions[activeTab].length > 0 ? <label className="block text-sm font-semibold">Go to action or saved records
+          <select className={fieldClass} value="" onChange={event => {
+            const target = document.getElementById(`setup-${event.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+            target?.scrollIntoView({ block: "start" });
+            target?.querySelector<HTMLElement>("input, select, button, summary")?.focus({ preventScroll: true });
+          }}><option value="">Choose a task…</option>{setupActions[activeTab].map(action => <option key={action}>{action}</option>)}</select>
+        </label> : null}
 
       {foundationQuery.data?.migrationIssues?.length ? <section role="alert" className="rounded-xl border border-amber-300/50 bg-amber-950/40 p-4 text-amber-100">
         <h3 className="font-bold">Teaching configuration needs review</h3>
@@ -811,7 +845,9 @@ export function AcademicFoundationWorkspace({
         <ul className="mt-2 list-inside list-disc text-sm">{foundationQuery.data.migrationIssues.map(issue => <li key={issue.id}>{issue.class_name}{issue.stream_name ? ` / ${issue.stream_name}` : ""}: {issue.subject_name ?? "Subject"} — {issue.entity_type === "teacher_assignment" ? "choose teacher" : "choose subject settings"}</li>)}</ul>
       </section> : null}
 
-      <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 sm:flex-row sm:items-center">
+      <details className="rounded-lg border border-white/10 bg-white/[0.02]">
+      <summary className="cursor-pointer px-3 py-3 text-sm font-semibold">Find & filter saved records{recordSearch || showArchived ? " · Filters applied" : ""}</summary>
+      <div className="flex flex-col gap-3 p-3 pt-0 xl:flex-row xl:items-center">
         <label className="relative flex-1">
           <span className="sr-only">Search academic setup records</span>
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
@@ -822,14 +858,13 @@ export function AcademicFoundationWorkspace({
         </label>
         <label className="min-w-44 text-sm font-bold text-white/75"><span className="sr-only">Sort records</span><select value={recordSort} onChange={(event) => setRecordSort(event.target.value as typeof recordSort)} className={`${fieldClass} mt-0`}><option value="name-asc">Name A-Z</option><option value="name-desc">Name Z-A</option><option value="recent">Most recently changed</option></select></label>
       </div>
-
-      <BulkLifecyclePanel groups={bulkGroups} tenantId={tenantId} onUpdated={refreshAll} />
+      </details>
 
       {isLoading ? <LoadingRows /> : null}
 
       {!isLoading && activeTab === "calendar" ? (
-        <div role="tabpanel" className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-2">
+        <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Create academic year" description="Set the school year before creating terms, classes, admissions, or exams.">
               <form onSubmit={handleCreateYear} className="grid gap-3 sm:grid-cols-2">
                 <label className="sm:col-span-2 text-sm font-bold">Academic year name<input name="name" required className={fieldClass} placeholder="e.g. 2026 Academic Year" /></label>
@@ -869,7 +904,7 @@ export function AcademicFoundationWorkspace({
               <button className={`${primaryButtonClass} sm:col-span-2 xl:col-span-4`} disabled={busyAction !== null || activeYears.length === 0}>{busyAction === "calendar-period" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Add Calendar Period</button>
             </form>
           </SetupForm>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Academic years" description="School-scoped years currently available.">
               {visible(years).length === 0 ? <EmptyState>No matching academic years. Create the first year or show archived records.</EmptyState> : (
                 <div className="space-y-2">{visible(years).map((year) => <div key={year.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{year.name}{year.is_current ? <span className="ml-2 text-xs text-emerald-300">Current</span> : null}</p><p className="text-xs font-semibold text-white/55">{dateLabel(year.starts_on)} to {dateLabel(year.ends_on)} - <span className="capitalize">{statusLabel(year)}</span></p></div><AcademicRecordManager entityType="academic-year" record={year} title={year.name} fields={[{ name: "name", label: "Academic year name" }, { name: "starts_on", label: "Starts on", type: "date" }, { name: "ends_on", label: "Ends on", type: "date" }, { name: "display_order", label: "Display order", type: "number" }, { name: "is_current", label: "Current year", type: "checkbox" }]} onUpdated={refreshAll} /></div>)}</div>
@@ -888,8 +923,8 @@ export function AcademicFoundationWorkspace({
       ) : null}
 
       {!isLoading && activeTab === "classes" ? (
-        <div role="tabpanel" className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-2">
+        <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Create class, form, or grade" description="Use the labels your school uses: Grade 7, Form 1, PP2, or a custom class name.">
               <form onSubmit={handleCreateClass} className="grid gap-3 sm:grid-cols-2">
                 <label className="sm:col-span-2 text-sm font-bold">Academic year<select name="academic_year_id" required className={fieldClass} defaultValue=""><option value="">Select academic year</option>{activeYears.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
@@ -932,8 +967,8 @@ export function AcademicFoundationWorkspace({
       ) : null}
 
       {!isLoading && activeTab === "subjects" ? (
-        <div role="tabpanel" className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-2">
+        <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Create department" description="Create an academic department and optionally choose an active staff member as HOD.">
               <form onSubmit={handleCreateDepartment} className="space-y-3">
                 <label className="block text-sm font-bold">Department name<input name="name" required className={fieldClass} placeholder="e.g. Sciences" /></label>
@@ -967,6 +1002,19 @@ export function AcademicFoundationWorkspace({
               <button className={primaryButtonClass} disabled={busyAction !== null || activeDepartments.length === 0 || teachers.length === 0}>{busyAction === "hod" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save HOD</button>
             </form>
           </SetupForm>
+          <SetupForm title="Assign or change HOS" description="Choose a subject and its school-wide head. They gain the HOS dashboard and subject permissions alongside their existing role.">
+            <form aria-label="Assign or change HOS" onSubmit={handleAssignHos} className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-bold">Subject<select name="subject_id" required value={hosSubjectId} onChange={event => setHosSubjectId(event.target.value)} className={fieldClass}><option value="">Select subject</option>{activeSubjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label>
+              <label className="text-sm font-bold">Head of Subject<select name="teacher_user_id" required defaultValue="" className={fieldClass}><option value="">Select active staff member</option>{hosStaff.map(staff => <option key={staff.value} value={staff.value}>{staff.label}</option>)}</select></label>
+              {hosSubjectId ? <p className="text-sm text-white/65 sm:col-span-2">Current school-wide HOS: {(() => {
+                const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" });
+                const current = activeRoleAppointments.find(ap => ap.role_type === "head_of_subject" && ap.subject_id === hosSubjectId && !ap.department_id && !ap.academic_year_id && !ap.class_section_id && !ap.stream_id && (!ap.effective_from || ap.effective_from.slice(0, 10) <= today) && (!ap.effective_to || ap.effective_to.slice(0, 10) >= today));
+                return current ? current.teacher_name || hosStaff.find(staff => staff.value === current.teacher_user_id)?.label || "Assigned staff member" : "Not assigned";
+              })()}. Saving replaces this school-wide appointment and retains its history.</p> : null}
+              {!canAssignHos ? <p className="text-sm text-amber-200 sm:col-span-2">Your current dashboard role cannot assign academic staff. Ask an authorized school administrator.</p> : activeSubjects.length === 0 || hosStaff.length === 0 ? <p className="text-sm text-amber-200 sm:col-span-2">Create an active subject and invite and activate a staff member before assigning a HOS.</p> : null}
+              <button className={`${primaryButtonClass} sm:col-span-2 sm:justify-self-start`} disabled={!canAssignHos || busyAction !== null || activeSubjects.length === 0 || hosStaff.length === 0}>{busyAction === "hos" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}Save HOS</button>
+            </form>
+          </SetupForm>
           <SetupForm title="Assign subjects to cohort" description="Subjects continue with the learners across terms and annual promotion until changed. Choose one stream, or apply the setup to every current stream in the class.">
             <form aria-label="Assign subjects to cohort" onSubmit={handleAssignClassSubject} className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
               <label className="text-sm font-bold">Class/form/grade<select name="class_section_id" required value={subjectClassId} onChange={(event) => setSubjectClassId(event.target.value)} className={fieldClass}><option value="">Select class</option>{activeClasses.map((item) => <option key={item.id} value={item.id}>{item.name} - {labels.years.get(item.academic_year_id || "")}</option>)}</select></label>
@@ -980,7 +1028,7 @@ export function AcademicFoundationWorkspace({
                     <button type="button" className="text-xs font-black text-white/70 underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50" disabled={selectedClassSubjectIds.length === 0} onClick={() => setSelectedClassSubjectIds([])}>Clear</button>
                   </div>
                 </div>
-                <div className="max-h-52 space-y-1 overflow-y-auto pr-1" aria-describedby="class-subject-selection-help">
+                <div className="space-y-1 pr-1 sm:max-h-64 sm:overflow-y-auto" aria-describedby="class-subject-selection-help">
                   {activeSubjects.map((subject) => {
                     const selected = selectedClassSubjectIds.includes(subject.id);
                     const limitReached = !selected && selectedClassSubjectIds.length >= 100;
@@ -1008,7 +1056,7 @@ export function AcademicFoundationWorkspace({
               <button className={`${primaryButtonClass} md:col-span-2 xl:col-span-3`} disabled={busyAction !== null || activeClasses.length === 0 || activeSubjects.length === 0 || selectedClassSubjectIds.length === 0}>{busyAction === "class-subject" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{selectedClassSubjectIds.length === 0 ? "Select Subjects to Assign" : `Assign ${selectedClassSubjectIds.length} ${selectedClassSubjectIds.length === 1 ? "Subject" : "Subjects"} to Class`}</button>
             </form>
           </SetupForm>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Departments" description="Current department ownership and HOD assignments.">
               {visible(departments).length === 0 ? <EmptyState>No matching departments. Create the first department above.</EmptyState> : <div className="space-y-2">{visible(departments).map((department) => <div key={department.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{department.name}</p><p className="text-xs font-semibold text-white/55">HOD: {department.head_of_department_name || labels.teachers.get(department.head_of_department_user_id || "") || "Not assigned"} - <span className="capitalize">{statusLabel(department)}</span></p>{department.description ? <p className="mt-1 text-xs text-white/45">{department.description}</p> : null}</div><AcademicRecordManager entityType="department" record={department} title={department.name} fields={[{ name: "name", label: "Department name" }, { name: "description", label: "Description", type: "textarea" }, { name: "head_of_department_user_id", label: "Head of Department", type: "select", options: teachers.map((teacher) => ({ value: teacher.id, label: teacher.label })) }, { name: "appointment_type", label: "Appointment type", type: "select", options: [{ value: "permanent", label: "Permanent" }, { value: "acting", label: "Acting" }] }, ]} mergeCandidates={activeDepartments.map((candidate) => ({ id: candidate.id, label: candidate.name }))} onUpdated={refreshAll} /></div>)}</div>}
             </SetupForm>
@@ -1023,9 +1071,9 @@ export function AcademicFoundationWorkspace({
       ) : null}
 
       {!isLoading && activeTab === "allocations" ? (
-        <div role="tabpanel" className="space-y-5">
+        <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
           {teachers.length === 0 ? <div className="rounded-xl border border-amber-200/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100">No active staff are available. The Principal must invite and activate staff before assigning class teachers, HODs, or subject teachers.</div> : null}
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Assign class teacher" description="Assign pastoral and register responsibility for a class/form/grade in an academic year.">
               <form onSubmit={handleAssignClassTeacher} className="space-y-3">
                 <label className="block text-sm font-bold">Academic year<select name="academic_year_id" required className={fieldClass} defaultValue=""><option value="">Select academic year</option>{activeYears.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
@@ -1051,7 +1099,7 @@ export function AcademicFoundationWorkspace({
               </form>
             </SetupForm>
           </div>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Class teachers" description="Current assignments and retained reassignment history.">
               {(showArchived ? classTeachers : activeClassTeachers).length === 0 ? <EmptyState>No class teachers assigned. Complete the year, class, and staff setup, then assign one above.</EmptyState> : <div className="space-y-2">{(showArchived ? classTeachers : activeClassTeachers).map((assignment) => <div key={assignment.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{assignment.teacher_name || labels.teachers.get(assignment.teacher_user_id) || "Teacher"}</p><p className="text-xs font-semibold text-white/55">{assignment.class_section_name || labels.classes.get(assignment.class_section_id) || "Class"} - {assignment.academic_year_name || labels.years.get(assignment.academic_year_id) || "Academic year"} - {assignment.assignment_type || "permanent"} - <span className="capitalize">{assignment.status || "active"}</span></p></div>{isActive(assignment) ? <AcademicAssignmentEndButton assignmentType="class-teacher" assignmentId={assignment.id} label="class teacher assignment" onUpdated={refreshAll} /> : null}</div>)}</div>}
             </SetupForm>
@@ -1063,8 +1111,8 @@ export function AcademicFoundationWorkspace({
       ) : null}
 
       {!isLoading && activeTab === "roles-curriculum" ? (
-        <div role="tabpanel" className="space-y-5">
-          <div className="grid gap-5 xl:grid-cols-2">
+        <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Assign academic leadership role" description="Assign a staff member to an academic responsibility. Reassignment ends the previous holder without erasing history.">
               <form onSubmit={handleAssignAcademicRole} className="grid gap-3 sm:grid-cols-2">
                 <label className="sm:col-span-2 text-sm font-bold">Role<select name="role_type" required defaultValue={initialRoleType} className={fieldClass}><option value="">Select academic role</option><option value="assistant_class_teacher">Assistant Class Teacher</option><option value="grade_master">Grade Master</option><option value="form_master">Form Master</option><option value="dean_of_academics">Dean of Academics</option><option value="exams_manager">Exams Manager</option><option value="head_of_subject">Head of Subject (HOS)</option><option value="subject_coordinator">Subject Coordinator</option><option value="curriculum_coordinator">Curriculum Coordinator</option><option value="academic_year_coordinator">Academic Year Coordinator</option><option value="timetable_coordinator">Timetable Coordinator</option></select></label>
@@ -1093,7 +1141,7 @@ export function AcademicFoundationWorkspace({
               </form>
             </SetupForm>
           </div>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Academic role appointments" description="Active appointments and retained appointment history.">
               {(showArchived ? roleAppointments : activeRoleAppointments).length === 0 ? <EmptyState>No matching academic role appointments. Assign the first role above.</EmptyState> : <div className="space-y-2">{(showArchived ? roleAppointments : activeRoleAppointments).map((appointment) => <div key={appointment.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black capitalize">{appointment.role_type.replaceAll("_", " ")} - {appointment.teacher_name || labels.teachers.get(appointment.teacher_user_id) || "Staff member"}</p><p className="text-xs font-semibold text-white/55">{appointment.subject_id ? subjects.find(subject => subject.id === appointment.subject_id)?.name || "Assigned subject" : appointment.department_id ? labels.departments.get(appointment.department_id) : appointment.class_section_id ? labels.classes.get(appointment.class_section_id) : appointment.stream_id ? labels.streams.get(appointment.stream_id) : "Whole-school scope"} - {appointment.appointment_type || "permanent"} - {statusLabel(appointment)}</p><p className="text-xs font-semibold text-white/45">{appointment.reason}</p></div>{isActive(appointment) ? <AcademicAssignmentEndButton assignmentType="academic-role" assignmentId={appointment.id} label="academic role appointment" onUpdated={refreshAll} /> : null}</div>)}</div>}
             </SetupForm>
@@ -1105,21 +1153,18 @@ export function AcademicFoundationWorkspace({
       ) : null}
 
       {!isLoading && activeTab === "policies" ? (
-        <div role="tabpanel" className="space-y-5">
+        <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
           <Card className="border-white/10 bg-white/5 p-4 text-white md:p-5">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-200">Guided school policy setup</p>
-                <h3 className="mt-1 text-xl font-black">Set up grading, attendance, and report cards</h3>
+                <h3 className="mt-1 text-base font-bold">Grading, attendance, and report cards</h3>
                 <p className="mt-1 max-w-3xl text-sm font-semibold text-white/60">
-                  Complete the three steps in order. Each saved policy remains editable and is shared with exams, attendance, marks, and report cards for this school.
+                  Choose a policy to create or edit. Set up grading before report cards.
                 </p>
               </div>
-              <p className="text-xs font-bold text-white/55">
-                {policySteps.filter((step) => step.count > 0).length} of {policySteps.length} policy areas configured
-              </p>
             </div>
-            <div role="tablist" aria-label="Academic policy setup steps" className="mt-5 grid gap-3 lg:grid-cols-3">
+            <div role="tablist" aria-label="Academic policy setup steps" className="mt-3 grid gap-2 xl:grid-cols-3">
               {policySteps.map((step) => {
                 const selected = policySetupType === step.id;
                 return (
@@ -1129,7 +1174,7 @@ export function AcademicFoundationWorkspace({
                     role="tab"
                     aria-selected={selected}
                     onClick={() => setPolicySetupType(step.id)}
-                    className={`flex min-h-28 items-start gap-3 rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
                       selected
                         ? "border-cyan-200 bg-cyan-300 text-[#071D49]"
                         : "border-white/10 bg-white/[0.04] text-white hover:border-white/25 hover:bg-white/[0.08]"
@@ -1147,7 +1192,6 @@ export function AcademicFoundationWorkspace({
                           </span>
                         ) : null}
                       </span>
-                      <span className={`mt-1 block text-xs font-semibold ${selected ? "text-[#071D49]/70" : "text-white/55"}`}>{step.description}</span>
                     </span>
                   </button>
                 );
@@ -1212,8 +1256,9 @@ export function AcademicFoundationWorkspace({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-white/60">
-        <div className="flex items-start gap-3"><GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-cyan-200" /><p>All records on this page are loaded from and saved to the current school tenant. Once configured, the same classes, streams, subjects, departments, and teacher allocations become selectable in admissions, attendance, timetable, exams, and marks entry.</p></div>
+      <BulkLifecyclePanel groups={bulkGroups} tenantId={tenantId} onUpdated={refreshAll} />
+      <p className="border-t border-white/10 pt-3 text-xs leading-relaxed text-white/50">{actorRole} setup · Changes are shared with admissions, attendance, timetables, exams, and report cards in {schoolName}.</p>
+      </div>
       </div>
     </section>
   );

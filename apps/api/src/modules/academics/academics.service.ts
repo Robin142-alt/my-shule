@@ -30,6 +30,7 @@ import {
   AcademicPolicyDto,
   CreateAcademicPolicyDto,
   AcademicRoleAppointmentDto,
+  AssignHeadOfSubjectDto,
   AcademicMergeDto,
   AcademicBulkLifecycleDto,
   AcademicCurriculumConfigurationDto,
@@ -581,8 +582,13 @@ export class AcademicsService {
     return this.repository.listTeacherOptions(this.requireTenantId());
   }
 
-  getAcademicFoundation() {
-    return this.repository.getAcademicFoundation(this.requireTenantId());
+  async getAcademicFoundation() {
+    const tenantId = this.requireTenantId();
+    const [foundation, hosStaff] = await Promise.all([
+      this.repository.getAcademicFoundation(tenantId),
+      this.repository.listTeacherOptions(tenantId, true),
+    ]);
+    return { ...foundation, hosStaff };
   }
 
   getCommunications() {
@@ -1281,11 +1287,26 @@ export class AcademicsService {
     return this.repository.getSubjectAppointmentsForUser(tenantId, userId);
   }
 
+  async assignHeadOfSubject(dto: AssignHeadOfSubjectDto) {
+    return this.assignAcademicRole({
+      subject_id: this.requireText(dto.subject_id, 'Subject'),
+      teacher_user_id: this.requireText(dto.teacher_user_id, 'Head of Subject'),
+      role_type: 'head_of_subject',
+      appointment_type: 'permanent',
+      reason: 'School-wide Head of Subject assigned from Academic Foundation',
+    });
+  }
+
   async assignAcademicRole(dto: AcademicRoleAppointmentDto) {
     dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
-    await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
+    if (dto.role_type === 'head_of_subject') {
+      const staff = await this.repository.findTeacherOptionByUserId(tenantId, teacherUserId, true);
+      if (!staff) throw new BadRequestException('Selected staff member must be an active staff member in this school');
+    } else {
+      await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
+    }
     if (dto.role_type === 'head_of_subject' && !dto.subject_id) {
       throw new BadRequestException('Head of Subject requires a subject appointment.');
     }
@@ -1303,31 +1324,31 @@ export class AcademicsService {
     if (dto.academic_year_id) await this.requireSetupRecord(tenantId, 'academic-year', dto.academic_year_id);
     if (dto.class_section_id) await this.requireSetupRecord(tenantId, 'class-section', dto.class_section_id);
     if (dto.stream_id) await this.requireSetupRecord(tenantId, 'class-stream', dto.stream_id);
-    const result = await this.repository.assignAcademicRole(tenantId, {
+    return this.repository.assignAcademicRole(tenantId, {
       ...dto,
       actor_user_id: this.currentUserId(),
       reason: this.requireText(dto.reason, 'Appointment reason'),
+    }, async (tx, result) => {
+      const appointment = result.appointment as Record<string, any>;
+      await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', appointment,
+        result.changed_holder ? 'transferred' : 'assigned', result.previous, dto.reason, {
+          role_type: dto.role_type,
+          scope: { subject_id: dto.subject_id ?? null, department_id: dto.department_id ?? null, academic_year_id: dto.academic_year_id ?? null,
+            class_section_id: dto.class_section_id ?? null, stream_id: dto.stream_id ?? null },
+        }, tx);
+      await this.notifyAcademicAssignee(tenantId, teacherUserId,
+        `academic-role:${appointment.id}:${appointment.version ?? 1}`,
+        'Academic responsibility updated',
+        `You have been assigned as ${dto.role_type.replace(/_/g, ' ')} effective ${dto.effective_from}.`,
+        String(appointment.id), tx);
+      if (result.previous?.teacher_user_id && String(result.previous.teacher_user_id) !== teacherUserId) {
+        await this.notifyAcademicAssignee(tenantId, String(result.previous.teacher_user_id),
+          `academic-role-ended:${result.previous.id}:${appointment.id}`,
+          'Academic responsibility transferred',
+          `Your ${dto.role_type.replace(/_/g, ' ')} appointment ended effective ${dto.effective_from}.`,
+          String(result.previous.id), tx);
+      }
     });
-    const appointment = result.appointment as Record<string, any>;
-    await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', appointment,
-      result.changed_holder ? 'transferred' : 'assigned', result.previous, dto.reason, {
-        role_type: dto.role_type,
-        scope: { subject_id: dto.subject_id ?? null, department_id: dto.department_id ?? null, academic_year_id: dto.academic_year_id ?? null,
-          class_section_id: dto.class_section_id ?? null, stream_id: dto.stream_id ?? null },
-      });
-    await this.notifyAcademicAssignee(tenantId, teacherUserId,
-      `academic-role:${appointment.id}:${appointment.version ?? 1}`,
-      'Academic responsibility updated',
-      `You have been assigned as ${dto.role_type.replace(/_/g, ' ')} effective ${dto.effective_from}.`,
-      String(appointment.id));
-    if (result.previous?.teacher_user_id && String(result.previous.teacher_user_id) !== teacherUserId) {
-      await this.notifyAcademicAssignee(tenantId, String(result.previous.teacher_user_id),
-        `academic-role-ended:${result.previous.id}:${appointment.id}`,
-        'Academic responsibility transferred',
-        `Your ${dto.role_type.replace(/_/g, ' ')} appointment ended effective ${dto.effective_from}.`,
-        String(result.previous.id));
-    }
-    return result;
   }
 
   async endAcademicRole(id: string, dto: EndAssignmentDto) {
@@ -1576,11 +1597,12 @@ export class AcademicsService {
     previous: Record<string, unknown> | null,
     reason?: string,
     metadata: Record<string, unknown> = {},
+    tx?: any,
   ) {
     const tenantId = this.requireTenantId();
     await this.auditMutation(tenantId, entityType, String(record.id), `academics.${entityType}_${action}`,
-      metadata, previous, record, reason);
-    await this.publishAcademicChange(eventName, entityType, record, action, previous, reason, metadata);
+      metadata, previous, record, reason, tx);
+    await this.publishAcademicChange(eventName, entityType, record, action, previous, reason, metadata, tx);
   }
 
   private async publishAcademicChange(

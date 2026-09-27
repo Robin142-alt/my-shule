@@ -79,7 +79,7 @@ const themeClasses = {
 } as const;
 
 const baseInputClass =
-  "mt-1 min-h-10 w-full rounded-lg border px-3 py-2 text-sm font-semibold outline-none transition";
+  "mt-1 min-h-11 min-w-0 w-full rounded-lg border px-3 py-2 text-base font-semibold outline-none transition sm:text-sm";
 
 let gradeBandSequence = 0;
 

@@ -41,7 +41,7 @@ describe("principal and deputy academic foundation workspace", () => {
       "Subject teachers",
       "Curriculum configuration",
     ]) {
-      expect(workspaceSource).toContain(label);
+      expect(`${workspaceSource}\n${fs.readFileSync(path.join(process.cwd(), "src/lib/school/academic-foundation-completion.ts"), "utf8")}`).toContain(label);
     }
 
     expect(workspaceSource).toContain("Create Academic Year");

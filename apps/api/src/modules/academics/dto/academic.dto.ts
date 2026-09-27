@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
 export class CreateAcademicYearDto {
   @IsString()
@@ -669,6 +669,11 @@ export class AcademicPolicyDto {
 export class CreateAcademicPolicyDto extends AcademicPolicyDto {
   @IsString()
   declare name: string;
+}
+
+export class AssignHeadOfSubjectDto {
+  @IsString() @MinLength(1) @MaxLength(128) subject_id!: string;
+  @IsString() @MinLength(1) @MaxLength(128) teacher_user_id!: string;
 }
 
 export class AcademicRoleAppointmentDto {

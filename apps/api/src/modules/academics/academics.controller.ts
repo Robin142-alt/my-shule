@@ -16,6 +16,7 @@ import {
   CreateAcademicPolicyDto,
   CreateDepartmentDto,
   AcademicRoleAppointmentDto,
+  AssignHeadOfSubjectDto,
   AcademicMergeDto,
   AcademicBulkLifecycleDto,
   AcademicBulkDependencyPreviewDto,
@@ -475,6 +476,12 @@ export class AcademicsController {
     @Body() dto: AcademicLifecycleDto,
   ) {
     return this.academicsService.manageSetupLifecycle(entityType, id, dto);
+  }
+
+  @Post('subject-heads')
+  @Permissions('academics:assign-teachers')
+  assignHeadOfSubject(@Body() dto: AssignHeadOfSubjectDto) {
+    return this.academicsService.assignHeadOfSubject(dto);
   }
 
   @Post('academic-roles')

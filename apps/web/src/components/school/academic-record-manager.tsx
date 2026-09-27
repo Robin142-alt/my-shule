@@ -89,7 +89,7 @@ const endpointByEntity: Record<AcademicManagedEntity, string> = {
 };
 
 const inputClass =
-  "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500";
+  "mt-1 min-h-11 min-w-0 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base font-semibold text-slate-900 outline-none focus:border-blue-500 sm:text-sm";
 
 function currentStatus(record: ManagedRecord) {
   if (record.status) return String(record.status);
