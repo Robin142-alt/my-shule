@@ -172,7 +172,7 @@ describe("role switch consistency", () => {
         <SchoolDashboardSessionGate><p>Protected workspace</p></SchoolDashboardSessionGate>
       </SchoolDashboardRoleProvider>, { wrapper });
       await act(async () => { jest.advanceTimersByTime(SESSION_VERIFICATION_TIMEOUT_MS); });
-      expect(screen.getByRole("alert")).toHaveTextContent("took too long");
+      expect(await screen.findByRole("alert")).toHaveTextContent("took too long");
       expect(screen.getByRole("button", { name: "Retry session verification" })).toBeEnabled();
       expect(screen.queryByText("Protected workspace")).not.toBeInTheDocument();
     } finally { jest.useRealTimers(); }

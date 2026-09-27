@@ -51,7 +51,7 @@ jobs:
         run: node --test apps/web/scripts/ignore-build.test.mjs
 
       - name: Dashboard role switching and delayed session responses
-        run: npm --prefix apps/web run test:design -- role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
+        run: npm --prefix apps/web run test:design -- sidebar-session-navigation role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
 
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence academic-foundation academic-setup-simplification academic-policy-builders academic-curriculum-builder head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract

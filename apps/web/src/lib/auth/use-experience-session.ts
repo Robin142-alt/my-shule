@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { authFetch } from "@/lib/auth/auth-fetch";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
@@ -62,11 +62,29 @@ async function parseResponse(response: Response) {
 }
 
 export const SESSION_VERIFICATION_TIMEOUT_MS = 15_000;
+export const SESSION_REVALIDATION_MS = 60_000;
+const SESSION_QUERY_ROOT = ["experience-session"] as const;
+// Hooks share the cache, so delayed credential responses must also share a
+// revision across consumers (for example, a header logout during a refresh).
+const sessionRevisions = new WeakMap<QueryClient, number>();
 
-async function requestSession(audience: ExperienceAudience, tenantSlug?: string | null) {
+function advanceSessionRevision(client: QueryClient) {
+  const revision = (sessionRevisions.get(client) ?? 0) + 1;
+  sessionRevisions.set(client, revision);
+  return revision;
+}
+
+function sessionQueryKey(audience: ExperienceAudience, tenantSlug?: string | null) {
+  return [...SESSION_QUERY_ROOT, audience, tenantSlug?.trim() || null] as const;
+}
+
+async function requestSession(audience: ExperienceAudience, tenantSlug: string | null | undefined, signal: AbortSignal) {
   const query = new URLSearchParams({ audience });
   if (tenantSlug) query.set("tenantSlug", tenantSlug);
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  signal.addEventListener("abort", cancel, { once: true });
+  if (signal.aborted) cancel();
   const timeout = setTimeout(() => controller.abort(), SESSION_VERIFICATION_TIMEOUT_MS);
   try {
     return await parseResponse(await fetch(`/api/auth/me?${query.toString()}`, {
@@ -82,6 +100,7 @@ async function requestSession(audience: ExperienceAudience, tenantSlug?: string 
     throw error;
   } finally {
     clearTimeout(timeout);
+    signal.removeEventListener("abort", cancel);
   }
 }
 
@@ -95,82 +114,58 @@ export function useExperienceSession(
 ) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [session, setSession] = useState<PublicExperienceGatewaySession | null>(null);
-  const [user, setUser] = useState<PublicExperienceGatewaySession["user"] | null>(null);
-  const [isLoading, setIsLoading] = useState(options?.autoLoad ?? false);
+  const queryKey = sessionQueryKey(audience, options?.tenantSlug);
+  // AppProviders owns this in-memory cache across route changes. Only public
+  // session metadata is shared; every data request still uses the secure gateway.
+  const sessionQuery = useQuery<SessionResponse | null>({
+    queryKey,
+    queryFn: async ({ signal }) => {
+      try {
+        return await requestSession(audience, options?.tenantSlug, signal);
+      } catch (loadError) {
+        // Failed verification must not leave an earlier identity usable. Ignore
+        // cancelled reads so they cannot erase a completed login or role switch.
+        if (!signal.aborted) {
+          queryClient.setQueriesData({ queryKey: [...SESSION_QUERY_ROOT, audience] }, null);
+        }
+        throw loadError;
+      }
+    },
+    enabled: options?.autoLoad ?? false,
+    staleTime: (query) => query.state.data ? SESSION_REVALIDATION_MS : 0,
+    gcTime: 5 * SESSION_REVALIDATION_MS,
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+  const session = sessionQuery.data?.session ?? null;
+  const user = sessionQuery.data?.user ?? null;
+  const isLoading = Boolean(options?.autoLoad && !session && sessionQuery.isFetching);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSwitchingRole, setIsSwitchingRole] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [errorStatus, setErrorStatus] = useState<number | null>(null);
-  const sessionVersion = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    const requestVersion = sessionVersion.current;
-
-    async function load() {
-      if (!options?.autoLoad) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setErrorStatus(null);
-
-      try {
-        const payload = await requestSession(audience, options?.tenantSlug);
-
-        if (!cancelled && requestVersion === sessionVersion.current) {
-          setSession(payload.session);
-          setUser(payload.user);
-          setError(null);
-        }
-      } catch (loadError) {
-        if (!cancelled && requestVersion === sessionVersion.current) {
-          setErrorStatus(loadError instanceof ExperienceSessionRequestError ? loadError.status : null);
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to load the current session.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [audience, options?.autoLoad, options?.tenantSlug]);
+  const publishSession = async (payload: SessionResponse, revision: number) => {
+    if (revision !== (sessionRevisions.get(queryClient) ?? 0)) return;
+    await queryClient.cancelQueries({ queryKey: SESSION_QUERY_ROOT });
+    if (revision !== (sessionRevisions.get(queryClient) ?? 0)) return;
+    // Credentials are shared by the gateway. Never retain another identity,
+    // audience or tenant alias after they rotate.
+    queryClient.setQueriesData({ queryKey: SESSION_QUERY_ROOT }, null);
+    queryClient.setQueryData(queryKey, payload);
+    queryClient.setQueryData(sessionQueryKey(audience, payload.session.tenantSlug), payload);
+    setError(null);
+  };
 
   const reloadSession = async () => {
-    const requestVersion = ++sessionVersion.current;
-    setIsLoading(true);
     setError(null);
-    try {
-      const payload = await requestSession(audience, options?.tenantSlug);
-      if (requestVersion === sessionVersion.current) {
-        setSession(payload.session);
-        setUser(payload.user);
-      }
-      return payload;
-    } catch (loadError) {
-      if (requestVersion === sessionVersion.current) {
-        setError(loadError instanceof Error ? loadError.message : "Unable to load the current session.");
-      }
-      throw loadError;
-    } finally {
-      if (requestVersion === sessionVersion.current) setIsLoading(false);
-    }
+    const result = await sessionQuery.refetch({ throwOnError: true });
+    if (!result.data) throw new Error("The session could not be verified. Please retry.");
+    return result.data;
   };
 
   const login = async (input: LoginInput) => {
-    sessionVersion.current += 1;
+    const revision = advanceSessionRevision(queryClient);
     setIsSubmitting(true);
     setError(null);
 
@@ -189,9 +184,10 @@ export function useExperienceSession(
         }),
       });
       const payload = await parseResponse(response);
+      if (revision !== sessionRevisions.get(queryClient)) throw new Error("Your sign-in changed. Please try again.");
+      await queryClient.cancelQueries();
       queryClient.clear();
-      setSession(payload.session);
-      setUser(payload.user);
+      await publishSession(payload, revision);
       return payload;
     } catch (loginError) {
       const message =
@@ -206,7 +202,7 @@ export function useExperienceSession(
   };
 
   const logout = async () => {
-    sessionVersion.current += 1;
+    const revision = advanceSessionRevision(queryClient);
     setIsSubmitting(true);
     setError(null);
 
@@ -231,8 +227,9 @@ export function useExperienceSession(
         );
       }
 
-      setSession(null);
-      setUser(null);
+      if (revision !== sessionRevisions.get(queryClient)) throw new Error("Your sign-in changed. Please try again.");
+      await queryClient.cancelQueries();
+      queryClient.setQueriesData({ queryKey: SESSION_QUERY_ROOT }, null);
       setError(null);
       queryClient.clear();
       router.replace(getPostLogoutPath(audience, undefined, options?.logoutPath));
@@ -248,7 +245,7 @@ export function useExperienceSession(
   };
 
   const refresh = async () => {
-    const requestVersion = sessionVersion.current;
+    const requestVersion = sessionRevisions.get(queryClient) ?? 0;
     setIsSubmitting(true);
 
     try {
@@ -265,10 +262,8 @@ export function useExperienceSession(
         }),
       });
       const payload = await parseResponse(response);
-      if (requestVersion === sessionVersion.current) {
-        setSession(payload.session);
-        setUser(payload.user);
-        setError(null);
+      if (requestVersion === (sessionRevisions.get(queryClient) ?? 0)) {
+        await publishSession(payload, requestVersion);
       }
       return payload;
     } catch (refreshError) {
@@ -276,7 +271,7 @@ export function useExperienceSession(
         refreshError instanceof Error
           ? refreshError.message
           : "Unable to refresh the current session.";
-      if (requestVersion === sessionVersion.current) setError(message);
+      if (requestVersion === (sessionRevisions.get(queryClient) ?? 0)) setError(message);
       throw refreshError;
     } finally {
       setIsSubmitting(false);
@@ -315,7 +310,7 @@ export function useExperienceSession(
       throw new Error("Dashboard switching is available only for school sessions.");
     }
 
-    sessionVersion.current += 1;
+    const revision = advanceSessionRevision(queryClient);
     setIsSwitchingRole(true);
     setError(null);
 
@@ -338,9 +333,8 @@ export function useExperienceSession(
       ) {
         throw new Error("The server did not confirm the requested dashboard role.");
       }
-      setSession(payload.session);
-      setUser(payload.user);
-      setError(null);
+      if (revision !== sessionRevisions.get(queryClient)) throw new Error("Your sign-in changed. Please try again.");
+      await publishSession(payload, revision);
       return payload;
     } catch (switchError) {
       const message = switchError instanceof Error
@@ -359,8 +353,8 @@ export function useExperienceSession(
     isLoading,
     isSubmitting,
     isSwitchingRole,
-    error,
-    errorStatus,
+    error: error ?? sessionQuery.error?.message ?? null,
+    errorStatus: sessionQuery.error instanceof ExperienceSessionRequestError ? sessionQuery.error.status : null,
     login,
     logout,
     refresh,

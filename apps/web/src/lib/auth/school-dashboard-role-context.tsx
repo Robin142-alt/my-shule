@@ -222,9 +222,9 @@ export function SchoolDashboardRoleProvider({
     autoLoad: liveDataEnabled,
   });
   const [roleContext, setRoleContext] = useState<SchoolDashboardRoleContext>(() =>
-    normalizeDashboardRoleContext(null, initialRole),
+    auth.session?.roleContext ?? normalizeDashboardRoleContext(null, initialRole),
   );
-  const [isLoadingRoles, setIsLoadingRoles] = useState(liveDataEnabled);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(liveDataEnabled && !auth.session?.roleContext);
   const [switchingToAuthorizationRoleCode, setSwitchingToAuthorizationRoleCode] = useState<string | null>(null);
   const [roleError, setRoleError] = useState<string | null>(null);
   const switchInProgress = useRef(false);
