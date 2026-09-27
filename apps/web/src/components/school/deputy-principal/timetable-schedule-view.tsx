@@ -70,11 +70,15 @@ function LessonCard({
       </div>
       {slot.locked ? <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-1 text-[11px] font-black uppercase text-amber-950"><Lock className="h-3 w-3" /> Locked</span> : null}
       {editable ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#E2E8F0] pt-2 text-xs font-semibold">
+          <button type="button" onClick={() => onEdit(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 text-[#174EA6] disabled:opacity-40" aria-label={`Edit ${slot.subject_name}`}><Pencil className="h-4 w-4" />Edit</button>
+          <button type="button" onClick={() => onMove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 text-[#174EA6] disabled:opacity-40" aria-label={`Move ${slot.subject_name}`}><Move className="h-4 w-4" />Move</button>
+        </div>
+      ) : null}
+      {editable ? (
         <details className="mt-2 border-t border-[#E2E8F0] pt-1">
-          <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-[#174EA6]" aria-label={`Lesson actions for ${slot.subject_name}`}>Lesson actions</summary>
+          <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-[#174EA6]" aria-label={`Lesson actions for ${slot.subject_name}`}>More actions</summary>
           <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-            <button type="button" onClick={() => onMove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 text-[#174EA6] disabled:opacity-40" aria-label={`Move ${slot.subject_name}`}><Move className="h-4 w-4" />Move</button>
-            <button type="button" onClick={() => onEdit(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 text-[#174EA6] disabled:opacity-40" aria-label={`Edit ${slot.subject_name}`}><Pencil className="h-4 w-4" />Edit</button>
             <button type="button" onClick={() => onLock(slot)} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#C8D5EA] text-[#174EA6]" aria-label={`${slot.locked ? "Unlock" : "Lock"} ${slot.subject_name}`}>{slot.locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}{slot.locked ? "Unlock" : "Lock"}</button>
             <button type="button" onClick={() => onRemove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rose-200 text-rose-700 disabled:opacity-40" aria-label={`Remove ${slot.subject_name}`}><Trash2 className="h-4 w-4" />Remove</button>
           </div>
@@ -181,7 +185,7 @@ export function TimetableScheduleView({
                         onDrop={(event) => {
                           event.preventDefault();
                           const slot = rows.find((candidate) => candidate.id === event.dataTransfer.getData("application/x-myshule-timetable-slot"));
-                          if (slot && period?.is_teaching && !slot.locked) {
+                          if (editable && slot && period?.is_teaching && !slot.locked) {
                             const target = cellRows.find((other) => other.id !== slot.id && !other.locked && !other.parallel_key && !slot.parallel_key
                               && other.class_section_id === slot.class_section_id && (other.stream_id ?? null) === (slot.stream_id ?? null)
                               && (other.duration_periods ?? 1) === (slot.duration_periods ?? 1));
@@ -192,9 +196,9 @@ export function TimetableScheduleView({
                       >
                         {!period ? null : !period.is_teaching || block ? (
                           <div className="rounded-lg border border-dashed border-[#C8D5EA] p-3 text-center text-xs font-black uppercase text-[#64748B]">{block?.name ?? period.name}<br /><span className="font-medium normal-case">{timeLabel(period.starts_at)}-{timeLabel(period.ends_at)}</span></div>
-                        ) : <div className="space-y-2">{continuation.length ? <div className="rounded-lg border-l-4 border-blue-300 bg-blue-50 p-3 text-xs text-blue-900">{continuation.map((slot) => <p key={slot.id}>{slot.subject_name} · continues until {timeLabel(slot.ends_at)}</p>)}</div> : null}{cellRows.length === 0 && continuation.length === 0 ? (
+                        ) : <div className="space-y-2">{cellRows.length === 0 && continuation.length === 0 ? (
                           <div className="rounded-lg border border-dashed border-amber-200 p-3 text-xs text-amber-800">{period.name}<br />{timeLabel(period.starts_at)} · {view === "class" ? "Needs a lesson" : "No lesson"}</div>
-                        ) : null}{cellRows.map((slot) => <LessonCard key={slot.id} slot={slot} view={view} editable={editable} draggable onMove={onMove} onEdit={onEdit} onLock={onLock} onRemove={onRemove} />)}</div>}
+                        ) : null}{[...cellRows, ...continuation].map((slot) => <LessonCard key={slot.id} slot={slot} view={view} editable={editable} draggable onMove={onMove} onEdit={onEdit} onLock={onLock} onRemove={onRemove} />)}</div>}
                       </td>
                     );
                   })}

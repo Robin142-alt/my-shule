@@ -346,6 +346,7 @@ export type SlotPayload = {
   academic_year: string;
   term_name: string;
   class_section_id: string;
+  stream_id?: string | null;
   subject_id: string;
   teacher_id: string;
   resource_id?: string;

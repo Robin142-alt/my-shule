@@ -21,7 +21,35 @@ it("shows full subject names, teacher, double duration and breaks in the phone t
   expect(day.getAllByRole("article")).toHaveLength(1);
   expect(day.queryByText(/Needs a lesson/)).not.toBeInTheDocument();
   expect(day.getAllByText("Tea break").length).toBeGreaterThan(0);
-  expect(screen.getByText(/CHRISTIAN RELIGIOUS EDUCATION · continues until 09:20/)).toBeInTheDocument();
+  expect(screen.queryByText(/continues until/)).not.toBeInTheDocument();
+});
+
+it("shows a normal English card in both periods with direct editing of the same saved lesson", () => {
+  const english = { ...slot, subject_name: "English" };
+  render(<TimetableScheduleView {...props} rows={[english]} />);
+  const grid = within(screen.getByRole("table"));
+  const lessons = grid.getAllByRole("article");
+  expect(lessons).toHaveLength(2);
+  for (const lesson of lessons) {
+    expect(within(lesson).getByText("English")).toBeVisible();
+    expect(within(lesson).getByText("Allocated Teacher")).toBeVisible();
+    const edit = within(lesson).getByRole("button", { name: "Edit English" });
+    expect(edit.closest("details")).toBeNull();
+    fireEvent.click(edit);
+    expect(handlers.onEdit).toHaveBeenLastCalledWith(english);
+  }
+  expect(handlers.onEdit).toHaveBeenCalledTimes(2);
+});
+
+it("exposes Edit and Move on the phone without opening lesson actions", () => {
+  render(<TimetableScheduleView {...props} />);
+  const day = within(screen.getByRole("list", { name: "Monday lesson timeline" }));
+  for (const action of ["Edit", "Move"] as const) {
+    const button = day.getByRole("button", { name: `${action} ${slot.subject_name}` });
+    expect(button.closest("details")).toBeNull();
+    fireEvent.click(button);
+    expect(handlers[`on${action}`]).toHaveBeenCalledWith(slot);
+  }
 });
 
 it("offers labelled move, edit, lock and remove controls and protects locked lessons", () => {
@@ -59,4 +87,5 @@ it("shows reserved school activities and keeps published lessons read-only", () 
   expect(day.getByText("Assembly")).toBeVisible();
   expect(day.getAllByText(/Needs a lesson/)).toHaveLength(1);
   expect(screen.queryByLabelText(/Lesson actions/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
 });
