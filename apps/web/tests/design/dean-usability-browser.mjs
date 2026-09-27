@@ -36,8 +36,14 @@ import {useState} from 'react';
 const coverage=[{id:'math',subject:'Mathematics',class_name:'Grade 8 · East',planned_topics:20,covered_topics:12,coverage:'60'}, {id:'eng',subject:'English',class_name:'Grade 9 · West',planned_topics:20,covered_topics:17,coverage:'85'}, {id:'bio',subject:'Biology',class_name:'Form 2 · North',planned_topics:10,covered_topics:3,coverage:'30'}];
 let rows=[{id:'a1',title:'End Term 3',subject:'Mathematics',class_name:'Grade 8 · East',date:'2026-09-12',total_marks:100,submissions:32,status:'submitted',mark_ids:['m1']}, {id:'a2',title:'End Term 3',subject:'English',class_name:'Grade 9 · West',date:'2026-09-13',total_marks:100,submissions:30,status:'submitted',mark_ids:['m2']}, {id:'a3',title:'End Term 3',subject:'Biology',class_name:'Form 2 · North',date:'2026-09-11',total_marks:100,submissions:28,status:'reviewed',mark_ids:['m3']}];
 const state={isLoading:false,isFetching:false,error:null,mutationError:null,refetch:()=>{},pendingIds:new Set()};
-export function useSchoolQuery(url){const [version,setVersion]=useState(0);const refetch=()=>setVersion(version+1);const scenario=sessionStorage.getItem('scenario');let data=[];
+export function useSchoolQuery(url){const [version,setVersion]=useState(0);const refetch=()=>{setVersion(version+1);return Promise.resolve({data,error:null});};const scenario=sessionStorage.getItem('scenario');let data=[];
   if(url==='/school/identity')data={schoolName:'Mwangaza School · QA'};
+  else if(url==='/academics/foundation')data={};
+  else if(url==='/api/academics/academic-years')data=[{id:'year',name:'2026',status:'active'}];
+  else if(url==='/api/academics/academic-terms')data=[{id:'term',academic_year_id:'year',name:'Term 3',status:'active'}];
+  else if(url?.includes('/configuration?'))data=null;
+  else if(url?.includes('/readiness?'))data={status:'BLOCKER',metrics:{},warnings:[],blockers:[{code:'CLASSES_MISSING',severity:'BLOCKER',message:'Create classes',action_url:'/school/deputy-principal/academics'}]};
+  else if(url?.startsWith('/api/timetable/'))data={items:[],lessons:[]};
   else if(url?.endsWith('/overview'))data={metrics:{totalSubjects:12,totalTeachers:24}};
   else if(url?.includes('/assessments'))data={assessmentsList:scenario==='empty'?[]:rows,metrics:{}};
   else if(url?.includes('/curriculum-coverage'))data=coverage;
@@ -60,7 +66,8 @@ import {createRoot} from 'react-dom/client';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {DeanAcademicsCommandCenter} from ${source(path.join(web, "src/components/school/dean-academics-command-center"))};
 import {SchoolCommandIdentityProvider} from ${source(path.join(web, "src/components/school/integrated-school-command-header"))};
-createRoot(document.getElementById('root')!).render(<QueryClientProvider client={new QueryClient()}><SchoolCommandIdentityProvider tenantSlug="qa-only" userLabel="QA Dean"><DeanAcademicsCommandCenter activeSection={location.pathname.split('/').pop()}/></SchoolCommandIdentityProvider></QueryClientProvider>);
+import {SchoolTenantScopeProvider} from ${source(path.join(web, "src/lib/data/school-tenant-scope"))};
+createRoot(document.getElementById('root')!).render(<QueryClientProvider client={new QueryClient()}><SchoolTenantScopeProvider tenantId="qa-only"><SchoolCommandIdentityProvider tenantSlug="qa-only" userLabel="QA Dean"><DeanAcademicsCommandCenter activeSection={location.pathname.split('/').pop()}/></SchoolCommandIdentityProvider></SchoolTenantScopeProvider></QueryClientProvider>);
 `,
 );
 
@@ -164,6 +171,25 @@ async function run() {
       const page = await browser.newPage({ viewport });
       const errors = [];
       page.on("pageerror", (error) => { errors.push(error.message); console.error(error.message); });
+      await page.goto(base + "/school/dean-academics/academics");
+      await page.getByRole("heading", { name: "Academic Foundation", exact: true }).waitFor();
+      const yearForm = page.locator("form").filter({ has: page.getByLabel("Academic year name", { exact: true }) });
+      await yearForm.getByLabel("Academic year name", { exact: true }).fill("2027");
+      await yearForm.getByLabel("Starts on").fill("2027-01-01");
+      await yearForm.getByLabel("Ends on").fill("2027-12-31");
+      await yearForm.getByRole("button", { name: "Create Academic Year" }).click();
+      await page.waitForFunction(() => window.__request?.url === "/academics/years" && window.__request.options.tenantId === "qa-only");
+      await page.waitForFunction(() => document.querySelector('input[name="name"]')?.value === "");
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Foundation overflows");
+      await page.screenshot({ path: path.join(out, `foundation-${viewport.width}.png`), fullPage: true });
+      await page.goto(base + "/school/dean-academics/timetable");
+      await page.getByRole("heading", { name: "Timetable command centre" }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Fix in MyShule" }).getAttribute("href"), "/school/dean-academics/academics");
+      await page.getByRole("button", { name: "Scheduler setup", exact: true }).click();
+      assert.equal(await page.getByRole("link", { name: "Open Academic Setup for allocations" }).getAttribute("href"), "/school/dean-academics/academics");
+      await page.getByRole("button", { name: "Relief", exact: true }).click();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Relief overflows");
+      await page.screenshot({ path: path.join(out, `relief-${viewport.width}.png`), fullPage: true });
       await page.goto(base + "/school/dean-academics/overview");
       await page
         .getByRole("heading", { name: "Academic overview", exact: true })

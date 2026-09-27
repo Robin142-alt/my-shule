@@ -325,6 +325,12 @@ describe("school command center routing", () => {
         testId: "dean-academics-command-center",
         expected: "Dean approvals",
       },
+      ...["academics", "timetable", "timetable-builder"].map((section) => ({
+        role: "dean-academics" as const,
+        section,
+        testId: "dean-academics-command-center",
+        expected: `Dean ${section}`,
+      })),
     ] as const;
 
     for (const routeCase of cases) {

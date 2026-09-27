@@ -1,0 +1,11 @@
+# Dean academic management
+
+The Dean and Deputy Principal co-manage Academic Foundation and Timetable & Relief within their school. The Dean's `/school/dean-academics/academics` and `/school/dean-academics/timetable` routes render the existing shared workspaces, including academic setup, allocations, lifecycle actions, timetable configuration, generation, draft review, publication, relief and history. The timetable retains its published view and exports.
+
+Both roles use the same tenant-scoped APIs and records. Existing validation, module checks, audit events, notifications and timetable row-version conflict checks remain authoritative. Setup recovery links stay in the Dean's dashboard.
+
+The Dean's authorization baseline now includes `academics:write`, `academics:assign-teachers`, `academics:manage-lifecycle`, `academics:merge` and `timetable:write`. It does not grant Deputy account-management, discipline or other unrelated powers. Login and session refresh already reconcile the tenant authorization baseline; an existing Dean session can sign in again to obtain the new permissions immediately after the API release. No data migration or school seeding is required.
+
+Regression coverage: Dean foundation submission and school binding, timetable controls and recovery links, direct routes, role permission parity, tenant-scoped baseline provisioning, and desktop/mobile browser checks in `dean-usability-browser.mjs`. Existing timetable persistence/isolation tests and shared-workspace tests cover the unchanged backend workflow.
+
+Release verification (2026-09-27): API build and all 1,532 backend unit tests passed. The nine focused frontend suites passed all 80 tests, and the three Dean regression tests passed again after a test typing correction. Web TypeScript checking passed; changed-file lint passed with no errors (existing warnings remain). Browser checks passed at 1440, 1024 and 390 pixels with no page errors, including foundation submission, setup recovery and relief navigation. The broad frontend suite and separate database integration run were interrupted during local resource pressure; those are not claimed as passing. The frontend bundle compiled successfully; the complete Next build was interrupted during type checking, which subsequently passed separately.

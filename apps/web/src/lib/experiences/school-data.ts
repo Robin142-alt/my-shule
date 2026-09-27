@@ -113,11 +113,12 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   ],
   "dean-academics": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
+    { id: "academics", label: "Academic Foundation", href: toSchoolPath("academics"), icon: GraduationCap },
     { id: "curriculum-coverage", label: "Curriculum Coverage", href: toSchoolPath("curriculum-coverage"), icon: BookOpenCheck },
     { id: "lesson-plans", label: "Lesson Plans", href: toSchoolPath("lesson-plans"), icon: FileSpreadsheet },
     { id: "lesson-logs", label: "Lesson Logs", href: toSchoolPath("lesson-logs"), icon: ClipboardList },
     { id: "teacher-workload", label: "Teacher Workload", href: toSchoolPath("teacher-workload"), icon: Users },
-    { id: "timetable", label: "Master Timetable", href: toSchoolPath("timetable"), icon: CalendarDays },
+    { id: "timetable", label: "Timetable & Relief", href: toSchoolPath("timetable"), icon: CalendarDays },
     { id: "department-performance", label: "Department Performance", href: toSchoolPath("department-performance"), icon: GraduationCap },
     { id: "assessments", label: "Assessments", href: toSchoolPath("assessments"), icon: GraduationCap },
     { id: "academic-interventions", label: "Academic Interventions", href: toSchoolPath("academic-interventions"), icon: ShieldAlert },

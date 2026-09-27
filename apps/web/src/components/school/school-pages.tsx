@@ -641,6 +641,8 @@ const deanAcademicsWorkspaceSectionIds = new Set([
   "overview",
   "academic-overview",
   "academics",
+  "timetable",
+  "timetable-builder",
   "curriculum",
   "syllabus",
   "curriculum-coverage",

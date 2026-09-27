@@ -20,7 +20,7 @@ describe("smart timetable role surfaces", () => {
     expect(overview).toMatch(/credentials:\s*"include"/);
     expect(overview).toMatch(/No published lessons match this view/);
     expect(principal).toContain("StaffTimetableOverviewWorkspace");
-    expect(dean).toContain("StaffTimetableOverviewWorkspace");
+    expect(dean).toContain("DeputyTimetableManagementWorkspace");
     expect(hod).toContain("StaffTimetableOverviewWorkspace");
     expect(hod).toMatch(/timetable:\s*"timetable"/);
     expect(gradeMaster).toContain("StaffTimetableOverviewWorkspace");
@@ -45,7 +45,7 @@ describe("smart timetable role surfaces", () => {
     expect(liveRole).toMatch(/student[\s\S]*timetable:\s*PortalTimetableWorkspace/);
   });
 
-  it("exposes role navigation without granting timetable write access", () => {
+  it("exposes timetable navigation with Dean management and read access for other staff", () => {
     const permissions = source("../api/src/auth/auth.constants.ts");
     const schoolData = source("src/lib/experiences/school-data.ts");
 
@@ -55,7 +55,7 @@ describe("smart timetable role surfaces", () => {
     }
     expect(schoolData).toMatch(/"principal"[\s\S]*Master Timetable/);
     expect(schoolData).toMatch(/"deputy-principal"[\s\S]*Timetable & Relief/);
-    expect(schoolData).toMatch(/"dean-academics"[\s\S]*Master Timetable/);
+    expect(schoolData).toMatch(/"dean-academics"[\s\S]*Timetable & Relief/);
     expect(schoolData).toMatch(/"hod"[\s\S]*Department Timetable/);
     expect(schoolData).toMatch(/"class-teacher"[\s\S]*Class Timetable/);
   });

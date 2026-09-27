@@ -21,11 +21,13 @@ export function TimetableReadinessPanel({
   loading,
   error,
   onRetry,
+  academicSetupHref = "/school/deputy-principal/academics",
 }: {
   readiness?: ReadinessResponse;
   loading: boolean;
   error?: Error | null;
   onRetry: () => void;
+  academicSetupHref?: string;
 }) {
   if (loading) return <section className="rounded-xl border border-[#D8E0EC] bg-white p-5 text-sm font-bold text-[#64748B]">Checking real academic setup, allocations, periods, and requirements...</section>;
   if (error || !readiness) return (
@@ -68,7 +70,7 @@ export function TimetableReadinessPanel({
               <div><span className="mr-2 rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase">{issue.severity}</span><span className="font-bold">{issue.message}</span>
                 {issue.details?.length ? <ul className="mt-2 space-y-1 text-xs">{issue.details.map((detail) => <li key={detail.requirement_id}>{[detail.class_name, detail.stream_name, detail.subject_name].filter(Boolean).join(" / ")}: {detail.reason}</li>)}</ul> : null}
               </div>
-              {issue.action_url ? <Link href={issue.action_url} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-current px-3 text-xs font-black">Fix in MyShule</Link> : null}
+              {issue.action_url ? <Link href={issue.action_url === "/school/deputy-principal/academics" ? academicSetupHref : issue.action_url} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-current px-3 text-xs font-black">Fix in MyShule</Link> : null}
             </div>
           ))}</div> : <p className="mt-4 text-sm font-bold">All required inputs passed the server readiness check.</p>}
         </div>

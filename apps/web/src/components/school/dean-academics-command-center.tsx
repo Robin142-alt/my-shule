@@ -25,6 +25,7 @@ import {
 } from "@/components/school/integrated-school-command-header";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { TaskQueue } from "@/components/shared/task-queue";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 
 import { buildSchoolSectionHref } from "./school-pages";
 import { AcademicInterventionsWorkspace } from "./dean-academics/academic-interventions-workspace";
@@ -36,13 +37,15 @@ import { LessonPlansWorkspace } from "./dean-academics/lesson-plans-workspace";
 import { OverviewWorkspace } from "./dean-academics/overview-workspace";
 import { TeacherWorkloadWorkspace } from "./dean-academics/teacher-workload-workspace";
 import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
-import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
+import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
+import { DeputyTimetableManagementWorkspace } from "./deputy-principal/timetable-management-workspace";
 import { cn } from "./dean-academics/shared";
 
 type DeanRouteMode = "hosted" | "public";
 
 export type DeanView =
   | "overview"
+  | "academics"
   | "curriculum-coverage"
   | "department-performance"
   | "teacher-workload"
@@ -62,6 +65,13 @@ type DeanNavItem = {
 };
 
 const deanNavItems: DeanNavItem[] = [
+  {
+    id: "academics",
+    label: "Academic Foundation",
+    description: "Manage the shared school calendar, classes, subjects, allocations, and academic policies.",
+    icon: GraduationCap,
+    group: "Academic office",
+  },
   {
     id: "overview",
     label: "Academic Overview",
@@ -100,9 +110,9 @@ const deanNavItems: DeanNavItem[] = [
   },
   {
     id: "timetable",
-    label: "Master Timetable",
+    label: "Timetable & Relief",
     description:
-      "School-wide published lessons, teacher load, classes, and shared resources.",
+      "Build and publish the school timetable, manage teacher load, and assign relief lessons.",
     icon: CalendarDays,
     group: "Teaching",
   },
@@ -139,7 +149,7 @@ const deanNavItems: DeanNavItem[] = [
 const deanViewAliases: Record<string, DeanView> = {
   dashboard: "overview",
   "academic-overview": "overview",
-  academics: "overview",
+  academics: "academics",
   curriculum: "curriculum-coverage",
   syllabus: "curriculum-coverage",
   "curriculum-coverage": "curriculum-coverage",
@@ -339,11 +349,21 @@ function Topbar({
 function DeanWorkspace({
   activeView,
   onNavigate,
+  routeMode,
 }: {
   activeView: DeanView;
   onNavigate: (view: DeanView) => void;
+  routeMode: DeanRouteMode;
 }) {
+  const tenantId = useOptionalSchoolTenantId();
+  const { schoolName } = useSchoolCommandIdentity();
   switch (activeView) {
+    case "academics":
+      return tenantId ? (
+        <div className="rounded-2xl bg-[#0B1E4A] p-4 sm:p-6">
+          <AcademicFoundationWorkspace actorRole="Dean of Academics" schoolName={schoolName} tenantId={tenantId} />
+        </div>
+      ) : <p role="alert">School context is unavailable. Sign in again to manage Academic Foundation.</p>;
     case "curriculum-coverage":
       return (
         <CurriculumCoverageWorkspace
@@ -367,9 +387,8 @@ function DeanWorkspace({
       );
     case "timetable":
       return (
-        <StaffTimetableOverviewWorkspace
-          title="Academic master timetable"
-          description="A school-wide published view for academic continuity, workload review, and resource coordination."
+        <DeputyTimetableManagementWorkspace
+          academicSetupHref={buildSchoolSectionHref("dean-academics", "academics", routeMode)}
         />
       );
     case "lesson-plans":
@@ -484,7 +503,7 @@ export function DeanAcademicsCommandCenter({
             className="p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6"
           >
             <div className="mx-auto max-w-[1600px]" key={activeView}>
-              <DeanWorkspace activeView={activeView} onNavigate={openView} />
+              <DeanWorkspace activeView={activeView} onNavigate={openView} routeMode={routeMode} />
             </div>
           </div>
         </main>

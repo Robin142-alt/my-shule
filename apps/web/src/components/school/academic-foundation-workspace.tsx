@@ -300,7 +300,7 @@ export function AcademicFoundationWorkspace({
   initialTab = "calendar",
   initialRoleType = "",
 }: {
-  actorRole: "Principal" | "Deputy Principal";
+  actorRole: "Principal" | "Deputy Principal" | "Dean of Academics";
   schoolName: string;
   tenantId: string;
   initialTab?: AcademicFoundationTab;

@@ -115,6 +115,13 @@ test('AuthorizationRepository bootstraps default authorization with set-based qu
   const deputyPermissions = seededRolePermissions
     .filter((permission) => permission.role_code === 'deputy_principal')
     .map((permission) => `${permission.resource}:${permission.action}`);
+  const deanPermissions = seededRolePermissions
+    .filter((permission) => permission.role_code === 'dean_academics')
+    .map((permission) => `${permission.resource}:${permission.action}`);
+  for (const permission of deputyPermissions.filter((key) => /^(academics|timetable):/.test(key))) {
+    assert.ok(deanPermissions.includes(permission), `baseline should provision ${permission} for Dean`);
+  }
+  assert.equal(queries.every((query) => query.values[0] === 'greenhill-academy'), true);
 
   for (const requiredPermission of [
     'users:read',
@@ -2647,7 +2654,7 @@ test('default Teacher and Class Teacher roles receive exact Teacher command perm
   assert.equal(deanPermissions.includes('teacher:write'), false);
 });
 
-test('timetable permissions keep role views read-only while the Deputy retains timetable write access', () => {
+test('timetable permissions let Dean and Deputy co-manage while other staff retain read-only views', () => {
   const role = (code: string): readonly string[] =>
     DEFAULT_ROLE_CATALOG.find((candidate) => candidate.code === code)?.permissions ?? [];
 
@@ -2656,7 +2663,6 @@ test('timetable permissions keep role views read-only while the Deputy retains t
     'class_teacher',
     'grade_master',
     'hod',
-    'dean_academics',
     'exams_manager',
     'discipline_master',
     'school_counsellor',
@@ -2670,4 +2676,10 @@ test('timetable permissions keep role views read-only while the Deputy retains t
   assert.equal(role('principal').includes('timetable:write'), false, 'Principal retains timetable oversight without draft mutation');
   assert.equal(role('deputy_principal').includes('timetable:read'), true);
   assert.equal(role('deputy_principal').includes('timetable:write'), true);
+  assert.equal(role('dean_academics').includes('timetable:write'), true);
+  const academicPermissions = role('deputy_principal').filter((permission) => permission.startsWith('academics:'));
+  assert.deepEqual(role('dean_academics').filter((permission) => permission.startsWith('academics:')).sort(), [...academicPermissions].sort());
+  for (const permission of ['users:write', 'tenant_memberships:write', 'deputy:write', 'exams:publish']) {
+    assert.equal(role('dean_academics').includes(permission), false, `Dean must not gain unrelated ${permission}`);
+  }
 });

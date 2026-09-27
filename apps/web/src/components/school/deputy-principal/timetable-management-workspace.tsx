@@ -114,7 +114,7 @@ function periodFor(configuration: ReturnType<typeof configurationFrom>, day: num
   return configuration?.days.find((candidate) => candidate.day_of_week === day)?.periods.find((period) => period.id === periodId) ?? null;
 }
 
-export function DeputyTimetableManagementWorkspace() {
+export function DeputyTimetableManagementWorkspace({ academicSetupHref = "/school/deputy-principal/academics" }: { academicSetupHref?: string } = {}) {
   const scopedTenantId = useOptionalSchoolTenantId();
   const activeTenantId = scopedTenantId || getCurrentSchoolId() || undefined;
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("command");
@@ -719,7 +719,7 @@ export function DeputyTimetableManagementWorkspace() {
           </div>
           <p className="mt-3 text-sm text-[#64748B]">Teacher availability and rooms are optional. Add exceptions only when needed.</p>
         </section>
-        <TimetableReadinessPanel readiness={readinessQuery.data} loading={readinessQuery.isLoading} error={readinessQuery.error} onRetry={() => readinessQuery.refetch()} />
+        <TimetableReadinessPanel academicSetupHref={academicSetupHref} readiness={readinessQuery.data} loading={readinessQuery.isLoading} error={readinessQuery.error} onRetry={() => readinessQuery.refetch()} />
         <section className="rounded-xl border border-[#D8E0EC] bg-white p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div><h3 className="text-lg font-black text-[#071D49]">{plannerSlots.length === 0 ? "Create the school timetable" : "Review and complete the current draft"}</h3><p className="mt-1 text-sm text-[#64748B]">{plannerSlots.length === 0 ? "Generation consumes configured periods, requirements, academic allocations, availability, and resources." : `${plannerSlots.length} lesson placements are in the current version. Publishing remains blocked until server validation passes.`}</p></div>
@@ -741,7 +741,7 @@ export function DeputyTimetableManagementWorkspace() {
       </> : null}
 
       {activeTab === "setup" ? <section className="space-y-5 rounded-xl border border-[#D8E0EC] bg-white p-4 sm:p-5">
-        <div><h3 className="flex items-center gap-2 text-xl font-black text-[#071D49]"><Settings2 className="h-5 w-5" /> Scheduler setup</h3><p className="mt-1 text-sm text-[#64748B]">Timetable-specific rules live here. Academic years, classes, subjects, and teacher allocations stay in the existing Academic Setup workspace.</p><Link href="/school/deputy-principal/academics" className="mt-2 inline-flex text-sm font-black text-[#174EA6] underline">Open Academic Setup for allocations</Link></div>
+        <div><h3 className="flex items-center gap-2 text-xl font-black text-[#071D49]"><Settings2 className="h-5 w-5" /> Scheduler setup</h3><p className="mt-1 text-sm text-[#64748B]">Timetable-specific rules live here. Academic years, classes, subjects, and teacher allocations stay in the existing Academic Setup workspace.</p><Link href={academicSetupHref} className="mt-2 inline-flex text-sm font-black text-[#174EA6] underline">Open Academic Setup for allocations</Link></div>
         <div className="flex gap-2 overflow-x-auto border-b border-[#D8E0EC] pb-3">{([ ["periods", "School days & periods"], ["requirements", "Subject requirements"], ["availability", "Teacher availability"], ["resources", "Rooms & resources"] ] as Array<[SetupTab, string]>).map(([id, label]) => <button key={id} type="button" onClick={() => { if (id !== setupTab && leaveSetup()) setSetupTab(id); }} className={`min-h-11 shrink-0 rounded-lg px-4 text-sm font-black ${setupTab === id ? "bg-[#174EA6] text-white" : "border border-[#C8D5EA] bg-white"}`}>{label}</button>)}</div>
         {setupTab === "periods" ? <PeriodConfigurationPanel response={configurationQuery.data} academicYear={academicYear} termName={termName} classes={classes} loading={configurationQuery.isLoading} error={configurationQuery.error} onRetry={() => configurationQuery.refetch()} onSaved={() => Promise.all([configurationQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
         {setupTab === "requirements" ? <SubjectRequirementsPanel key={[activeTenantId, academicYear, termName].join(":")} response={requirementsQuery.data} academicYear={academicYear} termName={termName} classes={classes} subjects={subjects} teachers={teachers} resources={resources} assignments={assignments.filter((row) => !row.academic_term_id || row.academic_term_id === selectedTerm?.id)} configuration={configuration} onContinue={() => setActiveTab("command")} onDirtyChange={setSetupDirty} loading={requirementsQuery.isLoading} error={requirementsQuery.error} onRetry={() => requirementsQuery.refetch()} onSaved={() => Promise.all([requirementsQuery.refetch(), readinessQuery.refetch()])} onSaveState={setSaveState} /> : null}
