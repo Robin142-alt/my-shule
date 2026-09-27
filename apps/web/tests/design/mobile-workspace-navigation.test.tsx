@@ -31,6 +31,40 @@ function NavigationHarness() {
 }
 
 describe("mobile workspace navigation", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("uses the edge tab on mobile and keeps all drawer dismissal paths and focus restoration", async () => {
+    const matchMedia = window.matchMedia;
+    jest.spyOn(window, "matchMedia").mockImplementation((query) => ({
+      ...matchMedia(query), matches: query === "(max-width: 1023px)",
+    }));
+    const user = userEvent.setup();
+    render(<NavigationHarness />);
+    const trigger = screen.getByRole("button", { name: "Open Teacher workspace sidebar" });
+    expect(trigger).toHaveClass("app-side-menu-tab");
+    expect(trigger.parentElement).toBe(document.body);
+    expect(within(screen.getByTestId("mobile-workspace-navigation")).queryByRole("button")).toBeNull();
+    expect(trigger).toHaveAccessibleDescription("Overview");
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "Close teacher workspace sidebar" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Teacher workspace" });
+    await user.click(dialog.previousElementSibling as HTMLElement);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "Attendance", exact: true }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveAccessibleDescription("Attendance");
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe("");
+  });
+
   it("preserves module descriptions, badges, footer actions and section callbacks in the drawer", async () => {
     const user = userEvent.setup();
     const change = jest.fn();

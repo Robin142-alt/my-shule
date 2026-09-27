@@ -35,3 +35,11 @@ npm run test:design -- --runTestsByPath tests/design/mobile-workspace-navigation
 ```
 
 Browser screenshots and JSON results are generated under the ignored repository `output/mobile-roles` and `output/mobile-product` directories. No schema migration or data backfill is required. Rollback is a revert of this UI commit followed by the normal web deployment.
+
+## Follow-up: fixed mobile MENU tab
+
+Only primary mobile navigation triggers move to a fixed left-edge MENU tab below 1024px. The tab has a 52px minimum width, a 44px minimum touch height, and an 84% opaque navy background with an opaque white label. Existing top triggers remain at larger breakpoints. Module section controls remain inline to avoid overlapping the primary menu tab.
+
+The same drawer state, items, nested destinations, icons, permissions, routes, and selection callbacks are retained. A portal keeps the tab attached to the viewport despite toolbar blur or scrolling. Outside-tap dismissal prevents the browser from moving focus away after it returns to the tab. Hidden layout markers preserve header sibling-count rules when the trigger moves out of its header. No dashboard, content, backend, or workflow redesign is included.
+
+Verification: the final production build and TypeScript passed; 117 focused navigation, routing, Principal workflow, and tenant-cleanliness tests passed; targeted lint passed without warnings or errors. The final browser suite passed 170 cases at 320, 390, 768, 1024, and 1440px, checking one narrow translucent tab, fixed placement during scrolling, drawer dismissal, focus restoration, and resizing back to desktop. The shared component browser suite passed seven viewports before the final tab-width/opacity adjustment. Teacher, Principal, and Super Admin desktop screenshots are byte-identical to the preceding release. Browser checks use isolated fixtures rather than production school data.

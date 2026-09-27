@@ -13,6 +13,7 @@ import {
 import { useModalLayer } from "@/hooks/use-modal-layer";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight, Menu, Search, X } from "lucide-react";
+import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
 
 export type MobileWorkspaceNavItem = {
   id: string;
@@ -30,6 +31,7 @@ export function MobileWorkspaceNavigation({
   label,
   testId,
   footer,
+  mobilePlacement = "edge",
 }: {
   items: readonly MobileWorkspaceNavItem[];
   value: string;
@@ -37,10 +39,11 @@ export function MobileWorkspaceNavigation({
   label: string;
   testId?: string;
   footer?: ReactNode;
+  mobilePlacement?: "edge" | "inline";
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const currentDescriptionId = useId();
   const currentItem = items.find((item) => item.id === value) ?? items[0];
@@ -80,7 +83,7 @@ export function MobileWorkspaceNavigation({
   useEffect(() => {
     if (!open) return;
     function handleViewportChange() {
-      if (triggerRef.current?.getClientRects().length === 0) requestClose();
+      if (hostRef.current?.getClientRects().length === 0) requestClose();
     }
     window.addEventListener("resize", handleViewportChange);
     return () => window.removeEventListener("resize", handleViewportChange);
@@ -92,9 +95,9 @@ export function MobileWorkspaceNavigation({
   }
 
   return (
-    <div data-testid={testId} className="min-w-0">
-      <button
-        ref={triggerRef}
+    <div ref={hostRef} data-testid={testId} data-mobile-placement={mobilePlacement} className="app-mobile-nav-host min-w-0">
+      <MobileMenuTrigger
+        mobilePlacement={mobilePlacement}
         type="button"
         aria-label={`Open ${label} sidebar`}
         aria-describedby={currentDescriptionId}
@@ -114,14 +117,14 @@ export function MobileWorkspaceNavigation({
           Menu
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </span>
-      </button>
+      </MobileMenuTrigger>
 
       {open && typeof document !== "undefined"
         ? createPortal(
             <div className="app-modal-backdrop app-navigation-backdrop fixed inset-0 z-[70]" role="presentation">
               <div
                 aria-hidden="true"
-                onPointerDown={requestClose}
+                onPointerDown={(event) => { event.preventDefault(); requestClose(); }}
                 className="absolute inset-0 cursor-default bg-slate-950/30"
               />
               <aside

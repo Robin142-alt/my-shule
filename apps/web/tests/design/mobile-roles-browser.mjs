@@ -106,6 +106,22 @@ try{
    await page.locator('.authenticated-app').waitFor({timeout:10000}).catch(()=>{});
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
+   const edgeTab=page.locator('.app-side-menu-tab');
+   if(width<1024){
+    assert.equal(await edgeTab.count(),1,`${role}: exactly one primary mobile MENU tab`);
+    const tabBox=await edgeTab.boundingBox();
+    assert.ok(tabBox&&Math.abs(tabBox.x)<1&&tabBox.width<=56&&tabBox.height>=44,`${role}: narrow left-edge touch target`);
+    assert.ok(await edgeTab.evaluate(el=>getComputedStyle(el).backgroundColor==='rgba(23, 53, 89, 0.84)'),'The MENU tab is slightly translucent with an opaque label');
+    assert.ok(await edgeTab.evaluate(el=>el.parentElement===document.body&&getComputedStyle(el).position==='fixed'),'The tab is fixed to the viewport, outside transformed toolbars');
+    assert.equal(await page.locator('.app-top-menu-trigger:visible').count(),0,'No duplicate top menu trigger on mobile');
+    await page.evaluate(()=>window.scrollTo(0,240));
+    const scrolledBox=await edgeTab.boundingBox();
+    assert.ok(Math.abs(scrolledBox.y-tabBox.y)<1,'The MENU tab stays fixed while the workspace scrolls');
+    assert.ok(await edgeTab.evaluate(el=>{const b=el.getBoundingClientRect();return el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));}),'The tab stays tappable above the workspace');
+    await page.evaluate(()=>window.scrollTo(0,0));
+   }else{
+    assert.equal(await edgeTab.count(),0,'Larger-screen navigation remains unchanged');
+   }
    const metrics=await page.evaluate(()=>({pageWidth:document.documentElement.scrollWidth,hasShell:!!document.querySelector('.authenticated-app'),headings:[...document.querySelectorAll('main h1,main h2')].map(el=>el.textContent),overflow:[...document.querySelectorAll('main *')].filter(el=>{const r=el.getBoundingClientRect();return r.right>innerWidth+1&&r.width>0&&!el.closest('.overflow-x-auto,.overflow-auto,aside');}).slice(0,8).map(el=>({tag:el.tagName,cls:el.className,text:el.textContent?.slice(0,80)}))}));
    if(width<640){
     const fieldOverflow=await page.locator('.app-record-table .app-cell-value').evaluateAll(nodes=>nodes.some(el=>{const b=el.getBoundingClientRect();return b.right>innerWidth+1||el.scrollWidth>el.clientWidth+1;}));
@@ -135,7 +151,7 @@ try{
      await page.keyboard.press('Escape');
      assert.ok(await switcher.evaluate(el=>el===document.activeElement),'Role picker restores focus');
     }
-    const trigger=page.locator('.app-mobile-nav-trigger').first();
+    const trigger=page.locator('.app-side-menu-tab[aria-haspopup="dialog"]').first();
     if(await trigger.count()){
      await trigger.click();
      const drawer=page.locator('.app-navigation-sheet');
@@ -152,6 +168,23 @@ try{
      await page.mouse.click(width-8,height/2);
      await drawer.waitFor({state:'hidden'});
      assert.equal(await page.evaluate(()=>document.body.style.overflow),'','Backdrop dismissal unlocks the page');
+     assert.ok(await trigger.evaluate(el=>el===document.activeElement),'Outside dismissal restores focus to MENU');
+     if(role==='teacher'&&section==='overview'&&width===390){
+      await trigger.click();
+      await drawer.getByRole('button',{name:'Close teacher workspace sidebar'}).click();
+      await drawer.waitFor({state:'hidden'});
+      await trigger.click();
+      await drawer.locator('nav button[aria-current="page"]').click();
+      await drawer.waitFor({state:'hidden'});
+      assert.ok(await trigger.evaluate(el=>el===document.activeElement),'Selecting a destination restores MENU focus');
+      await trigger.click();
+      await page.setViewportSize({width:1440,height:1000});
+      await drawer.waitFor({state:'hidden'});
+      assert.equal(await page.locator('.app-side-menu-tab').count(),0,'Resizing to desktop removes the side tab');
+      assert.equal(await page.evaluate(()=>document.body.style.overflow),'','Desktop navigation unlocks the page');
+      await page.setViewportSize({width,height});
+      await trigger.waitFor({state:'visible'});
+     }
     }
     if(role==='principal'){
      await page.getByRole('button',{name:'Open principal navigation'}).click();

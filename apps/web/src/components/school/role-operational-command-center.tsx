@@ -26,6 +26,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { IntegratedSchoolCommandHeader } from "@/components/school/integrated-school-command-header";
+import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
 import {
   OperationalActionButton,
   type OperationalActionContract,
@@ -8252,14 +8253,15 @@ function GenericRoleOperationalCommandCenter({
               fallbackUserLabel={greetingName}
               actions={(
                 <div className="flex flex-wrap justify-end gap-2">
-                  <button
+                  <MobileMenuTrigger
                     type="button"
                     className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] p-2 text-[#071D49] lg:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
                     aria-label={`Open ${roleTitle} menu`}
+                    aria-expanded={mobileSidebarOpen}
                   >
                     <Menu className="h-5 w-5" />
-                  </button>
+                  </MobileMenuTrigger>
                 <label className="relative w-full sm:w-[320px]">
                   <span className="sr-only">{searchPlaceholder(role, roleProfile, resolvedWorkspace)}</span>
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5F6F89]" />

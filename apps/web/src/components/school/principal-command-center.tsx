@@ -26,6 +26,7 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useModalLayer } from "@/hooks/use-modal-layer";
+import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
 import { MyShuleBrand } from "@/components/brand/myshule-brand";
@@ -658,15 +659,16 @@ export function PrincipalCommandCenter({
                   </div>
                   <div className="app-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
                     <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
-                    <button
+                    <MobileMenuTrigger
                       type="button"
                       aria-label="Open principal navigation"
+                      aria-expanded={mobileSidebarOpen}
                       className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] px-3 py-2 text-sm font-black text-[#071D49] xl:hidden"
                       onClick={() => setMobileSidebarOpen(true)}
                     >
                       <Menu className="mr-2 inline h-4 w-4" aria-hidden="true" />
                       Menu
-                    </button>
+                    </MobileMenuTrigger>
                   </div>
                 </div>
               </header>

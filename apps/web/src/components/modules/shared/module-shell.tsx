@@ -53,6 +53,7 @@ export function ModuleShell({
       <div className="app-module-grid grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
         <div className="xl:hidden">
           <MobileWorkspaceNavigation
+            mobilePlacement="inline"
             label={`${title} sections`}
             value={activeSection}
             onValueChange={onSectionChange}

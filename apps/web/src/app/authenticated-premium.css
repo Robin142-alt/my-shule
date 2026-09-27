@@ -9,6 +9,34 @@
   font-display: swap;
 }
 
+/* Only the primary mobile navigation trigger moves; module section controls stay inline. */
+@media screen and (max-width: 1023px) {
+  .app-top-menu-trigger { display: none; }
+  .app-side-menu-tab {
+    position: fixed;
+    top: 45dvh;
+    left: 0;
+    z-index: 25;
+    transform: translateY(-50%);
+    min-width: 52px;
+    min-height: 44px;
+    padding: 0 6px 0 max(6px, env(safe-area-inset-left));
+    border: 0;
+    border-radius: 0 7px 7px 0;
+    background: rgb(23 53 89 / 84%);
+    color: #fff;
+    font: 500 10px/1 "Inter", "Segoe UI", sans-serif;
+    letter-spacing: .02em;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .app-side-menu-arrow { font-size: 10px; }
+  .app-side-menu-tab:focus-visible { outline: 2px solid #ff7a1a; outline-offset: 3px; }
+  .app-side-menu-tab:disabled { cursor: not-allowed; opacity: .6; }
+  .authenticated-app .app-command-topbar > div:has(> .app-mobile-nav-host[data-mobile-placement="edge"]) { margin-top: 0; }
+}
+@media print { .app-side-menu-tab { display: none; } }
+
 @media screen {
   .authenticated-app {
     --background: #f4f6fa;
