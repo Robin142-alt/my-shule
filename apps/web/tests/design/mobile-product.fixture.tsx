@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs } from "@/components/ui/tabs";
 import { Table } from "@/components/ui/table";
+import { ModuleShell } from "@/components/modules/shared/module-shell";
 
 const items = [
   { id: "overview", label: "Overview", group: "School", icon: LayoutDashboard },
@@ -29,6 +30,7 @@ function Fixture() {
   const [dialog, setDialog] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [workspace, setWorkspace] = useState("overview");
+  const [moduleSection, setModuleSection] = useState("stock");
   const variant = (new URLSearchParams(location.search).get("variant") ?? "school") as "school" | "platform" | "portal";
   const profile = { name: "School Administrator", roleLabel: "Principal", contextLabel: "School workspace" };
   return <AppFrame
@@ -49,6 +51,12 @@ function Fixture() {
       { id: "actions", header: "Actions", render: () => <Button size="sm" variant="outline" onClick={() => setDrawer(true)}>View record</Button> },
     ]} /> }))} />
     <Table aria-label="Detailed analysis"><thead><tr>{Array.from({length:12}, (_, i) => <th className="min-w-32 p-3" key={i}>Subject {i+1}</th>)}</tr></thead><tbody><tr>{Array.from({length:12}, (_, i) => <td className="p-3" key={i}>75%</td>)}</tr></tbody></Table>
+    <ModuleShell eyebrow="Stores" title="Inventory" description="School stock and staff requests" sections={[
+      {id:"stock",label:"Stock",description:"Available school items",badge:"3 low",tone:"warning"},
+      {id:"requests",label:"Requests",description:"Review staff requests",badge:"2 pending"},
+    ]} activeSection={moduleSection} onSectionChange={setModuleSection} sidebarFooter={<p>School stock information</p>}>
+      <p role="status">{moduleSection === "stock" ? "Stock records" : "Request records"}</p>
+    </ModuleShell>
     <Modal open={modal} title="Add student" description="Enter the learner’s details to begin admission." onClose={() => setModal(false)} footer={<><Button variant="outline" onClick={() => setModal(false)}>Cancel</Button><Button onClick={() => setModal(false)}>Save student</Button></>}>
       <form className="grid gap-4 sm:grid-cols-2">{["Full name", "Admission number", "Date of birth", "Class", "Parent name", "Phone number", "Email", "Address", "Emergency contact", "Notes"].map(label => <label key={label} className="grid gap-1.5 text-sm font-medium">{label}<Input aria-label={label} /></label>)}</form>
     </Modal>

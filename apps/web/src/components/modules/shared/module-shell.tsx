@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
+import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import type { StatusTone } from "@/lib/dashboard/types";
 
 export interface ModuleShellSection {
@@ -40,7 +41,7 @@ export function ModuleShell({
   sidebarFooter?: ReactNode;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="app-module-shell space-y-6">
       <PageHeader
         eyebrow={eyebrow}
         title={title}
@@ -49,8 +50,22 @@ export function ModuleShell({
         meta={meta}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-        <Card className="h-fit p-3 xl:sticky xl:top-6">
+      <div className="app-module-grid grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="xl:hidden">
+          <MobileWorkspaceNavigation
+            label={`${title} sections`}
+            value={activeSection}
+            onValueChange={onSectionChange}
+            items={sections.map((section) => ({
+              ...section,
+              badge: section.badge && section.tone
+                ? <StatusPill label={section.badge} tone={section.tone} />
+                : section.badge,
+            }))}
+            footer={sidebarFooter}
+          />
+        </div>
+        <Card className="hidden h-fit p-3 xl:block xl:sticky xl:top-6">
           <div className="border-b border-border px-3 py-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
               Module Sections

@@ -14,7 +14,7 @@ export function SchoolPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <Card className="p-5">
+    <Card className="app-school-page-header p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">{eyebrow}</p>

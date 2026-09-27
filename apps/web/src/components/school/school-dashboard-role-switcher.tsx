@@ -65,14 +65,14 @@ export function SchoolDashboardRoleSwitcher({
         onClick={() => {
           setOpen(true);
         }}
-        className={`min-h-11 min-w-0 max-w-full justify-between gap-2 px-3 text-left sm:min-w-[210px] ${className}`}
+        className={`app-role-switcher min-h-11 min-w-0 max-w-full justify-between gap-2 px-3 text-left sm:min-w-[210px] ${className}`}
         data-testid="school-dashboard-role-switcher"
       >
-        <span className="min-w-0">
-          <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-muted">
+        <span className="app-role-switcher-label min-w-0">
+          <span className="app-role-switcher-caption block text-[10px] font-black uppercase tracking-[0.14em] text-muted">
             {degraded ? "Dashboard access" : "Working as"}
           </span>
-          <span className="block truncate text-xs font-black text-foreground">
+          <span className="app-role-switcher-value block truncate text-xs font-black text-foreground">
             {degraded ? "Needs attention" : activeLabel}
           </span>
         </span>

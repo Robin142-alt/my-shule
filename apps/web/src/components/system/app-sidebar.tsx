@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { useModalLayer } from "@/hooks/use-modal-layer";
 
 import { MyShuleBrand } from "@/components/brand/myshule-brand";
@@ -64,7 +65,9 @@ export function AppSidebar({
   onClose: () => void;
 }) {
   const styles = variantStyles[variant];
-  const sidebarRef = useModalLayer<HTMLElement>(mobileOpen, onClose);
+  const [query, setQuery] = useState("");
+  const closeSidebar = () => { setQuery(""); onClose(); };
+  const sidebarRef = useModalLayer<HTMLElement>(mobileOpen, closeSidebar);
   useEffect(() => {
     if (!mobileOpen) return;
     const media = window.matchMedia("(min-width: 1024px)");
@@ -72,7 +75,10 @@ export function AppSidebar({
     media.addEventListener("change", closeOnDesktop);
     return () => media.removeEventListener("change", closeOnDesktop);
   }, [mobileOpen, onClose]);
-  const groupedItems = navItems.reduce<Array<{ group: string; items: ExperienceNavItem[] }>>(
+  const visibleItems = mobileOpen && query.trim()
+    ? navItems.filter((item) => `${item.label} ${item.group ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()))
+    : navItems;
+  const groupedItems = visibleItems.reduce<Array<{ group: string; items: ExperienceNavItem[] }>>(
     (groups, item) => {
       const groupLabel = item.group ?? "Sections";
       const existingGroup = groups.find((entry) => entry.group === groupLabel);
@@ -100,18 +106,18 @@ export function AppSidebar({
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="app-sidebar-heading flex items-center justify-between gap-3">
         <MyShuleBrand markSize={38} nameClassName="text-base" />
         <button
           type="button"
-          onClick={onClose}
+          onClick={closeSidebar}
           className="rounded-[var(--radius-sm)] border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium text-white/80 lg:hidden"
         >
           Close
         </button>
       </div>
 
-      <div className="mt-5 rounded-[var(--radius-sm)] border border-white/10 bg-white/[0.06] px-3 py-3">
+      <div className="app-sidebar-context mt-5 rounded-[var(--radius-sm)] border border-white/10 bg-white/[0.06] px-3 py-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60">
           Menu
         </p>
@@ -123,7 +129,16 @@ export function AppSidebar({
         </p>
       </div>
 
-      <nav className="mt-6 space-y-5">
+      {navItems.length > 7 ? (
+        <label className="relative mt-3 block lg:hidden">
+          <span className="sr-only">Search navigation</span>
+          <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-white/60" aria-hidden="true" />
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a workspace"
+            className="min-h-11 w-full rounded-lg border border-white/20 bg-white/10 pl-9 pr-2 text-base text-white placeholder:text-white/60" />
+        </label>
+      ) : null}
+      <nav aria-label={`${brand.title} workspaces`} className="mt-6 space-y-5">
+        {groupedItems.length === 0 ? <p role="status" className="px-2 py-3 text-sm text-white/80">No matching workspace. Try a shorter search.</p> : null}
         {groupedItems.map((group) => (
           <div key={group.group} className="space-y-1.5">
             <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
@@ -138,14 +153,14 @@ export function AppSidebar({
                   key={item.id}
                   href={item.href}
                   aria-current={isActive ? "page" : undefined}
-                  onClick={onClose}
+                  onClick={closeSidebar}
                   className={`flex items-center justify-between gap-3 rounded-[var(--radius-sm)] px-3 py-2.5 text-sm font-medium transition duration-150 ${
                     isActive ? styles.active : styles.idle
                   }`}
                 >
                   <span className="flex min-w-0 items-center gap-3">
                     <Icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="app-sidebar-link-label truncate">{item.label}</span>
                   </span>
                   {item.badge ? (
                     <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/75">

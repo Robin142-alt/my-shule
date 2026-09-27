@@ -51,6 +51,12 @@ try {
     if(width<1024){
       await page.getByRole('button',{name:'Open navigation',exact:true}).click();
       const sidebar=page.getByRole('dialog',{name:'MyShule navigation'});await sidebar.waitFor();
+      const sidebarBox=await sidebar.boundingBox();assert.ok(sidebarBox.width<=280&&sidebarBox.width<=width*.78+1,'Sidebar must leave the page visible');
+      await sidebar.getByRole('searchbox',{name:'Search navigation'}).fill('reports');
+      assert.equal(await sidebar.getByRole('link').count(),1,'Navigation search preserves matching destinations');
+      await sidebar.getByRole('link',{name:'Reports',exact:true}).click();await sidebar.waitFor({state:'hidden'});
+      await page.getByRole('button',{name:'Open navigation',exact:true}).click();
+      assert.equal(await sidebar.getByRole('searchbox',{name:'Search navigation'}).inputValue(),'','Reopening navigation restores the full menu');
       await inside(sidebar.getByRole('button',{name:'Close',exact:true}));
       await page.keyboard.press('Escape');await sidebar.waitFor({state:'hidden'});
       assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
@@ -60,6 +66,18 @@ try {
       await page.screenshot({path:path.join(out,`navigation-${width}x${height}.png`)});
       await nav.getByRole('button',{name:'Reports',exact:true}).click();
       assert.match(await page.getByRole('button',{name:'Open School workspace sidebar'}).innerText(),/Reports/);
+    }
+    if(width<1280){
+      const trigger=page.getByRole('button',{name:'Open Inventory sections sidebar'});
+      await trigger.click();
+      const menu=page.getByRole('dialog',{name:'Inventory sections'});
+      await menu.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
+      await inside(menu);
+      assert.equal(await menu.getByText('3 low',{exact:true}).count(),1);
+      assert.equal(await menu.getByText('School stock information',{exact:true}).count(),1);
+      await menu.getByRole('button',{name:/Requests/}).click();
+      await page.getByText('Request records',{exact:true}).waitFor();
+      assert.ok(await trigger.evaluate(el=>el===document.activeElement));
     }
     await page.getByRole('button',{name:'Add student',exact:true}).click();
     const modal=page.getByRole('dialog',{name:'Add student',exact:true});

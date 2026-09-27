@@ -574,9 +574,11 @@ export function PrincipalCommandCenter({
                 mobileSidebarOpen ? "translate-x-0" : "-translate-x-full",
               )}
             >
-              <button type="button" onClick={() => setMobileSidebarOpen(false)} className="mb-3 min-h-11 self-end rounded-lg bg-white/10 px-4 text-sm font-semibold xl:hidden">Close navigation</button>
-              <div className="app-sidebar-brand mb-4 px-2"><MyShuleBrand markSize={30} nameClassName="text-base" /></div>
-              <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
+              <div className="app-principal-nav-heading flex shrink-0 items-center justify-between gap-2 mb-3">
+                <div className="app-sidebar-brand px-2"><MyShuleBrand markSize={30} nameClassName="text-base" /></div>
+                <button type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm font-semibold xl:hidden">Close</button>
+              </div>
+              <div className="app-principal-nav-identity rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
                 <div className="flex items-center gap-3">
                   {principalSchoolProfile?.logoUrl && failedSchoolLogoUrl !== principalSchoolProfile.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -654,7 +656,7 @@ export function PrincipalCommandCenter({
                     <DashboardGreeting name={principalName} context={`${schoolName} command center`} />
                     <h1 className="mt-1 text-2xl font-black">Principal Dashboard</h1>
                   </div>
-                  <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+                  <div className="app-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
                     <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
                     <button
                       type="button"

@@ -39,7 +39,7 @@ export function useSchoolMutation(){return {isPending:false,mutateAsync:async()=
 export function useDashboardTasks(){return {...state,tasks:[],completeTask:async()=>{throw new Error('Read-only fixture');}};}
 export function useApprovals(){return {...state,approvals:[],approve:async()=>{},reject:async()=>{}};}
 export function useNotifications(){return {...state,notifications:[],unreadCount:0,markAsRead:async()=>{}};}
-export function useOptionalSchoolDashboardRole(){const role=location.pathname.split('/')[2];return {userId:'qa-only',liveDataEnabled:true,userLabel:'QA user',availableRoles:[{authorizationRoleCode:role,roleName:role,isPrimary:true}],activeAuthorizationRoleCode:role,switchDashboardRole:async()=>{}};}
+export function useOptionalSchoolDashboardRole(){const role=location.pathname.split('/')[2];const name=role.split('-').map(word=>word[0].toUpperCase()+word.slice(1)).join(' ');return {userId:'qa-only',liveDataEnabled:!['parent','student'].includes(role),userLabel:'QA user',availableRoles:[{roleCode:role,authorizationRoleCode:role,roleName:name,isPrimary:true},{roleCode:role==='teacher'?'principal':'teacher',authorizationRoleCode:role==='teacher'?'principal':'teacher',roleName:role==='teacher'?'Principal':'Teacher',isTeacherMode:role!=='teacher'}],activeAuthorizationRoleCode:role,switchDashboardRole:async()=>{}};}
 `);
 const imports=[['PrincipalCommandCenter','principal-command-center'],['DeputyPrincipalCommandCenter','deputy-principal-command-center'],['AccountantCommandCenter','accountant-command-center'],['AdmissionsDashboardCommandCenter','admissions-dashboard/admissions-dashboard-command-center'],['LiveRoleCommandCenter','live-role-command-center'],['TeacherCommandCenter','teacher-command-center'],['ClassTeacherCommandCenter','class-teacher-command-center'],['GradeMasterCommandCenter','grade-master-command-center'],['HodCommandCenter','hod-command-center'],['DeanAcademicsCommandCenter','dean-academics-command-center'],['ExamsManagerCommandCenter','exams-manager-command-center']];
 fs.writeFileSync(path.join(out,'entry.tsx'),`
@@ -71,6 +71,7 @@ await new Promise(resolve=>server.listen(process.argv.includes('--preview')?3016
 if(process.argv.includes('--preview')){console.log('Isolated role preview: http://127.0.0.1:3016/school/principal/overview');await new Promise(()=>{});}
 const browser=await chromium.launch({headless:true});const results=[];
 let cases=[...['teacher','class-teacher','grade-master','hod','dean-academics','exams-manager','system-monitor','superadmin'].map(role=>[role,'overview']),['principal','overview'],['principal','students'],['principal','settings'],['deputy-principal','overview'],['deputy-principal','timetable'],['accountant','overview'],['accountant','payments'],['admissions','overview'],...['secretary','librarian','storekeeper','nurse','guidance-counselling','discipline-master','laboratory-technician','ict-manager','security-officer','transport-manager','boarding-master'].map(role=>[role,'overview']),['librarian','books'],['nurse','visits'],['parent','dashboard'],['parent','fees'],['student','dashboard'],['student','academics']];
+cases.push(['teacher','lesson-log']);
 if(process.argv.includes('--all-workspaces')){
  const configSource=ts.createSourceFile('roles.tsx',fs.readFileSync(path.join(web,'src/components/school/live-role-command-center.tsx'),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  function visit(node){
@@ -93,7 +94,7 @@ if(process.argv.includes('--all-workspaces')){
 }
 const roleFilter=process.argv.find(arg=>arg.startsWith('--roles='))?.slice(8).split(',');
 if(roleFilter)cases=cases.filter(([role])=>roleFilter.includes(role));
-const viewports=process.argv.includes('--all-workspaces')?[[320,740],[1440,1000]]:[[320,740],[390,844],[768,1024],[1440,1000]];
+const viewports=process.argv.includes('--all-workspaces')?[[320,740],[1440,1000]]:[[320,740],[390,844],[768,1024],[1024,768],[1440,1000]];
 try{
  for(const [width,height] of viewports){
   const page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce'});
@@ -115,6 +116,51 @@ try{
     const reset=settings.getByRole('link',{name:'Open secure reset'});
     if(!await reset.evaluate(el=>el.scrollHeight<=el.clientHeight+1&&getComputedStyle(el).color==='rgb(255, 255, 255)'))errors.push('The secure reset link is clipped or has insufficient dark-surface contrast');
     if(!await settings.locator('label:has(input[type="checkbox"])').evaluateAll(nodes=>nodes.length===3&&nodes.every(el=>el.getBoundingClientRect().height>=44)))errors.push('Settings switches need comfortable touch targets');
+   }
+   if(width<640){
+    const intro=page.locator('[data-testid="integrated-school-command-header"]');
+    if(await intro.count()){
+     metrics.introHeight=await intro.evaluate(el=>el.getBoundingClientRect().height);
+     if(role==='teacher')assert.ok(metrics.introHeight<=140,`Teacher intro too tall: ${metrics.introHeight}`);
+    }
+    if(role==='teacher'){
+     metrics.topbarHeight=await page.locator('.app-command-topbar').evaluate(el=>el.getBoundingClientRect().height);
+     assert.ok(metrics.topbarHeight<=64,'Teacher mobile toolbar must fit one row');
+    }
+    const switcher=page.getByTestId('school-dashboard-role-switcher').first();
+    if(await switcher.count()){
+     await switcher.click();
+     const roles=page.getByRole('dialog',{name:'Switch dashboard'});
+     assert.equal(await roles.getByRole('radio').count(),2,'All assigned role options stay available');
+     await page.keyboard.press('Escape');
+     assert.ok(await switcher.evaluate(el=>el===document.activeElement),'Role picker restores focus');
+    }
+    const trigger=page.locator('.app-mobile-nav-trigger').first();
+    if(await trigger.count()){
+     await trigger.click();
+     const drawer=page.locator('.app-navigation-sheet');
+     await drawer.waitFor({state:'visible'});
+     await drawer.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
+     const box=await drawer.boundingBox();
+     assert.ok(box&&Math.abs(box.x)<1&&box.width<=280&&box.width<=width*.78+1,`Navigation must leave the page edge visible: ${role} ${width} ${JSON.stringify(box)}`);
+     assert.ok(box.height>=height-1,'Navigation slides from the left, not the bottom');
+     assert.ok(await drawer.locator('nav button').evaluateAll(nodes=>nodes.every(el=>el.getBoundingClientRect().height>=44)),'Menu touch targets must be at least 44px');
+     const last=drawer.locator('nav button').last();await last.scrollIntoViewIfNeeded();
+     assert.ok(await last.isVisible(),'Last workspace must remain reachable');
+     await drawer.locator('nav').evaluate(el=>{el.scrollTop=0;});
+     if(width===390)await page.screenshot({path:path.join(out,`${role}-${section}-drawer-${width}.png`)});
+     await page.mouse.click(width-8,height/2);
+     await drawer.waitFor({state:'hidden'});
+     assert.equal(await page.evaluate(()=>document.body.style.overflow),'','Backdrop dismissal unlocks the page');
+    }
+    if(role==='principal'){
+     await page.getByRole('button',{name:'Open principal navigation'}).click();
+     const drawer=page.getByRole('dialog',{name:'Principal navigation',exact:true});
+     const box=await drawer.boundingBox();
+     assert.ok(box&&box.width<=280&&box.width<=width*.78+1,'Principal drawer uses the same compact width');
+     if(width===390)await page.screenshot({path:path.join(out,`principal-${section}-drawer-${width}.png`)});
+     await page.keyboard.press('Escape');
+    }
    }
    const passed=metrics.hasShell&&metrics.pageWidth<=width&&errors.length===0;
    results.push({role,section,width,height,passed,...metrics,errors});

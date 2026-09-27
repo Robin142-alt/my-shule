@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
+import { ModuleShell } from "@/components/modules/shared/module-shell";
 
 const items = [
   { id: "overview", label: "Overview", group: "Command" },
@@ -30,6 +31,29 @@ function NavigationHarness() {
 }
 
 describe("mobile workspace navigation", () => {
+  it("preserves module descriptions, badges, footer actions and section callbacks in the drawer", async () => {
+    const user = userEvent.setup();
+    const change = jest.fn();
+    const retry = jest.fn();
+    render(<ModuleShell eyebrow="Stores" title="Inventory" description="School stock" sections={[
+      { id: "stock", label: "Stock", description: "Available items", badge: "3 low", tone: "warning" },
+      { id: "requests", label: "Requests", description: "Review staff requests", badge: "2 pending" },
+    ]} activeSection="stock" onSectionChange={change} sidebarFooter={<button onClick={retry}>Retry stock data</button>}>
+      <p>Inventory records</p>
+    </ModuleShell>);
+    const trigger = screen.getByRole("button", { name: "Open Inventory sections sidebar" });
+    await user.click(trigger);
+    const drawer = screen.getByRole("dialog", { name: "Inventory sections" });
+    expect(within(drawer).getByText("3 low")).toBeVisible();
+    expect(within(drawer).getByText("Available items")).toBeVisible();
+    await user.click(within(drawer).getByRole("button", { name: "Retry stock data" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    await user.click(within(drawer).getByRole("button", { name: /Requests.*2 pending.*Review staff requests/ }));
+    expect(change).toHaveBeenCalledWith("requests");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it("replaces the native picker with a grouped, searchable sidebar and restores focus", async () => {
     const user = userEvent.setup();
     render(<NavigationHarness />);

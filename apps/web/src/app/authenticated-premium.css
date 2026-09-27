@@ -187,8 +187,9 @@
   /* Portals escape the app root; use their existing explicit component slots. */
   :is(.app-modal-panel, .app-navigation-sheet, .app-popover-sheet) { font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif; border-color: #e2e7ef; box-shadow: 0 24px 80px rgb(17 36 62 / 22%); }
   .app-modal-panel { border-radius: 20px; }
-  .app-navigation-sheet > div:first-child { background: #f7f9fc; }
-  .app-navigation-sheet nav [aria-current="page"] { background: #fff0e5; color: #813e17; box-shadow: inset 3px 0 #df8042; }
+  .app-navigation-sheet { box-shadow: 12px 0 36px rgb(17 36 62 / 16%); }
+  .app-navigation-sheet > div:first-child { background: #fff; padding: 12px; }
+  .app-navigation-sheet nav [aria-current="page"] { background: #edf3fb; color: #173559; box-shadow: inset 3px 0 #c65016; }
   .authenticated-app .app-mobile-nav-trigger { border-color: #d9e2ed; border-radius: 14px; box-shadow: var(--shadow-sm); }
   .authenticated-app .app-mobile-nav-trigger > span:first-child { background: #173559; color: #fff; border-radius: 10px; }
 
@@ -198,22 +199,91 @@
     .authenticated-app .app-command-topbar { padding-inline: 32px; }
   }
   @media (max-width: 1023px) {
-    .authenticated-app .app-workspace-header { padding: 20px; border-radius: 17px; }
-    .authenticated-app .app-workspace-panel { padding: 18px; }
+    .authenticated-app .app-sidebar { padding-inline: 12px; border-radius: 0 16px 16px 0; }
+    .authenticated-app .app-sidebar-context { margin-top: 12px; padding: 10px; }
+    .authenticated-app .app-sidebar-context p { margin-top: 2px; font-size: 12px; line-height: 1.4; }
+    .authenticated-app .app-sidebar-context p:first-child { font-size: 10px; }
+    .authenticated-app .app-sidebar nav { margin-top: 12px; }
+    .authenticated-app .app-sidebar nav a { padding: 8px; }
+    .authenticated-app .app-sidebar-link-label { white-space: normal; overflow: visible; line-height: 1.4; }
+    .authenticated-app .app-workspace-header { padding: 12px 16px; border-radius: 12px; background: #fff; box-shadow: none; }
+    .authenticated-app .app-workspace-header::before { top: 12px; bottom: 12px; width: 2px; }
+    .authenticated-app .app-workspace-header > .flex { gap: 8px; }
+    .authenticated-app .app-header-actions:empty { display: none; }
+    .authenticated-app .app-workspace-header h1 { margin-top: 4px; font-size: 18px; line-height: 1.3; letter-spacing: -.025em; }
+    .authenticated-app .app-greeting { margin-bottom: 0; }
+    .authenticated-app .app-greeting > :first-child { font-size: 12px; line-height: 1.4; }
+    .authenticated-app .app-greeting > p + p { margin-top: 2px; line-height: 1.4; color: var(--muted); }
+    .authenticated-app .app-role-switcher { width: fit-content; min-width: 0; min-height: 44px; padding: 6px 10px; box-shadow: none; }
+    .authenticated-app .app-role-switcher-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+    .authenticated-app .app-role-switcher-caption { text-transform: none; letter-spacing: 0; font-size: 11px; font-weight: 450; }
+    .authenticated-app .app-role-switcher-value { white-space: normal; overflow: visible; font-size: 12px; text-align: left; }
+    /* A lone role control sits beside the introduction; headers with workflow
+       actions retain their wrapping action row. Long names can grow naturally. */
+    .authenticated-app .app-workspace-header > .flex:has(> .app-header-actions > .app-role-switcher:only-child) { flex-direction: row; align-items: center; }
+    .authenticated-app .app-header-actions:has(> .app-role-switcher:only-child) { flex-shrink: 0; max-width: 40%; }
+    .authenticated-app .app-header-actions > .app-role-switcher:only-child .app-role-switcher-label { display: block; }
+    .authenticated-app .app-content { padding-top: 12px; }
+    .authenticated-app .app-content > :not(:last-child),
+    .authenticated-app main:has(> .app-workspace-header) > :not(:last-child) { margin-block-end: 12px; }
+    .authenticated-app .app-workspace-panel { padding: 14px; }
+    .authenticated-app .app-command-topbar { padding: max(8px, env(safe-area-inset-top)) 12px 8px; }
+    .authenticated-app .app-command-topbar > .mt-3 { margin-top: 8px; }
+    .authenticated-app .app-mobile-nav-trigger { min-height: 44px; gap: 8px; padding: 0 10px; border-radius: 10px; font-size: 13px; box-shadow: none; }
+    .authenticated-app .app-mobile-nav-icon { width: 28px; height: 28px; border-radius: 7px; }
+    .authenticated-app .app-mobile-nav-hint { font-size: 11px; font-weight: 550; }
     .authenticated-app .app-workspace-heading > h2, .authenticated-app .app-workspace-surface > .app-workspace-title { color: #fff; }
     .authenticated-app .app-workspace-heading > p { color: #c3cfdf; }
   }
+  @media (max-width: 1279px) {
+    .authenticated-app .app-principal-sidebar { padding-inline: 12px; border-radius: 0 16px 16px 0; }
+    .authenticated-app .app-principal-nav-heading .app-sidebar-brand { padding: 0; border: 0; }
+    .authenticated-app .app-principal-nav-identity { padding: 10px; border-radius: 10px; }
+    .authenticated-app .app-principal-nav-identity :is(img, span.h-14) { width: 32px; height: 32px; }
+    .authenticated-app .app-principal-nav-identity h2 { font-size: 14px; }
+    .authenticated-app .app-principal-nav-identity p { font-size: 10px; }
+    .authenticated-app .app-principal-sidebar nav { margin-top: 12px; padding-bottom: 12px; overscroll-behavior: contain; }
+    .authenticated-app .app-principal-sidebar nav :is(button, a) { min-height: 44px; padding-block: 8px; }
+    .authenticated-app .app-principal-sidebar nav .truncate { white-space: normal; overflow: visible; line-height: 1.4; }
+    .authenticated-app .app-principal-sidebar nav button:has(> svg:only-child) { min-width: 44px; }
+  }
   @media (max-width: 639px) {
     .authenticated-app { background: #f4f6fa; }
-    .authenticated-app .app-content { padding: 16px 12px 28px; }
-    .authenticated-app .app-workspace-header { padding: 18px; }
-    .authenticated-app .app-workspace-header h1 { font-size: 1.45rem; }
-    .authenticated-app .app-workspace-header::before { top: 18px; bottom: 18px; }
-    .authenticated-app .app-overview-banner { gap: 16px; padding: 20px; }
+    .authenticated-app .app-content { padding: 12px 12px max(20px, env(safe-area-inset-bottom)); }
+    .authenticated-app .app-overview-banner { gap: 12px; padding: 16px; }
+    .authenticated-app .app-teaching-welcome { padding: 16px; border-radius: 12px; }
+    .authenticated-app .app-teaching-welcome h2 { margin-top: 4px; font-size: 18px; line-height: 1.35; }
+    .authenticated-app .app-teaching-welcome p:not(.uppercase) { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+    .authenticated-app .app-teaching-welcome button { margin-top: 12px; font-size: 12px; }
     .authenticated-app .app-overview-banner h2 { font-size: 1.35rem; }
     .authenticated-app .app-overview-banner p:not(.uppercase) { font-size: 12px; line-height: 1.65; }
     .authenticated-app .app-overview-banner button { font-size: 12px; }
-    .authenticated-app .app-workspace-panel { padding: 16px; }
+    .authenticated-app .app-workspace-panel { padding: 12px; border-radius: 12px; }
+    .authenticated-app .app-workspace-panel > div:first-child { margin-bottom: 12px; gap: 8px; }
+    .authenticated-app .app-workspace-panel > div:first-child h2 { font-size: 16px; }
+    .authenticated-app .app-workspace-panel > div:first-child p { margin-top: 2px; line-height: 1.5; }
+    .authenticated-app .app-workspace-panel > div:first-child .h-10.w-10 { width: 32px; height: 32px; border-radius: 8px; }
+    .authenticated-app .app-workspace-panel > .border-dashed { min-height: 96px; padding: 16px; }
+    .authenticated-app :is(.app-school-page-header, .app-operational-header) { padding: 12px; border-radius: 12px; }
+    .authenticated-app :is(.app-school-page-header, .app-operational-header) > div:first-child { gap: 8px; }
+    .authenticated-app :is(.app-school-page-header, .app-operational-header, .app-page-header) :is(h1, h2) { margin-top: 4px; font-size: 18px; line-height: 1.3; }
+    .authenticated-app :is(.app-school-page-header, .app-operational-header) p { margin-top: 4px; font-size: 12px; line-height: 1.5; }
+    .authenticated-app .app-operational-header > div:last-child { margin-top: 12px; gap: 6px; padding: 8px; }
+    .authenticated-app .app-operational-header > div:first-child > div:last-child { flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .authenticated-app .app-module-grid { gap: 12px; }
+    .authenticated-app .app-module-shell > :not(:last-child) { margin-block-end: 12px; }
+    .authenticated-app .app-empty-state { padding: 16px 12px; border-radius: 12px; }
+    .authenticated-app .app-empty-state-icon { width: 32px; height: 32px; border-radius: 10px; }
+    .authenticated-app .app-empty-state .eyebrow { margin-top: 8px; }
+    /* These bars have the same workspace name in the menu trigger. Put that
+       trigger beside the existing inbox controls, keeping their DOM and state. */
+    .authenticated-app .app-compact-command-topbar { display: flex; align-items: center; gap: 4px; }
+    .authenticated-app .app-compact-command-topbar > .flex:first-child { display: contents; }
+    .authenticated-app .app-compact-command-topbar > .flex:first-child > :first-child { display: none; }
+    .authenticated-app .app-compact-command-topbar > .flex:first-child > :last-child { order: 2; flex-wrap: nowrap; gap: 0; }
+    .authenticated-app .app-compact-command-topbar > .mt-3 { order: 1; flex: 1; min-width: 0; margin: 0; }
+    .authenticated-app .app-compact-command-topbar .app-mobile-nav-trigger { padding: 0; border: 0; gap: 6px; background: transparent; }
+    .authenticated-app .app-compact-command-topbar .app-mobile-nav-hint { display: none; }
     .authenticated-app :is(.app-principal-workspace, .app-dark-workspace, .app-workspace-surface) { padding: 12px; border-radius: 17px; }
     .authenticated-app :is(.app-overview-canvas, .app-finance-canvas) { padding: 0; }
     .authenticated-app .app-metric-grid > :is(div, section, article, button), .authenticated-app .app-metric-card { padding: 14px; border-radius: 13px; }
@@ -226,5 +296,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .authenticated-app *, .app-navigation-sheet, .app-modal-panel { scroll-behavior: auto; transition-duration: 0s; animation-duration: 0s; }
+    .app-navigation-sheet { animation: none; }
   }
 }
