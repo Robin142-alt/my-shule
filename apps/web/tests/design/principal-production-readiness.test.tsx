@@ -354,7 +354,7 @@ describe("principal production readiness", () => {
   ])("opens the governed %s workspace from the overview banner", async (label, section) => {
     const user = userEvent.setup();
     renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
-    await user.click(await screen.findByRole("button", { name: label, exact: true }));
+    await user.click(await screen.findByRole("button", { name: label }));
     expect(window.location.pathname).toBe(`/school/principal/${section}`);
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
       `/admin-command/principal/${section}`,
