@@ -1,3 +1,4 @@
+import { authFetch } from "@/lib/auth/auth-fetch";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 
 export type InvitationAcceptanceResult = {
@@ -15,7 +16,7 @@ export async function acceptInvitation(input: {
   displayName?: string;
   tenantSlug?: string | null;
 }) {
-  const response = await fetch("/api/auth/invitations/accept", {
+  const response = await authFetch("/api/auth/invitations/accept", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -29,7 +30,7 @@ export async function acceptInvitation(input: {
     | { message?: string }
     | null;
 
-  if (!response.ok) {
+  if (!response.ok || !payload || !("success" in payload) || payload.success !== true) {
     throw new Error(payload?.message ?? "Unable to accept this invitation.");
   }
 

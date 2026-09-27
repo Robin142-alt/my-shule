@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { SecurityBadge, SessionWarning } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import { verifyEmail } from "@/lib/auth/email-verification-client";
 
@@ -28,7 +27,9 @@ export function VerifyEmailView({
       const normalizedToken = nextToken.trim();
 
       if (normalizedToken.length < 4) {
-        setError("Enter the verification code or open the link from your email.");
+        setError(
+          "Enter the verification code or open the link from your email.",
+        );
         return;
       }
 
@@ -62,15 +63,20 @@ export function VerifyEmailView({
 
   return (
     <AuthCard>
-      <div className="space-y-6">
+      <form
+        className="space-y-5"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!busy) void submitToken();
+        }}
+      >
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label="Email ownership" tone="success" />
-            <SecurityBadge label="Single-use token" />
-          </div>
-          <h2 className="text-3xl font-bold leading-tight text-foreground">Verify your email</h2>
+          <h1 className="text-3xl font-bold leading-tight text-foreground">
+            Verify your email
+          </h1>
           <p className="text-sm leading-6 text-muted">
-            Use the secure link from your message or paste the verification token below.
+            Open the link in your email or enter your verification code.
           </p>
         </div>
 
@@ -82,26 +88,36 @@ export function VerifyEmailView({
           />
         ) : (
           <div className="space-y-4">
-            <AuthField
-              label="Verification token"
-              placeholder="Paste your email verification token"
-              autoComplete="one-time-code"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              error={error ?? undefined}
-            />
-            <AuthSubmitButton busy={busy} onClick={() => void submitToken()}>
+            {!initialToken && (
+              <AuthField
+                label="Verification token"
+                placeholder="Paste your email verification token"
+                autoComplete="one-time-code"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                error={error ?? undefined}
+              />
+            )}
+            {initialToken && error ? (
+              <AuthMessage
+                tone="error"
+                title="Unable to verify email"
+                description={error}
+              />
+            ) : null}
+            <AuthSubmitButton busy={busy} type="submit">
               Verify email
             </AuthSubmitButton>
           </div>
         )}
 
-        <SessionWarning mode="normal" />
-
-        <Link href={backHref} className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline">
+        <Link
+          href={`${backHref}?expired=1`}
+          className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline"
+        >
           Back to login
         </Link>
-      </div>
+      </form>
     </AuthCard>
   );
 }

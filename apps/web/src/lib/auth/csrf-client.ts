@@ -1,8 +1,9 @@
+import { authFetch } from "@/lib/auth/auth-fetch";
 let csrfTokenPromise: Promise<string> | null = null;
 
 export async function getCsrfToken() {
   if (!csrfTokenPromise) {
-    csrfTokenPromise = fetch("/api/auth/csrf", {
+    csrfTokenPromise = authFetch("/api/auth/csrf", {
       method: "GET",
       credentials: "same-origin",
       cache: "no-store",

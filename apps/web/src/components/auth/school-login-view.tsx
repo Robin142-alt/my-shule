@@ -2,27 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { ShieldCheck } from "lucide-react";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthCheckbox } from "@/components/auth/auth-checkbox";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
-import {
-  MobileTrustRow,
-  SecurityBadge,
-  SessionWarning,
-} from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { isMfaChallengeRequiredError } from "@/lib/auth/mfa-challenge";
 import {
-  isMfaChallengeRequiredError,
-} from "@/lib/auth/mfa-challenge";
-import {
+  clearMfaLoginChallenge,
   buildMfaVerificationPath,
   storeMfaLoginChallenge,
 } from "@/lib/auth/mfa-login-challenge";
@@ -30,10 +23,7 @@ import type { SchoolBrandingResolution } from "@/lib/auth/school-branding";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
 const staffLoginSchema = z.object({
-  identifier: z
-    .string()
-    .trim()
-    .email("Enter a valid work email address."),
+  identifier: z.string().trim().email("Enter a valid work email address."),
   password: z.string().min(8, "Enter your password."),
 });
 
@@ -44,15 +34,21 @@ export function SchoolLoginView({
   initialEmail = "",
   initialTenantSlug = null,
   acceptedInvite = false,
+  title = "Sign in to MyShule",
 }: {
   resolution: SchoolBrandingResolution;
   initialEmail?: string;
   initialTenantSlug?: string | null;
   acceptedInvite?: boolean;
+  title?: string;
 }) {
   const router = useRouter();
+  useEffect(() => {
+    clearMfaLoginChallenge();
+  }, []);
   const [rememberMe, setRememberMe] = useState(true);
-  const resolvedTenantSlug = resolution.status === "resolved" ? resolution.requestedSlug : null;
+  const resolvedTenantSlug =
+    resolution.status === "resolved" ? resolution.requestedSlug : null;
   const effectiveTenantSlug = initialTenantSlug?.trim() || resolvedTenantSlug;
   const authSession = useExperienceSession("school", {
     tenantSlug: effectiveTenantSlug,
@@ -70,28 +66,6 @@ export function SchoolLoginView({
     },
   });
   const isTenantUnavailable = resolution.status === "unknown";
-
-  const tenantMessage =
-    resolution.status === "unknown"
-      ? {
-          tone: "error" as const,
-          title: "Workspace not recognized",
-          description:
-            "This school address could not be verified. Use your official My Shule login page or contact your administrator.",
-        }
-      : resolution.status === "default"
-        ? {
-            tone: "warning" as const,
-            title: "School account lookup",
-            description:
-              "Use your email and password. My Shule will open the school linked to your account.",
-          }
-        : {
-            tone: "info" as const,
-            title: "School-isolated access",
-            description:
-              "Your session opens only your school's data, branding, modules, and role permissions.",
-          };
 
   const submit = handleSubmit(async (values) => {
     if (isTenantUnavailable) {
@@ -114,6 +88,7 @@ export function SchoolLoginView({
           password: values.password,
           tenantSlug: effectiveTenantSlug,
           redirectFallback: "/dashboard",
+          rememberSession: rememberMe,
         });
         clearErrors();
         authSession.clearError();
@@ -126,80 +101,50 @@ export function SchoolLoginView({
 
   return (
     <AuthCard>
-      <form className="space-y-6" onSubmit={submit}>
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-[var(--radius)] bg-accent text-sm font-bold text-white shadow-[0_0_24px_rgba(255,122,26,0.26)]">
-              {resolution.branding.logoMark}
-            </span>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">School workspace</h3>
-              <p className="text-sm text-muted">{resolution.branding.county}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label="School admin" tone="success" />
-            <SecurityBadge label="School protected" />
-            <SecurityBadge label="Email verified" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold leading-tight text-foreground">
-              Run your school with operational clarity.
-            </h2>
-            <h3 className="text-3xl font-bold leading-tight text-foreground">Secure admin access</h3>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Visibility across departments, accountable payments, traceable incidents, and responsible student monitoring.
-            </p>
-          </div>
+      <form className="space-y-5" noValidate onSubmit={submit}>
+        <div>
+          <h1>{title}</h1>
+          <p className="mt-2 text-sm text-muted">
+            {acceptedInvite
+              ? "Use the password you just created."
+              : "Enter your school email and password."}
+          </p>
         </div>
-
-        <MobileTrustRow />
-
-        <AuthMessage
-          tone={tenantMessage.tone}
-          title={tenantMessage.title}
-          description={tenantMessage.description}
-        />
-
-        {acceptedInvite ? (
+        {isTenantUnavailable ? (
           <AuthMessage
-            tone="success"
-            title="School access is active"
-            description="Use the password you just created. This login is linked to the invited email and school."
+            tone="error"
+            title="School address not recognized"
+            description="Open your school's official login link or contact your school administrator."
           />
         ) : null}
-
         <div className="space-y-4">
           <AuthField
             label="Email address"
-            autoComplete="email"
+            type="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             {...register("identifier")}
             error={errors.identifier?.message}
           />
           <AuthPasswordField
             label="Password"
-            autoComplete={acceptedInvite ? "new-password" : "current-password"}
+            autoComplete="current-password"
+            enterKeyHint="go"
             {...register("password")}
             error={errors.password?.message}
           />
         </div>
-
-        <div className="flex items-center justify-between gap-3">
+        <div className="auth-actions">
           <AuthCheckbox
             checked={rememberMe}
             onChange={(event) => setRememberMe(event.target.checked)}
-            label="Keep me signed in for up to 14 days"
+            label="Keep me signed in"
           />
-          <Link
-            href="/school/forgot-password"
-            className="text-sm font-bold text-muted underline-offset-4 hover:text-accent hover:underline"
-          >
+          <Link href="/school/forgot-password" className="font-medium">
             Forgot password?
           </Link>
         </div>
-
-        <SessionWarning mode="normal" />
-
         {authSession.error ? (
           <AuthMessage
             tone="error"
@@ -207,33 +152,25 @@ export function SchoolLoginView({
             description={authSession.error}
           />
         ) : null}
-
         <AuthSubmitButton
           busy={isSubmitting || authSession.isSubmitting}
           type="submit"
           disabled={isTenantUnavailable}
         >
-          Sign in securely
+          Sign in
         </AuthSubmitButton>
-
-        <div className="rounded-2xl border border-border bg-surface-muted/80 p-4">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-4 w-4 text-accent" />
-            <p className="text-sm leading-6 text-muted">
-              Need account help? Contact your school administrator or call My Shule on 0769622589.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-accent/25 bg-accent-soft px-4 py-3 text-sm">
-          <span className="font-semibold text-foreground">Looking for the main dashboard route?</span>
-          <Link
-            href="/login"
-            className="font-bold text-accent underline-offset-4 hover:underline"
-          >
-            My Shule dashboard
+        <div className="auth-actions border-t border-border pt-2">
+          <Link href="/parent/login?expired=1" className="font-medium">
+            Parent login
+          </Link>
+          <Link href="/student/login?expired=1" className="font-medium">
+            Student login
           </Link>
         </div>
+        <p className="text-xs text-muted">
+          Invited to MyShule? Open the link in your invitation to set your
+          password.
+        </p>
       </form>
     </AuthCard>
   );

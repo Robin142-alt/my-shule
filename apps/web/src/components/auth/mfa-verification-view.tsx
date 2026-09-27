@@ -2,197 +2,232 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { MobileTrustRow, SecurityBadge } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { useAuthCountdown } from "@/components/auth/use-auth-countdown";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
-import type { ExperienceAudience } from "@/lib/auth/experience-audience";
+import { authFetch } from "@/lib/auth/auth-fetch";
 import {
+  CHALLENGE_TTL_MS,
   clearMfaLoginChallenge,
   readMfaLoginChallenge,
+  storeMfaLoginChallenge,
   type MfaLoginChallenge,
 } from "@/lib/auth/mfa-login-challenge";
-import { MFA_CHALLENGE_HELP_TEXT, normalizeMfaCode } from "@/lib/auth/mfa-challenge";
+import {
+  isMfaChallengeRequiredMessage,
+  normalizeMfaCode,
+} from "@/lib/auth/mfa-challenge";
 
-type LoginResponse = {
-  redirectTo?: string;
-};
-
-const loginHrefByAudience: Record<ExperienceAudience, string> = {
+const loginPaths = {
   superadmin: "/superadmin/login",
   school: "/school/login",
   portal: "/portal/login",
 };
-
-function isAudience(value: string | null): value is ExperienceAudience {
-  return value === "superadmin" || value === "school" || value === "portal";
-}
-
-function parseLoginError(payload: unknown, fallback: string) {
-  if (
-    typeof payload === "object" &&
-    payload !== null &&
-    "message" in payload &&
-    typeof payload.message === "string"
-  ) {
-    return payload.message;
-  }
-
-  return fallback;
-}
-
-function maskIdentifier(identifier?: string) {
-  if (!identifier) {
-    return "your account";
-  }
-
-  if (!identifier.includes("@")) {
-    return identifier;
-  }
-
-  const [name, domain] = identifier.split("@");
-  return `${name.slice(0, 2)}***@${domain}`;
-}
-
 export function MfaVerificationView() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const requestedAudience = searchParams.get("audience");
-  const [challenge] = useState<MfaLoginChallenge | null>(() => readMfaLoginChallenge());
+  const queryClient = useQueryClient();
+  const params = useSearchParams();
+  const [challenge, setChallenge] = useState<MfaLoginChallenge | null>(null);
+  const [ready, setReady] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const expectedAudience = isAudience(requestedAudience) ? requestedAudience : null;
-  const activeChallenge =
-    challenge && (!expectedAudience || challenge.audience === expectedAudience)
-      ? challenge
-      : null;
-  const loginHref = activeChallenge?.audience
-    ? loginHrefByAudience[activeChallenge.audience]
-    : expectedAudience
-      ? loginHrefByAudience[expectedAudience]
-      : "/login";
-  const canSubmit = Boolean(activeChallenge);
-  const pageError =
-    challenge && !activeChallenge
-      ? "This verification request does not match the login you started."
-      : error;
-  const maskedIdentifier = maskIdentifier(activeChallenge?.identifier);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const lock = useRef(false);
+  const codeRef = useRef<HTMLInputElement>(null);
+  const [resendAt, setResendAt] = useState<number | null>(null);
+  useEffect(() => {
+    const stored = readMfaLoginChallenge();
+    setChallenge(stored);
+    setResendAt(stored ? stored.createdAt + 30_000 : null);
+    setReady(true);
+  }, []);
+  const remaining = useAuthCountdown(
+    challenge ? challenge.createdAt + CHALLENGE_TTL_MS : null,
+  );
+  const resendSeconds = useAuthCountdown(resendAt);
+  const requested = params.get("audience");
+  const matches = !requested || requested === challenge?.audience;
+  const active = challenge && matches && remaining > 0 ? challenge : null;
+  const audience =
+    requested === "school" ||
+    requested === "portal" ||
+    requested === "superadmin"
+      ? requested
+      : challenge?.audience;
+  const loginHref = `${audience ? loginPaths[audience] : "/login"}?expired=1`;
+  const destination = active?.identifier.replace(/^(.{2})[^@]*@/, "$1•••@");
 
-  async function submitVerification() {
-    const normalizedCode = normalizeMfaCode(code);
+  useEffect(() => {
+    if (ready && challenge && remaining === 0) clearMfaLoginChallenge();
+  }, [ready, challenge, remaining]);
 
-    if (!activeChallenge) {
-      setError("Start sign-in again before entering a verification code.");
+  async function send(resend = false) {
+    if (!active || lock.current || (resend && resendSeconds > 0)) return;
+    if (!resend && normalizeMfaCode(code).length !== 6) {
+      setError("Enter the 6-digit code from your email.");
+      codeRef.current?.focus();
       return;
     }
-
-    if (normalizedCode.length !== 6) {
-      setError("Enter the 6-digit verification code from your email.");
-      return;
-    }
-
-    setIsSubmitting(true);
+    lock.current = true;
+    setBusy(true);
     setError(null);
-
+    setNotice(null);
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await authFetch("/api/auth/login", {
         method: "POST",
+        credentials: "same-origin",
         headers: {
           "Content-Type": "application/json",
           "x-myshule-csrf": await getCsrfToken(),
         },
-        credentials: "same-origin",
         body: JSON.stringify({
-          audience: activeChallenge.audience,
-          identifier: activeChallenge.identifier,
-          password: activeChallenge.password,
-          verificationCode: normalizedCode,
-          tenantSlug: activeChallenge.tenantSlug,
+          audience: active.audience,
+          identifier: active.identifier,
+          password: active.password,
+          tenantSlug: active.tenantSlug,
+          rememberSession: active.rememberSession,
+          ...(!resend ? { verificationCode: normalizeMfaCode(code) } : {}),
         }),
       });
-      const payload = (await response.json().catch(() => null)) as LoginResponse | { message?: string } | null;
-
-      if (!response.ok) {
-        throw new Error(parseLoginError(payload, "Unable to verify that code."));
+      const payload = await response.json().catch(() => null);
+      if (
+        resend &&
+        !response.ok &&
+        isMfaChallengeRequiredMessage(payload?.message)
+      ) {
+        storeMfaLoginChallenge(active);
+        setChallenge(readMfaLoginChallenge());
+        setResendAt(Date.now() + 30_000);
+        setCode("");
+        setNotice(
+          "A new code was sent. Check your email and use the latest code.",
+        );
+        codeRef.current?.focus();
+        return;
       }
-
+      if (!response.ok)
+        throw new Error(
+          payload?.message?.includes("invalid or expired")
+            ? "That code is incorrect or expired. Try again or resend a code."
+            : (payload?.message ?? "Unable to verify. Please try again."),
+        );
+      if (!payload?.session || !payload?.redirectTo)
+        throw new Error("Sign-in could not be confirmed. Please try again.");
       clearMfaLoginChallenge();
-      router.push((payload as LoginResponse | null)?.redirectTo ?? activeChallenge.redirectFallback);
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to verify that code.");
+      queryClient.clear();
+      router.push(payload.redirectTo);
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to verify. Please try again.",
+      );
     } finally {
-      setIsSubmitting(false);
+      lock.current = false;
+      setBusy(false);
     }
   }
 
   return (
     <AuthCard>
-      <form
-        className="space-y-6"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submitVerification();
-        }}
-      >
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label="Verification required" tone="success" />
-            <SecurityBadge label="Email code" />
-            <SecurityBadge label="Session protected" />
-          </div>
+      {!ready ? (
+        <p role="status" className="text-sm text-muted">
+          Opening verification…
+        </p>
+      ) : !active ? (
+        <div className="space-y-5">
           <div>
-            <h2 className="text-3xl font-bold leading-tight text-foreground">
-              Enter verification code
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Complete sign-in for {maskedIdentifier}. Codes expire quickly and can only be used once.
+            <h1>Start sign-in again</h1>
+            <p className="mt-2 text-sm text-muted">
+              This verification attempt has expired or was interrupted.
             </p>
           </div>
-        </div>
-
-        <MobileTrustRow />
-
-        <AuthMessage
-          tone={canSubmit ? "warning" : "error"}
-          title={canSubmit ? "Check your email" : "Start sign-in again"}
-          description={canSubmit ? MFA_CHALLENGE_HELP_TEXT : pageError ?? "The verification page needs the login attempt that requested this code."}
-        />
-
-        <AuthField
-          label="Verification code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          value={code}
-          onChange={(event) => {
-            setCode(normalizeMfaCode(event.target.value));
-            setError(null);
-          }}
-          error={pageError ?? undefined}
-          disabled={!canSubmit || isSubmitting}
-        />
-
-        {pageError && canSubmit ? (
-          <AuthMessage tone="error" title="Verification failed" description={pageError} />
-        ) : null}
-
-        <AuthSubmitButton busy={isSubmitting} type="submit" disabled={!canSubmit}>
-          Verify and continue
-        </AuthSubmitButton>
-
-        <div className="rounded-2xl border border-border bg-surface-muted/80 px-4 py-3 text-sm">
           <Link
             href={loginHref}
-            className="font-bold text-accent underline-offset-4 hover:underline"
+            onClick={clearMfaLoginChallenge}
+            className="auth-primary"
           >
             Back to login
           </Link>
         </div>
-      </form>
+      ) : (
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send();
+          }}
+        >
+          <div>
+            <h1>Enter verification code</h1>
+            <p className="mt-2 text-sm text-muted">
+              Check your email at{" "}
+              <span className="font-medium text-foreground">{destination}</span>
+              .
+            </p>
+          </div>
+          <AuthField
+            ref={codeRef}
+            label="Verification code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            enterKeyHint="go"
+            className="auth-code"
+            value={code}
+            onChange={(event) => {
+              setCode(normalizeMfaCode(event.target.value));
+              setError(null);
+            }}
+            error={error ?? undefined}
+          />
+          <p className="text-xs text-muted">
+            Sign-in attempt expires in {Math.floor(remaining / 60)}:
+            {String(remaining % 60).padStart(2, "0")}.
+          </p>
+          {notice ? (
+            <AuthMessage
+              tone="success"
+              title="Check your email"
+              description={notice}
+            />
+          ) : null}
+          <AuthSubmitButton busy={busy} type="submit">
+            Verify and continue
+          </AuthSubmitButton>
+          <div className="auth-actions">
+            <button
+              type="button"
+              className="min-h-11 font-medium disabled:text-muted"
+              disabled={busy || resendSeconds > 0}
+              onClick={() => void send(true)}
+            >
+              {resendSeconds > 0
+                ? `Resend in ${resendSeconds}s`
+                : "Resend code"}
+            </button>
+            <Link
+              href={loginHref}
+              onClick={clearMfaLoginChallenge}
+              className="font-medium"
+            >
+              Use another account
+            </Link>
+          </div>
+          <Link
+            href={loginHref}
+            onClick={clearMfaLoginChallenge}
+            className="text-sm font-medium"
+          >
+            Back to login
+          </Link>
+        </form>
+      )}
     </AuthCard>
   );
 }

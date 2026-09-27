@@ -42,7 +42,7 @@ jobs:
         run: npm run web:lint
 
       - name: Browser authentication contracts
-        run: npm --prefix apps/web run test:design -- persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
+        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
 
       - name: Dashboard realtime transport and tenant isolation
         run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant

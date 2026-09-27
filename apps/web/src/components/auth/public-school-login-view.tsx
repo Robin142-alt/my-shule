@@ -1,216 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-
-import { AuthCard } from "@/components/auth/auth-card";
-import { AuthCheckbox } from "@/components/auth/auth-checkbox";
-import { AuthField } from "@/components/auth/auth-field";
-import { AuthMessage } from "@/components/auth/auth-message";
-import { AuthPasswordField } from "@/components/auth/auth-password-field";
-import {
-  MobileTrustRow,
-  SecurityBadge,
-} from "@/components/auth/auth-security";
-import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
-import {
-  isMfaChallengeRequiredError,
-} from "@/lib/auth/mfa-challenge";
-import {
-  buildMfaVerificationPath,
-  storeMfaLoginChallenge,
-} from "@/lib/auth/mfa-login-challenge";
-import { useExperienceSession } from "@/lib/auth/use-experience-session";
-
-const publicSchoolSchema = z.object({
-  identifier: z
-    .string()
-    .trim()
-    .email("Enter a valid work email address."),
-  password: z.string().min(8, "Enter your password."),
-});
-
-type PublicSchoolForm = z.infer<typeof publicSchoolSchema>;
-
-type PublicSchoolIntent = "school" | "teacher" | "accountant";
-
-const intentCopy: Record<
-  PublicSchoolIntent,
-  {
-    badge: string;
-    title: string;
-    description: string;
-    message: string;
-  }
-> = {
-  school: {
-    badge: "Institutional access",
-    title: "Sign in to your school account",
-    description:
-      "Use your school email and password. My Shule opens the correct school automatically.",
-    message:
-      "Financial workflows, academics, support, and communication stay inside the verified school workspace.",
-  },
-  teacher: {
-    badge: "Teacher access",
-    title: "Open your teaching account",
-    description:
-      "Use your school email and password. Your classes and school access load automatically.",
-    message:
-      "Teacher access stays scoped to assigned classes, subjects, academic workflows, and school policies.",
-  },
-  accountant: {
-    badge: "Finance access",
-    title: "Open the finance account",
-    description:
-      "Use your finance email and password. Collections, statements, and M-PESA tools open for your school.",
-    message:
-      "Finance sessions prioritize device awareness, role permissions, transaction safety, and clear audit trails.",
-  },
-};
+import { SchoolLoginView } from "@/components/auth/school-login-view";
+import { resolveSchoolBranding } from "@/lib/auth/school-branding";
 
 export function PublicSchoolLoginView({
   intent = "school",
 }: {
-  intent?: PublicSchoolIntent;
+  intent?: "school" | "teacher" | "accountant";
 }) {
-  const router = useRouter();
-  const [rememberMe, setRememberMe] = useState(true);
-  const {
-    register,
-    handleSubmit,
-    clearErrors,
-    formState: { errors, isSubmitting },
-  } = useForm<PublicSchoolForm>({
-    resolver: zodResolver(publicSchoolSchema),
-    defaultValues: {
-      identifier: "",
-      password: "",
-    },
-  });
-  const authSession = useExperienceSession("school");
-  const copy = intentCopy[intent];
-
-  const submit = handleSubmit(async (values) => {
-    try {
-      const result = await authSession.login({
-        identifier: values.identifier.trim(),
-        password: values.password,
-        rememberSession: rememberMe,
-      });
-      void router.push(result.redirectTo ?? "/school/admin");
-    } catch (error) {
-      if (isMfaChallengeRequiredError(error)) {
-        storeMfaLoginChallenge({
-          audience: "school",
-          identifier: values.identifier.trim(),
-          password: values.password,
-          tenantSlug: null,
-          redirectFallback: "/school/admin",
-        });
-        clearErrors();
-        authSession.clearError();
-        void router.push(buildMfaVerificationPath("school"));
-        return;
-      }
-      // useExperienceSession exposes the safe message.
-    }
-  });
-
   return (
-    <AuthCard size="wide">
-      <form className="space-y-6" onSubmit={submit}>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label={copy.badge} tone="success" />
-            <SecurityBadge label="Automatic school access" />
-            <SecurityBadge label="Secure session" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold leading-tight text-foreground">
-              {copy.title}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              {copy.description}
-            </p>
-          </div>
-        </div>
-
-        <MobileTrustRow />
-
-        <AuthMessage
-          tone="info"
-          title="Trusted institutional access"
-          description={copy.message}
-        />
-
-        <div className="space-y-4">
-          <AuthField
-            label="Email address"
-            autoComplete="email"
-            {...register("identifier")}
-            error={errors.identifier?.message}
-          />
-          <AuthPasswordField
-            label="Password"
-            autoComplete="current-password"
-            {...register("password")}
-            error={errors.password?.message}
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <AuthCheckbox
-            checked={rememberMe}
-            onChange={(event) => setRememberMe(event.target.checked)}
-            label="Keep me signed in for up to 14 days"
-            description="Only use this on a trusted institutional or personal workstation."
-          />
-          <Link
-            href="/school/forgot-password"
-            className="text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline"
-          >
-            Forgot password?
-          </Link>
-        </div>
-
-        {authSession.error ? (
-          <AuthMessage
-            tone="error"
-            title="Unable to sign in"
-            description={authSession.error}
-          />
-        ) : null}
-
-        <AuthSubmitButton
-          busy={isSubmitting || authSession.isSubmitting}
-          type="submit"
-        >
-          Sign in securely
-        </AuthSubmitButton>
-
-        <div className="grid gap-2 rounded-2xl border border-accent/20 bg-surface-muted/70 p-4 text-sm sm:grid-cols-2">
-          <Link
-            href="/parent/login"
-            className="font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline"
-          >
-            Parent login
-          </Link>
-          <Link
-            href="/school/login"
-            className="font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline sm:text-right"
-          >
-            School login
-          </Link>
-          <p className="text-muted sm:col-span-2">
-            Need setup help? Contact My Shule support on 0769622589.
-          </p>
-        </div>
-      </form>
-    </AuthCard>
+    <SchoolLoginView
+      resolution={resolveSchoolBranding("myshule.online")}
+      title={
+        intent === "teacher"
+          ? "Teacher sign in"
+          : intent === "accountant"
+            ? "Finance sign in"
+            : "Sign in to MyShule"
+      }
+    />
   );
 }

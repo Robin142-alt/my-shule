@@ -573,6 +573,15 @@ export function evaluateExperienceRouting(input: {
 }): ExperienceRoutingDecision {
   const resolution = resolveExperienceHost(input.host);
   const headers = buildHeaders(resolution);
+  // These endpoints enforce their own authentication/CSRF contracts. Routing
+  // cookies must never turn a verification request into an HTML redirect.
+  if (input.pathname.startsWith("/api/auth/") || new Set([
+    "/app", "/verify-code", "/mfa", "/otp", "/verify-email", "/invite/accept",
+    "/session-expired", "/account-locked", "/access-denied", "/unauthorized",
+    "/device-verification", "/tenant-selection", "/maintenance", "/offline",
+    "/parent/login", "/student/login",
+  ]).has(input.pathname)) return { action: "next", headers };
+
 
   if (resolution.experience === "public") {
     if (input.pathname === "/dashboard") {
@@ -609,19 +618,13 @@ export function evaluateExperienceRouting(input: {
   const experience = resolution.experience;
   const cookieName = getSessionCookieName(experience);
   const parsedSession = parseExperienceSession(experience, input.cookies[cookieName] ?? null);
-  const session = isRefreshTokenUsable(input.refreshToken) ? parsedSession : null;
+  let session = isRefreshTokenUsable(input.refreshToken) ? parsedSession : null;
 
-  if (
-    experience === "school" &&
-    session?.experience === "school" &&
-    session.tenantSlug &&
-    resolution.tenantSlug !== session.tenantSlug
-  ) {
-    return {
-      action: "redirect",
-      location: getLoginPath(),
-      headers,
-    };
+  if (experience === "school" && session?.experience === "school" && session.tenantSlug !== resolution.tenantSlug) {
+    session = null;
+  }
+  if (input.pathname === "/new-password") {
+    return { action: "next", headers, rewrittenPath: mapPublicPathToInternal(experience, "/reset-password") };
   }
 
   if (experience === "school" && input.pathname === "/" && !session && resolution.tenantSlug) {
@@ -698,8 +701,8 @@ export function evaluateExperienceRouting(input: {
 
   const compatibilityPath = resolveLegacyCompatibilityPath(experience, input.pathname);
   if (compatibilityPath) {
-    if (input.reauthenticate && compatibilityPath === "/login") {
-      return { action: "next", headers, rewrittenPath: mapPublicPathToInternal(experience, "/login") };
+    if ((input.reauthenticate && compatibilityPath === "/login") || compatibilityPath === "/forgot-password" || compatibilityPath === "/reset-password") {
+      return { action: "next", headers, rewrittenPath: mapPublicPathToInternal(experience, compatibilityPath) };
     }
     if (session && sharedPublicPaths.has(compatibilityPath)) {
       return {
@@ -724,7 +727,7 @@ export function evaluateExperienceRouting(input: {
   }
 
   if (sharedPublicPaths.has(input.pathname)) {
-    if (session && !(input.reauthenticate && input.pathname === "/login")) {
+    if (session && input.pathname === "/login" && !input.reauthenticate) {
       return {
         action: "redirect",
         location: session.homePath,

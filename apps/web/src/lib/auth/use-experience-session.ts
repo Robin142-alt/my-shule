@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { authFetch } from "@/lib/auth/auth-fetch";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import type { SchoolDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
@@ -100,6 +101,7 @@ export function useExperienceSession(
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSwitchingRole, setIsSwitchingRole] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const sessionVersion = useRef(0);
 
   useEffect(() => {
@@ -113,6 +115,7 @@ export function useExperienceSession(
       }
 
       setIsLoading(true);
+      setErrorStatus(null);
 
       try {
         const payload = await requestSession(audience, options?.tenantSlug);
@@ -124,6 +127,7 @@ export function useExperienceSession(
         }
       } catch (loadError) {
         if (!cancelled && requestVersion === sessionVersion.current) {
+          setErrorStatus(loadError instanceof ExperienceSessionRequestError ? loadError.status : null);
           setError(
             loadError instanceof Error
               ? loadError.message
@@ -166,11 +170,12 @@ export function useExperienceSession(
   };
 
   const login = async (input: LoginInput) => {
+    sessionVersion.current += 1;
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await authFetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -184,6 +189,7 @@ export function useExperienceSession(
         }),
       });
       const payload = await parseResponse(response);
+      queryClient.clear();
       setSession(payload.session);
       setUser(payload.user);
       return payload;
@@ -200,11 +206,12 @@ export function useExperienceSession(
   };
 
   const logout = async () => {
+    sessionVersion.current += 1;
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/auth/logout", {
+      const response = await authFetch("/api/auth/logout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -245,7 +252,7 @@ export function useExperienceSession(
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/auth/refresh", {
+      const response = await authFetch("/api/auth/refresh", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -281,7 +288,7 @@ export function useExperienceSession(
       throw new Error("Dashboard roles are available only for school sessions.");
     }
 
-    const response = await fetch("/api/auth/dashboard-roles", {
+    const response = await authFetch("/api/auth/dashboard-roles", {
       method: "GET",
       credentials: "same-origin",
       cache: "no-store",
@@ -313,7 +320,7 @@ export function useExperienceSession(
     setError(null);
 
     try {
-      const response = await fetch("/api/auth/active-role", {
+      const response = await authFetch("/api/auth/active-role", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -353,6 +360,7 @@ export function useExperienceSession(
     isSubmitting,
     isSwitchingRole,
     error,
+    errorStatus,
     login,
     logout,
     refresh,

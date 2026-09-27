@@ -17,30 +17,15 @@ export default async function InternalSchoolResetPasswordPage({
   const resolution = resolveSchoolBranding(host);
 
   return (
-    <AuthShell
-      eyebrow="School password reset"
-      heroTitle={`Create a new password for ${resolution.branding.shortName}`}
-      heroDescription="Reset access in a way that feels safe, familiar, and easy for non-technical school teams."
-      badge="Secure school reset"
-      helper="New passwords return staff directly to their school's protected account."
-      highlights={[
-        { id: "simple-reset", title: "Simple reset", description: "Straightforward steps without exposing families or staff to confusing recovery UX." },
-        { id: "school-aware", title: "School aware", description: "Reset actions stay inside the correct school from start to finish." },
-        { id: "support", title: "Support ready", description: "Admins can still help staff if they get locked out or lose access." },
-      ]}
-      trustNotes={[
-        { id: "school-secure", label: "School secured", icon: "shield" },
-        { id: "managed", label: "Managed reset", icon: "lock" },
-      ]}
-    >
+    <AuthShell>
       <ResetPasswordView
-        title="Create your new school password"
-        subtitle="Enter the recovery code from your school message, then choose a new password for your account."
+        title="Create a new password"
+        subtitle="Choose a password for your MyShule account."
         secretLabel="New password"
         secretPlaceholder="Create a new school password"
         backHref="/login"
         audience="school"
-        tenantSlug={resolution.requestedSlug ?? resolution.branding.slug}
+        tenantSlug={resolution.requestedSlug}
         initialToken={initialToken}
       />
     </AuthShell>

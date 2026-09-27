@@ -50,6 +50,7 @@ describe("secure session logout", () => {
       },
       credentials: "same-origin",
       body: JSON.stringify({ audience: "school" }),
+      signal: expect.any(AbortSignal),
     });
   });
 

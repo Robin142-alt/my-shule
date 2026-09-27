@@ -11,32 +11,17 @@ export default async function InternalSchoolForgotPasswordPage() {
   const resolution = resolveSchoolBranding(host);
 
   return (
-    <AuthShell
-      eyebrow="School account recovery"
-      heroTitle={`Recover access to ${resolution.branding.shortName}`}
-      heroDescription="Help principals, bursars, teachers, and office teams get back into the school workspace without adding technical friction."
-      badge="School password recovery"
-      helper="Recovery stays linked to the school that issued the staff account."
-      highlights={[
-        { id: "verified-email", title: "Verified email", description: "Staff start recovery with the email address on their school account." },
-        { id: "school-aware", title: "School-aware", description: "Recovery messages always align to the correct school, not the wider platform." },
-        { id: "simple", title: "Simple enough for schools", description: "The flow stays clear and calm for day-to-day non-technical users." },
-      ]}
-      trustNotes={[
-        { id: "scoped", label: "School linked", icon: "shield" },
-        { id: "clear", label: "Simple flow", icon: "check" },
-      ]}
-    >
+    <AuthShell>
       <ForgotPasswordView
-        title="Reset your school password"
-        subtitle="Enter the verified email address your school uses for your account. We will send reset instructions to that address."
+        title="Forgot password?"
+        subtitle="Enter your account email to request a reset link."
         identifierLabel="Email address"
         identifierPlaceholder="Email address on your school account"
-        submitLabel="Send reset instructions"
+        submitLabel="Send reset link"
         backHref="/login"
         successMessage="If the details match a school account, reset instructions are on the way."
         audience="school"
-        tenantSlug={resolution.requestedSlug ?? resolution.branding.slug}
+        tenantSlug={resolution.requestedSlug}
       />
     </AuthShell>
   );

@@ -12,16 +12,7 @@ export const PasswordField = forwardRef<
     hint?: string;
   }
 >(function PasswordField(
-  {
-    label,
-    error,
-    hint,
-    className = "",
-    id,
-    onKeyUp,
-    onBlur,
-    ...props
-  },
+  { label, error, hint, className = "", id, onKeyUp, onBlur, ...props },
   ref,
 ) {
   const [visible, setVisible] = useState(false);
@@ -60,15 +51,19 @@ export const PasswordField = forwardRef<
               setCapsLock(false);
               onBlur?.(event);
             }}
-            className={`peer h-full w-full bg-transparent pb-1 pt-5 text-sm font-medium text-foreground outline-none placeholder:text-transparent ${className}`}
+            className={`peer h-full min-w-0 w-full bg-transparent pb-1 pt-5 text-base font-medium text-foreground outline-none placeholder:text-transparent ${className}`}
           />
           <button
             type="button"
             onClick={() => setVisible((value) => !value)}
             aria-label={visible ? "Hide password" : "Show password"}
-            className="ml-3 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="ml-3 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
-            {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {visible ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
           </button>
         </div>
         <label
@@ -79,7 +74,10 @@ export const PasswordField = forwardRef<
         </label>
       </div>
       {capsLock ? (
-        <p id={helperId} className="flex items-center gap-2 text-sm font-medium text-warning">
+        <p
+          id={helperId}
+          className="flex items-center gap-2 text-sm font-medium text-warning"
+        >
           <Keyboard className="h-4 w-4" />
           Caps Lock is on.
         </p>

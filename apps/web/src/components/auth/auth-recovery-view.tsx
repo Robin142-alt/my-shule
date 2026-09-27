@@ -7,7 +7,6 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
-import { SecurityBadge, SessionWarning } from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
   requestPasswordRecovery,
@@ -74,20 +73,25 @@ export function ForgotPasswordView({
 
   return (
     <AuthCard>
-      <div className="space-y-6">
+      <form
+        className="space-y-5"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!busy) void submit();
+        }}
+      >
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label="Secure recovery" tone="success" />
-            <SecurityBadge label="Short-lived link" />
-          </div>
-          <h2 className="text-3xl font-bold leading-tight text-foreground">{title}</h2>
+          <h1 className="text-3xl font-bold leading-tight text-foreground">
+            {title}
+          </h1>
           <p className="text-sm leading-6 text-muted">{subtitle}</p>
         </div>
 
         {success ? (
           <AuthMessage
             tone="success"
-            title="Check your messages"
+            title="Check your email"
             description={successMessage}
           />
         ) : (
@@ -95,23 +99,43 @@ export function ForgotPasswordView({
             <AuthField
               label={identifierLabel}
               placeholder={identifierPlaceholder}
-              autoComplete="username"
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
               error={error ?? undefined}
             />
-            <AuthSubmitButton busy={busy} onClick={submit}>
+            <AuthSubmitButton busy={busy} type="submit">
               {submitLabel}
             </AuthSubmitButton>
           </div>
         )}
 
-        <SessionWarning mode="normal" />
-
-        <Link href={backHref} className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline">
+        {success ? (
+          <button
+            type="button"
+            className="min-h-11 text-sm font-medium text-accent"
+            onClick={() => {
+              setSuccess(false);
+              setError(null);
+            }}
+          >
+            Use another email
+          </button>
+        ) : null}
+        <Link
+          href={`${backHref}?expired=1`}
+          className={
+            success
+              ? "auth-primary"
+              : "inline-flex text-sm font-medium text-accent"
+          }
+        >
           Back to login
         </Link>
-      </div>
+      </form>
     </AuthCard>
   );
 }
@@ -146,7 +170,8 @@ export function ResetPasswordView({
     const nextErrors: Record<string, string> = {};
 
     if (code.trim().length < 4) {
-      nextErrors.code = "Enter the reset code or token from your recovery message.";
+      nextErrors.code =
+        "Enter the reset code or token from your recovery message.";
     }
 
     if (
@@ -160,7 +185,8 @@ export function ResetPasswordView({
     }
 
     if (confirmSecret !== secret) {
-      nextErrors.confirmSecret = "The confirmation does not match the new password.";
+      nextErrors.confirmSecret =
+        "The confirmation does not match the new password.";
     }
 
     setFieldErrors(nextErrors);
@@ -193,13 +219,18 @@ export function ResetPasswordView({
 
   return (
     <AuthCard>
-      <div className="space-y-6">
+      <form
+        className="space-y-5"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!busy) void submit();
+        }}
+      >
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label="Password policy" tone="success" />
-            <SecurityBadge label="Verified code" />
-          </div>
-          <h2 className="text-3xl font-bold leading-tight text-foreground">{title}</h2>
+          <h1 className="text-3xl font-bold leading-tight text-foreground">
+            {title}
+          </h1>
           <p className="text-sm leading-6 text-muted">{subtitle}</p>
         </div>
 
@@ -207,24 +238,34 @@ export function ResetPasswordView({
           <AuthMessage
             tone="success"
             title="Password updated"
-            description="Your account is ready. Return to login and continue securely."
+            description="Sign in with your new password."
           />
         ) : (
           <div className="space-y-4">
-            <AuthField
-              label="Recovery code"
-              placeholder="Enter the code you received"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              error={fieldErrors.code}
-            />
+            {!initialToken && (
+              <AuthField
+                label="Recovery code"
+                placeholder="Enter the code you received"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                error={fieldErrors.code}
+              />
+            )}
+            {initialToken && fieldErrors.code ? (
+              <AuthMessage
+                tone="error"
+                title="Unable to reset password"
+                description={fieldErrors.code}
+              />
+            ) : null}
             <AuthPasswordField
               label={secretLabel}
               placeholder={secretPlaceholder}
               autoComplete="new-password"
               value={secret}
               onChange={(event) => setSecret(event.target.value)}
+              hint="10+ characters, with uppercase, lowercase and a number."
               error={fieldErrors.secret}
             />
             <AuthPasswordField
@@ -235,18 +276,31 @@ export function ResetPasswordView({
               onChange={(event) => setConfirmSecret(event.target.value)}
               error={fieldErrors.confirmSecret}
             />
-            <AuthSubmitButton busy={busy} onClick={submit}>
+            <AuthSubmitButton busy={busy} type="submit">
               Save new password
             </AuthSubmitButton>
           </div>
         )}
 
-        <SessionWarning mode="normal" />
-
-        <Link href={backHref} className="inline-flex text-sm font-bold text-accent underline-offset-4 hover:text-orange-300 hover:underline">
+        {!success && (
+          <Link
+            href={backHref.replace("login", "forgot-password")}
+            className="text-sm font-medium"
+          >
+            Request a new reset link
+          </Link>
+        )}
+        <Link
+          href={`${backHref}?expired=1`}
+          className={
+            success
+              ? "auth-primary"
+              : "inline-flex text-sm font-medium text-accent"
+          }
+        >
           Back to login
         </Link>
-      </div>
+      </form>
     </AuthCard>
   );
 }

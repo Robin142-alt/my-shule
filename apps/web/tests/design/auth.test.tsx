@@ -33,7 +33,7 @@ describe("enterprise authentication flows", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => payload,
+        json: async () => ({ ...payload as object, user: { user_id: "test-user" } }),
       });
   }
 
@@ -62,7 +62,7 @@ describe("enterprise authentication flows", () => {
       target: { value: "managed-by-vault" },
     });
     await user.click(
-      screen.getByRole("button", { name: /continue securely/i }),
+      screen.getByRole("button", { name: /^sign in$/i }),
     );
 
     await waitFor(() =>
@@ -106,7 +106,7 @@ describe("enterprise authentication flows", () => {
     fireEvent.change(screen.getByLabelText(/^password$/i), {
       target: { value: "ManagedByVault!2026" },
     });
-    await user.click(screen.getByRole("button", { name: /continue securely/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/verify-code?audience=superadmin"),
@@ -190,7 +190,7 @@ describe("enterprise authentication flows", () => {
       />,
     );
 
-    expect(screen.getByText(/run your school with operational clarity/i)).toBeVisible();
+    expect(screen.getByText(/sign in to MyShule/i)).toBeVisible();
     expect(screen.queryByText(/finance\.admin@example\.invalid/i)).toBeNull();
     expect(screen.queryByText(/managed-by-vault/i)).toBeNull();
 
@@ -202,7 +202,7 @@ describe("enterprise authentication flows", () => {
       screen.getByLabelText(/^password$/i),
       "managed-by-vault",
     );
-    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/school/bursar"),
@@ -243,7 +243,7 @@ describe("enterprise authentication flows", () => {
       "school.admin@example.invalid",
     );
     await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
-    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/school/admin"),
@@ -282,10 +282,10 @@ describe("enterprise authentication flows", () => {
     expect(screen.getByLabelText(/email address/i)).toHaveValue("teacher.invited@example.test");
     expect(screen.queryByText(/school access pending/i)).not.toBeInTheDocument();
     expect(screen.getByText(/Use the password you just created/i)).toBeVisible();
-    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute("autocomplete", "new-password");
+    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute("autocomplete", "current-password");
 
     await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
-    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/school/teacher"),
@@ -325,7 +325,7 @@ describe("enterprise authentication flows", () => {
     expect(screen.queryByDisplayValue(/Grace Njeri/i)).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
-    await user.click(screen.getByRole("button", { name: /continue as parent/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/portal/parent"),
@@ -354,7 +354,7 @@ describe("enterprise authentication flows", () => {
 
     renderWithProviders(<PortalLoginView />);
 
-    expect(screen.getByText(/stay connected to your child in real time/i)).toBeVisible();
+    expect(screen.getByText(/portal sign in/i)).toBeVisible();
     expect(screen.queryByText(/student@example\.invalid/i)).toBeNull();
     expect(screen.queryByText(/managed-by-vault/i)).toBeNull();
 
@@ -366,7 +366,7 @@ describe("enterprise authentication flows", () => {
       screen.getByLabelText(/^password$/i),
       "managed-by-vault",
     );
-    await user.click(screen.getByRole("button", { name: /open portal/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/portal/student"),
@@ -400,7 +400,7 @@ describe("enterprise authentication flows", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /sign in to your school account/i,
+        name: /sign in to MyShule/i,
       }),
     ).toBeVisible();
     expect(screen.queryByText(/one premium platform/i)).toBeNull();
@@ -414,7 +414,7 @@ describe("enterprise authentication flows", () => {
       screen.getByLabelText(/^password$/i),
       "managed-by-vault",
     );
-    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() =>
       expect(routerPushMock).toHaveBeenCalledWith("/school/bursar"),
@@ -452,7 +452,7 @@ describe("enterprise authentication flows", () => {
     await user.type(screen.getByLabelText(/work email/i), "owner@example.invalid");
     await user.click(screen.getByRole("button", { name: /send recovery link/i }));
 
-    await screen.findByText(/check your messages/i);
+    await screen.findByText(/check your email/i);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/auth/csrf",
@@ -554,7 +554,7 @@ describe("enterprise authentication flows", () => {
 
     await user.type(screen.getByLabelText(/email address/i), "0712345678");
     await user.type(screen.getByLabelText(/^password$/i), "managed-by-vault");
-    await user.click(screen.getByRole("button", { name: /sign in securely/i }));
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     expect(await screen.findByText(/enter a valid work email address/i)).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();

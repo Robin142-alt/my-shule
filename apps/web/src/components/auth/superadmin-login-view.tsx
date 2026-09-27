@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 
 import { AuthCard } from "@/components/auth/auth-card";
@@ -10,16 +10,10 @@ import { AuthCheckbox } from "@/components/auth/auth-checkbox";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
-import {
-  MobileTrustRow,
-  SecurityBadge,
-  SessionWarning,
-} from "@/components/auth/auth-security";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
+import { isMfaChallengeRequiredError } from "@/lib/auth/mfa-challenge";
 import {
-  isMfaChallengeRequiredError,
-} from "@/lib/auth/mfa-challenge";
-import {
+  clearMfaLoginChallenge,
   buildMfaVerificationPath,
   storeMfaLoginChallenge,
 } from "@/lib/auth/mfa-login-challenge";
@@ -36,6 +30,9 @@ export function SuperadminLoginView({
   variant?: "platform" | "support";
 }) {
   const router = useRouter();
+  useEffect(() => {
+    clearMfaLoginChallenge();
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberSession, setRememberSession] = useState(true);
@@ -45,30 +42,24 @@ export function SuperadminLoginView({
   const copy =
     variant === "support"
       ? {
-          primaryBadge: "Support staff",
-          title: "Support operations access",
-          description:
-            "Open the internal support control center for tickets, SLA queues, school incidents, and customer replies.",
-          messageTitle: "Internal support workspace",
-          message:
-            "Support sessions are protected with CSRF validation, device context, and audit-ready action trails.",
+          title: "Support sign in",
+          description: "Enter your MyShule support email and password.",
         }
       : {
-          primaryBadge: "Platform owner",
           title: "Welcome back",
-          description:
-            "Continue to the platform control center with session-managed secure access.",
-          messageTitle: "High-privilege workspace",
-          message:
-            "Platform access is protected with CSRF validation, session binding, and audit-ready event capture.",
+          description: "Sign in to MyShule administration.",
         };
   const submitCredentials = async (form?: HTMLFormElement | null) => {
     const emailInput = form?.elements.namedItem("email");
     const passwordInput = form?.elements.namedItem("password");
     const nextEmail =
-      emailInput instanceof HTMLInputElement ? emailInput.value.trim() : email.trim();
+      emailInput instanceof HTMLInputElement
+        ? emailInput.value.trim()
+        : email.trim();
     const nextPassword =
-      passwordInput instanceof HTMLInputElement ? passwordInput.value : password;
+      passwordInput instanceof HTMLInputElement
+        ? passwordInput.value
+        : password;
     const parsed = credentialsSchema.safeParse({
       email: nextEmail,
       password: nextPassword,
@@ -101,6 +92,7 @@ export function SuperadminLoginView({
           password: nextPassword,
           tenantSlug: null,
           redirectFallback: "/superadmin",
+          rememberSession,
         });
         setGeneralError(null);
         void router.push(buildMfaVerificationPath("superadmin"));
@@ -117,24 +109,17 @@ export function SuperadminLoginView({
 
   return (
     <AuthCard>
-      <div className="space-y-6">
+      <div className="space-y-5">
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <SecurityBadge label={copy.primaryBadge} tone="success" />
-            <SecurityBadge label="Email verified" />
-            <SecurityBadge label="Audit logged" />
-          </div>
           <div>
-            <h2 className="text-3xl font-bold leading-tight text-foreground">
+            <h1 className="text-3xl font-bold leading-tight text-foreground">
               {copy.title}
-            </h2>
+            </h1>
             <p className="mt-2 text-sm leading-6 text-muted">
               {copy.description}
             </p>
           </div>
         </div>
-
-        <MobileTrustRow />
 
         <form
           className="space-y-5"
@@ -143,12 +128,6 @@ export function SuperadminLoginView({
             void submitCredentials(event.currentTarget);
           }}
         >
-          <AuthMessage
-            tone="info"
-            title={copy.messageTitle}
-            description={copy.message}
-          />
-
           <div className="space-y-4">
             <AuthField
               label="Email"
@@ -173,11 +152,11 @@ export function SuperadminLoginView({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="auth-actions">
             <AuthCheckbox
               checked={rememberSession}
               onChange={(event) => setRememberSession(event.target.checked)}
-              label="Remember session"
+              label="Keep me signed in"
             />
             <Link
               href="/superadmin/forgot-password"
@@ -187,23 +166,21 @@ export function SuperadminLoginView({
             </Link>
           </div>
 
-          <SessionWarning mode="normal" />
-
           {generalError ? (
-            <AuthMessage tone="error" title="Sign-in blocked" description={generalError} />
+            <AuthMessage
+              tone="error"
+              title="Sign-in blocked"
+              description={generalError}
+            />
           ) : null}
 
-          <AuthSubmitButton
-            busy={authSession.isSubmitting}
-            type="submit"
-          >
-            Continue securely
+          <AuthSubmitButton busy={authSession.isSubmitting} type="submit">
+            Sign in
           </AuthSubmitButton>
         </form>
-
-        <p className="text-xs leading-6 text-muted-strong">
-          My Shule never asks users to share passwords or verification codes.
-        </p>
+        <Link href="/login?expired=1" className="text-sm font-medium">
+          Use another account
+        </Link>
       </div>
     </AuthCard>
   );

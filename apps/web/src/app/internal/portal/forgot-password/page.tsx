@@ -3,28 +3,13 @@ import { ForgotPasswordView } from "@/components/auth/auth-recovery-view";
 
 export default function InternalPortalForgotPasswordPage() {
   return (
-    <AuthShell
-      eyebrow="Portal recovery"
-      heroTitle="Recover family portal access."
-      heroDescription="Keep the portal recovery flow simple enough for families and learners while still protecting private school information."
-      badge="Friendly recovery"
-      helper="Use the verified email address already linked to the portal account."
-      highlights={[
-        { id: "simple", title: "Simple for families", description: "Clear language and familiar identifiers reduce support calls." },
-        { id: "private", title: "Private access", description: "Only the linked family or learner receives recovery instructions." },
-        { id: "mobile", title: "Mobile friendly", description: "Everything works comfortably from a phone without extra training." },
-      ]}
-      trustNotes={[
-        { id: "portal-safe", label: "Portal protected", icon: "shield" },
-        { id: "clear-steps", label: "Clear steps", icon: "check" },
-      ]}
-    >
+    <AuthShell>
       <ForgotPasswordView
-        title="Recover your portal password"
-        subtitle="Enter the verified email address linked to the portal. We will send recovery instructions to that address."
+        title="Forgot password?"
+        subtitle="Enter your account email to request a reset link."
         identifierLabel="Email address"
         identifierPlaceholder="Email address on your portal account"
-        submitLabel="Send recovery instructions"
+        submitLabel="Send reset link"
         backHref="/login"
         successMessage="If the details match a family or student account, recovery instructions have been sent."
         audience="portal"

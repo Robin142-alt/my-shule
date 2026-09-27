@@ -2,7 +2,7 @@ import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 
 export const MFA_LOGIN_CHALLENGE_STORAGE_KEY = "myshule:mfa-login-challenge";
 
-const CHALLENGE_TTL_MS = 10 * 60 * 1000;
+export const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 
 export type MfaLoginChallenge = {
   audience: ExperienceAudience;
@@ -11,12 +11,21 @@ export type MfaLoginChallenge = {
   tenantSlug: string | null;
   redirectFallback: string;
   createdAt: number;
+  rememberSession?: boolean;
 };
 
 type PendingMfaLoginChallenge = Omit<MfaLoginChallenge, "createdAt">;
 
+let memoryChallenge: MfaLoginChallenge | null = null;
 function hasSessionStorage() {
-  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+  try {
+    return (
+      typeof window !== "undefined" &&
+      typeof window.sessionStorage !== "undefined"
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isChallenge(value: unknown): value is MfaLoginChallenge {
@@ -28,7 +37,9 @@ function isChallenge(value: unknown): value is MfaLoginChallenge {
   const audience = record.audience;
 
   return (
-    (audience === "superadmin" || audience === "school" || audience === "portal") &&
+    (audience === "superadmin" ||
+      audience === "school" ||
+      audience === "portal") &&
     typeof record.identifier === "string" &&
     typeof record.password === "string" &&
     (typeof record.tenantSlug === "string" || record.tenantSlug === null) &&
@@ -38,51 +49,50 @@ function isChallenge(value: unknown): value is MfaLoginChallenge {
 }
 
 export function storeMfaLoginChallenge(challenge: PendingMfaLoginChallenge) {
-  if (!hasSessionStorage()) {
-    return;
+  memoryChallenge = { ...challenge, createdAt: Date.now() };
+  try {
+    if (hasSessionStorage())
+      window.sessionStorage.setItem(
+        MFA_LOGIN_CHALLENGE_STORAGE_KEY,
+        JSON.stringify(memoryChallenge),
+      );
+  } catch {
+    /* Restricted storage can still finish this in-memory sign-in. */
   }
-
-  window.sessionStorage.setItem(
-    MFA_LOGIN_CHALLENGE_STORAGE_KEY,
-    JSON.stringify({
-      ...challenge,
-      createdAt: Date.now(),
-    } satisfies MfaLoginChallenge),
-  );
 }
 
 export function readMfaLoginChallenge() {
-  if (!hasSessionStorage()) {
-    return null;
-  }
-
-  const rawValue = window.sessionStorage.getItem(MFA_LOGIN_CHALLENGE_STORAGE_KEY);
-
-  if (!rawValue) {
-    return null;
-  }
-
+  let candidate: unknown = memoryChallenge;
   try {
-    const parsed = JSON.parse(rawValue) as unknown;
-
-    if (!isChallenge(parsed) || Date.now() - parsed.createdAt > CHALLENGE_TTL_MS) {
-      clearMfaLoginChallenge();
-      return null;
+    if (hasSessionStorage()) {
+      const raw = window.sessionStorage.getItem(
+        MFA_LOGIN_CHALLENGE_STORAGE_KEY,
+      );
+      candidate = raw ? JSON.parse(raw) : null;
     }
-
-    return parsed;
   } catch {
+    /* Use the current in-memory attempt when storage is unavailable. */
+  }
+  if (
+    !isChallenge(candidate) ||
+    !Number.isFinite(candidate.createdAt) ||
+    candidate.createdAt > Date.now() ||
+    Date.now() - candidate.createdAt >= CHALLENGE_TTL_MS
+  ) {
     clearMfaLoginChallenge();
     return null;
   }
+  return candidate;
 }
 
 export function clearMfaLoginChallenge() {
-  if (!hasSessionStorage()) {
-    return;
+  memoryChallenge = null;
+  try {
+    if (hasSessionStorage())
+      window.sessionStorage.removeItem(MFA_LOGIN_CHALLENGE_STORAGE_KEY);
+  } catch {
+    /* Nothing persistent is accessible in a restricted webview. */
   }
-
-  window.sessionStorage.removeItem(MFA_LOGIN_CHALLENGE_STORAGE_KEY);
 }
 
 export function buildMfaVerificationPath(audience: ExperienceAudience) {

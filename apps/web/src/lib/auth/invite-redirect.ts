@@ -1,8 +1,14 @@
 export const PARENT_LOGIN_ROUTE = "/parent/login";
+export const STUDENT_LOGIN_ROUTE = "/student/login";
 export const SCHOOL_LOGIN_ROUTE = "/school/login";
 
 function normalizeInviteRole(role: string | null | undefined) {
-  return role?.trim().toLowerCase().replace(/[_\s-]+/g, " ") ?? "";
+  return (
+    role
+      ?.trim()
+      .toLowerCase()
+      .replace(/[_\s-]+/g, " ") ?? ""
+  );
 }
 
 export function isParentRole(role: string | null | undefined) {
@@ -10,7 +16,11 @@ export function isParentRole(role: string | null | undefined) {
 }
 
 export function redirectAfterInviteAcceptance(role: string | null | undefined) {
-  return isParentRole(role) ? PARENT_LOGIN_ROUTE : SCHOOL_LOGIN_ROUTE;
+  return isParentRole(role)
+    ? PARENT_LOGIN_ROUTE
+    : normalizeInviteRole(role) === "student"
+      ? STUDENT_LOGIN_ROUTE
+      : SCHOOL_LOGIN_ROUTE;
 }
 
 export function buildInviteLoginHref(input: {
@@ -39,5 +49,9 @@ export function buildInviteLoginHref(input: {
 }
 
 export function inviteLoginLabel(role: string | null | undefined) {
-  return isParentRole(role) ? "Continue to Parent Login" : "Continue to School Login";
+  return isParentRole(role)
+    ? "Continue to Parent Login"
+    : normalizeInviteRole(role) === "student"
+      ? "Continue to Student Login"
+      : "Continue to School Login";
 }

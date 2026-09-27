@@ -1,5 +1,1 @@
-import { AuthStatePage } from "@/components/auth/auth-state-page";
-
-export default function MfaPage() {
-  return <AuthStatePage kind="mfa" />;
-}
+export { default } from "@/app/verify-code/page";

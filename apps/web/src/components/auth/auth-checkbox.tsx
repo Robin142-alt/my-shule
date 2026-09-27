@@ -9,14 +9,16 @@ export function AuthCheckbox({
   description?: string;
 }) {
   return (
-    <label className="flex items-start gap-3">
+    <label className="flex min-h-11 items-center gap-2">
       <input
         {...props}
         type="checkbox"
-        className="mt-1 h-4 w-4 rounded border-border bg-surface-muted text-accent focus:ring-accent"
+        className="h-4 w-4 shrink-0 rounded border-border bg-surface-muted text-accent focus:ring-accent"
       />
       <span className="min-w-0">
-        <span className="block text-sm font-bold text-foreground">{label}</span>
+        <span className="block text-[13px] font-medium text-foreground">
+          {label}
+        </span>
         {description ? (
           <span className="mt-1 block text-sm leading-6 text-muted">
             {description}

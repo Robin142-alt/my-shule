@@ -35,19 +35,19 @@ describe("installed MyShule app entry", () => {
     useExperienceSessionMock.mockReset();
   });
 
-  it("shows only the existing School and Parent entry routes when signed out", async () => {
+  it("shows staff, parent and student entry routes when signed out", async () => {
     render(<InstalledAppEntry initialAudience={null} />);
 
     const entry = await screen.findByTestId("installed-app-entry");
-    expect(entry).toHaveTextContent("Choose how you use MyShule");
+    expect(entry).toHaveTextContent("Welcome to MyShule");
     expect(
-      screen.getByRole("link", { name: /School Staff and school operations/i }),
-    ).toHaveAttribute("href", "/school/login?source=app");
+      screen.getByRole("link", { name: /School staff/i }),
+    ).toHaveAttribute("href", "/school/login?expired=1&source=app");
     expect(
       screen.getByRole("link", {
-        name: /Parent Linked learner and family portal/i,
+        name: /^Parent$/i,
       }),
-    ).toHaveAttribute("href", "/parent/login?source=app");
+    ).toHaveAttribute("href", "/parent/login?expired=1&source=app");
     expect(
       screen.queryByText(/Pricing|Features|About|Request Demo/i),
     ).not.toBeInTheDocument();
@@ -113,7 +113,7 @@ describe("installed MyShule app entry", () => {
     render(<InstalledAppEntry initialAudience="portal" />);
 
     expect(screen.getByTestId("installed-app-session-error")).toHaveTextContent(
-      "Your account has not been signed out",
+      "Try again, or sign in with your account.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -122,4 +122,20 @@ describe("installed MyShule app entry", () => {
     );
     expect(screen.getByTestId("installed-app-splash")).toBeVisible();
   });
+});
+
+it("leaves an outage for another account without retrying the broken session", () => {
+  useExperienceSessionMock.mockReturnValue(sessionState({ error: "Unavailable" }));
+  render(<InstalledAppEntry initialAudience="school" />);
+  expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute("href", "/school/login?expired=1&source=app");
+  fireEvent.click(screen.getByRole("button", { name: "Use another account" }));
+  expect(screen.getByTestId("installed-app-entry")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Student" })).toHaveAttribute("href", "/student/login?expired=1&source=app");
+});
+
+it.each([401, 403])("returns rejected sessions (%s) directly to account choice", (errorStatus) => {
+  useExperienceSessionMock.mockReturnValue(sessionState({ error: "Session expired", errorStatus }));
+  render(<InstalledAppEntry initialAudience="portal" />);
+  expect(screen.getByTestId("installed-app-entry")).toBeVisible();
+  expect(screen.queryByTestId("installed-app-session-error")).toBeNull();
 });

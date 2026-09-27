@@ -15,7 +15,7 @@ describe("invite acceptance redirect", () => {
 
     expect(redirectAfterInviteAcceptance("Parent")).toBe("/parent/login");
     expect(redirectAfterInviteAcceptance("Teacher")).toBe("/school/login");
-    expect(redirectAfterInviteAcceptance("Student")).toBe("/school/login");
+    expect(redirectAfterInviteAcceptance("Student")).toBe("/student/login");
   });
 
   test("login href uses invited email and never the invited name", () => {

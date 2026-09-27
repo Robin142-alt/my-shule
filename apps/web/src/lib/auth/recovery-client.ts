@@ -1,3 +1,4 @@
+import { authFetch } from "@/lib/auth/auth-fetch";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
 
 type RecoveryAudience = "superadmin" | "school" | "portal";
@@ -19,7 +20,7 @@ async function postRecoveryAction(
   path: string,
   body: Record<string, unknown>,
 ) {
-  const response = await fetch(path, {
+  const response = await authFetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -29,10 +30,10 @@ async function postRecoveryAction(
     body: JSON.stringify(body),
   });
   const payload = (await response.json().catch(() => null)) as
-    | { message?: string }
+    | { message?: string; success?: boolean }
     | null;
 
-  if (!response.ok) {
+  if (!response.ok || payload?.success !== true) {
     throw new Error(payload?.message ?? "Unable to complete this recovery request.");
   }
 

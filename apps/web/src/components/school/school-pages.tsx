@@ -4569,6 +4569,7 @@ function AuthorizedSchoolPagesContent(
           <p className="mt-2 text-xs font-semibold leading-5 text-muted">
             This dashboard address belongs to a different school than your signed-in session. Return to your assigned school or sign in again.
           </p>
+          <Link href="/school/login?expired=1" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-accent underline">Sign in again</Link>
         </div>
       </main>
     );
@@ -4584,6 +4585,7 @@ function AuthorizedSchoolPagesContent(
           <p className="mt-2 text-xs font-semibold leading-5 text-muted">
             MyShule could not verify which school owns this dashboard. Sign in again before viewing or changing school records.
           </p>
+          <Link href="/school/login?expired=1" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-accent underline">Sign in again</Link>
         </div>
       </main>
     );

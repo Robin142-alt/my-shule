@@ -34,22 +34,14 @@ describe("MyShule platform branding", () => {
 
   test("replaces auth initials on desktop and mobile without changing the access context", () => {
     const view = renderWithProviders(
-      <AuthShell
-        eyebrow="Secure access"
-        heroTitle="Sign in"
-        heroDescription="Open the right workspace."
-        badge="School protected"
-        helper="Use your verified account."
-        highlights={[]}
-        trustNotes={[]}
-      >
+      <AuthShell>
         <div>Authentication form</div>
       </AuthShell>,
     );
 
-    expectMyShuleMarks(view.container, 2);
+    expectMyShuleMarks(view.container, 1);
     expect(screen.queryByText(/^SH$/)).not.toBeInTheDocument();
-    expect(screen.getByText("School protected")).toBeVisible();
+    expect(screen.getByText("Authentication form")).toBeVisible();
   });
 
   test("shows MyShule platform branding while retaining the tenant workspace identity", () => {

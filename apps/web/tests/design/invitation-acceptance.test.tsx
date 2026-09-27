@@ -44,7 +44,7 @@ describe("invite acceptance", () => {
     await user.type(screen.getByLabelText(/full name/i), "Teacher One");
     await user.type(screen.getByLabelText(/^create password$/i), "StrongPass123");
     await user.type(screen.getByLabelText(/confirm password/i), "StrongPass123");
-    await user.click(screen.getByRole("button", { name: /accept invitation/i }));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => expect(screen.getByText(/invitation accepted/i)).toBeVisible());
     expect(fetchMock).toHaveBeenCalledWith(
@@ -79,21 +79,21 @@ describe("invite acceptance", () => {
 
     await user.type(screen.getByLabelText(/^create password$/i), "StrongPass123");
     await user.type(screen.getByLabelText(/confirm password/i), "StrongPass123");
-    await user.click(screen.getByRole("button", { name: /accept invitation/i }));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
 
     const loginLink = await screen.findByRole("link", { name: /continue to parent login/i });
 
-    expect(loginLink).toHaveAttribute("href", "/parent/login?accepted=1&email=parent%40example.test&tenant=kisumu-boys");
+    expect(loginLink).toHaveAttribute("href", "/parent/login?accepted=1&email=parent%40example.test&tenant=kisumu-boys&expired=1");
     expect(loginLink).not.toHaveAttribute("href", expect.stringContaining("Grace"));
   });
 
   it.each([
     ["Teacher", "/school/login?accepted=1&email=teacher%40example.test&tenant=kisumu-boys"],
-    ["Student", "/school/login?accepted=1&email=student%40example.test&tenant=kisumu-boys"],
+    ["Student", "/student/login?accepted=1&email=student%40example.test&tenant=kisumu-boys"],
     ["Librarian", "/school/login?accepted=1&email=librarian%40example.test&tenant=kisumu-boys"],
     ["Transport Manager", "/school/login?accepted=1&email=transport%40example.test&tenant=kisumu-boys"],
     ["ICT / Computer Lab user", "/school/login?accepted=1&email=ict%40example.test&tenant=kisumu-boys"],
-  ])("sends accepted %s invites to school login", async (role, expectedHref) => {
+  ])("sends accepted %s invites to the correct login", async (role, expectedHref) => {
     const user = userEvent.setup();
     const email = decodeURIComponent(expectedHref.match(/email=([^&]+)/)?.[1] ?? "");
     fetchMock
@@ -116,11 +116,11 @@ describe("invite acceptance", () => {
 
     await user.type(screen.getByLabelText(/^create password$/i), "StrongPass123");
     await user.type(screen.getByLabelText(/confirm password/i), "StrongPass123");
-    await user.click(screen.getByRole("button", { name: /accept invitation/i }));
+    await user.click(screen.getByRole("button", { name: /create account/i }));
 
-    const loginLink = await screen.findByRole("link", { name: /continue to school login/i });
+    const loginLink = await screen.findByRole("link", { name: /continue to (school|student) login/i });
 
-    expect(loginLink).toHaveAttribute("href", expectedHref);
+    expect(loginLink).toHaveAttribute("href", `${expectedHref}&expired=1`);
     expect(loginLink).not.toHaveAttribute("href", expect.stringContaining(`${role} User`));
   });
 });

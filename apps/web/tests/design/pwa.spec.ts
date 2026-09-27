@@ -47,7 +47,7 @@ test.describe("unified MyShule PWA", () => {
     );
   });
 
-  test("shows only the School and Parent entry paths before authentication", async ({
+  test("offers staff, parent and student entry paths before authentication", async ({
     page,
   }) => {
     await page.goto("/app");
@@ -55,31 +55,32 @@ test.describe("unified MyShule PWA", () => {
     const entry = page.getByTestId("installed-app-entry");
     await expect(entry).toBeVisible();
     await expect(
-      entry.getByRole("link", { name: /School Staff and school operations/i }),
-    ).toHaveAttribute("href", "/school/login?source=app");
+      entry.getByRole("link", { name: /^School staff$/i }),
+    ).toHaveAttribute("href", "/school/login?expired=1&source=app");
     await expect(
       entry.getByRole("link", {
-        name: /Parent Linked learner and family portal/i,
+        name: /^Parent$/i,
       }),
-    ).toHaveAttribute("href", "/parent/login?source=app");
+    ).toHaveAttribute("href", "/parent/login?expired=1&source=app");
+    await expect(entry.getByRole("link", { name: "Student", exact: true })).toHaveAttribute("href", "/student/login?expired=1&source=app");
     await expect(page.locator("header, footer")).toHaveCount(0);
     await expect(entry.getByText(/Pricing|Features|About|Request Demo/i)).toHaveCount(0);
 
     await entry
-      .getByRole("link", { name: /School Staff and school operations/i })
+      .getByRole("link", { name: /^School staff$/i })
       .click();
-    await expect(page).toHaveURL(/\/school\/login\?source=app$/);
+    await expect(page).toHaveURL(/\/school\/login\?expired=1&source=app$/);
     await expect(
-      page.getByRole("heading", { name: /secure admin access/i }),
+      page.getByRole("heading", { name: /sign in to myshule/i }),
     ).toBeVisible();
 
     await page.goto("/app");
     await page
-      .getByRole("link", { name: /Parent Linked learner and family portal/i })
+      .getByRole("link", { name: /^Parent$/i })
       .click();
-    await expect(page).toHaveURL(/\/parent\/login\?source=app$/);
+    await expect(page).toHaveURL(/\/parent\/login\?expired=1&source=app$/);
     await expect(
-      page.getByRole("heading", { name: /stay connected to your child/i }),
+      page.getByRole("heading", { name: /parent sign in/i }),
     ).toBeVisible();
   });
 
