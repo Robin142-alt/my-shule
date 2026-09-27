@@ -205,15 +205,15 @@ function Sidebar({
   onViewChange: (view: DeanView) => void;
 }) {
   return (
-    <aside className="hidden h-full w-[232px] shrink-0 flex-col border-r border-slate-200 bg-[#F8FAFC] lg:flex">
+    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity
-        eyebrow="MyShule / Academic office"
-        tone="light"
-        compact
+        eyebrow="Academic command"
+        title="Dean of Academics"
+        subtitle="Academic leadership workspace"
       />
 
       <nav
-        className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
+        className="space-y-1"
         aria-label="Dean of Academics navigation"
       >
         {deanNavItems.map((item, index) => {
@@ -224,7 +224,7 @@ function Sidebar({
           return (
             <div key={`${item.group}-${item.id}`}>
               {showGroup ? (
-                <p className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
                   {item.group}
                 </p>
               ) : null}
@@ -233,10 +233,8 @@ function Sidebar({
                 onClick={() => onViewChange(item.id)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "mb-0.5 flex min-h-10 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] font-medium transition focus-visible:outline-2 focus-visible:outline-blue-600",
-                  active
-                    ? "bg-[#E5EDF8] text-[#174789]"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                  "flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFB27E]",
+                  active && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]",
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

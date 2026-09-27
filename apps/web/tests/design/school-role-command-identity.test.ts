@@ -34,7 +34,7 @@ describe("school role command identity", () => {
     if (file === "dean-academics-command-center.tsx") {
       const source = schoolComponent(file);
       expect(source).toMatch(/useSchoolCommandIdentity/);
-      expect(source).toMatch(/<SchoolCommandSidebarIdentity[^>]*compact/);
+      expect(source).toMatch(/<SchoolCommandSidebarIdentity/);
       expect(source).toMatch(/<SchoolDashboardRoleSwitcher/);
       expect(source).toMatch(/\{schoolName\}/);
       return;
