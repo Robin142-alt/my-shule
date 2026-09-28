@@ -48,6 +48,8 @@ import { PrincipalCommunicationWorkspace } from "./principal-dashboard/communica
 import { PrincipalDisciplineWorkspace } from "./principal-dashboard/discipline-workspace";
 import { PrincipalExamsReportsWorkspace } from "./principal-dashboard/exams-reports-workspace";
 import { PrincipalFinanceOverviewWorkspace } from "./principal-dashboard/finance-overview-workspace";
+import { SchoolPaymentChannels } from "./accountant/payment-channels-workspace";
+import { CollectionsWorkspace } from "./accountant/collections-workspace";
 import {
   PrincipalAuditOversightWorkspace,
   PrincipalHealthOversightWorkspace,
@@ -226,6 +228,8 @@ function normalizePrincipalSection(section?: string | null): PrincipalSection {
       return "sick-bay";
     case "finance":
     case "finance-overview":
+    case "payment-setup":
+    case "collections":
       return "fees";
     case "exams":
     case "exams-report-cards":
@@ -446,7 +450,7 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
     if (activeWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
     if (activeWorkspace === "students") return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
-    if (activeWorkspace === "fees") return <PrincipalFinanceOverviewWorkspace />;
+    if (activeWorkspace === "fees") return <div className="space-y-6"><SchoolPaymentChannels mode="review" /><CollectionsWorkspace mode="review" /><PrincipalFinanceOverviewWorkspace /></div>;
     if (activeWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
     if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
     if (activeWorkspace === "academics") return <PrincipalAcademicsWorkspace />;

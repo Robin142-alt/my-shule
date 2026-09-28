@@ -22,6 +22,8 @@ import { FeeStructuresWorkspace } from "@/components/school/accountant/fee-struc
 import { InvoicesWorkspace } from "@/components/school/accountant/invoices-workspace";
 import { MPesaReconciliationWorkspace } from "@/components/school/accountant/m-pesa-reconciliation-workspace";
 import { PaymentsWorkspace } from "@/components/school/accountant/payments-workspace";
+import { SchoolPaymentChannels } from "@/components/school/accountant/payment-channels-workspace";
+import { CollectionsWorkspace } from "@/components/school/accountant/collections-workspace";
 import { ReceiptsWorkspace } from "@/components/school/accountant/receipts-workspace";
 import { ReportsWorkspace } from "@/components/school/accountant/reports-workspace";
 import { WaiversDiscountsWorkspace } from "@/components/school/accountant/waivers-discounts-workspace";
@@ -39,6 +41,8 @@ type AccountantSection =
   | "fee-structures"
   | "invoices"
   | "payments"
+  | "payment-setup"
+  | "collections"
   | "m-pesa-reconciliation"
   | "receipts"
   | "arrears"
@@ -69,6 +73,8 @@ const ACCOUNTANT_NAV_ITEMS: AccountantNavItem[] = [
     group: "Billing Setup",
     icon: Layers3,
   },
+  { id: "payment-setup", label: "Payment Setup", description: "School accounts and Principal approval", group: "Billing Setup", icon: Banknote },
+  { id: "collections", label: "School Collections", description: "Bank statements, unmatched payments and reversals", group: "Collections", icon: Banknote },
   {
     id: "invoices",
     label: "Student Invoices",
@@ -130,6 +136,8 @@ const ACCOUNTANT_NAV_ITEMS: AccountantNavItem[] = [
 const ACCOUNTANT_SECTION_ALIASES: Record<string, AccountantSection> = {
   dashboard: "overview",
   finance: "overview",
+  "finance-overview": "overview",
+  fees: "collections",
   mpesa: "m-pesa-reconciliation",
   waivers: "waivers-discounts",
 };
@@ -199,6 +207,10 @@ export function AccountantCommandCenter({
             activeSection="invoices"
           />
         );
+      case "payment-setup":
+        return <SchoolPaymentChannels mode="request" />;
+      case "collections":
+        return <CollectionsWorkspace tenantSlug={tenantSlug} />;
       case "payments":
         return (
           <PaymentsWorkspace

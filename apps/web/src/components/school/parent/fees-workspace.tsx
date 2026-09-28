@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/modal";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { openPrintDocument } from "@/lib/dashboard/export";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { SchoolPaymentInstructions } from "../payment-instructions";
 
 type FeeAccount = {
   student_id: string;
@@ -88,7 +89,7 @@ export function FeesWorkspace() {
     [account, data?.transactions],
   );
   const balanceMinor = Number(account?.balance_minor ?? 0);
-  const balanceLabel = formatMoney(balanceMinor);
+  const balanceLabel = balanceMinor < 0 ? `${formatMoney(-balanceMinor)} credit` : formatMoney(balanceMinor);
   const primaryInvoice = invoices.find((invoice) => !["paid", "cancelled", "waived"].includes(invoice.status));
   const accountReference = String(
     account?.admission_number
@@ -121,7 +122,7 @@ export function FeesWorkspace() {
           idempotency_key: `parent-fees-${account.student_id}-${balanceMinor}-${Date.now()}`,
           amount_minor: String(balanceMinor),
           phone_number: normalizedPhone,
-          student_id: isUuid(account.student_id) ? account.student_id : undefined,
+          student_id: account.student_id,
           account_reference: accountReference,
           transaction_desc: `School fees payment for ${account.student_name}`,
           external_reference: primaryInvoice?.id,
@@ -176,6 +177,7 @@ export function FeesWorkspace() {
 
   return (
     <div className="space-y-6">
+      <SchoolPaymentInstructions reference={account?.admission_number} />
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Fees & Payments</h2>
@@ -489,9 +491,4 @@ function formatDate(value?: string | null) {
   if (!value) return "Date not recorded";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Date not recorded" : date.toLocaleDateString("en-KE");
-}
-
-function isUuid(value: unknown): value is string {
-  return typeof value === "string"
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }

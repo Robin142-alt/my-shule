@@ -109,6 +109,8 @@ export const SCHOOL_SECTIONS = [
   "payments",
   "receipts",
   "m-pesa-reconciliation",
+  "payment-setup",
+  "collections",
   "arrears",
   "waivers-discounts",
   "expenses",

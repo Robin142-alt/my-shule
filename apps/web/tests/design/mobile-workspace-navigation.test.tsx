@@ -58,7 +58,7 @@ describe("mobile workspace navigation", () => {
     expect(trigger).toHaveFocus();
 
     await user.click(trigger);
-    await user.click(screen.getByRole("button", { name: "Attendance", exact: true }));
+    await user.click(screen.getByRole("button", { name: /^Attendance$/ }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(trigger).toHaveAccessibleDescription("Attendance");
     expect(trigger).toHaveFocus();

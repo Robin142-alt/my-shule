@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle, ReceiptText, Wallet } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { SchoolPaymentInstructions } from "../payment-instructions";
 
 type StudentFeesData = {
   metrics: {
@@ -53,6 +54,7 @@ export function FeesWorkspace() {
 
   return (
     <div className="space-y-6">
+      <SchoolPaymentInstructions reference={account?.admission_number} />
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Fee Status</h2>
         <p className="mt-1 text-sm text-slate-500">
@@ -89,7 +91,7 @@ export function FeesWorkspace() {
               {isLoading ? (
                 <div className="h-10 w-32 animate-pulse rounded bg-slate-200" />
               ) : (
-                <div className="text-4xl font-bold text-slate-900">{formatMoney(balanceMinor)}</div>
+                <div className="text-4xl font-bold text-slate-900">{balanceMinor < 0 ? `${formatMoney(-balanceMinor)} credit` : formatMoney(balanceMinor)}</div>
               )}
               <p className={`mt-2 flex items-center gap-2 text-sm font-medium ${
                 balanceMinor > 0 ? "text-warning" : "text-success"
