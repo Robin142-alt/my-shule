@@ -7,6 +7,13 @@ const sensitiveQueryKeys = new Set([
   'token',
 ]);
 
+function redactPathTokens(path: string): string {
+  return path.replace(
+    /(\/payments\/mpesa\/transaction-status\/[^/]+\/[^/]+\/)[^/]+(?=\/(?:result|timeout)(?:\/|$))/gi,
+    '$1[redacted]',
+  );
+}
+
 export function sanitizeRequestPath(value: string | undefined | null): string {
   const rawPath = typeof value === 'string' && value.trim().length > 0 ? value.trim() : '/';
 
@@ -14,7 +21,7 @@ export function sanitizeRequestPath(value: string | undefined | null): string {
     const parsed = new URL(rawPath, 'http://myshule.local');
 
     if (parsed.searchParams.size === 0) {
-      return parsed.pathname || '/';
+      return redactPathTokens(parsed.pathname || '/');
     }
 
     const safeParams = new URLSearchParams();
@@ -28,10 +35,10 @@ export function sanitizeRequestPath(value: string | undefined | null): string {
     });
     const safeQuery = safeParams.toString();
 
-    return `${parsed.pathname || '/'}${safeQuery ? `?${safeQuery}` : ''}`;
+    return `${redactPathTokens(parsed.pathname || '/')}${safeQuery ? `?${safeQuery}` : ''}`;
   } catch {
     const [pathOnly] = rawPath.split(/[?#]/, 1);
 
-    return pathOnly || '/';
+    return redactPathTokens(pathOnly || '/');
   }
 }

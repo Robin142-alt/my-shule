@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   UnauthorizedException,
@@ -34,6 +35,8 @@ import {
   redactMpesaOperationalPayload,
 } from './mpesa-payload-vault.service';
 import { PaymentsJobProducerService } from './payments-job-producer.service';
+import { CollectionPaymentsService } from '../collection-payments.service';
+import type { EnqueueMpesaVerificationJobData } from '../queue/payments-queue.types';
 
 const DEFAULT_CURRENCY_CODE = 'KES';
 const DEFAULT_C2B_ASSET_ACCOUNT_CODE = '1110-MPESA-CLEARING';
@@ -49,6 +52,7 @@ const C2B_REJECTED_RESPONSE: MpesaC2bGatewayResponse = {
 
 @Injectable()
 export class MpesaC2bService {
+  private readonly logger = new Logger(MpesaC2bService.name);
 
   private async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     const firstParam = params[0];
@@ -82,6 +86,7 @@ export class MpesaC2bService {
     @Optional() private readonly mpesaPayloadVaultService?: MpesaPayloadVaultService,
     @Optional() private readonly mpesaVerificationJobsRepository?: MpesaVerificationJobsRepository,
     @Optional() private readonly paymentsJobProducerService?: PaymentsJobProducerService,
+    @Optional() private readonly collections?: CollectionPaymentsService,
   ) {}
 
   parseC2bPayload(payload: MpesaC2bPayload): ParsedMpesaC2bPayment {
@@ -137,8 +142,9 @@ export class MpesaC2bService {
     );
     const tenantId = mpesaConfig.tenant_id;
 
-    return this.runInTenantContext(tenantId, parsed.trans_id, () =>
-      this.prisma.withRequestTransaction(async () => {
+    return this.runInTenantContext(tenantId, parsed.trans_id, async () => {
+      let dispatch: EnqueueMpesaVerificationJobData | undefined;
+      const result = await this.prisma.withRequestTransaction(async () => {
         const existingPayment =
           await this.mpesaC2bPaymentsRepository.findByTenantAndTransId(
             tenantId,
@@ -220,7 +226,7 @@ export class MpesaC2bService {
           mpesa_receipt_number: parsed.trans_id,
         });
         const currentContext = this.requestContext.requireStore();
-        await this.paymentsJobProducerService?.enqueueMpesaVerification({
+        dispatch = {
           tenant_id: tenantId,
           verification_job_id: verificationJob.id,
           c2b_payment_id: verificationRequestedPayment.id,
@@ -231,7 +237,7 @@ export class MpesaC2bService {
           user_id: currentContext.user_id,
           role: currentContext.role,
           session_id: currentContext.session_id,
-        });
+        };
 
         return {
           accepted: true,
@@ -242,8 +248,15 @@ export class MpesaC2bService {
           manual_fee_payment_id: null,
           ledger_transaction_id: null,
         };
-      }),
-    );
+      });
+      // PostgreSQL is the durable inbox. A Redis outage must not roll back an
+      // accepted provider payment; the worker recovers undispatched jobs.
+      if (dispatch && this.paymentsJobProducerService) {
+        try { await this.paymentsJobProducerService.enqueueMpesaVerification(dispatch); }
+        catch { this.logger.warn('C2B confirmation persisted; queue dispatch awaits recovery'); }
+      }
+      return result;
+    });
   }
 
   private async storeRawPayload(
@@ -317,6 +330,27 @@ export class MpesaC2bService {
 
       if (!dto.invoice_id && !dto.student_id) {
         throw new BadRequestException('Reconciliation requires an invoice or student target');
+      }
+
+      if (this.collections) {
+        let selectedStudent = dto.student_id;
+        if (dto.invoice_id) {
+          const invoice = await this.invoicesRepository.lockManualFeeInvoiceForAllocation(tenantId,dto.invoice_id);
+          if (!invoice) throw new NotFoundException('Invoice was not found in this school');
+          const owner = this.readStudentId(invoice);
+          if (selectedStudent && owner !== selectedStudent) throw new BadRequestException('Selected student does not match the invoice');
+          selectedStudent = owner ?? undefined;
+        }
+        const collection = await this.collections.recognizeVerified(tenantId,{
+          provider_code:'safaricom',provider_transaction_id:payment.trans_id,destination_account:payment.business_short_code,
+          amount_minor:payment.amount_minor,currency_code:'KES',account_reference:payment.bill_ref_number ?? '',occurred_at:payment.received_at.toISOString(),
+        },payment.payment_channel_id,selectedStudent,undefined,{
+          invoice_id:dto.invoice_id,reason:dto.notes?.trim() || 'Accountant reconciled verified provider evidence',
+        });
+        if (!collection.manual_fee_payment_id) throw new ConflictException('Payment reference still needs reconciliation');
+        const matchedPayment = await this.mpesaC2bPaymentsRepository.markMatched({tenant_id:tenantId,payment_id:payment.id,matched_invoice_id:collection.invoice_id,
+          matched_student_id:collection.student_id,manual_fee_payment_id:collection.manual_fee_payment_id,ledger_transaction_id:collection.ledger_transaction_id});
+        return this.redactC2bPaymentForResponse(matchedPayment);
       }
 
       let invoiceId = dto.invoice_id ?? null;

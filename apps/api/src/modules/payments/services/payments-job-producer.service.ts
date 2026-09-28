@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
+import { createHash } from 'node:crypto';
 
 import { QueueService } from '../../../queue/queue.service';
 import {
@@ -34,6 +35,9 @@ export class PaymentsJobProducerService {
     const existingJob = await paymentsQueue.getJob(jobId);
 
     if (existingJob) {
+      const state = await existingJob.getState();
+      if (state === 'failed') await existingJob.retry();
+      if (state === 'completed') await existingJob.retry('completed');
       return this.mapQueueResult(existingJob, payload, true);
     }
 
@@ -96,6 +100,9 @@ export class PaymentsJobProducerService {
     const existingJob = await paymentsQueue.getJob(jobId);
 
     if (existingJob) {
+      const state = await existingJob.getState();
+      if (state === 'failed') await existingJob.retry();
+      if (state === 'completed') await existingJob.retry('completed');
       return this.mapMpesaVerificationQueueResult(existingJob, payload, true);
     }
 
@@ -151,14 +158,16 @@ export class PaymentsJobProducerService {
     }
   }
 
-  buildJobId(data: Pick<ProcessPaymentJobData, 'tenant_id' | 'checkout_request_id'>): string {
-    return `${PAYMENTS_QUEUE_NAME}:${data.tenant_id}:${data.checkout_request_id}`;
+  buildJobId(data: Pick<ProcessPaymentJobData, 'tenant_id' | 'checkout_request_id' | 'callback_log_id'>): string {
+    // Distinct deliveries may contain a later successful result. The ledger
+    // deduplicates the receipt; queue identity must not discard that delivery.
+    return `${PAYMENTS_QUEUE_NAME}-${createHash('sha256').update(JSON.stringify([data.tenant_id,data.checkout_request_id,data.callback_log_id ?? null])).digest('hex')}`;
   }
 
   buildMpesaVerificationJobId(
     data: Pick<ProcessMpesaVerificationJobData, 'tenant_id' | 'verification_job_id'>,
   ): string {
-    return `${PAYMENTS_QUEUE_NAME}:verify:${data.tenant_id}:${data.verification_job_id}`;
+    return `${PAYMENTS_QUEUE_NAME}-verify-${createHash('sha256').update(JSON.stringify([data.tenant_id,data.verification_job_id])).digest('hex')}`;
   }
 
   private async mapQueueResult(

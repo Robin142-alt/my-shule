@@ -119,7 +119,7 @@ export class MpesaC2bController {
 
   @Post('payments/:paymentId/reconcile')
   @RequiresModule('finance')
-  @Permissions('billing:update')
+  @Permissions('billing:write')
   async reconcilePayment(
     @Param('paymentId') paymentId: string,
     @Body() dto: ReconcileMpesaC2bPaymentDto,

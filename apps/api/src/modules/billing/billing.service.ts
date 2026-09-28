@@ -997,7 +997,7 @@ export class BillingService {
       if (
         receipt.status !== 'cleared' ||
         !receipt.student_id ||
-        receipt.invoice_id
+        (receipt.invoice_id && typeof receipt.metadata?.credit_amount_minor !== 'string')
       ) {
         continue;
       }
@@ -1010,7 +1010,10 @@ export class BillingService {
         currency_code: receipt.currency_code,
       });
 
-      balance.credit_amount_minor += this.toMinorBigInt(receipt.amount_minor);
+      balance.credit_amount_minor += this.toMinorBigInt(
+        typeof receipt.metadata?.credit_amount_minor === 'string'
+          ? receipt.metadata.credit_amount_minor : receipt.amount_minor,
+      );
       balance.last_activity_at = this.maxDate(
         balance.last_activity_at,
         receipt.cleared_at ?? receipt.received_at,
@@ -1283,7 +1286,15 @@ export class BillingService {
     const entries: StudentStatementWorkingEntry[] = [];
 
     for (const receipt of receipts) {
-      if (receipt.status === 'cleared' && receipt.invoice_id) {
+      if (receipt.status !== 'cleared') continue;
+      const allocations = receipt.metadata?.invoice_allocations;
+      if (Array.isArray(allocations) && allocations.length) {
+        for (const allocation of allocations) {
+          if (!allocation || typeof allocation.invoice_id !== 'string' || typeof allocation.amount_minor !== 'string') continue;
+          clearedReceiptCreditsByInvoice.set(allocation.invoice_id,
+            (clearedReceiptCreditsByInvoice.get(allocation.invoice_id) ?? 0n) + this.toMinorBigInt(allocation.amount_minor));
+        }
+      } else if (receipt.invoice_id) {
         clearedReceiptCreditsByInvoice.set(
           receipt.invoice_id,
           (clearedReceiptCreditsByInvoice.get(receipt.invoice_id) ?? 0n) +

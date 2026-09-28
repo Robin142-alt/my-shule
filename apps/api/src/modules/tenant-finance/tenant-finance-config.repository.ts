@@ -119,6 +119,8 @@ export class TenantFinanceConfigRepository {
         FROM tenant_mpesa_configs
         WHERE tenant_id = $1
           AND status = 'active'
+          AND EXISTS (SELECT 1 FROM tenant_payment_channels channel
+            WHERE channel.tenant_id=tenant_mpesa_configs.tenant_id AND channel.mpesa_config_id=tenant_mpesa_configs.id AND channel.status='active')
         ORDER BY updated_at DESC
         LIMIT 1
       `,

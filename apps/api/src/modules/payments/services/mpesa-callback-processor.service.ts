@@ -36,6 +36,7 @@ import { MpesaTransactionsRepository } from '../repositories/mpesa-transactions.
 import { PaymentIntentsRepository } from '../repositories/payment-intents.repository';
 import { MpesaService } from './mpesa.service';
 import { MpesaPayloadVaultService } from './mpesa-payload-vault.service';
+import { CollectionPaymentsService } from '../collection-payments.service';
 
 interface PaymentProcessingJobInput {
   tenant_id: string;
@@ -92,6 +93,7 @@ export class MpesaCallbackProcessorService {
     private readonly fraudDetectionService: FraudDetectionService,
     @Optional() private readonly sloMetrics?: SloMetricsService,
     @Optional() private readonly mpesaPayloadVaultService?: MpesaPayloadVaultService,
+    @Optional() private readonly collections?: CollectionPaymentsService,
   ) {}
 
   async process(jobPayload: ProcessMpesaCallbackJobPayload): Promise<void> {
@@ -419,6 +421,17 @@ export class MpesaCallbackProcessorService {
 
     this.assertCallbackCanChangePaymentState(callbackLog, callback);
 
+    // A delayed failure cannot erase an already posted success. Keep the new
+    // callback in the inbox, but leave the transaction and intent unchanged.
+    if (paymentIntent.ledger_transaction_id && callback.status === 'failed') {
+      return this.buildJobResult(jobId, callback.checkout_request_id, callbackLog.id, {
+        payment_intent_id: paymentIntent.id,
+        mpesa_transaction_id: null,
+        ledger_transaction_id: paymentIntent.ledger_transaction_id,
+        status: 'duplicate',
+      });
+    }
+
     if (!this.isTerminalPaymentIntent(paymentIntent.status)) {
       await this.paymentIntentsRepository.markCallbackReceived(tenantId, paymentIntent.id);
     }
@@ -517,6 +530,31 @@ export class MpesaCallbackProcessorService {
         mpesa_transaction_id: mpesaTransaction.id,
         ledger_transaction_id: paymentIntent.ledger_transaction_id,
         status: 'duplicate',
+      });
+    }
+
+    if (paymentIntent.payment_owner === 'tenant' && this.collections) {
+      if (!callback.mpesa_receipt_number || !paymentIntent.mpesa_short_code || !paymentIntent.student_id) {
+        throw new BadRequestException('A school payment requires a provider receipt, school destination and student');
+      }
+      const collection = await this.collections.recognizeVerified(tenantId, {
+        provider_code: 'safaricom', provider_transaction_id: callback.mpesa_receipt_number,
+        destination_account: paymentIntent.mpesa_short_code, amount_minor: callback.amount_minor,
+        currency_code: 'KES', account_reference: paymentIntent.account_reference,
+        occurred_at: callback.transaction_occurred_at ?? new Date().toISOString(),
+      }, paymentIntent.payment_channel_id, paymentIntent.student_id, {
+        asset_account_code: paymentIntent.ledger_debit_account_code,
+        fee_control_account_code: paymentIntent.ledger_credit_account_code,
+      });
+      if (collection.status !== 'posted' || !collection.ledger_transaction_id) {
+        throw new BadRequestException('Confirmed payment requires collection reconciliation before completion');
+      }
+      await this.mpesaTransactionsRepository.attachLedgerTransaction(tenantId, callback.checkout_request_id, collection.ledger_transaction_id);
+      await this.paymentIntentsRepository.markCompleted(tenantId,paymentIntent.id,collection.ledger_transaction_id);
+      await this.publishPaymentCompletedEvent(paymentIntent,callback,mpesaTransaction.id,collection.ledger_transaction_id);
+      return this.buildJobResult(jobId,callback.checkout_request_id,callbackLog.id,{
+        payment_intent_id:paymentIntent.id,mpesa_transaction_id:mpesaTransaction.id,
+        ledger_transaction_id:collection.ledger_transaction_id,status:'completed',
       });
     }
 

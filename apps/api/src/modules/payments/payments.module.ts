@@ -32,6 +32,12 @@ import { MpesaVerificationProcessorService } from './services/mpesa-verification
 import { MpesaService } from './services/mpesa.service';
 import { MpesaSignatureService } from './services/mpesa-signature.service';
 import { PaymentAllocationService } from './services/payment-allocation.service';
+import { CollectionPaymentsSchemaService } from './collection-payments-schema.service';
+import { CollectionPaymentsService } from './collection-payments.service';
+import { CollectionSuspenseService } from './collection-suspense.service';
+import { CollectionPaymentsController } from './collection-payments.controller';
+import { MpesaAsyncStatusService } from './mpesa-async-status.service';
+import { MpesaAsyncStatusController } from './mpesa-async-status.controller';
 
 @Module({
   imports: [
@@ -45,9 +51,13 @@ import { PaymentAllocationService } from './services/payment-allocation.service'
     PaymentsQueueModule,
     forwardRef(() => BillingModule),
   ],
-  controllers: [PaymentsController, MpesaCallbackController, MpesaC2bController],
+  controllers: [PaymentsController, MpesaCallbackController, MpesaC2bController, CollectionPaymentsController, MpesaAsyncStatusController],
   providers: [
     PaymentsSchemaService,
+    CollectionPaymentsSchemaService,
+    CollectionPaymentsService,
+    CollectionSuspenseService,
+    MpesaAsyncStatusService,
     MpesaService,
     MpesaCallbackChannelService,
     MpesaC2bService,
@@ -69,6 +79,7 @@ import { PaymentAllocationService } from './services/payment-allocation.service'
     MpesaVerificationJobsRepository,
   ],
   exports: [
+    CollectionPaymentsService,
     MpesaService,
     MpesaCallbackChannelService,
     MpesaPayloadVaultService,

@@ -94,6 +94,9 @@ export class MpesaService {
       const normalizedPhoneNumber = this.normalizePhoneNumber(dto.phone_number);
       const amountMinor = this.normalizeMinorAmount(dto.amount_minor);
       const paymentOwner = options.payment_owner ?? 'tenant';
+      const studentId = paymentOwner === 'tenant'
+        ? await this.resolveSchoolPaymentStudent(tenantId, dto)
+        : null;
       const mpesaConfig = await this.resolveMpesaConfig(tenantId, paymentOwner);
       const idempotencyRecord = await this.paymentIntentIdempotencyRepository.lockRequest({
         tenant_id: tenantId,
@@ -126,7 +129,7 @@ export class MpesaService {
           requestContext.user_id && requestContext.user_id !== AUTH_ANONYMOUS_USER_ID
             ? requestContext.user_id
             : null,
-        student_id: dto.student_id ?? null,
+        student_id: studentId,
         request_id: requestContext.request_id,
         external_reference: dto.external_reference?.trim() || null,
         account_reference: dto.account_reference.trim(),
@@ -513,6 +516,27 @@ export class MpesaService {
 
   private getBaseUrl(): string {
     return this.requireConfig('mpesa.baseUrl');
+  }
+
+  private async resolveSchoolPaymentStudent(tenantId: string, dto: CreatePaymentIntentDto): Promise<string> {
+    const actor = this.requestContext.requireStore();
+    const result = await this.executeSql<{id:string}>(`
+      SELECT student.id::text AS id FROM students student
+      WHERE student.tenant_id=$1 AND student.deleted_at IS NULL
+        AND (($2::text IS NOT NULL AND student.id::text=$2)
+          OR ($2::text IS NULL AND (student.admission_number=$3 OR EXISTS (
+            SELECT 1 FROM invoices invoice WHERE invoice.tenant_id=$1
+              AND invoice.metadata->>'student_id'=student.id::text
+              AND invoice.invoice_number=$3 AND invoice.status<>'draft'))))
+        AND ($4::text<>'parent' OR EXISTS(SELECT 1 FROM student_guardians guardian
+          WHERE guardian.tenant_id=$1 AND guardian.student_id::text=student.id::text
+            AND guardian.user_id=$5::uuid AND guardian.status='active'))
+        AND ($4::text<>'student' OR EXISTS(SELECT 1 FROM student_portal_access access
+          WHERE access.tenant_id=$1 AND access.student_id::text=student.id::text
+            AND access.user_id=$5::uuid AND access.status='active'))
+      LIMIT 2`, [tenantId,dto.student_id ?? null,dto.account_reference.trim(),actor.role,actor.user_id]);
+    if(result.rows.length !== 1) throw new BadRequestException('Choose a student fee account you are authorized to pay in this school');
+    return result.rows[0].id;
   }
 
   private async resolveMpesaConfig(

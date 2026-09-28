@@ -1,4 +1,6 @@
-import { BadGatewayException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { PrismaService } from '../../../database/prisma.service';
+import { MpesaAsyncStatusService } from '../mpesa-async-status.service';
 import { ConfigService } from '@nestjs/config';
 
 import { RedisService } from '../../../infrastructure/redis/redis.service';
@@ -60,15 +62,21 @@ export class MpesaTransactionStatusService {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly tenantFinanceConfigService: TenantFinanceConfigService,
+    @Optional() private readonly asyncStatus?: MpesaAsyncStatusService,
+    @Optional() private readonly db?: PrismaService,
   ) {}
 
   async verifyStkPushStatus(input: {
     tenant_id: string;
     checkout_request_id: string;
   }): Promise<MpesaTransactionStatusResult> {
-    const mpesaConfig = await this.tenantFinanceConfigService.resolveMpesaConfigForTenant(
-      input.tenant_id,
-    );
+    const intent = this.db ? (await this.db.query<{mpesa_config_id:string|null;payment_owner:string}>(
+      `SELECT mpesa_config_id,payment_owner FROM payment_intents WHERE tenant_id=$1 AND checkout_request_id=$2`,
+      [input.tenant_id,input.checkout_request_id])).rows[0] : undefined;
+    if (this.db && !intent) throw new BadRequestException('The school payment request was not found');
+    const mpesaConfig = intent?.payment_owner === 'platform'
+      ? this.tenantFinanceConfigService.resolvePlatformMpesaConfig(input.tenant_id)
+      : await this.tenantFinanceConfigService.resolveMpesaConfigForTenant(input.tenant_id,intent?.mpesa_config_id ?? undefined);
     const accessToken = await this.getAccessToken(mpesaConfig);
     const timestamp = this.buildNairobiTimestamp();
     const response = await fetch(
@@ -119,6 +127,7 @@ export class MpesaTransactionStatusService {
     tenant_id: string;
     trans_id: string;
   }): Promise<MpesaC2bTransactionStatusResult> {
+    if (this.asyncStatus) return this.asyncStatus.verify(input.tenant_id,input.trans_id);
     const mpesaConfig = await this.tenantFinanceConfigService.resolveMpesaConfigForTenant(
       input.tenant_id,
     );

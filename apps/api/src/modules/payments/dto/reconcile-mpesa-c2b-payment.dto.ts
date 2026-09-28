@@ -12,7 +12,8 @@ export class ReconcileMpesaC2bPaymentDto {
 
   @Transform(trim)
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @MaxLength(200)
   student_id?: string;
 
   @Transform(trim)

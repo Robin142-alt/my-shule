@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { FEE_BALANCE_STUDENT_PAGE_SQL } from '../fee-credit-read-sql';
 
 import { PrismaService } from '../../../database/prisma.service';
 import { PiiEncryptionService } from '../../security/pii-encryption.service';
@@ -238,11 +239,10 @@ export class InvoicesRepository {
         FROM invoices
         WHERE tenant_id = $1
           AND NULLIF(metadata ->> 'student_id', '') IS NOT NULL
+          AND status NOT IN ('draft','void','uncollectible')
+          AND metadata->>'student_id' IN (${FEE_BALANCE_STUDENT_PAGE_SQL})
         GROUP BY tenant_id, metadata ->> 'student_id', currency_code
-        ORDER BY
-          COALESCE(SUM(total_amount_minor - amount_paid_minor), 0) DESC,
-          MAX(issued_at) DESC
-        LIMIT $2::integer OFFSET $3::integer
+        ORDER BY metadata->>'student_id'
       `,
       [
         tenantId,
@@ -581,10 +581,20 @@ export class InvoicesRepository {
     tenantId: string,
     idempotencyKey: string,
   ): Promise<{ id: string } | null> {
+    // Hold through the caller's financial transaction, including credit-only receipts.
+    await this.executeSql(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
+      [tenantId, idempotencyKey],
+    );
     const result = await this.executeSql<{ id: string }>(
       `
         SELECT id
         FROM student_fee_payment_allocations
+        WHERE tenant_id = $1
+          AND idempotency_key = $2
+        UNION ALL
+        SELECT id
+        FROM student_fee_credits
         WHERE tenant_id = $1
           AND idempotency_key = $2
         LIMIT 1
@@ -615,8 +625,8 @@ export class InvoicesRepository {
           AND status IN ('open', 'pending_payment')
           AND amount_paid_minor < total_amount_minor
           AND ($3::uuid IS NULL OR id = $3::uuid)
-        ORDER BY due_at ASC, issued_at ASC, created_at ASC
-        FOR UPDATE SKIP LOCKED
+        ORDER BY due_at ASC, issued_at ASC, created_at ASC, id ASC
+        FOR UPDATE
       `,
       [input.tenantId, input.studentId, input.explicitInvoiceId ?? null],
     );
@@ -664,6 +674,7 @@ export class InvoicesRepository {
   async findManualFeeInvoiceTargetByReference(
     tenantId: string,
     reference: string,
+    includePaid = false,
   ): Promise<StudentFeeInvoiceForAllocation | null> {
     const trimmedReference = reference.trim();
     const result = await this.executeSql<StudentFeeInvoiceForAllocation>(
@@ -683,8 +694,8 @@ export class InvoicesRepository {
             OR metadata ->> 'account_reference' = $2
             OR ($3::uuid IS NOT NULL AND id = $3::uuid)
           )
-          AND status IN ('open', 'pending_payment')
-          AND amount_paid_minor < total_amount_minor
+          AND (status IN ('open', 'pending_payment') OR ($4::boolean AND status='paid'))
+          AND ($4::boolean OR amount_paid_minor < total_amount_minor)
         ORDER BY due_at ASC, issued_at ASC, created_at ASC
         LIMIT 1
       `,
@@ -692,6 +703,7 @@ export class InvoicesRepository {
         tenantId,
         trimmedReference,
         this.isUuid(trimmedReference) ? trimmedReference : null,
+        includePaid,
       ],
     );
 

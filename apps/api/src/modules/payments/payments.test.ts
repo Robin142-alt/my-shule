@@ -2231,6 +2231,7 @@ test('MpesaService sends STK push with the resolved school shortcode and credent
       requestContext,
       {
         withRequestTransaction: async <T>(callbackFn: () => Promise<T>): Promise<T> => callbackFn(),
+        query: async () => ({ rows: [{id:'00000000-0000-0000-0000-000000000802'}] }),
       } as never,
       {
         getClient: () => ({

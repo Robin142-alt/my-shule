@@ -3,7 +3,6 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -32,7 +31,9 @@ export class CreatePaymentIntentDto {
 
   @Transform(trim)
   @IsOptional()
-  @IsUUID()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
   student_id?: string;
 
   @Transform(trim)

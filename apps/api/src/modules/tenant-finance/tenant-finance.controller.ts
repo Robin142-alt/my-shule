@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -29,7 +29,7 @@ export class TenantFinanceController {
   async upsertMpesaConfig(
     @Body() dto: UpsertTenantMpesaConfigDto,
   ): Promise<TenantFinanceSummary> {
-    return this.tenantFinanceConfigService.upsertMpesaConfig(this.requireTenantId(), dto);
+    throw new ForbiddenException('Request a payment channel setup for Principal approval before technical connection');
   }
 
   @Get('mpesa-config/go-live')
@@ -44,20 +44,13 @@ export class TenantFinanceController {
     @Param('configId') configId: string,
     @Body() dto: RotateTenantMpesaCredentialsDto,
   ): Promise<TenantFinanceSummary> {
-    return this.tenantFinanceConfigService.rotateMpesaCredentials(
-      this.requireTenantId(),
-      configId,
-      dto,
-    );
+    throw new ForbiddenException('Credential changes require a new approved payment channel revision');
   }
 
   @Post('bank-accounts')
   @Permissions('billing:update')
   async upsertBankAccount(@Body() dto: UpsertTenantBankAccountDto): Promise<TenantFinanceSummary> {
-    const tenantId = this.requireTenantId();
-    await this.tenantFinanceConfigService.createBankAccount(tenantId, dto);
-
-    return this.tenantFinanceConfigService.getSummary(tenantId);
+    throw new ForbiddenException('Request a payment channel setup for Principal approval');
   }
 
   @Patch('payment-channels/:channelId/status')
@@ -66,14 +59,7 @@ export class TenantFinanceController {
     @Param('channelId') channelId: string,
     @Body() dto: UpdatePaymentChannelStatusDto,
   ): Promise<TenantFinanceSummary> {
-    const tenantId = this.requireTenantId();
-    await this.tenantFinanceConfigService.updatePaymentChannelStatus(
-      tenantId,
-      channelId,
-      dto.status,
-    );
-
-    return this.tenantFinanceConfigService.getSummary(tenantId);
+    throw new ForbiddenException('Only approved payment integrations can be activated by Super Admin');
   }
 
   private requireTenantId(): string {

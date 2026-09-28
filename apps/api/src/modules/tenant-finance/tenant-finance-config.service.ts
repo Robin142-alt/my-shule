@@ -29,8 +29,10 @@ export class TenantFinanceConfigService {
     @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
 
-  async resolveMpesaConfigForTenant(tenantId: string): Promise<ResolvedTenantMpesaConfig> {
-    const mpesaConfig = await this.repository.findActiveMpesaConfigForTenant(tenantId);
+  async resolveMpesaConfigForTenant(tenantId: string, historicalConfigId?: string): Promise<ResolvedTenantMpesaConfig> {
+    const mpesaConfig = historicalConfigId
+      ? await this.repository.findMpesaConfigForTenantById(tenantId, historicalConfigId)
+      : await this.repository.findActiveMpesaConfigForTenant(tenantId);
 
     if (!mpesaConfig) {
       throw new NotFoundException(
@@ -53,6 +55,9 @@ export class TenantFinanceConfigService {
       tenantId,
       mpesaConfig.id,
     );
+    if (!historicalConfigId && !paymentChannel) {
+      throw new BadRequestException('This school Paybill is suspended. Choose an active payment channel.');
+    }
     const isTillChannel = Boolean(mpesaConfig.till_number);
 
     return {

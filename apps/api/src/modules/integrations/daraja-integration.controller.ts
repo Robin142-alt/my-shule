@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, ForbiddenException } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { SaveDarajaIntegrationDto } from './dto/integrations.dto';
@@ -17,24 +17,24 @@ export class DarajaIntegrationController {
   @Put()
   @Permissions('daraja:write')
   saveSettings(@Body() dto: SaveDarajaIntegrationDto) {
-    return this.darajaIntegrationService.saveDarajaSettings(dto);
+    throw new ForbiddenException('Use the approved school payment channel connection workflow');
   }
 
   @Post('test')
   @Permissions('daraja:test')
   testConnection(@Query('environment') environment?: string) {
-    return this.darajaIntegrationService.testConnection(environment);
+    throw new ForbiddenException('Connection checks are available to Super Admin after Principal approval');
   }
 
   @Post(':integrationId/activate')
   @Permissions('daraja:write')
   activate(@Param('integrationId') integrationId: string) {
-    return this.darajaIntegrationService.setActive(integrationId, true);
+    throw new ForbiddenException('Use the approved school payment channel activation workflow');
   }
 
   @Post(':integrationId/deactivate')
   @Permissions('daraja:write')
   deactivate(@Param('integrationId') integrationId: string) {
-    return this.darajaIntegrationService.setActive(integrationId, false);
+    throw new ForbiddenException('Use payment integrations to suspend a channel with an audit reason');
   }
 }

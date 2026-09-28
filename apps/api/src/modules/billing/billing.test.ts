@@ -1898,6 +1898,26 @@ test('BillingService builds a student fee statement with running balances and pe
   assert.equal(response.entries[2].description, 'Pending cheque receipt');
 });
 
+test('BillingService counts an admission-reference receipt once and shows only its actual overpayment as credit', async () => {
+  const context = new RequestContextService();
+  const studentId = '00000000-0000-0000-0000-000000000802';
+  const invoice = makeInvoice({total_amount_minor:'10000',amount_paid_minor:'10000',metadata:{student_id:studentId},issued_at:new Date('2026-01-01')});
+  const receipt = makeManualFeePayment({student_id:studentId,invoice_id:null,amount_minor:'12500',received_at:new Date('2026-01-02'),cleared_at:new Date('2026-01-02'),metadata:{
+    credit_amount_minor:'2500',invoice_allocations:[{invoice_id:invoice.id,amount_minor:'10000'}],
+  }});
+  const service = new BillingService(context,{} as never,{} as never,{} as never,{} as never,{} as never,
+    {listStudentInvoices:async()=>[invoice]} as never,undefined,{listStudentStatementPayments:async()=>[receipt]} as never);
+  for(const invoiceId of [null,invoice.id]) {
+    receipt.invoice_id=invoiceId;
+    const statement=await context.run({tenant_id:'tenant-a'} as never,()=>service.getStudentStatement(studentId));
+    assert.equal(statement.summary.credit_amount_minor,'2500');
+    // The summary exposes non-negative fees due and available credit separately.
+    assert.equal(statement.summary.balance_amount_minor,'0');
+    assert.equal(statement.entries.length,2);
+    assert.equal(statement.entries.at(-1)?.balance_after_minor,'-2500');
+  }
+});
+
 test('BillingService exports a student fee statement as CSV with a checksum', async () => {
   const requestContext = new RequestContextService();
   const studentId = '00000000-0000-0000-0000-000000000802';

@@ -1,3 +1,5 @@
+import { FEE_INVOICE_READ_SQL } from '../billing/fee-invoice-read-sql';
+import { STUDENT_FEE_CREDIT_SQL } from '../billing/fee-credit-read-sql';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -78,8 +80,8 @@ export class ParentCommandService {
             AND record.student_id::text = student.id::text
         ) attendance ON TRUE
         LEFT JOIN LATERAL (
-          SELECT COALESCE(SUM(invoice.balance_minor), 0)::bigint AS balance_minor
-          FROM student_invoices invoice
+          SELECT (COALESCE(SUM(invoice.balance_minor), 0)-${STUDENT_FEE_CREDIT_SQL})::bigint AS balance_minor
+          FROM (${FEE_INVOICE_READ_SQL}) invoice
           WHERE invoice.tenant_id::text = student.tenant_id::text
             AND invoice.student_id::text = student.id::text
             AND (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
@@ -158,9 +160,9 @@ export class ParentCommandService {
             student.admission_number,
             btrim(concat_ws(' ', student.first_name, student.middle_name, student.last_name)) AS student_name,
             class_section.name AS class_name,
-            COALESCE(SUM(invoice.balance_minor) FILTER (
+            (COALESCE(SUM(invoice.balance_minor) FILTER (
               WHERE (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
-            ), 0)::bigint AS balance_minor,
+            ), 0)-${STUDENT_FEE_CREDIT_SQL})::bigint AS balance_minor,
             COUNT(invoice.id) FILTER (
               WHERE (CASE WHEN lower(COALESCE(to_jsonb(invoice)->>'status', '')) IN ('cancelled', 'waived') THEN lower(to_jsonb(invoice)->>'status') WHEN invoice.balance_minor <= 0 THEN 'paid' WHEN invoice.balance_minor < invoice.amount_minor THEN 'partially_paid' ELSE 'issued' END) NOT IN ('paid', 'cancelled', 'waived')
             )::int AS open_invoices
@@ -168,7 +170,7 @@ export class ParentCommandService {
           LEFT JOIN class_sections class_section
             ON class_section.tenant_id::text = student.tenant_id::text
            AND class_section.id::text = student.current_class_id::text
-          LEFT JOIN student_invoices invoice
+          LEFT JOIN (${FEE_INVOICE_READ_SQL}) invoice
             ON invoice.tenant_id::text = student.tenant_id::text
            AND invoice.student_id::text = student.id::text
           GROUP BY
@@ -210,7 +212,7 @@ export class ParentCommandService {
           JOIN students student
             ON student.tenant_id::text = guardian.tenant_id::text
            AND student.id::text = guardian.student_id::text
-          JOIN student_invoices invoice
+          JOIN (${FEE_INVOICE_READ_SQL}) invoice
             ON invoice.tenant_id::text = student.tenant_id::text
            AND invoice.student_id::text = student.id::text
           WHERE guardian.tenant_id::text = $1::text
@@ -254,7 +256,7 @@ export class ParentCommandService {
             payment.status,
             payment.received_at::text
           FROM manual_fee_payments payment
-          LEFT JOIN student_invoices invoice
+          LEFT JOIN (${FEE_INVOICE_READ_SQL}) invoice
             ON invoice.tenant_id::text = payment.tenant_id::text
            AND invoice.id::text = payment.invoice_id::text
           JOIN linked_students student

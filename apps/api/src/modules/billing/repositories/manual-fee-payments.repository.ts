@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { FEE_BALANCE_STUDENT_PAGE_SQL, FEE_CREDIT_READ_SQL } from '../fee-credit-read-sql';
 
 import { PrismaService } from '../../../database/prisma.service';
 import {
@@ -285,21 +286,16 @@ export class ManualFeePaymentsRepository {
         SELECT
           tenant_id,
           student_id::text AS student_id,
-          COALESCE(
-            MAX(NULLIF(metadata ->> 'student_name', '')),
-            MAX(NULLIF(payer_name, ''))
-          ) AS student_name,
-          currency_code,
+          NULL::text AS student_name,
+          'KES' AS currency_code,
           COALESCE(SUM(amount_minor), 0)::text AS credit_amount_minor,
-          MAX(COALESCE(cleared_at, received_at)) AS last_activity_at
-        FROM manual_fee_payments
+          NULL::timestamptz AS last_activity_at
+        FROM (${FEE_CREDIT_READ_SQL}) credit
         WHERE tenant_id = $1
-          AND status = 'cleared'
           AND student_id IS NOT NULL
-          AND invoice_id IS NULL
-        GROUP BY tenant_id, student_id, currency_code
-        ORDER BY MAX(COALESCE(cleared_at, received_at)) DESC
-        LIMIT $2::integer OFFSET $3::integer
+          AND student_id IN (${FEE_BALANCE_STUDENT_PAGE_SQL})
+        GROUP BY tenant_id, student_id
+        ORDER BY student_id
       `,
       [
         tenantId,
@@ -344,11 +340,21 @@ export class ManualFeePaymentsRepository {
           ledger_transaction_id,
           reversal_ledger_transaction_id,
           notes,
-          metadata,
+          metadata || jsonb_build_object(
+            'invoice_allocations', COALESCE((SELECT jsonb_agg(jsonb_build_object('invoice_id',allocation.invoice_id,'amount_minor',allocation.amount_minor::text))
+              FROM manual_fee_payment_allocations allocation WHERE allocation.tenant_id=payment.tenant_id
+                AND allocation.manual_payment_id=payment.id AND allocation.allocation_type='invoice'),'[]'::jsonb),
+            'credit_amount_minor', COALESCE((SELECT SUM(allocation.amount_minor)
+              FROM manual_fee_payment_allocations allocation WHERE allocation.tenant_id=payment.tenant_id
+                AND allocation.manual_payment_id=payment.id AND allocation.allocation_type='credit'),
+              CASE WHEN payment.invoice_id IS NULL AND NOT EXISTS(SELECT 1 FROM manual_fee_payment_allocations allocation
+                WHERE allocation.tenant_id=payment.tenant_id AND allocation.manual_payment_id=payment.id)
+                THEN payment.amount_minor ELSE 0 END)::text
+          ) AS metadata,
           created_by_user_id,
           created_at,
           updated_at
-        FROM manual_fee_payments
+        FROM manual_fee_payments payment
         WHERE tenant_id = $1
           AND (
             student_id::text = $2

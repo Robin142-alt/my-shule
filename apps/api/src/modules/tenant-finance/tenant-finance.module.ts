@@ -7,19 +7,27 @@ import { TenantFinanceConfigRepository } from './tenant-finance-config.repositor
 import { TenantFinanceConfigService } from './tenant-finance-config.service';
 import { TenantFinanceController } from './tenant-finance.controller';
 import { TenantFinanceSchemaService } from './tenant-finance-schema.service';
+import { PaymentChannelWorkflowSchemaService } from './payment-channel-workflow-schema.service';
+import { PaymentChannelWorkflowService } from './payment-channel-workflow.service';
+import { PaymentChannelConnectionService } from './payment-channel-connection.service';
+import { PaymentChannelWorkflowController, PlatformPaymentIntegrationsController } from './payment-channel-workflow.controller';
 
 @Module({
   imports: [AuthModule, ObservabilityModule, SecurityModule],
-  controllers: [TenantFinanceController],
+  controllers: [TenantFinanceController, PaymentChannelWorkflowController, PlatformPaymentIntegrationsController],
   providers: [
     TenantFinanceSchemaService,
     TenantFinanceConfigRepository,
     TenantFinanceConfigService,
+    PaymentChannelWorkflowSchemaService,
+    PaymentChannelWorkflowService,
+    PaymentChannelConnectionService,
   ],
   exports: [
     TenantFinanceSchemaService,
     TenantFinanceConfigRepository,
     TenantFinanceConfigService,
+    PaymentChannelWorkflowSchemaService,
   ],
 })
 export class TenantFinanceModule {}

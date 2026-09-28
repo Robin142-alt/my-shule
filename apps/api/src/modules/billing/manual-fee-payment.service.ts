@@ -231,6 +231,21 @@ export class ManualFeePaymentService {
       const tenantId = this.requireTenantId();
       const lockedPayment = await this.requireLockedPayment(tenantId, paymentId);
 
+      // Collection reversals are approved in the same transaction by the
+      // Principal workflow. The legacy manual endpoint cannot bypass it.
+      const collection = lockedPayment.metadata?.source === 'collection_payment' ? await this.prisma.query<{ approved: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM collection_reversal_requests r
+           WHERE r.tenant_id=p.tenant_id AND r.payment_id=p.id
+             AND r.status='approved' AND r.reviewed_by=$3::uuid
+         ) AS approved
+         FROM collection_payments p WHERE p.tenant_id=$1 AND p.manual_fee_payment_id=$2::uuid`,
+        [tenantId, paymentId, this.requestContext.requireStore().user_id],
+      ) : { rows: [] };
+      if (collection.rows.length && !collection.rows[0].approved) {
+        throw new ConflictException('Request a collection reversal for Principal approval before reversing this payment');
+      }
+
       if (lockedPayment.status !== 'cleared') {
         throw new ConflictException(
           `Only cleared manual payments can be reversed; current status is "${lockedPayment.status}"`,
@@ -296,6 +311,8 @@ export class ManualFeePaymentService {
       metadata: {
         ...(dto.metadata ?? {}),
         allocation_count: allocations.length,
+        credit_amount_minor: allocations.filter(allocation => allocation.allocation_type === 'credit')
+          .reduce((sum, allocation) => sum + BigInt(allocation.amount_minor), 0n).toString(),
       },
     });
   }
