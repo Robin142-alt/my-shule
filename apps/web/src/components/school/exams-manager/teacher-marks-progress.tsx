@@ -90,12 +90,12 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }
         <div><h2 className="text-lg font-semibold tracking-tight text-slate-900">Teacher mark entry</h2><p className="mt-1 text-sm text-slate-500">See who still needs to enter marks or submit a completed sheet.</p></div>
         <button type="button" className={control} onClick={() => void refetch()} disabled={isFetching} aria-label="Refresh teacher mark entry"><RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} /> Refresh</button>
       </div>
-      {error ? <div role="alert" className="mx-4 mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Teacher progress could not be loaded. {error.message} Use Refresh to try again.</div> : null}
+      {error ? <div role="alert" className="mx-4 mb-4 rounded-lg border border-danger-border bg-danger-soft p-4 text-sm text-danger">Teacher progress could not be loaded. {error.message} Use Refresh to try again.</div> : null}
       {!error && !isLoading && data ? (
         <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-slate-100 bg-slate-50/70 px-4 py-3 text-sm sm:px-5" aria-label="Mark entry summary">
           <span><strong className="font-semibold text-slate-900">{teacherCount}</strong> <span className="text-slate-500">teachers outstanding</span></span>
           <span><strong className="font-semibold text-slate-900">{outstanding.length}</strong> <span className="text-slate-500">sheets to finish</span></span>
-          <span><strong className="font-semibold text-rose-700">{outstanding.filter(sheet => sheet.overdue).length}</strong> <span className="text-slate-500">overdue</span></span>
+          <span><strong className="font-semibold text-danger">{outstanding.filter(sheet => sheet.overdue).length}</strong> <span className="text-slate-500">overdue</span></span>
           <span><strong className="font-semibold text-slate-900">{outstanding.filter(sheet => !sheet.teacher_id).length}</strong> <span className="text-slate-500">unassigned sheets</span></span>
         </div>
       ) : null}
@@ -125,18 +125,18 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }
             {visible.map(sheet => (
               <li key={sheet.id} className="px-4 py-4 sm:px-5">
                 <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:grid-cols-[1.35fr_1.3fr_1fr_1fr_auto] xl:items-center xl:gap-4">
-                  <div className="min-w-0"><p className={`break-words text-sm font-semibold ${sheet.teacher_id ? "text-slate-900" : "text-amber-700"}`}>{sheet.teacher}</p><p className="mt-1 text-xs text-slate-500">{sheet.class_name}{sheet.stream ? ` · ${sheet.stream}` : ""}</p></div>
+                  <div className="min-w-0"><p className={`break-words text-sm font-semibold ${sheet.teacher_id ? "text-slate-900" : "text-warning"}`}>{sheet.teacher}</p><p className="mt-1 text-xs text-slate-500">{sheet.class_name}{sheet.stream ? ` · ${sheet.stream}` : ""}</p></div>
                   <div className="min-w-0"><p className="break-words text-sm font-medium text-slate-800">{sheet.subject} <span className="font-normal text-slate-500">· {sheet.paper}</span></p><p className="mt-1 text-xs text-slate-500">{sheet.exam_name}</p></div>
-                  <div><p className="text-sm tabular-nums text-slate-700">{sheet.recorded}<span className="text-slate-400"> / {sheet.total_students}</span> recorded</p><p className={`mt-1 text-xs ${sheet.missing ? "font-medium text-rose-700" : "text-slate-500"}`}>{sheet.missing ? `${sheet.missing} missing` : `${sheet.submitted} submitted`}</p></div>
-                  <div className="col-span-2 sm:col-span-1"><StatusChip label={sheet.status} tone={tone(sheet)} /><p className={`mt-1 text-xs ${sheet.overdue ? "font-medium text-rose-700" : "text-slate-500"}`}>{sheet.overdue ? "Overdue · " : "Due "}{dateLabel(sheet.deadline)}</p></div>
+                  <div><p className="text-sm tabular-nums text-slate-700">{sheet.recorded}<span className="text-slate-400"> / {sheet.total_students}</span> recorded</p><p className={`mt-1 text-xs ${sheet.missing ? "font-medium text-danger" : "text-slate-500"}`}>{sheet.missing ? `${sheet.missing} missing` : `${sheet.submitted} submitted`}</p></div>
+                  <div className="col-span-2 sm:col-span-1"><StatusChip label={sheet.status} tone={tone(sheet)} /><p className={`mt-1 text-xs ${sheet.overdue ? "font-medium text-danger" : "text-slate-500"}`}>{sheet.overdue ? "Overdue · " : "Due "}{dateLabel(sheet.deadline)}</p></div>
                   <button type="button" aria-label={`Details for ${sheet.teacher}, ${sheet.subject}, ${sheet.paper}, ${sheet.class_name}${sheet.stream ? ` ${sheet.stream}` : ""}`} aria-expanded={expandedId === sheet.id} onClick={() => { setExpandedId(expandedId === sheet.id ? null : sheet.id); setConfirmWindow(null); }} className={`${control} col-span-2 xl:col-span-1`}><span className="xl:sr-only">Details</span><ChevronDown className={`h-4 w-4 ${expandedId === sheet.id ? "rotate-180" : ""}`} /></button>
                 </div>
                 {expandedId === sheet.id ? (
                   <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     <p><strong className="font-medium text-slate-800">{sheet.total_students - sheet.submitted} awaiting submission.</strong> {sheet.entered} scores entered; {sheet.recorded - sheet.entered} absence or other recorded outcomes. Missing and incomplete entries still need attention.</p>
                     <p>Last activity: {dateLabel(sheet.last_activity, true)}. Deadline: {dateLabel(sheet.deadline, true)} (East Africa Time).</p>
-                    {!sheet.teacher_id ? <p className="text-amber-800">Assign a subject teacher to this class or stream in Academic Setup. These students are not assigned to a teacher with mark-entry access.</p> : null}
-                    {sheet.window_closed ? <p className="text-amber-800">This mark-entry window is locked. Outstanding work needs an authorized review before it can continue.</p> : null}
+                    {!sheet.teacher_id ? <p className="text-warning">Assign a subject teacher to this class or stream in Academic Setup. These students are not assigned to a teacher with mark-entry access.</p> : null}
+                    {sheet.window_closed ? <p className="text-warning">This mark-entry window is locked. Outstanding work needs an authorized review before it can continue.</p> : null}
                     {showWindowControls ? confirmWindow === sheet.window_id ? (
                       <div className="space-y-3"><p className="font-medium text-amber-900">Lock all papers and teachers for {sheet.subject}, {sheet.class_name} in {sheet.exam_name}? This closes the whole class window, including any unfinished sheets.</p><div className="flex flex-wrap gap-2"><button className={control} disabled={Boolean(lockingWindow)} onClick={() => void handleLock(sheet.window_id)}>{lockingWindow ? "Locking…" : "Confirm lock"}</button><button className={control} disabled={Boolean(lockingWindow)} onClick={() => setConfirmWindow(null)}>Cancel</button></div></div>
                     ) : <button type="button" className={control} disabled={sheet.window_closed || Boolean(lockingWindow) || sheet.status === "Draft"} onClick={() => setConfirmWindow(sheet.window_id)}><Lock className="h-4 w-4" />{sheet.window_closed ? "Window locked" : "Lock class window"}</button> : null}

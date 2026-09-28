@@ -320,7 +320,7 @@ export function AcademicRecordManager({
             <span className="text-xs font-semibold text-slate-500">Version {Number(record.version ?? 1)}</span>
           </div>
 
-          {detailError ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{detailError}</div> : null}
+          {detailError ? <div role="alert" className="rounded-lg border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">{detailError}</div> : null}
 
           <form onSubmit={save} className="grid gap-3 sm:grid-cols-2">
             {fields.map((field) => {
@@ -395,7 +395,7 @@ export function AcademicRecordManager({
           <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <h4 className="font-bold text-slate-900">Lifecycle and dependency safety</h4>
             {dependenciesLoading ? <p className="mt-2 text-sm text-slate-500">Loading dependencies...</p> : dependencyError ? (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="mt-3 rounded-lg border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
                 <p className="font-semibold">Dependency safety could not be loaded. Editing remains available, but destructive actions are blocked until the check succeeds.</p>
                 <button type="button" onClick={() => setContextReload((value) => value + 1)} className="mt-2 min-h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold">Retry dependency check</button>
               </div>
@@ -410,7 +410,7 @@ export function AcademicRecordManager({
                       </li>
                     ))}
                   </ul>
-                ) : <p className="mt-3 text-sm font-semibold text-emerald-700">No linked operational records were found.</p>}
+                ) : <p className="mt-3 text-sm font-semibold text-success">No linked operational records were found.</p>}
               </>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
@@ -432,7 +432,7 @@ export function AcademicRecordManager({
           </section>
 
           {mergeCandidates.length ? (
-            <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <section className="rounded-xl border border-warning-border bg-warning-soft p-4">
               <h4 className="flex items-center gap-2 font-bold text-slate-900"><ArrowRightLeft className="h-4 w-4" /> Controlled merge</h4>
               <p className="mt-1 text-sm text-slate-600">Select the record that will survive. Linked records move transactionally; conflicts leave everything unchanged.</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -447,7 +447,7 @@ export function AcademicRecordManager({
                 </button>
               </div>
               {mergePreview ? (
-                <div className="mt-3 rounded-lg border border-amber-200 bg-white p-3 text-sm text-slate-700">
+                <div className="mt-3 rounded-lg border border-warning-border bg-white p-3 text-sm text-slate-700">
                   <p className="font-bold capitalize">{String(mergePreview.outcome ?? "migration required").replaceAll("_", " ")}</p>
                   <p className="mt-1">{String(mergePreview.warning ?? "Review the affected records before continuing.")}</p>
                   <p className="mt-1 font-semibold">Affected records: {Number(mergePreview.affected_records ?? 0)}. The source will be archived and history retained.</p>
@@ -462,7 +462,7 @@ export function AcademicRecordManager({
           <section className="rounded-xl border border-slate-200 p-4">
             <h4 className="flex items-center gap-2 font-bold text-slate-900"><History className="h-4 w-4" /> Change history</h4>
             {historyLoading ? <p className="mt-2 text-sm text-slate-500">Loading change history...</p> : historyError ? (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="mt-3 rounded-lg border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
                 <p className="font-semibold">Change history could not be loaded. No saved history was removed.</p>
                 <button type="button" onClick={() => setContextReload((value) => value + 1)} className="mt-2 min-h-9 rounded-lg border border-amber-300 bg-white px-3 text-xs font-bold">Retry history</button>
               </div>
@@ -543,7 +543,7 @@ export function AcademicAssignmentEndButton({
         size="sm"
       >
         <form onSubmit={submit} className="space-y-4">
-          {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
+          {error ? <div role="alert" className="rounded-lg border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">{error}</div> : null}
 
           <label className="block text-sm font-bold text-slate-700">
             Reason
@@ -624,7 +624,7 @@ export function AcademicTeacherReassignmentButton({
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Reassign subject teacher" description="End the current allocation, assign the replacement teacher, and choose which pending responsibilities should move." size="lg">
         <form onSubmit={submit} className="space-y-4">
-          {error ? <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div> : null}
+          {error ? <div role="alert" className="rounded-lg border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">{error}</div> : null}
           {!preview && !error ? <p className="text-sm font-semibold text-slate-500">Loading scoped reassignment impact...</p> : null}
           {preview ? <div className="grid gap-2 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-2">{Object.entries(pending).map(([key, count]) => <div key={key} className="rounded-lg bg-white px-3 py-2"><span className="font-bold capitalize">{key.replaceAll("_", " ")}</span>: {Number(count)}</div>)}</div> : null}
           <label className="block text-sm font-bold text-slate-700">Replacement teacher<select name="teacher_user_id" required defaultValue="" className={inputClass}><option value="">Select teacher</option>{teachers.filter((teacher) => teacher.id !== currentTeacherId).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.label}</option>)}</select></label>

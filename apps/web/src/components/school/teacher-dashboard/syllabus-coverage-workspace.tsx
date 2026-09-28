@@ -1,6 +1,6 @@
 import { BookOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { Panel, RecordTable } from "./shared-components";
+import { Panel, RecordTable, StatusPill } from "./shared-components";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
@@ -23,23 +23,23 @@ export function SyllabusCoverageWorkspace() {
       c.topic,
       c.coverage,
       c.target,
-      c.status
+      <StatusPill key="status" status={c.status} type={c.status === "On Track" ? "success" : c.status === "Behind" ? "warning" : "default"} />
   ]);
 
   return (
     <Panel title="Syllabus Coverage" description="Track and update syllabus coverage for your subjects." icon={BookOpen}>
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">On Track</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.on_track ?? 0}</p>
+        <article data-tone="success" className="app-metric-card rounded-xl border border-success-border bg-success-soft p-3">
+          <p className="text-xs font-bold uppercase text-muted">On Track</p>
+          <p className="text-2xl font-black text-success">{isLoading ? "..." : stats?.on_track ?? 0}</p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Behind</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.behind ?? 0}</p>
+        <article data-tone="warning" className="app-metric-card rounded-xl border border-warning-border bg-warning-soft p-3">
+          <p className="text-xs font-bold uppercase text-muted">Behind</p>
+          <p className="text-2xl font-black text-warning">{isLoading ? "..." : stats?.behind ?? 0}</p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load data. Please retry.
         </div>
       ) : (

@@ -56,19 +56,19 @@ export function PortalShell({
           <div className="flex items-center gap-3">
             <MyShuleMark size={40} className="shadow-sm shadow-blue-200" />
             <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold text-[#1a1d26]">My Shule Portal</p>
-              <p className="text-[11px] text-[#8b8f9a]">{viewer === "parent" ? "Family access" : "Student access"}</p>
+              <p className="truncate text-[14px] font-semibold text-foreground">My Shule Portal</p>
+              <p className="text-[11px] text-muted">{viewer === "parent" ? "Family access" : "Student access"}</p>
             </div>
           </div>
         </div>
 
         {/* Student info */}
         <div className="border-b border-blue-100/60 px-5 py-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8b8f9a]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
             {viewer === "parent" ? "Your child" : "Your profile"}
           </p>
-          <p className="mt-2 text-sm font-semibold text-[#1a1d26]">{studentName ?? "Learner profile pending"}</p>
-          <p className="mt-1 text-[12px] text-[#8b8f9a]">{schoolName ?? "School workspace"}</p>
+          <p className="mt-2 text-sm font-semibold text-foreground">{studentName ?? "Learner profile pending"}</p>
+          <p className="mt-1 text-[12px] text-muted">{schoolName ?? "School workspace"}</p>
         </div>
 
         {/* Nav */}
@@ -79,7 +79,7 @@ export function PortalShell({
               const href = item.href ? `${basePath}${item.href}` : basePath;
               const isActive = item.href === "" ? pathname === basePath : pathname.startsWith(`${basePath}${item.href}`);
               return (
-                <Link key={item.id} href={href} className={`group flex items-center justify-between rounded-2xl px-4 py-3 text-[14px] font-medium transition-all duration-150 ${isActive ? "bg-blue-50 text-blue-700 shadow-sm shadow-blue-100" : "text-[#5a5e6a] hover:bg-[#f3f5fc] hover:text-[#1a1d26]"}`}>
+                <Link key={item.id} href={href} className={`group flex items-center justify-between rounded-2xl px-4 py-3 text-[14px] font-medium transition-all duration-150 ${isActive ? "bg-info-soft text-info shadow-sm shadow-blue-100" : "text-muted hover:bg-[#f3f5fc] hover:text-foreground"}`}>
                   <span className="flex items-center gap-3">
                     <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-blue-600" : "text-[#9ca0ab]"}`} />
                     <span>{item.label}</span>
@@ -92,7 +92,7 @@ export function PortalShell({
 
         {/* Bottom */}
         <div className="border-t border-blue-100/60 px-3 py-3">
-          <button type="button" onClick={onLogout} className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium text-red-500/70 transition hover:bg-red-50 hover:text-red-600">
+          <button type="button" onClick={onLogout} className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium text-red-500/70 transition hover:bg-danger-soft hover:text-red-600">
             <LogOut className="h-5 w-5 shrink-0" /><span>Sign out</span>
           </button>
         </div>
@@ -100,8 +100,8 @@ export function PortalShell({
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-sky-500 text-xs font-bold text-white shadow-sm">{(userName ?? "PP").slice(0, 2).toUpperCase()}</div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[#1a1d26]">{userName ?? "Portal user"}</p>
-              <p className="text-[11px] text-[#8b8f9a]">{viewer === "parent" ? "Parent" : "Student"}</p>
+              <p className="truncate text-sm font-medium text-foreground">{userName ?? "Portal user"}</p>
+              <p className="text-[11px] text-muted">{viewer === "parent" ? "Parent" : "Student"}</p>
             </div>
           </div>
         </div>
@@ -110,15 +110,15 @@ export function PortalShell({
       {/* Mobile Overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-[#1a1d26]/30 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="slide-in-sidebar absolute inset-y-0 left-0 w-[280px] border-r border-blue-100/60 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-blue-100/60 px-5 py-4">
-              <p className="text-sm font-semibold text-[#1a1d26]">Menu</p>
-              <button type="button" onClick={() => setMobileOpen(false)} className="rounded-xl border border-blue-100 p-2 text-[#8b8f9a]"><X className="h-4 w-4" /></button>
+              <p className="text-sm font-semibold text-foreground">Menu</p>
+              <button type="button" onClick={() => setMobileOpen(false)} className="rounded-xl border border-blue-100 p-2 text-muted"><X className="h-4 w-4" /></button>
             </div>
             <div className="border-b border-blue-100/60 px-5 py-4">
-              <p className="text-sm font-semibold text-[#1a1d26]">{studentName ?? "Learner profile pending"}</p>
-              <p className="mt-1 text-[12px] text-[#8b8f9a]">{schoolName ?? "School workspace"}</p>
+              <p className="text-sm font-semibold text-foreground">{studentName ?? "Learner profile pending"}</p>
+              <p className="mt-1 text-[12px] text-muted">{schoolName ?? "School workspace"}</p>
             </div>
             <nav className="px-3 py-3">
               <div className="space-y-1">
@@ -127,7 +127,7 @@ export function PortalShell({
                   const href = item.href ? `${basePath}${item.href}` : basePath;
                   const isActive = item.href === "" ? pathname === basePath : pathname.startsWith(`${basePath}${item.href}`);
                   return (
-                    <Link key={item.id} href={href} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium transition ${isActive ? "bg-blue-50 text-blue-700" : "text-[#5a5e6a]"}`}>
+                    <Link key={item.id} href={href} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium transition ${isActive ? "bg-info-soft text-info" : "text-muted"}`}>
                       <Icon className="h-5 w-5 shrink-0" /><span>{item.label}</span>
                     </Link>
                   );
@@ -144,8 +144,8 @@ export function PortalShell({
         <header className="sticky top-0 z-20 border-b border-blue-100/60 bg-white/95 backdrop-blur-lg">
           <div className="mx-auto flex h-[56px] max-w-[960px] items-center justify-between gap-4 px-4 md:px-6">
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setMobileOpen(true)} className="rounded-xl border border-blue-100 p-2.5 text-[#5a5e6a] lg:hidden"><Menu className="h-4 w-4" /></button>
-              <p className="text-sm font-semibold text-[#1a1d26] lg:hidden">{schoolName ?? "School workspace"}</p>
+              <button type="button" onClick={() => setMobileOpen(true)} className="rounded-xl border border-blue-100 p-2.5 text-muted lg:hidden"><Menu className="h-4 w-4" /></button>
+              <p className="text-sm font-semibold text-foreground lg:hidden">{schoolName ?? "School workspace"}</p>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -154,7 +154,7 @@ export function PortalShell({
                   aria-label="Open portal notifications"
                   aria-expanded={notificationsOpen}
                   onClick={() => setNotificationsOpen((value) => !value)}
-                  className="relative rounded-xl border border-blue-100 p-2.5 text-[#5a5e6a] transition hover:bg-blue-50"
+                  className="relative rounded-xl border border-blue-100 p-2.5 text-muted transition hover:bg-info-soft"
                 >
                   <Bell className="h-4 w-4" />
                 </button>
@@ -172,13 +172,13 @@ export function PortalShell({
                           setNotificationsOpen(false);
                           router.push(href);
                         }}
-                        className="flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-blue-50"
+                        className="flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-info-soft"
                       >
                         <span>
-                          <span className="block text-sm font-bold text-[#1a1d26]">{title}</span>
-                          <span className="mt-0.5 block text-xs leading-5 text-[#5a5e6a]">{detail}</span>
+                          <span className="block text-sm font-bold text-foreground">{title}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-muted">{detail}</span>
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-700">Open</span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-info">Open</span>
                       </button>
                     ))}
                   </div>

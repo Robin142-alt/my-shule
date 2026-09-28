@@ -14,10 +14,10 @@ export function cn(...classes: Array<string | false | null | undefined>) {
 export type Tone = "success" | "info" | "warning" | "danger" | "neutral";
 
 const toneClasses: Record<Tone, { chip: string; dot: string }> = {
-  success: { chip: "border-emerald-200 bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
-  info: { chip: "border-blue-200 bg-blue-50 text-blue-700", dot: "bg-blue-500" },
-  warning: { chip: "border-amber-200 bg-amber-50 text-amber-700", dot: "bg-amber-500" },
-  danger: { chip: "border-rose-200 bg-rose-50 text-rose-700", dot: "bg-rose-500" },
+  success: { chip: "border-success-border bg-success-soft text-success", dot: "bg-emerald-500" },
+  info: { chip: "border-info-border bg-info-soft text-info", dot: "bg-blue-500" },
+  warning: { chip: "border-warning-border bg-warning-soft text-warning", dot: "bg-amber-500" },
+  danger: { chip: "border-danger-border bg-danger-soft text-danger", dot: "bg-rose-500" },
   neutral: { chip: "border-slate-200 bg-slate-50 text-slate-700", dot: "bg-slate-400" },
 };
 
@@ -44,17 +44,17 @@ export function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="app-workspace-panel rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
@@ -132,7 +132,7 @@ export function DisciplineWorkspaceActions({
         <Button variant="outline" onClick={exportRecords}><Download className="mr-2 h-4 w-4" /> Export</Button>
         <Button onClick={startNewRecord}><Plus className="mr-2 h-4 w-4" /> New Record</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-2 text-xs font-semibold text-blue-900">{notice}</div> : null}
     </div>
   );
 }

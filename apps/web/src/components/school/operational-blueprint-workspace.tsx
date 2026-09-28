@@ -14,15 +14,15 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
 
   if (blueprint) {
     return (
-      <section className="space-y-5 rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+      <section className="space-y-5 rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
         <div className="flex min-w-0 gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
             <Map className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{blueprint.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-[#64748B]">{blueprint.commandQuestion}</p>
-            <p className="mt-2 text-sm leading-6 text-[#64748B]">{blueprint.roleFocus}</p>
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{blueprint.title}</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">{blueprint.commandQuestion}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">{blueprint.roleFocus}</p>
           </div>
         </div>
 
@@ -31,7 +31,7 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
             <button
               key={action}
               type="button"
-              className="rounded-xl border border-[#BFD7FF] bg-[#EEF5FF] px-3 py-2 text-sm font-black text-[#1D4ED8]"
+              className="rounded-xl border border-info-border bg-info-soft px-3 py-2 text-sm font-black text-info"
             >
               {action}
             </button>
@@ -40,19 +40,19 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
 
         <div className="grid gap-4 lg:grid-cols-2">
           {blueprint.queues.map((queue) => (
-            <article key={queue.id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+            <article key={queue.id} className="rounded-xl border border-border bg-surface-muted p-4">
               <div className="flex items-start gap-3">
-                <ListChecks className="mt-1 h-5 w-5 text-[#1D4ED8]" aria-hidden="true" />
+                <ListChecks className="mt-1 h-5 w-5 text-info" aria-hidden="true" />
                 <div>
-                  <h3 className="font-black text-[#071D49]">{queue.title}</h3>
-                  <p className="mt-1 text-sm text-[#64748B]">Owner: {queue.owner}</p>
-                  <p className="mt-1 text-sm text-[#64748B]">Workflow: {queue.workflow}</p>
-                  <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-[#1D4ED8]">{queue.auditEvent}</p>
+                  <h3 className="font-black text-foreground">{queue.title}</h3>
+                  <p className="mt-1 text-sm text-muted">Owner: {queue.owner}</p>
+                  <p className="mt-1 text-sm text-muted">Workflow: {queue.workflow}</p>
+                  <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-info">{queue.auditEvent}</p>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {queue.actions.map((action) => (
-                  <span key={action} className="rounded-full border border-[#D8E0EC] bg-white px-3 py-1 text-xs font-bold text-[#071D49]">
+                  <span key={action} className="rounded-full border border-border bg-white px-3 py-1 text-xs font-bold text-foreground">
                     {action}
                   </span>
                 ))}
@@ -61,26 +61,26 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
           ))}
 
           {blueprint.forms.map((form) => (
-            <article key={form.id} className="rounded-xl border border-[#D8E0EC] bg-white p-4">
+            <article key={form.id} className="rounded-xl border border-border bg-white p-4">
               <div className="flex items-start gap-3">
-                <FileText className="mt-1 h-5 w-5 text-[#1D4ED8]" aria-hidden="true" />
+                <FileText className="mt-1 h-5 w-5 text-info" aria-hidden="true" />
                 <div>
-                  <h3 className="font-black text-[#071D49]">{form.title}</h3>
-                  <p className="mt-1 text-sm text-[#64748B]">{form.purpose}</p>
-                  <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">{form.auditAction}</p>
+                  <h3 className="font-black text-foreground">{form.title}</h3>
+                  <p className="mt-1 text-sm text-muted">{form.purpose}</p>
+                  <p className="mt-2 text-xs font-black uppercase tracking-[0.14em] text-muted">{form.auditAction}</p>
                 </div>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {form.fields.map((field) => (
-                  <label key={field} className="text-xs font-bold uppercase tracking-[0.12em] text-[#64748B]">
+                  <label key={field} className="text-xs font-bold uppercase tracking-[0.12em] text-muted">
                     {field}
-                    <input className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm normal-case tracking-normal" placeholder={field} />
+                    <input className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm normal-case tracking-normal" placeholder={field} />
                   </label>
                 ))}
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {form.footerActions.map((action) => (
-                  <button key={action} type="button" className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-3 py-2 text-xs font-black text-[#071D49]">
+                  <button key={action} type="button" className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-xs font-black text-foreground">
                     {action}
                   </button>
                 ))}
@@ -89,9 +89,9 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <thead className="bg-surface-muted text-foreground">
               <tr>
                 <th className="px-4 py-3 font-bold">Table</th>
                 <th className="px-4 py-3 font-bold">Columns</th>
@@ -101,11 +101,11 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
             </thead>
             <tbody>
               {blueprint.tables.map((table) => (
-                <tr key={table.id} className="border-t border-[#D8E0EC]">
-                  <td className="px-4 py-3 font-bold text-[#071D49]">{table.title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{table.columns.join(", ")}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{table.rowActions.join(", ")}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{table.bulkActions.join(", ")}</td>
+                <tr key={table.id} className="border-t border-border">
+                  <td className="px-4 py-3 font-bold text-foreground">{table.title}</td>
+                  <td className="px-4 py-3 text-muted">{table.columns.join(", ")}</td>
+                  <td className="px-4 py-3 text-muted">{table.rowActions.join(", ")}</td>
+                  <td className="px-4 py-3 text-muted">{table.bulkActions.join(", ")}</td>
                 </tr>
               ))}
             </tbody>
@@ -113,21 +113,21 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-            <div className="flex items-center gap-2 text-sm font-black text-[#071D49]">
+          <div className="rounded-xl border border-border bg-surface-muted p-4">
+            <div className="flex items-center gap-2 text-sm font-black text-foreground">
               <Printer className="h-4 w-4" aria-hidden="true" />
               Print outputs
             </div>
-            <p className="mt-2 text-sm text-[#64748B]">{blueprint.printOutputs.join(", ")}</p>
+            <p className="mt-2 text-sm text-muted">{blueprint.printOutputs.join(", ")}</p>
           </div>
-          <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-            <div className="flex items-center gap-2 text-sm font-black text-[#071D49]">
+          <div className="rounded-xl border border-border bg-surface-muted p-4">
+            <div className="flex items-center gap-2 text-sm font-black text-foreground">
               <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               Permission checks
             </div>
-            <p className="mt-2 text-sm text-[#64748B]">actor, tenant, capability, workflow, events</p>
+            <p className="mt-2 text-sm text-muted">actor, tenant, capability, workflow, events</p>
           </div>
-          <div className="rounded-xl border border-[#D8E0EC] bg-[#FFF7ED] p-4">
+          <div className="rounded-xl border border-border bg-warning-soft p-4">
             <div className="flex items-center gap-2 text-sm font-black text-[#9A3412]">
               <AlertTriangle className="h-4 w-4" aria-hidden="true" />
               {blueprint.states.join(" ")}
@@ -144,7 +144,7 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-sm font-semibold text-[#64748B]">
+        <div className="rounded-xl border border-border bg-surface-muted p-4 text-sm font-semibold text-muted">
           {blueprint.sampleData.join(" | ")}
         </div>
       </section>
@@ -152,31 +152,31 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
   }
 
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex min-w-0 gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
           <Map className="h-5 w-5" aria-hidden="true" />
         </span>
         <div>
-          <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Operational Blueprint</h2>
-          <p className="mt-1 text-sm leading-6 text-[#64748B]">View and manage the school operational blueprint.</p>
+          <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">Operational Blueprint</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">View and manage the school operational blueprint.</p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Active Modules</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.active_modules ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Active Modules</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.active_modules ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Pending Setup</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_setup ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Pending Setup</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.pending_setup ?? 0}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Module</th>
               <th className="px-4 py-3 font-bold">Status</th>
@@ -186,16 +186,16 @@ export function OperationalBlueprintWorkspace({ blueprint }: { blueprint?: Extre
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
             ) : (
               items.map((row: any, i: number) => (
-                <tr key={row.id || i} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.module_name}</td>
+                <tr key={row.id || i} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.module_name}</td>
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.owner}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.updated_at}</td>
+                  <td className="px-4 py-3 text-muted">{row.owner}</td>
+                  <td className="px-4 py-3 text-muted">{row.updated_at}</td>
                 </tr>
               ))
             )}

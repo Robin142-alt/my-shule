@@ -81,36 +81,36 @@ export function FacilitiesIssuesWorkspace() {
       title="Facilities Issues"
       description="Track ICT-related facilities issues."
       icon={AlertCircle}
-      actions={<button type="button" disabled={permissionsLoading || !canWrite} onClick={() => setShowForm(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">Report Issue</button>}
+      actions={<button type="button" disabled={permissionsLoading || !canWrite} onClick={() => setShowForm(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">Report Issue</button>}
     >
       {showForm ? (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-xs font-bold text-[#334155]">Issue title<input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm" /></label>
-            <label className="text-xs font-bold text-[#334155]">Location<input value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm" /></label>
-            <label className="text-xs font-bold text-[#334155]">Priority<select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label>
-            <label className="text-xs font-bold text-[#334155]">Description<input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm" /></label>
+            <label className="text-xs font-bold text-foreground">Issue title<input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm" /></label>
+            <label className="text-xs font-bold text-foreground">Location<input value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm" /></label>
+            <label className="text-xs font-bold text-foreground">Priority<select value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+            <label className="text-xs font-bold text-foreground">Description<input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm" /></label>
           </div>
-          <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button><button type="button" disabled={createIssue.isPending} onClick={submitIssue} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{createIssue.isPending ? 'Saving…' : 'Submit Issue'}</button></div>
+          <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted">Cancel</button><button type="button" disabled={createIssue.isPending} onClick={submitIssue} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">{createIssue.isPending ? 'Saving…' : 'Submit Issue'}</button></div>
         </div>
       ) : null}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Open Issues</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.open_issues ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Open Issues</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.open_issues ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Resolved Today</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.resolved_today ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Resolved Today</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.resolved_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Critical</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.critical ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Critical</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.critical ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Title</th>
               <th className="px-4 py-3 font-bold">Location</th>
@@ -123,19 +123,19 @@ export function FacilitiesIssuesWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No ICT-related facility issue is open for this school. Report a real issue when one is found.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No ICT-related facility issue is open for this school. Report a real issue when one is found.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.location}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.reported_by}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.priority}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.title}</td>
+                  <td className="px-4 py-3 text-muted">{row.location}</td>
+                  <td className="px-4 py-3 text-muted">{row.reported_by}</td>
+                  <td className="px-4 py-3 text-muted">{row.date}</td>
+                  <td className="px-4 py-3 text-muted">{row.priority}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
-                  <td className="px-4 py-3"><button type="button" disabled={!canWrite || resolveIssue.isPending || row.status.toLowerCase() === 'resolved'} onClick={() => resolveIssue.mutate({ id: row.id })} className="font-black text-[#1D4ED8] disabled:text-[#94A3B8]">Resolve</button></td>
+                  <td className="px-4 py-3"><button type="button" disabled={!canWrite || resolveIssue.isPending || row.status.toLowerCase() === 'resolved'} onClick={() => resolveIssue.mutate({ id: row.id })} className="font-black text-info disabled:text-muted">Resolve</button></td>
                 </tr>
               ))
             )}

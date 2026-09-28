@@ -12,20 +12,20 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
   const dashboard = response?.data || response;
 
   return (
-    <div className="authenticated-app min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app min-h-screen bg-background">
       <div className="mx-auto max-w-7xl p-4 lg:p-6">
         
         {/* Main Content */}
         <main className="w-full">
           <div className="min-h-[calc(100vh-3rem)] rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)] overflow-hidden">
             
-            <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-4 backdrop-blur sm:px-8">
+            <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-background/90 px-4 py-4 backdrop-blur sm:px-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                   <MyShuleMark size={48} />
                   <div>
-                    <h1 className="text-lg font-black text-[#071D49]">Student workspace controls</h1>
-                    <p className="text-sm font-semibold text-[#64748B]">
+                    <h1 className="text-lg font-black text-foreground">Student workspace controls</h1>
+                    <p className="text-sm font-semibold text-muted">
                       {isLoading ? "Loading..." : `${dashboard?.profile?.className || "Grade 10"} ${dashboard?.profile?.streamName || "West"} • Admission No: ${dashboard?.profile?.admissionNumber || "N/A"}`}
                     </p>
                   </div>
@@ -46,7 +46,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     <Calendar className="h-5 w-5" />
                     <span className="font-bold">Next Class</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">
+                  <div className="text-2xl font-black text-foreground">
                     {isLoading ? "..." : dashboard?.academics?.nextClass || "No Class"}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">
@@ -59,7 +59,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     <BookOpen className="h-5 w-5" />
                     <span className="font-bold">Assignments</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">
+                  <div className="text-2xl font-black text-foreground">
                     {isLoading ? "..." : `${dashboard?.metrics?.pendingAssignments ?? dashboard?.assignments?.pendingCount ?? 0} Due`}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">Pending tasks</div>
@@ -70,7 +70,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     <GraduationCap className="h-5 w-5" />
                     <span className="font-bold">Attendance</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">
+                  <div className="text-2xl font-black text-foreground">
                     {isLoading ? "..." : `${dashboard?.metrics?.attendanceRate ?? dashboard?.attendance?.percentage ?? 95}%`}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">This Term</div>
@@ -81,7 +81,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                     <Award className="h-5 w-5" />
                     <span className="font-bold">Average Grade</span>
                   </div>
-                  <div className="text-2xl font-black text-[#071D49]">
+                  <div className="text-2xl font-black text-foreground">
                     {isLoading ? "..." : dashboard?.metrics?.averageGrade ?? "B+"}
                   </div>
                   <div className="text-sm font-semibold text-gray-500">
@@ -92,7 +92,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
 
               <div className="grid gap-8 md:grid-cols-2">
                 <Card className="p-6">
-                  <h2 className="text-xl font-bold text-[#071D49] mb-4">My Timetable (Today)</h2>
+                  <h2 className="text-xl font-bold text-foreground mb-4">My Timetable (Today)</h2>
                   <div className="space-y-4">
                     {isLoading ? (
                       <div className="p-4 text-center text-gray-500 text-sm">Loading timetable...</div>
@@ -102,18 +102,18 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                         const isDone = slot.status === "Completed";
                         return (
                           <div key={idx} className={`flex items-center justify-between p-3 rounded-lg border ${
-                            isNow ? "bg-blue-50 border-blue-100" : isDone ? "bg-gray-50 border-gray-100" : "border-gray-100"
+                            isNow ? "bg-info-soft border-blue-100" : isDone ? "bg-gray-50 border-gray-100" : "border-gray-100"
                           }`}>
                             <div>
-                              <div className={`font-bold ${isNow ? "text-blue-900" : isDone ? "text-[#071D49]" : "text-gray-600"}`}>
+                              <div className={`font-bold ${isNow ? "text-blue-900" : isDone ? "text-foreground" : "text-gray-600"}`}>
                                 {slot.time}
                               </div>
-                              <div className={`text-sm ${isNow ? "text-blue-700" : isDone ? "text-gray-600" : "text-gray-500"}`}>
+                              <div className={`text-sm ${isNow ? "text-info" : isDone ? "text-gray-600" : "text-gray-500"}`}>
                                 {slot.subject}
                               </div>
                             </div>
                             <span className={`px-2 py-1 text-xs font-bold rounded ${
-                              isNow ? "bg-blue-200 text-blue-800 animate-pulse" : isDone ? "bg-gray-200" : "bg-gray-100 text-gray-500"
+                              isNow ? "bg-blue-200 text-info animate-pulse" : isDone ? "bg-gray-200" : "bg-gray-100 text-gray-500"
                             }`}>
                               {slot.status}
                             </span>
@@ -127,7 +127,7 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                 </Card>
 
                 <Card className="p-6">
-                  <h2 className="text-xl font-bold text-[#071D49] mb-4">Recent Activity & Grades</h2>
+                  <h2 className="text-xl font-bold text-foreground mb-4">Recent Activity & Grades</h2>
                   {isLoading ? (
                     <div className="text-center py-12 text-gray-500">Loading activity...</div>
                   ) : dashboard?.recentActivity?.length > 0 ? (
@@ -135,11 +135,11 @@ export function StudentCommandCenter({ routeMode, activeSection }: { routeMode?:
                       {dashboard.recentActivity.map((act: any, idx: number) => (
                         <div key={idx} className="flex justify-between items-center p-3 rounded-lg border border-gray-100">
                           <div>
-                            <p className="font-bold text-[#071D49]">{act.title || act.description}</p>
+                            <p className="font-bold text-foreground">{act.title || act.description}</p>
                             <p className="text-xs text-gray-500">{act.date ? new Date(act.date).toLocaleDateString() : ""}</p>
                           </div>
                           {act.score && (
-                            <span className="px-2 py-1 text-xs font-bold rounded bg-green-100 text-green-800">
+                            <span className="px-2 py-1 text-xs font-bold rounded bg-green-100 text-success">
                               {act.score}
                             </span>
                           )}

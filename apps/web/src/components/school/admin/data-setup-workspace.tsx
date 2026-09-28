@@ -128,7 +128,7 @@ export function DataSetupWorkspace() {
                 className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
               />
             </div>
-            {profileNotice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{profileNotice}</div> : null}
+            {profileNotice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{profileNotice}</div> : null}
             <div className="pt-4">
               <Button onClick={handleSaveProfile} disabled={saveProfileMutation.isPending || !profileAddress.trim()}>
                 {saveProfileMutation.isPending ? "Saving..." : "Save Profile"}

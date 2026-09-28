@@ -91,7 +91,7 @@ export function SetupProgressWorkspace() {
     <div className="space-y-6">
       <SuperadminPageHeader title="Tenant Setup Progress" description="Monitor school readiness and identify setup gaps before operations begin." />
       {statusMessage ? (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+        <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">
           {statusMessage}
         </div>
       ) : null}
@@ -115,7 +115,7 @@ export function SetupProgressWorkspace() {
               {checklistForSchool(selectedSchool).map((item) => (
                 <div key={item.label} className="flex items-center justify-between rounded-md border p-3 text-sm">
                   <span className="font-semibold">{item.label}</span>
-                  <span className={item.status === "Complete" ? "text-green-700" : "text-amber-700"}>{item.status}</span>
+                  <span className={item.status === "Complete" ? "text-success" : "text-warning"}>{item.status}</span>
                 </div>
               ))}
             </div>

@@ -25,13 +25,13 @@ export function MyProfileWorkspace() {
   return (
     <Panel title="My Profile" description="View and update your profile information." icon={User}>
       <div className="grid gap-3 sm:grid-cols-1 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Profile Completion %</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.profile_complete ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Profile Completion %</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.profile_complete ?? 0}</p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load data. Please retry.
         </div>
       ) : (

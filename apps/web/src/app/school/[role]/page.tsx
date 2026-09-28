@@ -114,7 +114,7 @@ function PublicTenantSchoolPage({ slug }: { slug: string }) {
         secondaryCta={{ label: "Login to Dashboard", href: "/school/login" }}
         visual={
           <div className="rounded-xl border border-white/10 bg-surface/80 p-5 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
-            <div className="rounded-xl bg-[#071D49] p-5 text-white">
+            <div className="rounded-xl bg-primary p-5 text-white">
               <p className="text-sm font-semibold">{schoolName}</p>
               <p className="mt-2 text-3xl font-semibold leading-tight">School-ready visibility</p>
               <p className="mt-3 text-sm leading-6 text-white/70">

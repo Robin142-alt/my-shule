@@ -964,7 +964,7 @@ export function PaymentsWorkspace({
             ) : hasPermission('finance:write') ? (
               <Button onClick={openPaymentModal}>Record payment</Button>
             ) : (
-              <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+              <span className="text-xs font-bold text-muted">Restricted</span>
             )}
           </>
         }

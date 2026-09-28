@@ -95,7 +95,7 @@ function AssignInvigilatorDialog({
             <DialogDescription>Assign an active staff account to a tenant-scoped examination timetable slot.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {missingSetup ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Create an exam timetable slot and activate a linked staff account before assigning invigilation.</div> : null}
+            {missingSetup ? <div className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">Create an exam timetable slot and activate a linked staff account before assigning invigilation.</div> : null}
             <div className="space-y-2">
               <Label htmlFor="invigilation-slot">Timetable slot</Label>
               <select id="invigilation-slot" required value={formData.timetable_slot_id} onChange={(event) => setFormData((current) => ({ ...current, timetable_slot_id: event.target.value }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -118,7 +118,7 @@ function AssignInvigilatorDialog({
                 <option value="relief">Relief invigilator</option>
               </select>
             </div>
-            {assignInvigilator.error ? <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{assignInvigilator.error.message || "The invigilator could not be assigned."}</div> : null}
+            {assignInvigilator.error ? <div role="alert" className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm text-danger">{assignInvigilator.error.message || "The invigilator could not be assigned."}</div> : null}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -267,7 +267,7 @@ export function InvigilationWorkspace({ model }: { model: unknown }) {
           </AssignInvigilatorDialog>
         </div>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[

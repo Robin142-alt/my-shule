@@ -556,7 +556,7 @@ export function LiveRoleCommandCenter({
   ) : ActiveWorkspace ? (
     <ActiveWorkspace />
   ) : (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-900">
+    <div className="rounded-xl border border-warning-border bg-warning-soft p-5 text-sm font-bold text-amber-900">
       This workspace is not available for the current role. Return to the role overview and retry.
     </div>
   );
@@ -566,10 +566,10 @@ export function LiveRoleCommandCenter({
       data-route-mode={routeMode}
       data-testid="live-role-command-center"
       data-role={role}
-      className="authenticated-app app-padded min-h-dvh bg-[#F3F6FA] p-3 md:p-5"
+      className="authenticated-app app-padded min-h-dvh bg-background p-3 md:p-5"
     >
       <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <SchoolCommandSidebarIdentity
             eyebrow={config.eyebrow}
             title={config.roleLabel}
@@ -630,7 +630,7 @@ export function LiveRoleCommandCenter({
               <button
                 type="button"
                 onClick={() => navigateTo(config.primarySection)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#071D49] px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
               >
                 <ClipboardList className="h-4 w-4" aria-hidden={true} />
                 {config.primaryAction}
@@ -648,7 +648,7 @@ export function LiveRoleCommandCenter({
             />
           </div>
 
-          <section className="app-workspace-surface rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
+          <section className="app-workspace-surface rounded-2xl bg-primary p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
             <div className="app-workspace-heading mb-5 hidden lg:block">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
                 {config.liveLabel}

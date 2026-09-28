@@ -122,7 +122,7 @@ export function ExamCalendarWorkspace({ model }: { model: unknown }) {
         </div>
       </div>
 
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <Card className="p-0 overflow-hidden min-h-[600px] flex flex-col">
         <div className="p-4 border-b flex flex-col gap-3 bg-muted/20 lg:flex-row lg:items-center lg:justify-between">
@@ -178,7 +178,7 @@ export function ExamCalendarWorkspace({ model }: { model: unknown }) {
                 {dayEvents.map((evt) => {
                   const isStart = evt.starts_on ? new Date(evt.starts_on).getDate() === day : false;
                   return (
-                    <div key={`${evt.id ?? evt.name}-${day}`} className={`mt-1 p-1 text-xs rounded truncate border ${isStart ? "bg-blue-100 text-blue-800 border-blue-200" : "bg-red-100 text-red-800 border-red-200"}`}>
+                    <div key={`${evt.id ?? evt.name}-${day}`} className={`mt-1 p-1 text-xs rounded truncate border ${isStart ? "bg-blue-100 text-info border-info-border" : "bg-red-100 text-danger border-danger-border"}`}>
                       {evt.name} {isStart ? "(Start)" : "(End)"}
                     </div>
                   );

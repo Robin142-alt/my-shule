@@ -71,7 +71,7 @@ export function OverviewWorkspace() {
       description="School-wide snapshot — key metrics, alerts, and items requiring your attention."
       icon={LayoutDashboard}
       actions={
-        <button disabled={isRefreshing} onClick={handleRefresh} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
+        <button disabled={isRefreshing} onClick={handleRefresh} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
           {isRefreshing ? "Refreshing…" : "Refresh"}
         </button>
       }
@@ -87,29 +87,29 @@ export function OverviewWorkspace() {
       </div>
 
       {/* Alerts Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Severity</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Alert</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Category</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Severity</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Alert</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Category</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading school overview…</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading school overview…</td></tr>
             ) : alerts.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No active alerts. Your school is running smoothly.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No active alerts. Your school is running smoothly.</td></tr>
             ) : (
               alerts.map((alert) => (
-                <tr key={alert.id} className="hover:bg-[#F8FAFC]">
+                <tr key={alert.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3"><StatusChip label={alert.severity} tone={getSeverityTone(alert.severity)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{alert.title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{alert.category}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{alert.timestamp}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{alert.title}</td>
+                  <td className="px-4 py-3 text-muted">{alert.category}</td>
+                  <td className="px-4 py-3 text-muted">{alert.timestamp}</td>
                   <td className="px-4 py-3"><StatusChip label={alert.status} tone={getStatusTone(alert.status)} /></td>
                 </tr>
               ))

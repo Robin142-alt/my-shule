@@ -11,23 +11,23 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className = "", columns, data, renderRow, emptyState, children, ...props }, ref) => {
     if (columns && data && renderRow) {
       return (
-        <div role="region" aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={0} className="app-table-scroll relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
+        <div role="region" aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={0} className="app-table-scroll relative w-full overflow-auto rounded-xl border border-border bg-white shadow-sm ring-1 ring-slate-900/5">
           <table
             ref={ref}
             className={`w-full caption-bottom text-sm transition-colors ${className}`}
             {...props}
           >
-            <thead className="bg-slate-50/80 backdrop-blur-md border-b border-slate-200/60">
-              <tr className="group border-b border-slate-100 transition-all duration-200">
+            <thead className="bg-primary-soft backdrop-blur-md border-b border-border">
+              <tr className="group border-b border-border transition-all duration-200">
                 {columns.map((col, i) => (
-                  <th key={i} className="h-11 px-4 text-left align-middle text-[12px] font-semibold uppercase tracking-wider text-slate-500">{col}</th>
+                  <th key={i} className="h-11 px-4 text-left align-middle text-[12px] font-semibold uppercase tracking-wider text-muted">{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="[&_tr:last-child]:border-0">
               {data.length === 0 && emptyState ? (
-                <tr className="group border-b border-slate-100">
-                  <td colSpan={columns.length} className="p-4 align-middle text-slate-700">
+                <tr className="group border-b border-border">
+                  <td colSpan={columns.length} className="p-4 align-middle text-foreground">
                     {emptyState}
                   </td>
                 </tr>
@@ -41,7 +41,7 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
     }
 
     return (
-      <div role="region" aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={0} className="app-table-scroll relative w-full overflow-auto rounded-xl border border-slate-200/60 bg-white shadow-sm ring-1 ring-slate-900/5">
+      <div role="region" aria-label={props["aria-label"] ?? "Scrollable records"} tabIndex={0} className="app-table-scroll relative w-full overflow-auto rounded-xl border border-border bg-white shadow-sm ring-1 ring-slate-900/5">
         <table
           ref={ref}
           className={`w-full caption-bottom text-sm transition-colors ${className}`}
@@ -59,7 +59,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className = "", ...props }, ref) => (
-  <thead ref={ref} className={`bg-slate-50/80 backdrop-blur-md border-b border-slate-200/60 ${className}`} {...props} />
+  <thead ref={ref} className={`bg-primary-soft backdrop-blur-md border-b border-border ${className}`} {...props} />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -81,7 +81,7 @@ const TableFooter = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <tfoot
     ref={ref}
-    className={`border-t bg-muted/50 font-medium [&>tr]:last:border-b-0 ${className}`}
+    className={`border-t bg-surface-strong font-medium [&>tr]:last:border-b-0 ${className}`}
     {...props}
   />
 ))
@@ -93,7 +93,7 @@ const TableRow = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <tr
     ref={ref}
-    className={`group border-b border-slate-100 transition-all duration-200 hover:bg-slate-50/80 hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_1px_3px_rgba(0,0,0,0.02)] data-[state=selected]:bg-slate-100/50 ${className}`}
+    className={`group border-b border-border transition-all duration-200 hover:bg-primary-soft hover:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_1px_3px_rgba(0,0,0,0.02)] data-[state=selected]:bg-primary-soft ${className}`}
     {...props}
   />
 ))
@@ -105,7 +105,7 @@ const TableHead = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <th
     ref={ref}
-    className={`h-11 px-4 text-left align-middle text-[12px] font-semibold uppercase tracking-wider text-slate-500 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
+    className={`h-11 px-4 text-left align-middle text-[12px] font-semibold uppercase tracking-wider text-muted [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
     {...props}
   />
 ))
@@ -117,7 +117,7 @@ const TableCell = React.forwardRef<
 >(({ className = "", ...props }, ref) => (
   <td
     ref={ref}
-    className={`p-4 align-middle text-slate-700 transition-colors group-hover:text-slate-900 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
+    className={`p-4 align-middle text-foreground transition-colors group-hover:text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] ${className}`}
     {...props}
   />
 ))

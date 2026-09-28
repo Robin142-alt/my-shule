@@ -257,31 +257,31 @@ const navItems: NavItem[] = [
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
-    card: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    card: "border-success-border bg-success-soft text-emerald-900",
+    chip: "border-success-border bg-success-soft text-success",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
   },
   info: {
-    card: "border-blue-200 bg-blue-50 text-blue-950",
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
+    card: "border-info-border bg-info-soft text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
   },
   warning: {
-    card: "border-amber-200 bg-amber-50 text-amber-950",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    card: "border-warning-border bg-warning-soft text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
   },
   danger: {
-    card: "border-rose-200 bg-rose-50 text-rose-950",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    card: "border-danger-border bg-danger-soft text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
   },
   neutral: {
-    card: "border-slate-200 bg-white text-[#071D49]",
+    card: "border-slate-200 bg-white text-foreground",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
     text: "text-slate-600",
@@ -384,23 +384,23 @@ function SecurityAppointmentModal({
       size="lg"
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">Cancel</button>
-          <button type="button" onClick={onSubmit} disabled={submitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Scheduling..." : "Schedule Visitor"}</button>
+          <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={onSubmit} disabled={submitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Scheduling..." : "Schedule Visitor"}</button>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-bold text-[#071D49]">Visitor name
-          <input value={draft.visitor_name} onChange={(event) => update("visitor_name", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" autoFocus />
+        <label className="text-sm font-bold text-foreground">Visitor name
+          <input value={draft.visitor_name} onChange={(event) => update("visitor_name", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" autoFocus />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Host / office
-          <input value={draft.host_user_id} onChange={(event) => update("host_user_id", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Principal's office" />
+        <label className="text-sm font-bold text-foreground">Host / office
+          <input value={draft.host_user_id} onChange={(event) => update("host_user_id", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Principal's office" />
         </label>
-        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Purpose
-          <input value={draft.purpose} onChange={(event) => update("purpose", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Meeting, delivery, interview" />
+        <label className="text-sm font-bold text-foreground sm:col-span-2">Purpose
+          <input value={draft.purpose} onChange={(event) => update("purpose", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Meeting, delivery, interview" />
         </label>
-        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Expected date and time
-          <input type="datetime-local" value={draft.appointment_time} onChange={(event) => update("appointment_time", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="text-sm font-bold text-foreground sm:col-span-2">Expected date and time
+          <input type="datetime-local" value={draft.appointment_time} onChange={(event) => update("appointment_time", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
       </div>
     </Modal>
@@ -427,24 +427,24 @@ function SecurityIncidentModal({
   return (
     <Modal open={open} title="Report security incident" description="Create a school-scoped incident and notify the authorized leadership roles." onClose={onClose} size="lg" footer={
       <>
-        <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">Cancel</button>
+        <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Cancel</button>
         <button type="button" onClick={onSubmit} disabled={submitting} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Reporting..." : "Report Incident"}</button>
       </>
     }>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Incident title
-          <input value={draft.title} onChange={(event) => update("title", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" autoFocus />
+        <label className="text-sm font-bold text-foreground sm:col-span-2">Incident title
+          <input value={draft.title} onChange={(event) => update("title", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" autoFocus />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Severity
-          <select value={draft.severity} onChange={(event) => update("severity", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+        <label className="text-sm font-bold text-foreground">Severity
+          <select value={draft.severity} onChange={(event) => update("severity", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Location
-          <input value={draft.location} onChange={(event) => update("location", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="text-sm font-bold text-foreground">Location
+          <input value={draft.location} onChange={(event) => update("location", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
-        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Description
-          <textarea value={draft.description} onChange={(event) => update("description", event.target.value)} className="mt-1 min-h-28 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="text-sm font-bold text-foreground sm:col-span-2">Description
+          <textarea value={draft.description} onChange={(event) => update("description", event.target.value)} className="mt-1 min-h-28 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
       </div>
     </Modal>
@@ -474,17 +474,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
@@ -504,40 +504,40 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
   return (
     <Panel title="Gate Command Center" description="Live summary of what is happening today." icon={LayoutDashboard} actions={
       <div className="flex gap-2">
-        <button type="button" className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("check-in")}>
+        <button type="button" className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("check-in")}>
           Check In Visitor
         </button>
       </div>
     }>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("visitor-register")}>
-          <div className="text-sm font-semibold text-[#64748B]">Visitors Inside</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("visitor-register")}>
+          <div className="text-sm font-semibold text-muted">Visitors Inside</div>
           <div className="mt-1 text-2xl font-black text-emerald-600">{isLoading ? "-" : dashboard?.open_records ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("expected-visitors")}>
-          <div className="text-sm font-semibold text-[#64748B]">Expected Today</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">5</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("expected-visitors")}>
+          <div className="text-sm font-semibold text-muted">Expected Today</div>
+          <div className="mt-1 text-2xl font-black text-foreground">5</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("gate-passes")}>
-          <div className="text-sm font-semibold text-[#64748B]">Students Out on Pass</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">3</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("gate-passes")}>
+          <div className="text-sm font-semibold text-muted">Students Out on Pass</div>
+          <div className="mt-1 text-2xl font-black text-foreground">3</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 cursor-pointer hover:border-rose-300 transition" onClick={() => onNavigate("incidents")}>
-          <div className="text-sm font-semibold text-rose-700">Open Incidents</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">1</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 cursor-pointer hover:border-rose-300 transition" onClick={() => onNavigate("incidents")}>
+          <div className="text-sm font-semibold text-danger">Open Incidents</div>
+          <div className="mt-1 text-2xl font-black text-danger">1</div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl border border-[#D8E0EC] overflow-hidden">
-            <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] flex justify-between items-center">
-              <h3 className="font-bold text-[#071D49]">Live Gate Queue</h3>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="bg-surface-muted px-4 py-3 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-foreground">Live Gate Queue</h3>
             </div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full text-sm text-left whitespace-nowrap">
                 <thead>
-                  <tr className="text-[#64748B] border-b border-[#D8E0EC]">
+                  <tr className="text-muted border-b border-border">
                     <th className="pb-2 font-semibold">Time</th>
                     <th className="pb-2 font-semibold">Person/Vehicle</th>
                     <th className="pb-2 font-semibold">Type</th>
@@ -546,13 +546,13 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
                     <th className="pb-2 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#D8E0EC]">
+                <tbody className="divide-y divide-border">
                   {dashboard?.records?.slice(0, 5).map((r: { id: string, created_at: string, visitor_name: string, purpose: string }) => (
                     <tr key={r.id}>
-                      <td className="py-3 text-[#64748B]">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                      <td className="py-3 font-medium text-[#071D49]">{r.visitor_name}</td>
-                      <td className="py-3 text-[#64748B]">Visitor</td>
-                      <td className="py-3 text-[#64748B]">{r.purpose || "-"}</td>
+                      <td className="py-3 text-muted">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                      <td className="py-3 font-medium text-foreground">{r.visitor_name}</td>
+                      <td className="py-3 text-muted">Visitor</td>
+                      <td className="py-3 text-muted">{r.purpose || "-"}</td>
                       <td className="py-3"><StatusChip label="Inside" tone="warning" /></td>
                       <td className="py-3 text-right">
                         <button type="button" onClick={() => checkoutVisitorRecord(r.id)} className="text-blue-600 hover:underline font-semibold text-xs">Check Out</button>
@@ -560,7 +560,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
                     </tr>
                   ))}
                   {!dashboard?.records?.length && !isLoading && (
-                    <tr><td colSpan={6} className="py-3 text-center text-[#64748B]">No active queue</td></tr>
+                    <tr><td colSpan={6} className="py-3 text-center text-muted">No active queue</td></tr>
                   )}
                 </tbody>
               </table>
@@ -568,12 +568,12 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: ViewId) => void }) 
           </div>
         </div>
         <div className="space-y-6">
-          <div className="rounded-xl border border-rose-200 bg-rose-50 overflow-hidden">
-            <div className="px-4 py-3 border-b border-rose-200 flex items-center gap-2">
+          <div className="rounded-xl border border-danger-border bg-danger-soft overflow-hidden">
+            <div className="px-4 py-3 border-b border-danger-border flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-rose-600" />
               <h3 className="font-bold text-rose-900">Alerts</h3>
             </div>
-            <div className="p-4 space-y-3 text-sm text-rose-800">
+            <div className="p-4 space-y-3 text-sm text-danger">
               <div className="flex justify-between items-start">
                 <span><strong>Visitor Overstayed</strong> (Jane Doe)</span>
                 <button type="button" className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("visitor-register")}>Review</button>
@@ -652,33 +652,33 @@ function ShiftWorkspace() {
         <button type="button" onClick={handleEndSecurityShift} disabled={isSubmittingEnd} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmittingEnd ? "Ending..." : "End Shift"}</button>
       </div>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-3">
-        <label className="text-sm font-bold text-[#071D49]">Gate point
-          <input value={shiftDraft.gate_point} onChange={(event) => setShiftDraft({ ...shiftDraft, gate_point: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-3">
+        <label className="text-sm font-bold text-foreground">Gate point
+          <input value={shiftDraft.gate_point} onChange={(event) => setShiftDraft({ ...shiftDraft, gate_point: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Shift name
-          <input value={shiftDraft.shift_name} onChange={(event) => setShiftDraft({ ...shiftDraft, shift_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="text-sm font-bold text-foreground">Shift name
+          <input value={shiftDraft.shift_name} onChange={(event) => setShiftDraft({ ...shiftDraft, shift_name: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Handover notes
-          <input value={shiftDraft.handover_notes} onChange={(event) => setShiftDraft({ ...shiftDraft, handover_notes: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="text-sm font-bold text-foreground">Handover notes
+          <input value={shiftDraft.handover_notes} onChange={(event) => setShiftDraft({ ...shiftDraft, handover_notes: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
       </div>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Current Shift</div>
-          <div className="mt-1 text-xl font-black text-[#071D49]">{shiftDraft.shift_name} ({shiftDraft.gate_point})</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Current Shift</div>
+          <div className="mt-1 text-xl font-black text-foreground">{shiftDraft.shift_name} ({shiftDraft.gate_point})</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Visitors Still Inside</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Visitors Still Inside</div>
           <div className="mt-1 text-2xl font-black text-rose-600">{visitorDashboard?.open_records ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Vehicles Still Inside</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{vehiclesInside}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Vehicles Still Inside</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{vehiclesInside}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Pending Parcels</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{pendingDeliveries}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Pending Parcels</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{pendingDeliveries}</div>
         </div>
       </div>
     </Panel>
@@ -721,49 +721,49 @@ function CheckInWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void }
   return (
     <Panel title="Fast Visitor Check-In" description="Fast visitor registration during morning rush, parent visits, deliveries." icon={UserPlus} actions={
       <div className="flex gap-2">
-        <button type="button" onClick={handleFocusFrequentVisitorSearch} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Search Frequent Visitor</button>
-        <button type="button" onClick={handleUseExpectedVisitorQueue} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Use Expected Visitor</button>
+        <button type="button" onClick={handleFocusFrequentVisitorSearch} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground">Search Frequent Visitor</button>
+        <button type="button" onClick={handleUseExpectedVisitorQueue} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground">Use Expected Visitor</button>
       </div>
     }>
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4">
-          <div className="rounded-xl border border-[#D8E0EC] p-4 bg-[#F8FAFC]">
-            <h3 className="font-bold text-[#071D49] mb-3">Visitor Details</h3>
+          <div className="rounded-xl border border-border p-4 bg-surface-muted">
+            <h3 className="font-bold text-foreground mb-3">Visitor Details</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <input ref={visitorSearchInputRef} type="text" placeholder="Full Name" value={formData.visitor_name} onChange={e => setFormData(f => ({ ...f, visitor_name: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm" />
-              <input type="text" placeholder="Phone Number" value={formData.phone_number} onChange={e => setFormData(f => ({ ...f, phone_number: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm" />
-              <input type="text" placeholder="Purpose of Visit" value={formData.purpose} onChange={e => setFormData(f => ({ ...f, purpose: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm sm:col-span-2" />
-              <input type="text" placeholder="Person/Office to see" value={formData.host_user_id} onChange={e => setFormData(f => ({ ...f, host_user_id: e.target.value }))} className="rounded-lg border border-[#D8E0EC] p-2 text-sm sm:col-span-2" />
+              <input ref={visitorSearchInputRef} type="text" placeholder="Full Name" value={formData.visitor_name} onChange={e => setFormData(f => ({ ...f, visitor_name: e.target.value }))} className="rounded-lg border border-border p-2 text-sm" />
+              <input type="text" placeholder="Phone Number" value={formData.phone_number} onChange={e => setFormData(f => ({ ...f, phone_number: e.target.value }))} className="rounded-lg border border-border p-2 text-sm" />
+              <input type="text" placeholder="Purpose of Visit" value={formData.purpose} onChange={e => setFormData(f => ({ ...f, purpose: e.target.value }))} className="rounded-lg border border-border p-2 text-sm sm:col-span-2" />
+              <input type="text" placeholder="Person/Office to see" value={formData.host_user_id} onChange={e => setFormData(f => ({ ...f, host_user_id: e.target.value }))} className="rounded-lg border border-border p-2 text-sm sm:col-span-2" />
               <div className="flex gap-2 sm:col-span-2 pt-2">
-                <button type="button" onClick={handleCheckIn} disabled={mutation.isPending} className="flex-1 rounded-lg bg-[#071D49] py-2 text-sm font-black text-white">
+                <button type="button" onClick={handleCheckIn} disabled={mutation.isPending} className="flex-1 rounded-lg bg-primary py-2 text-sm font-black text-white">
                   {mutation.isPending ? "Saving..." : "Check In & Print Pass"}
                 </button>
-                <button type="button" onClick={handleCheckIn} disabled={mutation.isPending} className="flex-1 rounded-lg border border-[#D8E0EC] bg-white py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">Save Without Printing</button>
+                <button type="button" onClick={handleCheckIn} disabled={mutation.isPending} className="flex-1 rounded-lg border border-border bg-white py-2 text-sm font-bold text-foreground disabled:opacity-50">Save Without Printing</button>
               </div>
             </div>
           </div>
         </div>
         <div>
-          <h3 className="font-bold text-[#071D49] mb-3">Recent Check-Ins</h3>
-          <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+          <h3 className="font-bold text-foreground mb-3">Recent Check-Ins</h3>
+          <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm text-left whitespace-nowrap">
-              <thead className="bg-[#F8FAFC] text-[#071D49]">
+              <thead className="bg-surface-muted text-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time In</th>
-                  <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Name</th>
-                  <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+                  <th className="px-4 py-3 font-bold border-b border-border">Time In</th>
+                  <th className="px-4 py-3 font-bold border-b border-border">Name</th>
+                  <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#D8E0EC]">
+              <tbody className="divide-y divide-border">
                 {dashboard?.records?.slice(0, 5).map((r: { id: string, created_at: string, visitor_name: string, status: string }) => (
-                  <tr key={r.id} className="hover:bg-[#F8FAFC]">
-                    <td className="px-4 py-3 text-[#64748B]">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                    <td className="px-4 py-3 font-semibold text-[#071D49]">{r.visitor_name}</td>
+                  <tr key={r.id} className="hover:bg-surface-muted">
+                    <td className="px-4 py-3 text-muted">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                    <td className="px-4 py-3 font-semibold text-foreground">{r.visitor_name}</td>
                     <td className="px-4 py-3 text-right">
                       {r.status === "active" ? (
                         <button type="button" onClick={() => handleCheckOut(r.id)} className="text-blue-600 hover:underline font-semibold text-xs">Check Out</button>
                       ) : (
-                        <span className="text-[#64748B] text-xs">Checked Out</span>
+                        <span className="text-muted text-xs">Checked Out</span>
                       )}
                     </td>
                   </tr>
@@ -783,34 +783,34 @@ function VisitorRegisterWorkspace() {
   return (
     <Panel title="Visitor Register" description="Full visitor log for the day, week, month." icon={FileText} actions={
       <div className="flex gap-2">
-        <button type="button" onClick={() => exportSecurityCsv("visitor-register.csv", "Visitor register")} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Export Filtered</button>
+        <button type="button" onClick={() => exportSecurityCsv("visitor-register.csv", "Visitor register")} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground">Export Filtered</button>
       </div>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-          <input type="text" placeholder="Search by name, phone, ID, vehicle reg..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+          <input type="text" placeholder="Search by name, phone, ID, vehicle reg..." className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time In</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Purpose</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">To See</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time In</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Purpose</th>
+              <th className="px-4 py-3 font-bold border-b border-border">To See</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {dashboard?.records?.map((r: { id: string, created_at: string, visitor_name: string, purpose: string, host_user_id: string, status: string }) => (
-              <tr key={r.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{r.visitor_name}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.purpose || "-"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.host_user_id || "-"}</td>
+              <tr key={r.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{new Date(r.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{r.visitor_name}</td>
+                <td className="px-4 py-3 text-muted">{r.purpose || "-"}</td>
+                <td className="px-4 py-3 text-muted">{r.host_user_id || "-"}</td>
                 <td className="px-4 py-3">
                   <StatusChip label={r.status === "active" ? "Inside" : "Checked Out"} tone={r.status === "active" ? "warning" : "success"} />
                 </td>
@@ -818,7 +818,7 @@ function VisitorRegisterWorkspace() {
                   {r.status === "active" ? (
                     <button type="button" onClick={() => checkoutVisitorRecord(r.id)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">Check Out</button>
                   ) : (
-                    <span className="text-xs text-[#64748B] mr-3">Done</span>
+                    <span className="text-xs text-muted mr-3">Done</span>
                   )}
                   <button type="button" aria-label={`View ${r.visitor_name} visitor details`} onClick={() => {
                     openPrintDocument({
@@ -834,15 +834,15 @@ function VisitorRegisterWorkspace() {
                       footer: "Visitor detail preview generated from the current school gate register.",
                     });
                     void recordSecurityAction("Visitor details preview generated", `${r.visitor_name} visitor detail preview generated for gate review and print/export.`, "info");
-                  }} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded"><MoreHorizontal className="w-4 h-4" /></button>
+                  }} className="p-1 text-muted hover:bg-border rounded"><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
             {!dashboard?.records?.length && !isLoading && (
-              <tr><td colSpan={6} className="py-3 text-center text-[#64748B]">No visitor records found</td></tr>
+              <tr><td colSpan={6} className="py-3 text-center text-muted">No visitor records found</td></tr>
             )}
             {isLoading && (
-              <tr><td colSpan={6} className="py-3 text-center text-[#64748B]">Loading register...</td></tr>
+              <tr><td colSpan={6} className="py-3 text-center text-muted">Loading register...</td></tr>
             )}
           </tbody>
         </table>
@@ -901,29 +901,29 @@ function ExpectedVisitorsWorkspace() {
   return (
     <>
       <Panel title="Expected Visitors" description="Visitors scheduled by Admin or Secretary." icon={Calendar} actions={
-        <button type="button" onClick={() => setShowAppointmentModal(true)} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Add Expected Visitor</button>
+        <button type="button" onClick={() => setShowAppointmentModal(true)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground">Add Expected Visitor</button>
       }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Expected Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Host/Office</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Expected Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Host/Office</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading expected visitors...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading expected visitors...</td></tr>
             ) : !appointments?.length ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No expected visitors.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No expected visitors.</td></tr>
             ) : appointments.map((appt: any) => (
-              <tr key={appt.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{new Date(appt.appointment_time).toLocaleString()}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{appt.visitor_name || "Unknown"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{appt.host_user_id || "-"}</td>
+              <tr key={appt.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{new Date(appt.appointment_time).toLocaleString()}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{appt.visitor_name || "Unknown"}</td>
+                <td className="px-4 py-3 text-muted">{appt.host_user_id || "-"}</td>
                 <td className="px-4 py-3"><StatusChip label={appt.status} tone={appt.status === "pending" ? "neutral" : "success"} /></td>
                 <td className="px-4 py-3 text-right">
                   {(appt.status === "pending" || appt.status === "scheduled") && (
@@ -970,29 +970,29 @@ function GatePassesWorkspace() {
 
   return (
     <Panel title="Student Gate Passes" description="Verify approved student gate passes." icon={Ticket} actions={
-      <button type="button" onClick={() => exportSecurityCsv("student-gate-passes.csv", "Student gate passes")} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]">Export List</button>
+      <button type="button" onClick={() => exportSecurityCsv("student-gate-passes.csv", "Student gate passes")} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground">Export List</button>
     }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Exit Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Exit Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reason</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading passes...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading passes...</td></tr>
             ) : !exits?.length ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No gate passes.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No gate passes.</td></tr>
             ) : exits.map((exit: any) => (
-              <tr key={exit.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{exit.student_id?.substring(0,8) || "Unknown"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{new Date(exit.exit_time).toLocaleString()}</td>
-                <td className="px-4 py-3 text-[#64748B]">{exit.reason || "-"}</td>
+              <tr key={exit.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{exit.student_id?.substring(0,8) || "Unknown"}</td>
+                <td className="px-4 py-3 text-muted">{new Date(exit.exit_time).toLocaleString()}</td>
+                <td className="px-4 py-3 text-muted">{exit.reason || "-"}</td>
                 <td className="px-4 py-3"><StatusChip label={exit.status} tone={exit.status === 'out' ? 'warning' : 'success'} /></td>
                 <td className="px-4 py-3 text-right">
                   {exit.status !== "returned" && (
@@ -1074,47 +1074,47 @@ function LateArrivalsWorkspace() {
 
   return (
     <Panel title="Late Arrivals" description="Records students who arrive late to school." icon={ClockAlert} actions={
-      <button type="button" onClick={handleRecordLateArrival} disabled={savingAction === "record"} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+      <button type="button" onClick={handleRecordLateArrival} disabled={savingAction === "record"} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
         {savingAction === "record" ? "Recording..." : "Record Late Arrival"}
       </button>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-3">
-        <label className="text-sm font-bold text-[#071D49]">Student name or admission number
-          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Exact full name or admission number" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-3">
+        <label className="text-sm font-bold text-foreground">Student name or admission number
+          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Exact full name or admission number" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Reason
-          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Transport delay, illness..." />
+        <label className="text-sm font-bold text-foreground">Reason
+          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Transport delay, illness..." />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Action taken
-          <input value={draft.action_taken} onChange={(event) => setDraft({ ...draft, action_taken: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Allowed to class" />
+        <label className="text-sm font-bold text-foreground">Action taken
+          <input value={draft.action_taken} onChange={(event) => setDraft({ ...draft, action_taken: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Allowed to class" />
         </label>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Action Taken</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reason</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Action Taken</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading late-arrival records...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading late-arrival records...</td></tr>
             ) : arrivals.length ? arrivals.map((arrival) => (
-              <tr key={arrival.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{arrival.created_at ? new Date(arrival.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{arrival.payload?.student_name || arrival.title || "Student"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{arrival.payload?.reason || "Reason not recorded"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{arrival.payload?.action_taken || "Allowed to Class"}</td>
+              <tr key={arrival.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{arrival.created_at ? new Date(arrival.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{arrival.payload?.student_name || arrival.title || "Student"}</td>
+                <td className="px-4 py-3 text-muted">{arrival.payload?.reason || "Reason not recorded"}</td>
+                <td className="px-4 py-3 text-muted">{arrival.payload?.action_taken || "Allowed to Class"}</td>
                 <td className="px-4 py-3 text-right">
                   <button type="button" onClick={() => handleNotifyLateArrivalParent(arrival)} disabled={savingAction === `notify-${arrival.id}`} className="text-blue-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `notify-${arrival.id}` ? "Queuing..." : "Notify Parent"}</button>
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No late arrivals recorded today. Add a student name, reason, and action taken when a learner arrives after reporting time.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No late arrivals recorded today. Add a student name, reason, and action taken when a learner arrives after reporting time.</td></tr>
             )}
           </tbody>
         </table>
@@ -1194,59 +1194,59 @@ function EarlyDeparturesWorkspace() {
 
   return (
     <Panel title="Early Departures" description="Records students leaving before normal closing time." icon={LogOut} actions={
-      <button type="button" onClick={handleRecordEarlyDeparture} disabled={savingAction === "record"} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+      <button type="button" onClick={handleRecordEarlyDeparture} disabled={savingAction === "record"} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
         {savingAction === "record" ? "Recording..." : "Record Early Departure"}
       </button>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-3">
-        <label className="text-sm font-bold text-[#071D49]">Student name or admission number
-          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Exact full name or admission number" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-3">
+        <label className="text-sm font-bold text-foreground">Student name or admission number
+          <input value={draft.student_name} onChange={(event) => setDraft({ ...draft, student_name: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Exact full name or admission number" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Reason
-          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Medical, parent pickup..." />
+        <label className="text-sm font-bold text-foreground">Reason
+          <input value={draft.reason} onChange={(event) => setDraft({ ...draft, reason: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Medical, parent pickup..." />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Status
-          <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+        <label className="text-sm font-bold text-foreground">Status
+          <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="Awaiting Return">Awaiting Return</option>
             <option value="Left With Parent">Left With Parent</option>
             <option value="Approved Exit">Approved Exit</option>
           </select>
         </label>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time Out</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time Out</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reason</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading early-departure records...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading early-departure records...</td></tr>
             ) : departures.length ? departures.map((departure) => {
               const returned = Boolean(departure.payload?.returned_at);
               const status = returned ? "Returned" : departure.payload?.status || "Awaiting Return";
               return (
-                <tr key={departure.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{departure.created_at ? new Date(departure.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{departure.payload?.student_name || departure.title || "Student"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{departure.payload?.reason || "Reason not recorded"}</td>
+                <tr key={departure.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{departure.created_at ? new Date(departure.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{departure.payload?.student_name || departure.title || "Student"}</td>
+                  <td className="px-4 py-3 text-muted">{departure.payload?.reason || "Reason not recorded"}</td>
                   <td className="px-4 py-3"><StatusChip label={status} tone={returned ? "success" : "warning"} /></td>
                   <td className="px-4 py-3 text-right">
                     {!returned ? (
                       <button type="button" onClick={() => handleRecordEarlyDepartureReturn(departure)} disabled={savingAction === `return-${departure.id}`} className="text-emerald-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `return-${departure.id}` ? "Saving..." : "Record Return"}</button>
                     ) : (
-                      <span className="text-xs font-semibold text-[#64748B]">Closed</span>
+                      <span className="text-xs font-semibold text-muted">Closed</span>
                     )}
                   </td>
                 </tr>
               );
             }) : (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No early departures recorded. Record a student, reason, and status when a learner leaves before normal closing time.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No early departures recorded. Record a student, reason, and status when a learner leaves before normal closing time.</td></tr>
             )}
           </tbody>
         </table>
@@ -1348,55 +1348,55 @@ function StaffMovementWorkspace() {
   return (
     <Panel title="Staff Movement" description="Tracks staff entry and exit." icon={Users} actions={
       <div className="flex gap-2">
-        <button type="button" onClick={handleRecordStaffEntry} disabled={isSubmittingEntry} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">
+        <button type="button" onClick={handleRecordStaffEntry} disabled={isSubmittingEntry} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">
           {isSubmittingEntry ? "Recording..." : "Record Entry"}
         </button>
-        <button type="button" onClick={handleRecordStaffExit} disabled={isSubmittingExit} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        <button type="button" onClick={handleRecordStaffExit} disabled={isSubmittingExit} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isSubmittingExit ? "Recording..." : "Record Exit"}
         </button>
       </div>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2">
-        <label className="text-sm font-bold text-[#071D49]">Staff member
-          <input value={staffDraft.staffId} onChange={(event) => setStaffDraft({ ...staffDraft, staffId: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Name, payroll number, or staff ID" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2">
+        <label className="text-sm font-bold text-foreground">Staff member
+          <input value={staffDraft.staffId} onChange={(event) => setStaffDraft({ ...staffDraft, staffId: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Name, payroll number, or staff ID" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Notes
-          <input value={staffDraft.notes} onChange={(event) => setStaffDraft({ ...staffDraft, notes: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Reason or destination" />
+        <label className="text-sm font-bold text-foreground">Notes
+          <input value={staffDraft.notes} onChange={(event) => setStaffDraft({ ...staffDraft, notes: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Reason or destination" />
         </label>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Staff Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Department</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Staff Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Department</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {error ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-rose-700">Staff movements could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-danger">Staff movements could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr>
             ) : null}
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading staff movement records...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading staff movement records...</td></tr>
             ) : !error && movements.length ? movements.map((movement) => (
-              <tr key={movement.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{movement.departed_at ? new Date(movement.departed_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{movement.staff_name || "Staff member"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{movement.department || "Not recorded"}</td>
+              <tr key={movement.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{movement.departed_at ? new Date(movement.departed_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Recorded"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{movement.staff_name || "Staff member"}</td>
+                <td className="px-4 py-3 text-muted">{movement.department || "Not recorded"}</td>
                 <td className="px-4 py-3"><StatusChip label={movement.status} tone={String(movement.status).toLowerCase() === "returned" ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   {String(movement.status).toLowerCase() === "returned" ? (
-                    <span className="text-xs font-semibold text-[#64748B]">Closed</span>
+                    <span className="text-xs font-semibold text-muted">Closed</span>
                   ) : (
                     <button type="button" onClick={() => handleStaffReturn(movement)} disabled={returningId === movement.id} className="text-emerald-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{returningId === movement.id ? "Saving..." : "Record Return"}</button>
                   )}
                 </td>
               </tr>
             )) : !error && !isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No open staff movements. Record a staff exit to track the return at the gate.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No open staff movements. Record a staff exit to track the return at the gate.</td></tr>
             ) : null}
           </tbody>
         </table>
@@ -1464,45 +1464,45 @@ function VehicleLogWorkspace() {
 
   return (
     <Panel title="Vehicle Log" description="Records vehicles entering and leaving school compound." icon={Car} actions={
-      <button type="button" onClick={handleVehicleEntry} disabled={savingAction === "entry"} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+      <button type="button" onClick={handleVehicleEntry} disabled={savingAction === "entry"} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
         {savingAction === "entry" ? "Recording..." : "Record Vehicle Entry"}
       </button>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-3">
-        <input value={draft.vehicle_registration} onChange={(event) => setDraft((current) => ({ ...current, vehicle_registration: event.target.value }))} placeholder="Registration number" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.driver_name} onChange={(event) => setDraft((current) => ({ ...current, driver_name: event.target.value }))} placeholder="Driver / contact" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.purpose} onChange={(event) => setDraft((current) => ({ ...current, purpose: event.target.value }))} placeholder="Purpose / type" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-3">
+        <input value={draft.vehicle_registration} onChange={(event) => setDraft((current) => ({ ...current, vehicle_registration: event.target.value }))} placeholder="Registration number" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <input value={draft.driver_name} onChange={(event) => setDraft((current) => ({ ...current, driver_name: event.target.value }))} placeholder="Driver / contact" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <input value={draft.purpose} onChange={(event) => setDraft((current) => ({ ...current, purpose: event.target.value }))} placeholder="Purpose / type" className="rounded-lg border border-border px-3 py-2 text-sm" />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time In</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reg No.</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time In</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reg No.</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading vehicle logs...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading vehicle logs...</td></tr>
             ) : logs.length ? logs.map((log) => (
-              <tr key={log.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{log.created_at ? new Date(log.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Today"}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{log.payload?.vehicle_registration || log.title || "Vehicle"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{log.payload?.purpose || "Gate visit"}</td>
+              <tr key={log.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{log.created_at ? new Date(log.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Today"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{log.payload?.vehicle_registration || log.title || "Vehicle"}</td>
+                <td className="px-4 py-3 text-muted">{log.payload?.purpose || "Gate visit"}</td>
                 <td className="px-4 py-3"><StatusChip label={log.payload?.exited_at ? "Exited" : "Inside"} tone={log.payload?.exited_at ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   {log.payload?.exited_at ? (
-                    <span className="text-xs font-semibold text-[#64748B]">Closed</span>
+                    <span className="text-xs font-semibold text-muted">Closed</span>
                   ) : (
                     <button type="button" onClick={() => handleVehicleExit(log)} disabled={savingAction === `exit-${log.id}`} className="text-emerald-600 hover:underline font-semibold text-xs mr-3 disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `exit-${log.id}` ? "Saving..." : "Record Exit"}</button>
                   )}
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No vehicles are currently logged. Enter registration details above, then record the vehicle entry.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No vehicles are currently logged. Enter registration details above, then record the vehicle entry.</td></tr>
             )}
           </tbody>
         </table>
@@ -1592,46 +1592,46 @@ function DeliveriesWorkspace() {
 
   return (
     <Panel title="Deliveries & Parcels" description="Tracks parcels and notifies an exact active staff recipient in this school." icon={Package} actions={
-      <button type="button" onClick={handleRecordDelivery} disabled={savingAction === "record"} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+      <button type="button" onClick={handleRecordDelivery} disabled={savingAction === "record"} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
         {savingAction === "record" ? "Recording..." : "Record Delivery"}
       </button>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-3">
-        <input value={draft.delivery_type} onChange={(event) => setDraft((current) => ({ ...current, delivery_type: event.target.value }))} placeholder="Delivery type" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.recipient} onChange={(event) => setDraft((current) => ({ ...current, recipient: event.target.value }))} placeholder="Exact staff name, staff number, or account ID" aria-label="Exact staff recipient" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.sender} onChange={(event) => setDraft((current) => ({ ...current, sender: event.target.value }))} placeholder="Sender / courier" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-3">
+        <input value={draft.delivery_type} onChange={(event) => setDraft((current) => ({ ...current, delivery_type: event.target.value }))} placeholder="Delivery type" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <input value={draft.recipient} onChange={(event) => setDraft((current) => ({ ...current, recipient: event.target.value }))} placeholder="Exact staff name, staff number, or account ID" aria-label="Exact staff recipient" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <input value={draft.sender} onChange={(event) => setDraft((current) => ({ ...current, sender: event.target.value }))} placeholder="Sender / courier" className="rounded-lg border border-border px-3 py-2 text-sm" />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Recipient</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Recipient</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading deliveries...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading deliveries...</td></tr>
             ) : deliveries.length ? deliveries.map((delivery) => (
-              <tr key={delivery.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{delivery.created_at ? new Date(delivery.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Today"}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{delivery.payload?.delivery_type || delivery.title || "Delivery"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{delivery.payload?.recipient || "Recipient"}</td>
+              <tr key={delivery.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{delivery.created_at ? new Date(delivery.created_at).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" }) : "Today"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{delivery.payload?.delivery_type || delivery.title || "Delivery"}</td>
+                <td className="px-4 py-3 text-muted">{delivery.payload?.recipient || "Recipient"}</td>
                 <td className="px-4 py-3"><StatusChip label={delivery.payload?.collected_at ? "Collected" : "Pending"} tone={delivery.payload?.collected_at ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   <button type="button" onClick={() => handleNotifyDeliveryRecipient(delivery)} disabled={savingAction === `notify-${delivery.id}`} className="text-blue-600 hover:underline font-semibold text-xs mr-3 disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `notify-${delivery.id}` ? "Notifying..." : "Notify Recipient"}</button>
                   {delivery.payload?.collected_at ? (
-                    <span className="text-xs font-semibold text-[#64748B]">Closed</span>
+                    <span className="text-xs font-semibold text-muted">Closed</span>
                   ) : (
                     <button type="button" onClick={() => handleMarkDeliveryCollected(delivery)} disabled={savingAction === `collected-${delivery.id}`} className="text-emerald-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `collected-${delivery.id}` ? "Saving..." : "Mark Collected"}</button>
                   )}
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No deliveries are waiting at the gate. Enter delivery details above, then record the first parcel or document.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No deliveries are waiting at the gate. Enter delivery details above, then record the first parcel or document.</td></tr>
             )}
           </tbody>
         </table>
@@ -1689,31 +1689,31 @@ function IncidentsWorkspace() {
         }} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           Send Emergency Alert
         </button>
-        <button type="button" onClick={() => setShowIncidentModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        <button type="button" onClick={() => setShowIncidentModal(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           Report Incident
         </button>
       </div>
     }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Severity</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Severity</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
-            {error ? <tr><td colSpan={5} className="px-4 py-8 text-center text-rose-700">Security incidents could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
-            {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading incidents...</td></tr> : null}
-            {!isLoading && !error && !incidents.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No security incidents. Use Report Incident to create the first record.</td></tr> : null}
+          <tbody className="divide-y divide-border">
+            {error ? <tr><td colSpan={5} className="px-4 py-8 text-center text-danger">Security incidents could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
+            {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading incidents...</td></tr> : null}
+            {!isLoading && !error && !incidents.length ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No security incidents. Use Report Incident to create the first record.</td></tr> : null}
             {incidents.map((incident) => (
-              <tr key={incident.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{incident.date ? new Date(incident.date).toLocaleString("en-KE") : "Recorded"}</td>
+              <tr key={incident.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{incident.date ? new Date(incident.date).toLocaleString("en-KE") : "Recorded"}</td>
                 <td className="px-4 py-3"><StatusChip label={incident.severity || "Medium"} tone={["high", "critical"].includes(String(incident.severity).toLowerCase()) ? "danger" : "warning"} /></td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{incident.title || incident.description || "Security incident"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{incident.title || incident.description || "Security incident"}</td>
                 <td className="px-4 py-3"><StatusChip label={incident.status} tone={String(incident.status).toLowerCase() === "resolved" ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   {String(incident.status).toLowerCase() !== "resolved" && String(incident.status).toLowerCase() !== "escalated" ? (
@@ -1809,59 +1809,59 @@ function WatchlistWorkspace() {
     <Panel title="Watchlist" description="Warnings for blocked or suspicious persons/vehicles." icon={ShieldAlert} actions={
       <button type="button" onClick={handleCreateWatchlistEntry} disabled={savingAction === "create"} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{savingAction === "create" ? "Adding..." : "Add Entry"}</button>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-4">
-        <label className="text-sm font-bold text-[#071D49]">Name/vehicle
-          <input value={draft.subject} onChange={(event) => setDraft({ ...draft, subject: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="KBC 999Z or full name" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-4">
+        <label className="text-sm font-bold text-foreground">Name/vehicle
+          <input value={draft.subject} onChange={(event) => setDraft({ ...draft, subject: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="KBC 999Z or full name" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Type
-          <select value={draft.subject_type} onChange={(event) => setDraft({ ...draft, subject_type: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+        <label className="text-sm font-bold text-foreground">Type
+          <select value={draft.subject_type} onChange={(event) => setDraft({ ...draft, subject_type: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="Vehicle">Vehicle</option>
             <option value="Person">Person</option>
             <option value="Visitor">Visitor</option>
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Instruction
-          <input value={draft.instruction} onChange={(event) => setDraft({ ...draft, instruction: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Deny Entry" />
+        <label className="text-sm font-bold text-foreground">Instruction
+          <input value={draft.instruction} onChange={(event) => setDraft({ ...draft, instruction: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Deny Entry" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Risk level
-          <select value={draft.risk_level} onChange={(event) => setDraft({ ...draft, risk_level: event.target.value })} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+        <label className="text-sm font-bold text-foreground">Risk level
+          <select value={draft.risk_level} onChange={(event) => setDraft({ ...draft, risk_level: event.target.value })} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="Critical">Critical</option>
             <option value="High">High</option>
             <option value="Medium">Medium</option>
           </select>
         </label>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Name/Vehicle</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Instruction</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Risk Level</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Name/Vehicle</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Instruction</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Risk Level</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading watchlist entries...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading watchlist entries...</td></tr>
             ) : entries.length ? entries.map((entry) => (
-              <tr key={entry.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{entry.payload?.subject || entry.title || "Watchlist subject"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{entry.payload?.subject_type || "Subject"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{entry.payload?.instruction || "Instruction not recorded"}</td>
+              <tr key={entry.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{entry.payload?.subject || entry.title || "Watchlist subject"}</td>
+                <td className="px-4 py-3 text-muted">{entry.payload?.subject_type || "Subject"}</td>
+                <td className="px-4 py-3 text-muted">{entry.payload?.instruction || "Instruction not recorded"}</td>
                 <td className="px-4 py-3"><StatusChip label={entry.payload?.risk_level || "High"} tone={String(entry.payload?.risk_level || "").toLowerCase() === "critical" ? "danger" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   <button type="button" onClick={() => handleViewWatchlistEntry(entry)} className="text-blue-600 hover:underline font-semibold text-xs mr-3">View</button>
                   {entry.payload?.acknowledged_at ? (
-                    <span className="text-xs font-semibold text-[#64748B]">Acknowledged</span>
+                    <span className="text-xs font-semibold text-muted">Acknowledged</span>
                   ) : (
                     <button type="button" onClick={() => handleAcknowledgeWatchlistEntry(entry)} disabled={savingAction === `ack-${entry.id}`} className="text-emerald-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `ack-${entry.id}` ? "Saving..." : "Acknowledge"}</button>
                   )}
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No watchlist entries. Add a person or vehicle only when there is an approved security instruction for the current school.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No watchlist entries. Add a person or vehicle only when there is an approved security instruction for the current school.</td></tr>
             )}
           </tbody>
         </table>
@@ -1908,27 +1908,27 @@ function FrequentVisitorsWorkspace({ onNavigate }: { onNavigate: (view: ViewId) 
 
   return (
     <Panel title="Frequent Visitors" description="Repeat visitors derived from this school's live gate register." icon={UsersRound} actions={
-      <button type="button" onClick={handleOpenVisitorCheckIn} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Open Visitor Check-In</button>
+      <button type="button" onClick={handleOpenVisitorCheckIn} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white">Open Visitor Check-In</button>
     }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Visits</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Recent Purpose / Host</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Visits</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Recent Purpose / Host</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
-            {error ? <tr><td colSpan={4} className="px-4 py-8 text-center text-rose-700">Frequent visitors could not be derived from the gate register. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
-            {isLoading ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading live visitor history...</td></tr> : null}
-            {!isLoading && !error && frequentVisitors.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No repeat visitors are present in this school&apos;s gate history. Use Visitor Check-In for each verified arrival; repeat profiles will appear after multiple recorded visits.</td></tr> : null}
+          <tbody className="divide-y divide-border">
+            {error ? <tr><td colSpan={4} className="px-4 py-8 text-center text-danger">Frequent visitors could not be derived from the gate register. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
+            {isLoading ? <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading live visitor history...</td></tr> : null}
+            {!isLoading && !error && frequentVisitors.length === 0 ? <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No repeat visitors are present in this school&apos;s gate history. Use Visitor Check-In for each verified arrival; repeat profiles will appear after multiple recorded visits.</td></tr> : null}
             {frequentVisitors.map((visitor) => (
-              <tr key={`${visitor.id}-${visitor.visitorName}`} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{visitor.visitorName}</td>
-                <td className="px-4 py-3 text-[#64748B]">{visitor.visitCount}</td>
-                <td className="px-4 py-3 text-[#64748B]">{visitor.recentPurpose} / {visitor.recentHost}</td>
+              <tr key={`${visitor.id}-${visitor.visitorName}`} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{visitor.visitorName}</td>
+                <td className="px-4 py-3 text-muted">{visitor.visitCount}</td>
+                <td className="px-4 py-3 text-muted">{visitor.recentPurpose} / {visitor.recentHost}</td>
                 <td className="px-4 py-3 text-right"><button type="button" onClick={handleOpenVisitorCheckIn} className="text-emerald-600 hover:underline font-semibold text-xs">Verify &amp; Check In</button></td>
               </tr>
             ))}
@@ -2004,41 +2004,41 @@ function LostFoundWorkspace() {
 
   return (
     <Panel title="Lost & Found" description="Record lost items found at the gate." icon={Search} actions={
-      <button type="button" onClick={handleRecordLostFoundItem} disabled={savingAction === "record"} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{savingAction === "record" ? "Recording..." : "Record Item"}</button>
+      <button type="button" onClick={handleRecordLostFoundItem} disabled={savingAction === "record"} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{savingAction === "record" ? "Recording..." : "Record Item"}</button>
     }>
-      <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-3">
-        <input value={draft.item_name} onChange={(event) => setDraft((current) => ({ ...current, item_name: event.target.value }))} placeholder="Item name" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.found_location} onChange={(event) => setDraft((current) => ({ ...current, found_location: event.target.value }))} placeholder="Found location" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
-        <input value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Owner clues / description" className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+      <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-3">
+        <input value={draft.item_name} onChange={(event) => setDraft((current) => ({ ...current, item_name: event.target.value }))} placeholder="Item name" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <input value={draft.found_location} onChange={(event) => setDraft((current) => ({ ...current, found_location: event.target.value }))} placeholder="Found location" className="rounded-lg border border-border px-3 py-2 text-sm" />
+        <input value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Owner clues / description" className="rounded-lg border border-border px-3 py-2 text-sm" />
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date Found</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Item</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date Found</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Item</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading lost and found items...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading lost and found items...</td></tr>
             ) : items.length ? items.map((item) => (
-              <tr key={item.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 text-[#64748B]">{item.found_at ? new Date(item.found_at).toLocaleDateString("en-KE") : "Today"}</td>
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{item.item_name}</td>
+              <tr key={item.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 text-muted">{item.found_at ? new Date(item.found_at).toLocaleDateString("en-KE") : "Today"}</td>
+                <td className="px-4 py-3 font-semibold text-foreground">{item.item_name}</td>
                 <td className="px-4 py-3"><StatusChip label={item.status === "claimed" ? "Claimed" : "Found"} tone={item.status === "claimed" ? "success" : "warning"} /></td>
                 <td className="px-4 py-3 text-right">
                   {item.status === "claimed" ? (
-                    <span className="text-xs font-semibold text-[#64748B]">Released</span>
+                    <span className="text-xs font-semibold text-muted">Released</span>
                   ) : (
                     <button type="button" onClick={() => handleClaimLostFoundItem(item)} disabled={savingAction === `claim-${item.id}`} className="text-emerald-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `claim-${item.id}` ? "Saving..." : "Mark Claimed"}</button>
                   )}
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No lost items have been recorded. Enter item details above, then record the first item.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No lost items have been recorded. Enter item details above, then record the first item.</td></tr>
             )}
           </tbody>
         </table>
@@ -2121,26 +2121,26 @@ function BoardingMovementWorkspace() {
   return (
     <Panel title="Boarding Gate Movement" description="Tracks boarders entering or leaving." icon={Home} actions={
       <div className="flex gap-2">
-        <button type="button" onClick={() => firstApprovedMovement ? handleVerifyBoardingMovement(firstApprovedMovement) : toast.info("No approved boarding pass is waiting for gate verification.")} disabled={!!savingAction} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:cursor-not-allowed disabled:opacity-50">Verify Pass</button>
+        <button type="button" onClick={() => firstApprovedMovement ? handleVerifyBoardingMovement(firstApprovedMovement) : toast.info("No approved boarding pass is waiting for gate verification.")} disabled={!!savingAction} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground disabled:cursor-not-allowed disabled:opacity-50">Verify Pass</button>
       </div>
     }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Movement Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Movement Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading boarding gate movements...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading boarding gate movements...</td></tr>
             ) : movements.length ? movements.map((movement) => (
-              <tr key={movement.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{movement.student_name}</td>
-                <td className="px-4 py-3 text-[#64748B]">{movement.leave_type}</td>
+              <tr key={movement.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{movement.student_name}</td>
+                <td className="px-4 py-3 text-muted">{movement.leave_type}</td>
                 <td className="px-4 py-3"><StatusChip label={movement.status === "checked_out" ? "Out" : movement.status === "returned" ? "Returned" : "Approved"} tone={movement.status === "returned" ? "success" : movement.status === "checked_out" ? "warning" : "info"} /></td>
                 <td className="px-4 py-3 text-right">
                   {movement.status === "approved" ? (
@@ -2153,7 +2153,7 @@ function BoardingMovementWorkspace() {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No approved or active boarding gate movements. Approved exeats from Boarding will appear here for security verification.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No approved or active boarding gate movements. Approved exeats from Boarding will appear here for security verification.</td></tr>
             )}
           </tbody>
         </table>
@@ -2214,26 +2214,26 @@ function TransportClearanceWorkspace() {
   return (
     <Panel title="Transport Gate Clearance" description="Confirm bus departure/arrival at the gate." icon={Bus} actions={
       <div className="flex gap-2">
-        <button type="button" onClick={() => firstScheduledTrip ? handleRecordTransportDeparture(firstScheduledTrip) : toast.info("No scheduled transport trip is waiting for gate departure.")} disabled={!!savingAction} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Record Departure</button>
+        <button type="button" onClick={() => firstScheduledTrip ? handleRecordTransportDeparture(firstScheduledTrip) : toast.info("No scheduled transport trip is waiting for gate departure.")} disabled={!!savingAction} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">Record Departure</button>
       </div>
     }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Bus</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Route</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Bus</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Route</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading transport gate trips...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading transport gate trips...</td></tr>
             ) : trips.length ? trips.map((trip) => (
-              <tr key={trip.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{trip.vehicle_registration || "School vehicle"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{trip.route_name || trip.direction || "Assigned route"}</td>
+              <tr key={trip.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{trip.vehicle_registration || "School vehicle"}</td>
+                <td className="px-4 py-3 text-muted">{trip.route_name || trip.direction || "Assigned route"}</td>
                 <td className="px-4 py-3"><StatusChip label={trip.status === "in_progress" ? "Departed" : trip.status === "completed" ? "Arrived" : "Scheduled"} tone={trip.status === "completed" ? "success" : trip.status === "in_progress" ? "warning" : "info"} /></td>
                 <td className="px-4 py-3 text-right">
                   {trip.status === "scheduled" ? (
@@ -2245,7 +2245,7 @@ function TransportClearanceWorkspace() {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No scheduled or active transport trips are waiting at the gate. Trips created by Transport will appear here for security clearance.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No scheduled or active transport trips are waiting at the gate. Trips created by Transport will appear here for security clearance.</td></tr>
             )}
           </tbody>
         </table>
@@ -2305,34 +2305,34 @@ function ReportsWorkspace() {
   return (
     <Panel title="Reports & Downloads" description="Generate auditable artifacts from live tenant-scoped gate, visitor, movement, and incident records." icon={PieChart} actions={
       <div className="flex flex-wrap items-end gap-2">
-        <label className="text-xs font-bold text-[#334155]">Format
-          <select aria-label="Security report format" value={format} onChange={(event) => setFormat(event.target.value)} className="ml-2 rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm">
+        <label className="text-xs font-bold text-foreground">Format
+          <select aria-label="Security report format" value={format} onChange={(event) => setFormat(event.target.value)} className="ml-2 rounded-lg border border-border bg-white px-3 py-2 text-sm">
             <option value="pdf">PDF</option>
             <option value="csv">CSV</option>
             <option value="xlsx">Excel</option>
           </select>
         </label>
-        <button type="button" onClick={() => void generateSecurityReport()} disabled={isGenerating} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? "Generating..." : "Generate Live Report"}</button>
+        <button type="button" onClick={() => void generateSecurityReport()} disabled={isGenerating} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? "Generating..." : "Generate Live Report"}</button>
       </div>
     }>
-      <div className="mb-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:max-w-xs">
-        <div className="text-sm font-semibold text-[#64748B]">Reports generated</div>
-        <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics.reports_generated ?? 0}</div>
+      <div className="mb-4 rounded-xl border border-border bg-surface-muted p-4 sm:max-w-xs">
+        <div className="text-sm font-semibold text-muted">Reports generated</div>
+        <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics.reports_generated ?? 0}</div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full whitespace-nowrap text-left text-sm">
-          <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Title</th><th className="px-4 py-3 font-bold">Generated</th><th className="px-4 py-3 font-bold">Format</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold text-right">Artifact</th></tr></thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
-            {error ? <tr><td colSpan={5} className="px-4 py-8 text-center text-rose-700">Security reports could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
-            {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading stored security reports...</td></tr> : null}
-            {!isLoading && !error && reports.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No security report has been generated for this school. Choose a format and generate the first artifact from live operational records.</td></tr> : null}
+          <thead className="bg-surface-muted text-foreground"><tr><th className="px-4 py-3 font-bold">Title</th><th className="px-4 py-3 font-bold">Generated</th><th className="px-4 py-3 font-bold">Format</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold text-right">Artifact</th></tr></thead>
+          <tbody className="divide-y divide-border">
+            {error ? <tr><td colSpan={5} className="px-4 py-8 text-center text-danger">Security reports could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry</button></td></tr> : null}
+            {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading stored security reports...</td></tr> : null}
+            {!isLoading && !error && reports.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No security report has been generated for this school. Choose a format and generate the first artifact from live operational records.</td></tr> : null}
             {reports.map((report) => (
-              <tr key={report.id} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{report.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{report.generated_at ? new Date(report.generated_at).toLocaleString("en-KE") : "Generated"}</td>
-                <td className="px-4 py-3 uppercase text-[#64748B]">{report.type}</td>
+              <tr key={report.id} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{report.title}</td>
+                <td className="px-4 py-3 text-muted">{report.generated_at ? new Date(report.generated_at).toLocaleString("en-KE") : "Generated"}</td>
+                <td className="px-4 py-3 uppercase text-muted">{report.type}</td>
                 <td className="px-4 py-3"><StatusChip label={report.status || "Ready"} tone="success" /></td>
-                <td className="px-4 py-3 text-right"><button type="button" onClick={() => void downloadSecurityReport(report)} disabled={downloadingId === report.id} className="inline-flex items-center gap-1 font-black text-blue-700 underline disabled:opacity-50"><Download className="h-4 w-4" />{downloadingId === report.id ? "Preparing..." : "Download"}</button></td>
+                <td className="px-4 py-3 text-right"><button type="button" onClick={() => void downloadSecurityReport(report)} disabled={downloadingId === report.id} className="inline-flex items-center gap-1 font-black text-info underline disabled:opacity-50"><Download className="h-4 w-4" />{downloadingId === report.id ? "Preparing..." : "Download"}</button></td>
               </tr>
             ))}
           </tbody>
@@ -2370,30 +2370,30 @@ function NotificationsWorkspace() {
 
   return (
     <Panel title="Notifications" description="Messages related to gate/security work." icon={Bell}>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Message</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Message</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-[#64748B]">Loading security notifications...</td></tr>
+              <tr><td colSpan={3} className="px-4 py-8 text-center text-muted">Loading security notifications...</td></tr>
             ) : notifications.length ? notifications.map((notification) => {
               const read = Boolean(notification.is_read || notification.read_at);
               return (
-                <tr key={notification.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{notification.created_at ? new Date(notification.created_at).toLocaleString("en-KE") : "Recent"}</td>
+                <tr key={notification.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{notification.created_at ? new Date(notification.created_at).toLocaleString("en-KE") : "Recent"}</td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-[#071D49]">{notification.title || notification.message || "Security notification"}</div>
-                    {notification.title && notification.message ? <div className="mt-1 text-xs text-[#64748B]">{notification.message}</div> : null}
+                    <div className="font-semibold text-foreground">{notification.title || notification.message || "Security notification"}</div>
+                    {notification.title && notification.message ? <div className="mt-1 text-xs text-muted">{notification.message}</div> : null}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {read ? (
-                      <span className="text-xs font-semibold text-[#64748B]">Read</span>
+                      <span className="text-xs font-semibold text-muted">Read</span>
                     ) : (
                       <button type="button" onClick={() => handleMarkSecurityNotificationRead(notification)} disabled={savingAction === `read-${notification.id}`} className="text-blue-600 hover:underline font-semibold text-xs disabled:cursor-not-allowed disabled:opacity-50">{savingAction === `read-${notification.id}` ? "Saving..." : "Mark Read"}</button>
                     )}
@@ -2401,7 +2401,7 @@ function NotificationsWorkspace() {
                 </tr>
               );
             }) : (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-[#64748B]">No security notifications for this school yet. Gate alerts, approvals, visitor events, and safety updates will appear here.</td></tr>
+              <tr><td colSpan={3} className="px-4 py-8 text-center text-muted">No security notifications for this school yet. Gate alerts, approvals, visitor events, and safety updates will appear here.</td></tr>
             )}
           </tbody>
         </table>
@@ -2414,12 +2414,12 @@ function SettingsWorkspace() {
   return (
     <Panel title="Security Settings" description="Gate points and movement settings." icon={Settings}>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-[#D8E0EC] p-4">
-          <h3 className="font-bold text-[#071D49] mb-4">Gate Points</h3>
-          <div className="space-y-3 text-sm text-[#64748B]">
-            <div className="flex justify-between items-center"><span className="font-semibold text-[#071D49]">Main Gate</span> <StatusChip label="Active" tone="success" /></div>
-            <div className="flex justify-between items-center"><span className="font-semibold text-[#071D49]">Dormitory Gate</span> <StatusChip label="Active" tone="success" /></div>
-            <div className="flex justify-between items-center"><span className="font-semibold text-[#071D49]">Staff Gate</span> <StatusChip label="Active" tone="success" /></div>
+        <div className="rounded-xl border border-border p-4">
+          <h3 className="font-bold text-foreground mb-4">Gate Points</h3>
+          <div className="space-y-3 text-sm text-muted">
+            <div className="flex justify-between items-center"><span className="font-semibold text-foreground">Main Gate</span> <StatusChip label="Active" tone="success" /></div>
+            <div className="flex justify-between items-center"><span className="font-semibold text-foreground">Dormitory Gate</span> <StatusChip label="Active" tone="success" /></div>
+            <div className="flex justify-between items-center"><span className="font-semibold text-foreground">Staff Gate</span> <StatusChip label="Active" tone="success" /></div>
           </div>
         </div>
       </div>
@@ -2458,8 +2458,8 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
   };
 
   return (
-    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA] font-sans">
-      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <div className="authenticated-app flex min-h-dvh bg-background font-sans">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Security command" title="Security Officer" subtitle="Gate, visitor, and safety operations" />
         <nav className="space-y-1" aria-label="Security navigation">
           {navItems.map((item, index) => {
@@ -2485,11 +2485,11 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
         </nav>
       </aside>
       <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col">
-        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">SO</div>
-              <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white shrink-0">SO</div>
+              <h1 className="text-lg font-black text-foreground truncate">{navItems.find(i => i.id === activeView)?.label || "Dashboard"}</h1>
             </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <StatusChip label="Term 2 (2026)" tone="info" />
@@ -2502,12 +2502,12 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
                           void handleSearchSecurityRecords();
                         }
                       }}
-                      className="h-11 w-full rounded-xl border border-[#D8E0EC] px-3 text-base font-semibold text-[#071D49] outline-none sm:w-56 sm:text-sm"
+                      className="h-11 w-full rounded-xl border border-border px-3 text-base font-semibold text-foreground outline-none sm:w-56 sm:text-sm"
                       placeholder="Search gate records"
                       autoFocus
                     />
                   ) : null}
-                  <button type="button" aria-label="Search security records" onClick={handleSearchSecurityRecords} disabled={isSearching} className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#071D49] text-white disabled:opacity-50">
+                  <button type="button" aria-label="Search security records" onClick={handleSearchSecurityRecords} disabled={isSearching} className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white disabled:opacity-50">
                     <Search className="h-4 w-4" />
                   </button>
               <div className="flex items-center gap-2">
@@ -2530,16 +2530,16 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
             <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
               <IntegratedSchoolCommandHeader roleTitle="Security Officer Dashboard" fallbackUserLabel="Security Officer" />
               {searchOpen ? (
-                <section className="rounded-xl border border-[#D8E0EC] bg-white p-4">
+                <section className="rounded-xl border border-border bg-white p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-sm font-black text-[#071D49]">Security Search Results</h2>
-                      <p className="text-xs text-[#64748B]">Tenant-scoped records from security events and incident logs.</p>
+                      <h2 className="text-sm font-black text-foreground">Security Search Results</h2>
+                      <p className="text-xs text-muted">Tenant-scoped records from security events and incident logs.</p>
                     </div>
-                    <button type="button" onClick={() => { setSearchOpen(false); setSearchResults([]); setSearchTerm(""); }} className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-bold text-[#071D49]">Close</button>
+                    <button type="button" onClick={() => { setSearchOpen(false); setSearchResults([]); setSearchTerm(""); }} className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-foreground">Close</button>
                   </div>
                   {isSearching ? (
-                    <p className="text-sm text-[#64748B]">Searching security records...</p>
+                    <p className="text-sm text-muted">Searching security records...</p>
                   ) : searchResults.length ? (
                     <div className="grid gap-2 md:grid-cols-2">
                       {searchResults.map((result) => (
@@ -2553,15 +2553,15 @@ export function SecurityCommandCenter({ routeMode }: { routeMode: RouteMode }) {
                             else if (String(result.type || "").includes("staff")) setActiveView("staff-movement");
                             else setActiveView("visitor-register");
                           }}
-                          className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-left hover:border-[#071D49]"
+                          className="rounded-lg border border-border bg-surface-muted p-3 text-left hover:border-primary"
                         >
-                          <div className="text-sm font-bold text-[#071D49]">{result.title || "Security record"}</div>
-                          <div className="mt-1 line-clamp-2 text-xs text-[#64748B]">{result.message || result.type || result.source || "Matched security record"}</div>
+                          <div className="text-sm font-bold text-foreground">{result.title || "Security record"}</div>
+                          <div className="mt-1 line-clamp-2 text-xs text-muted">{result.message || result.type || result.source || "Matched security record"}</div>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-[#64748B]">{searchTerm ? "No matching security records found in this school." : "Enter a search term and press Enter or the search button."}</p>
+                    <p className="text-sm text-muted">{searchTerm ? "No matching security records found in this school." : "Enter a search term and press Enter or the search button."}</p>
                   )}
                 </section>
               ) : null}

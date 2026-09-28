@@ -59,7 +59,7 @@ export function AcademicInterventionsWorkspace({ dataset }: { dataset: DeanDatas
       <div className="flex gap-3 mt-4">
         <Button variant="primary" onClick={() => setIsCreateOpen(true)}>Create New Intervention</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Ongoing Interventions" 
@@ -162,7 +162,7 @@ export function StudentAcademicSupportWorkspace({ dataset }: { dataset: DeanData
         <Button variant="primary" onClick={() => setIsSupportOpen(true)}>Add Student to Support List</Button>
         <Button variant="secondary" onClick={() => setIsMentorOpen(true)}>View Mentor Reports</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Academic Support Register" 
@@ -272,7 +272,7 @@ export function DepartmentReviewsWorkspace({ dataset }: { dataset: DeanDataset }
       <div className="flex gap-3 mt-4">
         <Button variant="primary" onClick={() => setIsScheduleOpen(true)}>Schedule Review</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Department Review History" 
@@ -373,7 +373,7 @@ export function TeacherAcademicReportsWorkspace({ dataset }: { dataset: DeanData
           }
         }}>{isSaving ? "Recording..." : "Review Pending Reports"}</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Submitted Teacher Reports" 

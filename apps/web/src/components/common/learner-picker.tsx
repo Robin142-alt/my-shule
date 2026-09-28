@@ -99,7 +99,7 @@ export function LearnerPicker({
             <button
               key={learner.id}
               type="button"
-              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-success-soft focus:bg-success-soft focus:outline-none"
               onClick={() => {
                 onChange(learner);
                 setQuery(`${learner.name} (${learner.admissionNumber})`);
@@ -112,7 +112,7 @@ export function LearnerPicker({
                   {learner.classLabel ?? "No active class recorded"}
                 </span>
               </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+              <span className="rounded-full bg-success-soft px-2 py-1 text-xs font-semibold text-success">
                 {learner.admissionNumber}
               </span>
             </button>

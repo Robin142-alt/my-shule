@@ -183,9 +183,9 @@ const toneStyles: Record<Tone, { border: string; bg: string; text: string; chip:
   warning: {
     border: "border-orange-300/42",
     bg: "bg-[#FF7A1A]/14",
-    text: "text-[#FFE1C8]",
-    chip: "border-[#FF7A1A]/42 bg-[#FF7A1A]/16 text-[#FFE1C8]",
-    dot: "bg-[#FF7A1A]",
+    text: "text-inverse-accent",
+    chip: "border-[#FF7A1A]/42 bg-[#FF7A1A]/16 text-inverse-accent",
+    dot: "bg-accent",
     glow: "shadow-[0_0_38px_rgba(255,122,26,0.2)]",
     icon: "text-[#FFB36F]",
   },
@@ -210,11 +210,11 @@ const toneStyles: Record<Tone, { border: string; bg: string; text: string; chip:
 };
 
 const lightToneChipStyles: Record<Tone, string> = {
-  secure: "border-[#C8D5EA] bg-white text-[#071D49]",
-  info: "border-blue-200 bg-blue-50 text-blue-800",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  secure: "border-border-strong bg-white text-foreground",
+  info: "border-info-border bg-info-soft text-info",
+  success: "border-success-border bg-success-soft text-success",
   warning: "border-orange-200 bg-orange-50 text-orange-800",
-  danger: "border-rose-200 bg-rose-50 text-rose-800",
+  danger: "border-danger-border bg-danger-soft text-danger",
   cyan: "border-cyan-200 bg-cyan-50 text-cyan-800",
 };
 
@@ -400,7 +400,7 @@ function Bars({ values, tone }: { values: number[]; tone: Tone }) {
     tone === "danger"
       ? "bg-rose-400"
       : tone === "warning"
-        ? "bg-[#FF7A1A]"
+        ? "bg-accent"
         : tone === "success"
           ? "bg-emerald-300"
           : tone === "cyan"
@@ -424,7 +424,7 @@ function Sidebar() {
   const groups = useMemo(() => groupNav(), []);
 
   return (
-    <aside className="hidden h-full rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:block" aria-label="Registrar dashboard navigation">
+    <aside className="hidden h-full rounded-[var(--radius-xl)] border border-border-strong/50 bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:block" aria-label="Registrar dashboard navigation">
       <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
         <p className="text-xs font-black uppercase text-cyan-200">Admissions integrity</p>
         <h2 className="mt-2 text-2xl font-black">Registrar Control</h2>
@@ -496,7 +496,7 @@ function TopHeader({
     : "Live admissions clock syncing";
 
   return (
-    <header id="top" className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
+    <header id="top" className="rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-4">
           <MyShuleMark
@@ -504,14 +504,14 @@ function TopHeader({
             className="shadow-[0_16px_34px_rgba(7,29,73,0.18)]"
           />
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">MyShule admissions office</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">MyShule admissions office</p>
             <p className="mt-1 text-lg font-black md:text-2xl">Registrar Admissions Command Center</p>
-            <p className="mt-1 text-sm font-semibold text-[#5F6F89]">{liveClock}</p>
+            <p className="mt-1 text-sm font-semibold text-muted">{liveClock}</p>
           </div>
         </div>
         <div className="grid gap-3 lg:min-w-[680px]">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-[#5F6F89]" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-muted" aria-hidden="true" />
             <input
               value={searchTerm}
               onChange={(event) => onSearchTermChange(event.target.value)}
@@ -522,19 +522,19 @@ function TopHeader({
               }}
               aria-label="Global search applicants, admission numbers, parents, documents, transfers, or reports"
               placeholder="Search applicant, admission no., parent, document, transfer, or report"
-              className="h-12 w-full rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] pl-12 pr-4 text-sm font-semibold text-[#071D49] outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
+              className="h-12 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted pl-12 pr-4 text-sm font-semibold text-foreground outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
             />
             {searchTerm.trim().length > 0 ? (
-              <div className="absolute left-0 right-0 top-14 z-20 overflow-hidden rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white text-[#071D49] shadow-2xl">
+              <div className="absolute left-0 right-0 top-14 z-20 overflow-hidden rounded-[var(--radius-lg)] border border-border-strong bg-white text-foreground shadow-2xl">
                 {searchResults.length > 0 ? (
                   searchResults.map((record) => (
                     <button key={record.id} type="button" onClick={() => onSearchResult(record)} className="block w-full px-4 py-3 text-left text-sm hover:bg-cyan-50">
                       <span className="block font-black">{record.label}</span>
-                      <span className="mt-1 block text-xs font-semibold text-[#5F6F89]">{record.detail}</span>
+                      <span className="mt-1 block text-xs font-semibold text-muted">{record.detail}</span>
                     </button>
                   ))
                 ) : (
-                  <p className="px-4 py-3 text-sm font-bold text-[#5F6F89]">No matching admissions record found.</p>
+                  <p className="px-4 py-3 text-sm font-bold text-muted">No matching admissions record found.</p>
                 )}
               </div>
             ) : null}
@@ -551,7 +551,7 @@ function TopHeader({
             <button
               type="button"
               onClick={onQuickActions}
-              className="inline-flex min-h-9 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-3 text-xs font-black text-white"
+              className="inline-flex min-h-9 items-center gap-2 rounded-[var(--radius)] bg-primary px-3 text-xs font-black text-white"
             >
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
               Quick actions
@@ -565,7 +565,7 @@ function TopHeader({
 
 function Hero() {
   return (
-    <section className="overflow-hidden rounded-[var(--radius-xl)] border border-[#C8D5EA]/45 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),linear-gradient(135deg,#071D49_0%,#0F2345_58%,#102A60_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.2)] md:p-7">
+    <section className="overflow-hidden rounded-[var(--radius-xl)] border border-border-strong/45 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_28%),linear-gradient(135deg,#071D49_0%,#0F2345_58%,#102A60_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.2)] md:p-7">
       <div className="grid gap-7 xl:grid-cols-[minmax(0,1.08fr)_430px] xl:items-center">
         <div>
           <div className="flex flex-wrap items-center gap-3">
@@ -619,7 +619,7 @@ function KpiCard({ item, index }: { item: Kpi; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.32, delay: index * 0.025 }}
       whileHover={{ y: -4 }}
-      className={cn("rounded-[var(--radius-xl)] border bg-[#071D49] p-5 text-white", toneStyles[item.tone].border, toneStyles[item.tone].glow)}
+      className={cn("rounded-[var(--radius-xl)] border bg-primary p-5 text-white", toneStyles[item.tone].border, toneStyles[item.tone].glow)}
     >
       <div className="flex items-start justify-between gap-3">
         <IconTile icon={item.icon} tone={item.tone} />
@@ -635,7 +635,7 @@ function KpiCard({ item, index }: { item: Kpi; index: number }) {
 
 function DarkSection({ id, children, className }: { id?: string; children: ReactNode; className?: string }) {
   return (
-    <section id={id} className={cn("rounded-[var(--radius-xl)] border border-[#C8D5EA]/18 bg-[#071D49] p-5 text-white shadow-[0_22px_60px_rgba(7,29,73,0.18)] md:p-6", className)}>
+    <section id={id} className={cn("rounded-[var(--radius-xl)] border border-border-strong/18 bg-primary p-5 text-white shadow-[0_22px_60px_rgba(7,29,73,0.18)] md:p-6", className)}>
       {children}
     </section>
   );
@@ -941,7 +941,7 @@ function MobileActions() {
   ] as const;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#071D49]/94 px-2 py-2 text-white shadow-[0_-18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-primary/94 px-2 py-2 text-white shadow-[0_-18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:hidden">
       <div className="grid grid-cols-5 gap-1">
         {actions.map(([label, Icon, href]) => (
           <a key={label} href={href} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-[var(--radius)] px-1 text-center text-[10px] font-black active:scale-95">
@@ -1279,7 +1279,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
   }
 
   return (
-    <div data-route-mode={routeMode} className="authenticated-app min-h-screen bg-[#F3F4F6] pb-24 lg:pb-6">
+    <div data-route-mode={routeMode} className="authenticated-app min-h-screen bg-background pb-24 lg:pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Sidebar />
         <main className="min-w-0 space-y-5">
@@ -1290,7 +1290,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
           />
-          <div role="status" className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
+          <div role="status" className="rounded-[var(--radius-lg)] border border-border-strong bg-white px-4 py-3 text-sm font-black text-foreground shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
           {activeApplicantFilter ? (
@@ -1298,26 +1298,26 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
               role="dialog"
               aria-modal="true"
               aria-label="Admissions applicant filter"
-              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+              className="rounded-[var(--radius-xl)] border border-border-strong bg-white p-5 text-foreground shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
             >
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Applicant table control</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Applicant table control</p>
               <h2 className="mt-2 text-xl font-black">Apply {activeApplicantFilter} filter</h2>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
                 This filters the admissions table for current-school follow-up and records the review for the office team.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">Filter</p>
+                <div className="rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">Filter</p>
                   <p className="mt-1 text-sm font-black">{activeApplicantFilter}</p>
                 </div>
-                <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">Records matched</p>
+                <div className="rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">Records matched</p>
                   <p className="mt-1 text-sm font-black">
                     {applicants.filter((applicant) => activeApplicantFilter === "All statuses" || applicant.status === activeApplicantFilter).length}
                   </p>
                 </div>
-                <div className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">Scope</p>
+                <div className="rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted p-3">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">Scope</p>
                   <p className="mt-1 text-sm font-black">Current school only</p>
                 </div>
               </div>
@@ -1325,7 +1325,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                 <button
                   type="button"
                   onClick={applyApplicantFilter}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-black text-white"
                 >
                   <ClipboardList className="h-4 w-4" aria-hidden="true" />
                   Apply applicant filter
@@ -1333,7 +1333,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                 <button
                   type="button"
                   onClick={() => setActiveApplicantFilter(null)}
-                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-border-strong bg-white px-4 text-sm font-black text-foreground"
                 >
                   Cancel
                 </button>
@@ -1345,11 +1345,11 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
               role="dialog"
               aria-modal="true"
               aria-label="Admission application preview"
-              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+              className="rounded-[var(--radius-xl)] border border-border-strong bg-white p-5 text-foreground shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
             >
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Applicant review</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Applicant review</p>
               <h2 className="mt-2 text-xl font-black">{selectedApplicantPreview.name}</h2>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
                 Review the application details before routing follow-up to Secretary, Accountant, Class Teacher, and Principal.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -1363,8 +1363,8 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                   ["Interview", selectedApplicantPreview.interview],
                   ["Risk flag", selectedApplicantPreview.risk],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                  <div key={label} className="rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
                     <p className="mt-1 text-sm font-black">{value}</p>
                   </div>
                 ))}
@@ -1382,7 +1382,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                 <button
                   type="button"
                   onClick={recordApplicationPreview}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-black text-white"
                 >
                   <FileText className="h-4 w-4" aria-hidden="true" />
                   Record preview review
@@ -1390,7 +1390,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                 <button
                   type="button"
                   onClick={() => setSelectedApplicantPreview(null)}
-                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-border-strong bg-white px-4 text-sm font-black text-foreground"
                 >
                   Cancel
                 </button>
@@ -1402,11 +1402,11 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
               role="dialog"
               aria-modal="true"
               aria-label="Admissions quick action"
-              className="rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+              className="rounded-[var(--radius-xl)] border border-border-strong bg-white p-5 text-foreground shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
             >
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school admissions workflow</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Same-school admissions workflow</p>
               <h2 className="mt-2 text-xl font-black">Quick admissions action</h2>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
                 This records an admissions follow-up and alerts Secretary, Accountant, Class Teacher, and Principal where action is needed.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1415,8 +1415,8 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                   ["Next office", "Secretary, Accountant, Class Teacher"],
                   ["Scope", "Current school only"],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                  <div key={label} className="rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
                     <p className="mt-1 text-sm font-black">{value}</p>
                   </div>
                 ))}
@@ -1426,7 +1426,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                   type="button"
                   onClick={saveAdmissionsAction}
                   disabled={isSubmitting}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-[#071D49] px-4 text-sm font-black text-white disabled:opacity-50"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-[var(--radius)] bg-primary px-4 text-sm font-black text-white disabled:opacity-50"
                 >
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
                   {isSubmitting ? "Saving..." : "Save admissions action"}
@@ -1434,7 +1434,7 @@ export function RegistrarCommandCenter({ routeMode }: { routeMode: RegistrarRout
                 <button
                   type="button"
                   onClick={() => setQuickActionsOpen(false)}
-                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  className="inline-flex min-h-10 items-center rounded-[var(--radius)] border border-border-strong bg-white px-4 text-sm font-black text-foreground"
                 >
                   Cancel
                 </button>

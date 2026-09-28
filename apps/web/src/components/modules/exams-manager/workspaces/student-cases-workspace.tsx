@@ -100,7 +100,7 @@ function CreateStudentCaseDialog({
           </DialogHeader>
           <div className="space-y-4 py-4">
             {missingSetup ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
                 Add an active student and an exam series before logging an exam case.
               </div>
             ) : null}
@@ -164,7 +164,7 @@ function CreateStudentCaseDialog({
               />
             </div>
             {createCase.error ? (
-              <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <div role="alert" className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm text-danger">
                 {createCase.error.message || "The exam case could not be saved."}
               </div>
             ) : null}
@@ -278,7 +278,7 @@ export function StudentCasesWorkspace({ model }: { model: unknown }) {
           </CreateStudentCaseDialog>
         </div>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <Card className="p-0 overflow-hidden">
         <div className="overflow-x-auto">

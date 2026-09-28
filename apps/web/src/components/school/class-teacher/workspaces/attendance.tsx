@@ -17,7 +17,7 @@ export function AttendanceWorkspace() {
   if (isLoading) {
     return (
       <Panel title="Attendance" description="Daily class roll call. This is one of the most important Class Teacher tasks." icon={ClipboardCheck}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -25,7 +25,7 @@ export function AttendanceWorkspace() {
   if (error || !data) {
     return (
       <Panel title="Attendance" description="Daily class roll call. This is one of the most important Class Teacher tasks." icon={ClipboardCheck}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load attendance.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load attendance.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -50,7 +50,7 @@ export function AttendanceWorkspace() {
   return (
     <Panel title="Attendance" description="Daily class roll call. This is one of the most important Class Teacher tasks." icon={ClipboardCheck}>
       <div className="mb-4 flex gap-2">
-        <button onClick={handleMarkAllPresent} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
+        <button onClick={handleMarkAllPresent} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white">Mark All Present</button>
         <button onClick={handleSubmit} disabled={saveMutation.isPending} className="rounded-lg border border-transparent bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {saveMutation.isPending ? "Submitting..." : "Submit Final"}
         </button>
@@ -59,16 +59,16 @@ export function AttendanceWorkspace() {
         <div className={`mb-4 rounded border p-2 text-sm font-bold ${
           (saveMutation.data as any)?._offline 
             ? "border-yellow-200 bg-yellow-50 text-yellow-700" 
-            : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-success-border bg-success-soft text-success"
         }`}>
           {(saveMutation.data as any)?._offline 
             ? "Attendance saved offline! It will sync automatically when connection returns." 
             : "Attendance saved successfully!"}
         </div>
       )}
-      <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-left text-sm text-[#071D49]">
-          <thead className="bg-[#F8FAFC]">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="p-3 font-semibold">Adm No.</th>
               <th className="p-3 font-semibold">Name</th>
@@ -76,7 +76,7 @@ export function AttendanceWorkspace() {
               <th className="p-3 font-semibold">Reason</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {localData.map((record) => (
               <tr key={record.id}>
                 <td className="p-3">{record.admissionNo}</td>
@@ -85,7 +85,7 @@ export function AttendanceWorkspace() {
                   <select 
                     value={record.attendance} 
                     onChange={(e) => handleStatusChange(record.id, e.target.value)}
-                    className="rounded border border-[#D8E0EC] p-1 text-sm bg-white"
+                    className="rounded border border-border p-1 text-sm bg-white"
                   >
                     <option value="present">Present</option>
                     <option value="absent">Absent</option>
@@ -97,7 +97,7 @@ export function AttendanceWorkspace() {
                     type="text" 
                     value={record.reason}
                     onChange={(e) => handleReasonChange(record.id, e.target.value)}
-                    className="w-full rounded border border-[#D8E0EC] p-1 text-sm" 
+                    className="w-full rounded border border-border p-1 text-sm"
                     placeholder="e.g. sick" 
                     disabled={record.attendance === "present"}
                   />

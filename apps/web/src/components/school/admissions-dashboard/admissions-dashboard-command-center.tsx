@@ -163,10 +163,10 @@ export function AdmissionsDashboardCommandCenter({
   return (
     <main
       data-testid="admissions-dashboard-command-center"
-      className="authenticated-app app-padded min-h-dvh bg-[#F1F5F9] p-4 text-[#071D49] md:p-6"
+      className="authenticated-app app-padded min-h-dvh bg-surface-strong p-4 text-foreground md:p-6"
     >
       <div className="grid min-h-[calc(100dvh-3rem)] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="hidden rounded-3xl bg-[#071D49] p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)] lg:sticky lg:top-6 lg:block lg:self-start">
+        <aside className="hidden rounded-3xl bg-primary p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)] lg:sticky lg:top-6 lg:block lg:self-start">
           <SchoolCommandSidebarIdentity eyebrow="Admissions command" title="Admissions Officer" subtitle="Enquiries, applications, placement, enrolment, and parent handoff" />
 
           <nav className="mt-5 max-h-[calc(100dvh-15rem)] space-y-5 overflow-y-auto pr-1">
@@ -186,7 +186,7 @@ export function AdmissionsDashboardCommandCenter({
                         href={admissionsHref(item.id, routeMode)}
                         className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
                           isActive
-                            ? "bg-cyan-300 text-[#071D49]"
+                            ? "bg-cyan-300 text-foreground"
                             : "text-white/75 hover:bg-white/10 hover:text-white"
                         }`}
                       >
@@ -202,7 +202,7 @@ export function AdmissionsDashboardCommandCenter({
         </aside>
 
         <section className="min-w-0 space-y-5">
-          <div className="rounded-2xl border border-[#C8D5EA] bg-white p-3 shadow-sm lg:hidden">
+          <div className="rounded-2xl border border-border-strong bg-white p-3 shadow-sm lg:hidden">
             <MobileWorkspaceNavigation
               label="Admissions workspace"
               items={admissionsNavItems}
@@ -214,10 +214,10 @@ export function AdmissionsDashboardCommandCenter({
           <IntegratedSchoolCommandHeader
             roleTitle="Admissions Officer Dashboard"
             fallbackUserLabel="Admissions Officer"
-            actions={<span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{activeItem.label} - live school scoped</span>}
+            actions={<span className="inline-flex w-fit items-center rounded-full border border-success-border bg-success-soft px-3 py-1 text-xs font-black text-success">{activeItem.label} - live school scoped</span>}
           />
 
-          <div className="app-dark-workspace rounded-3xl bg-[#071D49] p-4 shadow-[0_24px_60px_rgba(7,29,73,0.14)] md:p-5">
+          <div className="app-dark-workspace rounded-3xl bg-primary p-4 shadow-[0_24px_60px_rgba(7,29,73,0.14)] md:p-5">
             <Workspace />
           </div>
         </section>

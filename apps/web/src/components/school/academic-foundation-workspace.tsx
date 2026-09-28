@@ -138,7 +138,7 @@ type BulkGroup = { entityType: BulkEntityType; label: string; records: BulkRecor
 const fieldClass =
   "mt-1 min-h-11 min-w-0 w-full rounded-lg border border-white/20 bg-[#0D2A5B] px-3 py-2.5 text-base font-medium text-white outline-none placeholder:text-white/40 focus-visible:ring-2 focus-visible:ring-cyan-300 sm:text-sm";
 const primaryButtonClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-bold text-[#071D49] transition hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-4 py-2.5 text-sm font-bold text-foreground transition hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 disabled:cursor-not-allowed disabled:opacity-50";
 function value(form: FormData, name: string) {
   return String(form.get(name) ?? "").trim();
 }
@@ -282,7 +282,7 @@ function BulkLifecyclePanel({
           <button type="button" disabled={busy !== null || selected.length === 0} onClick={reviewImpact} className={primaryButtonClass}>{busy === "preview" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Review impact ({selected.length})</button>
           <button type="button" disabled={busy !== null || !preview || !reason.trim()} onClick={applyBulkAction} className="min-h-10 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-black text-white disabled:opacity-40">{busy === "apply" ? "Applying..." : `Confirm ${action}`}</button>
         </div>
-        {preview ? <div className="grid gap-2 sm:grid-cols-2">{preview.map((item) => <div key={item.id} className="rounded-lg border border-amber-200/20 bg-amber-200/10 p-3 text-sm"><p className="font-black">{item.label}: {item.total} linked records</p><p className="mt-1 text-white/65">{item.recommendation}</p></div>)}</div> : null}
+        {preview ? <div className="grid gap-2 sm:grid-cols-2">{preview.map((item) => <div key={item.id} className="rounded-lg border border-warning-border/20 bg-amber-200/10 p-3 text-sm"><p className="font-black">{item.label}: {item.total} linked records</p><p className="mt-1 text-white/65">{item.recommendation}</p></div>)}</div> : null}
       </div>
     </details>
   );
@@ -1072,7 +1072,7 @@ export function AcademicFoundationWorkspace({
 
       {!isLoading && activeTab === "allocations" ? (
         <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
-          {teachers.length === 0 ? <div className="rounded-xl border border-amber-200/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100">No active staff are available. The Principal must invite and activate staff before assigning class teachers, HODs, or subject teachers.</div> : null}
+          {teachers.length === 0 ? <div className="rounded-xl border border-warning-border/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100">No active staff are available. The Principal must invite and activate staff before assigning class teachers, HODs, or subject teachers.</div> : null}
           <div className="grid items-start gap-4 2xl:grid-cols-2">
             <SetupForm title="Assign class teacher" description="Assign pastoral and register responsibility for a class/form/grade in an academic year.">
               <form onSubmit={handleAssignClassTeacher} className="space-y-3">
@@ -1176,18 +1176,18 @@ export function AcademicFoundationWorkspace({
                     onClick={() => setPolicySetupType(step.id)}
                     className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
                       selected
-                        ? "border-cyan-200 bg-cyan-300 text-[#071D49]"
+                        ? "border-cyan-200 bg-cyan-300 text-foreground"
                         : "border-white/10 bg-white/[0.04] text-white hover:border-white/25 hover:bg-white/[0.08]"
                     }`}
                   >
-                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${selected ? "bg-[#071D49] text-cyan-200" : "bg-white/10 text-cyan-200"}`}>
+                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black ${selected ? "bg-primary text-cyan-200" : "bg-white/10 text-cyan-200"}`}>
                       {step.step}
                     </span>
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-black">{step.title}</span>
                         {step.count > 0 ? (
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-black ${selected ? "border-[#071D49]/20 bg-white/50" : "border-emerald-200/20 bg-emerald-300/10 text-emerald-200"}`}>
+                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-black ${selected ? "border-primary/20 bg-white/50" : "border-success-border/20 bg-emerald-300/10 text-emerald-200"}`}>
                             <CheckCircle2 className="h-3.5 w-3.5" /> {step.count} configured
                           </span>
                         ) : null}
@@ -1244,7 +1244,7 @@ export function AcademicFoundationWorkspace({
                   <label className="block text-sm font-bold">Grading system<select name="grading_system_id" required className={fieldClass} defaultValue=""><option value="">Select grading system</option>{activeGradingSystems.map((policy) => <option key={policy.id} value={policy.id}>{policy.name}</option>)}</select></label>
                   <div className="flex flex-wrap gap-4 lg:col-span-2"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-bold"><input type="checkbox" name="show_rank" defaultChecked /> Show learner rank</label><label className="flex min-h-11 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 text-sm font-bold"><input type="checkbox" name="show_attendance" defaultChecked /> Show attendance summary</label></div>
                   <div className="lg:col-span-2"><AcademicReportCardPolicyEditor name="configuration" /></div>
-                  {activeGradingSystems.length === 0 ? <div className="rounded-xl border border-amber-200/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100 lg:col-span-2">Create a grading system in step 1 before saving a report-card policy. <button type="button" onClick={() => setPolicySetupType("grading")} className="ml-1 underline underline-offset-4">Open grading setup</button></div> : null}
+                  {activeGradingSystems.length === 0 ? <div className="rounded-xl border border-warning-border/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100 lg:col-span-2">Create a grading system in step 1 before saving a report-card policy. <button type="button" onClick={() => setPolicySetupType("grading")} className="ml-1 underline underline-offset-4">Open grading setup</button></div> : null}
                   <button className={`${primaryButtonClass} lg:col-span-2 lg:justify-self-start`} disabled={busyAction !== null || activeGradingSystems.length === 0}>{busyAction === "report-card-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save report-card policy</button>
                 </form>
               </SetupForm>

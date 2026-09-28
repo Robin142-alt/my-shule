@@ -58,13 +58,13 @@ export function DeputySettingsWorkspace() {
   return (
     <Panel title="Dashboard Settings" description="Personalize your dashboard preferences." icon={Settings}>
       <div className="max-w-2xl space-y-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-white p-6">
-          <h3 className="text-lg font-bold text-[#071D49] mb-4">Workspace Preferences</h3>
+        <div className="rounded-xl border border-border bg-white p-6">
+          <h3 className="text-lg font-bold text-foreground mb-4">Workspace Preferences</h3>
           
-          <div className="flex items-center justify-between py-3 border-b border-[#D8E0EC]">
+          <div className="flex items-center justify-between py-3 border-b border-border">
             <div>
-              <div className="font-semibold text-[#071D49]">Show Teaching Workspace</div>
-              <div className="text-sm text-[#64748B]">Enable this if you have classes assigned to you.</div>
+              <div className="font-semibold text-foreground">Show Teaching Workspace</div>
+              <div className="text-sm text-muted">Enable this if you have classes assigned to you.</div>
             </div>
             <label className="relative inline-flex cursor-pointer items-center">
               <input type="checkbox" className="peer sr-only" checked={teachingEnabled} onChange={handleToggleTeaching} />
@@ -74,8 +74,8 @@ export function DeputySettingsWorkspace() {
 
           <div className="flex items-center justify-between py-3">
             <div>
-              <div className="font-semibold text-[#071D49]">Receive Immediate Notifications</div>
-              <div className="text-sm text-[#64748B]">Get alerts for discipline, attendance, and welfare cases.</div>
+              <div className="font-semibold text-foreground">Receive Immediate Notifications</div>
+              <div className="text-sm text-muted">Get alerts for discipline, attendance, and welfare cases.</div>
             </div>
             <label className="relative inline-flex cursor-pointer items-center">
               <input type="checkbox" className="peer sr-only" checked={notificationsEnabled} onChange={handleToggleNotifications} />

@@ -31,10 +31,10 @@ export const TaskQueue: React.FC = () => {
     >
       <div className="p-2">
         {visibleError ? (
-          <div role="alert" className="mb-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div role="alert" className="mb-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger">
             <p className="flex items-center gap-2 font-semibold"><AlertCircle className="h-4 w-4" /> Tasks could not be refreshed.</p>
             <p className="mt-1 text-xs">{visibleError.message}</p>
-            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold">
+            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-danger-border bg-white px-3 text-xs font-semibold">
               <RefreshCw className="h-3.5 w-3.5" /> Retry
             </button>
           </div>
@@ -53,7 +53,7 @@ export const TaskQueue: React.FC = () => {
               aria-label={`Complete ${task.title}`}
               disabled={pendingIds.has(task.id)}
               onClick={() => void completeTask(task.id).catch(() => undefined)}
-              className="-ml-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-400 transition-colors hover:bg-green-50 hover:text-green-600 disabled:cursor-wait disabled:opacity-60"
+              className="-ml-1 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-slate-400 transition-colors hover:bg-success-soft hover:text-green-600 disabled:cursor-wait disabled:opacity-60"
             >
               <CheckSquare size={18} />
             </button>

@@ -224,7 +224,7 @@ export function PrincipalHealthOversightWorkspace() {
                     {alert.expiryDate ? `; earliest expiry ${alert.expiryDate}` : ""}
                   </p>
                 </div>
-                <span className="rounded-full border border-amber-200/30 bg-amber-200/10 px-3 py-1 text-xs font-black text-amber-100">
+                <span className="rounded-full border border-warning-border/30 bg-amber-200/10 px-3 py-1 text-xs font-black text-amber-100">
                   {alert.status}
                 </span>
               </div>

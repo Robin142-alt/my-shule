@@ -61,7 +61,7 @@ export function FeesWorkspace() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+        <div className="rounded-lg border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           Fee records could not be loaded: {error.message}
         </div>
       ) : null}
@@ -77,7 +77,7 @@ export function FeesWorkspace() {
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border border-slate-200 bg-white p-6 md:col-span-2">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="rounded-lg bg-blue-50 p-2">
+              <div className="rounded-lg bg-info-soft p-2">
                 <Wallet className="h-5 w-5 text-blue-600" />
               </div>
               <div>
@@ -92,7 +92,7 @@ export function FeesWorkspace() {
                 <div className="text-4xl font-bold text-slate-900">{formatMoney(balanceMinor)}</div>
               )}
               <p className={`mt-2 flex items-center gap-2 text-sm font-medium ${
-                balanceMinor > 0 ? "text-amber-700" : "text-emerald-700"
+                balanceMinor > 0 ? "text-warning" : "text-success"
               }`}>
                 {balanceMinor > 0
                   ? <AlertTriangle className="h-4 w-4" />
@@ -154,7 +154,7 @@ export function FeesWorkspace() {
                     <td className="px-4 py-3 text-slate-500">
                       {transaction.receipt_number || transaction.id}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-emerald-700">
+                    <td className="px-4 py-3 text-right font-medium text-success">
                       {formatMoney(transaction.amount_minor)}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-600">{transaction.status}</td>

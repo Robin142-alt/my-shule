@@ -44,7 +44,7 @@ export type OperationalActionExecutionResult = {
 };
 
 const healthClass: Record<OperationalActionHealth, string> = {
-  ACTIVE: "border-[#BFD7FF] bg-[#EEF6FF] text-[#0B3A7A] hover:border-[#7BAEF9]",
+  ACTIVE: "border-info-border bg-info-soft text-info hover:border-[#7BAEF9]",
   LOADING: "border-border bg-surface-muted text-muted",
   SUCCESS: "border-success/25 bg-success-soft text-success hover:border-success/45",
   LOCKED: "border-border bg-surface-muted text-muted",

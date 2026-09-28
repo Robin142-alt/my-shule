@@ -201,7 +201,7 @@ export function StaffTimetableOverviewWorkspace({
     <section aria-label={`${title} workspace`} className="space-y-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className={dark ? "text-xs font-black uppercase tracking-[0.14em] text-cyan-200" : "text-xs font-black uppercase tracking-[0.14em] text-blue-700"}>
+          <p className={dark ? "text-xs font-black uppercase tracking-[0.14em] text-cyan-200" : "text-xs font-black uppercase tracking-[0.14em] text-info"}>
             Published timetable
           </p>
           <h2 className={dark ? "mt-1 text-2xl font-black text-white" : "mt-1 text-2xl font-black text-slate-950"}>{title}</h2>
@@ -260,7 +260,7 @@ export function StaffTimetableOverviewWorkspace({
           <p className="mt-3 font-black">Loading the published timetable...</p>
         </div>
       ) : timetable.isError ? (
-        <div className={`rounded-2xl border p-6 ${dark ? "border-rose-300/30 bg-rose-300/10 text-rose-50" : "border-rose-200 bg-rose-50 text-rose-950"}`} role="alert">
+        <div className={`rounded-2xl border p-6 ${dark ? "border-rose-300/30 bg-rose-300/10 text-rose-50" : "border-danger-border bg-danger-soft text-rose-950"}`} role="alert">
           <p className="font-black">The timetable could not be loaded.</p>
           <p className="mt-1 text-sm font-semibold">{timetable.error.message}</p>
           <button type="button" onClick={() => timetable.refetch()} className="mt-3 rounded-xl border border-current px-3 py-2 text-sm font-black">Try again</button>
@@ -308,7 +308,7 @@ export function StaffTimetableOverviewWorkspace({
 function SummaryCard({ dark, label, value, helper }: { dark: boolean; label: string; value: string; helper: string }) {
   return (
     <div className={`rounded-2xl border p-4 ${dark ? "border-white/10 bg-white/5 text-white" : "border-slate-200 bg-white text-slate-950"}`}>
-      <p className={dark ? "text-xs font-black uppercase tracking-wide text-cyan-100" : "text-xs font-black uppercase tracking-wide text-blue-700"}>{label}</p>
+      <p className={dark ? "text-xs font-black uppercase tracking-wide text-cyan-100" : "text-xs font-black uppercase tracking-wide text-info"}>{label}</p>
       <p className="mt-2 truncate text-xl font-black">{value}</p>
       <p className={dark ? "mt-1 truncate text-xs font-semibold text-white/60" : "mt-1 truncate text-xs font-semibold text-slate-500"}>{helper}</p>
     </div>
@@ -320,10 +320,10 @@ function SlotCard({ slot, dark }: { slot: TimetableSlot; dark: boolean }) {
     <article className={`rounded-2xl border p-4 ${dark ? "border-white/10 bg-white/5 text-white" : "border-slate-200 bg-white text-slate-950"}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className={dark ? "text-xs font-black uppercase tracking-wide text-cyan-100" : "text-xs font-black uppercase tracking-wide text-blue-700"}>{dayLabel(slot.day_of_week)} · {timeLabel(slot.starts_at)}</p>
+          <p className={dark ? "text-xs font-black uppercase tracking-wide text-cyan-100" : "text-xs font-black uppercase tracking-wide text-info"}>{dayLabel(slot.day_of_week)} · {timeLabel(slot.starts_at)}</p>
           <h3 className="mt-1 text-lg font-black">{slot.subject_name || "Subject not named"}</h3>
         </div>
-        <span className={dark ? "rounded-full bg-white/10 px-2 py-1 text-xs font-black" : "rounded-full bg-blue-50 px-2 py-1 text-xs font-black text-blue-800"}>{slotClass(slot)}</span>
+        <span className={dark ? "rounded-full bg-white/10 px-2 py-1 text-xs font-black" : "rounded-full bg-info-soft px-2 py-1 text-xs font-black text-info"}>{slotClass(slot)}</span>
       </div>
       <div className={dark ? "mt-3 grid gap-2 text-sm font-semibold text-white/70" : "mt-3 grid gap-2 text-sm font-semibold text-slate-600"}>
         <p className="flex items-center gap-2"><Clock3 className="h-4 w-4" /> {timeLabel(slot.starts_at)}–{timeLabel(slot.ends_at)}</p>

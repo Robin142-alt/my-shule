@@ -39,15 +39,15 @@ function normalizeStatus(status: string) {
 function statusTone(status: string) {
   const normalized = normalizeStatus(status);
   if (["approved", "registered", "admitted"].includes(normalized)) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-success-border bg-success-soft text-success";
   }
   if (["rejected"].includes(normalized)) {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+    return "border-danger-border bg-danger-soft text-danger";
   }
   if (["reviewing", "interview", "interview_scheduled"].includes(normalized)) {
-    return "border-blue-200 bg-blue-50 text-blue-700";
+    return "border-info-border bg-info-soft text-info";
   }
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-warning-border bg-warning-soft text-warning";
 }
 
 export function ApplicationsWorkspace() {
@@ -115,15 +115,15 @@ export function ApplicationsWorkspace() {
   }
 
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
             <FileInput className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">Applications</h2>
-            <p className="mt-1 text-sm leading-6 text-[#64748B]">
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">Applications</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
               Start learner admission, review applications, schedule interviews, approve, reject, and hand off to enrolment.
             </p>
           </div>
@@ -131,12 +131,12 @@ export function ApplicationsWorkspace() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <label className="relative block">
             <span className="sr-only">Search applications</span>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" aria-hidden="true" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search applications"
-              className="w-full rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] py-2 pl-9 pr-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-cyan-300 sm:w-56"
+              className="w-full rounded-xl border border-border bg-surface-muted py-2 pl-9 pr-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-cyan-300 sm:w-56"
             />
           </label>
           <button
@@ -144,7 +144,7 @@ export function ApplicationsWorkspace() {
             onClick={() => {
               setFormOpen((open) => !open);
             }}
-            className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0B2B6A]"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0B2B6A]"
           >
             Start student admission
           </button>
@@ -152,21 +152,21 @@ export function ApplicationsWorkspace() {
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.total ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending Review</div>
-          <div className="mt-1 text-lg font-black text-amber-700">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending Review</div>
+          <div className="mt-1 text-lg font-black text-warning">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Approved</div>
-          <div className="mt-1 text-lg font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Approved</div>
+          <div className="mt-1 text-lg font-black text-success">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Rejected</div>
-          <div className="mt-1 text-lg font-black text-rose-700">{isLoading ? "..." : data?.metrics?.rejected ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Rejected</div>
+          <div className="mt-1 text-lg font-black text-danger">{isLoading ? "..." : data?.metrics?.rejected ?? 0}</div>
         </div>
       </div>
 
@@ -181,9 +181,9 @@ export function ApplicationsWorkspace() {
 
       <StudentBulkAdmission onCompleted={async () => { await refetch(); }} />
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Applicant</th>
               <th className="px-4 py-3 font-bold">Date</th>
@@ -196,10 +196,10 @@ export function ApplicationsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading applications...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading applications...</td></tr>
             ) : applications.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted">
                   No admissions have started yet. Use Start student admission to capture the first learner, then move the application through review, interview, approval, and enrolment.
                 </td>
               </tr>
@@ -207,12 +207,12 @@ export function ApplicationsWorkspace() {
               applications.map((row) => {
                 const normalized = normalizeStatus(row.status);
                 return (
-                  <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                    <td className="px-4 py-3 font-bold text-[#071D49]">{row.student_name}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.submitted_at}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.grade_applied}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.guardian_name}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.phone}</td>
+                  <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                    <td className="px-4 py-3 font-bold text-foreground">{row.student_name}</td>
+                    <td className="px-4 py-3 text-muted">{row.submitted_at}</td>
+                    <td className="px-4 py-3 text-muted">{row.grade_applied}</td>
+                    <td className="px-4 py-3 text-muted">{row.guardian_name}</td>
+                    <td className="px-4 py-3 text-muted">{row.phone}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold ${statusTone(row.status)}`}>
                         {row.status}
@@ -226,7 +226,7 @@ export function ApplicationsWorkspace() {
                             disabled={actioningId === row.id}
                             onClick={() => moveStage(row, "reviewing")}
                             aria-label={`Start review for ${row.student_name}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-lg border border-info-border bg-info-soft px-3 py-1.5 text-xs font-black text-info disabled:opacity-60"
                           >
                             <ClipboardList className="h-3 w-3" aria-hidden="true" />
                             Start review
@@ -237,7 +237,7 @@ export function ApplicationsWorkspace() {
                             type="button"
                             disabled={actioningId === row.id}
                             onClick={() => quickScheduleInterview(row)}
-                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 disabled:opacity-60"
+                            className="rounded-lg border border-info-border bg-info-soft px-3 py-1.5 text-xs font-black text-info disabled:opacity-60"
                           >
                             Schedule interview
                           </button>
@@ -247,7 +247,7 @@ export function ApplicationsWorkspace() {
                             type="button"
                             disabled={actioningId === row.id}
                             onClick={() => moveStage(row, "approved")}
-                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-lg border border-success-border bg-success-soft px-3 py-1.5 text-xs font-black text-success disabled:opacity-60"
                           >
                             <CheckCircle className="h-3 w-3" aria-hidden="true" />
                             Approve for enrolment
@@ -258,7 +258,7 @@ export function ApplicationsWorkspace() {
                             type="button"
                             disabled={actioningId === row.id}
                             onClick={() => moveStage(row, "rejected")}
-                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1 rounded-lg border border-danger-border bg-danger-soft px-3 py-1.5 text-xs font-black text-danger disabled:opacity-60"
                           >
                             <XCircle className="h-3 w-3" aria-hidden="true" />
                             Reject
@@ -268,7 +268,7 @@ export function ApplicationsWorkspace() {
                           <Link
                             href="/school/admissions/enrolment"
                             aria-label={`Open enrolment for ${row.student_name}`}
-                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                            className="rounded-lg border border-success-border bg-success-soft px-3 py-1.5 text-xs font-black text-success hover:bg-emerald-100"
                           >
                             Open enrolment
                           </Link>

@@ -112,12 +112,12 @@ export function LeaveExitWorkspace() {
   return (
     <Panel title="Leave & Exeat" description="Manage student leave and exeat requests." icon={LogOut}>
       {referencesError ? (
-        <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           Boarder and guardian references could not be loaded: {referencesError.message}
         </div>
       ) : null}
       {!referencesLoading && !referencesError && referencesIncomplete ? (
-        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="mb-4 rounded-xl border border-warning-border bg-warning-soft p-4 text-sm text-amber-900">
           Boarder and guardian references are incomplete. Refresh this workspace before creating a leave request.
         </div>
       ) : null}
@@ -131,8 +131,8 @@ export function LeaveExitWorkspace() {
           No active guardian links are available for these boarders. Link a guardian before creating a leave request.
         </div>
       ) : null}
-      <form onSubmit={handleCreateLeaveRequest} className="mb-6 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-xs font-bold text-[#334155]">
+      <form onSubmit={handleCreateLeaveRequest} className="mb-6 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-4">
+        <label className="text-xs font-bold text-foreground">
           Active boarder
           <select
             name="student_id"
@@ -140,7 +140,7 @@ export function LeaveExitWorkspace() {
             disabled={referencesLoading || Boolean(referencesError) || referencesIncomplete || students.length === 0}
             value={selectedStudentId}
             onChange={(event) => setSelectedStudentId(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
           >
             <option value="">Select a boarder</option>
             {students.map((student) => (
@@ -148,51 +148,51 @@ export function LeaveExitWorkspace() {
             ))}
           </select>
         </label>
-        <label className="text-xs font-bold text-[#334155]">
+        <label className="text-xs font-bold text-foreground">
           Linked guardian
-          <select name="guardian_id" required disabled={!selectedStudentId || linkedGuardians.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+          <select name="guardian_id" required disabled={!selectedStudentId || linkedGuardians.length === 0} className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm disabled:bg-slate-100">
             <option value="">Select a guardian</option>
             {linkedGuardians.map((guardian) => (
               <option key={guardian.id} value={guardian.id}>{guardian.display_name}{guardian.phone ? ` · ${guardian.phone}` : ""}</option>
             ))}
           </select>
           {selectedStudentId && linkedGuardians.length === 0 ? (
-            <span className="mt-1 block text-[11px] font-semibold text-rose-700">This boarder has no active linked guardian.</span>
+            <span className="mt-1 block text-[11px] font-semibold text-danger">This boarder has no active linked guardian.</span>
           ) : null}
         </label>
-        <input name="leave_type" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Leave type" />
-        <div className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm text-[#64748B]">
+        <input name="leave_type" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Leave type" />
+        <div className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-muted">
           <span className="block text-[11px] font-bold uppercase tracking-wide">Assigned hostel</span>
           {selectedStudent?.hostel_name || "Select a boarder"}
         </div>
-        <input name="from_date" required type="date" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="From date" />
-        <input name="to_date" required type="date" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="To date" />
-        <textarea name="reason" required rows={2} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-3" placeholder="Reason and handover notes" />
+        <input name="from_date" required type="date" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="From date" />
+        <input name="to_date" required type="date" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="To date" />
+        <textarea name="reason" required rows={2} className="rounded-lg border border-border bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-3" placeholder="Reason and handover notes" />
         <button
           type="submit"
           disabled={isCreating || referencesLoading || Boolean(referencesError) || referencesIncomplete || !selectedStudentId || linkedGuardians.length === 0}
-          className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50"
         >
           {isCreating ? "Creating..." : referencesLoading ? "Loading boarders..." : "Create Leave Request"}
         </button>
       </form>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Pending Requests</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_requests ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Pending Requests</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.pending_requests ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Approved</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Approved</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">On Leave Now</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.on_leave_now ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">On Leave Now</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.on_leave_now ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Student Name</th>
               <th className="px-4 py-3 font-bold">Hostel</th>
@@ -206,39 +206,39 @@ export function LeaveExitWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : error ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-rose-700">Leave requests could not be loaded: {error.message}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-danger">Leave requests could not be loaded: {error.message}</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No leave requests yet. Create the first request before a student leaves boarding.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No leave requests yet. Create the first request before a student leaves boarding.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.hostel}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.leave_type}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.from_date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.to_date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.approved_by}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{row.hostel}</td>
+                  <td className="px-4 py-3 text-muted">{row.leave_type}</td>
+                  <td className="px-4 py-3 text-muted">{row.from_date}</td>
+                  <td className="px-4 py-3 text-muted">{row.to_date}</td>
+                  <td className="px-4 py-3 text-muted">{row.approved_by}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       {row.status === "Pending" ? (
                         <>
-                          <button type="button" disabled={pendingActionId !== null} onClick={() => runLeaveAction(row, "approve")} className="text-xs font-bold text-emerald-700 disabled:opacity-50">
+                          <button type="button" disabled={pendingActionId !== null} onClick={() => runLeaveAction(row, "approve")} className="text-xs font-bold text-success disabled:opacity-50">
                             {pendingActionId === `approve:${row.id}` ? "Approving..." : "Approve"}
                           </button>
-                          <button type="button" disabled={pendingActionId !== null} onClick={() => runLeaveAction(row, "reject")} className="text-xs font-bold text-rose-700 disabled:opacity-50">
+                          <button type="button" disabled={pendingActionId !== null} onClick={() => runLeaveAction(row, "reject")} className="text-xs font-bold text-danger disabled:opacity-50">
                             {pendingActionId === `reject:${row.id}` ? "Rejecting..." : "Reject"}
                           </button>
                         </>
                       ) : null}
                       {row.status === "Approved" ? (
-                        <button type="button" disabled={pendingActionId !== null} onClick={() => runLeaveAction(row, "checkout")} className="text-xs font-bold text-[#1D4ED8] disabled:opacity-50">
+                        <button type="button" disabled={pendingActionId !== null} onClick={() => runLeaveAction(row, "checkout")} className="text-xs font-bold text-info disabled:opacity-50">
                           {pendingActionId === `checkout:${row.id}` ? "Checking out..." : "Check Out"}
                         </button>
                       ) : null}
-                      {row.status !== "Pending" && row.status !== "Approved" ? <span className="text-xs font-semibold text-[#64748B]">No action</span> : null}
+                      {row.status !== "Pending" && row.status !== "Approved" ? <span className="text-xs font-semibold text-muted">No action</span> : null}
                     </div>
                   </td>
                 </tr>

@@ -65,35 +65,35 @@ export function ClassTeacherWorkspace() {
     s.attendancePercent,
     s.academic,
     s.discipline,
-    <button key={s.id + 'btn'} type="button" onClick={() => openLearnerProfile(s)} className="text-[#1D4ED8] hover:underline font-bold">View Profile</button>
+    <button key={s.id + 'btn'} type="button" onClick={() => openLearnerProfile(s)} className="text-info hover:underline font-bold">View Profile</button>
   ]) || [];
 
   return (
     <Panel title="My Class" description="Class teacher management for your assigned class." icon={User}>
       <div className="grid gap-3 sm:grid-cols-4 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Class Learners</p>
-          <p className="text-2xl font-black text-[#071D49]">
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Class Learners</p>
+          <p className="text-2xl font-black text-foreground">
             {isLoading ? "..." : stats.totalLearners}
           </p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Absent Today</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Absent Today</p>
           <p className="text-2xl font-black text-red-600">
             {isLoading ? "..." : stats.absentToday}
           </p>
         </article>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" onClick={openClassAttendance} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark Class Attendance</button>
-        <button type="button" onClick={openParentMessageQueue} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Message Class Parents</button>
+        <button type="button" onClick={openClassAttendance} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Mark Class Attendance</button>
+        <button type="button" onClick={openParentMessageQueue} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground bg-white">Message Class Parents</button>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load class register. Please retry.
         </div>
       ) : isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-[#64748B]" /></div>
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted" /></div>
       ) : (
         <RecordTable
           columns={["Adm No.", "Learner", "Attendance %", "Academic", "Discipline", "Actions"]}

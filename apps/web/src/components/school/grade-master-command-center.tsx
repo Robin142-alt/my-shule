@@ -262,31 +262,31 @@ function normalizeGradeView(activeSection?: string): GradeView {
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
-    card: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    card: "border-success-border bg-success-soft text-emerald-900",
+    chip: "border-success-border bg-success-soft text-success",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
   },
   info: {
-    card: "border-blue-200 bg-blue-50 text-blue-950",
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
+    card: "border-info-border bg-info-soft text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
   },
   warning: {
-    card: "border-amber-200 bg-amber-50 text-amber-950",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    card: "border-warning-border bg-warning-soft text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
   },
   danger: {
-    card: "border-rose-200 bg-rose-50 text-rose-950",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    card: "border-danger-border bg-danger-soft text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
   },
   neutral: {
-    card: "border-slate-200 bg-white text-[#071D49]",
+    card: "border-slate-200 bg-white text-foreground",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
     text: "text-slate-600",
@@ -308,7 +308,7 @@ function StatusChip({ label, tone = "neutral" }: { label: string; tone?: Tone })
 
 function ProgressBar({ value, tone = "info" }: { value: number; tone?: Tone }) {
   return (
-    <div className="h-2 rounded-full bg-[#E2E8F0] overflow-hidden mt-2">
+    <div className="h-2 rounded-full bg-border overflow-hidden mt-2">
       <div className={cn("h-full rounded-full transition-all duration-500", toneClasses[tone].dot)} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </div>
   );
@@ -344,17 +344,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions}
@@ -374,26 +374,26 @@ function DataTable({
   rows: ReactNode[][];
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white">
+    <div className="overflow-hidden rounded-2xl border border-border bg-white">
       {title && (
-        <div className="border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3>
+        <div className="border-b border-border bg-surface-muted px-4 py-3">
+          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-foreground">{title}</h3>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-[#64748B]">
+          <thead className="bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-muted">
             <tr>
               {columns.map((column, i) => (
                 <th key={i} className="px-4 py-3 font-black whitespace-nowrap">{column}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {rows.map((row, i) => (
-              <tr key={i} className="transition hover:bg-[#F8FAFC]">
+              <tr key={i} className="transition hover:bg-surface-muted">
                 {row.map((cell, j) => (
-                  <td key={j} className="px-4 py-3 font-semibold text-[#334155] whitespace-nowrap">
+                  <td key={j} className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
                     {cell}
                   </td>
                 ))}
@@ -401,7 +401,7 @@ function DataTable({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-muted">
                   This grade master workspace is empty for the current school. Use the workspace action to add the first learner, class review, intervention, or report record.
                 </td>
               </tr>
@@ -717,51 +717,51 @@ function LearnerProfileDrawer({ learner, onClose }: { learner: GradeLearnerRow |
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#071D49]/20 backdrop-blur-sm">
-      <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col border-l border-[#D8E0EC] overflow-y-auto">
-        <header className="sticky top-0 bg-white/95 backdrop-blur z-10 border-b border-[#D8E0EC] p-4 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex justify-end bg-primary/20 backdrop-blur-sm">
+      <div className="w-full max-w-xl bg-white h-full shadow-2xl flex flex-col border-l border-border overflow-y-auto">
+        <header className="sticky top-0 bg-white/95 backdrop-blur z-10 border-b border-border p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-             <div className="h-12 w-12 rounded-full bg-[#071D49] text-white flex items-center justify-center font-black">
+             <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-black">
                {learnerLabel.substring(0,2).toUpperCase()}
              </div>
              <div>
-               <h2 className="text-lg font-black text-[#071D49]">{learnerLabel}</h2>
-               <p className="text-xs font-semibold text-[#64748B]">ADM: {learner.admission_number} | {learner.stream}</p>
+               <h2 className="text-lg font-black text-foreground">{learnerLabel}</h2>
+               <p className="text-xs font-semibold text-muted">ADM: {learner.admission_number} | {learner.stream}</p>
              </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-[#F3F6FA] rounded-full transition text-[#64748B]">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-background rounded-full transition text-muted">
             <X className="h-5 w-5" />
           </button>
         </header>
         <div className="p-4 space-y-6">
           <section className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendGradeNotification({ action: "parent_message_sent", title: "Guardian follow-up queued", message: `${learnerLabel} needs a grade-master follow-up covering attendance, academics, welfare, or discipline.`, targetRoles: ["grade_master", "secretary"], priority: "normal", payload: { learnerId: learner.id } })}>Message Guardian</button>
-            <button type="button" disabled={pendingAction !== null} className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49] disabled:opacity-60" onClick={handleRecordLearnerConcern}>{pendingAction === "concern" ? "Saving..." : "Record Concern"}</button>
-            <button type="button" disabled={pendingAction !== null} className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49] disabled:opacity-60" onClick={handleScheduleLearnerMeeting}>{pendingAction === "meeting" ? "Scheduling..." : "Schedule Meeting"}</button>
-            <button type="button" disabled={pendingAction !== null} className="rounded-full border border-rose-200 text-rose-700 bg-rose-50 px-3 py-1.5 text-xs font-black disabled:opacity-60" onClick={handleEscalateLearnerToDeputy}>{pendingAction === "deputy" ? "Escalating..." : "Escalate to Deputy"}</button>
+            <button type="button" className="rounded-full bg-primary px-3 py-1.5 text-xs font-black text-white" onClick={() => sendGradeNotification({ action: "parent_message_sent", title: "Guardian follow-up queued", message: `${learnerLabel} needs a grade-master follow-up covering attendance, academics, welfare, or discipline.`, targetRoles: ["grade_master", "secretary"], priority: "normal", payload: { learnerId: learner.id } })}>Message Guardian</button>
+            <button type="button" disabled={pendingAction !== null} className="rounded-full border border-border px-3 py-1.5 text-xs font-black text-foreground disabled:opacity-60" onClick={handleRecordLearnerConcern}>{pendingAction === "concern" ? "Saving..." : "Record Concern"}</button>
+            <button type="button" disabled={pendingAction !== null} className="rounded-full border border-border px-3 py-1.5 text-xs font-black text-foreground disabled:opacity-60" onClick={handleScheduleLearnerMeeting}>{pendingAction === "meeting" ? "Scheduling..." : "Schedule Meeting"}</button>
+            <button type="button" disabled={pendingAction !== null} className="rounded-full border border-danger-border text-danger bg-danger-soft px-3 py-1.5 text-xs font-black disabled:opacity-60" onClick={handleEscalateLearnerToDeputy}>{pendingAction === "deputy" ? "Escalating..." : "Escalate to Deputy"}</button>
           </section>
           <div className="grid grid-cols-2 gap-3">
-             <div className="rounded-xl border border-[#D8E0EC] p-4 text-center bg-[#F8FAFC]">
-               <p className="text-xs font-bold text-[#64748B] mb-1">Attendance</p>
-               <p className="text-2xl font-black text-[#071D49]">{learner.attendance}</p>
+             <div className="rounded-xl border border-border p-4 text-center bg-surface-muted">
+               <p className="text-xs font-bold text-muted mb-1">Attendance</p>
+               <p className="text-2xl font-black text-foreground">{learner.attendance}</p>
                <StatusChip label={learner.risk} tone={riskTone(learner.risk)} />
              </div>
-             <div className="rounded-xl border border-[#D8E0EC] p-4 text-center bg-[#F8FAFC]">
-               <p className="text-xs font-bold text-[#64748B] mb-1">Academic Average</p>
-               <p className="text-2xl font-black text-[#071D49]">{learner.average}</p>
+             <div className="rounded-xl border border-border p-4 text-center bg-surface-muted">
+               <p className="text-xs font-bold text-muted mb-1">Academic Average</p>
+               <p className="text-2xl font-black text-foreground">{learner.average}</p>
                <StatusChip label={Number(learner.average.replace("%", "")) < 50 ? "Below Target" : "On Track"} tone={Number(learner.average.replace("%", "")) < 50 ? "warning" : "success"} />
              </div>
           </div>
           {/* Learner detail tabs */}
-          <div className="border-b border-[#D8E0EC] flex gap-4 text-sm font-bold text-[#64748B]">
-            <span className="border-b-2 border-[#071D49] text-[#071D49] pb-2">Overview</span>
-            <span className="pb-2 cursor-pointer hover:text-[#071D49]">Attendance</span>
-            <span className="pb-2 cursor-pointer hover:text-[#071D49]">Academics</span>
-            <span className="pb-2 cursor-pointer hover:text-[#071D49]">Discipline</span>
-            <span className="pb-2 cursor-pointer hover:text-[#071D49]">Welfare</span>
+          <div className="border-b border-border flex gap-4 text-sm font-bold text-muted">
+            <span className="border-b-2 border-primary text-foreground pb-2">Overview</span>
+            <span className="pb-2 cursor-pointer hover:text-foreground">Attendance</span>
+            <span className="pb-2 cursor-pointer hover:text-foreground">Academics</span>
+            <span className="pb-2 cursor-pointer hover:text-foreground">Discipline</span>
+            <span className="pb-2 cursor-pointer hover:text-foreground">Welfare</span>
           </div>
           <div className="space-y-4">
-             <p className="text-sm text-[#64748B]">{learnerLabel} is currently marked as {learner.risk} risk based on live grade-master attendance and marks indicators.</p>
+             <p className="text-sm text-muted">{learnerLabel} is currently marked as {learner.risk} risk based on live grade-master attendance and marks indicators.</p>
           </div>
         </div>
       </div>
@@ -808,20 +808,20 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => vo
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
-         <button type="button" onClick={() => onNavigate('learners')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Total Learners</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "..." : (overview?.total_learners ?? 0)}</p>
+         <button type="button" onClick={() => onNavigate('learners')} className="text-left rounded-xl border border-border bg-white p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-muted uppercase tracking-wider">Total Learners</p>
+           <p className="text-3xl font-black text-foreground mt-2">{isLoading ? "..." : (overview?.total_learners ?? 0)}</p>
          </button>
-         <button type="button" onClick={() => onNavigate('attendance')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Present Today</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "..." : (overview?.present_today ?? 0)}</p>
+         <button type="button" onClick={() => onNavigate('attendance')} className="text-left rounded-xl border border-border bg-white p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-muted uppercase tracking-wider">Present Today</p>
+           <p className="text-3xl font-black text-foreground mt-2">{isLoading ? "..." : (overview?.present_today ?? 0)}</p>
          </button>
-         <button type="button" onClick={() => onNavigate('attendance')} className="text-left rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-rose-700 uppercase tracking-wider">Absent Today</p>
+         <button type="button" onClick={() => onNavigate('attendance')} className="text-left rounded-xl border border-danger-border bg-danger-soft p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-danger uppercase tracking-wider">Absent Today</p>
            <p className="text-3xl font-black text-rose-900 mt-2">{isLoading ? "..." : (overview?.absent_today ?? 0)}</p>
          </button>
-         <button type="button" onClick={() => onNavigate('academics')} className="text-left rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-amber-700 uppercase tracking-wider">Academic Risk</p>
+         <button type="button" onClick={() => onNavigate('academics')} className="text-left rounded-xl border border-warning-border bg-warning-soft p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-warning uppercase tracking-wider">Academic Risk</p>
            <p className="text-3xl font-black text-amber-900 mt-2">{isLoading ? "..." : (overview?.academic_risk_learners ?? 0)}</p>
          </button>
       </div>
@@ -831,9 +831,9 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => vo
           <DataTable 
             columns={["Metric", "Count", "Affected Streams", "Action"]}
             rows={[
-              ["Absent Learners", String(overview?.absent_today ?? 0), streams.filter((stream) => Number(stream.learners) > Number(stream.present)).map((stream) => stream.stream).join(", ") || "None", <button key="1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('attendance')}>View Details</button>],
-              ["Open Incidents", String(overview?.open_discipline_cases ?? 0), streams.filter((stream) => Number(stream.open_concerns) > 0).map((stream) => stream.stream).join(", ") || "None", <button key="2" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('discipline')}>Escalate</button>],
-              ["Parent Follow-ups Due", String(overview?.pending_parent_followups ?? 0), streams.map((stream) => stream.stream).slice(0, 3).join(", ") || "None", <button key="3" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('meetings')}>View Details</button>],
+              ["Absent Learners", String(overview?.absent_today ?? 0), streams.filter((stream) => Number(stream.learners) > Number(stream.present)).map((stream) => stream.stream).join(", ") || "None", <button key="1" type="button" className="text-info font-bold text-xs" onClick={() => onNavigate('attendance')}>View Details</button>],
+              ["Open Incidents", String(overview?.open_discipline_cases ?? 0), streams.filter((stream) => Number(stream.open_concerns) > 0).map((stream) => stream.stream).join(", ") || "None", <button key="2" type="button" className="text-info font-bold text-xs" onClick={() => onNavigate('discipline')}>Escalate</button>],
+              ["Parent Follow-ups Due", String(overview?.pending_parent_followups ?? 0), streams.map((stream) => stream.stream).slice(0, 3).join(", ") || "None", <button key="3" type="button" className="text-info font-bold text-xs" onClick={() => onNavigate('meetings')}>View Details</button>],
             ]}
           />
         </Panel>
@@ -849,8 +849,8 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => vo
                 learner.risk === "High" ? "Attendance or academic risk" : "Monitor progress",
                 <StatusChip key={`risk-${learner.id}`} label={learner.risk} tone={riskTone(learner.risk)} />,
                 index === 0
-                  ? <button key={`profile-${learner.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openGradeRecord("Learner risk profile", [["Learner", learner.learner], ["ADM", learner.admission_number], ["Stream", learner.stream], ["Risk", learner.risk]])}>Open Profile</button>
-                  : <button key={`follow-${learner.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRecordWatchlistFollowUp(learner)}>{pendingAction === "learner_follow_up_recorded" ? "Saving..." : "Record Follow-up"}</button>,
+                  ? <button key={`profile-${learner.id}`} type="button" className="text-info font-bold text-xs" onClick={() => openGradeRecord("Learner risk profile", [["Learner", learner.learner], ["ADM", learner.admission_number], ["Stream", learner.stream], ["Risk", learner.risk]])}>Open Profile</button>
+                  : <button key={`follow-${learner.id}`} type="button" disabled={pendingAction !== null} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleRecordWatchlistFollowUp(learner)}>{pendingAction === "learner_follow_up_recorded" ? "Saving..." : "Record Follow-up"}</button>,
               ])}
           />
         </Panel>
@@ -866,7 +866,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: GradeView) => vo
             String(Math.max(0, Number(stream.learners) - Number(stream.present))),
             "From marks",
             String(stream.open_concerns),
-            <button key={`stream-${stream.id}`} type="button" onClick={() => onNavigate('streams')} className="text-[#1D4ED8] font-bold text-xs">Open Stream</button>,
+            <button key={`stream-${stream.id}`} type="button" onClick={() => onNavigate('streams')} className="text-info font-bold text-xs">Open Stream</button>,
           ])}
         />
       </Panel>
@@ -918,20 +918,20 @@ function LearnersWorkspace({ onSelectLearner }: { onSelectLearner: (learner: Gra
       icon={Users}
       actions={
         <div className="flex gap-2">
-           <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => exportGradeCsv("grade-master-learners.csv", ["ADM", "Learner", "Stream", "Attendance", "Average", "Risk"], learners.map((learner) => [learner.admission_number, learner.learner, learner.stream, learner.attendance, learner.average, learner.risk]), "Learner list")}>Export</button>
+           <button type="button" className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground" onClick={() => exportGradeCsv("grade-master-learners.csv", ["ADM", "Learner", "Stream", "Attendance", "Average", "Risk"], learners.map((learner) => [learner.admission_number, learner.learner, learner.stream, learner.attendance, learner.average, learner.risk]), "Learner list")}>Export</button>
            <label className="sr-only" htmlFor="grade-note-learner">Learner for grade note</label>
-           <select id="grade-note-learner" aria-label="Learner for grade note" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+           <select id="grade-note-learner" aria-label="Learner for grade note" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
              <option value="">Select learner</option>
              {learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.learner} ({learner.admission_number})</option>)}
            </select>
-           <button type="button" disabled={pendingAction !== null || !selectedLearnerId} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-60" onClick={handleAddGradeNote}>{pendingAction === "grade_note_added" ? "Saving..." : "Add Note"}</button>
+           <button type="button" disabled={pendingAction !== null || !selectedLearnerId} className="rounded-xl bg-primary px-3 py-2 text-sm font-black text-white disabled:opacity-60" onClick={handleAddGradeNote}>{pendingAction === "grade_note_added" ? "Saving..." : "Add Note"}</button>
         </div>
       }
     >
       <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
-         <select className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold bg-white"><option>All Streams</option></select>
-         <select className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold bg-white"><option>Attendance Risk</option></select>
-         <select className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold bg-white"><option>Academic Risk</option></select>
+         <select className="rounded-xl border border-border px-3 py-2 text-sm font-semibold bg-white"><option>All Streams</option></select>
+         <select className="rounded-xl border border-border px-3 py-2 text-sm font-semibold bg-white"><option>Attendance Risk</option></select>
+         <select className="rounded-xl border border-border px-3 py-2 text-sm font-semibold bg-white"><option>Academic Risk</option></select>
       </div>
       <DataTable 
         columns={["ADM", "Learner", "Stream", "Attendance", "Average", "Risk", "Actions"]}
@@ -942,7 +942,7 @@ function LearnersWorkspace({ onSelectLearner }: { onSelectLearner: (learner: Gra
           learner.attendance,
           learner.average,
           <StatusChip key={`risk-${learner.id}`} label={learner.risk} tone={riskTone(learner.risk)} />,
-          <button key={`open-${learner.id}`} type="button" onClick={() => onSelectLearner(learner)} className="text-[#1D4ED8] font-bold text-xs">Open Profile</button>,
+          <button key={`open-${learner.id}`} type="button" onClick={() => onSelectLearner(learner)} className="text-info font-bold text-xs">Open Profile</button>,
         ])}
       />
     </Panel>
@@ -990,7 +990,7 @@ function StreamsWorkspace() {
           String(stream.present),
           String(stream.open_concerns),
           stream.last_update,
-          <button key={`message-${stream.id}`} type="button" onClick={() => handleMessageTeacher(stream)} disabled={isSubmitting || !stream.class_teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : stream.class_teacher_user_id ? "Message Teacher" : "Teacher Unassigned"}</button>,
+          <button key={`message-${stream.id}`} type="button" onClick={() => handleMessageTeacher(stream)} disabled={isSubmitting || !stream.class_teacher_user_id} className="text-info font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : stream.class_teacher_user_id ? "Message Teacher" : "Teacher Unassigned"}</button>,
         ])}
       />
     </Panel>
@@ -1033,9 +1033,9 @@ function AttendanceWorkspace() {
   return (
     <Panel title="Attendance Monitor" description="Monitor completion and follow up on absenteeism across streams." icon={UserCheck}>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-         <div className="rounded-xl bg-[#F8FAFC] border border-[#D8E0EC] p-4 text-center"><p className="text-2xl font-black text-[#071D49]">{absentCount}</p><p className="text-xs font-bold text-[#64748B]">Absent Today</p></div>
-         <div className="rounded-xl bg-[#F8FAFC] border border-[#D8E0EC] p-4 text-center"><p className="text-2xl font-black text-[#071D49]">{lateCount}</p><p className="text-xs font-bold text-[#64748B]">Late Today</p></div>
-         <div className="rounded-xl bg-rose-50 border border-rose-200 p-4 text-center"><p className="text-2xl font-black text-rose-700">{unmarkedCount}</p><p className="text-xs font-bold text-rose-700">Unmarked Learners</p></div>
+         <div className="rounded-xl bg-surface-muted border border-border p-4 text-center"><p className="text-2xl font-black text-foreground">{absentCount}</p><p className="text-xs font-bold text-muted">Absent Today</p></div>
+         <div className="rounded-xl bg-surface-muted border border-border p-4 text-center"><p className="text-2xl font-black text-foreground">{lateCount}</p><p className="text-xs font-bold text-muted">Late Today</p></div>
+         <div className="rounded-xl bg-danger-soft border border-danger-border p-4 text-center"><p className="text-2xl font-black text-danger">{unmarkedCount}</p><p className="text-xs font-bold text-danger">Unmarked Learners</p></div>
       </div>
       <DataTable 
         columns={["Learner", "Stream", "Status", "Reason", "Absence Count", "Actions"]}
@@ -1046,8 +1046,8 @@ function AttendanceWorkspace() {
           row.reason,
           String(row.absence_count),
           <div key={`attendance-actions-${row.id}`} className="flex gap-2">
-            <button type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => sendGradeNotification({ action: "parent_attendance_message_sent", title: "Guardian attendance follow-up queued", message: `${row.learner} has ${row.status} attendance requiring guardian follow-up.`, targetRoles: ["grade_master", "secretary"], priority: "high", payload: { learnerId: row.id } })}>Message Guardian</button>
-            <button type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRecordAttendanceReason(row)}>{pendingAction === "attendance_reason_recorded" ? "Saving..." : "Record Reason"}</button>
+            <button type="button" className="text-info font-bold text-xs" onClick={() => sendGradeNotification({ action: "parent_attendance_message_sent", title: "Guardian attendance follow-up queued", message: `${row.learner} has ${row.status} attendance requiring guardian follow-up.`, targetRoles: ["grade_master", "secretary"], priority: "high", payload: { learnerId: row.id } })}>Message Guardian</button>
+            <button type="button" disabled={pendingAction !== null} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleRecordAttendanceReason(row)}>{pendingAction === "attendance_reason_recorded" ? "Saving..." : "Record Reason"}</button>
           </div>,
         ])}
       />
@@ -1099,15 +1099,15 @@ function AcademicsWorkspace() {
   return (
     <Panel title="Academic Progress" description="Monitor academic performance trends across the entire form/grade." icon={TrendingUp}>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] p-4">
-           <h3 className="font-bold text-[#071D49] mb-2">Form Average Trend</h3>
-           <p className="text-3xl font-black text-[#071D49]">{formAverage}%</p>
+        <div className="rounded-xl border border-border p-4">
+           <h3 className="font-bold text-foreground mb-2">Form Average Trend</h3>
+           <p className="text-3xl font-black text-foreground">{formAverage}%</p>
            <ProgressBar value={formAverage} tone={formAverage >= 60 ? "success" : "warning"} />
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] p-4">
-           <h3 className="font-bold text-[#071D49] mb-2">Subject With Highest Risk</h3>
-           <p className="text-xl font-black text-rose-700">{highestRisk?.subject ?? "No risk recorded"}</p>
-           <p className="text-sm font-semibold text-[#64748B] mt-1">{highestRisk ? `${highestRisk.at_risk} learners below target` : "Marks data is clean or not yet submitted"}</p>
+        <div className="rounded-xl border border-border p-4">
+           <h3 className="font-bold text-foreground mb-2">Subject With Highest Risk</h3>
+           <p className="text-xl font-black text-danger">{highestRisk?.subject ?? "No risk recorded"}</p>
+           <p className="text-sm font-semibold text-muted mt-1">{highestRisk ? `${highestRisk.at_risk} learners below target` : "Marks data is clean or not yet submitted"}</p>
         </div>
       </div>
       <DataTable 
@@ -1119,8 +1119,8 @@ function AcademicsWorkspace() {
           String(row.missing_marks),
           String(row.at_risk),
           <div key={`academic-actions-${row.id}`} className="flex gap-2">
-            <button type="button" disabled={pendingAction !== null || !row.teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRequestAcademicIntervention(row)}>{pendingAction === "academic_intervention_requested" ? "Requesting..." : row.teacher_user_id ? "Request Intervention" : "Teacher Unassigned"}</button>
-            <button type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openGradeRecord(`${row.subject} at-risk learners`, [["Subject", row.subject], ["Teacher", row.teacher], ["Average", row.average], ["At-risk", String(row.at_risk)]])}>View Learners</button>
+            <button type="button" disabled={pendingAction !== null || !row.teacher_user_id} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleRequestAcademicIntervention(row)}>{pendingAction === "academic_intervention_requested" ? "Requesting..." : row.teacher_user_id ? "Request Intervention" : "Teacher Unassigned"}</button>
+            <button type="button" className="text-info font-bold text-xs" onClick={() => openGradeRecord(`${row.subject} at-risk learners`, [["Subject", row.subject], ["Teacher", row.teacher], ["Average", row.average], ["At-risk", String(row.at_risk)]])}>View Learners</button>
           </div>,
         ])}
       />
@@ -1178,8 +1178,8 @@ function ExamsWorkspace() {
             String(row.total_learners),
             <StatusChip key={`ready-${row.id}`} label={ready ? "Ready" : String(row.status).replaceAll("_", " ")} tone={statusTone(ready ? "Ready" : row.status)} />,
             ready && hasPermission('reports:read')
-              ? <button key={`approve-${row.id}`} type="button" onClick={() => handleAction('report_approval_requested', row)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs bg-[#EEF5FF] px-2 py-1 rounded disabled:opacity-50">{isSubmitting ? "Requesting..." : "Request Approval"}</button>
-              : <button key={`request-${row.id}`} type="button" onClick={() => handleAction(ready ? 'message_teacher' : 'request_comments', row)} disabled={isSubmitting || !row.class_teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : row.class_teacher_user_id ? (ready ? "Message Teacher" : "Request Comments") : "Teacher Unassigned"}</button>,
+              ? <button key={`approve-${row.id}`} type="button" onClick={() => handleAction('report_approval_requested', row)} disabled={isSubmitting} className="text-info font-bold text-xs bg-info-soft px-2 py-1 rounded disabled:opacity-50">{isSubmitting ? "Requesting..." : "Request Approval"}</button>
+              : <button key={`request-${row.id}`} type="button" onClick={() => handleAction(ready ? 'message_teacher' : 'request_comments', row)} disabled={isSubmitting || !row.class_teacher_user_id} className="text-info font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : row.class_teacher_user_id ? (ready ? "Message Teacher" : "Request Comments") : "Teacher Unassigned"}</button>,
           ];
         })}
       />
@@ -1268,11 +1268,11 @@ function DisciplineWorkspace() {
     <Panel title="Discipline & Behaviour" description="Monitors discipline issues within the form/grade." icon={ShieldAlert}>
        <div className="mb-4 flex flex-wrap gap-2">
            <label className="sr-only" htmlFor="discipline-referral-learner">Learner for discipline referral</label>
-           <select id="discipline-referral-learner" aria-label="Learner for discipline referral" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+           <select id="discipline-referral-learner" aria-label="Learner for discipline referral" value={selectedLearnerId} onChange={(event) => setSelectedLearnerId(event.target.value)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
              <option value="">Select learner</option>
              {learners.map((learner) => <option key={learner.id} value={learner.id}>{learner.learner} ({learner.admission_number})</option>)}
            </select>
-           <button type="button" disabled={pendingAction !== null || !selectedLearnerId} className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm font-black disabled:opacity-60" onClick={handleRecordDisciplineIncident}>{pendingAction === "discipline_incident_referral_requested" ? "Saving..." : "Refer Incident"}</button>
+           <button type="button" disabled={pendingAction !== null || !selectedLearnerId} className="rounded-xl bg-danger-soft border border-danger-border text-danger px-3 py-2 text-sm font-black disabled:opacity-60" onClick={handleRecordDisciplineIncident}>{pendingAction === "discipline_incident_referral_requested" ? "Saving..." : "Refer Incident"}</button>
        </div>
        <DataTable 
         columns={["Case No.", "Learner", "Stream", "Severity", "Status", "Actions"]}
@@ -1283,8 +1283,8 @@ function DisciplineWorkspace() {
           <StatusChip key={`severity-${row.id}`} label={row.severity} tone={riskTone(row.severity)} />,
           row.status,
           <div key={`discipline-actions-${row.id}`} className="flex gap-2">
-            <button type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleEscalateDisciplineCase(row)}>{pendingAction === "discipline_escalation_requested" ? "Requesting..." : "Request Escalation"}</button>
-            <button type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleResolveDisciplineCase(row)}>{pendingAction === "discipline_resolution_requested" ? "Saving..." : "Request Resolution"}</button>
+            <button type="button" disabled={pendingAction !== null} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleEscalateDisciplineCase(row)}>{pendingAction === "discipline_escalation_requested" ? "Requesting..." : "Request Escalation"}</button>
+            <button type="button" disabled={pendingAction !== null} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleResolveDisciplineCase(row)}>{pendingAction === "discipline_resolution_requested" ? "Saving..." : "Request Resolution"}</button>
           </div>,
         ])}
       />
@@ -1306,7 +1306,7 @@ function WelfareWorkspace() {
           <StatusChip key={`priority-${row.id}`} label={row.priority} tone={riskTone(row.priority)} />,
           row.assigned_to,
           row.status,
-          <button key={`notify-${row.id}`} type="button" disabled={!row.class_teacher_user_id} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50" onClick={() => row.class_teacher_user_id && sendGradeNotification({ action: "class_teacher_welfare_notification_sent", title: "Class teacher welfare notification queued", message: `${row.learner} needs a welfare follow-up. Sensitive counselling notes remain restricted.`, targetRoles: ["class_teacher"], priority: "normal", payload: { learnerId: row.learner_id, recipientUserId: row.class_teacher_user_id, concern: row.concern_type } })}>{row.class_teacher_user_id ? "Notify Class Teacher" : "Teacher Unassigned"}</button>,
+          <button key={`notify-${row.id}`} type="button" disabled={!row.class_teacher_user_id} className="text-info font-bold text-xs disabled:opacity-50" onClick={() => row.class_teacher_user_id && sendGradeNotification({ action: "class_teacher_welfare_notification_sent", title: "Class teacher welfare notification queued", message: `${row.learner} needs a welfare follow-up. Sensitive counselling notes remain restricted.`, targetRoles: ["class_teacher"], priority: "normal", payload: { learnerId: row.learner_id, recipientUserId: row.class_teacher_user_id, concern: row.concern_type } })}>{row.class_teacher_user_id ? "Notify Class Teacher" : "Teacher Unassigned"}</button>,
         ])}
       />
     </Panel>
@@ -1352,12 +1352,12 @@ function CommunicationWorkspace() {
     <Panel title="Parent Communication" description="Where the Grade/Form Master communicates with parents." icon={MessageCircle}>
        <div className="mb-4 flex flex-wrap gap-2">
            <label className="sr-only" htmlFor="bulk-notice-scope">Class or stream for bulk notice</label>
-           <select id="bulk-notice-scope" aria-label="Class or stream for bulk notice" value={selectedScopeId} onChange={(event) => setSelectedScopeId(event.target.value)} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+           <select id="bulk-notice-scope" aria-label="Class or stream for bulk notice" value={selectedScopeId} onChange={(event) => setSelectedScopeId(event.target.value)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
              <option value="">Select class or stream</option>
              {streams.map((stream) => <option key={stream.id} value={stream.id}>{stream.stream}</option>)}
            </select>
-           <button type="button" onClick={() => handleSendMessage()} disabled={isSubmitting || !selectedScopeId} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Bulk Notice"}</button>
-           <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Welfare follow-up"]])}>Message Templates</button>
+           <button type="button" onClick={() => handleSendMessage()} disabled={isSubmitting || !selectedScopeId} className="rounded-xl bg-primary px-3 py-2 text-sm font-black text-white disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Bulk Notice"}</button>
+           <button type="button" className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground" onClick={() => openGradeRecord("Grade message templates", [["Template", "Attendance concern"], ["Template", "Meeting reminder"], ["Template", "Academic intervention"], ["Template", "Welfare follow-up"]])}>Message Templates</button>
        </div>
        <DataTable 
         columns={["Learner", "Parent/Guardian", "Last Contacted", "Last Message Type", "Status", "Actions"]}
@@ -1367,7 +1367,7 @@ function CommunicationWorkspace() {
           row.last_contacted,
           row.last_message_type,
           <StatusChip key={`communication-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
-          <button key={`send-${row.id}`} type="button" onClick={() => handleSendMessage(row)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Message"}</button>,
+          <button key={`send-${row.id}`} type="button" onClick={() => handleSendMessage(row)} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">{isSubmitting ? "Sending..." : "Send Message"}</button>,
         ])}
       />
     </Panel>
@@ -1413,7 +1413,7 @@ function MeetingsWorkspace() {
           row.date,
           row.time,
           <StatusChip key={`meeting-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
-          <button key={`reschedule-${row.id}`} type="button" disabled={pendingAction !== null} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleRescheduleMeeting(row)}>{pendingAction === "learner_meeting_rescheduled" ? "Saving..." : "Reschedule"}</button>,
+          <button key={`reschedule-${row.id}`} type="button" disabled={pendingAction !== null} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleRescheduleMeeting(row)}>{pendingAction === "learner_meeting_rescheduled" ? "Saving..." : "Reschedule"}</button>,
         ])}
       />
     </Panel>
@@ -1442,7 +1442,7 @@ function AssignmentsWorkspace() {
           assignment.stream,
           assignment.due_date,
           String(assignment.missing_count),
-          <button key={`export-${assignment.id}`} type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => exportGradeCsv(`missing-${assignment.id}.csv`, ["Assignment", "Subject", "Stream", "Due Date", "Missing Count"], [[assignment.assignment, assignment.subject, assignment.stream, assignment.due_date, String(assignment.missing_count)]], "Missing assignment list")}>Export Missing List</button>,
+          <button key={`export-${assignment.id}`} type="button" className="text-info font-bold text-xs" onClick={() => exportGradeCsv(`missing-${assignment.id}.csv`, ["Assignment", "Subject", "Stream", "Due Date", "Missing Count"], [[assignment.assignment, assignment.subject, assignment.stream, assignment.due_date, String(assignment.missing_count)]], "Missing assignment list")}>Export Missing List</button>,
         ])}
       />
     </Panel>
@@ -1486,7 +1486,7 @@ function RequestsWorkspace() {
           row.learner_or_stream,
           row.assigned_to,
           <StatusChip key={`request-${row.id}`} label={row.status} tone={statusTone(row.status)} />,
-          <button key={`comment-${row.id}`} type="button" onClick={() => handleAddComment(row)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Add Comment"}</button>,
+          <button key={`comment-${row.id}`} type="button" onClick={() => handleAddComment(row)} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">{isSubmitting ? "Processing..." : "Add Comment"}</button>,
         ])}
       />
     </Panel>
@@ -1530,12 +1530,12 @@ function ReportsWorkspace() {
     <Panel title="Reports & Downloads" description="Printable and exportable grade/form reports." icon={FileText}>
        <div className="grid gap-4 md:grid-cols-3">
          {reports.map((report) => (
-           <button key={report.id} type="button" disabled={downloadingId !== null} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition disabled:opacity-60" onClick={() => void downloadReport(report)}>
+           <button key={report.id} type="button" disabled={downloadingId !== null} className="rounded-xl border border-border bg-surface-muted p-4 text-left font-bold text-foreground hover:border-primary transition disabled:opacity-60" onClick={() => void downloadReport(report)}>
              <span className="flex items-center gap-2"><Download className="h-4 w-4" />{downloadingId === report.id ? "Preparing..." : report.report_name}</span>
-             <span className="mt-2 block text-xs font-semibold uppercase text-[#64748B]">{report.type} · {report.status}</span>
+             <span className="mt-2 block text-xs font-semibold uppercase text-muted">{report.type} · {report.status}</span>
            </button>
          ))}
-         {reports.length === 0 ? <p className="text-sm text-[#64748B]">No scoped grade report artifact has been generated yet.</p> : null}
+         {reports.length === 0 ? <p className="text-sm text-muted">No scoped grade report artifact has been generated yet.</p> : null}
        </div>
     </Panel>
   );
@@ -1570,7 +1570,7 @@ function NotificationsWorkspace() {
           row.message || row.title,
           <StatusChip key={`priority-${row.id}`} label={row.priority} tone={riskTone(row.priority)} />,
           row.status,
-          <button key={`resolve-${row.id}`} type="button" disabled={pendingAction !== null || String(row.status).toLowerCase() === "read"} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-60" onClick={() => handleResolveNotification(row)}>{pendingAction === row.id ? "Saving..." : String(row.status).toLowerCase() === "read" ? "Read" : "Mark Read"}</button>,
+          <button key={`resolve-${row.id}`} type="button" disabled={pendingAction !== null || String(row.status).toLowerCase() === "read"} className="text-info font-bold text-xs disabled:opacity-60" onClick={() => handleResolveNotification(row)}>{pendingAction === row.id ? "Saving..." : String(row.status).toLowerCase() === "read" ? "Read" : "Mark Read"}</button>,
         ])}
       />
     </Panel>
@@ -1584,11 +1584,11 @@ function TeachingWorkspace() {
 
   return (
     <Panel title="My Teaching Workspace" description="Teaching responsibilities for assigned subjects." icon={BookMarked}>
-       <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-[#D8E0EC] rounded-xl bg-[#F8FAFC]">
-         <BookMarked className="h-12 w-12 text-[#94A3B8] mb-4" />
-         <p className="text-lg font-bold text-[#071D49]">This is a shortcut to your Teacher Dashboard.</p>
-         <p className="mt-2 text-sm text-[#64748B]">You will be taken to your teaching classes (e.g. Form 3 Blue Mathematics).</p>
-         <button type="button" className="mt-4 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={openTeacherDashboard}>Go to Teacher Dashboard</button>
+       <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-border rounded-xl bg-surface-muted">
+         <BookMarked className="h-12 w-12 text-muted mb-4" />
+         <p className="text-lg font-bold text-foreground">This is a shortcut to your Teacher Dashboard.</p>
+         <p className="mt-2 text-sm text-muted">You will be taken to your teaching classes (e.g. Form 3 Blue Mathematics).</p>
+         <button type="button" className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-black text-white" onClick={openTeacherDashboard}>Go to Teacher Dashboard</button>
        </div>
     </Panel>
   );
@@ -1598,14 +1598,14 @@ function SettingsWorkspace() {
   return (
     <Panel title="Settings" description="Dashboard preferences and limited form/grade workflow settings." icon={Settings}>
        <div className="grid gap-4 md:grid-cols-2">
-         <div className="rounded-xl border border-[#D8E0EC] p-4">
-           <h3 className="font-bold text-[#071D49] mb-2">Notification Preferences</h3>
-           <label className="flex items-center gap-2 text-sm text-[#334155] mb-2"><input type="checkbox" defaultChecked /> Enable daily attendance digest</label>
-           <label className="flex items-center gap-2 text-sm text-[#334155]"><input type="checkbox" defaultChecked /> Enable parent reply alerts</label>
+         <div className="rounded-xl border border-border p-4">
+           <h3 className="font-bold text-foreground mb-2">Notification Preferences</h3>
+           <label className="flex items-center gap-2 text-sm text-foreground mb-2"><input type="checkbox" defaultChecked /> Enable daily attendance digest</label>
+           <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" defaultChecked /> Enable parent reply alerts</label>
          </div>
-         <div className="rounded-xl border border-[#D8E0EC] p-4">
-           <h3 className="font-bold text-[#071D49] mb-2">Default Filters</h3>
-           <select className="w-full rounded-lg border border-[#D8E0EC] p-2 text-sm"><option>All Streams</option></select>
+         <div className="rounded-xl border border-border p-4">
+           <h3 className="font-bold text-foreground mb-2">Default Filters</h3>
+           <select className="w-full rounded-lg border border-border p-2 text-sm"><option>All Streams</option></select>
          </div>
        </div>
     </Panel>
@@ -1651,9 +1651,9 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
   }
 
   return (
-    <div data-testid="role-operational-command-center" className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
+    <div data-testid="role-operational-command-center" className="authenticated-app flex min-h-dvh bg-background">
       {/* Sidebar */}
-      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Grade command" title="Grade/Form Master" subtitle="Assigned grade, form, and stream oversight" />
         <nav className="space-y-1" aria-label="Grade form master navigation">
           {navItems.map((item, index) => {
@@ -1682,38 +1682,38 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
       {/* Main Area */}
       <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">F2</div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">F2</div>
               <div>
-                <h1 className="text-lg font-black text-[#071D49]">Grade/Form Master Command Center</h1>
-                <p className="text-xs font-bold text-[#64748B]">Live tenant workspace for assigned streams, learners, academics, attendance, welfare, and reports.</p>
+                <h1 className="text-lg font-black text-foreground">Grade/Form Master Command Center</h1>
+                <p className="text-xs font-bold text-muted">Live tenant workspace for assigned streams, learners, academics, attendance, welfare, and reports.</p>
               </div>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
                <div className="relative hidden w-full md:block xl:w-64">
-                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                  <input 
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="h-10 w-full rounded-xl border border-[#D8E0EC] pl-9 pr-4 text-sm outline-none focus:border-[#071D49]" 
+                   className="h-10 w-full rounded-xl border border-border pl-9 pr-4 text-sm outline-none focus:border-primary"
                    placeholder="Search learners..." 
                  />
                  {searchTerm.trim() && searchResults.length > 0 && (
-                   <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white border border-[#D8E0EC] rounded-xl shadow-xl z-30 p-2">
+                   <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white border border-border rounded-xl shadow-xl z-30 p-2">
                      {searchResults.map(r => (
-                       <button key={r.id} type="button" onClick={() => openSearchRecord(r)} className="w-full text-left p-2 hover:bg-[#F8FAFC] rounded-lg">
-                         <p className="font-bold text-[#071D49] text-sm">{r.learner}</p>
-                         <p className="text-xs text-[#64748B]">{r.admission_number} | {r.stream} | {r.risk} risk</p>
+                       <button key={r.id} type="button" onClick={() => openSearchRecord(r)} className="w-full text-left p-2 hover:bg-surface-muted rounded-lg">
+                         <p className="font-bold text-foreground text-sm">{r.learner}</p>
+                         <p className="text-xs text-muted">{r.admission_number} | {r.stream} | {r.risk} risk</p>
                        </button>
                      ))}
                    </div>
                  )}
                </div>
                <StatusChip label={getCurrentSchoolId() || "Current school"} tone="info" />
-                   <button type="button" onClick={() => openView("exams")} className="inline-flex h-10 items-center justify-center rounded-xl border border-[#D8E0EC] bg-white px-4 text-sm font-black text-[#071D49] hidden sm:flex">Grade/Form Results</button>
-                   <button type="button" onClick={() => openView("learners")} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white hidden sm:flex">Take Quick Action</button>
+                   <button type="button" onClick={() => openView("exams")} className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-white px-4 text-sm font-black text-foreground hidden sm:flex">Grade/Form Results</button>
+                   <button type="button" onClick={() => openView("learners")} className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-black text-white hidden sm:flex">Take Quick Action</button>
                <TaskQueue />
                <ApprovalInbox />
                <NotificationBell />

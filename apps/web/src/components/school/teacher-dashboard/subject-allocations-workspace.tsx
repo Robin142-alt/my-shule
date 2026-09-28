@@ -28,17 +28,17 @@ export function SubjectAllocationsWorkspace() {
   return (
     <Panel title="Subject Allocations" description="View your subject and class allocations." icon={LayoutGrid}>
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Total Subjects</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.total_subjects ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Total Subjects</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.total_subjects ?? 0}</p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Total Lessons/Week</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.total_lessons ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Total Lessons/Week</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.total_lessons ?? 0}</p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load data. Please retry.
         </div>
       ) : (

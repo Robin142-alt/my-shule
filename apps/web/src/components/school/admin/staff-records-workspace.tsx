@@ -909,7 +909,7 @@ export function StaffRecordsWorkspace() {
                           <td className="px-4 py-3 text-right text-red-600">-{p.deductions}</td>
                           <td className="px-4 py-3 text-right font-medium">{p.net_pay}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : p.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : p.status === 'paid' ? 'bg-green-100 text-success' : 'bg-slate-100 text-slate-700'}`}>
                               {p.status.toUpperCase()}
                             </span>
                           </td>
@@ -1083,10 +1083,10 @@ export function StaffRecordsWorkspace() {
                 ) : (
                   <div className="space-y-2">
                     {disciplinaryList?.map(d => (
-                      <div key={d.id} className="p-3 bg-red-50/50 rounded-md border border-red-100 text-sm">
+                      <div key={d.id} className="p-3 bg-danger-soft/50 rounded-md border border-red-100 text-sm">
                         <div className="flex justify-between font-medium text-slate-900 mb-1">
                           <span>{d.display_name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${d.severity === 'critical' || d.severity === 'high' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${d.severity === 'critical' || d.severity === 'high' ? 'bg-red-100 text-danger' : 'bg-orange-100 text-orange-700'}`}>
                             {d.severity}
                           </span>
                         </div>
@@ -1114,7 +1114,7 @@ export function StaffRecordsWorkspace() {
             <input
               type="text"
               {...approveStaffForm.register("staffNumber", { required: "Staff number is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="e.g. STF-1234"
             />
             {approveStaffForm.formState.errors.staffNumber && (
@@ -1146,7 +1146,7 @@ export function StaffRecordsWorkspace() {
         title={leaveModalState.status === "rejected" ? "Reject Leave Request" : "Leave Approval Override"}
       >
         <form onSubmit={leaveStatusForm.handleSubmit(onSubmitLeaveStatus)} className="space-y-4 py-4">
-          <p className="text-sm text-[#64748B]">
+          <p className="text-sm text-muted">
             {leaveModalState.status === "rejected"
               ? "Please provide a reason for rejecting this leave request:"
               : "Approval exceeds remaining balance. Provide a justification / override reason:"}
@@ -1156,7 +1156,7 @@ export function StaffRecordsWorkspace() {
             <label className="text-sm font-medium">Reason</label>
             <textarea
               {...leaveStatusForm.register("reason", { required: "Reason is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="Enter reason..."
               rows={3}
             />

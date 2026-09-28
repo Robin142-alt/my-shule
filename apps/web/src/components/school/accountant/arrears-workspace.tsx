@@ -224,7 +224,7 @@ export function ArrearsWorkspace({
   }
 
   return (
-    <div className="space-y-5 text-[#071D49]">
+    <div className="space-y-5 text-foreground">
       <div className="rounded-xl border border-white/12 bg-white p-5 shadow-sm">
         <SchoolPageHeader
           eyebrow="Accountant"
@@ -249,10 +249,10 @@ export function ArrearsWorkspace({
           ["Above KES 10,000", String(aboveThresholdCount), "Higher-priority collection cases"],
         ].map(([label, value, helper]) => (
           <div key={label} className="rounded-xl border border-white/12 bg-white p-4 shadow-sm">
-            <CircleDollarSign className="h-5 w-5 text-[#1D4ED8]" aria-hidden="true" />
-            <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">{label}</p>
+            <CircleDollarSign className="h-5 w-5 text-info" aria-hidden="true" />
+            <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
             <p className="mt-1 text-2xl font-black">{loading ? "…" : value}</p>
-            <p className="mt-1 text-xs font-semibold text-[#64748B]">{helper}</p>
+            <p className="mt-1 text-xs font-semibold text-muted">{helper}</p>
           </div>
         ))}
       </section>
@@ -261,17 +261,17 @@ export function ArrearsWorkspace({
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 className="font-black">Collection worklist</h3>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">Search by learner name and focus follow-up by balance band.</p>
+            <p className="mt-1 text-sm font-semibold text-muted">Search by learner name and focus follow-up by balance band.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <label className="relative">
               <span className="sr-only">Search student arrears</span>
-              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-[#94A3B8]" aria-hidden="true" />
+              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted" aria-hidden="true" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search learner"
-                className="h-10 rounded-lg border border-[#C8D5EA] pl-9 pr-3 text-sm outline-none focus:border-blue-400"
+                className="h-10 rounded-lg border border-border-strong pl-9 pr-3 text-sm outline-none focus:border-blue-400"
               />
             </label>
             <label>
@@ -279,7 +279,7 @@ export function ArrearsWorkspace({
               <select
                 value={balanceFilter}
                 onChange={(event) => setBalanceFilter(event.target.value)}
-                className="h-10 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-blue-400"
+                className="h-10 rounded-lg border border-border-strong bg-white px-3 text-sm font-semibold outline-none focus:border-blue-400"
               >
                 <option value="all">All balances</option>
                 <option value="above-10000">KES 10,000 and above</option>
@@ -290,12 +290,12 @@ export function ArrearsWorkspace({
         </div>
 
         {error ? (
-          <div className="rounded-lg bg-rose-50 p-4 text-sm font-semibold text-rose-700" role="alert">
+          <div className="rounded-lg bg-danger-soft p-4 text-sm font-semibold text-danger" role="alert">
             <p>{error}</p>
             <Button className="mt-3" variant="secondary" onClick={() => void loadArrears()}>Retry</Button>
           </div>
         ) : loading ? (
-          <div className="p-8 text-center text-sm font-semibold text-[#64748B]" aria-busy="true">Loading live student balances…</div>
+          <div className="p-8 text-center text-sm font-semibold text-muted" aria-busy="true">Loading live student balances…</div>
         ) : (
           <DataTable
             rows={filteredArrears}
@@ -351,20 +351,20 @@ export function ArrearsWorkspace({
         ) : undefined}
       >
         {statementLoading ? (
-          <div className="p-8 text-center text-sm font-semibold text-[#64748B]" aria-busy="true">Loading statement…</div>
+          <div className="p-8 text-center text-sm font-semibold text-muted" aria-busy="true">Loading statement…</div>
         ) : statementError ? (
-          <div className="rounded-lg bg-rose-50 p-4 text-sm font-semibold text-rose-700" role="alert">{statementError}</div>
+          <div className="rounded-lg bg-danger-soft p-4 text-sm font-semibold text-danger" role="alert">{statementError}</div>
         ) : statement ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-[#F8FAFC] p-3"><p className="text-xs font-bold text-[#64748B]">Invoiced</p><p className="mt-1 font-black">{formatMinorKes(statement.summary.invoiced_amount_minor)}</p></div>
-              <div className="rounded-lg bg-[#F8FAFC] p-3"><p className="text-xs font-bold text-[#64748B]">Paid / credited</p><p className="mt-1 font-black">{formatMinorKes(addMinor([statement.summary.paid_amount_minor, statement.summary.credit_amount_minor]))}</p></div>
-              <div className="rounded-lg bg-rose-50 p-3"><p className="text-xs font-bold text-rose-600">Outstanding</p><p className="mt-1 font-black text-rose-700">{formatMinorKes(statement.summary.balance_amount_minor)}</p></div>
+              <div className="rounded-lg bg-surface-muted p-3"><p className="text-xs font-bold text-muted">Invoiced</p><p className="mt-1 font-black">{formatMinorKes(statement.summary.invoiced_amount_minor)}</p></div>
+              <div className="rounded-lg bg-surface-muted p-3"><p className="text-xs font-bold text-muted">Paid / credited</p><p className="mt-1 font-black">{formatMinorKes(addMinor([statement.summary.paid_amount_minor, statement.summary.credit_amount_minor]))}</p></div>
+              <div className="rounded-lg bg-danger-soft p-3"><p className="text-xs font-bold text-rose-600">Outstanding</p><p className="mt-1 font-black text-danger">{formatMinorKes(statement.summary.balance_amount_minor)}</p></div>
             </div>
-            <div className="overflow-x-auto rounded-lg border border-[#D8E0EC]">
+            <div className="overflow-x-auto rounded-lg border border-border">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-[#F8FAFC] text-xs font-black uppercase tracking-[0.08em] text-[#64748B]"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Description</th><th className="px-3 py-2">Debit</th><th className="px-3 py-2">Credit</th><th className="px-3 py-2">Balance</th></tr></thead>
-                <tbody className="divide-y divide-[#E2E8F0]">
+                <thead className="bg-surface-muted text-xs font-black uppercase tracking-[0.08em] text-muted"><tr><th className="px-3 py-2">Date</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Description</th><th className="px-3 py-2">Debit</th><th className="px-3 py-2">Credit</th><th className="px-3 py-2">Balance</th></tr></thead>
+                <tbody className="divide-y divide-border">
                   {statement.entries.map((entry) => (
                     <tr key={entry.id}>
                       <td className="whitespace-nowrap px-3 py-2">{formatActivityDate(entry.occurred_at)}</td>

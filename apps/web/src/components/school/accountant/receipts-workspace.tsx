@@ -192,7 +192,7 @@ export function ReceiptsWorkspace({
 
       <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
         {error ? (
-          <div className="rounded-md bg-red-50 p-4 text-sm text-red-600">
+          <div className="rounded-md bg-danger-soft p-4 text-sm text-red-600">
             {error}
           </div>
         ) : (

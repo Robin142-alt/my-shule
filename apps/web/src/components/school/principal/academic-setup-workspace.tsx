@@ -46,7 +46,7 @@ export function AcademicSetupWorkspace() {
       description="Manage academic years, terms, and the school calendar."
       icon={Calendar}
       actions={
-        <button disabled={isCreating} onClick={handleCreateYear} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
+        <button disabled={isCreating} onClick={handleCreateYear} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
           <Plus className="h-4 w-4" />
           {isCreating ? "Creating…" : "Add Academic Year"}
         </button>
@@ -58,27 +58,27 @@ export function AcademicSetupWorkspace() {
         <MetricCard label="Current Term" value={isLoading ? "…" : data?.metrics?.current_term ?? "None"} icon={Calendar} tone="info" />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Academic Year</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Terms</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Academic Year</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Terms</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading academic setup…</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading academic setup…</td></tr>
             ) : years.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No academic years configured. Add the first academic year to begin setting up your school calendar.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No academic years configured. Add the first academic year to begin setting up your school calendar.</td></tr>
             ) : (
               years.map((yr) => (
-                <tr key={yr.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{yr.year}</td>
+                <tr key={yr.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{yr.year}</td>
                   <td className="px-4 py-3"><StatusChip label={yr.status} tone={getStatusTone(yr.status)} /></td>
-                  <td className="px-4 py-3 text-[#64748B]">
+                  <td className="px-4 py-3 text-muted">
                     {yr.terms.length === 0 ? "No terms" : yr.terms.map(t => t.name).join(", ")}
                   </td>
                   <td className="px-4 py-3 text-right">

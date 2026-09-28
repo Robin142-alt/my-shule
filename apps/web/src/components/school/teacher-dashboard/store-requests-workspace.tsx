@@ -99,25 +99,25 @@ export function StoreRequestsWorkspace() {
 
   return (
     <Panel title="Store Requests" description="Request supplies and track store requisitions." icon={ShoppingBag}>
-      <form onSubmit={handleSubmit} className="mb-4 rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+      <form onSubmit={handleSubmit} className="mb-4 rounded-2xl border border-border bg-surface-muted p-4">
         <div className="mb-3">
-          <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#071D49]">Request teaching materials</h3>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">
+          <h3 className="text-sm font-black uppercase tracking-[0.12em] text-foreground">Request teaching materials</h3>
+          <p className="mt-1 text-sm font-semibold text-muted">
             This sends a tenant-scoped requisition to the storekeeper queue and keeps the request visible here.
           </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-[1.4fr_0.6fr_0.8fr_0.8fr]">
-          <label className="text-sm font-bold text-[#071D49]">
+          <label className="text-sm font-bold text-foreground">
             Item
             <input
               name="item"
               value={form.item}
               onChange={(event) => updateField("item", event.target.value)}
               placeholder="e.g. exercise books"
-              className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
+              className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
             />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">
+          <label className="text-sm font-bold text-foreground">
             Quantity
             <input
               name="quantity"
@@ -125,26 +125,26 @@ export function StoreRequestsWorkspace() {
               min="1"
               value={form.quantity}
               onChange={(event) => updateField("quantity", event.target.value)}
-              className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
+              className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
             />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">
+          <label className="text-sm font-bold text-foreground">
             Needed by
             <input
               name="needed_by"
               type="date"
               value={form.needed_by}
               onChange={(event) => updateField("needed_by", event.target.value)}
-              className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
+              className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
             />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">
+          <label className="text-sm font-bold text-foreground">
             Priority
             <select
               name="priority"
               value={form.priority}
               onChange={(event) => updateField("priority", event.target.value)}
-              className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
+              className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
             >
               <option value="normal">Normal</option>
               <option value="high">High</option>
@@ -152,18 +152,18 @@ export function StoreRequestsWorkspace() {
             </select>
           </label>
         </div>
-        <label className="mt-3 block text-sm font-bold text-[#071D49]">
+        <label className="mt-3 block text-sm font-bold text-foreground">
           Reason or class use
           <textarea
             name="notes"
             value={form.notes}
             onChange={(event) => updateField("notes", event.target.value)}
             placeholder="Explain the class, subject, or activity needing the materials"
-            className="mt-1 min-h-20 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
+            className="mt-1 min-h-20 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-300"
           />
         </label>
         {formError && (
-          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+          <div className="mt-3 rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">
             {formError}
           </div>
         )}
@@ -171,7 +171,7 @@ export function StoreRequestsWorkspace() {
           <button
             type="submit"
             disabled={createRequest.isPending || !liveSession.session}
-            className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0B2B6A] disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0B2B6A] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {createRequest.isPending ? "Sending..." : "Send store request"}
           </button>
@@ -179,17 +179,17 @@ export function StoreRequestsWorkspace() {
       </form>
 
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Pending</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.pending ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Pending</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.pending ?? 0}</p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Fulfilled</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.fulfilled ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Fulfilled</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.fulfilled ?? 0}</p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load data. Please retry.
         </div>
       ) : (

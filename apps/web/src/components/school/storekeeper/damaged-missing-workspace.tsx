@@ -135,7 +135,7 @@ export function DamagedMissingWorkspace() {
             reportForm.reset();
             setIsReportOpen(true);
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> Report Incident
         </button>
@@ -143,54 +143,54 @@ export function DamagedMissingWorkspace() {
     >
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Incidents</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_incidents || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Incidents</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_incidents || 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending Write-Off</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.pending_writeoff || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending Write-Off</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.pending_writeoff || 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Total Loss Value</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : `KES ${(data?.metrics?.total_loss_value || 0).toLocaleString()}`}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Total Loss Value</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : `KES ${(data?.metrics?.total_loss_value || 0).toLocaleString()}`}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Written Off</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.written_off || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Written Off</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.written_off || 0}</div>
         </div>
       </div>
 
       {/* Records Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Item</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Qty</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reported By</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Est. Loss</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Action</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Item</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Qty</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reason</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reported By</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Est. Loss</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">Loading records...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">Loading records...</td></tr>
             ) : records.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">No damaged or missing items reported. Use &quot;Report Incident&quot; to log any losses.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">No damaged or missing items reported. Use &quot;Report Incident&quot; to log any losses.</td></tr>
             ) : (
               records.map((r) => (
-                <tr key={r.id} className="hover:bg-[#F8FAFC]">
+                <tr key={r.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3"><StatusChip label={r.type} tone={getTypeTone(r.type)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{r.item_name}</td>
-                  <td className="px-4 py-3 text-[#071D49]">{r.quantity} {r.unit}</td>
-                  <td className="px-4 py-3 text-[#64748B] max-w-[200px] truncate">{r.reason}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.reported_by}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.reported_date}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{r.item_name}</td>
+                  <td className="px-4 py-3 text-foreground">{r.quantity} {r.unit}</td>
+                  <td className="px-4 py-3 text-muted max-w-[200px] truncate">{r.reason}</td>
+                  <td className="px-4 py-3 text-muted">{r.reported_by}</td>
+                  <td className="px-4 py-3 text-muted">{r.reported_date}</td>
                   <td className="px-4 py-3 text-rose-600 font-bold">KES {r.estimated_loss.toLocaleString()}</td>
                   <td className="px-4 py-3"><StatusChip label={r.status} tone={getStatusTone(r.status)} /></td>
                   <td className="px-4 py-3 text-right">
@@ -207,7 +207,7 @@ export function DamagedMissingWorkspace() {
                         {writingOff === r.id ? "Submitting..." : "Write Off"}
                       </button>
                     ) : (
-                      <span className="text-xs text-[#64748B]">Closed</span>
+                      <span className="text-xs text-muted">Closed</span>
                     )}
                   </td>
                 </tr>
@@ -229,7 +229,7 @@ export function DamagedMissingWorkspace() {
             <input
               type="text"
               {...reportForm.register("itemName", { required: "Item name is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="e.g. Science Beakers"
             />
             {reportForm.formState.errors.itemName && (
@@ -241,7 +241,7 @@ export function DamagedMissingWorkspace() {
             <label className="text-sm font-medium">Type</label>
             <select
               {...reportForm.register("type", { required: "Type is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
             >
               <option value="Damaged">Damaged</option>
               <option value="Missing">Missing</option>
@@ -261,7 +261,7 @@ export function DamagedMissingWorkspace() {
                 min: { value: 1, message: "Quantity must be at least 1" },
                 valueAsNumber: true,
               })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="1"
             />
             {reportForm.formState.errors.quantity && (
@@ -273,7 +273,7 @@ export function DamagedMissingWorkspace() {
             <label className="text-sm font-medium">Reason / Description</label>
             <textarea
               {...reportForm.register("reason", { required: "Reason is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="Describe the incident"
               rows={3}
             />
@@ -286,14 +286,14 @@ export function DamagedMissingWorkspace() {
             <button
               type="button"
               onClick={() => setIsReportOpen(false)}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isReporting}
-              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
+              className="px-4 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
             >
               {isReporting ? "Reporting..." : "Report Incident"}
             </button>
@@ -311,7 +311,7 @@ export function DamagedMissingWorkspace() {
         title={`Write Off: ${selectedRecord?.item_name || ""}`}
       >
         <form onSubmit={writeOffForm.handleSubmit(onSubmitWriteOff)} className="space-y-4 py-4">
-          <p className="text-sm text-[#64748B]">
+          <p className="text-sm text-muted">
             Confirm write-off of {selectedRecord?.quantity} {selectedRecord?.unit}(s) of &quot;{selectedRecord?.item_name}&quot;?
           </p>
 
@@ -319,7 +319,7 @@ export function DamagedMissingWorkspace() {
             <label className="text-sm font-medium">Notes / Justification</label>
             <textarea
               {...writeOffForm.register("notes", { required: "Notes are required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="Enter reasons for write-off"
               rows={3}
             />
@@ -335,7 +335,7 @@ export function DamagedMissingWorkspace() {
                 setIsWriteOffOpen(false);
                 setSelectedRecord(null);
               }}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>

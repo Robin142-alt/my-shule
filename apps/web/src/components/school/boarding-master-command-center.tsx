@@ -76,31 +76,31 @@ const navItems: NavItem[] = [
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
-    card: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    card: "border-success-border bg-success-soft text-emerald-900",
+    chip: "border-success-border bg-success-soft text-success",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
   },
   info: {
-    card: "border-blue-200 bg-blue-50 text-blue-950",
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
+    card: "border-info-border bg-info-soft text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
   },
   warning: {
-    card: "border-amber-200 bg-amber-50 text-amber-950",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    card: "border-warning-border bg-warning-soft text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
   },
   danger: {
-    card: "border-rose-200 bg-rose-50 text-rose-950",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    card: "border-danger-border bg-danger-soft text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
   },
   neutral: {
-    card: "border-slate-200 bg-white text-[#071D49]",
+    card: "border-slate-200 bg-white text-foreground",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
     text: "text-slate-600",
@@ -143,17 +143,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions}
@@ -173,26 +173,26 @@ function DataTable({
   rows: ReactNode[][];
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white">
+    <div className="overflow-hidden rounded-2xl border border-border bg-white">
       {title && (
-        <div className="border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3>
+        <div className="border-b border-border bg-surface-muted px-4 py-3">
+          <h3 className="text-sm font-black uppercase tracking-[0.14em] text-foreground">{title}</h3>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-[#64748B]">
+          <thead className="bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-muted">
             <tr>
               {columns.map((column, i) => (
                 <th key={i} className="px-4 py-3 font-black whitespace-nowrap">{column}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {rows.map((row, i) => (
-              <tr key={i} className="transition hover:bg-[#F8FAFC]">
+              <tr key={i} className="transition hover:bg-surface-muted">
                 {row.map((cell, j) => (
-                  <td key={j} className="px-4 py-3 font-semibold text-[#334155] whitespace-nowrap">
+                  <td key={j} className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
                     {cell}
                   </td>
                 ))}
@@ -200,7 +200,7 @@ function DataTable({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-muted">
                   This boarding workspace is empty for the current school. Use the action above to add the first dormitory, allocation, roll call, or welfare record.
                 </td>
               </tr>
@@ -302,20 +302,20 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
-         <button type="button" onClick={() => onNavigate('register')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Total Boarders</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "-" : dashboard?.total_boarders ?? dashboard?.total_records ?? 0}</p>
+         <button type="button" onClick={() => onNavigate('register')} className="text-left rounded-xl border border-border bg-white p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-muted uppercase tracking-wider">Total Boarders</p>
+           <p className="text-3xl font-black text-foreground mt-2">{isLoading ? "-" : dashboard?.total_boarders ?? dashboard?.total_records ?? 0}</p>
          </button>
-         <button type="button" onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-[#D8E0EC] bg-white p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-[#64748B] uppercase tracking-wider">Present Tonight</p>
-           <p className="text-3xl font-black text-[#071D49] mt-2">{isLoading ? "-" : dashboard?.open_records ?? 0}</p>
+         <button type="button" onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-border bg-white p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-muted uppercase tracking-wider">Present Tonight</p>
+           <p className="text-3xl font-black text-foreground mt-2">{isLoading ? "-" : dashboard?.open_records ?? 0}</p>
          </button>
-         <button type="button" onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-rose-200 bg-rose-50 p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-rose-700 uppercase tracking-wider">Missing Roll Call</p>
+         <button type="button" onClick={() => onNavigate('roll-call')} className="text-left rounded-xl border border-danger-border bg-danger-soft p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-danger uppercase tracking-wider">Missing Roll Call</p>
            <p className="text-3xl font-black text-rose-900 mt-2">{isLoading ? "-" : dashboard?.action_due ?? 0}</p>
          </button>
-         <button type="button" onClick={() => onNavigate('leave')} className="text-left rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm hover:shadow-md transition">
-           <p className="text-xs font-black text-blue-700 uppercase tracking-wider">Approved Leave-Outs</p>
+         <button type="button" onClick={() => onNavigate('leave')} className="text-left rounded-xl border border-info-border bg-info-soft p-4 shadow-sm hover:shadow-md transition">
+           <p className="text-xs font-black text-info uppercase tracking-wider">Approved Leave-Outs</p>
            <p className="text-3xl font-black text-blue-900 mt-2">{isLoading ? "-" : dashboard?.approved_leave ?? 0}</p>
          </button>
       </div>
@@ -327,7 +327,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
             rows={(dashboard?.records || []).slice(0, 5).map((r: any) => [
               r.title,
               <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'warning'}/>,
-              <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('roll-call')}>View</button>
+              <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => onNavigate('roll-call')}>View</button>
             ])}
           />
         </Panel>
@@ -338,7 +338,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
             rows={(dashboard?.activity || []).slice(0, 5).map((a: any) => [
               a.action,
               a.actor_role,
-              <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Urgent boarding follow-up", [["Concern", String(a.action ?? "-")], ["Student/role", String(a.actor_role ?? "-")], ["Next action", "Review in boarding incidents or welfare queue"]])}>View</button>
+              <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Urgent boarding follow-up", [["Concern", String(a.action ?? "-")], ["Student/role", String(a.actor_role ?? "-")], ["Next action", "Review in boarding incidents or welfare queue"]])}>View</button>
             ])}
           />
         </Panel>
@@ -348,7 +348,7 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (view: ViewId) => void 
         <DataTable 
           columns={["Dormitory", "Capacity", "Occupied", "Available", "Roll Call %", "Action"]}
           rows={(dashboard?.records || []).filter((r: any) => r.category === 'dorm').slice(0, 5).map((r: any) => [
-            r.title, r.metric_count || "0", r.metric_count || "0", "0", "100%", <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => onNavigate('dorms')}>Open Dorm</button>
+            r.title, r.metric_count || "0", r.metric_count || "0", "0", "100%", <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => onNavigate('dorms')}>Open Dorm</button>
           ])}
         />
       </Panel>
@@ -420,17 +420,17 @@ function RegisterWorkspace() {
       icon={Users}
       actions={
         <div className="flex gap-2">
-           <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => exportBoardingCsv("boarding-register-import-template.csv", ["student_admission_number", "boarding_category", "house", "room", "bed_label"], [], "Boarding register import template")}>Import</button>
+           <button type="button" className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground" onClick={() => exportBoardingCsv("boarding-register-import-template.csv", ["student_admission_number", "boarding_category", "house", "room", "bed_label"], [], "Boarding register import template")}>Import</button>
         </div>
       }
     >
-      <form onSubmit={handleAddBoarder} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="student_name" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Student name" />
-        <input name="admission_number" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Admission number" />
-        <input name="house" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="House / dormitory" />
-        <input name="room" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Room" />
-        <input name="bed_label" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Bed label" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2 xl:col-span-1">
+      <form onSubmit={handleAddBoarder} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="student_name" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Student name" />
+        <input name="admission_number" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Admission number" />
+        <input name="house" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="House / dormitory" />
+        <input name="room" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Room" />
+        <input name="bed_label" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Bed label" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2 xl:col-span-1">
           {isSubmitting ? "Adding..." : "Add Boarder"}
         </button>
       </form>
@@ -443,7 +443,7 @@ function RegisterWorkspace() {
           r.metadata?.room || "-",
           r.metadata?.bed_label || r.metadata?.bed || "-",
           <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'neutral'}/>,
-          <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Boarder profile", [["Student", String(r.title ?? "-")], ["Admission", String(r.metadata?.admission_number ?? "-")], ["House", String(r.metadata?.house ?? r.owner_name ?? "-")], ["Room", String(r.metadata?.room ?? "-")], ["Bed", String(r.metadata?.bed_label ?? "-")], ["Status", String(r.status ?? "-")]])}>View Profile</button>
+          <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Boarder profile", [["Student", String(r.title ?? "-")], ["Admission", String(r.metadata?.admission_number ?? "-")], ["House", String(r.metadata?.house ?? r.owner_name ?? "-")], ["Room", String(r.metadata?.room ?? "-")], ["Bed", String(r.metadata?.bed_label ?? "-")], ["Status", String(r.status ?? "-")]])}>View Profile</button>
         ])}
       />
     </Panel>
@@ -458,7 +458,7 @@ function DormsWorkspace() {
       <DataTable 
         columns={["Dormitory", "Type", "Capacity", "Status", "Actions"]}
         rows={(dashboard?.records || []).filter((r: any) => r.category === 'dorm').map((r: any) => [
-          r.title, "Dormitory", r.metric_count || "0", <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'neutral'}/>, <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Dormitory rooms", [["Dormitory", String(r.title ?? "-")], ["Capacity", String(r.metric_count ?? "0")], ["Status", String(r.status ?? "-")]])}>View Rooms</button>
+          r.title, "Dormitory", r.metric_count || "0", <StatusChip key="s1" label={r.status} tone={r.status === 'active' ? 'success' : 'neutral'}/>, <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Dormitory rooms", [["Dormitory", String(r.title ?? "-")], ["Capacity", String(r.metric_count ?? "0")], ["Status", String(r.status ?? "-")]])}>View Rooms</button>
         ])}
       />
     </Panel>
@@ -495,20 +495,20 @@ function BedsWorkspace() {
     <Panel title="Bed Allocation" description="Assign, change, transfer, and release beds." icon={BedDouble}>
       <div className="grid grid-cols-2 gap-4">
         <div>
-           <h3 className="text-sm font-black uppercase text-[#071D49] mb-4">Students Needing Beds</h3>
+           <h3 className="text-sm font-black uppercase text-foreground mb-4">Students Needing Beds</h3>
            <DataTable 
              columns={["Student", "Status", "Action"]}
              rows={(dashboard?.records || []).filter((r: any) => r.status !== 'active').map((r: any) => [
-               r.title, r.status, <button key="a1" type="button" onClick={() => handleAssignBed(r.id, undefined)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Allocate</button>
+               r.title, r.status, <button key="a1" type="button" onClick={() => handleAssignBed(r.id, undefined)} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">Allocate</button>
              ])}
            />
         </div>
         <div>
-           <h3 className="text-sm font-black uppercase text-[#071D49] mb-4">Available Beds</h3>
+           <h3 className="text-sm font-black uppercase text-foreground mb-4">Available Beds</h3>
            <DataTable 
              columns={["Dorm", "Room", "Bed No.", "Action"]}
              rows={(dashboard?.records || []).filter((r: any) => r.category === 'bed').map((r: any) => [
-               r.owner_name || "-", "-", r.title, <button key="a1" type="button" onClick={() => handleAssignBed(undefined, r.id)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Assign Bed</button>
+               r.owner_name || "-", "-", r.title, <button key="a1" type="button" onClick={() => handleAssignBed(undefined, r.id)} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">Assign Bed</button>
              ])}
            />
         </div>
@@ -555,10 +555,10 @@ function RollCallWorkspace() {
   return (
     <Panel title="Daily Roll Call" description="Confirm that every boarder is accounted for." icon={ClipboardList}>
       <div className="mb-4 flex gap-2">
-           <button type="button" onClick={() => handleRollCall()} disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white disabled:opacity-50">
+           <button type="button" onClick={() => handleRollCall()} disabled={isSubmitting} className="rounded-xl bg-primary px-3 py-2 text-sm font-black text-white disabled:opacity-50">
              {isSubmitting ? "Starting..." : "Start Roll Call"}
            </button>
-           <button type="button" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-black text-[#071D49]" onClick={() => openBoardingActionRecord("Missing roll-call list", [["Date", "Today"], ["Scope", "Current school boarders"], ["Action", "Print or download missing list"], ["Follow-up", "Notify deputy and parent for unresolved absences"]])}>Print Missing List</button>
+           <button type="button" className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground" onClick={() => openBoardingActionRecord("Missing roll-call list", [["Date", "Today"], ["Scope", "Current school boarders"], ["Action", "Print or download missing list"], ["Follow-up", "Notify deputy and parent for unresolved absences"]])}>Print Missing List</button>
       </div>
       <DataTable 
         columns={["Student", "ADM", "Dorm", "Room", "Bed", "Status", "Actions"]}
@@ -569,7 +569,7 @@ function RollCallWorkspace() {
           r.room_number || r.metadata?.room || "-",
           r.bed_number || r.metadata?.bed || r.bed_id?.substring?.(0, 8) || "-",
           <StatusChip key={`s-${r.id || r.student_id}`} label={r.status === 'active' || r.status === 'present' ? "Present" : r.status || "Not marked"} tone={r.status === 'active' || r.status === 'present' ? "success" : "warning"}/>,
-          <button key={`a-${r.id || r.student_id}`} type="button" onClick={() => handleRollCall(r.student_id || r.id)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Edit Status</button>
+          <button key={`a-${r.id || r.student_id}`} type="button" onClick={() => handleRollCall(r.student_id || r.id)} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">Edit Status</button>
         ])}
       />
     </Panel>
@@ -658,13 +658,13 @@ function LateReturnsWorkspace() {
 
   return (
     <Panel title="Late Returns & Absences" description="Track students who return late from leave or miss roll call." icon={Clock}>
-      <form onSubmit={handleAddLateReturn} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="student_name" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Student name" />
-        <input name="dorm" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
-        <input name="expected_time" required type="time" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="Expected return time" />
-        <input name="actual_time" required type="time" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="Actual return time" />
-        <textarea name="notes" required rows={2} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-4" placeholder="Initial observation and parent/deputy follow-up notes" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+      <form onSubmit={handleAddLateReturn} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="student_name" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Student name" />
+        <input name="dorm" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
+        <input name="expected_time" required type="time" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="Expected return time" />
+        <input name="actual_time" required type="time" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="Actual return time" />
+        <textarea name="notes" required rows={2} className="rounded-lg border border-border bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-4" placeholder="Initial observation and parent/deputy follow-up notes" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isSubmitting ? "Recording..." : "Record Late Return"}
         </button>
       </form>
@@ -678,8 +678,8 @@ function LateReturnsWorkspace() {
           record.metadata?.delay || "-",
           <StatusChip key="s1" label={record.status} tone={record.status === "resolved" ? "success" : "danger"}/>,
           record.status === "resolved"
-            ? <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Late return explanation", [["Student", String(record.title ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Explanation", String(record.notes ?? "-")], ["Status", String(record.status ?? "-")]])}>View Explanation</button>
-            : <button key="a1" type="button" disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50" onClick={() => handleResolveLateReturn(record)}>Add Explanation</button>,
+            ? <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Late return explanation", [["Student", String(record.title ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Explanation", String(record.notes ?? "-")], ["Status", String(record.status ?? "-")]])}>View Explanation</button>
+            : <button key="a1" type="button" disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50" onClick={() => handleResolveLateReturn(record)}>Add Explanation</button>,
         ])}
       />
     </Panel>
@@ -744,13 +744,13 @@ function DutyWorkspace() {
 
   return (
     <Panel title="Duty Roster" description="Manage boarding duty staff, dorm captains, and prefects." icon={Calendar}>
-      <form onSubmit={handleAddDutyReport} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="duty_date" required type="date" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="Duty date" />
-        <input name="dormitory" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
-        <input name="staff_on_duty" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Staff on duty" />
-        <input name="prefect" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Prefect / captain" />
-        <textarea name="notes" required rows={2} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-4" placeholder="Dorm patrol notes, issues, and handover actions" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+      <form onSubmit={handleAddDutyReport} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="duty_date" required type="date" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="Duty date" />
+        <input name="dormitory" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
+        <input name="staff_on_duty" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Staff on duty" />
+        <input name="prefect" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Prefect / captain" />
+        <textarea name="notes" required rows={2} className="rounded-lg border border-border bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-4" placeholder="Dorm patrol notes, issues, and handover actions" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isSubmitting ? "Saving..." : "Add Report"}
         </button>
       </form>
@@ -762,7 +762,7 @@ function DutyWorkspace() {
           record.metadata?.staff_on_duty || record.owner_name || "-",
           record.metadata?.prefect || "-",
           <StatusChip key="s1" label={record.status} tone={record.status === "active" ? "info" : "success"}/>,
-          <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Duty report", [["Date", String(record.metadata?.duty_date ?? record.due_date ?? "-")], ["Dormitory", String(record.metadata?.dormitory ?? "-")], ["Staff", String(record.metadata?.staff_on_duty ?? record.owner_name ?? "-")], ["Prefect", String(record.metadata?.prefect ?? "-")], ["Notes", String(record.notes ?? "-")]])}>View Report</button>,
+          <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Duty report", [["Date", String(record.metadata?.duty_date ?? record.due_date ?? "-")], ["Dormitory", String(record.metadata?.dormitory ?? "-")], ["Staff", String(record.metadata?.staff_on_duty ?? record.owner_name ?? "-")], ["Prefect", String(record.metadata?.prefect ?? "-")], ["Notes", String(record.notes ?? "-")]])}>View Report</button>,
         ])}
       />
     </Panel>
@@ -798,7 +798,7 @@ function IncidentsWorkspace() {
   return (
     <Panel title="Dorm Incidents" description="Log boarding-related incidents in hostels or dormitories." icon={ShieldAlert}>
        <div className="mb-4 flex gap-2">
-           <button type="button" onClick={() => handleLogIncident()} disabled={isSubmitting} className="rounded-xl bg-rose-50 text-rose-700 border border-rose-200 px-3 py-2 text-sm font-black disabled:opacity-50">
+           <button type="button" onClick={() => handleLogIncident()} disabled={isSubmitting} className="rounded-xl bg-danger-soft text-danger border border-danger-border px-3 py-2 text-sm font-black disabled:opacity-50">
              {isSubmitting ? "Logging..." : "Log Incident"}
            </button>
        </div>
@@ -810,10 +810,10 @@ function IncidentsWorkspace() {
               `#${r.id.substring(0, 4)}`, r.title, r.owner_name || "-", r.metadata?.type || "-",
               <StatusChip key="s1" label={r.priority} tone={r.priority === 'critical' ? 'danger' : 'warning'}/>,
               r.status,
-              <button key="a1" type="button" onClick={() => handleLogIncident(r.id)} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Escalate</button>
+              <button key="a1" type="button" onClick={() => handleLogIncident(r.id)} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">Escalate</button>
             ])
           : [
-            ["#1042", "Peter Otieno", "St. Joseph", "Noise", <StatusChip key="s1" label="Medium" tone="warning"/>, "Open", <button key="a1" type="button" onClick={() => handleLogIncident("1042")} disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50">Escalate</button>],
+            ["#1042", "Peter Otieno", "St. Joseph", "Noise", <StatusChip key="s1" label="Medium" tone="warning"/>, "Open", <button key="a1" type="button" onClick={() => handleLogIncident("1042")} disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50">Escalate</button>],
           ]
         }
       />
@@ -877,13 +877,13 @@ function WelfareWorkspace() {
 
   return (
     <Panel title="Health & Welfare" description="Track boarding welfare concerns and sick bay coordination." icon={HeartPulse}>
-       <form onSubmit={handleAddWelfareNote} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="student_name" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Student name" />
-        <input name="dorm" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
-        <input name="concern_type" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Concern type" />
-        <input name="referred_to" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Referred to" />
-        <textarea name="notes" required rows={2} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-4" placeholder="Welfare note and follow-up action" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+       <form onSubmit={handleAddWelfareNote} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="student_name" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Student name" />
+        <input name="dorm" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
+        <input name="concern_type" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Concern type" />
+        <input name="referred_to" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Referred to" />
+        <textarea name="notes" required rows={2} className="rounded-lg border border-border bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-4" placeholder="Welfare note and follow-up action" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isSubmitting ? "Saving..." : "Add Note"}
         </button>
        </form>
@@ -896,7 +896,7 @@ function WelfareWorkspace() {
           record.notes || "-",
           record.metadata?.referred_to || "-",
           <StatusChip key="s1" label={record.status} tone={record.status === "referred" ? "info" : "warning"}/>,
-          <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Welfare note", [["Student", String(record.title ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Concern", String(record.metadata?.concern_type ?? "-")], ["Referred to", String(record.metadata?.referred_to ?? "-")], ["Note", String(record.notes ?? "-")]])}>View Note</button>,
+          <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Welfare note", [["Student", String(record.title ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Concern", String(record.metadata?.concern_type ?? "-")], ["Referred to", String(record.metadata?.referred_to ?? "-")], ["Note", String(record.notes ?? "-")]])}>View Note</button>,
         ])}
       />
     </Panel>
@@ -909,7 +909,7 @@ function MealsWorkspace() {
        <DataTable 
         columns={["Meal", "Date", "Expected", "Present", "On Leave", "Issues", "Actions"]}
         rows={[
-          ["Breakfast", "Today", "1,240", "1,190", "45", "0", <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Breakfast dining issue review", [["Meal", "Breakfast"], ["Date", "Today"], ["Expected", "1,240"], ["Present", "1,190"], ["On Leave", "45"], ["Issues", "0"]])}>View Issue</button>],
+          ["Breakfast", "Today", "1,240", "1,190", "45", "0", <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Breakfast dining issue review", [["Meal", "Breakfast"], ["Date", "Today"], ["Expected", "1,240"], ["Present", "1,190"], ["On Leave", "45"], ["Issues", "0"]])}>View Issue</button>],
         ]}
       />
     </Panel>
@@ -1000,14 +1000,14 @@ function InspectionsWorkspace() {
 
   return (
     <Panel title="Dorm Inspections" description="Cleanliness checks, room inspections, and hygiene." icon={CheckSquare}>
-       <form onSubmit={handleStartInspection} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-6">
-        <input name="inspection_date" required type="date" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="Inspection date" />
-        <input name="dorm" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
-        <input name="room" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Room" />
-        <input name="inspector" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Inspector" />
-        <input name="score" required type="number" min={0} max={100} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Score %" />
-        <textarea name="issues" rows={2} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-5" placeholder="Issues or follow-up actions" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+       <form onSubmit={handleStartInspection} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-6">
+        <input name="inspection_date" required type="date" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="Inspection date" />
+        <input name="dorm" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
+        <input name="room" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Room" />
+        <input name="inspector" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Inspector" />
+        <input name="score" required type="number" min={0} max={100} className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Score %" />
+        <textarea name="issues" rows={2} className="rounded-lg border border-border bg-white px-3 py-2 text-sm md:col-span-2 xl:col-span-5" placeholder="Issues or follow-up actions" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isSubmitting ? "Saving..." : "Start Inspection"}
         </button>
        </form>
@@ -1022,8 +1022,8 @@ function InspectionsWorkspace() {
           record.metadata?.issues || record.notes || "None",
           <StatusChip key="s1" label={record.status} tone={record.status === "completed" ? "success" : "warning"}/>,
           record.status === "requires_follow_up"
-            ? <button key="a1" type="button" disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50" onClick={() => handleCreateRepairRequest(record)}>Create Repair</button>
-            : <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Dorm inspection", [["Dorm", String(record.metadata?.dorm ?? "-")], ["Room", String(record.metadata?.room ?? "-")], ["Score", String(record.metadata?.score ?? record.metric_count ?? "-")], ["Issues", String(record.metadata?.issues ?? record.notes ?? "None")]])}>View</button>,
+            ? <button key="a1" type="button" disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50" onClick={() => handleCreateRepairRequest(record)}>Create Repair</button>
+            : <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Dorm inspection", [["Dorm", String(record.metadata?.dorm ?? "-")], ["Room", String(record.metadata?.room ?? "-")], ["Score", String(record.metadata?.score ?? record.metric_count ?? "-")], ["Issues", String(record.metadata?.issues ?? record.notes ?? "None")]])}>View</button>,
         ])}
       />
     </Panel>
@@ -1080,17 +1080,17 @@ function MaintenanceWorkspace() {
 
   return (
     <Panel title="Maintenance Requests" description="Report broken beds, doors, windows, lights, etc." icon={Wrench}>
-       <form onSubmit={handleCreateRepairRequest} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="dorm" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
-        <input name="room" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Room" />
-        <input name="issue" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Issue" />
-        <select name="priority" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" defaultValue="normal" aria-label="Repair priority">
+       <form onSubmit={handleCreateRepairRequest} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="dorm" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
+        <input name="room" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Room" />
+        <input name="issue" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Issue" />
+        <select name="priority" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" defaultValue="normal" aria-label="Repair priority">
           <option value="normal">Normal</option>
           <option value="high">High</option>
           <option value="critical">Critical</option>
         </select>
-        <input name="assigned_to" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Assigned to" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2 xl:col-span-1">
+        <input name="assigned_to" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Assigned to" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2 xl:col-span-1">
           {isSubmitting ? "Creating..." : "Create Repair Request"}
         </button>
        </form>
@@ -1104,7 +1104,7 @@ function MaintenanceWorkspace() {
           <StatusChip key="p1" label={record.priority === "high" ? "Urgent" : "Normal"} tone={record.priority === "high" ? "danger" : "neutral"}/>,
           record.metadata?.assigned_to || "-",
           record.status,
-          <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Repair request", [["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Room", String(record.metadata?.room ?? "-")], ["Issue", String(record.metadata?.issue ?? record.notes ?? "-")], ["Priority", String(record.priority ?? "-")], ["Assigned To", String(record.metadata?.assigned_to ?? "-")], ["Status", String(record.status ?? "-")]])}>View</button>,
+          <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Repair request", [["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Room", String(record.metadata?.room ?? "-")], ["Issue", String(record.metadata?.issue ?? record.notes ?? "-")], ["Priority", String(record.priority ?? "-")], ["Assigned To", String(record.metadata?.assigned_to ?? "-")], ["Status", String(record.status ?? "-")]])}>View</button>,
         ])}
       />
     </Panel>
@@ -1180,12 +1180,12 @@ function InventoryWorkspace() {
 
   return (
     <Panel title="Boarding Inventory" description="Tracks boarding-related items issued to dorms." icon={Package}>
-       <form onSubmit={handleRequestInventoryItems} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="item" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Item" />
-        <input name="quantity" required type="number" min={1} className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Quantity" />
-        <input name="dorm" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
-        <input name="reason" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Reason" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+       <form onSubmit={handleRequestInventoryItems} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="item" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Item" />
+        <input name="quantity" required type="number" min={1} className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Quantity" />
+        <input name="dorm" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Dormitory" />
+        <input name="reason" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Reason" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isSubmitting ? "Requesting..." : "Request Items"}
         </button>
        </form>
@@ -1199,8 +1199,8 @@ function InventoryWorkspace() {
           record.metadata?.reason || record.notes || "-",
           <StatusChip key="s1" label={record.status} tone={record.status === "received" ? "success" : "warning"}/>,
           record.status === "received"
-            ? <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Inventory receipt", [["Item", String(record.metadata?.item ?? record.title ?? "-")], ["Quantity", String(record.metadata?.quantity ?? record.metric_count ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Status", String(record.status ?? "-")]])}>View Receipt</button>
-            : <button key="a1" type="button" disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50" onClick={() => handleConfirmInventoryReceipt(record)}>Confirm Receipt</button>,
+            ? <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Inventory receipt", [["Item", String(record.metadata?.item ?? record.title ?? "-")], ["Quantity", String(record.metadata?.quantity ?? record.metric_count ?? "-")], ["Dorm", String(record.metadata?.dorm ?? record.owner_name ?? "-")], ["Status", String(record.status ?? "-")]])}>View Receipt</button>
+            : <button key="a1" type="button" disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50" onClick={() => handleConfirmInventoryReceipt(record)}>Confirm Receipt</button>,
         ])}
       />
     </Panel>
@@ -1277,13 +1277,13 @@ function VisitorsWorkspace() {
 
   return (
     <Panel title="Visitors & Gate Passes" description="Coordinates parent/guardian boarding visits and student pickups." icon={UserPlus}>
-       <form onSubmit={handleCreateGatePass} className="mb-5 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-5">
-        <input name="student_name" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Student name" />
-        <input name="guardian" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Guardian" />
-        <input name="purpose" required className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" placeholder="Purpose" />
-        <input name="valid_from" required type="datetime-local" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="Valid from" />
-        <input name="expected_return" type="datetime-local" className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm" aria-label="Expected return" />
-        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2 xl:col-span-1">
+       <form onSubmit={handleCreateGatePass} className="mb-5 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-5">
+        <input name="student_name" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Student name" />
+        <input name="guardian" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Guardian" />
+        <input name="purpose" required className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Purpose" />
+        <input name="valid_from" required type="datetime-local" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="Valid from" />
+        <input name="expected_return" type="datetime-local" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" aria-label="Expected return" />
+        <button type="submit" disabled={isSubmitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2 xl:col-span-1">
           {isSubmitting ? "Creating..." : "Create Gate Pass"}
         </button>
        </form>
@@ -1297,8 +1297,8 @@ function VisitorsWorkspace() {
           record.metadata?.valid_from || "-",
           <StatusChip key="s1" label={record.status} tone={record.status === "checked_out" ? "success" : "info"}/>,
           record.status === "checked_out"
-            ? <button key="a1" type="button" className="text-[#1D4ED8] font-bold text-xs" onClick={() => openBoardingActionRecord("Gate pass checkout", [["Student", String(record.metadata?.student_name ?? record.title ?? "-")], ["Guardian", String(record.metadata?.guardian ?? record.owner_name ?? "-")], ["Purpose", String(record.metadata?.purpose ?? record.notes ?? "-")], ["Expected Return", String(record.metadata?.expected_return ?? "-")], ["Status", String(record.status ?? "-")]])}>View Checkout</button>
-            : <button key="a1" type="button" disabled={isSubmitting} className="text-[#1D4ED8] font-bold text-xs disabled:opacity-50" onClick={() => handleRecordGatePassCheckout(record)}>Record Checkout</button>,
+            ? <button key="a1" type="button" className="text-info font-bold text-xs" onClick={() => openBoardingActionRecord("Gate pass checkout", [["Student", String(record.metadata?.student_name ?? record.title ?? "-")], ["Guardian", String(record.metadata?.guardian ?? record.owner_name ?? "-")], ["Purpose", String(record.metadata?.purpose ?? record.notes ?? "-")], ["Expected Return", String(record.metadata?.expected_return ?? "-")], ["Status", String(record.status ?? "-")]])}>View Checkout</button>
+            : <button key="a1" type="button" disabled={isSubmitting} className="text-info font-bold text-xs disabled:opacity-50" onClick={() => handleRecordGatePassCheckout(record)}>Record Checkout</button>,
         ])}
       />
     </Panel>
@@ -1366,8 +1366,8 @@ function ApprovalsWorkspace() {
           "Deputy Principal",
           <StatusChip key="s1" label={request.status} tone="warning"/>,
           <span key="a1" className="flex gap-2">
-            <button type="button" disabled={isSubmitting} className="text-emerald-700 font-bold text-xs disabled:opacity-50" onClick={() => handleApproveBoardingRequest(request)}>Approve</button>
-            <button type="button" disabled={isSubmitting} className="text-rose-700 font-bold text-xs disabled:opacity-50" onClick={() => handleRejectBoardingRequest(request)}>Reject</button>
+            <button type="button" disabled={isSubmitting} className="text-success font-bold text-xs disabled:opacity-50" onClick={() => handleApproveBoardingRequest(request)}>Approve</button>
+            <button type="button" disabled={isSubmitting} className="text-danger font-bold text-xs disabled:opacity-50" onClick={() => handleRejectBoardingRequest(request)}>Reject</button>
           </span>,
         ])}
       />
@@ -1383,13 +1383,13 @@ function ReportsWorkspace() {
     <Panel title="Reports & Downloads" description="Generates boarding reports for daily operations and audits." icon={FileText}>
        <div className="grid gap-4 md:grid-cols-3">
          {reports.map((report: any) => (
-           <button key={report.id || report.snapshot_id || report.title} type="button" className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition" onClick={() => openBoardingActionRecord(report.title || "Boarding report", [["Report", String(report.title ?? "-")], ["Status", String(report.status ?? "Ready")], ["Generated", String(report.created_at ?? "-")]])}>
+           <button key={report.id || report.snapshot_id || report.title} type="button" className="rounded-xl border border-border bg-white p-4 text-left font-bold text-foreground hover:border-primary transition" onClick={() => openBoardingActionRecord(report.title || "Boarding report", [["Report", String(report.title ?? "-")], ["Status", String(report.status ?? "Ready")], ["Generated", String(report.created_at ?? "-")]])}>
              {report.title || "Boarding report"}
-             <span className="mt-1 block text-xs font-semibold text-[#64748B]">{report.status || report.format || "Snapshot"}</span>
+             <span className="mt-1 block text-xs font-semibold text-muted">{report.status || report.format || "Snapshot"}</span>
            </button>
          ))}
          {["Daily roll call report", "Missing students report", "Leave-out report", "Late return trend", "Dorm repairs report"].map(r => (
-           <button key={r} type="button" className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left font-bold text-[#071D49] hover:border-[#071D49] transition" onClick={() => generateBoardingReport(r)}>{r}</button>
+           <button key={r} type="button" className="rounded-xl border border-border bg-surface-muted p-4 text-left font-bold text-foreground hover:border-primary transition" onClick={() => generateBoardingReport(r)}>{r}</button>
          ))}
        </div>
     </Panel>
@@ -1400,10 +1400,10 @@ function SettingsWorkspace() {
   return (
     <Panel title="Boarding Settings" description="Controls boarding-specific rules and notification rules." icon={Settings}>
        <div className="grid gap-4 md:grid-cols-2">
-         <div className="rounded-xl border border-[#D8E0EC] p-4">
-           <h3 className="font-bold text-[#071D49] mb-2">Notification Rules</h3>
-           <label className="flex items-center gap-2 text-sm text-[#334155] mb-2"><input type="checkbox" defaultChecked /> Notify parent for late return</label>
-           <label className="flex items-center gap-2 text-sm text-[#334155]"><input type="checkbox" defaultChecked /> Notify Deputy for missing roll call</label>
+         <div className="rounded-xl border border-border p-4">
+           <h3 className="font-bold text-foreground mb-2">Notification Rules</h3>
+           <label className="flex items-center gap-2 text-sm text-foreground mb-2"><input type="checkbox" defaultChecked /> Notify parent for late return</label>
+           <label className="flex items-center gap-2 text-sm text-foreground"><input type="checkbox" defaultChecked /> Notify Deputy for missing roll call</label>
          </div>
        </div>
     </Panel>
@@ -1462,9 +1462,9 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
   }
 
   return (
-    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-dvh bg-background">
       {/* Sidebar */}
-      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Boarding command" title="Boarding Master" subtitle="Dormitory and resident oversight" />
         <nav className="space-y-1" aria-label="Boarding master navigation">
           {navItems.map((item, index) => {
@@ -1493,30 +1493,30 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
       {/* Main Area */}
       <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
-        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">BM</div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">BM</div>
               <div>
-                <h1 className="text-sm font-black text-[#071D49]">Boarding operations controls</h1>
-                <p className="text-xs font-bold text-[#64748B]">Boarding Master · Term 2, 2026 · Week 6 · All Dormitories</p>
+                <h1 className="text-sm font-black text-foreground">Boarding operations controls</h1>
+                <p className="text-xs font-bold text-muted">Boarding Master · Term 2, 2026 · Week 6 · All Dormitories</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
                <div className="relative hidden w-full md:block xl:w-64">
-                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                  <input 
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="h-10 w-full rounded-xl border border-[#D8E0EC] pl-9 pr-4 text-sm outline-none focus:border-[#071D49]" 
+                   className="h-10 w-full rounded-xl border border-border pl-9 pr-4 text-sm outline-none focus:border-primary"
                    placeholder="Search student, adm, dorm, room..." 
                  />
                  {searchTerm.trim() && searchResults.length > 0 && (
-                   <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white border border-[#D8E0EC] rounded-xl shadow-xl z-30 p-2">
+                   <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white border border-border rounded-xl shadow-xl z-30 p-2">
                      {searchResults.map(r => (
-                       <button key={r.id} type="button" onClick={() => openSearchRecord(r)} className="w-full text-left p-2 hover:bg-[#F8FAFC] rounded-lg">
-                         <p className="font-bold text-[#071D49] text-sm">{r.label}</p>
-                         <p className="text-xs text-[#64748B]">{r.detail}</p>
+                       <button key={r.id} type="button" onClick={() => openSearchRecord(r)} className="w-full text-left p-2 hover:bg-surface-muted rounded-lg">
+                         <p className="font-bold text-foreground text-sm">{r.label}</p>
+                         <p className="text-xs text-muted">{r.detail}</p>
                        </button>
                      ))}
                    </div>
@@ -1528,7 +1528,7 @@ export function BoardingMasterCommandCenter({ routeMode, activeSection }: { rout
                  <ApprovalInbox />
                  <NotificationBell />
                </div>
-               <button type="button" onClick={() => openView("roll-call")} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[#071D49] px-4 text-sm font-black text-white sm:w-auto">Start Roll Call</button>
+               <button type="button" onClick={() => openView("roll-call")} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-black text-white sm:w-auto">Start Roll Call</button>
             </div>
           </div>
           {/* Mobile Nav Selector */}

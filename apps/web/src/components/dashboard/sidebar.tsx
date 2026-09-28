@@ -164,7 +164,7 @@ export function Sidebar({
       {/* Mobile overlay */}
       {mobileOpen ? (
         <div
-          className="fixed inset-0 z-40 bg-[#0f172a]/30 backdrop-blur-[2px] md:hidden"
+          className="fixed inset-0 z-40 bg-foreground/30 backdrop-blur-[2px] md:hidden"
           onClick={onMobileClose}
         >
           <aside

@@ -80,7 +80,7 @@ export function AuditLogsWorkspace({ model }: { model: unknown }) {
         </div>
       </div>
 
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <Card className="p-0 overflow-hidden">
         <div className="p-4 border-b flex items-center gap-4">

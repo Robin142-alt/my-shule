@@ -26,27 +26,27 @@ export function ClassesWorkspace() {
   return (
     <Panel title="My Classes" description="All classes, streams, and subjects assigned to you." icon={Users}>
       <div className="grid gap-3 sm:grid-cols-3 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Assigned Classes</p>
-          <p className="text-2xl font-black text-[#071D49]">
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Assigned Classes</p>
+          <p className="text-2xl font-black text-foreground">
             {isLoading ? "..." : stats.assignedClasses}
           </p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Total Learners Taught</p>
-          <p className="text-2xl font-black text-[#071D49]">
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Total Learners Taught</p>
+          <p className="text-2xl font-black text-foreground">
             {isLoading ? "..." : stats.totalLearnersTaught}
           </p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Average Attendance</p>
-          <p className="text-2xl font-black text-[#071D49]">
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Average Attendance</p>
+          <p className="text-2xl font-black text-foreground">
             {isLoading ? "..." : stats.averageAttendance}
           </p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load classes. Please retry.
         </div>
       ) : (

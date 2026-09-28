@@ -160,7 +160,7 @@ export function CurriculumCoverageWorkspace({
                           setSearch("");
                           setFilter("all");
                         }}
-                        className="ml-2 text-blue-700 underline"
+                        className="ml-2 text-info underline"
                       >
                         Clear filters
                       </button>

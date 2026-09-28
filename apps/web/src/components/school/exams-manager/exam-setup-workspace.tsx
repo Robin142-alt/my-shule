@@ -257,7 +257,7 @@ export function ExamSetupWorkspace() {
   };
 
   const setupWarning = !optionsLoading && !optionsError && !setupReady ? (
-    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+    <div className="mb-4 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
       Exam setup needs school data first:
       {!hasTerms ? " add an academic term;" : ""}
       {!hasSubjects ? " add subjects;" : ""}
@@ -274,14 +274,14 @@ export function ExamSetupWorkspace() {
     const emptyText = kind === "subjects" ? "No subjects configured yet" : "No classes configured yet";
 
     return (
-      <fieldset className="rounded-xl border border-[#D8E0EC] p-3 md:col-span-2">
-        <legend className="px-1 text-sm font-black text-[#334155]">{label} ({selected.length} selected)</legend>
+      <fieldset className="rounded-xl border border-border p-3 md:col-span-2">
+        <legend className="px-1 text-sm font-black text-foreground">{label} ({selected.length} selected)</legend>
         {list.length === 0 ? (
-          <p className="text-sm font-semibold text-amber-700">{emptyText}. Configure this in Principal setup first.</p>
+          <p className="text-sm font-semibold text-warning">{emptyText}. Configure this in Principal setup first.</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {list.map((item) => (
-              <label key={item.id} className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+              <label key={item.id} className="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
                 <input
                   type="checkbox"
                   checked={selected.includes(item.id)}
@@ -300,27 +300,27 @@ export function ExamSetupWorkspace() {
 
   const renderExamFields = () => (
     <div className="space-y-4">
-      {configuringExam && configuringExam.marks_count > 0 ? <p className="text-sm text-amber-800">This exam has saved results. Their subjects, classes, term, grading system and maximum marks are protected.</p> : null}
+      {configuringExam && configuringExam.marks_count > 0 ? <p className="text-sm text-warning">This exam has saved results. Their subjects, classes, term, grading system and maximum marks are protected.</p> : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-1 text-sm font-bold text-[#334155] md:col-span-2">
+        <label className="space-y-1 text-sm font-bold text-foreground md:col-span-2">
           Exam name
           <input
             value={form.name}
             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
             placeholder="Term 1 Opener"
             required
           />
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Academic term
           <select
             name="academic_term_id"
             value={form.academic_term_id}
             onChange={(event) => setForm((current) => ({ ...current, academic_term_id: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
             disabled={optionsLoading || termOptions.length === 0}
           >
             <option value="">{optionsLoading ? "Loading terms..." : termOptions.length === 0 ? "No academic terms configured" : "Select term"}</option>
@@ -328,12 +328,12 @@ export function ExamSetupWorkspace() {
           </select>
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Exam type
           <select
             value={form.exam_type}
             onChange={(event) => setForm((current) => ({ ...current, exam_type: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
           >
             {form.exam_type === "Exam cycle" ? <option value="Exam cycle">Exam cycle</option> : null}
             <option value="Opener">Opener</option>
@@ -345,45 +345,45 @@ export function ExamSetupWorkspace() {
           </select>
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Starts on
           <input
             type="date"
             value={form.starts_on}
             onChange={(event) => setForm((current) => ({ ...current, starts_on: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
             required
           />
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Ends on
           <input
             type="date"
             value={form.ends_on}
             onChange={(event) => setForm((current) => ({ ...current, ends_on: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
             required
           />
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Max marks
           <input
             type="number"
             min={1}
             value={form.max_marks}
             onChange={(event) => setForm((current) => ({ ...current, max_marks: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
           />
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Grading
           <select
             value={form.grading_system_id}
             onChange={(event) => setForm((current) => ({ ...current, grading_system_id: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
             disabled={optionsLoading || gradingSystemOptions.length === 0}
           >
             <option value="">{optionsLoading ? "Loading grading systems..." : gradingSystemOptions.length === 0 ? "No grading systems configured" : "Select grading system"}</option>
@@ -391,12 +391,12 @@ export function ExamSetupWorkspace() {
           </select>
         </label>
 
-        <label className="space-y-1 text-sm font-bold text-[#334155]">
+        <label className="space-y-1 text-sm font-bold text-foreground">
           Status
           <select
             value={form.status}
             onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}
-            className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
           >
             <option value="draft">Draft</option>
             <option value="submitted">Open for marks</option>
@@ -416,23 +416,23 @@ export function ExamSetupWorkspace() {
       description="Configure exam cycles, terms, subjects, classes, max marks, grading policy, and mark-entry readiness."
       icon={ClipboardList}
       actions={
-        <button type="button" onClick={openCreateForm} disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError) || !setupReady} title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
+        <button type="button" onClick={openCreateForm} disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError) || !setupReady} title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50">
           <Plus className="w-4 h-4" /> New Exam
         </button>
       }
     >
       {setupWarning}
-      {setupError ? <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+      {setupError ? <div role="alert" className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
         Exam configurations could not be loaded. <button type="button" onClick={() => void refetch()} className="font-bold underline">Retry exams</button>
       </div> : null}
 
       {optionsError ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
           <span>School setup options could not be loaded. Your saved configuration has not been removed.</span>
           <button
             type="button"
             onClick={() => void refetchOptions()}
-            className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-black text-rose-800 hover:bg-rose-100"
+            className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-black text-danger hover:bg-rose-100"
           >
             Retry
           </button>
@@ -440,49 +440,49 @@ export function ExamSetupWorkspace() {
       ) : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Exams</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_exams ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Exams</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_exams ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">In workflow</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : data?.metrics?.active_exams ?? 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">In workflow</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : data?.metrics?.active_exams ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Draft</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.draft_exams ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Draft</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.draft_exams ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Published/archived</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.completed_exams ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Published/archived</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.completed_exams ?? 0}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Exam Name</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Term</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Year</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Type</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Max Marks</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Grading</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Subjects</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Classes</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Status</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 text-right font-bold">Actions</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Exam Name</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Term</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Year</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Type</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Max Marks</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Grading</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Subjects</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Classes</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Status</th>
+              <th className="border-b border-border px-4 py-3 text-right font-bold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">Loading exam configurations...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">Loading exam configurations...</td></tr>
             ) : setupError ? <tr><td colSpan={10} className="px-4 py-8 text-center">Use Retry exams above to reload your school’s exams.</td></tr> : exams.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-8 text-center">
-                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-[#64748B]">
+                  <div className="mx-auto flex max-w-xl flex-col items-center gap-3 text-muted">
                     <div>
-                      <p className="font-black text-[#071D49]">No exams configured yet</p>
+                      <p className="font-black text-foreground">No exams configured yet</p>
                       <p className="mt-1 text-sm leading-6">
                         Create the first exam cycle with term, subjects, classes, max marks, and grading before marks entry, moderation, and report cards can run.
                       </p>
@@ -492,7 +492,7 @@ export function ExamSetupWorkspace() {
                       onClick={openCreateForm}
                       disabled={!canManage || !setupReady || optionsLoading || Boolean(optionsError)}
                       title={!setupReady ? "Complete term, subject, class, and grading setup first" : undefined}
-                      className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-black text-white hover:bg-blue-900 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus className="h-4 w-4" />
                       Create first exam cycle
@@ -502,15 +502,15 @@ export function ExamSetupWorkspace() {
               </tr>
             ) : (
               exams.map((exam) => (
-                <tr key={exam.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{exam.name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.term}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.year}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.type}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.max_marks}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.grading_system}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.subjects_count}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{exam.classes_count}</td>
+                <tr key={exam.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{exam.name}</td>
+                  <td className="px-4 py-3 text-muted">{exam.term}</td>
+                  <td className="px-4 py-3 text-muted">{exam.year}</td>
+                  <td className="px-4 py-3 text-muted">{exam.type}</td>
+                  <td className="px-4 py-3 text-muted">{exam.max_marks}</td>
+                  <td className="px-4 py-3 text-muted">{exam.grading_system}</td>
+                  <td className="px-4 py-3 text-muted">{exam.subjects_count}</td>
+                  <td className="px-4 py-3 text-muted">{exam.classes_count}</td>
                   <td className="px-4 py-3"><StatusChip label={exam.status} tone={getStatusTone(exam.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-3">
@@ -518,7 +518,7 @@ export function ExamSetupWorkspace() {
                       <button type="button" aria-label={`Delete ${exam.name}`} disabled={!canManage || !exam.can_delete}
                         title={!canManage ? "Exam management permission is required" : exam.delete_block_reason || "Delete this exam before results are entered"}
                         onClick={() => { setDeleteError(null); setDeletingExam(exam); }}
-                        className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-rose-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3 w-3" /> Delete</button>
+                        className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-danger hover:underline disabled:cursor-not-allowed disabled:opacity-50"><Trash2 className="h-3 w-3" /> Delete</button>
                     </div>
                     {exam.delete_block_reason ? <p className="max-w-xs whitespace-normal text-xs text-slate-500">{exam.delete_block_reason}</p> : null}
                   </td>
@@ -537,11 +537,11 @@ export function ExamSetupWorkspace() {
         size="lg"
         footer={
           <>
-            {formError ? <p role="alert" className="w-full text-sm font-semibold text-rose-700">{formError}</p> : null}
-            <button type="button" onClick={() => setIsCreateOpen(false)} disabled={isCreating} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+            {formError ? <p role="alert" className="w-full text-sm font-semibold text-danger">{formError}</p> : null}
+            <button type="button" onClick={() => setIsCreateOpen(false)} disabled={isCreating} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="exam-setup-create-form" disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="exam-setup-create-form" disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isCreating ? "Creating..." : "Create exam"}
             </button>
           </>
@@ -560,11 +560,11 @@ export function ExamSetupWorkspace() {
         size="lg"
         footer={
           <>
-            {formError ? <p role="alert" className="w-full text-sm font-semibold text-rose-700">{formError}</p> : null}
-            <button type="button" onClick={() => setConfiguringExam(null)} disabled={isConfiguring} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+            {formError ? <p role="alert" className="w-full text-sm font-semibold text-danger">{formError}</p> : null}
+            <button type="button" onClick={() => setConfiguringExam(null)} disabled={isConfiguring} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="exam-setup-configure-form" disabled={!canManage || isConfiguring || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="exam-setup-configure-form" disabled={!canManage || isConfiguring || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isConfiguring ? "Saving..." : "Save configuration"}
             </button>
           </>
@@ -582,7 +582,7 @@ export function ExamSetupWorkspace() {
         </>}
       >
         <p className="text-sm text-slate-700">This permanently removes the exam, its papers, mark-entry windows and timetable. Only exams with no entered results or student records can be deleted. This cannot be undone.</p>
-        {deleteError ? <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{deleteError}</p> : null}
+        {deleteError ? <p role="alert" className="mt-3 text-sm font-semibold text-danger">{deleteError}</p> : null}
       </Modal>
     </Panel>
   );

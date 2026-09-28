@@ -51,12 +51,12 @@ const EXPENSE_CATEGORIES = [
 
 function statusClasses(status: string) {
   if (status.toLowerCase() === "approved") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-success-border bg-success-soft text-success";
   }
   if (status.toLowerCase() === "rejected") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+    return "border-danger-border bg-danger-soft text-danger";
   }
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-warning-border bg-warning-soft text-warning";
 }
 
 function emptyDraft() {
@@ -144,17 +144,17 @@ export function ExpensesWorkspace() {
   }
 
   return (
-    <div className="space-y-5 text-[#071D49]">
+    <div className="space-y-5 text-foreground">
       <section className="rounded-xl border border-white/12 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Receipt className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.15em] text-[#1D4ED8]">Expenditure control</p>
+              <p className="text-xs font-black uppercase tracking-[0.15em] text-info">Expenditure control</p>
               <h2 className="mt-1 text-xl font-black">School expenses</h2>
-              <p className="mt-1 text-sm font-semibold text-[#64748B]">
+              <p className="mt-1 text-sm font-semibold text-muted">
                 Capture real expenditure, route it for approval, and retain a school-scoped register.
               </p>
             </div>
@@ -173,13 +173,13 @@ export function ExpensesWorkspace() {
       </section>
 
       {notice ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700" role="status">
+        <div className="rounded-xl border border-success-border bg-success-soft px-4 py-3 text-sm font-semibold text-success" role="status">
           {notice}
         </div>
       ) : null}
 
       {isError ? (
-        <section className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-700" role="alert">
+        <section className="rounded-xl border border-danger-border bg-danger-soft p-5 text-danger" role="alert">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             <div>
@@ -215,30 +215,30 @@ export function ExpensesWorkspace() {
               const Icon = card.icon;
               return (
                 <div key={card.label} className="rounded-xl border border-white/12 bg-white p-4 shadow-sm">
-                  <Icon className="h-5 w-5 text-[#1D4ED8]" aria-hidden="true" />
-                  <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">{card.label}</p>
+                  <Icon className="h-5 w-5 text-info" aria-hidden="true" />
+                  <p className="mt-3 text-xs font-black uppercase tracking-[0.12em] text-muted">{card.label}</p>
                   <p className="mt-1 text-2xl font-black">{isLoading ? "…" : card.value}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#64748B]">{card.helper}</p>
+                  <p className="mt-1 text-xs font-semibold text-muted">{card.helper}</p>
                 </div>
               );
             })}
           </section>
 
           <section className="overflow-hidden rounded-xl border border-white/12 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-[#D8E0EC] p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h3 className="font-black">Expense register</h3>
-                <p className="mt-1 text-sm font-semibold text-[#64748B]">Every record remains visible while approval is pending.</p>
+                <p className="mt-1 text-sm font-semibold text-muted">Every record remains visible while approval is pending.</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <label className="relative">
                   <span className="sr-only">Search expenses</span>
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-[#94A3B8]" aria-hidden="true" />
+                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted" aria-hidden="true" />
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search description or category"
-                    className="h-10 min-w-64 rounded-lg border border-[#C8D5EA] pl-9 pr-3 text-sm outline-none focus:border-blue-400"
+                    className="h-10 min-w-64 rounded-lg border border-border-strong pl-9 pr-3 text-sm outline-none focus:border-blue-400"
                   />
                 </label>
                 <label>
@@ -246,7 +246,7 @@ export function ExpensesWorkspace() {
                   <select
                     value={statusFilter}
                     onChange={(event) => setStatusFilter(event.target.value)}
-                    className="h-10 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-blue-400"
+                    className="h-10 rounded-lg border border-border-strong bg-white px-3 text-sm font-semibold outline-none focus:border-blue-400"
                   >
                     <option value="all">All statuses</option>
                     <option value="pending">Pending</option>
@@ -258,12 +258,12 @@ export function ExpensesWorkspace() {
             </div>
 
             {isLoading ? (
-              <div className="p-8 text-center text-sm font-semibold text-[#64748B]" aria-busy="true">Loading live expenses…</div>
+              <div className="p-8 text-center text-sm font-semibold text-muted" aria-busy="true">Loading live expenses…</div>
             ) : filteredItems.length === 0 ? (
               <div className="p-8 text-center">
-                <Receipt className="mx-auto h-8 w-8 text-[#94A3B8]" aria-hidden="true" />
+                <Receipt className="mx-auto h-8 w-8 text-muted" aria-hidden="true" />
                 <p className="mt-3 font-black">{items.length === 0 ? "No expenses have been submitted" : "No expenses match these filters"}</p>
-                <p className="mt-1 text-sm font-semibold text-[#64748B]">
+                <p className="mt-1 text-sm font-semibold text-muted">
                   {items.length === 0
                     ? "Submit the first expense to start an approval-traceable register."
                     : "Change the search text or status filter to see more records."}
@@ -273,7 +273,7 @@ export function ExpensesWorkspace() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="bg-[#F8FAFC] text-xs font-black uppercase tracking-[0.08em] text-[#64748B]">
+                  <thead className="bg-surface-muted text-xs font-black uppercase tracking-[0.08em] text-muted">
                     <tr>
                       <th className="px-4 py-3">Date</th>
                       <th className="px-4 py-3">Description</th>
@@ -282,10 +282,10 @@ export function ExpensesWorkspace() {
                       <th className="px-4 py-3">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E2E8F0]">
+                  <tbody className="divide-y divide-border">
                     {filteredItems.map((row) => (
-                      <tr key={row.id} className="hover:bg-[#F8FAFC]">
-                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-[#64748B]">{formatActivityDate(row.date)}</td>
+                      <tr key={row.id} className="hover:bg-surface-muted">
+                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-muted">{formatActivityDate(row.date)}</td>
                         <td className="max-w-md px-4 py-3 font-bold">{row.description}</td>
                         <td className="px-4 py-3 font-semibold capitalize">{row.category.replaceAll("_", " ")}</td>
                         <td className="whitespace-nowrap px-4 py-3 font-black">{formatMinorKes(row.amount_minor)}</td>
@@ -319,13 +319,13 @@ export function ExpensesWorkspace() {
         )}
       >
         <form id="accountant-expense-form" className="space-y-4" onSubmit={submitExpense}>
-          {submitError ? <div className="rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700" role="alert">{submitError}</div> : null}
+          {submitError ? <div className="rounded-lg bg-danger-soft p-3 text-sm font-semibold text-danger" role="alert">{submitError}</div> : null}
           <label className="block space-y-1.5 text-sm font-bold">
             <span>Category</span>
             <select
               value={draft.category}
               onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))}
-              className="h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm outline-none focus:border-blue-400"
+              className="h-11 w-full rounded-lg border border-border-strong bg-white px-3 text-sm outline-none focus:border-blue-400"
             >
               {EXPENSE_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
@@ -338,7 +338,7 @@ export function ExpensesWorkspace() {
               rows={3}
               maxLength={240}
               placeholder="What is being paid for, and why?"
-              className="w-full rounded-lg border border-[#C8D5EA] px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-border-strong px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
           </label>
           <label className="block space-y-1.5 text-sm font-bold">
@@ -348,7 +348,7 @@ export function ExpensesWorkspace() {
               onChange={(event) => setDraft((current) => ({ ...current, amount: event.target.value }))}
               inputMode="decimal"
               placeholder="12500"
-              className="h-11 w-full rounded-lg border border-[#C8D5EA] px-3 text-sm outline-none focus:border-blue-400"
+              className="h-11 w-full rounded-lg border border-border-strong px-3 text-sm outline-none focus:border-blue-400"
             />
           </label>
         </form>

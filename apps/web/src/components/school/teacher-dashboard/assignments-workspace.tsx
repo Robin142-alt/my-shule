@@ -69,24 +69,24 @@ function CreateAssignmentModal({ onClose }: { onClose: () => void }) {
     <Modal title="Create Assignment" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Title</label>
+          <label className="block text-sm font-bold text-foreground mb-1">Title</label>
           <input 
             required 
             type="text" 
             value={formData.title}
             onChange={e => setFormData({ ...formData, title: e.target.value })}
-            className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" 
+            className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary"
             placeholder="e.g. Algebra Chapter 4 Exercises" 
           />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Assigned class and subject</label>
+          <label className="block text-sm font-bold text-foreground mb-1">Assigned class and subject</label>
           <select
             required
             value={assignedClasses.find((item) => item.classSectionId === formData.classId && item.subjectId === formData.subjectId)?.id ?? ""}
             onChange={(event) => handleAssignmentChange(event.target.value)}
             disabled={teacherClassesQuery.isLoading || assignedClasses.length === 0}
-            className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm font-bold text-[#071D49] outline-none focus:border-[#071D49] disabled:cursor-not-allowed disabled:bg-[#F8FAFC] disabled:text-[#94A3B8]"
+            className="w-full rounded-xl border border-border bg-white p-3 text-sm font-bold text-foreground outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-muted"
           >
             <option value="">{teacherClassesQuery.isLoading ? "Loading assigned classes..." : "Select assigned class"}</option>
             {assignedClasses.map((assignment) => (
@@ -96,42 +96,42 @@ function CreateAssignmentModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
           {!teacherClassesQuery.isLoading && assignedClasses.length === 0 ? (
-            <p className="mt-2 text-xs font-bold text-amber-700">
+            <p className="mt-2 text-xs font-bold text-warning">
               No active class-subject allocation is assigned to this teacher. Deputy Principal or HOD must assign a class before homework can be published.
             </p>
           ) : null}
         </div>
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">Due Date</label>
+            <label className="block text-sm font-bold text-foreground mb-1">Due Date</label>
             <input
               required
               type="date"
               value={formData.dueDate}
               onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
-              className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]"
+              className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary"
             />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Instructions</label>
+          <label className="block text-sm font-bold text-foreground mb-1">Instructions</label>
           <textarea
             value={formData.description}
             onChange={e => setFormData({ ...formData, description: e.target.value })}
-            className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" 
+            className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary"
             rows={3}
             placeholder="Instructions, submission expectations, or reference pages."
           />
         </div>
         {actionError ? (
-          <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
+          <div className="flex gap-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-bold text-danger">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             {actionError}
           </div>
         ) : null}
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={createMutation.isPending || !canPublish} type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={createMutation.isPending || !canPublish} type="submit" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60">
             {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {createMutation.isPending ? "Publishing..." : "Publish Assignment"}
           </button>
@@ -172,23 +172,23 @@ export function AssignmentsWorkspace({
   return (
     <Panel title="Assignments & Homework" description="Create homework, track submissions, and grade assignments." icon={ClipboardCheck}>
       <div className="grid gap-3 sm:grid-cols-4 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Active Assignments</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : activeCount}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Active Assignments</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : activeCount}</p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Total Assignments</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : assignments?.length || 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Total Assignments</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : assignments?.length || 0}</p>
         </article>
       </div>
       <div className="mb-4">
         {hasPermission('teacher:write') && (
-          <button type="button" onClick={() => setIsModalOpen(true)} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Create Assignment</button>
+          <button type="button" onClick={() => setIsModalOpen(true)} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Create Assignment</button>
         )}
       </div>
       
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load assignments. Please retry.
         </div>
       ) : (

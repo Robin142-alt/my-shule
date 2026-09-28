@@ -40,7 +40,7 @@ export function MarkbookList({ sheets, drafts, view, onView, onOpen }: {
       {views.map(item => <button type="button" key={item.id} aria-pressed={view === item.id}
         onClick={() => { onView(item.id); setPage(0); }}
         className={cn("min-h-11 rounded-lg border px-3 text-sm font-medium focus:outline-blue-600",
-          view === item.id ? "border-[#071D49] bg-[#071D49] text-white" : "border-slate-300 bg-white text-slate-700")}>{item.label} ({item.count})</button>)}
+          view === item.id ? "border-primary bg-primary text-white" : "border-slate-300 bg-white text-slate-700")}>{item.label} ({item.count})</button>)}
     </div>
     <div className="grid gap-2 bg-slate-50/70 p-3 sm:grid-cols-3 sm:px-6">
       <label className="relative min-w-0"><Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
@@ -63,11 +63,11 @@ export function MarkbookList({ sheets, drafts, view, onView, onOpen }: {
       {filtered.slice(currentPage * 8, currentPage * 8 + 8).map(sheet => <li key={sheetKey(sheet)} className="flex flex-wrap items-center gap-3 p-4 sm:px-6">
         <div className="min-w-0 flex-1 basis-56">
           <p className="text-xs font-medium text-slate-500">{sheet.examName}</p>
-          <h3 className="mt-1 break-words text-base font-semibold text-[#071D49]">{sheet.subjectName} <span className="font-normal text-slate-600">· {sheet.className}{sheet.streamNames ? ` · ${sheet.streamNames}` : ""}</span></h3>
+          <h3 className="mt-1 break-words text-base font-semibold text-foreground">{sheet.subjectName} <span className="font-normal text-slate-600">· {sheet.className}{sheet.streamNames ? ` · ${sheet.streamNames}` : ""}</span></h3>
           <p className="mt-1 text-sm text-slate-500">{sheet.paperName} · {sheet.totalStudents} students · Out of {sheet.outOf}</p>
         </div>
         <div className="min-w-0 text-sm">
-          <p className={cn("font-medium", isSubmitted(sheet) ? "text-emerald-700" : "text-slate-700")}>
+          <p className={cn("font-medium", isSubmitted(sheet) ? "text-success" : "text-slate-700")}>
             {drafts.includes(sheetKey(sheet)) ? "Unsaved changes" : isSubmitted(sheet) ? "Submitted" : sheet.canEnter === false ? sheet.entryState : hasDraft(sheet) ? `${sheet.savedCount ?? sheet.enteredCount} saved · Editable draft` : "Not started"}
           </p>
           <p className="mt-1 text-xs text-slate-500">{isSubmitted(sheet) ? `Submitted ${markbookDate(sheet.submittedAt)}` : `Due ${markbookDate(sheet.deadline)}`}</p>

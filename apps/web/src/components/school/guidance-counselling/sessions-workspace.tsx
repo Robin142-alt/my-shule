@@ -122,24 +122,24 @@ export function SessionsWorkspace() {
           disabled={permissionsLoading || !canWrite || optionsQuery.isLoading || Boolean(optionsQuery.error)}
           onClick={() => setShowForm(true)}
           title={!permissionsLoading && !canWrite ? "Counselling write permission is required" : undefined}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> Schedule Session
         </button>
       }
     >
       {optionsQuery.error ? (
-        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="mb-4 rounded-xl border border-warning-border bg-warning-soft p-4 text-sm text-amber-900">
           Learner options could not be loaded, so scheduling is temporarily unavailable.
           <button type="button" onClick={() => void optionsQuery.refetch()} className="ml-2 font-black underline">Retry</button>
         </div>
       ) : null}
 
       {showForm ? (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="text-sm font-black text-[#071D49]">Schedule counselling session</h3>
+        <div className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
+          <h3 className="text-sm font-black text-foreground">Schedule counselling session</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Student *
               <select
                 aria-label="Student"
@@ -151,7 +151,7 @@ export function SessionsWorkspace() {
                 {(optionsQuery.data?.students ?? []).map((student) => <option key={student.id} value={student.id}>{student.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Linked referral
               <select
                 aria-label="Linked referral"
@@ -163,7 +163,7 @@ export function SessionsWorkspace() {
                 {referrals.map((referral) => <option key={referral.id} value={referral.id}>{referral.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Date and time *
               <input
                 aria-label="Date and time"
@@ -173,7 +173,7 @@ export function SessionsWorkspace() {
                 className={fieldClassName}
               />
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Location
               <input
                 aria-label="Location"
@@ -182,7 +182,7 @@ export function SessionsWorkspace() {
                 className={fieldClassName}
               />
             </label>
-            <label className="text-xs font-bold text-[#334155] md:col-span-2">
+            <label className="text-xs font-bold text-foreground md:col-span-2">
               Session agenda *
               <textarea
                 aria-label="Session agenda"
@@ -194,8 +194,8 @@ export function SessionsWorkspace() {
             </label>
           </div>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-            <button type="button" disabled={createSession.isPending} onClick={submitSession} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+            <button type="button" disabled={createSession.isPending} onClick={submitSession} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
               {createSession.isPending ? "Scheduling…" : "Schedule Session"}
             </button>
           </div>
@@ -211,28 +211,28 @@ export function SessionsWorkspace() {
       {readFailure ? (
         <WorkspaceFailure title="Counselling sessions could not be loaded." error={readFailure} onRetry={() => void refetch()} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <RecordTable className="w-full whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]"><tr>
+            <thead className="bg-surface-muted text-foreground"><tr>
               <th className="px-4 py-3 font-bold">Student</th><th className="px-4 py-3 font-bold">Class</th>
               <th className="px-4 py-3 font-bold">Counsellor</th><th className="px-4 py-3 font-bold">When</th>
               <th className="px-4 py-3 font-bold">Agenda</th><th className="px-4 py-3 font-bold">Status</th>
               <th className="px-4 py-3 font-bold">Action</th>
             </tr></thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading sessions…</td></tr> : null}
-              {!isLoading && items.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No counselling sessions have been scheduled for this school. Schedule the first session when a learner needs support.</td></tr> : null}
+              {isLoading ? <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading sessions…</td></tr> : null}
+              {!isLoading && items.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No counselling sessions have been scheduled for this school. Schedule the first session when a learner needs support.</td></tr> : null}
               {items.map((row) => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] align-top hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{row.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class || "—"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.counsellor}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.date} {row.time}</td>
-                  <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-[#64748B]">{row.agenda}{row.location ? ` · ${row.location}` : ""}</td>
+                <tr key={row.id} className="border-t border-border align-top hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{row.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{row.class || "—"}</td>
+                  <td className="px-4 py-3 text-muted">{row.counsellor}</td>
+                  <td className="px-4 py-3 text-muted">{row.date} {row.time}</td>
+                  <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-muted">{row.agenda}{row.location ? ` · ${row.location}` : ""}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={toneForStatus(row.status)} /></td>
                   <td className="px-4 py-3">
                     {canWrite && row.status.toLowerCase() === "scheduled" ? (
-                      <button type="button" disabled={completeSession.isPending} onClick={() => completeSession.mutate({ id: row.id })} className="font-black text-emerald-700 underline disabled:opacity-50">Mark complete</button>
+                      <button type="button" disabled={completeSession.isPending} onClick={() => completeSession.mutate({ id: row.id })} className="font-black text-success underline disabled:opacity-50">Mark complete</button>
                     ) : "—"}
                   </td>
                 </tr>

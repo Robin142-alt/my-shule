@@ -100,43 +100,43 @@ export function ReportsWorkspace() {
       description="Generate and download department reports."
       icon={FileText}
       actions={
-        <button type="button" onClick={handleGenerateReport} disabled={isGenerating} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        <button type="button" onClick={handleGenerateReport} disabled={isGenerating} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isGenerating ? "Generating..." : "Generate report"}
         </button>
       }
     >
-      <form onSubmit={handleLogDepartmentMeeting} className="mb-6 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2">
-        <label className="text-sm font-bold text-[#071D49]">
+      <form onSubmit={handleLogDepartmentMeeting} className="mb-6 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2">
+        <label className="text-sm font-bold text-foreground">
           Meeting title
-          <input name="meetingTitle" required className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Department moderation meeting" />
+          <input name="meetingTitle" required className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info" placeholder="Department moderation meeting" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Scheduled at
-          <input name="scheduledAt" required type="datetime-local" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" />
+          <input name="scheduledAt" required type="datetime-local" className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info" />
         </label>
-        <label className="text-sm font-bold text-[#071D49] md:col-span-2">
+        <label className="text-sm font-bold text-foreground md:col-span-2">
           Summary
-          <textarea name="summary" required rows={3} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Agenda, decisions, and follow-up actions" />
+          <textarea name="summary" required rows={3} className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info" placeholder="Agenda, decisions, and follow-up actions" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Attendees
-          <input name="attendees" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Teacher names or staff IDs" />
+          <input name="attendees" className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info" placeholder="Teacher names or staff IDs" />
         </label>
         <div className="flex items-end">
-          <button type="submit" disabled={isLoggingMeeting} className="w-full rounded-xl border border-[#0B63CE] bg-[#EEF5FF] px-4 py-2.5 text-sm font-black text-[#0B63CE] disabled:opacity-50">
+          <button type="submit" disabled={isLoggingMeeting} className="w-full rounded-xl border border-info bg-info-soft px-4 py-2.5 text-sm font-black text-info disabled:opacity-50">
             {isLoggingMeeting ? "Logging..." : "Log department meeting"}
           </button>
         </div>
       </form>
       <div className="grid gap-4 md:grid-cols-1 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Reports Generated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "reports_generated", items.length)}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Reports Generated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : metricFromData(data, "reports_generated", items.length)}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Title</th>
               <th className="px-4 py-3 font-bold">Generated At</th>
@@ -146,15 +146,15 @@ export function ReportsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No department reports yet. Generate a report after coverage, lesson-plan, or marks activity exists.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No department reports yet. Generate a report after coverage, lesson-plan, or marks activity exists.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["title", "name"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["generated_at", "created_at"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["type", "format"], "pdf")}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["title", "name"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["generated_at", "created_at"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["type", "format"], "pdf")}</td>
                   <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Generated")} tone={getStatusTone(fieldValue(row, ["status"], "Generated"))} /></td>
                 </tr>
               ))

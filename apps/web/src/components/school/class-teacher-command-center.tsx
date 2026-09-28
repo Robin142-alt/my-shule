@@ -83,26 +83,26 @@ function LearnerNoteModal({ open, draft, submitting, onChange, onClose, onSubmit
   return (
     <Modal open={open} title="Add class note" description="Save a school-scoped learner note with controlled staff visibility and an optional follow-up date." onClose={onClose} size="lg" footer={
       <>
-        <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50">Cancel</button>
-        <button type="button" onClick={onSubmit} disabled={submitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Saving..." : "Save Class Note"}</button>
+        <button type="button" onClick={onClose} disabled={submitting} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Cancel</button>
+        <button type="button" onClick={onSubmit} disabled={submitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Saving..." : "Save Class Note"}</button>
       </>
     }>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-bold text-[#071D49]">Note type
-          <select value={draft.note_type} onChange={(event) => update("note_type", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+        <label className="text-sm font-bold text-foreground">Note type
+          <select value={draft.note_type} onChange={(event) => update("note_type", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="general">General</option><option value="academic">Academic</option><option value="attendance">Attendance</option><option value="welfare">Welfare</option><option value="parent_follow_up">Parent follow-up</option>
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Visibility
-          <select value={draft.visibility} onChange={(event) => update("visibility", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+        <label className="text-sm font-bold text-foreground">Visibility
+          <select value={draft.visibility} onChange={(event) => update("visibility", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
             <option value="staff">Authorized staff</option><option value="class_teacher">Class teacher only</option><option value="leadership">School leadership</option>
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Note
-          <textarea value={draft.description} onChange={(event) => update("description", event.target.value)} className="mt-1 min-h-28 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" autoFocus />
+        <label className="text-sm font-bold text-foreground sm:col-span-2">Note
+          <textarea value={draft.description} onChange={(event) => update("description", event.target.value)} className="mt-1 min-h-28 w-full rounded-lg border border-border px-3 py-2 text-sm" autoFocus />
         </label>
-        <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Follow-up date
-          <input type="date" value={draft.follow_up_date} onChange={(event) => update("follow_up_date", event.target.value)} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="text-sm font-bold text-foreground sm:col-span-2">Follow-up date
+          <input type="date" value={draft.follow_up_date} onChange={(event) => update("follow_up_date", event.target.value)} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
         </label>
       </div>
     </Modal>
@@ -137,28 +137,28 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
 
   if (!learnerId) return null;
   return (
-    <><div className="fixed inset-0 z-50 flex justify-end bg-[#071D49]/20 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col border-l border-[#D8E0EC] overflow-y-auto">
-        <header className="sticky top-0 bg-white/95 backdrop-blur z-10 border-b border-[#D8E0EC] p-4 flex items-center justify-between">
+    <><div className="fixed inset-0 z-50 flex justify-end bg-primary/20 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col border-l border-border overflow-y-auto">
+        <header className="sticky top-0 bg-white/95 backdrop-blur z-10 border-b border-border p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-[#071D49] text-white flex items-center justify-center font-black">
+            <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-black">
               {learnerId.substring(0,2).toUpperCase()}
             </div>
             <div>
-              <h2 className="text-lg font-black text-[#071D49]">Learner Profile</h2>
-              <p className="text-xs font-semibold text-[#64748B]">{learnerId}</p>
+              <h2 className="text-lg font-black text-foreground">Learner Profile</h2>
+              <p className="text-xs font-semibold text-muted">{learnerId}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-[#F3F6FA] rounded-full transition text-[#64748B]">
+          <button type="button" onClick={onClose} className="p-2 hover:bg-background rounded-full transition text-muted">
             <X className="h-5 w-5" />
           </button>
         </header>
         <div className="p-4 space-y-6">
           <section className="space-y-3">
-             <h3 className="text-xs font-black uppercase tracking-widest text-[#64748B]">Quick Actions</h3>
+             <h3 className="text-xs font-black uppercase tracking-widest text-muted">Quick Actions</h3>
              <div className="flex flex-wrap gap-2">
-               <button type="button" className="rounded-full bg-[#071D49] px-3 py-1.5 text-xs font-black text-white" onClick={() => sendClassTeacherCommunication({ audience: "individual_parent", learnerId, subject: `Parent follow-up for ${learnerId}`, message: `${learnerId} needs a class teacher follow-up. Please check attendance, welfare, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent</button>
-               <button type="button" className="rounded-full border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]" onClick={() => setNoteOpen(true)}>Add Class Note</button>
+               <button type="button" className="rounded-full bg-primary px-3 py-1.5 text-xs font-black text-white" onClick={() => sendClassTeacherCommunication({ audience: "individual_parent", learnerId, subject: `Parent follow-up for ${learnerId}`, message: `${learnerId} needs a class teacher follow-up. Please check attendance, welfare, and academic notes in the parent portal.`, source: "class-teacher-learner-profile" })}>Message Parent</button>
+               <button type="button" className="rounded-full border border-border px-3 py-1.5 text-xs font-black text-foreground" onClick={() => setNoteOpen(true)}>Add Class Note</button>
              </div>
           </section>
         </div>
@@ -181,7 +181,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 
   return (
-    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-dvh bg-background">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <main className="app-command-main flex-1 min-w-0 flex flex-col">
         <Topbar activeView={activeView} onViewChange={setActiveView} />
@@ -222,7 +222,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
 
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
-    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Class command" title="Class Teacher Dashboard" subtitle="Assigned class and stream" />
       <nav className="space-y-1">
         {navItems.map((item, index) => {
@@ -249,11 +249,11 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
 
 function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (view: TeacherView) => void }) {
   return (
-    <header className="app-command-topbar app-compact-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
+    <header className="app-command-topbar app-compact-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">CT</div>
-          <p className="text-sm font-black text-[#071D49]">Class teacher controls</p>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">CT</div>
+          <p className="text-sm font-black text-foreground">Class teacher controls</p>
         </div>
         <div className="flex items-center gap-2">
           <TaskQueue />

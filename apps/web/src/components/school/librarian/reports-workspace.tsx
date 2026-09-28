@@ -59,25 +59,25 @@ export function ReportsWorkspace() {
     <Panel title="Library Reports" description="Generate and download library reports." icon={FileText}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Reports</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_reports ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Reports</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_reports ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">This Month</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.this_month ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">This Month</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.this_month ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Generating</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Generating</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
         </div>
       </div>
 
       {/* Generate report form */}
-      <div className="mb-6 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-5">
-        <h3 className="text-sm font-bold text-[#071D49] mb-3">Generate New Report</h3>
+      <div className="mb-6 rounded-xl border border-border bg-surface-muted p-5">
+        <h3 className="text-sm font-bold text-foreground mb-3">Generate New Report</h3>
         <div className="grid gap-3 md:grid-cols-3">
-          <select className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" value={reportType} onChange={(e) => setReportType(e.target.value)}>
+          <select className="rounded-lg border border-border px-3 py-2 text-sm" value={reportType} onChange={(e) => setReportType(e.target.value)}>
             <option value="circulation">Circulation Report</option>
             <option value="overdue">Overdue Books Report</option>
             <option value="inventory">Book Inventory Report</option>
@@ -86,48 +86,48 @@ export function ReportsWorkspace() {
             <option value="most_borrowed">Most Borrowed Books</option>
             <option value="stock_status">Stock Status Report</option>
           </select>
-          <select className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" value={period} onChange={(e) => setPeriod(e.target.value)}>
+          <select className="rounded-lg border border-border px-3 py-2 text-sm" value={period} onChange={(e) => setPeriod(e.target.value)}>
             <option value="today">Today</option>
             <option value="this_week">This Week</option>
             <option value="this_month">This Month</option>
             <option value="this_term">This Term</option>
             <option value="this_year">This Year</option>
           </select>
-          <button disabled={isGenerating} onClick={handleGenerate} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">{isGenerating ? "Generating..." : "Generate Report"}</button>
+          <button disabled={isGenerating} onClick={handleGenerate} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">{isGenerating ? "Generating..." : "Generate Report"}</button>
         </div>
       </div>
 
       {/* Reports table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Report Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Period</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Generated By</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Report Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Period</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Generated By</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading reports...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading reports...</td></tr>
             ) : reports.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No reports generated yet. Use the form above to generate your first library report.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No reports generated yet. Use the form above to generate your first library report.</td></tr>
             ) : (
               reports.map((r) => (
-                <tr key={r.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{r.report_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.report_type}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.period}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.generated_by}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.generated_at}</td>
+                <tr key={r.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{r.report_name}</td>
+                  <td className="px-4 py-3 text-muted">{r.report_type}</td>
+                  <td className="px-4 py-3 text-muted">{r.period}</td>
+                  <td className="px-4 py-3 text-muted">{r.generated_by}</td>
+                  <td className="px-4 py-3 text-muted">{r.generated_at}</td>
                   <td className="px-4 py-3"><StatusChip label={r.status} tone={getStatusTone(r.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {r.status === "Ready" && r.download_url ? (
-                      <a href={r.download_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs">
+                      <a href={r.download_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-info font-semibold text-xs">
                         <Download className="w-3 h-3" /> Download
                       </a>
                     ) : r.status === "Generating" ? (

@@ -54,7 +54,7 @@ export function MeetingsWorkspace() {
   if (isLoading) {
     return (
       <Panel title="Parent Meetings" description="Scheduled meetings with parents of your learners." icon={Users}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -62,7 +62,7 @@ export function MeetingsWorkspace() {
   if (error || !data) {
     return (
       <Panel title="Parent Meetings" description="Scheduled meetings with parents of your learners." icon={Users}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load meetings.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load meetings.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -72,26 +72,26 @@ export function MeetingsWorkspace() {
     <Panel title="Parent Meetings" description="Scheduled meetings with parents of your learners." icon={Users}>
       <div className="mb-4 flex justify-end">
          {canWrite ? (
-           <button type="button" disabled={!streamId || isRegisterLoading || learners.length === 0} className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setShowForm((current) => !current)}>{showForm ? "Cancel" : "Schedule Meeting"}</button>
+           <button type="button" disabled={!streamId || isRegisterLoading || learners.length === 0} className="rounded-lg bg-info px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setShowForm((current) => !current)}>{showForm ? "Cancel" : "Schedule Meeting"}</button>
          ) : null}
       </div>
       {showForm ? (
-        <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Agenda<input value={draft.agenda} onChange={(event) => setDraft((current) => ({ ...current, agenda: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2" /></label>
-          <label className="text-sm font-bold text-[#071D49]">Learner
-            <select value={draft.student_id} onChange={(event) => setDraft((current) => ({ ...current, student_id: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2">
+        <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-2">
+          <label className="text-sm font-bold text-foreground">Agenda<input value={draft.agenda} onChange={(event) => setDraft((current) => ({ ...current, agenda: event.target.value }))} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+          <label className="text-sm font-bold text-foreground">Learner
+            <select value={draft.student_id} onChange={(event) => setDraft((current) => ({ ...current, student_id: event.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2">
               <option value="">{isRegisterLoading ? "Loading assigned learners..." : "Select learner"}</option>
               {learners.map((learner) => <option key={learner.id} value={String(learner.id)}>{learner.name || learner.admissionNo || learner.id}</option>)}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Meeting notes<input value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2" /></label>
-          <label className="text-sm font-bold text-[#071D49]">Start date and time<input type="datetime-local" value={draft.start_time} onChange={(event) => setDraft((current) => ({ ...current, start_time: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2" /></label>
-          <div className="flex items-end"><button type="button" onClick={scheduleMeeting} disabled={submitting || !draft.student_id} className="w-full rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Scheduling..." : "Save Meeting"}</button></div>
+          <label className="text-sm font-bold text-foreground sm:col-span-2">Meeting notes<input value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+          <label className="text-sm font-bold text-foreground">Start date and time<input type="datetime-local" value={draft.start_time} onChange={(event) => setDraft((current) => ({ ...current, start_time: event.target.value }))} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+          <div className="flex items-end"><button type="button" onClick={scheduleMeeting} disabled={submitting || !draft.student_id} className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Scheduling..." : "Save Meeting"}</button></div>
         </div>
       ) : null}
-      <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-left text-sm text-[#071D49]">
-          <thead className="bg-[#F8FAFC]">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="p-3 font-semibold">Date</th>
               <th className="p-3 font-semibold">Time</th>
@@ -100,9 +100,9 @@ export function MeetingsWorkspace() {
               <th className="p-3 font-semibold">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {meetings.length === 0 ? (
-              <tr><td colSpan={5} className="p-6 text-center text-[#64748B]">No parent meetings are scheduled for this assigned class.</td></tr>
+              <tr><td colSpan={5} className="p-6 text-center text-muted">No parent meetings are scheduled for this assigned class.</td></tr>
             ) : meetings.map((row) => (
               <tr key={row.id}>
                 <td className="p-3">{row.date}</td>

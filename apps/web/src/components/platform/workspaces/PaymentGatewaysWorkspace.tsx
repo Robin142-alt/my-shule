@@ -150,7 +150,7 @@ export function PaymentGatewaysWorkspace() {
       <Modal open={isAddOpen} title={editingGatewayId ? "Edit Gateway" : "Add Gateway"} onClose={closeGatewayModal}>
         <form className="space-y-4" onSubmit={handleAddGateway}>
           {submitError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm text-danger">
               {submitError}
             </div>
           ) : null}

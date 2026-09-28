@@ -106,7 +106,7 @@ export function PwaInstallAction() {
 
       {showIosInstructions ? (
         <div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-[#071D49]/70 p-3 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-primary/70 p-3 backdrop-blur-sm sm:items-center"
           role="presentation"
           onMouseDown={(event) => {
             if (event.currentTarget === event.target) {
@@ -118,7 +118,7 @@ export function PwaInstallAction() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="ios-install-title"
-            className="w-full max-w-md rounded-3xl bg-white p-5 text-[#071D49] shadow-[0_30px_90px_rgba(0,0,0,0.32)]"
+            className="w-full max-w-md rounded-3xl bg-white p-5 text-foreground shadow-[0_30px_90px_rgba(0,0,0,0.32)]"
             style={{ marginBottom: "env(safe-area-inset-bottom)" }}
           >
             <div className="flex items-start justify-between gap-4">
@@ -135,19 +135,19 @@ export function PwaInstallAction() {
                 type="button"
                 aria-label="Close install instructions"
                 onClick={dismissIosInstructions}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#F3F4F6]"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-background"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
-            <ol className="mt-5 space-y-3 text-sm font-semibold leading-6 text-[#5F6F89]">
+            <ol className="mt-5 space-y-3 text-sm font-semibold leading-6 text-muted">
               <li className="flex gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#071D49] text-xs text-white">1</span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-xs text-white">1</span>
                 <span>Open the browser Share menu <Share className="ml-1 inline h-4 w-4 text-[#2563EB]" aria-hidden="true" />.</span>
               </li>
               <li className="flex gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#071D49] text-xs text-white">2</span>
-                <span>Choose <strong className="text-[#071D49]">Add to Home Screen</strong>, then confirm Add.</span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-xs text-white">2</span>
+                <span>Choose <strong className="text-foreground">Add to Home Screen</strong>, then confirm Add.</span>
               </li>
             </ol>
           </section>

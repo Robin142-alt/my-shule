@@ -147,11 +147,11 @@ const toneStyles: Record<
   accent: {
     border: "border-[#FF7A1A]/40",
     bg: "bg-[#FF7A1A]/14",
-    text: "text-[#FFE1C8]",
+    text: "text-inverse-accent",
     icon: "text-[#FFBC82]",
-    chip: "border-[#FF7A1A]/40 bg-[#FF7A1A]/16 text-[#FFE1C8]",
+    chip: "border-[#FF7A1A]/40 bg-[#FF7A1A]/16 text-inverse-accent",
     glow: "shadow-[0_0_42px_rgba(255,122,26,0.23)]",
-    dot: "bg-[#FF7A1A]",
+    dot: "bg-accent",
   },
   neutral: {
     border: "border-white/15",
@@ -770,13 +770,13 @@ function getSurfaceClasses(theme: StorekeeperTheme) {
     page:
       theme === "dark"
         ? "bg-[radial-gradient(circle_at_top_left,rgba(255,122,26,0.18),transparent_28%),linear-gradient(135deg,#061636_0%,#071D49_42%,#102A60_100%)] text-white"
-        : "bg-[radial-gradient(circle_at_top_left,rgba(255,122,26,0.16),transparent_30%),linear-gradient(135deg,#EEF4FF_0%,#E7ECF8_48%,#F8FBFF_100%)] text-[#071D49]",
+        : "bg-[radial-gradient(circle_at_top_left,rgba(255,122,26,0.16),transparent_30%),linear-gradient(135deg,#EEF4FF_0%,#E7ECF8_48%,#F8FBFF_100%)] text-foreground",
     card:
       theme === "dark"
         ? "border-white/12 bg-white/[0.075] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-xl"
-        : "border-[#C8D5EA] bg-white/82 shadow-[0_22px_60px_rgba(7,29,73,0.14)] backdrop-blur-xl",
+        : "border-border-strong bg-white/82 shadow-[0_22px_60px_rgba(7,29,73,0.14)] backdrop-blur-xl",
     muted: theme === "dark" ? "text-white/66" : "text-[#516488]",
-    strong: theme === "dark" ? "text-white" : "text-[#071D49]",
+    strong: theme === "dark" ? "text-white" : "text-foreground",
     soft:
       theme === "dark"
         ? "border-white/10 bg-white/[0.055]"
@@ -785,7 +785,7 @@ function getSurfaceClasses(theme: StorekeeperTheme) {
     input:
       theme === "dark"
         ? "border-white/12 bg-[#081A3D]/68 text-white placeholder:text-white/48"
-        : "border-[#C8D5EA] bg-white/86 text-[#071D49] placeholder:text-[#637393]",
+        : "border-border-strong bg-white/86 text-foreground placeholder:text-[#637393]",
   };
 }
 
@@ -828,7 +828,7 @@ function BarMiniChart({ values, tone }: { values: number[]; tone: Tone }) {
         : tone === "success"
           ? "bg-emerald-300"
           : tone === "accent"
-            ? "bg-[#FF7A1A]"
+            ? "bg-accent"
             : "bg-sky-300";
 
   return (
@@ -909,7 +909,7 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
               ? "border border-[#FF7A1A]/34 bg-[#FF7A1A]/12 text-[#FFE0C2]"
               : theme === "dark"
                 ? "text-white/72 hover:bg-white/10 hover:text-white"
-                : "text-[#516488] hover:bg-[#071D49]/7 hover:text-[#071D49]",
+                : "text-[#516488] hover:bg-primary/7 hover:text-foreground",
           );
 
           return item.href ? (
@@ -923,7 +923,7 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
           );
         })}
       </nav>
-      <div className={cn("mt-4 border-t pt-4", theme === "dark" ? "border-white/10" : "border-[#071D49]/10")}>
+      <div className={cn("mt-4 border-t pt-4", theme === "dark" ? "border-white/10" : "border-primary/10")}>
         <p className={cn("px-3 text-[10px] font-black uppercase tracking-[0.18em]", surface.muted)}>
           Support Center
         </p>
@@ -939,7 +939,7 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
                   "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition duration-200",
                   theme === "dark"
                     ? "text-white/72 hover:bg-white/10 hover:text-white"
-                    : "text-[#516488] hover:bg-[#071D49]/7 hover:text-[#071D49]",
+                    : "text-[#516488] hover:bg-primary/7 hover:text-foreground",
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -1011,7 +1011,7 @@ function Header({
                       key={record.id}
                       type="button"
                       onClick={() => onSearchResult(record)}
-                      className={cn("block w-full px-4 py-3 text-left text-sm transition hover:bg-[#FF7A1A]/12", theme === "dark" ? "text-white" : "text-[#071D49]")}
+                      className={cn("block w-full px-4 py-3 text-left text-sm transition hover:bg-[#FF7A1A]/12", theme === "dark" ? "text-white" : "text-foreground")}
                     >
                       <span className="block font-black">{record.label}</span>
                       <span className={cn("mt-1 block text-xs font-semibold", surface.muted)}>{record.detail}</span>
@@ -1097,7 +1097,7 @@ function HeroAlert({ alert, featured, theme }: { alert: (typeof heroAlerts)[numb
       <button
         type="button"
         onClick={() => announceAction(recordHeroAlertAction(alert))}
-        className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[#FF7A1A] px-4 py-2.5 text-sm font-black text-white shadow-[0_16px_36px_rgba(255,122,26,0.24)] transition group-hover:translate-x-1"
+        className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-accent px-4 py-2.5 text-sm font-black text-white shadow-[0_16px_36px_rgba(255,122,26,0.24)] transition group-hover:translate-x-1"
       >
         {alert.action}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -1238,7 +1238,7 @@ function ActivityFeed({ data, isLoading, theme }: { data: any, isLoading: boolea
                     .map((part: string) => part[0])
                     .join("")
                     .slice(0, 2)}
-                  <span className={cn("absolute -right-1 -top-1 h-3 w-3 rounded-full ring-2 ring-[#071D49]", toneStyles[item.tone as Tone].dot)} />
+                  <span className={cn("absolute -right-1 -top-1 h-3 w-3 rounded-full ring-2 ring-primary", toneStyles[item.tone as Tone].dot)} />
                 </div>
                 <div>
                   <p className="font-black">{item.action}</p>
@@ -1290,7 +1290,7 @@ function RequisitionPanel({ theme }: { theme: StorekeeperTheme }) {
             <button
               type="button"
               onClick={() => announceAction(recordBulkApprovalReview(activeRequisitions))}
-              className="rounded-2xl bg-[#FF7A1A] px-4 py-2 text-sm font-black text-white"
+              className="rounded-2xl bg-accent px-4 py-2 text-sm font-black text-white"
             >
               Bulk approve safe items
             </button>
@@ -1641,7 +1641,7 @@ function RightRail({ theme }: { theme: StorekeeperTheme }) {
 
 function MobileQuickActions({ routeMode }: { routeMode: StorekeeperRouteMode }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#071D49]/92 px-2 py-2 shadow-[0_-18px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl lg:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-primary/92 px-2 py-2 shadow-[0_-18px_50px_rgba(0,0,0,0.3)] backdrop-blur-xl lg:hidden">
       <div className="grid grid-cols-5 gap-1">
         {quickActions.map((action) => {
           const Icon = action.icon;
@@ -1866,48 +1866,48 @@ export function StorekeeperCommandCenter({
       {activeModal === "receive" && hasPermission('inventory:write') && (
         <Modal title="Receive Stock" open={true} onClose={() => setActiveModal(null)} size="md">
           <form className="space-y-4 p-4" onSubmit={(event) => submitStoreMovement(event, "receive")}>
-            <p className="text-sm font-semibold text-[#64748B]">
+            <p className="text-sm font-semibold text-muted">
               Receive stock into an existing inventory item. The backend updates stock balance, writes a movement record, emits audit evidence, and notifies leadership.
             </p>
             {storeMovementSetupMissing ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+              <div className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-amber-900">
                 Add the first inventory item before receiving stock.
               </div>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Inventory item
-                <select name="item_id" required disabled={isLoadingStoreItems || storeItemOptions.length === 0} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+                <select name="item_id" required disabled={isLoadingStoreItems || storeItemOptions.length === 0} className="rounded-xl border border-border bg-white px-3 py-2 text-sm disabled:bg-slate-100">
                   <option value="">{isLoadingStoreItems ? "Loading items..." : "Select item"}</option>
                   {storeItemOptions.map((option) => (
                     <option key={option.id} value={option.id}>{option.label}</option>
                   ))}
                 </select>
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Quantity received
-                <input name="quantity" required min="1" step="1" type="number" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="0" />
+                <input name="quantity" required min="1" step="1" type="number" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="0" />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 GRN / reference
-                <input name="reference" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="GRN-2026-001" />
+                <input name="reference" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="GRN-2026-001" />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Supplier
-                <input name="counterparty" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Supplier name" />
+                <input name="counterparty" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="Supplier name" />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+              <label className="grid gap-1 text-sm font-bold text-foreground sm:col-span-2">
                 Department / store
-                <input name="department" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Main store, Kitchen, Lab..." />
+                <input name="department" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="Main store, Kitchen, Lab..." />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+              <label className="grid gap-1 text-sm font-bold text-foreground sm:col-span-2">
                 Notes
-                <textarea name="notes" rows={3} className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Delivery condition, invoice note, verifier..." />
+                <textarea name="notes" rows={3} className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="Delivery condition, invoice note, verifier..." />
               </label>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">Cancel</button>
-              <button type="submit" disabled={modalSubmitting || isLoadingStoreItems || storeMovementSetupMissing} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+              <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={modalSubmitting || isLoadingStoreItems || storeMovementSetupMissing} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
                 {modalSubmitting ? "Receiving..." : "Receive stock"}
               </button>
             </div>
@@ -1917,48 +1917,48 @@ export function StorekeeperCommandCenter({
       {activeModal === "issue" && hasPermission('inventory:write') && (
         <Modal title="Issue Item" open={true} onClose={() => setActiveModal(null)} size="md">
           <form className="space-y-4 p-4" onSubmit={(event) => submitStoreMovement(event, "issue")}>
-            <p className="text-sm font-semibold text-[#64748B]">
+            <p className="text-sm font-semibold text-muted">
               Issue stock to a department or staff member. The backend checks available quantity, updates balance, records the movement, and keeps the audit trail tenant-scoped.
             </p>
             {storeMovementSetupMissing ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+              <div className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-amber-900">
                 Add the first inventory item before issuing stock.
               </div>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Inventory item
-                <select name="item_id" required disabled={isLoadingStoreItems || storeItemOptions.length === 0} className="rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+                <select name="item_id" required disabled={isLoadingStoreItems || storeItemOptions.length === 0} className="rounded-xl border border-border bg-white px-3 py-2 text-sm disabled:bg-slate-100">
                   <option value="">{isLoadingStoreItems ? "Loading items..." : "Select item"}</option>
                   {storeItemOptions.map((option) => (
                     <option key={option.id} value={option.id}>{option.label}</option>
                   ))}
                 </select>
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Quantity issued
-                <input name="quantity" required min="1" step="1" type="number" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="0" />
+                <input name="quantity" required min="1" step="1" type="number" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="0" />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Issue reference
-                <input name="reference" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="ISS-2026-001" />
+                <input name="reference" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="ISS-2026-001" />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49]">
+              <label className="grid gap-1 text-sm font-bold text-foreground">
                 Issued to
-                <input name="counterparty" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Staff, department, or requester" />
+                <input name="counterparty" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="Staff, department, or requester" />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+              <label className="grid gap-1 text-sm font-bold text-foreground sm:col-span-2">
                 Department
-                <input name="department" className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Kitchen, Lab, Boarding..." />
+                <input name="department" className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="Kitchen, Lab, Boarding..." />
               </label>
-              <label className="grid gap-1 text-sm font-bold text-[#071D49] sm:col-span-2">
+              <label className="grid gap-1 text-sm font-bold text-foreground sm:col-span-2">
                 Notes
-                <textarea name="notes" rows={3} className="rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Purpose, approval note, requisition link..." />
+                <textarea name="notes" rows={3} className="rounded-xl border border-border px-3 py-2 text-sm" placeholder="Purpose, approval note, requisition link..." />
               </label>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50">Cancel</button>
-              <button type="submit" disabled={modalSubmitting || isLoadingStoreItems || storeMovementSetupMissing} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+              <button type="button" disabled={modalSubmitting} onClick={() => setActiveModal(null)} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground disabled:opacity-50">Cancel</button>
+              <button type="submit" disabled={modalSubmitting || isLoadingStoreItems || storeMovementSetupMissing} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
                 {modalSubmitting ? "Issuing..." : "Issue item"}
               </button>
             </div>

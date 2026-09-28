@@ -30,7 +30,7 @@ export function InstalledPublicSiteRedirect({
   return (
     <div
       ref={coverRef}
-      className="installed-public-site-cover fixed inset-0 z-[100] min-h-dvh flex-col items-center justify-center bg-[#071D49] px-6 text-center text-white"
+      className="installed-public-site-cover fixed inset-0 z-[100] min-h-dvh flex-col items-center justify-center bg-primary px-6 text-center text-white"
       role="status"
       aria-live="polite"
       data-testid="installed-public-site-redirect"

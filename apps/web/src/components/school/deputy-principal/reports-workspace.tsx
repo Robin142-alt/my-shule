@@ -84,7 +84,7 @@ export function DeputyReportsDownloadsWorkspace() {
   if (error) {
     return (
       <Panel title="Reports & Downloads" description="Generate and download verified Deputy Principal report artifacts." icon={AlertCircle}>
-        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <span>The tenant-scoped report list could not be loaded.</span>
           <button type="button" onClick={() => void refetch()} className="font-black underline">Retry</button>
         </div>
@@ -97,43 +97,43 @@ export function DeputyReportsDownloadsWorkspace() {
       <button 
         onClick={handleGenerate} 
         disabled={isSubmitting}
-        className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+        className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
       >
         {isSubmitting ? "Generating..." : "Generate XLSX Report"}
       </button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Reports Generated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.generated_reports || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Reports Generated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.generated_reports || 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Report Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Format</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Report Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Format</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading verified reports...</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">Loading verified reports...</td>
               </tr>
             ) : reports.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No report has been generated for this school. Generate the first XLSX artifact from live Deputy Principal operational data.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">No report has been generated for this school. Generate the first XLSX artifact from live Deputy Principal operational data.</td>
               </tr>
             ) : (
               reports.map((rep) => (
-                <tr key={rep.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{rep.reportName}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{rep.generatedDate}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{rep.type}</td>
+                <tr key={rep.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{rep.reportName}</td>
+                  <td className="px-4 py-3 text-muted">{rep.generatedDate}</td>
+                  <td className="px-4 py-3 text-muted">{rep.type}</td>
                   <td className="px-4 py-3"><StatusChip label={rep.status} tone={getTone(rep.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {rep.status === "Ready" ? (
@@ -141,7 +141,7 @@ export function DeputyReportsDownloadsWorkspace() {
                         type="button"
                         disabled={downloadingId !== null}
                         onClick={() => void downloadReport(rep)}
-                        className="text-xs font-semibold text-blue-600 hover:underline disabled:text-[#94A3B8]"
+                        className="text-xs font-semibold text-blue-600 hover:underline disabled:text-muted"
                       >
                         {downloadingId === rep.id ? "Verifying..." : "Download"}
                       </button>

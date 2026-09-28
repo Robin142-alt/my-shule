@@ -99,31 +99,31 @@ const navItems: NavItem[] = [
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
-    card: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    card: "border-success-border bg-success-soft text-emerald-900",
+    chip: "border-success-border bg-success-soft text-success",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
   },
   info: {
-    card: "border-blue-200 bg-blue-50 text-blue-950",
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
+    card: "border-info-border bg-info-soft text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
   },
   warning: {
-    card: "border-amber-200 bg-amber-50 text-amber-950",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    card: "border-warning-border bg-warning-soft text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
   },
   danger: {
-    card: "border-rose-200 bg-rose-50 text-rose-950",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    card: "border-danger-border bg-danger-soft text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
   },
   neutral: {
-    card: "border-slate-200 bg-white text-[#071D49]",
+    card: "border-slate-200 bg-white text-foreground",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
     text: "text-slate-600",
@@ -217,17 +217,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
@@ -359,39 +359,39 @@ function RealDataTable({
 
   if (columns.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] py-16 text-center">
-        <Settings className="h-12 w-12 text-[#94A3B8]" />
-        <h3 className="mt-4 text-lg font-bold text-[#071D49]">Configuration View</h3>
-        <p className="mt-2 text-sm text-[#64748B]">Manage settings here.</p>
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted py-16 text-center">
+        <Settings className="h-12 w-12 text-muted" />
+        <h3 className="mt-4 text-lg font-bold text-foreground">Configuration View</h3>
+        <p className="mt-2 text-sm text-muted">Manage settings here.</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] py-16 text-center">
-        <Loader2 className="h-8 w-8 text-[#1D4ED8] animate-spin" />
-        <p className="mt-2 text-sm text-[#64748B]">Loading data...</p>
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted py-16 text-center">
+        <Loader2 className="h-8 w-8 text-info animate-spin" />
+        <p className="mt-2 text-sm text-muted">Loading data...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-rose-200 bg-rose-50 py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-danger-border bg-danger-soft py-16 text-center">
         <AlertTriangle className="h-8 w-8 text-rose-500" />
-        <p className="mt-2 text-sm text-rose-700">{error}</p>
-        <button type="button" onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-white border border-rose-200 rounded-lg text-sm text-rose-700 hover:bg-rose-100 transition">Retry</button>
+        <p className="mt-2 text-sm text-danger">{error}</p>
+        <button type="button" onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-white border border-danger-border rounded-lg text-sm text-danger hover:bg-rose-100 transition">Retry</button>
       </div>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#D8E0EC] bg-[#F8FAFC] py-16 text-center">
-        <EmptyIcon className="h-12 w-12 text-[#94A3B8]" />
-        <h3 className="mt-4 text-lg font-bold text-[#071D49]">{emptyMessage}</h3>
-        <p className="mt-2 text-sm text-[#64748B]">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-muted py-16 text-center">
+        <EmptyIcon className="h-12 w-12 text-muted" />
+        <h3 className="mt-4 text-lg font-bold text-foreground">{emptyMessage}</h3>
+        <p className="mt-2 text-sm text-muted">
           There are no items to display.
         </p>
       </div>
@@ -399,18 +399,18 @@ function RealDataTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#E2E8F0] mt-4">
-      <table className="w-full text-left text-sm text-[#64748B]">
-        <thead className="bg-[#F8FAFC] text-xs font-bold uppercase text-[#0F172A]">
+    <div className="overflow-x-auto rounded-xl border border-border mt-4">
+      <table className="w-full text-left text-sm text-muted">
+        <thead className="bg-surface-muted text-xs font-bold uppercase text-foreground">
           <tr>
             {columns.map((col, idx) => (
-              <th key={idx} className="px-4 py-3 border-b border-[#E2E8F0] whitespace-nowrap">{col}</th>
+              <th key={idx} className="px-4 py-3 border-b border-border whitespace-nowrap">{col}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {data.map((row, rowIdx) => (
-            <tr key={rowIdx} className="border-b border-[#E2E8F0] hover:bg-[#F8FAFC]">
+            <tr key={rowIdx} className="border-b border-border hover:bg-surface-muted">
               {columns.map((col, idx) => {
                 if (col === 'Actions') {
                   return (
@@ -422,7 +422,7 @@ function RealDataTable({
                                 type="button"
                                 onClick={() => handleSecretaryTableAction(act, row)}
                                 disabled={pendingRowAction === `${act}:${describeRow(row)}`}
-                                className="text-xs font-semibold text-[#1D4ED8] hover:underline whitespace-nowrap disabled:cursor-wait disabled:text-[#94A3B8]"
+                                className="text-xs font-semibold text-info hover:underline whitespace-nowrap disabled:cursor-wait disabled:text-muted"
                               >
                                 {pendingRowAction === `${act}:${describeRow(row)}` ? "Working..." : act}
                               </button>
@@ -453,9 +453,9 @@ function RealDataTable({
               <div className="max-h-[70vh] overflow-y-auto p-6">
                 <dl className="grid gap-3">
                   {Object.entries(selectedRowDetails.row || {}).map(([key, value]) => (
-                    <div key={key} className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                      <dt className="text-xs font-black uppercase tracking-wide text-[#64748B]">{key.replace(/_/g, " ")}</dt>
-                      <dd className="mt-1 break-words text-sm font-semibold text-[#071D49]">
+                    <div key={key} className="rounded-xl border border-border bg-surface-muted p-3">
+                      <dt className="text-xs font-black uppercase tracking-wide text-muted">{key.replace(/_/g, " ")}</dt>
+                      <dd className="mt-1 break-words text-sm font-semibold text-foreground">
                         {typeof value === "object" ? JSON.stringify(value) : String(value ?? "-")}
                       </dd>
                     </div>
@@ -478,39 +478,39 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
   return (
     <Panel title="Overview" description="Shows what needs attention today." icon={Home}>
       {error && (
-        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 p-4 flex justify-between items-center text-rose-700 text-sm">
+        <div className="mb-6 rounded-xl border border-danger-border bg-danger-soft p-4 flex justify-between items-center text-danger text-sm">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
             {error instanceof Error ? error.message : String(error)}
           </div>
-          <button className="bg-white border border-rose-200 px-3 py-1.5 rounded-lg font-semibold hover:bg-rose-100" onClick={() => window.location.reload()}>Retry</button>
+          <button className="bg-white border border-danger-border px-3 py-1.5 rounded-lg font-semibold hover:bg-rose-100" onClick={() => window.location.reload()}>Retry</button>
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("queue")}>
-          <div className="text-sm font-semibold text-[#64748B]">Parents Waiting</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("queue")}>
+          <div className="text-sm font-semibold text-muted">Parents Waiting</div>
           <div className="mt-1 text-2xl font-black text-rose-600">{loading ? "-" : (data?.parentsWaiting || 0)}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("visitor_register")}>
-          <div className="text-sm font-semibold text-[#64748B]">Visitors On Site</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("visitor_register")}>
+          <div className="text-sm font-semibold text-muted">Visitors On Site</div>
           <div className="mt-1 text-2xl font-black text-blue-600">{loading ? "-" : (data?.active_visitors || 0)}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("appointments")}>
-          <div className="text-sm font-semibold text-[#64748B]">Today's Appts</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("appointments")}>
+          <div className="text-sm font-semibold text-muted">Today's Appts</div>
           <div className="mt-1 text-2xl font-black text-emerald-600">{loading ? "-" : (data?.today_appointments || 0)}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("letters")}>
-          <div className="text-sm font-semibold text-[#64748B]">Pending Letters</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("letters")}>
+          <div className="text-sm font-semibold text-muted">Pending Letters</div>
           <div className="mt-1 text-2xl font-black text-amber-600">{loading ? "-" : (data?.pendingLetters || 0)}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("calls_log")}>
-          <div className="text-sm font-semibold text-[#64748B]">Missed Calls</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("calls_log")}>
+          <div className="text-sm font-semibold text-muted">Missed Calls</div>
           <div className="mt-1 text-2xl font-black text-rose-600">{loading ? "-" : (data?.missedCalls || 0)}</div>
         </div>
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-[#D8E0EC]">
-          <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] font-bold text-[#071D49]">
+        <div className="rounded-xl border border-border">
+          <div className="bg-surface-muted px-4 py-3 border-b border-border font-bold text-foreground">
             Today's Front Desk Queue
           </div>
           <RealDataTable 
@@ -523,11 +523,11 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
             emptyMessage="No one is waiting at reception."
           />
         </div>
-        <div className="rounded-xl border border-[#D8E0EC]">
-          <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] font-bold text-[#071D49]">
+        <div className="rounded-xl border border-border">
+          <div className="bg-surface-muted px-4 py-3 border-b border-border font-bold text-foreground">
             Urgent Follow-ups
           </div>
-          <div className="p-4 text-sm text-[#64748B]">
+          <div className="p-4 text-sm text-muted">
             {loading ? "Loading..." : "No urgent items."}
           </div>
         </div>
@@ -541,7 +541,7 @@ function QueueWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => void
   const data = rawData || [];
 
   return (
-    <Panel title="Front Office Queue" description="Manages all people coming physically to the school office." icon={Users} actions={<button type="button" onClick={() => onNavigate("visitor_register")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Add Walk-in Ticket</button>}>
+    <Panel title="Front Office Queue" description="Manages all people coming physically to the school office." icon={Users} actions={<button type="button" onClick={() => onNavigate("visitor_register")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> Add Walk-in Ticket</button>}>
       <RealDataTable 
         columns={["Ticket No.","Time In","Name","Phone","Type","Purpose","Linked Student","Assigned To","Waiting Time","Status","Actions"]} 
         actions={["View","Call Next","Start Service","Assign Office","Mark Served","Escalate","Print Slip","Cancel"]} 
@@ -600,27 +600,27 @@ function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   return (
     <Modal title="Register Parent Request" open={true} onClose={onClose} size="md">
       <form onSubmit={handleRegisterParentRequest} className="p-6 space-y-4">
-        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        {error ? <div className="rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Exact parent / guardian
-            <input name="parent_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Linked guardian full name" />
+            <input name="parent_name" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Linked guardian full name" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Phone number
-            <input name="phone_number" type="tel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+            <input name="phone_number" type="tel" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="+254..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Student name or admission number
-            <input name="student_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Exact learner name or admission number" />
+            <input name="student_name" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Exact learner name or admission number" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Class / stream
-            <input name="class_name" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Grade 6 Blue" />
+            <input name="class_name" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Grade 6 Blue" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Request type
-            <select name="request_type" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="request_type" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="">Select request...</option>
               <option value="Appointment">Appointment</option>
               <option value="Document">Document request</option>
@@ -630,22 +630,22 @@ function ParentRequestModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               <option value="General">General enquiry</option>
             </select>
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Assigned to
-            <input name="assigned_to" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Principal, bursar, class teacher..." />
+            <input name="assigned_to" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Principal, bursar, class teacher..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49] sm:col-span-2">
+          <label className="block text-sm font-bold text-foreground sm:col-span-2">
             Follow-up deadline
-            <input name="follow_up_deadline" type="datetime-local" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <input name="follow_up_deadline" type="datetime-local" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Request notes
-          <textarea name="notes" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Capture what the parent needs, the expected owner, and any agreed next step." />
+          <textarea name="notes" required rows={4} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Capture what the parent needs, the expected owner, and any agreed next step." />
         </label>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Registering..." : "Register Request"}
           </button>
         </div>
@@ -687,7 +687,7 @@ function ParentDeskWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) =>
 
   return (
     <>
-      <Panel title="Parent & Guardian Desk" description="Handles parent-facing office requests." icon={UserCircle} actions={<button type="button" onClick={() => setIsParentRequestOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Register Parent Request</button>}>
+      <Panel title="Parent & Guardian Desk" description="Handles parent-facing office requests." icon={UserCircle} actions={<button type="button" onClick={() => setIsParentRequestOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> Register Parent Request</button>}>
         <RealDataTable 
           columns={["Request No.","Parent Name","Phone","Student","Class","Request Type","Assigned To","Status","Date","Actions"]} 
           actions={["View","Assign","Reply","Mark Resolved","Create Appointment","Print Summary","Escalate"]} 
@@ -710,10 +710,10 @@ function StudentLookupWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView)
   return (
     <Panel title="Student Quick Lookup" description="Search and view student profiles." icon={Search} actions={
       <div className="relative w-64">
-        <label className="flex min-h-10 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-3 text-[#64748B] shadow-[inset_0_1px_2px_rgba(7,29,73,0.05)] focus-within:border-[#1D4ED8] focus-within:ring-1 focus-within:ring-[#1D4ED8] focus-within:bg-white transition">
-          <Search className="h-4 w-4 shrink-0 text-[#94A3B8]" />
+        <label className="flex min-h-10 items-center gap-3 rounded-xl border border-border bg-surface-muted px-3 text-muted shadow-[inset_0_1px_2px_rgba(7,29,73,0.05)] focus-within:border-info focus-within:ring-1 focus-within:ring-focus focus-within:bg-white transition">
+          <Search className="h-4 w-4 shrink-0 text-muted" />
           <input
-            className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#94A3B8]"
+            className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted"
             placeholder="Search by name, ID, class..."
           />
         </label>
@@ -763,22 +763,22 @@ function LogVisitorModal({ onClose, onSuccess }: { onClose: () => void, onSucces
   return (
     <Modal title="New Visitor Sign-In" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {error && <div className="p-3 text-sm text-rose-700 bg-rose-50 rounded-xl">{error}</div>}
+        {error && <div className="p-3 text-sm text-danger bg-danger-soft rounded-xl">{error}</div>}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Visitor Name</label>
-          <input name="name" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+          <label className="block text-sm font-bold text-foreground mb-1">Visitor Name</label>
+          <input name="name" required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Full name" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Host / Person to see</label>
-          <input name="host" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
+          <label className="block text-sm font-bold text-foreground mb-1">Host / Person to see</label>
+          <input name="host" required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Staff name" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Purpose of Visit</label>
-          <textarea name="purpose" required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]"></textarea>
+          <label className="block text-sm font-bold text-foreground mb-1">Purpose of Visit</label>
+          <textarea name="purpose" required rows={3} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary"></textarea>
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white">
             {isSubmitting ? "Signing In..." : "Sign In"}
           </button>
         </div>
@@ -799,7 +799,7 @@ function VisitorRegisterWorkspace({ onNavigate }: { onNavigate: (v: SecretaryVie
         hasPermission('frontoffice:write') ? (
           <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> New Visitor Sign-In</Button>
         ) : (
-          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          <span className="text-xs font-bold text-muted">Restricted</span>
         )
       }>
         <RealDataTable 
@@ -854,39 +854,39 @@ function LogCallModal({ onClose, onSuccess }: { onClose: () => void; onSuccess?:
   return (
     <Modal title="Log New Call" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        {error ? <div className="rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Caller / recipient
-            <input name="caller" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent, visitor, staff, supplier..." />
+            <input name="caller" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Parent, visitor, staff, supplier..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Phone number
-            <input name="phone_number" type="tel" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+            <input name="phone_number" type="tel" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="+254..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Direction
-            <select name="direction" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="direction" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="incoming">Incoming</option>
               <option value="outgoing">Outgoing</option>
             </select>
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Subject
-            <input name="subject" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Fees, appointment, discipline, enquiry..." />
+            <input name="subject" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Fees, appointment, discipline, enquiry..." />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Notes
-          <textarea name="notes" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Record call details and any next action." />
+          <textarea name="notes" required rows={4} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Record call details and any next action." />
         </label>
-        <label className="flex items-center gap-2 text-sm font-bold text-[#071D49]">
-          <input name="action_required" type="checkbox" className="h-4 w-4 rounded border-[#D8E0EC]" />
+        <label className="flex items-center gap-2 text-sm font-bold text-foreground">
+          <input name="action_required" type="checkbox" className="h-4 w-4 rounded border-border" />
           Requires follow-up
         </label>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
-          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted disabled:opacity-50">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Logging..." : "Log Call"}
           </button>
         </div>
@@ -928,7 +928,7 @@ function CallsLogWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
 
   return (
     <>
-      <Panel title="Calls Log" description="Record of incoming and outgoing calls." icon={Phone} actions={<button type="button" onClick={() => setIsCallModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Log New Call</button>}>
+      <Panel title="Calls Log" description="Record of incoming and outgoing calls." icon={Phone} actions={<button type="button" onClick={() => setIsCallModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> Log New Call</button>}>
         <RealDataTable 
           columns={["Time","Direction","Caller/Recipient","Number","Subject","Duration","Action Required","Status","Actions"]} 
           actions={["View Notes","Mark Followed Up","Queue Follow-Up"]}
@@ -977,28 +977,28 @@ function ScheduleAppointmentModal({ onClose, onSuccess }: { onClose: () => void,
   return (
     <Modal title="Schedule Appointment" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {error && <div className="p-3 text-sm text-rose-700 bg-rose-50 rounded-xl">{error}</div>}
+        {error && <div className="p-3 text-sm text-danger bg-danger-soft rounded-xl">{error}</div>}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Visitor/Parent Name</label>
-          <input name="visitorName" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+          <label className="block text-sm font-bold text-foreground mb-1">Visitor/Parent Name</label>
+          <input name="visitorName" required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Full name" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">Date</label>
-            <input name="date" required type="date" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <label className="block text-sm font-bold text-foreground mb-1">Date</label>
+            <input name="date" required type="date" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">Time</label>
-            <input name="time" required type="time" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <label className="block text-sm font-bold text-foreground mb-1">Time</label>
+            <input name="time" required type="time" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Host Staff</label>
-          <input name="host" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name" />
+          <label className="block text-sm font-bold text-foreground mb-1">Host Staff</label>
+          <input name="host" required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Staff name" />
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white">
             {isSubmitting ? "Saving..." : "Schedule"}
           </button>
         </div>
@@ -1019,7 +1019,7 @@ function AppointmentsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) 
         hasPermission('frontoffice:write') ? (
           <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> Schedule Appointment</Button>
         ) : (
-          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          <span className="text-xs font-bold text-muted">Restricted</span>
         )
       }>
         <RealDataTable 
@@ -1072,15 +1072,15 @@ function DraftDocumentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   return (
     <Modal title="Draft New Document" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        {error ? <div className="rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Title
-            <input name="title" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Admission letter, parent summons..." />
+            <input name="title" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Admission letter, parent summons..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Type
-            <select name="type" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="type" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="letter">Official letter</option>
               <option value="notice">Notice</option>
               <option value="memo">Memo</option>
@@ -1088,17 +1088,17 @@ function DraftDocumentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
             </select>
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Recipient
-          <input name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent, student, staff, department..." />
+          <input name="recipient" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Parent, student, staff, department..." />
         </label>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Document body
-          <textarea name="body" required rows={5} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write the approved document content." />
+          <textarea name="body" required rows={5} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Write the approved document content." />
         </label>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
-          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted disabled:opacity-50">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save Document"}
           </button>
         </div>
@@ -1149,7 +1149,7 @@ function LettersWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => vo
 
   return (
     <>
-      <Panel title="Letters & Documents" description="Manage official school correspondence." icon={FileText} actions={<button type="button" onClick={() => setIsDocumentModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Draft New Document</button>}>
+      <Panel title="Letters & Documents" description="Manage official school correspondence." icon={FileText} actions={<button type="button" onClick={() => setIsDocumentModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> Draft New Document</button>}>
         <RealDataTable 
           columns={["Date","Type","Reference","Recipient/Sender","Subject","Status","Actions"]} 
           actions={["View","Download","Print"]}
@@ -1210,32 +1210,32 @@ function AdmissionsInquiryModal({ onClose, onSuccess }: { onClose: () => void; o
   return (
     <Modal title="New Admissions Inquiry" open={true} onClose={onClose} size="md">
       <form onSubmit={handleRegisterAdmissionsInquiry} className="p-6 space-y-4">
-        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        {error ? <div className="rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Parent / guardian
-            <input name="parent" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Full name" />
+            <input name="parent" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Full name" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Phone number
-            <input name="phone" type="tel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+            <input name="phone" type="tel" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="+254..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Prospect learner
-            <input name="student" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Learner name" />
+            <input name="student" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Learner name" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Class / grade requested
-            <input name="className" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Grade 7, Form 1..." />
+            <input name="className" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Grade 7, Form 1..." />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Inquiry notes
-          <textarea name="issue" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Capture the application question, documents needed, interview request, or follow-up instruction." />
+          <textarea name="issue" required rows={4} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Capture the application question, documents needed, interview request, or follow-up instruction." />
         </label>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save Inquiry"}
           </button>
         </div>
@@ -1251,7 +1251,7 @@ function AdmissionsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) =>
 
   return (
     <>
-      <Panel title="Admissions Handoff" description="Manage prospect inquiries and application handoffs." icon={UserPlus} actions={<button type="button" onClick={() => setIsInquiryModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Inquiry</button>}>
+      <Panel title="Admissions Handoff" description="Manage prospect inquiries and application handoffs." icon={UserPlus} actions={<button type="button" onClick={() => setIsInquiryModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Inquiry</button>}>
         <RealDataTable 
           columns={["Date","Prospect Name","Grade Applied","Parent Phone","Channel","Status","Actions"]} 
           actions={["Send Forms","Follow Up","Hand off to Admissions"]} 
@@ -1304,35 +1304,35 @@ function SecretaryMessageModal({ onClose, onSuccess }: { onClose: () => void; on
   return (
     <Modal title="New Front-Office Message" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        {error ? <div className="rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Exact guardian
-            <input name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Guardian name, email, phone, or account ID" />
+            <input name="recipient" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Guardian name, email, phone, or account ID" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Student name or admission number
-            <input name="student_reference" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Exact linked learner" />
+            <input name="student_reference" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Exact linked learner" />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Channel
-            <select name="channel" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="channel" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="in_app">Verified in-app delivery</option>
             </select>
-            <span className="mt-1 block text-xs font-semibold text-[#64748B]">SMS and email require their configured delivery queues and are not claimed by this form.</span>
+            <span className="mt-1 block text-xs font-semibold text-muted">SMS and email require their configured delivery queues and are not claimed by this form.</span>
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Subject
-            <input name="subject" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Fee reminder, appointment update..." />
+            <input name="subject" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Fee reminder, appointment update..." />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Message
-          <textarea name="message" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write the approved office message." />
+          <textarea name="message" required rows={4} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Write the approved office message." />
         </label>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Sending..." : "Send Message"}
           </button>
         </div>
@@ -1348,7 +1348,7 @@ function CommunicationWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView)
 
   return (
     <>
-      <Panel title="Communication Desk" description="Allows the Secretary to send approved office messages and announcements." icon={MessageSquare} actions={<button type="button" onClick={() => setIsMessageModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Message</button>}>
+      <Panel title="Communication Desk" description="Allows the Secretary to send approved office messages and announcements." icon={MessageSquare} actions={<button type="button" onClick={() => setIsMessageModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> New Message</button>}>
         <RealDataTable 
           columns={["Date","Recipient","Channel","Message Type","Status","Sent By","Actions"]} 
           actions={["View","Resend","Duplicate","Cancel","View Report"]} 
@@ -1396,19 +1396,19 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
   return (
     <Modal title="Record Mail / Parcel" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {error && <div className="p-3 text-sm text-rose-700 bg-rose-50 rounded-xl">{error}</div>}
+        {error && <div className="p-3 text-sm text-danger bg-danger-soft rounded-xl">{error}</div>}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Sender</label>
-          <input name="sender" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sender name or company" />
+          <label className="block text-sm font-bold text-foreground mb-1">Sender</label>
+          <input name="sender" required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Sender name or company" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Exact staff recipient</label>
-          <input name="recipient" required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Staff name, number, email, or account ID" />
-          <p className="mt-1 text-xs font-semibold text-[#64748B]">The recipient must resolve to one active staff account in this school.</p>
+          <label className="block text-sm font-bold text-foreground mb-1">Exact staff recipient</label>
+          <input name="recipient" required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Staff name, number, email, or account ID" />
+          <p className="mt-1 text-xs font-semibold text-muted">The recipient must resolve to one active staff account in this school.</p>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Item Type</label>
-          <select name="type" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <label className="block text-sm font-bold text-foreground mb-1">Item Type</label>
+          <select name="type" required className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
             <option value="">Select type...</option>
             <option value="letter">Official Letter</option>
             <option value="parcel">Parcel / Package</option>
@@ -1416,12 +1416,12 @@ function RecordDispatchModal({ onClose, onSuccess }: { onClose: () => void, onSu
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Description</label>
-          <textarea name="description" required rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Courier reference, contents, handling notes, or collection instructions" />
+          <label className="block text-sm font-bold text-foreground mb-1">Description</label>
+          <textarea name="description" required rows={3} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Courier reference, contents, handling notes, or collection instructions" />
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={isSubmitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white">
             {isSubmitting ? "Recording..." : "Record Item"}
           </button>
         </div>
@@ -1456,7 +1456,7 @@ function MailParcelsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) =
         hasPermission('secretary:write') ? (
           <Button onClick={() => setIsModalOpen(true)}><Plus className="inline-block w-4 h-4 mr-1" /> Record Mail/Parcel</Button>
         ) : (
-          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          <span className="text-xs font-bold text-muted">Restricted</span>
         )
       }>
         <RealDataTable 
@@ -1531,15 +1531,15 @@ function LostFoundReportModal({ onClose, onSuccess }: { onClose: () => void; onS
   return (
     <Modal title="Report Lost or Found Item" open={true} onClose={onClose} size="md">
       <form onSubmit={handleReportLostFoundItem} className="p-6 space-y-4">
-        {error ? <div className="rounded-xl bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+        {error ? <div className="rounded-xl bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Item name
-            <input name="item_name" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Sweater, ID card, textbook..." />
+            <input name="item_name" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Sweater, ID card, textbook..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Category
-            <select name="category" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <select name="category" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="uniform">Uniform</option>
               <option value="document">Document / ID</option>
               <option value="book">Book</option>
@@ -1547,26 +1547,26 @@ function LostFoundReportModal({ onClose, onSuccess }: { onClose: () => void; onS
               <option value="other">Other</option>
             </select>
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Found / reported location
-            <input name="found_location" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Reception, gate, library..." />
+            <input name="found_location" required className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Reception, gate, library..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Custody location
-            <input name="custody_location" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Front office drawer, security desk..." />
+            <input name="custody_location" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Front office drawer, security desk..." />
           </label>
-          <label className="block text-sm font-bold text-[#071D49] sm:col-span-2">
+          <label className="block text-sm font-bold text-foreground sm:col-span-2">
             Student linked, if known
-            <input name="student_linked" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Student name, admission number, class..." />
+            <input name="student_linked" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Student name, admission number, class..." />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">
+        <label className="block text-sm font-bold text-foreground">
           Verification notes
-          <textarea name="description" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the item, owner clues, who reported it, and claim verification needed." />
+          <textarea name="description" required rows={4} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Describe the item, owner clues, who reported it, and claim verification needed." />
         </label>
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B] disabled:opacity-50">Cancel</button>
-          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Recording..." : "Record Item"}
           </button>
         </div>
@@ -1582,7 +1582,7 @@ function LostFoundWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => 
 
   return (
     <>
-      <Panel title="Lost & Found" description="Tracks items reported lost or found." icon={HelpCircle} actions={<button type="button" onClick={() => setIsReportModalOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#071D49]/90"><Plus className="inline-block w-4 h-4 mr-1" /> Report Item</button>}>
+      <Panel title="Lost & Found" description="Tracks items reported lost or found." icon={HelpCircle} actions={<button type="button" onClick={() => setIsReportModalOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary/90"><Plus className="inline-block w-4 h-4 mr-1" /> Report Item</button>}>
         <RealDataTable 
           columns={["Item No.","Item Name","Category","Found/Reported By","Student Linked","Location","Date","Status","Actions"]} 
           actions={["View","Match","Contact Owner","Mark Claimed","Print Slip","Close"]} 
@@ -1651,14 +1651,14 @@ function SettingsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
   return (
     <Panel title="Settings" description="Secretary-level preferences for front-office queues, follow-up windows, and notifications." icon={Settings}>
       {error ? (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">
+        <div className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-bold text-danger">
           {error.message}
         </div>
       ) : null}
       <form onSubmit={handleSaveSecretaryPreferences} className="grid gap-4 lg:grid-cols-2">
-        <label className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <span className="text-sm font-black text-[#071D49]">Parent follow-up window</span>
-          <span className="mt-1 block text-xs font-semibold text-[#64748B]">Hours before unresolved parent requests are highlighted again.</span>
+        <label className="rounded-xl border border-border bg-surface-muted p-4">
+          <span className="text-sm font-black text-foreground">Parent follow-up window</span>
+          <span className="mt-1 block text-xs font-semibold text-muted">Hours before unresolved parent requests are highlighted again.</span>
           <input
             type="number"
             min={1}
@@ -1666,17 +1666,17 @@ function SettingsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
             value={form.parent_follow_up_hours}
             onChange={(event) => updatePreference("parent_follow_up_hours", event.currentTarget.value)}
             disabled={loading || isSubmitting}
-            className="mt-3 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm font-bold outline-none focus:border-[#071D49] disabled:opacity-50"
+            className="mt-3 w-full rounded-xl border border-border bg-white p-3 text-sm font-bold outline-none focus:border-primary disabled:opacity-50"
           />
         </label>
-        <label className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <span className="text-sm font-black text-[#071D49]">Default message channel</span>
-          <span className="mt-1 block text-xs font-semibold text-[#64748B]">Used by front-office message templates unless the user changes it.</span>
+        <label className="rounded-xl border border-border bg-surface-muted p-4">
+          <span className="text-sm font-black text-foreground">Default message channel</span>
+          <span className="mt-1 block text-xs font-semibold text-muted">Used by front-office message templates unless the user changes it.</span>
           <select
             value={form.default_message_channel}
             onChange={(event) => updatePreference("default_message_channel", event.currentTarget.value)}
             disabled={loading || isSubmitting}
-            className="mt-3 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm font-bold outline-none focus:border-[#071D49] disabled:opacity-50"
+            className="mt-3 w-full rounded-xl border border-border bg-white p-3 text-sm font-bold outline-none focus:border-primary disabled:opacity-50"
           >
             <option value="in_app">In-app</option>
             <option value="sms">SMS queue</option>
@@ -1684,37 +1684,37 @@ function SettingsWorkspace({ onNavigate }: { onNavigate: (v: SecretaryView) => v
             <option value="phone_call">Phone call follow-up</option>
           </select>
         </label>
-        <label className="flex items-start gap-3 rounded-xl border border-[#D8E0EC] bg-white p-4">
+        <label className="flex items-start gap-3 rounded-xl border border-border bg-white p-4">
           <input
             type="checkbox"
             checked={form.auto_acknowledge_visitors}
             onChange={(event) => updatePreference("auto_acknowledge_visitors", event.currentTarget.checked)}
             disabled={loading || isSubmitting}
-            className="mt-1 h-4 w-4 rounded border-[#D8E0EC] disabled:opacity-50"
+            className="mt-1 h-4 w-4 rounded border-border disabled:opacity-50"
           />
           <span>
-            <span className="block text-sm font-black text-[#071D49]">Auto-acknowledge visitor check-ins</span>
-            <span className="mt-1 block text-xs font-semibold text-[#64748B]">Marks routine visitors as acknowledged while still keeping them visible in the queue.</span>
+            <span className="block text-sm font-black text-foreground">Auto-acknowledge visitor check-ins</span>
+            <span className="mt-1 block text-xs font-semibold text-muted">Marks routine visitors as acknowledged while still keeping them visible in the queue.</span>
           </span>
         </label>
-        <label className="flex items-start gap-3 rounded-xl border border-[#D8E0EC] bg-white p-4">
+        <label className="flex items-start gap-3 rounded-xl border border-border bg-white p-4">
           <input
             type="checkbox"
             checked={form.notify_principal_on_urgent}
             onChange={(event) => updatePreference("notify_principal_on_urgent", event.currentTarget.checked)}
             disabled={loading || isSubmitting}
-            className="mt-1 h-4 w-4 rounded border-[#D8E0EC] disabled:opacity-50"
+            className="mt-1 h-4 w-4 rounded border-border disabled:opacity-50"
           />
           <span>
-            <span className="block text-sm font-black text-[#071D49]">Notify Principal on urgent requests</span>
-            <span className="mt-1 block text-xs font-semibold text-[#64748B]">Urgent parent, visitor, or document escalations also reach the Principal queue.</span>
+            <span className="block text-sm font-black text-foreground">Notify Principal on urgent requests</span>
+            <span className="mt-1 block text-xs font-semibold text-muted">Urgent parent, visitor, or document escalations also reach the Principal queue.</span>
           </span>
         </label>
-        <div className="lg:col-span-2 flex flex-col gap-3 border-t border-[#D8E0EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs font-semibold text-[#64748B]">
+        <div className="lg:col-span-2 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-semibold text-muted">
             {data?.updated_at ? `Last saved ${new Date(data.updated_at).toLocaleString("en-KE")}` : "No saved preference changes yet."}
           </p>
-          <button type="submit" disabled={loading || isSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-50">
+          <button type="submit" disabled={loading || isSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save Preferences"}
           </button>
         </div>
@@ -1742,10 +1742,10 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
   const groups = Array.from(new Set(navItems.map((n) => n.group)));
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-[#F1F5F9] font-sans text-[#0F172A] selection:bg-[#1D4ED8] selection:text-white rounded-xl overflow-hidden border border-[#D8E0EC]">
+    <div className="authenticated-app flex h-[calc(100vh-4rem)] bg-surface-strong font-sans text-foreground selection:bg-info selection:text-white rounded-xl overflow-hidden border border-border">
       {/* SIDEBAR (Desktop) */}
-      <aside className="hidden w-72 shrink-0 flex-col border-r border-[#E2E8F0] bg-white lg:flex">
-        <div className="shrink-0 border-b border-[#E2E8F0] p-4">
+      <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-white lg:flex">
+        <div className="shrink-0 border-b border-border p-4">
           <SchoolCommandSidebarIdentity eyebrow="Administration command" title="Secretary Dashboard" subtitle="Front office and school administration" tone="light" className="mb-0" />
         </div>
 
@@ -1753,7 +1753,7 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
           <div className="space-y-8">
             {groups.map((group) => (
               <div key={group}>
-                <h3 className="px-2 text-xs font-black uppercase tracking-wider text-[#64748B] mb-2">{group}</h3>
+                <h3 className="px-2 text-xs font-black uppercase tracking-wider text-muted mb-2">{group}</h3>
                 <nav className="space-y-1">
                   {navItems
                     .filter((n) => n.group === group)
@@ -1763,15 +1763,16 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
                       return (
                         <button
                           key={item.id}
+                          aria-current={isActive ? "page" : undefined}
                           onClick={() => setActiveView(item.id)}
                           className={cn(
                             "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-all",
                             isActive
-                              ? "bg-[#EEF5FF] text-[#1D4ED8]"
-                              : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                              ? "bg-info-soft text-info"
+                              : "text-muted hover:bg-surface-muted hover:text-foreground"
                           )}
                         >
-                          <Icon className={cn("h-5 w-5", isActive ? "text-[#1D4ED8]" : "text-[#94A3B8]")} />
+                          <Icon className={cn("h-5 w-5", isActive ? "text-info" : "text-muted")} />
                           {item.label}
                         </button>
                       );
@@ -1784,12 +1785,12 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex min-w-0 flex-1 flex-col bg-[#F8FAFC]">
+      <main className="flex min-w-0 flex-1 flex-col bg-surface-muted">
         {/* HEADER */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#E2E8F0] bg-white px-4 sm:px-6">
+        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <button
-              className="lg:hidden p-2 -ml-2 text-[#64748B] hover:bg-[#F8FAFC] rounded-lg"
+              className="lg:hidden p-2 -ml-2 text-muted hover:bg-surface-muted rounded-lg"
               onClick={() => setIsMobileMenuOpen(true)}
             >
               <span className="sr-only">Open menu</span>
@@ -1801,17 +1802,17 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
             </button>
 
             <div className="relative hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
               <input 
                 type="text" 
                 placeholder="Search students, parents, visitors..." 
-                className="h-10 w-80 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-10 pr-4 text-sm font-semibold text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#1D4ED8] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+                className="h-10 w-80 rounded-xl border border-border bg-surface-muted pl-10 pr-4 text-sm font-semibold text-foreground placeholder:text-muted focus:border-info focus:bg-white focus:outline-none focus:ring-1 focus:ring-focus"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="relative rounded-full p-2 text-[#64748B] hover:bg-[#F8FAFC] transition">
+            <button className="relative rounded-full p-2 text-muted hover:bg-surface-muted transition">
               <Bell className="h-5 w-5" />
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 border-2 border-white" />
             </button>
@@ -1844,16 +1845,16 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
       {/* MOBILE MENU OVERLAY */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-[#0F172A]/40 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
           <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-2xl flex flex-col">
-            <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b border-[#E2E8F0]">
+            <div className="flex h-16 shrink-0 items-center justify-between px-6 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#1D4ED8] text-sm font-black text-white">S</div>
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-info text-sm font-black text-white">S</div>
                 <div>
-                  <h1 className="text-sm font-black text-[#0F172A]">Secretary Desk</h1>
+                  <h1 className="text-sm font-black text-foreground">Secretary Desk</h1>
                 </div>
               </div>
-              <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 -mr-2 text-[#64748B]">
+              <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 -mr-2 text-muted">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1862,7 +1863,7 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
               <div className="space-y-8">
                 {groups.map((group) => (
                   <div key={group}>
-                    <h3 className="px-2 text-xs font-black uppercase tracking-wider text-[#64748B] mb-2">{group}</h3>
+                    <h3 className="px-2 text-xs font-black uppercase tracking-wider text-muted mb-2">{group}</h3>
                     <nav className="space-y-1">
                       {navItems
                         .filter((n) => n.group === group)
@@ -1879,11 +1880,11 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
                               className={cn(
                                 "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold",
                                 isActive
-                                  ? "bg-[#EEF5FF] text-[#1D4ED8]"
-                                  : "text-[#64748B]"
+                                  ? "bg-info-soft text-info"
+                                  : "text-muted"
                               )}
                             >
-                              <Icon className={cn("h-5 w-5", isActive ? "text-[#1D4ED8]" : "text-[#94A3B8]")} />
+                              <Icon className={cn("h-5 w-5", isActive ? "text-info" : "text-muted")} />
                               {item.label}
                             </button>
                           );

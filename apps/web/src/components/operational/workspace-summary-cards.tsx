@@ -52,7 +52,7 @@ export function WorkspaceSummaryCard({
               <span className="text-sm font-medium">Failed to load</span>
             </div>
             {onRetry && (
-              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onRetry(); }} className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50">
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onRetry(); }} className="h-7 px-2 text-xs text-rose-600 hover:bg-danger-soft">
                 Retry
               </Button>
             )}

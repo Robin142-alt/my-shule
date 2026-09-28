@@ -54,7 +54,7 @@ export function ParentCommunicationWorkspace({
     msg.date,
     msg.recipient,
     msg.message,
-    <span key={msg.id} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+    <span key={msg.id} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-success">
       {msg.status}
     </span>,
   ]);
@@ -100,16 +100,16 @@ export function ParentCommunicationWorkspace({
   return (
     <Panel title="Parent Communication" description="Controlled communication with parents of learners you teach." icon={MessageCircle}>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => openComposer("individual_parent")} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">New Message</button>
-        <button type="button" onClick={() => openComposer("class_parents")} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Message Class Parents</button>
+        <button type="button" onClick={() => openComposer("individual_parent")} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">New Message</button>
+        <button type="button" onClick={() => openComposer("class_parents")} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground bg-white">Message Class Parents</button>
       </div>
       {composerAudience ? (
-        <form onSubmit={submitMessage} className="mb-5 rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+        <form onSubmit={submitMessage} className="mb-5 rounded-2xl border border-border bg-surface-muted p-4">
           <input type="hidden" name="audience" value={composerAudience} />
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Recipient
-              <select name="recipient" required className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" defaultValue="">
+              <select name="recipient" required className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary" defaultValue="">
                 <option value="" disabled>
                   {recipientOptions.isLoading
                     ? "Loading assigned recipients..."
@@ -130,13 +130,13 @@ export function ParentCommunicationWorkspace({
                     ))}
               </select>
             </label>
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Subject
-              <input name="subject" className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Homework follow-up" />
+              <input name="subject" className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary" placeholder="e.g. Homework follow-up" />
             </label>
           </div>
           {recipientOptions.isError ? (
-            <p className="mt-3 text-sm font-semibold text-red-700">
+            <p className="mt-3 text-sm font-semibold text-danger">
               Assigned guardian recipients could not be loaded. Retry before sending.
             </p>
           ) : null}
@@ -145,28 +145,28 @@ export function ParentCommunicationWorkspace({
               ? (recipientOptions.data?.classes.length ?? 0) === 0
               : (recipientOptions.data?.guardians.length ?? 0) === 0
           ) ? (
-            <p className="mt-3 text-sm font-semibold text-amber-700">
+            <p className="mt-3 text-sm font-semibold text-warning">
               No active guardian accounts are linked to learners in your current teaching assignments.
             </p>
           ) : null}
-          <label className="mt-3 block text-sm font-bold text-[#071D49]">
+          <label className="mt-3 block text-sm font-bold text-foreground">
             Message
-            <textarea name="message" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Write a clear parent message linked to the learner or class context." />
+            <textarea name="message" required rows={4} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary" placeholder="Write a clear parent message linked to the learner or class context." />
           </label>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={closeComposer} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">Cancel</button>
-            <button type="submit" disabled={isSubmitting || recipientOptions.isLoading || recipientOptions.isError} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+            <button type="button" onClick={closeComposer} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-foreground">Cancel</button>
+            <button type="submit" disabled={isSubmitting || recipientOptions.isLoading || recipientOptions.isError} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
               {isSubmitting ? "Queueing..." : "Queue Message"}
             </button>
           </div>
         </form>
       ) : null}
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load sent messages. Please retry.
         </div>
       ) : isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-[#64748B]" /></div>
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted" /></div>
       ) : (
         <RecordTable
           columns={["Date", "Recipient", "Message", "Status"]}

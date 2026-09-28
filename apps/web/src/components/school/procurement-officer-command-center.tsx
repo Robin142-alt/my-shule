@@ -68,17 +68,17 @@ function openProcurementRecord(title: string, rows: Array<[string, string]>) {
 
 function Panel({ title, description, icon: Icon, children, actions }: { title: string; description?: string; icon?: any; children: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon && (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           )}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description && <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p>}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description && <p className="mt-1 text-sm leading-6 text-muted">{description}</p>}
           </div>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
@@ -103,20 +103,20 @@ function OverviewWorkspace() {
       <div className="grid gap-6 md:grid-cols-3 mb-8">
         <Card className="p-6">
           <div className="text-sm font-semibold text-gray-500">Pending Requisitions</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{pendingReqs}</div>
+          <div className="mt-2 text-3xl font-black text-foreground">{pendingReqs}</div>
         </Card>
         <Card className="p-6">
           <div className="text-sm font-semibold text-gray-500">Active Purchase Orders</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{activePOs}</div>
+          <div className="mt-2 text-3xl font-black text-foreground">{activePOs}</div>
         </Card>
         <Card className="p-6">
           <div className="text-sm font-semibold text-gray-500">Awaiting Delivery</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{awaitingDelivery}</div>
+          <div className="mt-2 text-3xl font-black text-foreground">{awaitingDelivery}</div>
         </Card>
       </div>
 
       <Card className="p-6">
-        <h2 className="text-xl font-bold text-[#071D49] mb-4">Recent Procurement Activity</h2>
+        <h2 className="text-xl font-bold text-foreground mb-4">Recent Procurement Activity</h2>
         {recentPOs.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <ShoppingCart className="h-12 w-12 mx-auto mb-4 opacity-20" />
@@ -127,7 +127,7 @@ function OverviewWorkspace() {
             {recentPOs.map((po: any, i: number) => (
               <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition">
                 <div>
-                  <p className="font-semibold text-[#071D49]">{po.order_number}</p>
+                  <p className="font-semibold text-foreground">{po.order_number}</p>
                   <p className="text-sm text-gray-500 mt-1">{po.supplier_name} • KES {po.total_amount?.toLocaleString()}</p>
                 </div>
                 <StatusPill label={po.status} tone={po.status === 'approved' ? 'ok' : 'warning'} />
@@ -157,19 +157,19 @@ function PurchaseOrdersWorkspace({
       title="Purchase Orders"
       description="Create and track purchase orders with suppliers."
       icon={ShoppingCart}
-      actions={<Button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white" onClick={() => onModalOpenChange(true)}><Plus className="w-4 h-4 mr-2" /> New PO</Button>}
+      actions={<Button className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white" onClick={() => onModalOpenChange(true)}><Plus className="w-4 h-4 mr-2" /> New PO</Button>}
     >
-      {notice ? <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="mb-4 rounded-lg border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
       {isLoading ? (
         <p className="text-sm text-slate-500">Loading purchase orders...</p>
       ) : !pos.length ? (
-        <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
+        <div className="rounded-lg border border-dashed border-border p-8 text-center text-slate-500">
           No purchase orders found.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+            <thead className="bg-surface-muted text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3 font-black">Order #</th>
                 <th className="px-4 py-3 font-black">Supplier</th>
@@ -178,17 +178,17 @@ function PurchaseOrdersWorkspace({
                 <th className="px-4 py-3 text-right font-black">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#D8E0EC]">
+            <tbody className="divide-y divide-border">
               {pos.map((po: any, i: number) => (
                 <tr key={i} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{po.order_number}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{po.supplier_name}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{po.order_number}</td>
+                  <td className="px-4 py-3 text-muted">{po.supplier_name}</td>
                   <td className="px-4 py-3 font-medium">KES {po.total_amount?.toLocaleString()}</td>
                   <td className="px-4 py-3"><StatusPill label={po.status} tone={po.status === 'approved' ? 'ok' : 'warning'} /></td>
                   <td className="px-4 py-3 text-right">
                     <button
                       type="button"
-                      className="text-[#1D4ED8] hover:underline text-xs font-bold"
+                      className="text-info hover:underline text-xs font-bold"
                       onClick={() => openProcurementRecord("Purchase order details", [
                         ["Order #", String(po.order_number ?? po.po_number ?? po.id ?? "-")],
                         ["Supplier", String(po.supplier_name ?? "-")],
@@ -304,51 +304,51 @@ function NewPurchaseOrderModal({
     <Modal title="New purchase order" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleCreatePurchaseOrder} className="space-y-4 p-6">
         {error ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+          <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
             {error}
           </div>
         ) : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Existing supplier
-            <select name="supplier_id" disabled={suppliersLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Existing supplier
+            <select name="supplier_id" disabled={suppliersLoading} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{suppliersLoading ? "Loading suppliers..." : "Select supplier or type a new name"}</option>
               {supplierOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Supplier name
-            <input name="supplier_name" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Or create/find by supplier name" />
+          <label className="text-sm font-bold text-foreground">Supplier name
+            <input name="supplier_name" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Or create/find by supplier name" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Approved purchase request
-            <select name="request_id" disabled={requestsLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Approved purchase request
+            <select name="request_id" disabled={requestsLoading} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{requestsLoading ? "Loading requests..." : "No linked approved request"}</option>
               {approvedRequestOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Expected delivery date
-            <input name="expected_delivery_date" type="date" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          <label className="text-sm font-bold text-foreground">Expected delivery date
+            <input name="expected_delivery_date" type="date" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </label>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="text-sm font-bold text-[#071D49] md:col-span-1">Item name
-            <input name="item_name" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Exercise books, toner..." />
+          <label className="text-sm font-bold text-foreground md:col-span-1">Item name
+            <input name="item_name" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Exercise books, toner..." />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Quantity
-            <input name="quantity" type="number" min="1" step="1" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="1" />
+          <label className="text-sm font-bold text-foreground">Quantity
+            <input name="quantity" type="number" min="1" step="1" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="1" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Unit cost (KES)
-            <input name="unit_cost" type="number" min="0" step="0.01" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0.00" />
+          <label className="text-sm font-bold text-foreground">Unit cost (KES)
+            <input name="unit_cost" type="number" min="0" step="0.01" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="0.00" />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Notes
-          <textarea name="notes" rows={3} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Delivery instructions, budget code, approver notes..." />
+        <label className="block text-sm font-bold text-foreground">Notes
+          <textarea name="notes" rows={3} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Delivery instructions, budget code, approver notes..." />
         </label>
-        <div className="flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]" disabled={submitting}>Cancel</button>
-          <button type="submit" disabled={submitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+        <div className="flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted" disabled={submitting}>Cancel</button>
+          <button type="submit" disabled={submitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Creating..." : "Create Purchase Order"}
           </button>
         </div>
@@ -412,19 +412,19 @@ function SupplierDirectoryWorkspace() {
       title="Supplier Directory"
       description="Manage school vendors and suppliers."
       icon={Truck}
-      actions={<Button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white" onClick={() => setIsSupplierModalOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add Supplier</Button>}
+      actions={<Button className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white" onClick={() => setIsSupplierModalOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add Supplier</Button>}
     >
-      {notice ? <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="mb-4 rounded-lg border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
       {isLoading ? (
         <p className="text-sm text-slate-500">Loading suppliers...</p>
       ) : !suppliers.length ? (
-        <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
+        <div className="rounded-lg border border-dashed border-border p-8 text-center text-slate-500">
           No suppliers found.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+            <thead className="bg-surface-muted text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3 font-black">Name</th>
                 <th className="px-4 py-3 font-black">Category</th>
@@ -432,14 +432,14 @@ function SupplierDirectoryWorkspace() {
                 <th className="px-4 py-3 text-right font-black">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#D8E0EC]">
+            <tbody className="divide-y divide-border">
               {suppliers.map((s: any, i: number) => (
                 <tr key={i} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{s.name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.category}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.contact_person}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{s.name}</td>
+                  <td className="px-4 py-3 text-muted">{s.category}</td>
+                  <td className="px-4 py-3 text-muted">{s.contact_person}</td>
                   <td className="px-4 py-3 text-right">
-                    <button type="button" className="text-[#1D4ED8] hover:underline text-xs font-bold" onClick={() => setSelectedSupplier(s)}>Edit</button>
+                    <button type="button" className="text-info hover:underline text-xs font-bold" onClick={() => setSelectedSupplier(s)}>Edit</button>
                   </td>
                 </tr>
               ))}
@@ -451,44 +451,44 @@ function SupplierDirectoryWorkspace() {
         <Modal title="Add Supplier" open={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)} size="md">
           <form onSubmit={createSupplier} className="space-y-4 p-6">
             {supplierError ? (
-              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+              <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
                 {supplierError}
               </div>
             ) : null}
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#071D49]">Supplier name</label>
-              <input name="supplier_name" required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="e.g. Crown Office Supplies" />
+              <label className="mb-1 block text-sm font-bold text-foreground">Supplier name</label>
+              <input name="supplier_name" required className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="e.g. Crown Office Supplies" />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-bold text-[#071D49]">Contact person</label>
-                <input name="contact_person" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Contact name" />
+                <label className="mb-1 block text-sm font-bold text-foreground">Contact person</label>
+                <input name="contact_person" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Contact name" />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-bold text-[#071D49]">Phone</label>
-                <input name="phone" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="+254..." />
+                <label className="mb-1 block text-sm font-bold text-foreground">Phone</label>
+                <input name="phone" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="+254..." />
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-bold text-[#071D49]">Email</label>
-                <input name="email" type="email" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="supplier@example.com" />
+                <label className="mb-1 block text-sm font-bold text-foreground">Email</label>
+                <input name="email" type="email" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="supplier@example.com" />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-bold text-[#071D49]">County</label>
-                <input name="county" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="County" />
+                <label className="mb-1 block text-sm font-bold text-foreground">County</label>
+                <input name="county" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="County" />
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-sm font-bold text-[#071D49]">Status</label>
-              <select name="status" defaultValue="active" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+              <label className="mb-1 block text-sm font-bold text-foreground">Status</label>
+              <select name="status" defaultValue="active" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
                 <option value="active">Active</option>
                 <option value="on_hold">On hold</option>
               </select>
             </div>
-            <div className="flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-              <button type="button" onClick={() => setIsSupplierModalOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-              <button type="submit" disabled={supplierSubmitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+            <div className="flex justify-end gap-3 border-t border-border pt-4">
+              <button type="button" onClick={() => setIsSupplierModalOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+              <button type="submit" disabled={supplierSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
                 {supplierSubmitting ? "Saving..." : "Save Supplier"}
               </button>
             </div>
@@ -575,51 +575,51 @@ function EditProcurementSupplierModal({
     <Modal title="Edit Supplier" open={Boolean(selectedSupplier)} onClose={onClose} size="md">
       <form onSubmit={handleUpdateSupplier} className="space-y-4 p-6">
         {error ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+          <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
             {error}
           </div>
         ) : null}
         <div>
-          <label className="mb-1 block text-sm font-bold text-[#071D49]">Supplier name</label>
-          <input name="name" required defaultValue={selectedSupplier.name ?? selectedSupplier.supplier_name ?? ""} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          <label className="mb-1 block text-sm font-bold text-foreground">Supplier name</label>
+          <input name="name" required defaultValue={selectedSupplier.name ?? selectedSupplier.supplier_name ?? ""} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#071D49]">Category</label>
-            <input name="category" defaultValue={selectedSupplier.category ?? ""} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <label className="mb-1 block text-sm font-bold text-foreground">Category</label>
+            <input name="category" defaultValue={selectedSupplier.category ?? ""} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#071D49]">Contact person</label>
-            <input name="contact_name" defaultValue={selectedSupplier.contact_name ?? selectedSupplier.contact_person ?? ""} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-bold text-[#071D49]">Phone</label>
-            <input name="phone" defaultValue={selectedSupplier.phone ?? ""} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-bold text-[#071D49]">Email</label>
-            <input name="email" type="email" defaultValue={selectedSupplier.email ?? ""} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <label className="mb-1 block text-sm font-bold text-foreground">Contact person</label>
+            <input name="contact_name" defaultValue={selectedSupplier.contact_name ?? selectedSupplier.contact_person ?? ""} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#071D49]">KRA PIN</label>
-            <input name="kra_pin" defaultValue={selectedSupplier.kra_pin ?? selectedSupplier.kraPin ?? ""} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+            <label className="mb-1 block text-sm font-bold text-foreground">Phone</label>
+            <input name="phone" defaultValue={selectedSupplier.phone ?? ""} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-bold text-[#071D49]">Status</label>
-            <select name="status" defaultValue={selectedSupplier.status ?? "active"} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+            <label className="mb-1 block text-sm font-bold text-foreground">Email</label>
+            <input name="email" type="email" defaultValue={selectedSupplier.email ?? ""} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-bold text-foreground">KRA PIN</label>
+            <input name="kra_pin" defaultValue={selectedSupplier.kra_pin ?? selectedSupplier.kraPin ?? ""} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-bold text-foreground">Status</label>
+            <select name="status" defaultValue={selectedSupplier.status ?? "active"} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="active">Active</option>
               <option value="on_hold">On hold</option>
               <option value="suspended">Suspended</option>
             </select>
           </div>
         </div>
-        <div className="flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button type="submit" disabled={submitting} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+        <div className="flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button type="submit" disabled={submitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Saving..." : "Save Changes"}
           </button>
         </div>
@@ -637,17 +637,17 @@ function RequisitionsWorkspace() {
   return (
     <>
     <Panel title="Requisitions" description="Review and approve departmental requests." icon={FileText}>
-      {notice ? <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="mb-4 rounded-lg border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
       {isLoading ? (
         <p className="text-sm text-slate-500">Loading requests...</p>
       ) : !requests.length ? (
-        <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
+        <div className="rounded-lg border border-dashed border-border p-8 text-center text-slate-500">
           No requisitions found.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+            <thead className="bg-surface-muted text-xs uppercase text-muted">
               <tr>
                 <th className="px-4 py-3 font-black">Request #</th>
                 <th className="px-4 py-3 font-black">Department</th>
@@ -656,15 +656,15 @@ function RequisitionsWorkspace() {
                 <th className="px-4 py-3 text-right font-black">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#D8E0EC]">
+            <tbody className="divide-y divide-border">
               {requests.map((r: any, i: number) => (
                 <tr key={i} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{r.request_number}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.department}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.item_name} (x{r.quantity})</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{r.request_number}</td>
+                  <td className="px-4 py-3 text-muted">{r.department}</td>
+                  <td className="px-4 py-3 text-muted">{r.item_name} (x{r.quantity})</td>
                   <td className="px-4 py-3"><StatusPill label={r.status} tone={r.status === 'approved' ? 'ok' : 'warning'} /></td>
                   <td className="px-4 py-3 text-right">
-                    <button type="button" className="text-[#1D4ED8] hover:underline text-xs font-bold" onClick={() => setSelectedRequest(r)}>Review</button>
+                    <button type="button" className="text-info hover:underline text-xs font-bold" onClick={() => setSelectedRequest(r)}>Review</button>
                   </td>
                 </tr>
               ))}
@@ -733,26 +733,26 @@ function ReviewProcurementRequestModal({
     <Modal title="Review procurement requisition" open={Boolean(selectedRequest)} onClose={onClose} size="lg">
       <form onSubmit={(event) => handleDecidePurchaseRequest("approve", decisionNotes, event)} className="space-y-4 p-6">
         {error ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+          <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
             {error}
           </div>
         ) : null}
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">Selected requisition</p>
-          <p className="mt-1 text-lg font-black text-[#071D49]">{selectedRequest.request_number ?? selectedRequest.id}</p>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">Selected requisition</p>
+          <p className="mt-1 text-lg font-black text-foreground">{selectedRequest.request_number ?? selectedRequest.id}</p>
+          <p className="mt-1 text-sm font-semibold text-muted">
             {selectedRequest.department ?? "Department"} · {selectedRequest.item_name ?? selectedRequest.title ?? "Requested item"}
           </p>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Decision notes
-          <textarea value={decisionNotes} onChange={(event) => setDecisionNotes(event.currentTarget.value)} name="reason" rows={3} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Approval, rejection, or return notes for audit trail..." />
+        <label className="block text-sm font-bold text-foreground">Decision notes
+          <textarea value={decisionNotes} onChange={(event) => setDecisionNotes(event.currentTarget.value)} name="reason" rows={3} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Approval, rejection, or return notes for audit trail..." />
         </label>
-        <div className="flex flex-wrap justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={Boolean(submitting)} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button type="button" disabled={Boolean(submitting)} onClick={() => void handleDecidePurchaseRequest("reject", decisionNotes)} className="rounded-xl border border-red-200 bg-red-50 px-5 py-2 text-sm font-black text-red-700 disabled:opacity-60">
+        <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={Boolean(submitting)} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button type="button" disabled={Boolean(submitting)} onClick={() => void handleDecidePurchaseRequest("reject", decisionNotes)} className="rounded-xl border border-danger-border bg-danger-soft px-5 py-2 text-sm font-black text-danger disabled:opacity-60">
             {submitting === "reject" ? "Rejecting..." : "Reject"}
           </button>
-          <button type="submit" disabled={Boolean(submitting)} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+          <button type="submit" disabled={Boolean(submitting)} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting === "approve" ? "Approving..." : "Approve"}
           </button>
         </div>
@@ -813,13 +813,13 @@ function BudgetTrackingWorkspace() {
 
   return (
     <Panel title="Budget Tracking" description="Monitor procurement spend against departmental budgets." icon={DollarSign}>
-      {notice ? <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="mb-4 rounded-lg border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
       <div className="grid gap-4 md:grid-cols-4">
         {cards.map(([label, value, helper]) => (
-          <div key={label} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">{label}</p>
-            <p className="mt-2 text-2xl font-black text-[#071D49]">{isLoading ? "..." : String(value)}</p>
-            <p className="mt-1 text-xs font-semibold text-[#64748B]">{helper}</p>
+          <div key={label} className="rounded-xl border border-border bg-surface-muted p-4">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">{label}</p>
+            <p className="mt-2 text-2xl font-black text-foreground">{isLoading ? "..." : String(value)}</p>
+            <p className="mt-1 text-xs font-semibold text-muted">{helper}</p>
           </div>
         ))}
       </div>
@@ -829,7 +829,7 @@ function BudgetTrackingWorkspace() {
             key={item.action}
             type="button"
             disabled={Boolean(pendingBudgetAction)}
-            className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-left text-sm font-bold text-[#071D49] transition hover:border-[#1D4ED8]"
+            className="rounded-xl border border-border bg-white p-4 text-left text-sm font-bold text-foreground transition hover:border-info"
             onClick={() => void handleProcurementBudgetAction(item.action, item.success)}
           >
             {pendingBudgetAction === item.action ? "Processing..." : item.label}
@@ -856,11 +856,11 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
   const activeView = rawActiveView;
 
   return (
-    <div className="authenticated-app min-h-dvh bg-[#F3F6FA]">
+    <div className="authenticated-app min-h-dvh bg-background">
       <div className="mx-auto flex max-w-[1920px] flex-col gap-6 p-4 lg:flex-row lg:p-6">
         
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100dvh-1.5rem)] shrink-0 overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:w-72 lg:flex-col">
+        <aside className="hidden h-[calc(100dvh-1.5rem)] shrink-0 overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:w-72 lg:flex-col">
           <SchoolCommandSidebarIdentity eyebrow="Procurement command" title="Procurement Officer" subtitle="Orders, suppliers, requisitions, and budgets" />
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
             {procurementNavItems.map((item) => {
@@ -884,27 +884,27 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
         <main className="min-w-0 flex-1">
           <div className="min-h-[calc(100dvh-3rem)] overflow-hidden rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)]">
             
-            <header className="app-command-topbar sticky top-0 z-20 space-y-3 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-3 backdrop-blur">
+            <header className="app-command-topbar sticky top-0 z-20 space-y-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
                   <MyShuleMark size={36} />
                   <div>
-                    <h1 className="text-lg font-black text-[#071D49]">Procurement Dashboard</h1>
+                    <h1 className="text-lg font-black text-foreground">Procurement Dashboard</h1>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                   <div className="relative w-full sm:w-auto">
-                    <label className="flex min-h-10 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white px-3 text-[#64748B] shadow-sm focus-within:border-[#1D4ED8] focus-within:ring-1 focus-within:ring-[#1D4ED8]">
+                    <label className="flex min-h-10 items-center gap-3 rounded-xl border border-border bg-white px-3 text-muted shadow-sm focus-within:border-info focus-within:ring-1 focus-within:ring-focus">
                       <Search className="h-4 w-4" />
                       <input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#94A3B8]"
+                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted"
                         placeholder="Search POs or suppliers..."
                       />
                     </label>
                   </div>
-                  <Button className="w-full rounded-xl bg-[#071D49] text-white hover:bg-[#071D49]/90 sm:w-auto" onClick={() => { setActiveView("pos"); setPurchaseOrderModalOpen(true); }}>New Purchase Order</Button>
+                  <Button className="w-full rounded-xl bg-primary text-white hover:bg-primary/90 sm:w-auto" onClick={() => { setActiveView("pos"); setPurchaseOrderModalOpen(true); }}>New Purchase Order</Button>
                 </div>
               </div>
               <div className="lg:hidden">
@@ -920,7 +920,7 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
 
             <div className="p-4 sm:p-6 lg:p-8">
               <IntegratedSchoolCommandHeader roleTitle="Procurement Officer Dashboard" fallbackUserLabel="Procurement Officer" className="mb-6" />
-              {notice ? <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+              {notice ? <div className="mb-4 rounded-lg border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
               {activeView === "overview" && <OverviewWorkspace />}
               {activeView === "pos" && <PurchaseOrdersWorkspace modalOpen={purchaseOrderModalOpen} onModalOpenChange={setPurchaseOrderModalOpen} />}
               {activeView === "suppliers" && <SupplierDirectoryWorkspace />}

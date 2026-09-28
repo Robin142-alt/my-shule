@@ -130,7 +130,7 @@ export function DepartmentsWorkspace({ dataset }: { dataset: DeanDataset }) {
         <Button variant="primary" onClick={openAssignHod}>Assign HOD</Button>
         <Button variant="secondary" onClick={() => setIsReportOpen(true)}>Request Department Report</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Department Overview" 
@@ -263,7 +263,7 @@ export function TeacherWorkloadWorkspace({ dataset }: { dataset: DeanDataset }) 
       <div className="flex gap-3 mt-4">
         <Button variant="primary" disabled={isSaving} onClick={rebalanceWorkload}>{isSaving ? "Recording..." : "Balance Workload"}</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Teaching Staff Workload" 
@@ -373,7 +373,7 @@ export function LessonPlansWorkspace({ dataset }: { dataset: DeanDataset }) {
         <Button variant="primary" disabled={isSaving} onClick={reviewPendingPlans}>{isSaving ? "Recording..." : "Review Pending"}</Button>
         <Button variant="secondary" onClick={() => setIsMissingOpen(true)}>Request Missing</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Recent Lesson Plans" 
@@ -476,7 +476,7 @@ export function LessonLogsWorkspace({ dataset }: { dataset: DeanDataset }) {
       <div className="flex gap-3 mt-4">
         <Button variant="primary" onClick={() => setIsRequestOpen(true)}>Request Missing Logs</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Lesson Log Submissions" 

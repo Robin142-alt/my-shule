@@ -50,13 +50,13 @@ function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, live
     <Modal title="Raise Concern / Infraction" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         {submitError ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+          <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
             {submitError}
           </div>
         ) : null}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Learner</label>
-          <select required value={studentId} onChange={(e) => setStudentId(e.target.value)} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <label className="block text-sm font-bold text-foreground mb-1">Learner</label>
+          <select required value={studentId} onChange={(e) => setStudentId(e.target.value)} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
             <option value="">Select learner...</option>
             {students.map((s) => (
               <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
@@ -64,8 +64,8 @@ function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, live
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Concern Type</label>
-          <select required value={concernType} onChange={(e) => setConcernType(e.target.value)} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <label className="block text-sm font-bold text-foreground mb-1">Concern Type</label>
+          <select required value={concernType} onChange={(e) => setConcernType(e.target.value)} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
             <option value="">Select type...</option>
             <option value="attendance">Attendance Issue</option>
             <option value="academic">Academic Decline</option>
@@ -74,12 +74,12 @@ function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, live
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Description</label>
-          <textarea required value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the incident or concern..."></textarea>
+          <label className="block text-sm font-bold text-foreground mb-1">Description</label>
+          <textarea required value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Describe the incident or concern..."></textarea>
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white">
             {submitting ? "Submitting..." : "Submit Concern"}
           </button>
         </div>
@@ -127,30 +127,30 @@ export function DisciplineWelfareWorkspace({
     concern.className,
     concern.type,
     concern.severity === 'high' ? (
-      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">High</span>
+      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-danger">High</span>
     ) : concern.severity === 'medium' ? (
       <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">Medium</span>
     ) : (
-      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">{concern.severity}</span>
+      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-success">{concern.severity}</span>
     ),
     concern.sentTo,
     <span key={concern.id + 'status'} className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">{concern.status}</span>,
-    <button key={concern.id + 'btn'} type="button" onClick={() => openConcernStatus(concern)} className="text-[#1D4ED8] hover:underline font-bold">View Status</button>
+    <button key={concern.id + 'btn'} type="button" onClick={() => openConcernStatus(concern)} className="text-info hover:underline font-bold">View Status</button>
   ]) || [];
 
   return (
     <Panel title="Discipline & Welfare" description="Raise incidents and concerns to the relevant authorities." icon={ShieldAlert}>
       <div className="mb-4">
         {hasPermission('teacher:write') && (
-          <button type="button" onClick={() => setIsModalOpen(true)} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Raise Concern</button>
+          <button type="button" onClick={() => setIsModalOpen(true)} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Raise Concern</button>
         )}
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load concerns. Please retry.
         </div>
       ) : isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-[#64748B]" /></div>
+        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted" /></div>
       ) : (
         <RecordTable
           columns={["Date", "Learner", "Class", "Concern Type", "Severity", "Sent To", "Status", "Actions"]}

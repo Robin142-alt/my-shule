@@ -66,65 +66,65 @@ export function OverdueBooksWorkspace() {
     <Panel title="Overdue Books" description="Track overdue book loans and send reminders to borrowers." icon={Clock}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Total Overdue</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : data?.metrics?.total_overdue ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Total Overdue</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.total_overdue ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Over 7 Days</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.over_7_days ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Over 7 Days</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.over_7_days ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Over 30 Days</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : data?.metrics?.over_30_days ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Over 30 Days</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.over_30_days ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Fines Accrued (KES)</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : (data?.metrics?.total_fines_accrued ?? 0).toLocaleString()}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Fines Accrued (KES)</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : (data?.metrics?.total_fines_accrued ?? 0).toLocaleString()}</div>
         </div>
       </div>
 
       {/* Search */}
       <div className="mb-4 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-        <input className="w-full rounded-lg border border-[#D8E0EC] py-2 pl-10 pr-4 text-sm placeholder:text-[#94A3B8]" placeholder="Search overdue books by student or book..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+        <input className="w-full rounded-lg border border-border py-2 pl-10 pr-4 text-sm placeholder:text-muted" placeholder="Search overdue books by student or book..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Adm No.</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Book</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Due Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Days Overdue</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Fine (KES)</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Adm No.</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Book</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Due Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Days Overdue</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Fine (KES)</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading overdue books...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading overdue books...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">{searchTerm ? "No overdue books match your search." : "No overdue books. All borrowed books are within their due dates."}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">{searchTerm ? "No overdue books match your search." : "No overdue books. All borrowed books are within their due dates."}</td></tr>
             ) : (
               filtered.map((o) => (
-                <tr key={o.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{o.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B] font-mono text-xs">{o.admission_no}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{o.class_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{o.book_title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{o.due_date}</td>
+                <tr key={o.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{o.student_name}</td>
+                  <td className="px-4 py-3 text-muted font-mono text-xs">{o.admission_no}</td>
+                  <td className="px-4 py-3 text-muted">{o.class_name}</td>
+                  <td className="px-4 py-3 text-muted">{o.book_title}</td>
+                  <td className="px-4 py-3 text-muted">{o.due_date}</td>
                   <td className="px-4 py-3"><StatusChip label={`${o.days_overdue} days`} tone={getOverdueTone(o.days_overdue)} /></td>
-                  <td className="px-4 py-3 font-semibold text-amber-700">{o.fine_accrued > 0 ? o.fine_accrued.toLocaleString() : "—"}</td>
+                  <td className="px-4 py-3 font-semibold text-warning">{o.fine_accrued > 0 ? o.fine_accrued.toLocaleString() : "—"}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       disabled={sendingId === o.id}
                       onClick={() => handleSendReminder(o)}
-                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs disabled:opacity-50"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-info font-semibold text-xs disabled:opacity-50"
                     >
                       <Bell className="w-3 h-3" />
                       {sendingId === o.id ? "Sending..." : o.reminder_sent ? "Resend" : "Remind"}

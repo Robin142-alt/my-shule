@@ -29,7 +29,7 @@ export function WorkspaceHeader({
   moduleStatus,
 }: WorkspaceHeaderProps) {
   return (
-    <section className="app-operational-header rounded-[var(--radius-xl)] border border-[#C8D5EA]/45 bg-[linear-gradient(135deg,#071D49_0%,#123A7A_62%,#0F172A_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.20)]">
+    <section className="app-operational-header rounded-[var(--radius-xl)] border border-border-strong/45 bg-[linear-gradient(135deg,#071D49_0%,#123A7A_62%,#0F172A_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.20)]">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white">{title}</h1>

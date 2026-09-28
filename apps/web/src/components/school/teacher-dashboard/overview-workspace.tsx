@@ -61,12 +61,12 @@ export function OverviewWorkspace({
 
   return (
     <>
-      <section className="app-teaching-welcome relative overflow-hidden rounded-2xl bg-[#071D49] p-5 text-white sm:p-7">
+      <section className="app-teaching-welcome relative overflow-hidden rounded-2xl bg-primary p-5 text-white sm:p-7">
         <div className="relative z-10 max-w-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-100">Your teaching day</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight md:text-3xl">A little clarity. A better school day.</h2>
           <p className="mt-2 max-w-md text-sm leading-6 text-blue-100">Your lessons, learners, and next steps, together in one place.</p>
-          <button type="button" onClick={() => onViewChange("timetable")} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#173559] transition hover:bg-orange-50">
+          <button type="button" onClick={() => onViewChange("timetable")} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-orange-50">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
             View my timetable
             <ArrowUpRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -75,7 +75,7 @@ export function OverviewWorkspace({
       </section>
 
       {overviewError || liveSession.error || (!overviewPending && !liveSession.session) ? (
-        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="rounded-xl border border-warning-border bg-warning-soft p-4 text-sm text-amber-900">
           <p>{overviewError instanceof Error ? overviewError.message : liveSession.error || "Your teaching summary is unavailable. Check your school session and reload."}</p>
           {liveSession.session ? <button type="button" className="mt-2 font-semibold underline underline-offset-4" onClick={() => void refreshOverview()}>Retry teaching summary</button> : null}
         </div>
@@ -83,12 +83,12 @@ export function OverviewWorkspace({
 
       <section className="app-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map(([label, value, detail]) => (
-          <article key={label} className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748B]">{label}</p>
+          <article key={label} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">{label}</p>
             <div className="mt-2 flex items-center">
-              {overviewLoading ? <Loader2 className="h-6 w-6 animate-spin text-[#64748B]" /> : <p className="text-3xl font-black text-[#071D49]">{value}</p>}
+              {overviewLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted" /> : <p className="text-3xl font-black text-foreground">{value}</p>}
             </div>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">{detail}</p>
+            <p className="mt-1 text-sm font-semibold text-muted">{detail}</p>
           </article>
         ))}
       </section>
@@ -104,7 +104,7 @@ export function OverviewWorkspace({
                   onViewChange(view);
                   onStartAction(action, view, message);
                 }}
-                className="app-quick-action flex items-center justify-between gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left text-sm font-black text-[#071D49] transition hover:bg-[#F1F5F9]"
+                className="app-quick-action flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-muted p-4 text-left text-sm font-black text-foreground transition hover:bg-surface-strong"
               >
                 {label}
                 <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
@@ -114,35 +114,35 @@ export function OverviewWorkspace({
         </Panel>
         
         <Panel title="Today's teaching plan" description="Your assigned lessons for today." icon={CalendarDays}>
-          <div className="flex flex-col rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+          <div className="flex flex-col rounded-xl border border-border bg-surface-muted p-4">
             {timetableLoading || liveSession.isLoading ? (
                <div className="flex h-32 items-center justify-center">
-                 <Loader2 className="h-6 w-6 animate-spin text-[#64748B]" />
+                 <Loader2 className="h-6 w-6 animate-spin text-muted" />
                </div>
             ) : timetableError || !liveSession.session ? (
               <div role="status" className="py-5 text-center text-sm text-slate-600">
                 <p>Your teaching plan is currently unavailable.</p>
-                {liveSession.session ? <button type="button" onClick={() => void refreshTimetable()} className="mt-2 font-semibold text-blue-700 underline">Retry teaching plan</button> : null}
+                {liveSession.session ? <button type="button" onClick={() => void refreshTimetable()} className="mt-2 font-semibold text-info underline">Retry teaching plan</button> : null}
               </div>
             ) : todaysLessons.length > 0 ? (
               <div className="space-y-3">
                 {todaysLessons.map(lesson => (
-                  <div key={lesson.id} className="flex justify-between items-center rounded-lg bg-white p-3 border border-[#D8E0EC]">
+                  <div key={lesson.id} className="flex justify-between items-center rounded-lg bg-white p-3 border border-border">
                     <div>
-                      <p className="text-sm font-bold text-[#071D49]">{lesson.className}</p>
-                      <p className="text-xs font-semibold text-[#64748B]">{lesson.subjectName}</p>
+                      <p className="text-sm font-bold text-foreground">{lesson.className}</p>
+                      <p className="text-xs font-semibold text-muted">{lesson.subjectName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-black text-[#071D49]">{lesson.startTime}</p>
-                      <p className="text-xs text-[#64748B]">{lesson.roomName}</p>
+                      <p className="text-sm font-black text-foreground">{lesson.startTime}</p>
+                      <p className="text-xs text-muted">{lesson.roomName}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex h-32 flex-col items-center justify-center border-dashed border-[#D8E0EC]">
-                <p className="text-sm font-semibold text-[#64748B]">No lessons scheduled for today.</p>
-                <button type="button" onClick={() => onViewChange("timetable")} className="mt-2 text-sm font-bold text-[#1D4ED8] hover:underline">
+              <div className="flex h-32 flex-col items-center justify-center border-dashed border-border">
+                <p className="text-sm font-semibold text-muted">No lessons scheduled for today.</p>
+                <button type="button" onClick={() => onViewChange("timetable")} className="mt-2 text-sm font-bold text-info hover:underline">
                   View Weekly Timetable
                 </button>
               </div>

@@ -59,27 +59,27 @@ export function NotificationDrawer({
   };
 
   return (
-    <div className="absolute right-0 top-[calc(100%+8px)] z-30 flex max-h-[500px] w-[360px] flex-col rounded-xl border border-[#e8eaed] bg-white shadow-xl">
-      <div className="flex items-center justify-between border-b border-[#e8eaed] px-4 py-3">
-        <h3 className="font-semibold text-[#1a1d26]">Notifications</h3>
+    <div className="absolute right-0 top-[calc(100%+8px)] z-30 flex max-h-[500px] w-[360px] flex-col rounded-xl border border-border bg-white shadow-xl">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h3 className="font-semibold text-foreground">Notifications</h3>
         <div className="flex items-center gap-2">
           {activeTab === "UNREAD" && notifications.length > 0 ? (
             <button
               type="button"
               disabled={isMarkingAllRead}
               onClick={() => void handleMarkAllAsRead()}
-              className="min-h-10 text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:cursor-wait disabled:opacity-60"
+              className="min-h-10 text-xs font-medium text-emerald-600 hover:text-success disabled:cursor-wait disabled:opacity-60"
             >
               {isMarkingAllRead ? "Marking..." : "Mark all as read"}
             </button>
           ) : null}
-          <button type="button" aria-label="Close notifications" onClick={onClose} className="grid h-10 w-10 place-items-center text-[#8b8f9a] hover:text-[#1a1d26]">
+          <button type="button" aria-label="Close notifications" onClick={onClose} className="grid h-10 w-10 place-items-center text-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 border-b border-[#e8eaed] px-4 pt-2">
+      <div className="flex items-center gap-4 border-b border-border px-4 pt-2">
         {(["UNREAD", "ACTION_REQUIRED", "ALL"] as const).map((tab) => (
           <button
             type="button"
@@ -87,8 +87,8 @@ export function NotificationDrawer({
             onClick={() => setActiveTab(tab)}
             className={`min-h-10 border-b-2 pb-2 text-xs font-medium transition ${
               activeTab === tab
-                ? "border-emerald-500 text-emerald-700"
-                : "border-transparent text-[#5a5e6a] hover:text-[#1a1d26]"
+                ? "border-emerald-500 text-success"
+                : "border-transparent text-muted hover:text-foreground"
             }`}
           >
             {tab.replace("_", " ")}
@@ -98,22 +98,22 @@ export function NotificationDrawer({
 
       <div className="custom-scrollbar flex-1 overflow-y-auto p-2">
         {visibleError ? (
-          <div role="alert" className="mb-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div role="alert" className="mb-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger">
             <p className="font-semibold">Notifications could not be refreshed.</p>
             <p className="mt-1 break-words text-xs">{visibleError.message}</p>
-            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold">
+            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-danger-border bg-white px-3 text-xs font-semibold">
               <RefreshCw className="h-3.5 w-3.5" /> Retry
             </button>
           </div>
         ) : null}
 
         {isLoading && notifications.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-sm text-[#8b8f9a]"><Loader2 className="h-4 w-4 animate-spin" /> Loading notifications...</div>
+          <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin" /> Loading notifications...</div>
         ) : !visibleError && notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
             <Check className="mb-2 h-8 w-8 text-emerald-200" />
-            <p className="text-sm font-medium text-[#1a1d26]">All caught up!</p>
-            <p className="text-xs text-[#8b8f9a]">No notifications match this view.</p>
+            <p className="text-sm font-medium text-foreground">All caught up!</p>
+            <p className="text-xs text-muted">No notifications match this view.</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -122,21 +122,21 @@ export function NotificationDrawer({
                 key={notification.id}
                 className={`group flex items-start gap-3 rounded-lg p-3 transition ${
                   notification.status === "UNREAD" || notification.status === "ACTION_REQUIRED"
-                    ? "bg-[#f9fafc] hover:bg-[#f3f4f6]"
+                    ? "bg-[#f9fafc] hover:bg-background"
                     : "hover:bg-[#f9fafc]"
                 }`}
               >
                 <div className="mt-0.5 shrink-0">{getPriorityIcon(notification.priority)}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between">
-                    <p className="text-sm font-semibold text-[#1a1d26]">{notification.title}</p>
+                    <p className="text-sm font-semibold text-foreground">{notification.title}</p>
                     {notification.createdAt ? (
-                      <span className="ml-2 shrink-0 text-[10px] text-[#8b8f9a]">
+                      <span className="ml-2 shrink-0 text-[10px] text-muted">
                         {new Date(notification.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     ) : null}
                   </div>
-                  {notification.message ? <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[#5a5e6a]">{notification.message}</p> : null}
+                  {notification.message ? <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted">{notification.message}</p> : null}
 
                   {notification.actionUrl ? (
                     <button
@@ -148,7 +148,7 @@ export function NotificationDrawer({
                           : `${basePath}/${notification.actionUrl!}`;
                         router.push(targetUrl.replace(/\/{2,}/g, "/"));
                       }}
-                      className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-100"
+                      className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-100 bg-success-soft px-2.5 py-1 text-[10px] font-bold text-success transition hover:border-success-border hover:bg-emerald-100"
                     >
                       {notification.actionLabel || "View details"}
                       <ExternalLink className="h-3 w-3" />

@@ -52,12 +52,12 @@ export function AssessmentsCatsWorkspace() {
   return (
     <Panel title="Assessments / CATs" description="Manage continuous assessment tests and class assessments." icon={PenTool}>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" onClick={openCatSetup} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Create CAT</button>
-        <button type="button" onClick={downloadTemplate} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Import Marks</button>
-        <button type="button" onClick={downloadTemplate} className="rounded-xl border border-[#D8E0EC] px-4 py-2 text-sm font-black text-[#071D49] bg-white">Download Template</button>
+        <button type="button" onClick={openCatSetup} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Create CAT</button>
+        <button type="button" onClick={downloadTemplate} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground bg-white">Import Marks</button>
+        <button type="button" onClick={downloadTemplate} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground bg-white">Download Template</button>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load assessments. Please retry.
         </div>
       ) : (

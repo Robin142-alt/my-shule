@@ -109,14 +109,14 @@ export function ExamWorkflowTracker({
   const items = series.filter((item) => item.stage !== "released");
 
   return (
-    <section className={`space-y-4 border border-[#C8D5EA] bg-white p-4 text-[#071D49] sm:p-5 ${compact ? "rounded-lg" : "rounded-2xl shadow-[0_12px_35px_rgba(7,29,73,0.08)]"}`}>
+    <section className={`space-y-4 border border-border-strong bg-white p-4 text-foreground sm:p-5 ${compact ? "rounded-lg" : "rounded-2xl shadow-[0_12px_35px_rgba(7,29,73,0.08)]"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          {!compact ? <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#1D4ED8]">
+          {!compact ? <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-info">
             <Route className="h-4 w-4" /> Live school workflow
           </p> : null}
           <h2 className={compact ? "text-lg font-semibold" : "mt-1 text-xl font-black sm:text-2xl"}>{heading}</h2>
-          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#64748B]">
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-muted">
             {compact ? "Track each cycle, the next responsible person and any outstanding work." : "One shared lifecycle for Exams Manager, teachers, Dean, Deputy, and Principal. Each cycle shows its current desk and what must happen next."}
           </p>
         </div>
@@ -124,14 +124,14 @@ export function ExamWorkflowTracker({
           type="button"
           onClick={() => void refetch()}
           disabled={isLoading || isFetching}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-black text-[#0B63CE] disabled:opacity-50"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border-strong bg-white px-3 text-sm font-black text-info disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /> Refresh
         </button>
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger" role="alert">
           Exam workflow could not be loaded: {error.message}
         </div>
       ) : null}
@@ -143,17 +143,17 @@ export function ExamWorkflowTracker({
           ["Dean approval", data?.metrics?.report_cards_awaiting_dean ?? 0],
           ["Principal release", data?.metrics?.report_cards_awaiting_principal ?? 0],
         ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 sm:p-4">
-            <p className="text-xs font-black uppercase tracking-[0.06em] text-[#64748B]">{label}</p>
+          <div key={String(label)} className="rounded-xl border border-border bg-surface-muted p-3 sm:p-4">
+            <p className="text-xs font-black uppercase tracking-[0.06em] text-muted">{label}</p>
             <p className="mt-1 text-2xl font-black">{isLoading ? "..." : error ? "—" : value}</p>
           </div>
         ))}
       </div>
 
       {!isLoading && !error && items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#C8D5EA] bg-[#F8FAFC] px-4 py-8 text-center">
+        <div className="rounded-xl border border-dashed border-border-strong bg-surface-muted px-4 py-8 text-center">
           <p className="font-black">{series.length > 0 ? "No active exam workflows." : "No exam cycle is configured yet."}</p>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">
+          <p className="mt-1 text-sm font-semibold text-muted">
             {series.length > 0
               ? "All exam cycles have been published. The Exams Manager can create the next cycle when ready."
               : "The Exams Manager creates the cycle and opens mark-entry windows; it will then appear for every authorized role."}
@@ -166,15 +166,15 @@ export function ExamWorkflowTracker({
           const currentIndex = stageIndex(series.stage);
           const finalizedMarks = series.counts.locked_marks + series.counts.published_marks;
           return (
-            <article key={series.id} className="rounded-xl border border-[#D8E0EC] p-4">
+            <article key={series.id} className="rounded-xl border border-border p-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
                   <h3 className="text-lg font-black">{series.name}</h3>
-                  <p className="text-sm font-semibold text-[#64748B]">
+                  <p className="text-sm font-semibold text-muted">
                     {[series.term_name, series.academic_year_name].filter(Boolean).join(" - ")}
                   </p>
                 </div>
-                <div className="rounded-full bg-[#EEF5FF] px-3 py-1.5 text-xs font-black text-[#0B63CE]">
+                <div className="rounded-full bg-info-soft px-3 py-1.5 text-xs font-black text-info">
                   Next: {series.next_owner}
                 </div>
               </div>
@@ -189,9 +189,9 @@ export function ExamWorkflowTracker({
                         key={stage.key}
                         className={`rounded-lg border px-2 py-2 text-center ${
                           complete
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                            ? "border-success-border bg-success-soft text-success"
                             : current
-                              ? "border-blue-300 bg-blue-50 text-blue-800 ring-2 ring-blue-100"
+                              ? "border-blue-300 bg-info-soft text-info ring-2 ring-blue-100"
                               : "border-slate-200 bg-slate-50 text-slate-500"
                         }`}
                       >
@@ -207,14 +207,14 @@ export function ExamWorkflowTracker({
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Subjects:</span> {series.counts.subjects}</p>
-                <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Learners:</span> {series.counts.learners}</p>
-                <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Final marks:</span> {series.counts.ready_marks ?? finalizedMarks}/{series.counts.expected_marks ?? series.counts.marks}{Boolean(series.counts.missing_marks) ? <span className="mt-1 block text-amber-800">{series.counts.missing_marks} not saved for this exam</span> : null}</p>
-                <p className="rounded-lg bg-[#F8FAFC] px-3 py-2"><span className="font-black">Cards:</span> {series.counts.published_report_cards}/{series.counts.report_cards} released</p>
+                <p className="rounded-lg bg-surface-muted px-3 py-2"><span className="font-black">Subjects:</span> {series.counts.subjects}</p>
+                <p className="rounded-lg bg-surface-muted px-3 py-2"><span className="font-black">Learners:</span> {series.counts.learners}</p>
+                <p className="rounded-lg bg-surface-muted px-3 py-2"><span className="font-black">Final marks:</span> {series.counts.ready_marks ?? finalizedMarks}/{series.counts.expected_marks ?? series.counts.marks}{Boolean(series.counts.missing_marks) ? <span className="mt-1 block text-warning">{series.counts.missing_marks} not saved for this exam</span> : null}</p>
+                <p className="rounded-lg bg-surface-muted px-3 py-2"><span className="font-black">Cards:</span> {series.counts.published_report_cards}/{series.counts.report_cards} released</p>
               </div>
 
               {series.blockers.length > 0 && series.stage !== "released" ? (
-                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-xs font-semibold text-amber-900">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>{series.blockers.join("; ")}</p>
                 </div>
@@ -225,7 +225,7 @@ export function ExamWorkflowTracker({
       </div>
 
       {data?.scope && !compact ? (
-        <p className="text-right text-xs font-bold text-[#64748B]">
+        <p className="text-right text-xs font-bold text-muted">
           {data.scope.level === "department" ? "Department-scoped" : "School-scoped"} view for {roleLabel(data.scope.role)}
         </p>
       ) : null}

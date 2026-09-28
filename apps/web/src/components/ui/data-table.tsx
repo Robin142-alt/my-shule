@@ -50,7 +50,7 @@ export function DataTable<T>({
   return (
     <Card className="overflow-hidden">
       {title || subtitle || actions ? (
-        <div className="border-b border-border bg-surface px-4 py-3.5 sm:px-5">
+        <div className="border-b border-primary-muted bg-primary-soft px-4 py-3.5 sm:px-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="min-w-0">
               {title ? (

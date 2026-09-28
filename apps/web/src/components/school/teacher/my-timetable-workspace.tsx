@@ -73,12 +73,12 @@ export function MyTimetableWorkspace() {
                       <div key={`${day}-${pIndex}`} className="p-2 border-r last:border-0 border-slate-200">
                         {session ? (
                           <div className={`h-full rounded-md p-2 border ${
-                            session.subject === 'Math' ? 'bg-blue-50 border-blue-100' : 'bg-purple-50 border-purple-100'
+                            session.subject === 'Math' ? 'bg-info-soft border-blue-100' : 'bg-purple-50 border-purple-100'
                           }`}>
                             <div className={`text-xs font-semibold ${session.subject === 'Math' ? 'text-blue-900' : 'text-purple-900'}`}>
                               {session.subject}
                             </div>
-                            <div className={`text-xs mt-1 ${session.subject === 'Math' ? 'text-blue-700' : 'text-purple-700'}`}>
+                            <div className={`text-xs mt-1 ${session.subject === 'Math' ? 'text-info' : 'text-purple-700'}`}>
                               {session.class}
                             </div>
                             <div className="text-[10px] text-slate-500 mt-2 flex items-center gap-1">

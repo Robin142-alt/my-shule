@@ -130,33 +130,33 @@ export function ExamsReportCardsWorkspace() {
       icon={Award}
     >
       <div className="mb-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Approved for release</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : approvedCards}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Approved for release</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : approvedCards}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Learners ready</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : learnersReady}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Learners ready</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : learnersReady}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Currently published</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : publishedCards}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Currently published</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : publishedCards}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Withdrawn revisions</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : withdrawnCards}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Withdrawn revisions</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : withdrawnCards}</div>
         </div>
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+        <div className="mb-4 rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
           Principal release queue could not be loaded: {error.message}
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Exam series</th>
               <th className="px-4 py-3 font-bold">Term</th>
@@ -169,13 +169,13 @@ export function ExamsReportCardsWorkspace() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   Loading Principal release queue...
                 </td>
               </tr>
             ) : seriesGroups.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   No report-card series is ready for Principal action. The Exams Manager must generate and submit cards, then the Dean must approve them.
                 </td>
               </tr>
@@ -188,22 +188,22 @@ export function ExamsReportCardsWorkspace() {
                   .slice(0, 3);
 
                 return (
-                  <tr key={group.id} className="border-t border-[#D8E0EC] align-top hover:bg-[#F8FAFC]">
-                    <td className="px-4 py-3 text-[#64748B]">
-                      <div className="font-bold text-[#071D49]">{group.name}</div>
+                  <tr key={group.id} className="border-t border-border align-top hover:bg-surface-muted">
+                    <td className="px-4 py-3 text-muted">
+                      <div className="font-bold text-foreground">{group.name}</div>
                       <div>{group.id}</div>
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       {[group.term, group.academicYear].filter(Boolean).join(" - ") || "Not assigned"}
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       <div>{group.cards.length} current card(s)</div>
                       <div>{group.approved} approved, {group.published} published</div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusChip label={groupStatus(group)} tone={groupTone(group)} />
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       {learnerNames.length ? learnerNames.join(", ") : `${group.cards.length} learner(s)`}
                       {group.cards.length > learnerNames.length && learnerNames.length
                         ? ` +${group.cards.length - learnerNames.length} more`
@@ -227,13 +227,13 @@ export function ExamsReportCardsWorkspace() {
                             setWithdrawReason("");
                           }}
                           disabled={Boolean(busySeriesId)}
-                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700 disabled:opacity-50"
+                          className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-xs font-black text-danger disabled:opacity-50"
                         >
                           Withdraw published series
                         </button>
                       ) : withdrawing ? (
                         <div className="ml-auto flex max-w-sm flex-col gap-2">
-                          <label htmlFor={`withdraw-${group.id}`} className="text-left text-xs font-bold text-[#475569]">
+                          <label htmlFor={`withdraw-${group.id}`} className="text-left text-xs font-bold text-muted-strong">
                             Required withdrawal reason
                           </label>
                           <textarea
@@ -241,7 +241,7 @@ export function ExamsReportCardsWorkspace() {
                             value={withdrawReason}
                             onChange={(event) => setWithdrawReason(event.target.value)}
                             rows={2}
-                            className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#071D49]"
+                            className="rounded-lg border border-border-strong bg-white px-3 py-2 text-sm text-foreground"
                           />
                           <div className="flex justify-end gap-2">
                             <button
@@ -251,7 +251,7 @@ export function ExamsReportCardsWorkspace() {
                                 setWithdrawReason("");
                               }}
                               disabled={busySeriesId === group.id}
-                              className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-black text-[#475569]"
+                              className="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs font-black text-muted-strong"
                             >
                               Cancel
                             </button>
@@ -266,7 +266,7 @@ export function ExamsReportCardsWorkspace() {
                           </div>
                         </div>
                       ) : (
-                        <span className="text-xs font-semibold text-[#64748B]">
+                        <span className="text-xs font-semibold text-muted">
                           Generate a corrected revision before release.
                         </span>
                       )}

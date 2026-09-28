@@ -41,13 +41,13 @@ export function ClinicHealthWorkspace() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6 border border-slate-200 bg-rose-50/30">
+        <Card className="p-6 border border-slate-200 bg-danger-soft/30">
           <h3 className="font-medium text-slate-900 flex items-center gap-2 mb-4">
             <AlertTriangle className="w-5 h-5 text-rose-500" /> Known Allergies
           </h3>
           <div className="flex flex-wrap gap-2">
             {allergies.map((allergy: string, idx: number) => (
-               <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-rose-100 text-rose-700">
+               <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-rose-100 text-danger">
                  {allergy}
                </span>
             ))}
@@ -57,7 +57,7 @@ export function ClinicHealthWorkspace() {
           </div>
         </Card>
 
-        <Card className="p-6 border border-slate-200 bg-blue-50/30">
+        <Card className="p-6 border border-slate-200 bg-info-soft/30">
           <h3 className="font-medium text-slate-900 flex items-center gap-2 mb-4">
             <Pill className="w-5 h-5 text-blue-500" /> Active Medications
           </h3>
@@ -89,7 +89,7 @@ export function ClinicHealthWorkspace() {
           ) : visits.length > 0 ? (
              visits.map((visit: any, idx: number) => (
                 <div key={idx} className="p-4 flex flex-col md:flex-row gap-4 hover:bg-slate-50/50 transition-colors">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-success-soft text-emerald-600 flex items-center justify-center shrink-0">
                     <Stethoscope className="w-6 h-6" />
                   </div>
                   <div className="flex-1">

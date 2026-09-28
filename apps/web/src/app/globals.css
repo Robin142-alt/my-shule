@@ -4,7 +4,22 @@
 @import "./authentication.css";
 
 /* Feedback stays readable above dialogs, long forms, and the mobile keyboard. */
-[data-sonner-toaster].myshule-feedback {
+[data-sonner-toaster].myshule-feedback[data-theme] {
+  --normal-bg: var(--surface);
+  --normal-text: var(--foreground);
+  --normal-border: var(--border);
+  --success-bg: var(--success-soft);
+  --success-text: var(--success);
+  --success-border: var(--status-success-border);
+  --warning-bg: var(--warning-soft);
+  --warning-text: var(--warning);
+  --warning-border: var(--status-warning-border);
+  --error-bg: var(--danger-soft);
+  --error-text: var(--danger);
+  --error-border: var(--danger-border);
+  --info-bg: var(--info-soft);
+  --info-text: var(--info);
+  --info-border: var(--status-info-border);
   --width: 420px;
   max-width: calc(100vw - 24px);
   display: flex;
@@ -87,51 +102,67 @@
   --darkblue: #0F2345;
   --white: #FFFFFF;
 
-  --background: #F3F4F6;
+  /* Semantic colours are shared by workspaces, authentication and body portals.
+     Brand swatches above are reserved for the logo and brand artwork. */
+  color-scheme: light;
+  --background: #F4F6FA;
   --background-2: #FFFFFF;
-  --background-3: #E8EDF4;
-  --foreground: #0F2345;
+  --background-3: #EAF0F6;
+  --foreground: #172B46;
   --surface: #FFFFFF;
   --surface-muted: #F8FAFC;
-  --surface-strong: #EEF2F7;
+  --surface-strong: #EEF2F8;
 
-  --border: rgba(7, 29, 73, 0.12);
-  --border-strong: rgba(255, 122, 26, 0.42);
+  --border: #DBE3ED;
+  --border-strong: #B4C2D4;
+  --border-control: #8594AA;
 
-  --primary: #071D49;
-  --primary-hover: #0F2345;
-  --primary-soft: rgba(7, 29, 73, 0.08);
-  --primary-muted: rgba(7, 29, 73, 0.14);
+  --primary: #173559;
+  --primary-hover: #234970;
+  --primary-soft: #EDF3FB;
+  --primary-muted: #D8E4F2;
 
-  --accent: #FF7A1A;
-  --accent-hover: #E8670C;
-  --accent-soft: rgba(255, 122, 26, 0.12);
-  --accent-ghost: rgba(255, 122, 26, 0.08);
-  --accent-muted: rgba(255, 122, 26, 0.22);
-  --accent-glow: 0 0 0 4px rgba(255, 122, 26, 0.16);
+  --accent: #B94712;
+  --accent-hover: #96380D;
+  --accent-soft: #FFF1E7;
+  --accent-ghost: #FFF8F2;
+  --accent-muted: #F3C8AA;
+  --accent-glow: 0 0 0 4px rgb(185 71 18 / 16%);
 
-  --danger: #DC2626;
+  --danger: #B42332;
   --danger-hover: #B91C1C;
-  --danger-soft: rgba(220, 38, 38, 0.1);
-  --warning: #FF7A1A;
-  --warning-soft: rgba(255, 122, 26, 0.12);
-  --success: #059669;
-  --success-soft: rgba(5, 150, 105, 0.1);
-  --info: #2563EB;
-  --info-soft: rgba(37, 99, 235, 0.1);
+  --danger-soft: #FFF0F1;
+  --danger-border: #ECC1C7;
+  --warning: #92530B;
+  --warning-soft: #FFF6E5;
+  --warning-border: var(--status-warning-border);
+  --status-warning-border: #E8C994;
+  --success: #087460;
+  --success-soft: #EAF7F1;
+  --success-border: var(--status-success-border);
+  --status-success-border: #ACD8C9;
+  --info: #245DB0;
+  --info-soft: #EDF4FF;
+  --info-border: var(--status-info-border);
+  --status-info-border: #BED2F0;
 
-  --muted: #5F6F89;
-  --muted-strong: #7B8798;
+  --muted: #5E6E85;
+  --muted-strong: #53647D;
+  --focus: #2862BB;
 
-  --sidebar: #071D49;
+  --sidebar: #10243E;
   --sidebar-foreground: #FFFFFF;
+  --sidebar-muted: #C3CFDF;
+  --sidebar-active: #294A6E;
+  --inverse-accent: #FFBA89;
+  --inverse-border: rgb(255 255 255 / 14%);
 
   --shadow-xs: 0 1px 2px rgba(7, 29, 73, 0.06);
   --shadow-sm: 0 8px 18px rgba(7, 29, 73, 0.08);
   --shadow: 0 14px 34px rgba(7, 29, 73, 0.1);
   --shadow-md: 0 18px 46px rgba(7, 29, 73, 0.14);
   --shadow-lg: 0 24px 70px rgba(7, 29, 73, 0.18);
-  --shadow-focus: var(--accent-glow);
+  --shadow-focus: 0 0 0 4px rgb(40 98 187 / 16%);
 
   --radius-xs: 4px;
   --radius-sm: 6px;
@@ -176,6 +207,8 @@
   --color-surface-strong: var(--surface-strong);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-border-control: var(--border-control);
+  --color-focus: var(--focus);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
@@ -188,16 +221,26 @@
   --color-danger: var(--danger);
   --color-danger-hover: var(--danger-hover);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
   --color-muted: var(--muted);
   --color-muted-strong: var(--muted-strong);
+  --color-muted-foreground: var(--muted);
+  --color-ring: var(--focus);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-inverse-accent: var(--inverse-accent);
+  --color-inverse-border: var(--inverse-border);
   --font-sans: "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif;
   --font-mono: Consolas, "Courier New", ui-monospace, monospace;
 }
@@ -239,7 +282,16 @@ textarea {
 }
 
 ::selection {
-  background: rgba(255, 122, 26, 0.2);
+  background: var(--accent-muted);
+  color: var(--foreground);
+}
+
+input[type="checkbox"], input[type="radio"], input[type="range"] {
+  accent-color: var(--primary);
+}
+
+:is(.authenticated-app, .app-modal-panel, .app-popover-sheet, .auth-shell) :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--danger);
 }
 
 @layer components {
@@ -330,14 +382,14 @@ textarea {
 }
 
 .ui-button-primary {
-  background: var(--accent);
+  background: var(--primary);
   color: var(--white);
-  box-shadow: 0 10px 24px rgba(255, 122, 26, 0.24);
+  box-shadow: var(--shadow-sm);
 }
 
 .ui-button-primary:hover {
-  background: var(--accent-hover);
-  box-shadow: 0 14px 32px rgba(255, 122, 26, 0.28);
+  background: var(--primary-hover);
+  box-shadow: var(--shadow);
 }
 
 .ui-button-secondary {
@@ -375,7 +427,7 @@ textarea {
 .ui-input:focus,
 .input-base:focus,
 .input-focus:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
   box-shadow: var(--shadow-focus);
 }
 
@@ -399,9 +451,9 @@ textarea {
 }
 
 .ui-alert-warning {
-  border-color: rgba(255, 122, 26, 0.28);
-  background: rgba(255, 122, 26, 0.1);
-  color: var(--darkblue);
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .status-critical {
@@ -502,7 +554,7 @@ textarea {
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -587,25 +639,25 @@ textarea {
 .badge-success {
   background: var(--success-soft);
   color: var(--success);
-  border: 1px solid rgba(5, 150, 105, 0.18);
+  border: 1px solid var(--success-border);
 }
 
 .badge-warning {
   background: var(--warning-soft);
-  color: var(--accent-hover);
-  border: 1px solid rgba(255, 122, 26, 0.24);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
 }
 
 .badge-danger {
   background: var(--danger-soft);
   color: var(--danger);
-  border: 1px solid rgba(220, 38, 38, 0.18);
+  border: 1px solid var(--danger-border);
 }
 
 .badge-info {
   background: var(--info-soft);
   color: var(--info);
-  border: 1px solid rgba(37, 99, 235, 0.18);
+  border: 1px solid var(--info-border);
 }
 
 .badge-neutral {

@@ -75,53 +75,53 @@ export function ReceptionQueueWorkspace() {
     <Panel title="Reception Queue" description="Manage walk-in visitors and waiting queue." icon={ListOrdered}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">In Queue</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.total_in_queue || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">In Queue</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.total_in_queue || 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Being Served</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.being_served || 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Being Served</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : metrics?.being_served || 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Completed Today</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.completed_today || 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Completed Today</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.completed_today || 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Avg Wait (min)</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.avg_wait_minutes || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Avg Wait (min)</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.avg_wait_minutes || 0}</div>
         </div>
       </div>
 
       {/* Queue Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Ticket</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Visitor Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Purpose</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Person to See</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Arrival</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Wait (min)</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Ticket</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Visitor Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Purpose</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Person to See</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Arrival</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Wait (min)</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading queue...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading queue...</td></tr>
             ) : queue.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No visitors in the queue. New walk-in visitors will appear here when checked in at reception.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No visitors in the queue. New walk-in visitors will appear here when checked in at reception.</td></tr>
             ) : (
               queue.map((entry) => (
-                <tr key={entry.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-mono font-bold text-[#071D49]">{entry.ticket_number}</td>
-                  <td className="px-4 py-3 font-medium text-[#071D49]">{entry.visitor_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{entry.purpose}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{entry.person_to_see}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{entry.arrival_time}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{entry.wait_time_minutes}</td>
+                <tr key={entry.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-mono font-bold text-foreground">{entry.ticket_number}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{entry.visitor_name}</td>
+                  <td className="px-4 py-3 text-muted">{entry.purpose}</td>
+                  <td className="px-4 py-3 text-muted">{entry.person_to_see}</td>
+                  <td className="px-4 py-3 text-muted">{entry.arrival_time}</td>
+                  <td className="px-4 py-3 text-muted">{entry.wait_time_minutes}</td>
                   <td className="px-4 py-3"><StatusChip label={entry.status} tone={getStatusTone(entry.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">

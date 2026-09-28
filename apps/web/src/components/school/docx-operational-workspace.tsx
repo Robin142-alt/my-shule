@@ -244,7 +244,7 @@ export function DocxOperationalWorkspace({ moduleId }: { moduleId: string }) {
       />
 
       {actionError ? (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           {actionError}
         </div>
       ) : null}

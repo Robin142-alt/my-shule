@@ -203,7 +203,7 @@ export function OverviewWorkspace({
                   className="flex w-full items-center gap-3 py-4 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-600"
                 >
                   <span
-                    className={`flex h-10 min-w-10 items-center justify-center rounded-md px-2 text-sm font-semibold tabular-nums ${!workflow.error && queue.count ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-600"}`}
+                    className={`flex h-10 min-w-10 items-center justify-center rounded-md px-2 text-sm font-semibold tabular-nums ${!workflow.error && queue.count ? "bg-warning-soft text-warning" : "bg-slate-100 text-slate-600"}`}
                   >
                     {metric(queue.count)}
                   </span>

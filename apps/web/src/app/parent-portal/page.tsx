@@ -34,7 +34,7 @@ const visibleItems = [
 function ParentVisibilityPreview() {
   return (
     <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
-      <div className="rounded-xl bg-[#071D49] p-5 text-white">
+      <div className="rounded-xl bg-primary p-5 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold">Parent visibility record</p>
@@ -51,7 +51,7 @@ function ParentVisibilityPreview() {
           ].map(([label, value, helper]) => (
             <div key={label} className="rounded-xl border border-white/10 bg-white/[0.08] p-4">
               <p className="text-xs font-semibold text-white/65">{label}</p>
-              <p className="mt-2 text-xl font-semibold text-[#fed7aa]">{value}</p>
+              <p className="mt-2 text-xl font-semibold text-warning-border">{value}</p>
               <p className="mt-1 text-xs leading-5 text-white/65">{helper}</p>
             </div>
           ))}

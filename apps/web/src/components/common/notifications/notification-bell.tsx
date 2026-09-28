@@ -49,7 +49,7 @@ export function NotificationBell({
         aria-label={buttonLabel}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="relative rounded-xl border border-[#e8eaed] p-2.5 text-[#5a5e6a] transition hover:bg-[#f3f4f6]"
+        className="relative rounded-xl border border-border p-2.5 text-muted transition hover:bg-background"
       >
         <Bell className="h-4 w-4" />
         {hasUnread ? (

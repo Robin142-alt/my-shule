@@ -39,22 +39,22 @@ export function LessonPlansWorkspace() {
   return (
     <Panel title="Lesson Plans Review" description="Review and approve lesson plans from department teachers." icon={BookMarked}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Submitted</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.submitted ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Submitted</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.submitted ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Pending Review</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Pending Review</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Approved</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Approved</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Teacher</th>
               <th className="px-4 py-3 font-bold">Subject</th>
@@ -67,18 +67,18 @@ export function LessonPlansWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No lesson plans yet. Ask department teachers to submit plans before review.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No lesson plans yet. Ask department teachers to submit plans before review.</td></tr>
             ) : (
               items.map((row, index) => (
-                <tr key={row.id ?? `${fieldValue(row, ["teacher", "teacher_name"])}-${fieldValue(row, ["topic", "title"])}-${index}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["teacher", "teacher_name"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["term", "academic_term"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["week", "week_number"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["topic", "title"])}</td>
+                <tr key={row.id ?? `${fieldValue(row, ["teacher", "teacher_name"])}-${fieldValue(row, ["topic", "title"])}-${index}`} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["teacher", "teacher_name"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["subject", "subject_name"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["class", "class_name"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["term", "academic_term"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["week", "week_number"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["topic", "title"])}</td>
                   <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Pending Review")} tone={getStatusTone(fieldValue(row, ["status"], "Pending Review"))} /></td>
                 </tr>
               ))

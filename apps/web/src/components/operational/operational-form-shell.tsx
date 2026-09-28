@@ -361,8 +361,8 @@ export function OperationalFormShell({
             </div>
           </div>
         ) : (
-          <div className="mt-5 flex items-center gap-2 rounded-[var(--radius-sm)] border border-[#D7E0EF] bg-[#EEF6FF] px-3 py-2 text-xs font-semibold text-[#40608F]">
-            <ShieldCheck className="h-3.5 w-3.5 text-[#0B3A7A]" />
+          <div className="mt-5 flex items-center gap-2 rounded-[var(--radius-sm)] border border-border bg-info-soft px-3 py-2 text-xs font-semibold text-muted-strong">
+            <ShieldCheck className="h-3.5 w-3.5 text-info" />
             This form saves the update, refreshes related desks, and keeps a reporting record.
           </div>
         )}

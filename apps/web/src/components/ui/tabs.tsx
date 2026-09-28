@@ -66,9 +66,9 @@ export function Tabs({
               aria-selected={active}
               tabIndex={active ? 0 : -1}
               onClick={() => selectTab(item.id)}
-              className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-[13px] font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
+              className={`min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-[13px] font-semibold transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
                 active
-                  ? "bg-primary text-white shadow-sm"
+                  ? "bg-primary-soft text-primary shadow-sm border border-primary-muted"
                   : "text-muted hover:bg-surface-strong hover:text-foreground"
               }`}
             >

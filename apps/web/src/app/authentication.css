@@ -1,12 +1,5 @@
 /* Shared, scoped authentication styles. */
 .auth-shell {
-  --foreground: #152641;
-  --muted: #647086;
-  --muted-strong: #58667b;
-  --accent: #173e71;
-  --accent-hover: #0b2c58;
-  --accent-soft: #edf2f8;
-  --border: #dce2eb;
   --radius: 12px;
   color-scheme: light;
   display: flex;
@@ -15,7 +8,7 @@
   padding: max(24px, env(safe-area-inset-top))
     max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
     max(20px, env(safe-area-inset-left));
-  background: #f6f8fb;
+  background: var(--background);
   color: var(--foreground);
 }
 .auth-container {
@@ -32,9 +25,9 @@
 .auth-card {
   min-width: 0;
   padding: 28px;
-  border: 1px solid #e3e8f0;
+  border: 1px solid var(--border);
   border-radius: 20px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 8px 32px #15264108;
   overflow-wrap: anywhere;
 }
@@ -50,7 +43,7 @@
   line-height: 1.55;
 }
 .auth-card a {
-  color: var(--accent);
+  color: var(--primary);
 }
 .auth-card a,
 .auth-card button {
@@ -62,7 +55,7 @@
   min-height: 44px;
 }
 .auth-card :is(a, button, input):focus-visible {
-  outline: 2px solid #386aaa;
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 .auth-card input {
@@ -85,7 +78,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: var(--accent);
+  background: var(--primary);
   color: white;
   padding: 10px 16px;
   font-size: 14px;
@@ -102,6 +95,12 @@
   font-size: 14px;
   font-weight: 600;
 }
+.auth-primary:hover:not(:disabled), .auth-card a.auth-primary:hover {
+  background: var(--primary-hover);
+}
+.auth-secondary:hover:not(:disabled) {
+  background: var(--primary-soft);
+}
 .auth-code {
   text-align: center;
   letter-spacing: 0.4em;
@@ -113,23 +112,23 @@
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   padding: 4px;
-  background: #f0f3f8;
+  background: var(--surface-strong);
   border-radius: 12px;
 }
 .auth-methods button {
   min-height: 44px;
   border-radius: 9px;
   font-size: 14px;
-  color: #647086;
+  color: var(--muted);
 }
 .auth-methods button[aria-pressed="true"] {
-  background: #fff;
-  color: #152641;
+  background: var(--surface);
+  color: var(--foreground);
   box-shadow: 0 1px 4px #15264110;
 }
 @media (max-width: 479px) {
   .auth-shell {
-    background: #fff;
+    background: var(--surface);
   }
   .auth-container {
     max-width: 360px;

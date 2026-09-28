@@ -63,53 +63,53 @@ export function SickBayQueueWorkspace() {
 
   return (
     <Panel title="Sick Bay Queue" description="Students currently resting in the sick bay." icon={BedDouble} actions={
-      <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
+      <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
         <PlusCircle className="w-4 h-4" /> Admit Student
       </button>
     }>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Currently Admitted</div>
-          <div className="mt-1 text-lg font-black text-amber-700">{isLoading ? "..." : data?.metrics?.currently_admitted ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Currently Admitted</div>
+          <div className="mt-1 text-lg font-black text-warning">{isLoading ? "..." : data?.metrics?.currently_admitted ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Discharged Today</div>
-          <div className="mt-1 text-lg font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.discharged_today ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Discharged Today</div>
+          <div className="mt-1 text-lg font-black text-success">{isLoading ? "..." : data?.metrics?.discharged_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Avg Stay (hrs)</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.avg_stay_hours ?? "—"}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Avg Stay (hrs)</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.avg_stay_hours ?? "—"}</div>
         </div>
       </div>
 
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-        <input type="text" placeholder="Search student..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none" />
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+        <input type="text" placeholder="Search student..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none" />
       </div>
 
       {showForm && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <h3 className="text-sm font-bold text-[#071D49] mb-3">Admit to Sick Bay</h3>
+        <div className="mb-4 rounded-xl border border-warning-border bg-warning-soft p-4">
+          <h3 className="text-sm font-bold text-foreground mb-3">Admit to Sick Bay</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="text-xs font-bold text-[#334155]">Student Name *</label>
-              <input value={form.student_name} onChange={e => setForm({...form, student_name: e.target.value})} className="mt-1 w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+              <label className="text-xs font-bold text-foreground">Student Name *</label>
+              <input value={form.student_name} onChange={e => setForm({...form, student_name: e.target.value})} className="mt-1 w-full rounded-lg border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-bold text-[#334155]">Class</label>
-              <input value={form.class_name} onChange={e => setForm({...form, class_name: e.target.value})} className="mt-1 w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+              <label className="text-xs font-bold text-foreground">Class</label>
+              <input value={form.class_name} onChange={e => setForm({...form, class_name: e.target.value})} className="mt-1 w-full rounded-lg border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-bold text-[#334155]">Complaint *</label>
-              <input value={form.complaint} onChange={e => setForm({...form, complaint: e.target.value})} className="mt-1 w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+              <label className="text-xs font-bold text-foreground">Complaint *</label>
+              <input value={form.complaint} onChange={e => setForm({...form, complaint: e.target.value})} className="mt-1 w-full rounded-lg border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs font-bold text-[#334155]">Notes</label>
-              <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="mt-1 w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+              <label className="text-xs font-bold text-foreground">Notes</label>
+              <input value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="mt-1 w-full rounded-lg border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
             </div>
           </div>
           <div className="mt-3 flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+            <button onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:bg-slate-100">Cancel</button>
             <button disabled={isSubmitting} onClick={handleAdmit} className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-50">
               {isSubmitting ? "Admitting..." : "Admit"}
             </button>
@@ -117,30 +117,30 @@ export function SickBayQueueWorkspace() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Complaint</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Admitted At</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Complaint</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Admitted At</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading sick bay...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading sick bay...</td></tr>
             ) : entries.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Sick bay is empty. Click &quot;Admit Student&quot; when a student needs rest.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Sick bay is empty. Click &quot;Admit Student&quot; when a student needs rest.</td></tr>
             ) : (
               entries.map(e => (
-                <tr key={e.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{e.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{e.class_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{e.complaint}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{e.admitted_at}</td>
+                <tr key={e.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{e.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{e.class_name}</td>
+                  <td className="px-4 py-3 text-muted">{e.complaint}</td>
+                  <td className="px-4 py-3 text-muted">{e.admitted_at}</td>
                   <td className="px-4 py-3"><StatusChip label={e.status} tone={getStatusTone(e.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {e.status === "Admitted" && (

@@ -145,24 +145,24 @@ export function ReferralsWorkspace() {
           disabled={permissionsLoading || !canWrite || optionsQuery.isLoading || Boolean(optionsQuery.error)}
           onClick={openReferralForm}
           title={!permissionsLoading && !canWrite ? "Counselling write permission is required" : undefined}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> New Referral
         </button>
       }
     >
       {optionsQuery.error ? (
-        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="mb-4 rounded-xl border border-warning-border bg-warning-soft p-4 text-sm text-amber-900">
           Referral options could not be loaded. Retry before creating a referral.
           <button type="button" onClick={() => void optionsQuery.refetch()} className="ml-2 font-black underline">Retry</button>
         </div>
       ) : null}
 
       {showForm ? (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="text-sm font-black text-[#071D49]">Create counselling referral</h3>
+        <div className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
+          <h3 className="text-sm font-black text-foreground">Create counselling referral</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Student *
               <select
                 value={form.student_id}
@@ -174,46 +174,46 @@ export function ReferralsWorkspace() {
                     class_id: student?.class_id || current.class_id,
                   }));
                 }}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="">Select student</option>
                 {(options?.students ?? []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Class *
               <select
                 value={form.class_id}
                 onChange={(event) => setForm((current) => ({ ...current, class_id: event.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="">Select class</option>
                 {(options?.classes ?? []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Academic term *
               <select
                 value={form.academic_term_id}
                 onChange={(event) => setForm((current) => ({ ...current, academic_term_id: event.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="">Select term</option>
                 {(options?.terms ?? []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Academic year *
               <select
                 value={form.academic_year_id}
                 onChange={(event) => setForm((current) => ({ ...current, academic_year_id: event.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="">Select year</option>
                 {(options?.years ?? []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Risk level
               <select
                 value={form.risk_level}
@@ -221,7 +221,7 @@ export function ReferralsWorkspace() {
                   ...current,
                   risk_level: event.target.value as CreateReferralPayload["risk_level"],
                 }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -229,34 +229,34 @@ export function ReferralsWorkspace() {
                 <option value="critical">Critical</option>
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Related discipline incident
               <select
                 value={form.incident_id}
                 onChange={(event) => setForm((current) => ({ ...current, incident_id: event.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="">None</option>
                 {(options?.incidents ?? []).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155] md:col-span-2">
+            <label className="text-xs font-bold text-foreground md:col-span-2">
               Referral reason *
               <textarea
                 value={form.reason}
                 onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               />
             </label>
           </div>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted">Cancel</button>
             <button
               type="button"
               disabled={createReferral.isPending}
               onClick={submitReferral}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50"
             >
               {createReferral.isPending ? "Saving…" : "Save Referral"}
             </button>
@@ -265,30 +265,30 @@ export function ReferralsWorkspace() {
       ) : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending Referrals</div>
-          <div className="mt-1 text-lg font-black text-amber-800">{isLoading ? "..." : data?.metrics?.pending_referrals ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending Referrals</div>
+          <div className="mt-1 text-lg font-black text-warning">{isLoading ? "..." : data?.metrics?.pending_referrals ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Accepted</div>
-          <div className="mt-1 text-lg font-black text-emerald-800">{isLoading ? "..." : data?.metrics?.accepted ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Accepted</div>
+          <div className="mt-1 text-lg font-black text-success">{isLoading ? "..." : data?.metrics?.accepted ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">External</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.external ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">External</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.external ?? 0}</div>
         </div>
       </div>
 
       {error ? (
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <p className="font-black">Counselling referrals could not be loaded.</p>
           <p className="mt-1">{error.message}</p>
           <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <RecordTable className="w-full whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <thead className="bg-surface-muted text-foreground">
               <tr>
                 <th className="px-4 py-3 font-bold">Student</th>
                 <th className="px-4 py-3 font-bold">Class</th>
@@ -301,24 +301,24 @@ export function ReferralsWorkspace() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading referrals…</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading referrals…</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No counselling referrals exist for this school. Create one when a learner needs confidential follow-up.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No counselling referrals exist for this school. Create one when a learner needs confidential follow-up.</td></tr>
               ) : (
                 items.map((row) => (
-                  <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                    <td className="px-4 py-3 font-semibold text-[#071D49]">{row.student_name}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                    <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-[#64748B]">{row.reason}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.risk_level || "medium"}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
+                  <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                    <td className="px-4 py-3 font-semibold text-foreground">{row.student_name}</td>
+                    <td className="px-4 py-3 text-muted">{row.class}</td>
+                    <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-muted">{row.reason}</td>
+                    <td className="px-4 py-3 text-muted">{row.risk_level || "medium"}</td>
+                    <td className="px-4 py-3 text-muted">{row.date}</td>
                     <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                     <td className="px-4 py-3">
                       {canWrite && row.status.toLowerCase() === "open" ? (
-                        <button type="button" onClick={() => updateStatus.mutate({ id: row.id, status: "accepted" })} className="font-black text-blue-700 underline">Accept</button>
+                        <button type="button" onClick={() => updateStatus.mutate({ id: row.id, status: "accepted" })} className="font-black text-info underline">Accept</button>
                       ) : null}
                       {canWrite && row.status.toLowerCase() === "accepted" ? (
-                        <button type="button" onClick={() => updateStatus.mutate({ id: row.id, status: "closed" })} className="font-black text-emerald-700 underline">Close</button>
+                        <button type="button" onClick={() => updateStatus.mutate({ id: row.id, status: "closed" })} className="font-black text-success underline">Close</button>
                       ) : null}
                     </td>
                   </tr>

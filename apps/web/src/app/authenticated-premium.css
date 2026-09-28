@@ -24,14 +24,14 @@
     border: 0;
     border-radius: 0 7px 7px 0;
     background: rgb(23 53 89 / 84%);
-    color: #fff;
+    color: var(--surface);
     font: 500 10px/1 "Inter", "Segoe UI", sans-serif;
     letter-spacing: .02em;
     cursor: pointer;
     touch-action: manipulation;
   }
   .app-side-menu-arrow { font-size: 10px; }
-  .app-side-menu-tab:focus-visible { outline: 2px solid #ff7a1a; outline-offset: 3px; }
+  .app-side-menu-tab:focus-visible { outline: 2px solid var(--inverse-accent); outline-offset: 3px; }
   .app-side-menu-tab:disabled { cursor: not-allowed; opacity: .6; }
   .authenticated-app .app-command-topbar > div:has(> .app-mobile-nav-host[data-mobile-placement="edge"]) { margin-top: 0; }
 }
@@ -39,25 +39,6 @@
 
 @media screen {
   .authenticated-app {
-    --background: #f4f6fa;
-    --foreground: #172b46;
-    --surface: #fff;
-    --surface-muted: #f8f9fc;
-    --surface-strong: #eef2f8;
-    --border: #e2e7ef;
-    --border-strong: #b9c6d8;
-    --muted: #61718a;
-    --muted-strong: #63738b;
-    --primary: #173559;
-    --primary-hover: #234970;
-    --primary-soft: #edf3fb;
-    --accent: #c65016;
-    --accent-hover: #a63d0c;
-    --accent-soft: #fff1e7;
-    --warning: #a35b08;
-    --success: #087d68;
-    --info: #2862bb;
-    --sidebar: #10243e;
     --radius: 16px;
     --radius-sm: 10px;
     --radius-lg: 12px;
@@ -66,9 +47,8 @@
     --shadow-sm: 0 2px 4px rgb(21 42 72 / 3%), 0 6px 18px rgb(21 42 72 / 3%);
     --shadow: 0 4px 8px rgb(21 42 72 / 4%), 0 12px 32px rgb(21 42 72 / 6%);
     --shadow-md: 0 8px 28px rgb(21 42 72 / 10%);
-    --shadow-focus: 0 0 0 4px rgb(40 98 187 / 12%);
     --font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif;
-    background: radial-gradient(ellipse at 95% 0%, #e8eef8 0, transparent 42rem), var(--background);
+    background: var(--background);
     font-family: var(--font-sans);
     font-optical-sizing: auto;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -81,9 +61,9 @@
   .authenticated-app :where(h1, h2, h3) { letter-spacing: -.035em; }
   .authenticated-app :where(.eyebrow, p.uppercase) { font-weight: 600; letter-spacing: .09em; }
   .authenticated-app :where(.finance-number, [data-testid="kpi-value"], td) { font-variant-numeric: tabular-nums; }
-  .authenticated-app :where(button, a, input, select, textarea):focus-visible { outline: 2px solid #2862bb; outline-offset: 3px; }
+  .authenticated-app :where(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
   .authenticated-app :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
-  .authenticated-app ::selection { background: #ffddc6; color: #172b46; }
+  .authenticated-app ::selection { background: var(--accent-muted); color: var(--foreground); }
 
   /* The existing navigation structures keep their own breakpoints and focus
      management. Only asides that actually contain navigation are rails. */
@@ -92,10 +72,12 @@
     scrollbar-color: #526780 transparent;
     box-shadow: 8px 0 32px rgb(17 36 62 / 5%);
   }
-  .authenticated-app :where(aside:has(nav)[class*="bg-[#071D49]"], aside:has(nav)[class*="bg-[#101F36]"], .enterprise-sidebar) {
-    background: radial-gradient(ellipse at 0 0, #203d5e 0, transparent 28rem), #10243e;
+  .authenticated-app :where(aside:has(nav).bg-primary, aside:has(nav).bg-sidebar, .enterprise-sidebar) {
+    background: linear-gradient(165deg, var(--primary-hover) 0%, var(--sidebar) 60%);
     border-color: rgb(255 255 255 / 8%);
   }
+  .authenticated-app aside:has(nav).bg-white { background: linear-gradient(165deg, var(--primary-soft), var(--accent-ghost)); border-color: var(--primary-muted); }
+  .authenticated-app aside:has(nav).bg-white :is(h3, h4) { color: var(--accent); }
   .authenticated-app aside:has(nav) :where(nav button, nav a) {
     border-radius: 10px;
     font-size: 13px;
@@ -103,18 +85,26 @@
     transition: background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
   }
   .authenticated-app aside:has(nav) nav :where(button, a):is([aria-current="page"], [class*="shadow-[inset_4px"]) {
-    background: linear-gradient(100deg, #304e70, #213e5e);
-    color: #fff;
-    box-shadow: inset 3px 0 #ff9a56, inset 0 0 0 1px rgb(255 255 255 / 9%), 0 3px 8px rgb(0 0 0 / 8%);
+    background: var(--sidebar-active);
+    color: var(--surface);
+    box-shadow: inset 3px 0 var(--inverse-accent), inset 0 0 0 1px rgb(255 255 255 / 9%), 0 3px 8px rgb(0 0 0 / 8%);
   }
-  .authenticated-app aside:has(nav) nav :where(button, a):is([aria-current="page"], [class*="shadow-[inset_4px"]) svg { color: #ffb27e; }
+  .authenticated-app aside:has(nav) nav :where(button, a):is([aria-current="page"], [class*="shadow-[inset_4px"]) svg { color: var(--inverse-accent); }
+  .authenticated-app aside:has(nav) nav :where(button, a):hover { background-color: var(--sidebar-active); color: var(--sidebar-foreground); }
+  .authenticated-app aside:has(nav) nav :where(button, a) > svg:first-child,
+  .authenticated-app aside:has(nav) nav :where(button, a) > span:first-child > svg:first-child { color: var(--inverse-accent); }
+  .authenticated-app aside:has(nav).bg-white nav :where(button, a):not([aria-current="page"]):not(:hover) svg { color: var(--accent); }
+  .authenticated-app :is(aside.bg-primary, aside.bg-sidebar, .enterprise-sidebar) nav :is(p.uppercase, h3) { color: var(--inverse-accent); }
+  .authenticated-app :is(aside.bg-primary, aside.bg-sidebar, .enterprise-sidebar) input::placeholder { color: var(--sidebar-muted); }
   .authenticated-app aside:has(nav) nav :where(p.uppercase) { font-size: 10px; letter-spacing: .14em; }
-  .authenticated-app aside:has(nav) :where([class*="text-white/30"], [class*="text-white/35"], [class*="text-white/40"], [class*="text-white/45"]) { color: #a0b1c7; }
-  .authenticated-app .app-school-identity { border: 1px solid rgb(255 255 255 / 10%); background: rgb(255 255 255 / 4%); border-radius: 16px; box-shadow: inset 0 1px rgb(255 255 255 / 4%); }
-  .authenticated-app .app-school-identity[data-tone="light"] { background: #fff; border-color: var(--border); }
+  .authenticated-app aside:has(nav) :is(a, button, input):focus-visible { outline: 2px solid var(--inverse-accent); outline-offset: 3px; }
+  .authenticated-app aside:has(nav).bg-white :is(a, button, input):focus-visible { outline-color: var(--focus); }
+  .authenticated-app aside:has(nav) :where([class*="text-white/30"], [class*="text-white/35"], [class*="text-white/40"], [class*="text-white/45"], [class*="text-white/50"], [class*="text-white/55"], [class*="text-white/60"]) { color: var(--sidebar-muted); }
+  .authenticated-app .app-school-identity { border: 1px solid rgb(255 186 137 / 28%); background: rgb(255 186 137 / 8%); border-radius: 16px; box-shadow: inset 0 1px rgb(255 255 255 / 4%); }
+  .authenticated-app .app-school-identity[data-tone="light"] { background: var(--surface); border-color: var(--border); }
   .authenticated-app .app-school-identity .app-school-name { font-size: 17px; line-height: 1.4; letter-spacing: -.03em; font-weight: 650; }
   .authenticated-app .app-school-identity .app-school-eyebrow { font-size: 9px; letter-spacing: .12em; }
-  .authenticated-app .app-school-identity[data-tone="dark"] .app-school-eyebrow { color: #ffb27e; }
+  .authenticated-app .app-school-identity[data-tone="dark"] .app-school-eyebrow { color: var(--inverse-accent); }
   .authenticated-app .app-school-identity .app-school-emblem { width: 44px; height: 44px; border-radius: 13px; }
   .authenticated-app .app-sidebar-brand { padding-bottom: 14px; border-bottom: 1px solid rgb(255 255 255 / 9%); }
   .authenticated-app .app-school-identity[data-tone="light"] .app-sidebar-brand { border-color: var(--border); }
@@ -123,9 +113,9 @@
   .authenticated-app .app-workspace-header {
     position: relative;
     isolation: isolate;
-    border: 1px solid #e0e5ec;
+    border: 1px solid var(--border);
     border-radius: 20px;
-    background: linear-gradient(110deg, #fff 50%, #fff7ee 100%);
+    background: linear-gradient(110deg, var(--primary-soft), var(--accent-soft));
     padding: 24px 28px;
     box-shadow: var(--shadow-sm);
   }
@@ -137,34 +127,34 @@
     left: 0;
     width: 3px;
     border-radius: 0 4px 4px 0;
-    background: #ef9151;
+    background: var(--orange);
     pointer-events: none;
   }
   .authenticated-app .app-workspace-header h1 { font-size: clamp(1.4rem, 2vw, 1.9rem); line-height: 1.2; font-weight: 650; margin-top: 8px; }
-  .authenticated-app .app-greeting > :first-child { color: #6a7789; font-size: 12px; font-weight: 500; letter-spacing: 0; }
-  .authenticated-app .app-greeting > p + p { font-size: 11px; color: #748197; font-weight: 400; }
-  .authenticated-app .app-greeting[data-tone="light"] > :first-child { color: #fff; }
-  .authenticated-app .app-greeting[data-tone="light"] > p + p { color: #c3cfdf; }
-  .authenticated-app .app-command-topbar { background: rgb(255 255 255 / 94%); border-color: var(--border); box-shadow: 0 2px 12px rgb(21 42 72 / 3%); }
+  .authenticated-app .app-greeting > :first-child { color: var(--muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
+  .authenticated-app .app-greeting > p + p { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .authenticated-app .app-greeting[data-tone="light"] > :first-child { color: var(--surface); }
+  .authenticated-app .app-greeting[data-tone="light"] > p + p { color: var(--sidebar-muted); }
+  .authenticated-app .app-command-topbar { background: var(--primary-soft); border-color: var(--primary-muted); box-shadow: 0 2px 12px rgb(21 42 72 / 3%); }
   .authenticated-app .app-command-topbar :where(p.font-black) { font-size: 13px; font-weight: 550; }
   .authenticated-app .app-page-header { padding-block: 4px 8px; }
   .authenticated-app .app-page-header h2 { font-size: clamp(1.35rem, 1.9vw, 1.75rem); font-weight: 650; }
   .authenticated-app .app-page-header .eyebrow { color: var(--accent); font-size: 10px; }
-  .authenticated-app .app-teaching-welcome { background: linear-gradient(110deg, #193959, #234e70); box-shadow: 0 8px 24px rgb(21 42 72 / 10%); }
+  .authenticated-app .app-teaching-welcome { background: var(--primary); box-shadow: 0 8px 24px rgb(21 42 72 / 10%); }
   .authenticated-app .app-teaching-welcome::after { content: ""; position: absolute; width: 280px; height: 280px; right: -50px; top: -100px; border: 45px solid rgb(255 255 255 / 5%); border-radius: 50%; box-shadow: 0 0 0 45px rgb(255 255 255 / 3%), 0 0 0 90px rgb(255 255 255 / 2%); pointer-events: none; }
-  .authenticated-app .app-quick-action { background: #fafbfd; font-size: 12px; font-weight: 550; }
-  .authenticated-app .app-quick-action:hover { border-color: #dca172; background: #fff7ef; }
-  .authenticated-app :is(.app-overview-banner, .app-overview-widgets) { background: radial-gradient(ellipse at 100% 0, #315e7e, transparent 70%), #183450; box-shadow: 0 8px 24px rgb(21 42 72 / 6%); }
+  .authenticated-app .app-quick-action { background: var(--surface-muted); font-size: 12px; font-weight: 550; }
+  .authenticated-app .app-quick-action:hover { border-color: var(--accent-muted); background: var(--accent-ghost); }
+  .authenticated-app :is(.app-overview-banner, .app-overview-widgets) { background: var(--primary); box-shadow: 0 8px 24px rgb(21 42 72 / 6%); }
 
   /* Domain containers keep light and dark content contracts intact. */
   .authenticated-app :is(.app-principal-workspace, .app-dark-workspace, .app-workspace-surface) {
-    background: linear-gradient(140deg, #1c3654, #112740);
-    border: 1px solid #29435f;
+    background: var(--sidebar);
+    border: 1px solid var(--inverse-border);
     border-radius: 22px;
     box-shadow: 0 8px 24px rgb(17 36 62 / 8%);
   }
   .authenticated-app :is(.app-workspace-heading, .app-workspace-title) { letter-spacing: -.025em; }
-  .authenticated-app .app-workspace-heading > p:first-child { color: #ffc19a; font-size: 10px; }
+  .authenticated-app .app-workspace-heading > p:first-child { color: var(--inverse-accent); font-size: 10px; }
   .authenticated-app :is(.dashboard-card, .app-workspace-panel, .enterprise-card) { border-radius: 16px; box-shadow: var(--shadow-sm); }
   .authenticated-app :is(.app-overview-canvas, .app-finance-canvas) { background: transparent; border: 0; box-shadow: none; padding: 0; }
   .authenticated-app .app-finance-canvas > .app-workspace-heading { padding: 4px 2px; }
@@ -172,54 +162,69 @@
   .authenticated-app .app-finance-canvas > .app-workspace-heading > p { color: var(--muted); }
   .authenticated-app .app-finance-canvas > .app-workspace-heading > p:first-child { color: var(--accent); }
   .authenticated-app .app-workspace-panel { border-color: var(--border); padding: 22px; }
+  .authenticated-app .app-workspace-panel > :is(div:first-child:has(h2), h2:first-child, h3:first-child) {
+    padding: 14px;
+    border: 1px solid var(--primary-muted);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px;
+    background: var(--primary-soft);
+  }
   .authenticated-app .app-workspace-panel > div:first-child h2 { font-size: 17px; font-weight: 650; letter-spacing: -.025em; }
   .authenticated-app .app-workspace-panel > div:first-child p { font-size: 12px; line-height: 1.65; }
   .authenticated-app .dashboard-card:not(.enterprise-card-hover):hover { box-shadow: var(--shadow-sm); }
 
-  /* Metric accents distinguish categories, never substitute for status labels. */
+  /* A stable accent keeps the same metric consistent when cards reorder. */
   .authenticated-app .app-metric-grid > :is(div, section, article, button),
   .authenticated-app .app-metric-card {
-    --metric-accent: #5186cb;
+    --metric-accent: var(--primary);
+    --metric-surface: var(--primary-soft);
     position: relative;
     border-radius: 16px;
     box-shadow: var(--shadow-sm);
     border-top: 3px solid var(--metric-accent);
     padding: 20px;
   }
-  .authenticated-app .app-metric-grid > :nth-child(4n + 2) { --metric-accent: #47a791; }
-  .authenticated-app .app-metric-grid > :nth-child(4n + 3) { --metric-accent: #de9952; }
-  .authenticated-app .app-metric-grid > :nth-child(4n + 4) { --metric-accent: #9285c2; }
+  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card, .app-metric-card) {
+    background: var(--metric-surface);
+  }
+  .authenticated-app .app-metric-card[data-tone="success"] { --metric-accent: var(--success); --metric-surface: var(--success-soft); }
+  .authenticated-app .app-metric-card[data-tone="warning"] { --metric-accent: var(--warning); --metric-surface: var(--warning-soft); }
+  .authenticated-app .app-metric-card[data-tone="danger"] { --metric-accent: var(--danger); --metric-surface: var(--danger-soft); }
+  .authenticated-app .app-metric-card[data-tone="info"] { --metric-accent: var(--info); --metric-surface: var(--info-soft); }
   .authenticated-app .app-metric-grid :where(.text-3xl, .text-2xl, [data-testid="kpi-value"]) { font-size: clamp(1.65rem, 2.3vw, 2.2rem); font-weight: 650; line-height: 1.2; letter-spacing: -.055em; font-variant-numeric: tabular-nums; }
   .authenticated-app .app-metric-grid :where(p.uppercase) { font-size: 10px; letter-spacing: .065em; line-height: 1.6; }
   .authenticated-app .app-metric-grid :where(p.text-sm) { font-size: 12px; line-height: 1.6; }
   .authenticated-app .app-metric-grid > :is(a, button):hover { box-shadow: var(--shadow); }
 
   /* Shared interactive surfaces. Variant hooks also cover buttonClasses links. */
-  .authenticated-app .app-button { border-radius: 10px; font-weight: 600; letter-spacing: -.015em; }
-  .authenticated-app .app-button-primary { background: linear-gradient(180deg, #234970, #173559); border-color: #173559; box-shadow: inset 0 1px rgb(255 255 255 / 12%), 0 3px 6px rgb(23 53 89 / 14%); }
-  .authenticated-app .app-button-primary:hover:not(:disabled) { background: #234970; }
+  .app-button { border-radius: 10px; font-weight: 600; letter-spacing: -.015em; }
   .authenticated-app :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), select, textarea) { border-radius: 10px; transition: border-color 150ms, box-shadow 150ms; }
-  .authenticated-app :where(input, select, textarea):focus-visible { border-color: #739acb; box-shadow: var(--shadow-focus); outline: none; }
-  .authenticated-app :where(input, textarea)::placeholder { color: #7d8aa0; opacity: 1; }
+  .authenticated-app :where(input, select, textarea):focus-visible { border-color: var(--focus); box-shadow: var(--shadow-focus); outline: none; }
+  .authenticated-app :where(input, textarea)::placeholder { color: var(--muted); opacity: 1; }
   .authenticated-app :where(table) { font-variant-numeric: tabular-nums; }
   .authenticated-app :where(th) { font-size: 11px; font-weight: 600; letter-spacing: .065em; padding-block: 14px; }
   .authenticated-app :where(td) { font-size: 13px; line-height: 1.6; }
   .authenticated-app :where(tbody tr) { transition: background-color 120ms; }
-  .authenticated-app :where(table.bg-white, .ui-table, .data-table) tbody tr:hover { background: #f4f7fc; }
-  .authenticated-app .app-tabs { padding: 5px; border-radius: 12px; background: #eaf0f6; }
+  .authenticated-app .app-record-table:not(.app-record-table-dark) thead { background: var(--primary-soft); color: var(--primary); }
+  .authenticated-app :where(table.bg-white, .ui-table, .data-table) tbody tr:hover { background: var(--primary-soft); }
+  .authenticated-app .app-tabs { padding: 5px; border-radius: 12px; background: var(--surface-strong); }
   .authenticated-app .app-tabs [role="tab"] { border-radius: 8px; font-weight: 550; }
-  .authenticated-app .app-tabs [aria-selected="true"] { background: #fff; color: #173559; box-shadow: 0 2px 5px rgb(21 42 72 / 8%); }
-  .authenticated-app .app-empty-state { background: linear-gradient(135deg, #fafbfd, #f3f6fa); border-color: #d2dce9; border-radius: 16px; }
-  .authenticated-app .app-empty-state-icon { background: #fff; border-color: #e2e7ef; border-radius: 16px; box-shadow: 0 4px 12px rgb(21 42 72 / 5%); color: #4f759f; }
+  .authenticated-app .app-tabs [aria-selected="true"] { background: var(--surface); color: var(--primary); box-shadow: 0 2px 5px rgb(21 42 72 / 8%); }
+  .authenticated-app .app-empty-state { background: linear-gradient(135deg, var(--surface-muted), var(--background)); border-color: var(--border-strong); border-radius: 16px; }
+  .authenticated-app .app-empty-state-icon { background: var(--surface); border-color: var(--border); border-radius: 16px; box-shadow: 0 4px 12px rgb(21 42 72 / 5%); color: var(--primary-hover); }
 
   /* Portals escape the app root; use their existing explicit component slots. */
-  :is(.app-modal-panel, .app-navigation-sheet, .app-popover-sheet) { font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif; border-color: #e2e7ef; box-shadow: 0 24px 80px rgb(17 36 62 / 22%); }
+  :is(.app-modal-panel, .app-navigation-sheet, .app-popover-sheet) { font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", sans-serif; border-color: var(--border); box-shadow: 0 24px 80px rgb(17 36 62 / 22%); }
   .app-modal-panel { border-radius: 20px; }
   .app-navigation-sheet { box-shadow: 12px 0 36px rgb(17 36 62 / 16%); }
-  .app-navigation-sheet > div:first-child { background: #fff; padding: 12px; }
-  .app-navigation-sheet nav [aria-current="page"] { background: #edf3fb; color: #173559; box-shadow: inset 3px 0 #c65016; }
-  .authenticated-app .app-mobile-nav-trigger { border-color: #d9e2ed; border-radius: 14px; box-shadow: var(--shadow-sm); }
-  .authenticated-app .app-mobile-nav-trigger > span:first-child { background: #173559; color: #fff; border-radius: 10px; }
+  .app-navigation-sheet { background: linear-gradient(165deg, var(--primary-hover), var(--sidebar) 60%); color: var(--sidebar-foreground); }
+  .app-navigation-sheet > div:first-child { background: rgb(255 186 137 / 8%); padding: 12px; }
+  .app-navigation-sheet nav [aria-current="page"] { background: var(--sidebar-active); color: var(--sidebar-foreground); box-shadow: inset 3px 0 var(--inverse-accent); }
+  .app-navigation-sheet nav h3 { color: var(--inverse-accent); }
+  .app-navigation-sheet nav button > span:first-child:has(svg) { color: var(--inverse-accent); background: rgb(255 186 137 / 10%); border-radius: 6px; }
+  .app-navigation-sheet :is(button, input):focus-visible { outline: 2px solid var(--inverse-accent); outline-offset: 2px; }
+  .authenticated-app .app-mobile-nav-trigger { border-color: var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); }
+  .authenticated-app .app-mobile-nav-trigger > span:first-child { background: var(--primary); color: var(--surface); border-radius: 10px; }
 
   /* Dense desktops have breathing room; phones keep the task within reach. */
   @media (min-width: 1280px) {
@@ -234,7 +239,7 @@
     .authenticated-app .app-sidebar nav { margin-top: 12px; }
     .authenticated-app .app-sidebar nav a { padding: 8px; }
     .authenticated-app .app-sidebar-link-label { white-space: normal; overflow: visible; line-height: 1.4; }
-    .authenticated-app .app-workspace-header { padding: 12px 16px; border-radius: 12px; background: #fff; box-shadow: none; }
+    .authenticated-app .app-workspace-header { padding: 12px 16px; border-radius: 12px; box-shadow: none; }
     .authenticated-app .app-workspace-header::before { top: 12px; bottom: 12px; width: 2px; }
     .authenticated-app .app-workspace-header > .flex { gap: 8px; }
     .authenticated-app .app-header-actions:empty { display: none; }
@@ -260,8 +265,8 @@
     .authenticated-app .app-mobile-nav-trigger { min-height: 44px; gap: 8px; padding: 0 10px; border-radius: 10px; font-size: 13px; box-shadow: none; }
     .authenticated-app .app-mobile-nav-icon { width: 28px; height: 28px; border-radius: 7px; }
     .authenticated-app .app-mobile-nav-hint { font-size: 11px; font-weight: 550; }
-    .authenticated-app .app-workspace-heading > h2, .authenticated-app .app-workspace-surface > .app-workspace-title { color: #fff; }
-    .authenticated-app .app-workspace-heading > p { color: #c3cfdf; }
+    .authenticated-app .app-workspace-heading > h2, .authenticated-app .app-workspace-surface > .app-workspace-title { color: var(--surface); }
+    .authenticated-app .app-workspace-heading > p { color: var(--sidebar-muted); }
   }
   @media (max-width: 1279px) {
     .authenticated-app .app-principal-sidebar { padding-inline: 12px; border-radius: 0 16px 16px 0; }
@@ -276,7 +281,7 @@
     .authenticated-app .app-principal-sidebar nav button:has(> svg:only-child) { min-width: 44px; }
   }
   @media (max-width: 639px) {
-    .authenticated-app { background: #f4f6fa; }
+    .authenticated-app { background: var(--background); }
     .authenticated-app .app-content { padding: 12px 12px max(20px, env(safe-area-inset-bottom)); }
     .authenticated-app .app-overview-banner { gap: 12px; padding: 16px; }
     .authenticated-app .app-teaching-welcome { padding: 16px; border-radius: 12px; }
@@ -288,6 +293,7 @@
     .authenticated-app .app-overview-banner button { font-size: 12px; }
     .authenticated-app .app-workspace-panel { padding: 12px; border-radius: 12px; }
     .authenticated-app .app-workspace-panel > div:first-child { margin-bottom: 12px; gap: 8px; }
+    .authenticated-app .app-workspace-panel > :is(div:first-child:has(h2), h2:first-child, h3:first-child) { padding: 12px; }
     .authenticated-app .app-workspace-panel > div:first-child h2 { font-size: 16px; }
     .authenticated-app .app-workspace-panel > div:first-child p { margin-top: 2px; line-height: 1.5; }
     .authenticated-app .app-workspace-panel > div:first-child .h-10.w-10 { width: 32px; height: 32px; border-radius: 8px; }
@@ -319,7 +325,16 @@
     .authenticated-app .app-metric-grid :where(p.uppercase) { font-size: 10px; letter-spacing: .045em; }
     .authenticated-app .app-metric-grid :where(p.text-sm) { font-size: 12px; }
     .app-modal-panel { border-radius: 22px 22px 0 0; }
-    .authenticated-app .app-record-table tbody > tr { margin-bottom: 10px; border: 1px solid #e2e7ef; border-radius: 12px; background: #fff; box-shadow: 0 2px 5px rgb(21 42 72 / 3%); }
+    .authenticated-app .app-record-table tbody > tr { margin-bottom: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 2px 5px rgb(21 42 72 / 3%); }
+    .authenticated-app .app-record-table:not(.app-record-table-dark) td:first-child:not([colspan]),
+    .authenticated-app .app-record-field:first-child {
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 0;
+      border-left: 3px solid var(--primary);
+      border-radius: 8px;
+      background: var(--primary-soft);
+    }
     .authenticated-app .app-record-table-dark tbody > tr { background: rgb(255 255 255 / 4%); border-color: rgb(255 255 255 / 12%); }
   }
   @media (prefers-reduced-motion: reduce) {

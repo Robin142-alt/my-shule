@@ -86,31 +86,31 @@ const navItems: NavItem[] = [
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
-    card: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    card: "border-success-border bg-success-soft text-emerald-900",
+    chip: "border-success-border bg-success-soft text-success",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
   },
   info: {
-    card: "border-blue-200 bg-blue-50 text-blue-950",
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
+    card: "border-info-border bg-info-soft text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
   },
   warning: {
-    card: "border-amber-200 bg-amber-50 text-amber-950",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    card: "border-warning-border bg-warning-soft text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
   },
   danger: {
-    card: "border-rose-200 bg-rose-50 text-rose-950",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    card: "border-danger-border bg-danger-soft text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
   },
   neutral: {
-    card: "border-slate-200 bg-white text-[#071D49]",
+    card: "border-slate-200 bg-white text-foreground",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
     text: "text-slate-600",
@@ -165,17 +165,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
@@ -277,43 +277,43 @@ function LabWorkflowModal({
       size="lg"
       footer={
         <>
-          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>
+          <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={onClose} disabled={submitting}>
             Cancel
           </button>
-          <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60" onClick={onSubmit} disabled={submitting}>
+          <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60" onClick={onSubmit} disabled={submitting}>
             {submitting ? "Saving..." : "Save Laboratory Action"}
           </button>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Subject / workflow
-          <input value={draft.subject} onChange={(event) => update("subject", event.target.value)} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="Chemistry practical" />
+          <input value={draft.subject} onChange={(event) => update("subject", event.target.value)} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="Chemistry practical" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Teacher / requester
-          <input value={draft.teacher} onChange={(event) => update("teacher", event.target.value)} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="Mrs. Njeri" />
+          <input value={draft.teacher} onChange={(event) => update("teacher", event.target.value)} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="Mrs. Njeri" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Class / lab
-          <input value={draft.className} onChange={(event) => update("className", event.target.value)} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="Form 4 West" />
+          <input value={draft.className} onChange={(event) => update("className", event.target.value)} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="Form 4 West" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Item / apparatus
-          <input value={draft.item} onChange={(event) => update("item", event.target.value)} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="Voltmeter, reagent, microscope" />
+          <input value={draft.item} onChange={(event) => update("item", event.target.value)} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="Voltmeter, reagent, microscope" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Quantity / count
-          <input value={draft.quantity} onChange={(event) => update("quantity", event.target.value)} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="2 sets" />
+          <input value={draft.quantity} onChange={(event) => update("quantity", event.target.value)} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="2 sets" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Date / due back
-          <input value={draft.dueDate} onChange={(event) => update("dueDate", event.target.value)} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="Tomorrow 10:00 AM" />
+          <input value={draft.dueDate} onChange={(event) => update("dueDate", event.target.value)} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="Tomorrow 10:00 AM" />
         </label>
-        <label className="sm:col-span-2 text-sm font-bold text-[#071D49]">
+        <label className="sm:col-span-2 text-sm font-bold text-foreground">
           Safety notes and follow-up
-          <textarea value={draft.notes} onChange={(event) => update("notes", event.target.value)} className="mt-1 min-h-28 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold outline-none focus:border-[#071D49]" placeholder="Record safety checks, condition, approval notes, and follow-up owner." />
+          <textarea value={draft.notes} onChange={(event) => update("notes", event.target.value)} className="mt-1 min-h-28 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold outline-none focus:border-primary" placeholder="Record safety checks, condition, approval notes, and follow-up owner." />
         </label>
       </div>
     </Modal>
@@ -353,19 +353,19 @@ function SimpleWorkspace({
 
   return (
     <Panel title={title} description={description} icon={Icon}>
-      <div className="flex flex-col items-center justify-center py-16 text-center bg-[#F8FAFC] rounded-xl border border-dashed border-[#D8E0EC]">
-        <Icon className="h-12 w-12 text-[#64748B]/30 mb-4" />
-        <p className="text-lg font-bold text-[#071D49]">{title}</p>
-        <p className="mt-2 text-sm text-[#64748B] max-w-sm">{description}</p>
+      <div className="flex flex-col items-center justify-center py-16 text-center bg-surface-muted rounded-xl border border-dashed border-border">
+        <Icon className="h-12 w-12 text-muted/30 mb-4" />
+        <p className="text-lg font-bold text-foreground">{title}</p>
+        <p className="mt-2 text-sm text-muted max-w-sm">{description}</p>
         <div className="mt-6 flex gap-3">
           <button
             type="button"
-            className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white"
             onClick={() => openLabWorkflow(createLabWorkflowDraft(primaryLabel, { subject: title, notes: `${primaryLabel} for ${title}.` }))}
           >
             {primaryLabel}
           </button>
-          <button type="button" className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]" onClick={() => exportLabWorkspace(title)}>Export</button>
+          <button type="button" className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground" onClick={() => exportLabWorkspace(title)}>Export</button>
         </div>
       </div>
     </Panel>
@@ -383,35 +383,35 @@ function OverviewWorkspace({ onNavigate, openLabWorkflow }: { onNavigate: (v: Vi
   return (
     <Panel title="Lab Overview" description="Command center for daily practicals, urgent alerts, and pending requests." icon={LayoutDashboard}>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("schedule")}>
-          <div className="text-sm font-semibold text-[#64748B]">Today&apos;s Practicals</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : (kpis[0]?.value || "3")}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("schedule")}>
+          <div className="text-sm font-semibold text-muted">Today&apos;s Practicals</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : (kpis[0]?.value || "3")}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("requests")}>
-          <div className="text-sm font-semibold text-[#64748B]">Pending Requests</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("requests")}>
+          <div className="text-sm font-semibold text-muted">Pending Requests</div>
           <div className="mt-1 text-2xl font-black text-amber-600">{isLoading ? "..." : (kpis[1]?.value || "4")}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("chemicals")}>
-          <div className="text-sm font-semibold text-rose-700">Low Stock / Expiring</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : (kpis[2]?.value || "7")}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("chemicals")}>
+          <div className="text-sm font-semibold text-danger">Low Stock / Expiring</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : (kpis[2]?.value || "7")}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("issue_return")}>
-          <div className="text-sm font-semibold text-[#64748B]">Unreturned Items</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : (kpis[3]?.value || "12")}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("issue_return")}>
+          <div className="text-sm font-semibold text-muted">Unreturned Items</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : (kpis[3]?.value || "12")}</div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl border border-[#D8E0EC] overflow-hidden">
-            <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] flex justify-between items-center">
-              <h3 className="font-bold text-[#071D49]">Today&apos;s Lab Timeline</h3>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="bg-surface-muted px-4 py-3 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-foreground">Today&apos;s Lab Timeline</h3>
               <button type="button" className="text-sm text-blue-600 font-semibold hover:underline" onClick={() => onNavigate("schedule")}>View All</button>
             </div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full text-sm text-left whitespace-nowrap">
                 <thead>
-                  <tr className="text-[#64748B] border-b border-[#D8E0EC]">
+                  <tr className="text-muted border-b border-border">
                     <th className="pb-2 font-semibold">Time</th>
                     <th className="pb-2 font-semibold">Subject</th>
                     <th className="pb-2 font-semibold">Class</th>
@@ -420,12 +420,12 @@ function OverviewWorkspace({ onNavigate, openLabWorkflow }: { onNavigate: (v: Vi
                     <th className="pb-2 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#D8E0EC]">
+                <tbody className="divide-y divide-border">
                   <tr>
-                    <td className="py-3 text-[#64748B]">08:10 AM</td>
-                    <td className="py-3 font-medium text-[#071D49]">Chemistry</td>
-                    <td className="py-3 text-[#071D49]">Form 4 West</td>
-                    <td className="py-3 text-[#64748B]">Mrs. Njeri</td>
+                    <td className="py-3 text-muted">08:10 AM</td>
+                    <td className="py-3 font-medium text-foreground">Chemistry</td>
+                    <td className="py-3 text-foreground">Form 4 West</td>
+                    <td className="py-3 text-muted">Mrs. Njeri</td>
                     <td className="py-3"><StatusChip label="In Progress" tone="info" /></td>
                     <td className="py-3 text-right">
                       <button
@@ -448,10 +448,10 @@ function OverviewWorkspace({ onNavigate, openLabWorkflow }: { onNavigate: (v: Vi
                     </td>
                   </tr>
                   <tr>
-                    <td className="py-3 text-[#64748B]">10:40 AM</td>
-                    <td className="py-3 font-medium text-[#071D49]">Biology</td>
-                    <td className="py-3 text-[#071D49]">Form 2 North</td>
-                    <td className="py-3 text-[#64748B]">Mr. Kiptoo</td>
+                    <td className="py-3 text-muted">10:40 AM</td>
+                    <td className="py-3 font-medium text-foreground">Biology</td>
+                    <td className="py-3 text-foreground">Form 2 North</td>
+                    <td className="py-3 text-muted">Mr. Kiptoo</td>
                     <td className="py-3"><StatusChip label="Preparation Needed" tone="warning" /></td>
                     <td className="py-3 text-right">
                       <button
@@ -479,12 +479,12 @@ function OverviewWorkspace({ onNavigate, openLabWorkflow }: { onNavigate: (v: Vi
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-xl border border-rose-200 bg-rose-50 overflow-hidden">
-            <div className="px-4 py-3 border-b border-rose-200 flex items-center gap-2">
+          <div className="rounded-xl border border-danger-border bg-danger-soft overflow-hidden">
+            <div className="px-4 py-3 border-b border-danger-border flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-rose-600" />
               <h3 className="font-bold text-rose-900">Urgent Alerts</h3>
             </div>
-            <div className="p-4 space-y-3 text-sm text-rose-800">
+            <div className="p-4 space-y-3 text-sm text-danger">
               <div className="flex justify-between items-start">
                 <span><strong>Hydrochloric Acid</strong> batch expires in 12 days.</span>
                 <button type="button" className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("chemicals")}>View Item</button>
@@ -518,15 +518,15 @@ function TeacherRequestsWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft
     cn(
       "px-4 py-1.5 rounded-full text-sm font-bold border transition",
       requestStatusFilter === filter
-        ? "border-[#071D49] bg-[#071D49] text-white"
-        : "border-[#D8E0EC] text-[#64748B] hover:bg-[#F8FAFC]",
+        ? "border-primary bg-primary text-white"
+        : "border-border text-muted hover:bg-surface-muted",
     );
 
   return (
     <Panel title="Teacher Requests" description="Review, approve, and prepare teacher practical requests." icon={ClipboardList} actions={
       <div className="flex gap-2">
-        <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={() => openLabWorkflow(createLabWorkflowDraft("Bulk approve practical requests", { subject: "Teacher requests", notes: "Record the request batch, stock check outcome, safety clearance, and approval notes." }))}>Bulk Approve</button>
-        <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => openLabWorkflow(createLabWorkflowDraft("Create manual practical request", { notes: "Capture teacher, class, subject, required items, quantities, preparation date, and approval path." }))}>Create Request Manually</button>
+        <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={() => openLabWorkflow(createLabWorkflowDraft("Bulk approve practical requests", { subject: "Teacher requests", notes: "Record the request batch, stock check outcome, safety clearance, and approval notes." }))}>Bulk Approve</button>
+        <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => openLabWorkflow(createLabWorkflowDraft("Create manual practical request", { notes: "Capture teacher, class, subject, required items, quantities, preparation date, and approval path." }))}>Create Request Manually</button>
       </div>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -536,26 +536,26 @@ function TeacherRequestsWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft
           <button type="button" className={filterClass("preparation")} onClick={() => setRequestStatusFilter("preparation")}>In Preparation</button>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date Needed</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Teacher</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Subject</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Practical</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Priority</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date Needed</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Teacher</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Subject</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Practical</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Priority</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {filteredRequests.map((r, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{r.date}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.teacher}</td>
-                <td className="px-4 py-3 text-[#071D49]">{r.subject}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.prac}</td>
+              <tr key={i} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{r.date}</td>
+                <td className="px-4 py-3 text-muted">{r.teacher}</td>
+                <td className="px-4 py-3 text-foreground">{r.subject}</td>
+                <td className="px-4 py-3 text-muted">{r.prac}</td>
                 <td className="px-4 py-3 font-medium text-rose-600">{r.pri}</td>
                 <td className="px-4 py-3"><StatusChip label={r.status} tone={r.tone as Tone} /></td>
                 <td className="px-4 py-3 text-right">
@@ -575,7 +575,7 @@ function TeacherRequestsWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft
                     Approve
                   </button>
                   <button type="button" className="text-blue-600 hover:underline font-semibold mr-3" onClick={() => openLabActionRecord("Teacher practical request", [["Teacher", r.teacher], ["Subject", r.subject], ["Practical", r.prac], ["Date Needed", r.date], ["Priority", r.pri], ["Status", r.status]])}>Review</button>
-                  <button type="button" aria-label={`Download ${r.subject} request details`} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => exportLabWorkspace(`${r.subject} ${r.prac} request`)}><MoreHorizontal className="w-4 h-4" /></button>
+                  <button type="button" aria-label={`Download ${r.subject} request details`} className="p-1 text-muted hover:bg-border rounded" onClick={() => exportLabWorkspace(`${r.subject} ${r.prac} request`)}><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -589,42 +589,42 @@ function TeacherRequestsWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft
 function IssueReturnWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft: LabWorkflowDraft) => void }) {
   return (
     <Panel title="Issue / Return Desk" description="Handle issuing and returning of lab apparatus and equipment." icon={ArrowRightLeft} actions={
-      <button type="button" className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => openLabWorkflow(createLabWorkflowDraft("Issue laboratory item", { notes: "Capture teacher, class, item, quantity, condition, due back date, and technician confirmation." }))}>
+      <button type="button" className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => openLabWorkflow(createLabWorkflowDraft("Issue laboratory item", { notes: "Capture teacher, class, item, quantity, condition, due back date, and technician confirmation." }))}>
         Issue Item
       </button>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-          <input type="text" placeholder="Search item, teacher, or class..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+          <input type="text" placeholder="Search item, teacher, or class..." className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Issue No.</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Issued To</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Item</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Qty</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Due Back</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Issue No.</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Issued To</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Item</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Qty</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Due Back</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {[
               { no: "ISS-0012", date: "Today", to: "Ms. Atieno", item: "Voltmeter", qty: "2", due: "Tomorrow", status: "Issued", tone: "info" },
               { no: "ISS-0010", date: "Yesterday", to: "Mr. Kiptoo", item: "Microscope", qty: "5", due: "Today", status: "Overdue", tone: "danger" },
             ].map((s, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{s.no}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.date}</td>
-                <td className="px-4 py-3 text-[#071D49]">{s.to}</td>
-                <td className="px-4 py-3 text-[#64748B]">{s.item}</td>
+              <tr key={i} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{s.no}</td>
+                <td className="px-4 py-3 text-muted">{s.date}</td>
+                <td className="px-4 py-3 text-foreground">{s.to}</td>
+                <td className="px-4 py-3 text-muted">{s.item}</td>
                 <td className="px-4 py-3 font-bold">{s.qty}</td>
-                <td className="px-4 py-3 text-[#071D49]">{s.due}</td>
+                <td className="px-4 py-3 text-foreground">{s.due}</td>
                 <td className="px-4 py-3"><StatusChip label={s.status} tone={s.tone as Tone} /></td>
                 <td className="px-4 py-3 text-right">
                   <button
@@ -643,7 +643,7 @@ function IssueReturnWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft: La
                   >
                     Return
                   </button>
-                  <button type="button" aria-label={`View issue ${s.no} details`} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => openLabActionRecord(`Lab issue ${s.no}`, [["Date", s.date], ["Issued To", s.to], ["Item", s.item], ["Quantity", s.qty], ["Due Back", s.due], ["Status", s.status]])}><MoreHorizontal className="w-4 h-4" /></button>
+                  <button type="button" aria-label={`View issue ${s.no} details`} className="p-1 text-muted hover:bg-border rounded" onClick={() => openLabActionRecord(`Lab issue ${s.no}`, [["Date", s.date], ["Issued To", s.to], ["Item", s.item], ["Quantity", s.qty], ["Due Back", s.due], ["Status", s.status]])}><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -702,8 +702,8 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
   };
 
   return (
-    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA] font-sans">
-      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <div className="authenticated-app flex min-h-dvh bg-background font-sans">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Laboratory command" title="Laboratory Technician" subtitle="Laboratory inventory, safety, and issue control" />
         <nav className="space-y-1" aria-label="Lab navigation">
           {navItems.map((item, index) => {
@@ -729,18 +729,18 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
         </nav>
       </aside>
       <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col">
-        <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">LT</div>
-              <h1 className="text-lg font-black text-[#071D49] truncate">{navItems.find(i => i.id === activeViewState)?.label || "Dashboard"}</h1>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white shrink-0">LT</div>
+              <h1 className="text-lg font-black text-foreground truncate">{navItems.find(i => i.id === activeViewState)?.label || "Dashboard"}</h1>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
               <StatusChip label="Term 2 (2026)" tone="info" />
               <button
                 type="button"
                 aria-label="Open laboratory search"
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#071D49] text-white"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white"
                 onClick={() => {
                   setActiveView("requests");
                   void recordLabAction("Open search and filters", "Laboratory search opened the teacher requests workspace with filters for practicals, stock, and issue records.", "info");

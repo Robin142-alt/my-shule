@@ -39,7 +39,7 @@ export function ExitStudentDialog({ studentId, isOpen, onClose, onSuccess }: Exi
         <h2 className="text-xl font-bold mb-4 text-gray-800">Exit Student</h2>
         
         <form onSubmit={handleSubmit}>
-          {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
+          {error && <div className="mb-4 p-3 bg-danger-soft text-danger rounded text-sm">{error}</div>}
           
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Exit Status</label>

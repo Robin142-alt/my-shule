@@ -194,7 +194,7 @@ export function ReportsWorkspace({
   }
 
   return (
-    <div className="space-y-5 text-[#071D49]">
+    <div className="space-y-5 text-foreground">
       <div className="rounded-xl border border-white/12 bg-white p-5 shadow-sm">
         <SchoolPageHeader
           eyebrow="Accountant"
@@ -204,13 +204,13 @@ export function ReportsWorkspace({
       </div>
 
       {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700" role="alert">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger" role="alert">
           {error}
         </div>
       ) : null}
 
       {lastArtifact ? (
-        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800" role="status">
+        <div className="flex items-start gap-3 rounded-xl border border-success-border bg-success-soft p-4 text-success" role="status">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
           <div>
             <p className="font-black">Latest artifact is ready</p>
@@ -228,12 +228,12 @@ export function ReportsWorkspace({
           return (
             <article key={report.id} className="flex min-h-64 flex-col justify-between rounded-xl border border-white/12 bg-white p-5 shadow-sm">
               <div>
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-info-soft text-info">
                   <FileChartColumn className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <h3 className="mt-4 text-lg font-black">{report.title}</h3>
-                <p className="mt-2 text-sm font-semibold leading-6 text-[#64748B]">{report.description}</p>
-                <p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-[#1D4ED8]">Live school records · CSV audit artifact</p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-muted">{report.description}</p>
+                <p className="mt-3 text-xs font-bold uppercase tracking-[0.1em] text-info">Live school records · CSV audit artifact</p>
               </div>
               <div className="mt-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 <Button variant="secondary" onClick={() => void handlePreview(report)} disabled={Boolean(currentAction)}>

@@ -66,7 +66,7 @@ export function SignatureUploadButton({ available, disabled, label, className, o
     </button>
     <Modal open={open} title="Prepare your report-card signature" onClose={close} footer={<>
       <button type="button" disabled={saving} onClick={close} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
-      <button type="button" disabled={!preview || saving || checking || disabled} onClick={() => void save()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+      <button type="button" disabled={!preview || saving || checking || disabled} onClick={() => void save()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{saving ? "Uploading..." : "Use signature"}
       </button>
     </>}>
@@ -81,8 +81,8 @@ export function SignatureUploadButton({ available, disabled, label, className, o
           <input type="file" accept="image/png,image/jpeg" disabled={saving} className="mt-2 block w-full text-sm" onChange={event => { void choose(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
         </label>
         {checking ? <p role="status">Checking image size and shape...</p> : null}
-        {error ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-rose-700">{error}</p> : null}
-        {preview ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-[#071D49]">
+        {error ? <p role="alert" className="rounded-lg bg-danger-soft p-3 text-danger">{error}</p> : null}
+        {preview ? <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-foreground">
           <p className="mb-4 font-semibold">Report-card preview</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview.url} alt="Selected signature preview" className="mx-auto h-9 w-36 max-w-full object-contain" />

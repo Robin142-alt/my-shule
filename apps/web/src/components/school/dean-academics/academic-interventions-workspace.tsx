@@ -272,7 +272,7 @@ export function AcademicInterventionsWorkspace() {
             type="button"
             onClick={() => void refetch()}
             disabled={isFetching}
-            className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50"
+            className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-black text-foreground disabled:opacity-50"
           >
             {isFetching ? "Refreshing..." : "Refresh"}
           </button>
@@ -285,9 +285,9 @@ export function AcademicInterventionsWorkspace() {
             ["Completed", metrics?.completed ?? 0],
             ["Overdue reviews", metrics?.overdue ?? 0],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-              <div className="text-sm font-semibold text-[#64748B]">{label}</div>
-              <div className="mt-1 text-2xl font-black text-[#071D49]">
+            <div key={label} className="rounded-lg border border-border bg-surface-muted p-4">
+              <div className="text-sm font-semibold text-muted">{label}</div>
+              <div className="mt-1 text-2xl font-black text-foreground">
                 {isLoading ? "..." : value}
               </div>
             </div>
@@ -295,7 +295,7 @@ export function AcademicInterventionsWorkspace() {
         </div>
 
         {error ? (
-          <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <div className="mb-5 rounded-lg border border-danger-border bg-danger-soft p-4 text-sm text-danger">
             <p className="font-bold">Academic interventions could not be loaded.</p>
             <p className="mt-1">{error.message}</p>
             <button
@@ -308,9 +308,9 @@ export function AcademicInterventionsWorkspace() {
           </div>
         ) : null}
 
-        <div className="overflow-x-auto rounded-lg border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="min-w-[1050px] w-full text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <thead className="bg-surface-muted text-foreground">
               <tr>
                 <th className="px-4 py-3 font-bold">Learner / scope</th>
                 <th className="px-4 py-3 font-bold">Reason and plan</th>
@@ -325,35 +325,35 @@ export function AcademicInterventionsWorkspace() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#64748B]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     Loading school interventions...
                   </td>
                 </tr>
               ) : items.length === 0 && !error ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#64748B]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     No academic interventions yet. Create one from a performance review when a
                     learner, class, or subject needs a measured support plan.
                   </td>
                 </tr>
               ) : (
                 items.map((row) => (
-                  <tr key={row.id} className="border-t border-[#D8E0EC] align-top hover:bg-[#F8FAFC]">
+                  <tr key={row.id} className="border-t border-border align-top hover:bg-surface-muted">
                     <td className="px-4 py-3">
-                      <div className="font-bold text-[#071D49]">{row.student_name}</div>
-                      <div className="mt-1 text-xs text-[#64748B]">
+                      <div className="font-bold text-foreground">{row.student_name}</div>
+                      <div className="mt-1 text-xs text-muted">
                         {[row.class, row.subject].filter(Boolean).join(" / ")}
                       </div>
                     </td>
-                    <td className="max-w-[280px] px-4 py-3 text-[#64748B]">
-                      <div className="font-semibold text-[#071D49]">{row.trigger_reason}</div>
+                    <td className="max-w-[280px] px-4 py-3 text-muted">
+                      <div className="font-semibold text-foreground">{row.trigger_reason}</div>
                       <div className="mt-1 line-clamp-2">{row.plan}</div>
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       <div>{row.teacher}</div>
                       <div className="mt-1 text-xs">HOD: {row.hod_name ?? "Not assigned"}</div>
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       <div>{formatDate(row.starts_on ?? row.start_date)}</div>
                       <div className="mt-1 text-xs">Review: {formatDate(row.due_on)}</div>
                     </td>
@@ -363,14 +363,14 @@ export function AcademicInterventionsWorkspace() {
                     <td className="px-4 py-3">
                       <StatusChip label={titleCase(row.status)} tone={statusTone(row.status)} />
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       {row.update_count} update{row.update_count === 1 ? "" : "s"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => openManager(row)}
-                        className="rounded-lg bg-[#071D49] px-3 py-2 text-xs font-black text-white"
+                        className="rounded-lg bg-primary px-3 py-2 text-xs font-black text-white"
                       >
                         Review and update
                       </button>
@@ -399,7 +399,7 @@ export function AcademicInterventionsWorkspace() {
               type="button"
               onClick={notifyHod}
               disabled={notifyHodMutation.isPending || updateMutation.isPending}
-              className="rounded-lg border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-2 text-sm font-black text-[#0B63CE] disabled:opacity-50"
+              className="rounded-lg border border-info-border bg-info-soft px-4 py-2 text-sm font-black text-info disabled:opacity-50"
             >
               {notifyHodMutation.isPending ? "Sending..." : "Notify assigned HOD"}
             </button>
@@ -407,7 +407,7 @@ export function AcademicInterventionsWorkspace() {
               type="button"
               onClick={closeManager}
               disabled={notifyHodMutation.isPending || updateMutation.isPending}
-              className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50"
+              className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50"
             >
               Close
             </button>
@@ -416,7 +416,7 @@ export function AcademicInterventionsWorkspace() {
       >
         {selected ? (
           <div className="space-y-6">
-            <section className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+            <section className="rounded-lg border border-border bg-surface-muted p-4">
               <div className="flex flex-wrap gap-2">
                 <StatusChip label={titleCase(selected.status)} tone={statusTone(selected.status)} />
                 <StatusChip
@@ -426,28 +426,28 @@ export function AcademicInterventionsWorkspace() {
               </div>
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="font-bold text-[#071D49]">Trigger</dt>
-                  <dd className="mt-1 text-[#64748B]">{selected.trigger_reason}</dd>
+                  <dt className="font-bold text-foreground">Trigger</dt>
+                  <dd className="mt-1 text-muted">{selected.trigger_reason}</dd>
                 </div>
                 <div>
-                  <dt className="font-bold text-[#071D49]">Support plan</dt>
-                  <dd className="mt-1 text-[#64748B]">{selected.plan}</dd>
+                  <dt className="font-bold text-foreground">Support plan</dt>
+                  <dd className="mt-1 text-muted">{selected.plan}</dd>
                 </div>
                 <div>
-                  <dt className="font-bold text-[#071D49]">Responsible owner</dt>
-                  <dd className="mt-1 text-[#64748B]">{selected.teacher}</dd>
+                  <dt className="font-bold text-foreground">Responsible owner</dt>
+                  <dd className="mt-1 text-muted">{selected.teacher}</dd>
                 </div>
                 <div>
-                  <dt className="font-bold text-[#071D49]">Department HOD</dt>
-                  <dd className="mt-1 text-[#64748B]">{selected.hod_name ?? "Not assigned"}</dd>
+                  <dt className="font-bold text-foreground">Department HOD</dt>
+                  <dd className="mt-1 text-muted">{selected.hod_name ?? "Not assigned"}</dd>
                 </div>
               </dl>
             </section>
 
             <form onSubmit={saveUpdate} className="space-y-4">
-              <h4 className="font-black text-[#071D49]">Record progress or decision</h4>
+              <h4 className="font-black text-foreground">Record progress or decision</h4>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-bold text-[#071D49]">
+                <label className="text-sm font-bold text-foreground">
                   Update type
                   <select
                     value={form.updateType}
@@ -457,7 +457,7 @@ export function AcademicInterventionsWorkspace() {
                         updateType: event.target.value as UpdateType,
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
                   >
                     <option value="progress">Progress</option>
                     <option value="assessment">Assessment</option>
@@ -466,7 +466,7 @@ export function AcademicInterventionsWorkspace() {
                     <option value="status_change">Status decision</option>
                   </select>
                 </label>
-                <label className="text-sm font-bold text-[#071D49]">
+                <label className="text-sm font-bold text-foreground">
                   Lifecycle status
                   <select
                     value={form.status}
@@ -476,7 +476,7 @@ export function AcademicInterventionsWorkspace() {
                         status: event.target.value as UpdateForm["status"],
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
                   >
                     <option value="">Keep {titleCase(selected.status)}</option>
                     {STATUS_TRANSITIONS[selected.status].map((status) => (
@@ -487,7 +487,7 @@ export function AcademicInterventionsWorkspace() {
                   </select>
                 </label>
               </div>
-              <label className="block text-sm font-bold text-[#071D49]">
+              <label className="block text-sm font-bold text-foreground">
                 Evidence and notes
                 <textarea
                   required
@@ -497,11 +497,11 @@ export function AcademicInterventionsWorkspace() {
                     setForm((current) => ({ ...current, notes: event.target.value }))
                   }
                   placeholder="Record the support delivered, learner response, evidence reviewed, and next step."
-                  className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal"
+                  className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal"
                 />
               </label>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-bold text-[#071D49]">
+                <label className="text-sm font-bold text-foreground">
                   Assessment evidence
                   <select
                     value={form.scoreStatus}
@@ -512,7 +512,7 @@ export function AcademicInterventionsWorkspace() {
                         score: event.target.value === "entered" ? current.score : "",
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
                   >
                     <option value="">No assessment evidence</option>
                     <option value="entered">Score entered</option>
@@ -525,7 +525,7 @@ export function AcademicInterventionsWorkspace() {
                     <option value="transfer_student">Transfer student</option>
                   </select>
                 </label>
-                <label className="text-sm font-bold text-[#071D49]">
+                <label className="text-sm font-bold text-foreground">
                   Score
                   <input
                     type="number"
@@ -536,12 +536,12 @@ export function AcademicInterventionsWorkspace() {
                     onChange={(event) =>
                       setForm((current) => ({ ...current, score: event.target.value }))
                     }
-                    className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal disabled:bg-slate-100"
+                    className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal disabled:bg-slate-100"
                   />
                 </label>
               </div>
               {form.status === "completed" ? (
-                <div className="grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:grid-cols-2">
+                <div className="grid gap-4 rounded-lg border border-success-border bg-success-soft p-4 sm:grid-cols-2">
                   <label className="text-sm font-bold text-emerald-950">
                     Outcome summary
                     <input
@@ -554,7 +554,7 @@ export function AcademicInterventionsWorkspace() {
                         }))
                       }
                       placeholder="What changed?"
-                      className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 font-normal"
+                      className="mt-1 w-full rounded-lg border border-success-border bg-white px-3 py-2 font-normal"
                     />
                   </label>
                   <label className="text-sm font-bold text-emerald-950">
@@ -569,7 +569,7 @@ export function AcademicInterventionsWorkspace() {
                         }))
                       }
                       placeholder="e.g. Average improved from 42% to 58%"
-                      className="mt-1 w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 font-normal"
+                      className="mt-1 w-full rounded-lg border border-success-border bg-white px-3 py-2 font-normal"
                     />
                   </label>
                 </div>
@@ -577,24 +577,24 @@ export function AcademicInterventionsWorkspace() {
               <button
                 type="submit"
                 disabled={updateMutation.isPending}
-                className="w-full rounded-lg bg-[#071D49] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
+                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-black text-white disabled:opacity-50"
               >
                 {updateMutation.isPending ? "Saving evidence..." : "Save intervention update"}
               </button>
             </form>
 
             <section>
-              <h4 className="font-black text-[#071D49]">Notify the department HOD</h4>
+              <h4 className="font-black text-foreground">Notify the department HOD</h4>
               <textarea
                 rows={3}
                 value={form.hodMessage}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, hodMessage: event.target.value }))
                 }
-                className="mt-2 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm"
+                className="mt-2 w-full rounded-lg border border-border px-3 py-2 text-sm"
               />
               {!selected.hod_user_id ? (
-                <p className="mt-2 text-xs font-semibold text-amber-700">
+                <p className="mt-2 text-xs font-semibold text-warning">
                   No HOD is currently attached to this subject. The action will explain the
                   assignment needed in Academic Setup.
                 </p>
@@ -602,26 +602,26 @@ export function AcademicInterventionsWorkspace() {
             </section>
 
             <section>
-              <h4 className="font-black text-[#071D49]">Evidence history</h4>
+              <h4 className="font-black text-foreground">Evidence history</h4>
               {selected.updates.length === 0 ? (
-                <p className="mt-2 rounded-lg border border-dashed border-[#D8E0EC] p-4 text-sm text-[#64748B]">
+                <p className="mt-2 rounded-lg border border-dashed border-border p-4 text-sm text-muted">
                   No progress evidence has been recorded yet.
                 </p>
               ) : (
                 <div className="mt-2 space-y-2">
                   {selected.updates.map((update) => (
-                    <div key={update.id} className="rounded-lg border border-[#D8E0EC] p-3 text-sm">
+                    <div key={update.id} className="rounded-lg border border-border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-bold text-[#071D49]">
+                        <span className="font-bold text-foreground">
                           {titleCase(update.update_type)}
                         </span>
-                        <span className="text-xs text-[#64748B]">
+                        <span className="text-xs text-muted">
                           {formatDate(update.recorded_at)}
                         </span>
                       </div>
-                      <p className="mt-1 text-[#64748B]">{update.notes}</p>
+                      <p className="mt-1 text-muted">{update.notes}</p>
                       {update.score_status ? (
-                        <p className="mt-1 text-xs font-semibold text-[#071D49]">
+                        <p className="mt-1 text-xs font-semibold text-foreground">
                           Evidence: {titleCase(update.score_status)}
                           {update.score_status === "entered" ? ` (${update.score})` : ""}
                         </p>

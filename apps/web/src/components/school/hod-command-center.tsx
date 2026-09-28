@@ -185,7 +185,7 @@ function Sidebar({
   onViewChange: (view: HodView) => void;
 }) {
   return (
-    <aside className="hidden h-full w-[292px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <aside className="hidden h-full w-[292px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Department command" title="Head of Department" subtitle="Teaching quality, published results, and resources" />
 
       <nav className="mt-4 space-y-1" aria-label="HOD navigation">
@@ -236,13 +236,13 @@ function Topbar({
   onViewChange: (view: HodView) => void;
 }) {
   return (
-    <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/95 px-4 py-3 backdrop-blur">
+    <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/95 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <p className="text-sm font-black text-[#071D49]">Department command controls</p>
+        <p className="text-sm font-black text-foreground">Department command controls</p>
 
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[260px]">
-            <label className="flex items-center gap-2 rounded-2xl border border-[#C7D4E6] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#64748B]">
+            <label className="flex items-center gap-2 rounded-2xl border border-border-strong bg-surface-muted px-3 py-2 text-sm font-semibold text-muted">
               <Search className="h-4 w-4" />
               <span className="sr-only">HOD workspace search</span>
               <input
@@ -259,21 +259,21 @@ function Topbar({
               />
             </label>
             {searchTerm.trim() ? (
-              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl">
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-border bg-white p-2 shadow-xl">
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => onSearchResult(item)}
-                      className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-[#F3F6FA]"
+                      className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-background"
                     >
-                      <span className="block text-sm font-black text-[#071D49]">{item.label}</span>
-                      <span className="mt-0.5 block text-xs font-semibold text-[#64748B]">{item.description}</span>
+                      <span className="block text-sm font-black text-foreground">{item.label}</span>
+                      <span className="mt-0.5 block text-xs font-semibold text-muted">{item.description}</span>
                     </button>
                   ))
                 ) : (
-                  <p className="rounded-lg px-3 py-3 text-sm font-semibold text-[#64748B]">
+                  <p className="rounded-lg px-3 py-3 text-sm font-semibold text-muted">
                     No matching HOD workspace.
                   </p>
                 )}
@@ -302,7 +302,7 @@ function Topbar({
 function WorkspaceFrame({ activeView, children }: { activeView: HodView; children: ReactNode }) {
   return (
     <div className="space-y-4">
-      <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
+      <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-bold text-foreground">
         {getHodViewLabel(activeView)} opened. Data remains scoped to the current school and department permissions.
       </div>
       {children}
@@ -395,7 +395,7 @@ export function HodCommandCenter({
       data-testid="role-operational-command-center"
       data-role-dashboard="hod"
       data-active-view={activeView}
-      className="authenticated-app min-h-dvh bg-[#F3F6FA] text-[#071D49] lg:h-dvh lg:overflow-hidden"
+      className="authenticated-app min-h-dvh bg-background text-foreground lg:h-dvh lg:overflow-hidden"
     >
       <div className="flex min-h-dvh lg:h-full">
         <Sidebar activeView={activeView} onViewChange={openView} />

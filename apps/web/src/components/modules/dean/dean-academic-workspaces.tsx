@@ -163,7 +163,7 @@ export function AcademicCalendarWorkspace({ dataset }: { dataset: DeanDataset })
         <Button variant="primary" onClick={() => setIsActivityOpen(true)}>Add Academic Activity</Button>
         <Button variant="secondary" onClick={() => setIsImportOpen(true)}>Import Term Plan</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Term Academic Plan" 
@@ -298,7 +298,7 @@ export function SyllabusCoverageWorkspace({ dataset }: { dataset: DeanDataset })
         <Button variant="primary" onClick={() => setSelectedCoverage(highestRisk)}>Request Teacher Update</Button>
         <Button variant="secondary" onClick={() => setIsRemedialOpen(true)}>Create Remedial Plan</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Detailed Coverage Status" 
@@ -435,7 +435,7 @@ export function TimetableOversightWorkspace({ dataset }: { dataset: DeanDataset 
         <Button variant="primary" onClick={() => setSelectedIssue(timetableRows.find((row) => row.conflicts > 0 || row.missingLessons > 0) ?? timetableRows[0] ?? null)}>Request Timetable Change</Button>
         <Button variant="secondary" onClick={exportTimetableHealth}>Export Timetable Health</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Timetable Issues" 

@@ -98,47 +98,47 @@ export function ParentNotificationsWorkspace() {
 
   return (
     <Panel title="Parent Health Notifications" description="Alert parents about their child's health visits and conditions." icon={Bell} actions={
-      <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
+      <button onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
         <PlusCircle className="w-4 h-4" /> Send Alert
       </button>
     }>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Queued Today</div>
-          <div className="mt-1 text-lg font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.queued_today ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Queued Today</div>
+          <div className="mt-1 text-lg font-black text-success">{isLoading ? "..." : data?.metrics?.queued_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending</div>
-          <div className="mt-1 text-lg font-black text-amber-700">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending</div>
+          <div className="mt-1 text-lg font-black text-warning">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Failed</div>
-          <div className="mt-1 text-lg font-black text-rose-700">{isLoading ? "..." : data?.metrics?.failed ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Failed</div>
+          <div className="mt-1 text-lg font-black text-danger">{isLoading ? "..." : data?.metrics?.failed ?? 0}</div>
         </div>
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+        <div className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           Guardian recipients and prior health alerts could not be loaded. Retry before queueing a notification.
         </div>
       ) : null}
 
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-        <input type="text" placeholder="Search by student or parent..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none" />
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+        <input type="text" placeholder="Search by student or parent..." value={search} onChange={e => setSearch(e.target.value)} className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none" />
       </div>
 
       {showForm && (
-        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="text-sm font-bold text-[#071D49] mb-3">Send Parent Alert</h3>
+        <div className="mb-4 rounded-xl border border-info-border bg-info-soft p-4">
+          <h3 className="text-sm font-bold text-foreground mb-3">Send Parent Alert</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label htmlFor="nurse-alert-student" className="text-xs font-bold text-[#334155]">Student *</label>
+              <label htmlFor="nurse-alert-student" className="text-xs font-bold text-foreground">Student *</label>
               <select
                 id="nurse-alert-student"
                 value={form.student_id}
                 onChange={e => setForm({...form, student_id: e.target.value, guardian_id: ""})}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm focus:border-blue-500 focus:outline-none"
               >
                 <option value="">Select an active learner</option>
                 {studentOptions.map((student) => (
@@ -147,13 +147,13 @@ export function ParentNotificationsWorkspace() {
               </select>
             </div>
             <div>
-              <label htmlFor="nurse-alert-guardian" className="text-xs font-bold text-[#334155]">Guardian</label>
+              <label htmlFor="nurse-alert-guardian" className="text-xs font-bold text-foreground">Guardian</label>
               <select
                 id="nurse-alert-guardian"
                 value={form.guardian_id}
                 disabled={!form.student_id}
                 onChange={e => setForm({...form, guardian_id: e.target.value})}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100"
               >
                 <option value="">All active linked guardians</option>
                 {selectedGuardians.map((guardian) => (
@@ -164,56 +164,56 @@ export function ParentNotificationsWorkspace() {
               </select>
             </div>
             <div>
-              <label htmlFor="nurse-alert-channel" className="text-xs font-bold text-[#334155]">Channel</label>
-              <select id="nurse-alert-channel" value={form.channel} onChange={e => setForm({...form, channel: e.target.value})} className="mt-1 w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
+              <label htmlFor="nurse-alert-channel" className="text-xs font-bold text-foreground">Channel</label>
+              <select id="nurse-alert-channel" value={form.channel} onChange={e => setForm({...form, channel: e.target.value})} className="mt-1 w-full rounded-lg border border-border p-2 text-sm focus:border-blue-500 focus:outline-none">
                 <option value="in-app">In-App</option><option value="sms">SMS + In-App</option>
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="nurse-alert-message" className="text-xs font-bold text-[#334155]">Message *</label>
-              <textarea id="nurse-alert-message" value={form.message} onChange={e => setForm({...form, message: e.target.value})} rows={2} className="mt-1 w-full rounded-lg border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+              <label htmlFor="nurse-alert-message" className="text-xs font-bold text-foreground">Message *</label>
+              <textarea id="nurse-alert-message" value={form.message} onChange={e => setForm({...form, message: e.target.value})} rows={2} className="mt-1 w-full rounded-lg border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
             </div>
           </div>
           <div className="mt-3 flex gap-2 justify-end">
-            <button onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
-            <button disabled={isSubmitting || isLoading || recipients.length === 0} onClick={handleSend} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:bg-slate-100">Cancel</button>
+            <button disabled={isSubmitting || isLoading || recipients.length === 0} onClick={handleSend} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isSubmitting ? "Queueing..." : "Queue Alert"}
             </button>
           </div>
           {!isLoading && !error && recipients.length === 0 ? (
-            <p className="mt-3 text-sm font-semibold text-amber-700">
+            <p className="mt-3 text-sm font-semibold text-warning">
               No active learner has an active linked guardian account. Complete guardian linking before sending an alert.
             </p>
           ) : null}
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Parent</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Channel</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Message</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Queued At</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Parent</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Channel</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Message</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Queued At</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading notifications...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading notifications...</td></tr>
             ) : notifications.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No parent health notifications queued yet. Use &quot;Send Alert&quot; to notify parents about health visits.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No parent health notifications queued yet. Use &quot;Send Alert&quot; to notify parents about health visits.</td></tr>
             ) : (
               notifications.map(n => (
-                <tr key={n.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{n.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{n.parent_name}</td>
-                  <td className="px-4 py-3 text-[#64748B] uppercase text-xs font-bold">{n.channel}</td>
-                  <td className="px-4 py-3 text-[#64748B] max-w-[200px] truncate">{n.message}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{n.queued_at}</td>
+                <tr key={n.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{n.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{n.parent_name}</td>
+                  <td className="px-4 py-3 text-muted uppercase text-xs font-bold">{n.channel}</td>
+                  <td className="px-4 py-3 text-muted max-w-[200px] truncate">{n.message}</td>
+                  <td className="px-4 py-3 text-muted">{n.queued_at}</td>
                   <td className="px-4 py-3"><StatusChip label={n.status} tone={getStatusTone(n.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {n.status === "Failed" && (

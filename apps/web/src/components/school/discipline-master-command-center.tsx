@@ -89,24 +89,24 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
   };
 
   return (
-    <div className="authenticated-app flex min-h-screen bg-[#F8FAFC]">
+    <div className="authenticated-app flex min-h-screen bg-surface-muted">
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-[#071D49]/20 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-primary/20 backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-72 transform bg-white shadow-xl transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none lg:border-r lg:border-[#D8E0EC]",
+        "fixed inset-y-0 left-0 z-50 w-72 transform bg-white shadow-xl transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none lg:border-r lg:border-border",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-start justify-between gap-2 border-b border-[#D8E0EC] p-4">
+        <div className="flex items-start justify-between gap-2 border-b border-border p-4">
           <SchoolCommandSidebarIdentity eyebrow="Discipline command" title="Discipline Master" subtitle="Behaviour, incidents, and interventions" tone="light" className="mb-0 flex-1" />
           <button 
-            className="lg:hidden text-[#64748B] hover:text-[#071D49]"
+            className="lg:hidden text-muted hover:text-foreground"
             onClick={() => setIsMobileMenuOpen(false)}
           >
             <X className="h-5 w-5" />
@@ -125,13 +125,13 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all",
                   activeWorkspace === item.id
-                    ? "bg-[#EEF5FF] text-[#1D4ED8]"
-                    : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#071D49]"
+                    ? "bg-info-soft text-info"
+                    : "text-muted hover:bg-surface-muted hover:text-foreground"
                 )}
               >
                 <item.icon className={cn(
                   "h-5 w-5",
-                  activeWorkspace === item.id ? "text-[#1D4ED8]" : "text-[#94A3B8]"
+                  activeWorkspace === item.id ? "text-info" : "text-muted"
                 )} />
                 {item.label}
               </button>
@@ -143,17 +143,17 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
       {/* Main Content */}
       <main className="app-command-main flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="app-command-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#D8E0EC] bg-white px-4 sm:px-6 shadow-sm">
+        <header className="app-command-topbar sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-white px-4 sm:px-6 shadow-sm">
           <div className="flex items-center gap-4">
             <button 
-              className="lg:hidden p-2 -ml-2 text-[#64748B] hover:bg-[#F8FAFC] rounded-lg"
+              className="lg:hidden p-2 -ml-2 text-muted hover:bg-surface-muted rounded-lg"
               onClick={() => setIsMobileMenuOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="text-sm font-black text-[#071D49]">Discipline workspace controls</h1>
-              <p className="hidden sm:block text-xs font-semibold text-[#64748B]">
+              <h1 className="text-sm font-black text-foreground">Discipline workspace controls</h1>
+              <p className="hidden sm:block text-xs font-semibold text-muted">
                 Current school &middot; Discipline workspace
               </p>
             </div>
@@ -162,7 +162,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               type="button"
-              className="hidden sm:flex items-center gap-2 rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-[#0A2661] transition-colors"
+              className="hidden sm:flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-black text-white hover:bg-[#0A2661] transition-colors"
               onClick={() => setActiveWorkspace("log-incident")}
             >
               <FilePlus className="h-4 w-4" />
@@ -173,7 +173,7 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
               <ApprovalInbox />
               <NotificationBell />
             </div>
-            <button type="button" aria-label="Open discipline reports and help" onClick={() => setActiveWorkspace("reports")} className="hidden sm:block rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-2 text-[#64748B] hover:bg-white hover:border-[#38BDF8] transition-all">
+            <button type="button" aria-label="Open discipline reports and help" onClick={() => setActiveWorkspace("reports")} className="hidden sm:block rounded-xl border border-border bg-surface-muted p-2 text-muted hover:bg-white hover:border-[#38BDF8] transition-all">
               <HelpCircle className="h-5 w-5" />
             </button>
           </div>

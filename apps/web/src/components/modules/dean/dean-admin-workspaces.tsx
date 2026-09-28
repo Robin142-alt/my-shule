@@ -53,7 +53,7 @@ export function AcademicReportsWorkspace({ dataset }: { dataset: DeanDataset }) 
       <div className="flex gap-3 mt-4">
         <Button variant="primary" onClick={() => setIsReportOpen(true)}>Generate New Report</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Recent Reports" 
@@ -136,7 +136,7 @@ export function MessagesNoticesWorkspace({ dataset }: { dataset: DeanDataset }) 
         <Button variant="primary" onClick={() => setMessageMode("in-app")}>New Message</Button>
         <Button variant="secondary" onClick={() => setMessageMode("sms")}>SMS Blast (Parents)</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Message History" 
@@ -241,7 +241,7 @@ export function ApprovalsFollowUpsWorkspace({ dataset }: { dataset: DeanDataset 
           }
         }}>Review All Pending</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Approval Queue" 
@@ -291,7 +291,7 @@ export function MyTeachingWorkspace({ dataset }: { dataset: DeanDataset }) {
         <Button variant="primary" onClick={() => setTeachingMode("log")}>Submit My Lesson Log</Button>
         <Button variant="secondary" onClick={() => setTeachingMode("plan")}>Submit My Lesson Plan</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="My Assigned Classes" 
@@ -391,7 +391,7 @@ export function DeanSettingsWorkspace({ dataset: _dataset }: { dataset: DeanData
           <Button variant="secondary" className="mt-4 w-full" onClick={() => setSettingsMode("grading")}>Edit Grading Rules</Button>
         </Card>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
       <Modal open={!!settingsMode} title={settingsMode === "risk" ? "Edit Risk Thresholds" : "Edit Grading Rules"} onClose={() => setSettingsMode(null)}>
         {settingsMode === "risk" ? (
           <form className="space-y-4" onSubmit={async (event) => {

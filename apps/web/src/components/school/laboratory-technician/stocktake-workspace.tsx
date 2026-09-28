@@ -16,7 +16,7 @@ type StocktakeLocalDraft = { counts?: Record<string, StocktakeCount>; notes?: st
 type StocktakeResponse = LaboratoryActionResponse<{ stocktake: LabStocktake }>;
 
 const fieldClass =
-  "min-h-12 w-full rounded-xl border border-[#C8D5EA] bg-white px-3 text-base text-[#071D49] outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+  "min-h-12 w-full rounded-xl border border-border-strong bg-white px-3 text-base text-foreground outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
 
 function countDraftKey(stocktakeId: string) {
   return `myshule:lab-stocktake:${stocktakeId}`;
@@ -240,7 +240,7 @@ export function StocktakeWorkspace() {
   return (
     <div className="space-y-5">
       <LabQuickActions compact />
-      {notice ? <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-950">{notice}</div> : null}
+      {notice ? <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-bold text-blue-950">{notice}</div> : null}
       <SaveState state={saveState} />
 
       <Panel
@@ -248,7 +248,7 @@ export function StocktakeWorkspace() {
         description="Count one cupboard, cabinet or shelf at a time. Save your work and continue later."
         icon={ClipboardCheck}
         actions={
-          <button type="button" onClick={() => setStartOpen(true)} className="min-h-11 rounded-xl bg-[#0F3F8A] px-4 text-sm font-black text-white hover:bg-[#0B326F]">
+          <button type="button" onClick={() => setStartOpen(true)} className="min-h-11 rounded-xl bg-info px-4 text-sm font-black text-white hover:bg-[#0B326F]">
             Start Stocktake
           </button>
         }
@@ -262,16 +262,16 @@ export function StocktakeWorkspace() {
             }}
           />
         ) : stocktakesQuery.isLoading || inventoryQuery.isLoading ? (
-          <p className="py-10 text-center text-sm text-[#64748B]">Loading stocktake locations and saved progress…</p>
+          <p className="py-10 text-center text-sm text-muted">Loading stocktake locations and saved progress…</p>
         ) : stocktakes.length === 0 ? (
           <WorkspaceEmpty
             title="No stocktake has been started"
             description="Select a laboratory, store, cupboard or shelf to begin counting the items kept there."
-            actions={<button type="button" onClick={() => setStartOpen(true)} className="min-h-11 rounded-xl bg-[#0F3F8A] px-4 font-black text-white">Select a Location</button>}
+            actions={<button type="button" onClick={() => setStartOpen(true)} className="min-h-11 rounded-xl bg-info px-4 font-black text-white">Select a Location</button>}
           />
         ) : (
           <div className="space-y-5">
-            <label className="block text-sm font-bold text-[#071D49]">
+            <label className="block text-sm font-bold text-foreground">
               Saved stocktakes
               <select
                 value={selectedStocktakeId}
@@ -288,10 +288,10 @@ export function StocktakeWorkspace() {
 
             {selectedStocktake ? (
               <>
-                <div className="flex flex-col gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="flex items-center gap-2 font-black text-[#071D49]"><MapPin className="h-4 w-4" aria-hidden="true" />{selectedStocktake.location_name}</p>
-                    <p className="mt-1 text-sm text-[#64748B]">Started {formatKenyanDate(selectedStocktake.started_at)} · {selectedStocktake.items.length} items</p>
+                    <p className="flex items-center gap-2 font-black text-foreground"><MapPin className="h-4 w-4" aria-hidden="true" />{selectedStocktake.location_name}</p>
+                    <p className="mt-1 text-sm text-muted">Started {formatKenyanDate(selectedStocktake.started_at)} · {selectedStocktake.items.length} items</p>
                   </div>
                   <StatusChip label={isSubmitted ? "Submitted" : `${countedLines.length} of ${selectedStocktake.items.length} counted`} tone={isSubmitted ? "success" : "info"} />
                 </div>
@@ -300,7 +300,7 @@ export function StocktakeWorkspace() {
                   <WorkspaceEmpty
                     title="No items are assigned to this location"
                     description="Check the storage location on each item, or start a stocktake for a different cupboard or shelf."
-                    actions={<button type="button" onClick={() => setStartOpen(true)} className="min-h-11 rounded-xl border border-blue-300 bg-blue-50 px-4 font-black text-blue-900">Choose Another Location</button>}
+                    actions={<button type="button" onClick={() => setStartOpen(true)} className="min-h-11 rounded-xl border border-blue-300 bg-info-soft px-4 font-black text-blue-900">Choose Another Location</button>}
                   />
                 ) : mode === "count" && !isSubmitted && currentItem ? (
                   <div className="space-y-4">
@@ -308,11 +308,11 @@ export function StocktakeWorkspace() {
                       <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${Math.round((countedLines.length / selectedStocktake.items.length) * 100)}%` }} />
                     </div>
                     <article className="rounded-2xl border-2 border-blue-100 bg-white p-5 shadow-sm">
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">Item {position + 1} of {selectedStocktake.items.length}</p>
-                      <h3 className="mt-2 text-2xl font-black text-[#071D49]">{currentItem.item_name}</h3>
-                      <p className="mt-1 text-sm text-[#64748B]">Expected: <strong className="text-[#071D49]">{currentItem.expected_quantity} {currentItem.unit}</strong></p>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-info">Item {position + 1} of {selectedStocktake.items.length}</p>
+                      <h3 className="mt-2 text-2xl font-black text-foreground">{currentItem.item_name}</h3>
+                      <p className="mt-1 text-sm text-muted">Expected: <strong className="text-foreground">{currentItem.expected_quantity} {currentItem.unit}</strong></p>
                       <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                        <label className="text-sm font-bold text-[#071D49]">
+                        <label className="text-sm font-bold text-foreground">
                           Counted Quantity
                           <input
                             autoFocus
@@ -328,7 +328,7 @@ export function StocktakeWorkspace() {
                             className={`${fieldClass} mt-2`}
                           />
                         </label>
-                        <label className="text-sm font-bold text-[#071D49]">
+                        <label className="text-sm font-bold text-foreground">
                           Condition
                           <select
                             value={counts[currentItem.id]?.condition ?? "Good"}
@@ -347,14 +347,14 @@ export function StocktakeWorkspace() {
                       </div>
                     </article>
 
-                    {validationMessage ? <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">{validationMessage}</p> : null}
+                    {validationMessage ? <p role="alert" className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm font-bold text-danger">{validationMessage}</p> : null}
 
                     <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between">
-                      <button type="button" disabled={position === 0} onClick={() => moveTo(position - 1)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#C8D5EA] bg-white px-5 font-black text-[#071D49] disabled:opacity-40">
+                      <button type="button" disabled={position === 0} onClick={() => moveTo(position - 1)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border-strong bg-white px-5 font-black text-foreground disabled:opacity-40">
                         <ArrowLeft className="h-5 w-5" aria-hidden="true" /> Previous
                       </button>
                       {position < selectedStocktake.items.length - 1 ? (
-                        <button type="button" onClick={() => moveTo(position + 1)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#0F3F8A] px-5 font-black text-white">
+                        <button type="button" onClick={() => moveTo(position + 1)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-info px-5 font-black text-white">
                           Next <ArrowRight className="h-5 w-5" aria-hidden="true" />
                         </button>
                       ) : (
@@ -363,7 +363,7 @@ export function StocktakeWorkspace() {
                         </button>
                       )}
                     </div>
-                    <button type="button" disabled={saveMutation.isPending} onClick={saveProgress} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 font-black text-blue-900 disabled:opacity-60 sm:w-auto">
+                    <button type="button" disabled={saveMutation.isPending} onClick={saveProgress} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-blue-300 bg-info-soft px-4 font-black text-blue-900 disabled:opacity-60 sm:w-auto">
                       <Save className="h-5 w-5" aria-hidden="true" /> {saveMutation.isPending ? "Saving…" : "Save and Continue Later"}
                     </button>
                   </div>
@@ -371,26 +371,26 @@ export function StocktakeWorkspace() {
                   <div className="space-y-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <h3 className="text-lg font-black text-[#071D49]">Review expected and counted quantities</h3>
-                        <p className="text-sm text-[#64748B]">No stock balance changes until you submit this location.</p>
+                        <h3 className="text-lg font-black text-foreground">Review expected and counted quantities</h3>
+                        <p className="text-sm text-muted">No stock balance changes until you submit this location.</p>
                       </div>
-                      {!isSubmitted ? <button type="button" onClick={() => setMode("count")} className="min-h-10 rounded-lg border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">Back to Counting</button> : null}
+                      {!isSubmitted ? <button type="button" onClick={() => setMode("count")} className="min-h-10 rounded-lg border border-border-strong px-4 text-sm font-black text-foreground">Back to Counting</button> : null}
                     </div>
                     <div className="space-y-3">
                       {selectedStocktake.items.map((item) => {
                         const counted = countToNumber(counts[item.id]?.countedQuantity ?? String(item.counted_quantity ?? ""));
                         const difference = counted === null ? null : counted - Number(item.expected_quantity);
                         return (
-                          <article key={item.id} className="grid gap-3 rounded-xl border border-[#D8E0EC] p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
-                            <div><p className="font-black text-[#071D49]">{item.item_name}</p><p className="text-sm text-[#64748B]">{counts[item.id]?.condition || item.condition || "Condition not recorded"}</p></div>
-                            <p className="text-sm text-[#64748B]">Expected <strong className="text-[#071D49]">{item.expected_quantity} {item.unit}</strong></p>
-                            <p className="text-sm text-[#64748B]">Counted <strong className="text-[#071D49]">{counted ?? "Not counted"} {item.unit}</strong></p>
+                          <article key={item.id} className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
+                            <div><p className="font-black text-foreground">{item.item_name}</p><p className="text-sm text-muted">{counts[item.id]?.condition || item.condition || "Condition not recorded"}</p></div>
+                            <p className="text-sm text-muted">Expected <strong className="text-foreground">{item.expected_quantity} {item.unit}</strong></p>
+                            <p className="text-sm text-muted">Counted <strong className="text-foreground">{counted ?? "Not counted"} {item.unit}</strong></p>
                             <StatusChip label={difference === null ? "Not Counted" : difference === 0 ? "Matches" : `${difference > 0 ? "+" : ""}${difference} difference`} tone={difference === 0 ? "success" : "warning"} />
                           </article>
                         );
                       })}
                     </div>
-                    <label className="block text-sm font-bold text-[#071D49]">
+                    <label className="block text-sm font-bold text-foreground">
                       Stocktake Note (optional)
                       <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} className={`${fieldClass} mt-2 py-3`} placeholder="Explain any differences that need review." />
                     </label>
@@ -399,7 +399,7 @@ export function StocktakeWorkspace() {
                         {submitMutation.isPending ? "Submitting…" : "Submit Stocktake"}
                       </button>
                     ) : (
-                      <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900">Submitted {formatKenyanDate(selectedStocktake.submitted_at)}. Stock differences have movement and audit records.</p>
+                      <p className="rounded-xl border border-success-border bg-success-soft p-4 text-sm font-bold text-emerald-900">Submitted {formatKenyanDate(selectedStocktake.submitted_at)}. Stock differences have movement and audit records.</p>
                     )}
                   </div>
                 )}
@@ -417,8 +417,8 @@ export function StocktakeWorkspace() {
         mobileFullScreen
         footer={
           <>
-            <button type="button" onClick={() => setStartOpen(false)} className="min-h-11 rounded-xl border border-[#C8D5EA] px-4 font-black text-[#071D49]">Cancel</button>
-            <button type="button" disabled={startMutation.isPending || locations.length === 0} onClick={startSelectedLocation} className="min-h-11 rounded-xl bg-[#0F3F8A] px-4 font-black text-white disabled:opacity-50">
+            <button type="button" onClick={() => setStartOpen(false)} className="min-h-11 rounded-xl border border-border-strong px-4 font-black text-foreground">Cancel</button>
+            <button type="button" disabled={startMutation.isPending || locations.length === 0} onClick={startSelectedLocation} className="min-h-11 rounded-xl bg-info px-4 font-black text-white disabled:opacity-50">
               {startMutation.isPending ? "Starting…" : "Start Counting"}
             </button>
           </>
@@ -428,7 +428,7 @@ export function StocktakeWorkspace() {
           <WorkspaceEmpty title="No storage locations are set up" description="Add a laboratory, cupboard or shelf while adding an inventory item, then return here to start counting." />
         ) : (
           <div className="space-y-4">
-            <label className="block text-sm font-bold text-[#071D49]">
+            <label className="block text-sm font-bold text-foreground">
               Laboratory, Cupboard or Shelf
               <select value={locationId} onChange={(event) => { setLocationId(event.target.value); setCategoryFilter(""); setItemTypeFilter(""); setValidationMessage(""); }} className={`${fieldClass} mt-2`}>
                 <option value="">Select a location</option>
@@ -436,16 +436,16 @@ export function StocktakeWorkspace() {
               </select>
             </label>
             {selectedLocation ? (
-              <fieldset className="grid gap-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-2">
-                <legend className="px-1 text-sm font-black text-[#071D49]">Narrow this location (optional)</legend>
-                <label className="text-sm font-bold text-[#071D49]">
+              <fieldset className="grid gap-4 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-2">
+                <legend className="px-1 text-sm font-black text-foreground">Narrow this location (optional)</legend>
+                <label className="text-sm font-bold text-foreground">
                   Category
                   <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={`${fieldClass} mt-2`}>
                     <option value="">All categories</option>
                     {availableCategories.map((category) => <option key={category} value={category}>{category}</option>)}
                   </select>
                 </label>
-                <label className="text-sm font-bold text-[#071D49]">
+                <label className="text-sm font-bold text-foreground">
                   Item Type
                   <select value={itemTypeFilter} onChange={(event) => setItemTypeFilter(event.target.value as LabItemType | "")} className={`${fieldClass} mt-2`}>
                     <option value="">All item types</option>
@@ -455,13 +455,13 @@ export function StocktakeWorkspace() {
                     <option value="safety_equipment">Safety Equipment</option>
                   </select>
                 </label>
-                <p className="text-sm leading-6 text-[#64748B] sm:col-span-2">Leave both blank to count every item at this location.</p>
+                <p className="text-sm leading-6 text-muted sm:col-span-2">Leave both blank to count every item at this location.</p>
               </fieldset>
             ) : null}
           </div>
         )}
-        {selectedLocation ? <p className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-950">You will count {categoryFilter || itemTypeFilter ? "the selected group of items" : "all items"} stored at <strong>{selectedLocation.full_path}</strong>.</p> : null}
-        {validationMessage ? <p role="alert" className="mt-3 text-sm font-bold text-rose-700">{validationMessage}</p> : null}
+        {selectedLocation ? <p className="mt-3 rounded-lg bg-info-soft p-3 text-sm text-blue-950">You will count {categoryFilter || itemTypeFilter ? "the selected group of items" : "all items"} stored at <strong>{selectedLocation.full_path}</strong>.</p> : null}
+        {validationMessage ? <p role="alert" className="mt-3 text-sm font-bold text-danger">{validationMessage}</p> : null}
       </Modal>
     </div>
   );

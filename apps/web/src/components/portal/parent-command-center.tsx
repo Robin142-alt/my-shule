@@ -419,7 +419,7 @@ function ProgressDonut({
           background: `conic-gradient(${color} ${value * 3.6}deg, rgba(255,255,255,0.12) 0deg)`,
         }}
       >
-        <div className="grid h-14 w-14 place-items-center rounded-full bg-[#071D49]/92 text-sm font-black text-white">
+        <div className="grid h-14 w-14 place-items-center rounded-full bg-primary/92 text-sm font-black text-white">
           {value}%
         </div>
       </div>
@@ -870,12 +870,12 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
   })) || [];
 
   return (
-    <div className="-mx-2 -mb-8 overflow-hidden rounded-[var(--radius-xl)] bg-[#071D49] text-white shadow-[0_30px_90px_rgba(7,29,73,0.26)] md:-mx-1">
+    <div className="-mx-2 -mb-8 overflow-hidden rounded-[var(--radius-xl)] bg-primary text-white shadow-[0_30px_90px_rgba(7,29,73,0.26)] md:-mx-1">
       <div className="relative isolate min-h-screen overflow-hidden px-4 pb-24 pt-4 sm:px-5 lg:px-6">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_8%,rgba(255,122,26,0.26),transparent_28%),radial-gradient(circle_at_82%_2%,rgba(37,99,235,0.24),transparent_28%),linear-gradient(135deg,#071D49_0%,#0F2345_48%,#061536_100%)]" />
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-gradient-to-b from-white/10 to-transparent" />
 
-        <header className="sticky top-3 z-10 rounded-[var(--radius-xl)] border border-white/12 bg-[#071D49]/78 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
+        <header className="sticky top-3 z-10 rounded-[var(--radius-xl)] border border-white/12 bg-primary/78 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-2xl">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <MyShuleMark
@@ -917,7 +917,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
                   <Bell className="h-4 w-4" />
                 </button>
                 {notificationsOpen ? (
-                  <div className="fade-in-panel absolute right-0 top-12 z-30 w-80 rounded-[var(--radius)] border border-white/12 bg-[#071D49] p-2 shadow-2xl">
+                  <div className="fade-in-panel absolute right-0 top-12 z-30 w-80 rounded-[var(--radius)] border border-white/12 bg-primary p-2 shadow-2xl">
                     <p className="px-2 py-1 text-xs font-black uppercase tracking-[0.16em] text-white/56">
                       Parent items needing attention
                     </p>
@@ -1498,7 +1498,7 @@ export function ParentCommandCenter({ routeMode }: ParentCommandCenterProps) {
           </section>
         </main>
 
-        <nav className="fixed inset-x-3 bottom-3 z-20 rounded-[var(--radius-xl)] border border-white/12 bg-[#071D49]/88 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur-2xl lg:hidden" aria-label="Mobile parent quick actions">
+        <nav className="fixed inset-x-3 bottom-3 z-20 rounded-[var(--radius-xl)] border border-white/12 bg-primary/88 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur-2xl lg:hidden" aria-label="Mobile parent quick actions">
           <div className="grid grid-cols-5 gap-1">
             {[
               { label: "Home", icon: Home, href: parentHref("dashboard", routeMode) },

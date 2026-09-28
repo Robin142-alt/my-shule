@@ -68,20 +68,20 @@ export function ReportsWorkspace() {
       description="Generate and download academic reports."
       icon={FileText}
       actions={
-        <button type="button" onClick={handleGenerateReport} disabled={isGenerating} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+        <button type="button" onClick={handleGenerateReport} disabled={isGenerating} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
           {isGenerating ? "Generating..." : "Generate report"}
         </button>
       }
     >
       <div className="grid gap-4 md:grid-cols-1 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Reports Generated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "reports_generated", items.length)}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Reports Generated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : metricFromData(data, "reports_generated", items.length)}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Title</th>
               <th className="px-4 py-3 font-bold">Generated At</th>
@@ -91,15 +91,15 @@ export function ReportsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-[#64748B]">No dean reports yet. Generate reports after coverage, assessment, or workload data is available.</td></tr>
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">No dean reports yet. Generate reports after coverage, assessment, or workload data is available.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["title", "name"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["generated_at", "created_at"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["type", "format"], "pdf")}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["title", "name"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["generated_at", "created_at"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["type", "format"], "pdf")}</td>
                   <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Generated")} tone={getStatusTone(fieldValue(row, ["status"], "Generated"))} /></td>
                 </tr>
               ))

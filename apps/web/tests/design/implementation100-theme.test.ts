@@ -10,10 +10,10 @@ describe("Implementation 100/400 theme tokens", () => {
     expect(globalsCss).toContain("--lightgray: #F3F4F6;");
     expect(globalsCss).toContain("--darkblue: #0F2345;");
     expect(globalsCss).toContain("--white: #FFFFFF;");
-    expect(globalsCss).toContain("--background: #F3F4F6;");
-    expect(globalsCss).toContain("--foreground: #0F2345;");
-    expect(globalsCss).toContain("--primary: #071D49;");
-    expect(globalsCss).toContain("--accent: #FF7A1A;");
+    expect(globalsCss).toContain("--background: #F4F6FA;");
+    expect(globalsCss).toContain("--foreground: #172B46;");
+    expect(globalsCss).toContain("--primary: #173559;");
+    expect(globalsCss).toContain("--accent: #B94712;");
   });
 
   it("does not keep emerald as the global accent color", () => {

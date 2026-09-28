@@ -207,10 +207,10 @@ const themeClasses = {
     panel: "border-slate-200 bg-slate-50",
     section: "border-slate-200 bg-white",
     chip: "border-slate-300 bg-white text-slate-700",
-    selectedChip: "border-blue-300 bg-blue-50 text-blue-800",
+    selectedChip: "border-blue-300 bg-info-soft text-info",
     secondaryButton: "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-    success: "text-emerald-700",
-    warning: "text-amber-700",
+    success: "text-success",
+    warning: "text-warning",
   },
 } as const;
 

@@ -205,7 +205,7 @@ function Sidebar({
   onViewChange: (view: DeanView) => void;
 }) {
   return (
-    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity
         eyebrow="Academic command"
         title="Dean of Academics"
@@ -297,25 +297,25 @@ function Topbar({
               />
             </label>
             {searchTerm.trim() ? (
-              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl">
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-border bg-white p-2 shadow-xl">
                 {searchResults.length > 0 ? (
                   searchResults.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => onSearchResult(item)}
-                      className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-[#F3F6FA]"
+                      className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-background"
                     >
-                      <span className="block text-sm font-semibold text-[#071D49]">
+                      <span className="block text-sm font-semibold text-foreground">
                         {item.label}
                       </span>
-                      <span className="mt-0.5 block text-xs text-[#64748B]">
+                      <span className="mt-0.5 block text-xs text-muted">
                         {item.description}
                       </span>
                     </button>
                   ))
                 ) : (
-                  <p className="rounded-lg px-3 py-3 text-sm font-semibold text-[#64748B]">
+                  <p className="rounded-lg px-3 py-3 text-sm font-semibold text-muted">
                     No matching academic workspace.
                   </p>
                 )}

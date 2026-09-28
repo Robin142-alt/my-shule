@@ -96,7 +96,7 @@ export function ReportsWorkspace() {
   if (error) {
     return (
       <Panel title="Boarding Reports" description="Generate and download verified reports from live boarding records." icon={FileText}>
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <p className="font-black">Boarding reports could not be loaded.</p>
           <p className="mt-1">{error.message}</p>
           <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
@@ -118,7 +118,7 @@ export function ReportsWorkspace() {
             value={format}
             onChange={(event) => setFormat(event.target.value as typeof format)}
             disabled={pendingAction !== null}
-            className="rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 text-sm font-bold text-[#334155]"
+            className="rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-foreground"
           >
             <option value="pdf">PDF</option>
             <option value="xlsx">XLSX</option>
@@ -128,7 +128,7 @@ export function ReportsWorkspace() {
             type="button"
             onClick={() => void generateReport()}
             disabled={pendingAction !== null}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${pendingAction === "generate" ? "animate-spin" : ""}`} />
             {pendingAction === "generate" ? "Generating…" : "Generate report"}
@@ -137,18 +137,18 @@ export function ReportsWorkspace() {
       }
     >
       <div className="mb-6 grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Verified Artifacts</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.reports_generated ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Verified Artifacts</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.reports_generated ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Failed Integrity Checks</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.reports_failed ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Failed Integrity Checks</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.reports_failed ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Title</th>
               <th className="px-4 py-3 font-bold">Generated At</th>
@@ -159,22 +159,22 @@ export function ReportsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No boarding report exists for this school. Generate the first artifact from live hostel, allocation, roll-call, leave, and incident records.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No boarding report exists for this school. Generate the first artifact from live hostel, allocation, roll-call, leave, and incident records.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.generated_at}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.title}</td>
+                  <td className="px-4 py-3 text-muted">{row.generated_at}</td>
+                  <td className="px-4 py-3 text-muted">{row.type}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                   <td className="px-4 py-3">
                     <button
                       type="button"
                       disabled={row.status !== "Ready" || pendingAction !== null}
                       onClick={() => void downloadReport(row)}
-                      className="inline-flex items-center gap-1 text-xs font-black text-[#1D4ED8] disabled:cursor-not-allowed disabled:text-[#94A3B8]"
+                      className="inline-flex items-center gap-1 text-xs font-black text-info disabled:cursor-not-allowed disabled:text-muted"
                     >
                       <Download className="h-3.5 w-3.5" />
                       {pendingAction === `download:${row.id}` ? "Downloading…" : row.status === "Ready" ? "Download" : "Unavailable"}

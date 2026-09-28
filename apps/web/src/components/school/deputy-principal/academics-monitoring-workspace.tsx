@@ -270,14 +270,14 @@ export function DeputyAcademicsMonitoringWorkspace() {
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-50"
+              className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-black text-foreground disabled:opacity-50"
             >
               {isFetching ? "Refreshing..." : "Refresh"}
             </button>
             <button
               type="button"
               onClick={() => setShowModal(true)}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white"
             >
               Create intervention
             </button>
@@ -292,9 +292,9 @@ export function DeputyAcademicsMonitoringWorkspace() {
             ["Completed", metrics?.completed ?? 0],
             ["Overdue reviews", metrics?.overdue ?? 0],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-              <div className="text-sm font-semibold text-[#64748B]">{label}</div>
-              <div className="mt-1 text-2xl font-black text-[#071D49]">
+            <div key={label} className="rounded-lg border border-border bg-surface-muted p-4">
+              <div className="text-sm font-semibold text-muted">{label}</div>
+              <div className="mt-1 text-2xl font-black text-foreground">
                 {isLoading ? "..." : value}
               </div>
             </div>
@@ -302,7 +302,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
         </div>
 
         {error ? (
-          <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <div className="mb-5 rounded-lg border border-danger-border bg-danger-soft p-4 text-sm text-danger">
             <p className="font-bold">Academic monitoring could not be loaded.</p>
             <p className="mt-1">{error.message}</p>
             <button
@@ -315,9 +315,9 @@ export function DeputyAcademicsMonitoringWorkspace() {
           </div>
         ) : null}
 
-        <div className="overflow-x-auto rounded-lg border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="min-w-[980px] w-full text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <thead className="bg-surface-muted text-foreground">
               <tr>
                 <th className="px-4 py-3 font-bold">Learner / scope</th>
                 <th className="px-4 py-3 font-bold">Reason and plan</th>
@@ -332,13 +332,13 @@ export function DeputyAcademicsMonitoringWorkspace() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#64748B]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     Loading school interventions...
                   </td>
                 </tr>
               ) : interventions.length === 0 && !error ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-[#64748B]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     No academic interventions are active. Create the first measured support plan
                     when a learner, class, or subject needs follow-up.
                   </td>
@@ -347,25 +347,25 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 interventions.map((intervention) => (
                   <tr
                     key={intervention.id}
-                    className="border-t border-[#D8E0EC] align-top hover:bg-[#F8FAFC]"
+                    className="border-t border-border align-top hover:bg-surface-muted"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-bold text-[#071D49]">{intervention.student_name}</div>
-                      <div className="mt-1 text-xs text-[#64748B]">
+                      <div className="font-bold text-foreground">{intervention.student_name}</div>
+                      <div className="mt-1 text-xs text-muted">
                         {intervention.class} / {intervention.subject}
                       </div>
                     </td>
-                    <td className="max-w-[280px] px-4 py-3 text-[#64748B]">
-                      <div className="font-semibold text-[#071D49]">
+                    <td className="max-w-[280px] px-4 py-3 text-muted">
+                      <div className="font-semibold text-foreground">
                         {intervention.trigger_reason}
                       </div>
                       <div className="mt-1 line-clamp-2">{intervention.plan}</div>
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">{intervention.teacher}</td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">{intervention.teacher}</td>
+                    <td className="px-4 py-3 text-muted">
                       {intervention.hod_name ?? "Not assigned"}
                     </td>
-                    <td className="px-4 py-3 text-[#64748B]">
+                    <td className="px-4 py-3 text-muted">
                       {formatDate(intervention.due_on)}
                     </td>
                     <td className="px-4 py-3">
@@ -385,7 +385,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                         type="button"
                         onClick={() => void handleMessageHod(intervention)}
                         disabled={notifyingId === intervention.id}
-                        className="rounded-lg border border-[#BFDBFE] bg-[#EEF5FF] px-3 py-2 text-xs font-black text-[#0B63CE] disabled:opacity-50"
+                        className="rounded-lg border border-info-border bg-info-soft px-3 py-2 text-xs font-black text-info disabled:opacity-50"
                       >
                         {notifyingId === intervention.id ? "Sending..." : "Message HOD"}
                       </button>
@@ -412,7 +412,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
               type="button"
               onClick={() => setShowModal(false)}
               disabled={createMutation.isPending}
-              className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50"
+              className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50"
             >
               Cancel
             </button>
@@ -420,7 +420,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
               type="submit"
               form="create-academic-intervention"
               disabled={createMutation.isPending || setupMissing.length > 0}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50"
             >
               {createMutation.isPending ? "Creating..." : "Create and assign"}
             </button>
@@ -429,19 +429,19 @@ export function DeputyAcademicsMonitoringWorkspace() {
       >
         <form id="create-academic-intervention" onSubmit={handleCreate} className="space-y-4">
           {setupErrors.length > 0 ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <div className="rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger">
               Academic setup options could not be loaded: {setupErrors.join(" ")}
             </div>
           ) : null}
           {setupMissing.length > 0 ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="rounded-lg border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
               Complete {setupMissing.join(", ")} in Academic Setup before assigning an
               intervention.
             </div>
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Class / form / grade
               <select
                 required
@@ -449,7 +449,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, classSectionId: event.target.value }))
                 }
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
               >
                 <option value="">Select school class</option>
                 {classes.map((section) => (
@@ -459,7 +459,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 ))}
               </select>
             </label>
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Subject / learning area
               <select
                 required
@@ -467,7 +467,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, subjectId: event.target.value }))
                 }
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
               >
                 <option value="">Select school subject</option>
                 {subjects.map((subject) => (
@@ -479,7 +479,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
             </label>
           </div>
 
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Responsible teacher
             <select
               required
@@ -487,7 +487,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
               onChange={(event) =>
                 setForm((current) => ({ ...current, ownerUserId: event.target.value }))
               }
-              className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+              className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
             >
               <option value="">Select active teaching staff</option>
               {teachers.map((teacher) => (
@@ -499,7 +499,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Priority
               <select
                 value={form.priority}
@@ -509,7 +509,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                     priority: event.target.value as CreateForm["priority"],
                   }))
                 }
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white px-3 py-2 font-normal"
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 font-normal"
               >
                 <option value="low">Low</option>
                 <option value="normal">Normal</option>
@@ -517,7 +517,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 <option value="urgent">Urgent</option>
               </select>
             </label>
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Measurable target
               <input
                 value={form.target}
@@ -525,12 +525,12 @@ export function DeputyAcademicsMonitoringWorkspace() {
                   setForm((current) => ({ ...current, target: event.target.value }))
                 }
                 placeholder="e.g. Reach 60% by the next assessment"
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal"
               />
             </label>
           </div>
 
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Intervention reason
             <textarea
               required
@@ -540,11 +540,11 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 setForm((current) => ({ ...current, reason: event.target.value }))
               }
               placeholder="State the verified performance, attendance, or learning concern."
-              className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal"
             />
           </label>
 
-          <label className="block text-sm font-bold text-[#071D49]">
+          <label className="block text-sm font-bold text-foreground">
             Support plan
             <textarea
               required
@@ -554,12 +554,12 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 setForm((current) => ({ ...current, plan: event.target.value }))
               }
               placeholder="Describe the support actions, frequency, evidence owner, and review method."
-              className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal"
             />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Starts on
               <input
                 type="date"
@@ -567,10 +567,10 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, startsOn: event.target.value }))
                 }
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal"
               />
             </label>
-            <label className="text-sm font-bold text-[#071D49]">
+            <label className="text-sm font-bold text-foreground">
               Review due
               <input
                 type="date"
@@ -578,7 +578,7 @@ export function DeputyAcademicsMonitoringWorkspace() {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, dueOn: event.target.value }))
                 }
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 font-normal"
+                className="mt-1 w-full rounded-lg border border-border px-3 py-2 font-normal"
               />
             </label>
           </div>

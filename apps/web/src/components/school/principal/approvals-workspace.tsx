@@ -69,35 +69,35 @@ export function ApprovalsWorkspace() {
         <MetricCard label="Escalated" value={isLoading ? "…" : data?.metrics?.escalated ?? 0} icon={AlertTriangle} tone={(data?.metrics?.escalated ?? 0) > 0 ? "danger" : "neutral"} />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Priority</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Requester</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Description</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Amount</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Priority</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Requester</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Description</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Amount</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading approval requests…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading approval requests…</td></tr>
             ) : requests.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No approval requests found. Requests from staff for fee waivers, stock adjustments, or other approvals will appear here.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No approval requests found. Requests from staff for fee waivers, stock adjustments, or other approvals will appear here.</td></tr>
             ) : (
               requests.map((req) => (
-                <tr key={req.id} className="hover:bg-[#F8FAFC]">
+                <tr key={req.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3"><StatusChip label={req.priority} tone={getPriorityTone(req.priority)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{req.type}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{req.requester}</td>
-                  <td className="px-4 py-3 text-[#64748B] max-w-[200px] truncate">{req.description}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{req.amount != null ? `KES ${req.amount.toLocaleString()}` : "—"}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{req.type}</td>
+                  <td className="px-4 py-3 text-muted">{req.requester}</td>
+                  <td className="px-4 py-3 text-muted max-w-[200px] truncate">{req.description}</td>
+                  <td className="px-4 py-3 text-muted">{req.amount != null ? `KES ${req.amount.toLocaleString()}` : "—"}</td>
                   <td className="px-4 py-3"><StatusChip label={req.status} tone={getStatusTone(req.status)} /></td>
-                  <td className="px-4 py-3 text-[#64748B]">{req.requested_at}</td>
+                  <td className="px-4 py-3 text-muted">{req.requested_at}</td>
                   <td className="px-4 py-3 text-right">
                     {req.status?.toLowerCase() === "pending" ? (
                       <div className="inline-flex gap-2">
@@ -117,7 +117,7 @@ export function ApprovalsWorkspace() {
                         </button>
                       </div>
                     ) : (
-                      <span className="text-xs text-[#64748B]">Actioned</span>
+                      <span className="text-xs text-muted">Actioned</span>
                     )}
                   </td>
                 </tr>

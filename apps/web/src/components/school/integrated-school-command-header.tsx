@@ -92,7 +92,7 @@ export function SchoolCommandSidebarIdentity({
   const isLight = tone === "light";
 
   return (
-    <div data-tone={tone} className={`app-school-identity ${compact ? "border-b px-4 py-5" : "mb-5 rounded-2xl border p-4"} ${isLight ? "border-[#D8E0EC] bg-[#F8FAFC]" : "border-white/12 bg-white/[0.08] backdrop-blur"} ${className}`}>
+    <div data-tone={tone} className={`app-school-identity ${compact ? "border-b px-4 py-5" : "mb-5 rounded-2xl border p-4"} ${isLight ? "border-border bg-surface-muted" : "border-white/12 bg-white/[0.08] backdrop-blur"} ${className}`}>
       <div className="app-sidebar-brand mb-4">
         <MyShuleBrand markSize={26} tone={isLight ? "brand" : "light"} nameClassName="text-sm" />
       </div>
@@ -102,21 +102,21 @@ export function SchoolCommandSidebarIdentity({
           <img
             src={logoUrl ?? undefined}
             alt={`${schoolName} logo`}
-            className={`app-school-emblem ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 border bg-white object-contain p-1.5 ${isLight ? "border-[#D8E0EC]" : "border-white/15"}`}
+            className={`app-school-emblem ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 border bg-white object-contain p-1.5 ${isLight ? "border-border" : "border-white/15"}`}
             onError={() => setFailedLogoUrl(logoUrl)}
           />
         ) : (
-          <span className={`app-school-emblem grid ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center border ${isLight ? "border-[#D8E0EC] bg-white" : "border-white/15 bg-white/10"}`}>
-            <Icon className={`${compact ? "h-5 w-5" : "h-7 w-7"} ${isLight ? "text-[#1D4ED8]" : "text-cyan-200"}`} aria-hidden="true" />
+          <span className={`app-school-emblem grid ${compact ? "h-9 w-9 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center border ${isLight ? "border-border bg-white" : "border-white/15 bg-white/10"}`}>
+            <Icon className={`${compact ? "h-5 w-5" : "h-7 w-7"} ${isLight ? "text-info" : "text-cyan-200"}`} aria-hidden="true" />
           </span>
         )}
         <div className="min-w-0">
-          <p className={`app-school-eyebrow ${compact ? "text-[10px] font-semibold tracking-wide" : "text-xs font-black tracking-[0.16em]"} uppercase ${isLight ? "text-[#1D4ED8]" : "text-cyan-200"}`}>{eyebrow}</p>
-          <p className={`app-school-name mt-1 truncate ${compact ? "text-sm font-semibold" : "text-xl font-black"} ${isLight ? "text-[#071D49]" : "text-white"}`} title={schoolName}>{schoolName}</p>
+          <p className={`app-school-eyebrow ${compact ? "text-[10px] font-semibold tracking-wide" : "text-xs font-black tracking-[0.16em]"} uppercase ${isLight ? "text-info" : "text-cyan-200"}`}>{eyebrow}</p>
+          <p className={`app-school-name mt-1 truncate ${compact ? "text-sm font-semibold" : "text-xl font-black"} ${isLight ? "text-foreground" : "text-white"}`} title={schoolName}>{schoolName}</p>
         </div>
       </div>
-      {title ? <p className={`mt-3 text-sm font-black ${isLight ? "text-[#071D49]" : "text-white"}`}>{title}</p> : null}
-      {subtitle ? <p className={`mt-1 text-xs font-semibold leading-5 ${isLight ? "text-[#64748B]" : "text-white/62"}`}>{subtitle}</p> : null}
+      {title ? <p className={`mt-3 text-sm font-black ${isLight ? "text-foreground" : "text-white"}`}>{title}</p> : null}
+      {subtitle ? <p className={`mt-1 text-xs font-semibold leading-5 ${isLight ? "text-muted" : "text-white/62"}`}>{subtitle}</p> : null}
     </div>
   );
 }
@@ -147,7 +147,7 @@ export function IntegratedSchoolCommandHeader({
 
   return (
     <header
-      className={`app-workspace-header rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5 ${className}`}
+      className={`app-workspace-header rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5 ${className}`}
       data-testid="integrated-school-command-header"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -162,7 +162,7 @@ export function IntegratedSchoolCommandHeader({
             <SessionSignOutButton
               audience={audience}
               browserLoginPath={browserLoginPath}
-              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] px-4 text-sm font-black text-[#B42318] transition hover:border-red-200 hover:bg-red-50 disabled:cursor-wait disabled:opacity-65"
+              className="inline-flex min-h-11 touch-manipulation items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface-muted px-4 text-sm font-black text-[#B42318] transition hover:border-danger-border hover:bg-danger-soft disabled:cursor-wait disabled:opacity-65"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
               Sign out

@@ -86,42 +86,42 @@ export function FollowUpsWorkspace() {
           type="button"
           disabled={permissionsLoading || !canWrite || optionsQuery.isLoading || Boolean(optionsQuery.error)}
           onClick={() => setShowForm(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> New Follow-up
         </button>
       }
     >
       {optionsQuery.error ? (
-        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="mb-4 rounded-xl border border-warning-border bg-warning-soft p-4 text-sm text-amber-900">
           Learner options could not be loaded. <button type="button" onClick={() => void optionsQuery.refetch()} className="font-black underline">Retry</button>
         </div>
       ) : null}
       {showForm ? (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="text-sm font-black text-[#071D49]">Schedule follow-up</h3>
+        <div className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
+          <h3 className="text-sm font-black text-foreground">Schedule follow-up</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <label className="text-xs font-bold text-[#334155]">Student *
+            <label className="text-xs font-bold text-foreground">Student *
               <select aria-label="Student" value={form.student_id} onChange={(event) => setForm((current) => ({ ...current, student_id: event.target.value }))} className={fieldClassName}>
                 <option value="">Select student</option>
                 {(optionsQuery.data?.students ?? []).map((student) => <option key={student.id} value={student.id}>{student.label}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">Due date *
+            <label className="text-xs font-bold text-foreground">Due date *
               <input aria-label="Due date" type="date" value={form.due_date} onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))} className={fieldClassName} />
             </label>
-            <label className="text-xs font-bold text-[#334155]">Priority
+            <label className="text-xs font-bold text-foreground">Priority
               <select aria-label="Priority" value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))} className={fieldClassName}>
                 <option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option>
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155] md:col-span-2">Follow-up reason *
+            <label className="text-xs font-bold text-foreground md:col-span-2">Follow-up reason *
               <textarea aria-label="Follow-up reason" rows={3} value={form.reason} onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))} className={fieldClassName} />
             </label>
           </div>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-            <button type="button" disabled={createFollowUp.isPending} onClick={submitFollowUp} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{createFollowUp.isPending ? "Saving…" : "Save Follow-up"}</button>
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+            <button type="button" disabled={createFollowUp.isPending} onClick={submitFollowUp} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">{createFollowUp.isPending ? "Saving…" : "Save Follow-up"}</button>
           </div>
         </div>
       ) : null}
@@ -133,20 +133,20 @@ export function FollowUpsWorkspace() {
       </div>
 
       {error ? <WorkspaceFailure title="Counselling follow-ups could not be loaded." error={error} onRetry={() => void refetch()} /> : (
-        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <RecordTable className="w-full whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]"><tr>
+            <thead className="bg-surface-muted text-foreground"><tr>
               <th className="px-4 py-3 font-bold">Student</th><th className="px-4 py-3 font-bold">Class</th><th className="px-4 py-3 font-bold">Reason</th>
               <th className="px-4 py-3 font-bold">Due</th><th className="px-4 py-3 font-bold">Priority</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Action</th>
             </tr></thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading follow-ups…</td></tr> : null}
-              {!isLoading && items.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No follow-ups are scheduled. Add one after a counselling session when continued learner support is needed.</td></tr> : null}
-              {items.map((row) => <tr key={row.id} className="border-t border-[#D8E0EC] align-top hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{row.student_name}</td><td className="px-4 py-3 text-[#64748B]">{row.class || "—"}</td>
-                <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-[#64748B]">{row.reason}</td><td className="px-4 py-3 text-[#64748B]">{row.due_date}</td>
-                <td className="px-4 py-3 text-[#64748B]">{row.priority}</td><td className="px-4 py-3"><StatusChip label={row.status} tone={toneForStatus(row.status)} /></td>
-                <td className="px-4 py-3">{canWrite && ["pending", "open"].includes(row.status.toLowerCase()) ? <button type="button" disabled={completeFollowUp.isPending} onClick={() => completeFollowUp.mutate({ id: row.id })} className="font-black text-emerald-700 underline disabled:opacity-50">Mark done</button> : "—"}</td>
+              {isLoading ? <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading follow-ups…</td></tr> : null}
+              {!isLoading && items.length === 0 ? <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No follow-ups are scheduled. Add one after a counselling session when continued learner support is needed.</td></tr> : null}
+              {items.map((row) => <tr key={row.id} className="border-t border-border align-top hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{row.student_name}</td><td className="px-4 py-3 text-muted">{row.class || "—"}</td>
+                <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-muted">{row.reason}</td><td className="px-4 py-3 text-muted">{row.due_date}</td>
+                <td className="px-4 py-3 text-muted">{row.priority}</td><td className="px-4 py-3"><StatusChip label={row.status} tone={toneForStatus(row.status)} /></td>
+                <td className="px-4 py-3">{canWrite && ["pending", "open"].includes(row.status.toLowerCase()) ? <button type="button" disabled={completeFollowUp.isPending} onClick={() => completeFollowUp.mutate({ id: row.id })} className="font-black text-success underline disabled:opacity-50">Mark done</button> : "—"}</td>
               </tr>)}
             </tbody>
           </RecordTable>

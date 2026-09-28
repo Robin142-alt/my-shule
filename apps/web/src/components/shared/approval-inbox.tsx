@@ -31,10 +31,10 @@ export const ApprovalInbox: React.FC = () => {
     >
       <div className="p-2">
         {visibleError ? (
-          <div role="alert" className="mb-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div role="alert" className="mb-2 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger">
             <p className="flex items-center gap-2 font-semibold"><AlertCircle className="h-4 w-4" /> Approvals could not be refreshed.</p>
             <p className="mt-1 text-xs">{visibleError.message}</p>
-            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold">
+            <button type="button" onClick={() => void refetch()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg border border-danger-border bg-white px-3 text-xs font-semibold">
               <RefreshCw className="h-3.5 w-3.5" /> Retry
             </button>
           </div>
@@ -55,7 +55,7 @@ export const ApprovalInbox: React.FC = () => {
                 type="button"
                 disabled={pendingIds.has(request.id)}
                 onClick={() => void reject(request.id, "Rejected from inbox").catch(() => undefined)}
-                className="flex min-h-11 items-center rounded-md bg-red-50 px-3 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 disabled:cursor-wait disabled:opacity-60"
+                className="flex min-h-11 items-center rounded-md bg-danger-soft px-3 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 disabled:cursor-wait disabled:opacity-60"
               >
                 <XCircle size={14} className="mr-1" /> Reject
               </button>

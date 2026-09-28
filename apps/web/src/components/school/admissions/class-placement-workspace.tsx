@@ -51,41 +51,41 @@ export function ClassPlacementWorkspace() {
   return (
     <Panel title="Class Placement" description="Assign admitted students to classes and streams." icon={GraduationCap}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">To Place</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_to_place ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">To Place</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_to_place ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Placed</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.placed ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Placed</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.placed ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Unplaced</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.unplaced ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Unplaced</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.unplaced ?? 0}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Grade Applied</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Assigned Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Stream</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Grade Applied</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Assigned Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Stream</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading placements...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading placements...</td></tr>
             ) : placements.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
                     <p>No students pending placement. Start student admission first, approve the application, then assign the learner to a class here.</p>
-                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white">
+                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-primary px-4 py-2 text-xs font-black text-white">
                       Start student admission
                     </Link>
                   </div>
@@ -93,11 +93,11 @@ export function ClassPlacementWorkspace() {
               </tr>
             ) : (
               placements.map((p) => (
-                <tr key={p.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{p.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{p.grade_applied}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{p.assigned_class || "—"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{p.assigned_stream || "—"}</td>
+                <tr key={p.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{p.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{p.grade_applied}</td>
+                  <td className="px-4 py-3 text-muted">{p.assigned_class || "—"}</td>
+                  <td className="px-4 py-3 text-muted">{p.assigned_stream || "—"}</td>
                   <td className="px-4 py-3"><StatusChip label={p.status} tone={getStatusTone(p.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {p.status?.toLowerCase() !== "placed" && (

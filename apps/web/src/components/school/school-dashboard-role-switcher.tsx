@@ -97,9 +97,9 @@ export function SchoolDashboardRoleSwitcher({
         size="sm"
         mobileFullScreen
       >
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-          <p className="truncate text-sm font-black text-[#071D49]">{roleState.userLabel}</p>
-          <p className="mt-1 text-xs font-semibold text-[#64748B]">
+        <div className="rounded-xl border border-border bg-surface-muted px-4 py-3">
+          <p className="truncate text-sm font-black text-foreground">{roleState.userLabel}</p>
+          <p className="mt-1 text-xs font-semibold text-muted">
             One authenticated account | {roleState.availableRoles.length} available dashboards
           </p>
         </div>
@@ -133,11 +133,11 @@ export function SchoolDashboardRoleSwitcher({
                 }}
                 className={`flex min-h-14 w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-[#2563EB]/35 focus:ring-offset-1 disabled:cursor-default disabled:opacity-100 ${
                   active
-                    ? "border-[#2563EB] bg-[#EFF6FF]"
-                    : "border-[#D8E0EC] bg-white hover:border-[#93B4E8] hover:bg-[#F8FAFC]"
+                    ? "border-[#2563EB] bg-info-soft"
+                    : "border-border bg-white hover:border-[#93B4E8] hover:bg-surface-muted"
                 }`}
               >
-                <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg ${active ? "bg-[#2563EB] text-white" : "bg-[#EAF0F8] text-[#1D4ED8]"}`}>
+                <span className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg ${active ? "bg-[#2563EB] text-white" : "bg-[#EAF0F8] text-info"}`}>
                   {switching ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   ) : (
@@ -146,23 +146,23 @@ export function SchoolDashboardRoleSwitcher({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-black text-[#071D49]">{option.roleName}</span>
+                    <span className="text-sm font-black text-foreground">{option.roleName}</span>
                     {option.isPrimary ? (
-                      <span className="rounded-full bg-[#E2E8F0] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-[#475569]">
+                      <span className="rounded-full bg-border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-muted-strong">
                         Primary
                       </span>
                     ) : null}
                     {hasRouteAliasCollision ? (
-                      <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-[#475569]">
+                      <span className="rounded-full bg-surface-strong px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-muted-strong">
                         {option.authorizationRoleCode.replace(/[_-]+/g, " ")}
                       </span>
                     ) : null}
                   </span>
-                  <span className="mt-1 block text-xs font-semibold leading-5 text-[#64748B]">
+                  <span className="mt-1 block text-xs font-semibold leading-5 text-muted">
                     {optionDescription(option)}
                   </span>
                 </span>
-                {active ? <Check className="mt-1 h-4 w-4 shrink-0 text-[#1D4ED8]" aria-hidden="true" /> : null}
+                {active ? <Check className="mt-1 h-4 w-4 shrink-0 text-info" aria-hidden="true" /> : null}
               </button>
             );
           })}
@@ -171,7 +171,7 @@ export function SchoolDashboardRoleSwitcher({
         {roleState.error ? (
           <div
             role="alert"
-            className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+            className="mt-4 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger"
           >
             <p>{roleState.error}</p>
             <Button

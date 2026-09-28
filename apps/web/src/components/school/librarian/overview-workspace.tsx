@@ -63,7 +63,7 @@ export function OverviewWorkspace() {
         <button
           disabled={isRefreshing}
           onClick={handleRefresh}
-          className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
           {isRefreshing ? "Refreshing..." : "Refresh"}
         </button>
@@ -71,56 +71,56 @@ export function OverviewWorkspace() {
     >
       {/* Metrics grid */}
       <div className="app-metric-grid grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><BookOpen className="w-4 h-4" /> Total Books</div>
-          <div className="mt-2 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_books ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted"><BookOpen className="w-4 h-4" /> Total Books</div>
+          <div className="mt-2 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.total_books ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700"><TrendingUp className="w-4 h-4" /> Available</div>
-          <div className="mt-2 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.books_available ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-success"><TrendingUp className="w-4 h-4" /> Available</div>
+          <div className="mt-2 text-2xl font-black text-success">{isLoading ? "..." : metrics?.books_available ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><BookOpen className="w-4 h-4" /> Issued</div>
-          <div className="mt-2 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.books_issued ?? 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-info"><BookOpen className="w-4 h-4" /> Issued</div>
+          <div className="mt-2 text-2xl font-black text-info">{isLoading ? "..." : metrics?.books_issued ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-rose-700"><Clock className="w-4 h-4" /> Overdue</div>
-          <div className="mt-2 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.overdue_count ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-danger"><Clock className="w-4 h-4" /> Overdue</div>
+          <div className="mt-2 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.overdue_count ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><Users className="w-4 h-4" /> Borrowers</div>
-          <div className="mt-2 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.active_borrowers ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted"><Users className="w-4 h-4" /> Borrowers</div>
+          <div className="mt-2 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.active_borrowers ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-700"><AlertTriangle className="w-4 h-4" /> Fines Pending</div>
-          <div className="mt-2 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.fines_pending ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-warning"><AlertTriangle className="w-4 h-4" /> Fines Pending</div>
+          <div className="mt-2 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.fines_pending ?? 0}</div>
         </div>
       </div>
 
       {/* Recent activity table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Action</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Book</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Action</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Book</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading recent activity...</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading recent activity...</td></tr>
             ) : activity.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No recent library activity. Issue or return a book to see activity here.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No recent library activity. Issue or return a book to see activity here.</td></tr>
             ) : (
               activity.map((item) => (
-                <tr key={item.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{item.action}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{item.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{item.book_title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{item.date}</td>
+                <tr key={item.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{item.action}</td>
+                  <td className="px-4 py-3 text-muted">{item.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{item.book_title}</td>
+                  <td className="px-4 py-3 text-muted">{item.date}</td>
                   <td className="px-4 py-3"><StatusChip label={item.status} tone={getActivityTone(item.status)} /></td>
                 </tr>
               ))

@@ -94,11 +94,11 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
   }
 
   return (
-    <div className="authenticated-app min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app min-h-screen bg-background">
       <div className="mx-auto flex max-w-[1920px] flex-col gap-6 p-4 lg:flex-row lg:p-6">
         
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
+        <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
           <div className="rounded-2xl border border-white/10 bg-white/8 p-4 shrink-0">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-100/70">MyShule</p>
             <h2 className="mt-2 text-xl font-black">Secretary Desk</h2>
@@ -145,27 +145,27 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
           <div className="min-h-[calc(100vh-3rem)] rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)] overflow-hidden">
             
             {/* Topbar */}
-            <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
+            <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-background/90 px-4 py-2 backdrop-blur">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
                   <MyShuleMark size={36} />
                   <div>
-                    <h1 className="text-lg font-black text-[#071D49]">Secretary Dashboard</h1>
+                    <h1 className="text-lg font-black text-foreground">Secretary Dashboard</h1>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <label className="flex min-h-10 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white px-3 text-[#64748B] shadow-sm focus-within:border-[#1D4ED8] focus-within:ring-1 focus-within:ring-[#1D4ED8]">
+                    <label className="flex min-h-10 items-center gap-3 rounded-xl border border-border bg-white px-3 text-muted shadow-sm focus-within:border-info focus-within:ring-1 focus-within:ring-focus">
                       <Search className="h-4 w-4" />
                       <input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#94A3B8]"
+                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted"
                         placeholder="Search visitors..."
                       />
                     </label>
                   </div>
-                  <Button className="bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl" onClick={() => setVisitorModalOpen(true)}>Register Visitor</Button>
+                  <Button className="bg-primary hover:bg-primary/90 text-white rounded-xl" onClick={() => setVisitorModalOpen(true)}>Register Visitor</Button>
                 </div>
               </div>
             </header>
@@ -175,24 +175,24 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
               <div className="grid gap-6 md:grid-cols-3 mb-8">
                 <Card className="p-6">
                   <div className="text-sm font-semibold text-gray-500">Active Announcements</div>
-                  <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : announcements}</div>
+                  <div className="mt-2 text-3xl font-black text-foreground">{isLoading ? "..." : announcements}</div>
                 </Card>
                 <Card className="p-6">
                   <div className="text-sm font-semibold text-gray-500">Meetings Recorded</div>
-                  <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : meetings}</div>
+                  <div className="mt-2 text-3xl font-black text-foreground">{isLoading ? "..." : meetings}</div>
                 </Card>
                 <Card className="p-6">
                   <div className="text-sm font-semibold text-gray-500">New Parcels/Mails</div>
-                  <div className="mt-2 text-3xl font-black text-[#071D49]">0</div>
+                  <div className="mt-2 text-3xl font-black text-foreground">0</div>
                 </Card>
               </div>
 
               <Card className="p-6">
-                <h2 className="text-xl font-bold text-[#071D49] mb-4">{activeCard.title}</h2>
-                <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-6 text-center text-gray-600">
-                  <ActiveIcon className="h-12 w-12 mx-auto mb-4 text-[#071D49]" />
+                <h2 className="text-xl font-bold text-foreground mb-4">{activeCard.title}</h2>
+                <div className="rounded-2xl border border-border bg-surface-muted p-6 text-center text-gray-600">
+                  <ActiveIcon className="h-12 w-12 mx-auto mb-4 text-foreground" />
                   <p className="mx-auto max-w-2xl text-sm font-semibold">{activeCard.body}</p>
-                  <Button className="mt-5 bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl" onClick={activeCard.onAction}>
+                  <Button className="mt-5 bg-primary hover:bg-primary/90 text-white rounded-xl" onClick={activeCard.onAction}>
                     {activeCard.action}
                   </Button>
                 </div>

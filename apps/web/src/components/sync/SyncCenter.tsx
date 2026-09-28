@@ -80,7 +80,7 @@ export const SyncCenter: React.FC<{ schoolId: string }> = ({ schoolId }) => {
     <div className="p-4 border rounded-lg bg-white shadow-sm space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-slate-800">Sync Center</h3>
-        <span className={`px-2 py-1 text-xs rounded-full ${failedCount > 0 ? 'bg-red-100 text-red-800' : pendingCount > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+        <span className={`px-2 py-1 text-xs rounded-full ${failedCount > 0 ? 'bg-red-100 text-danger' : pendingCount > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-success'}`}>
           {failedCount > 0 ? 'Issues Detected' : pendingCount > 0 ? 'Pending Sync' : 'Up to Date'}
         </span>
       </div>
@@ -90,9 +90,9 @@ export const SyncCenter: React.FC<{ schoolId: string }> = ({ schoolId }) => {
           <p className="text-sm text-slate-500">Pending</p>
           <p className="text-2xl font-bold text-slate-700">{pendingCount}</p>
         </div>
-        <div className="p-3 bg-red-50 rounded border border-red-100">
+        <div className="p-3 bg-danger-soft rounded border border-red-100">
           <p className="text-sm text-red-500">Failed</p>
-          <p className="text-2xl font-bold text-red-700">{failedCount}</p>
+          <p className="text-2xl font-bold text-danger">{failedCount}</p>
         </div>
       </div>
 

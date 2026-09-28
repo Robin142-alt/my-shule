@@ -63,7 +63,7 @@ const emptyForm: SchoolProfileForm = {
   website: "",
 };
 
-const fieldClass = "mt-1 w-full rounded-lg border border-white/15 bg-[#071D49] px-3 py-2.5 text-sm font-semibold text-white outline-none transition focus:border-cyan-300";
+const fieldClass = "mt-1 w-full rounded-lg border border-white/15 bg-primary px-3 py-2.5 text-sm font-semibold text-white outline-none transition focus:border-cyan-300";
 
 function SchoolProfileHeading() {
   return (
@@ -252,7 +252,7 @@ export function PrincipalSchoolProfileWorkspace() {
                   onError={() => setFailedSignatureVersion(signatureVersion)}
                 />
               ) : (
-                <PenTool className="h-7 w-7 text-[#64748B]" />
+                <PenTool className="h-7 w-7 text-muted" />
               )}
             </div>
             <div className="min-w-0">
@@ -281,7 +281,7 @@ export function PrincipalSchoolProfileWorkspace() {
         {signatureQuery.error ? (
           <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm font-bold text-amber-100">
             <span>Signature status could not be loaded. Retry before generating reports.</span>
-            <button type="button" onClick={() => void signatureQuery.refetch()} className="rounded-lg border border-amber-200/40 bg-white/10 px-3 py-2 text-xs font-black text-amber-50">
+            <button type="button" onClick={() => void signatureQuery.refetch()} className="rounded-lg border border-warning-border/40 bg-white/10 px-3 py-2 text-xs font-black text-amber-50">
               Retry signature
             </button>
           </div>
@@ -316,7 +316,7 @@ export function PrincipalSchoolProfileWorkspace() {
       </Card>
 
       <div className="flex justify-end">
-        <button type="submit" disabled={isSaving || isUploading || isUploadingSignature} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-5 py-3 text-sm font-black text-[#071D49] disabled:opacity-50">
+        <button type="submit" disabled={isSaving || isUploading || isUploadingSignature} className="inline-flex min-w-40 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-5 py-3 text-sm font-black text-foreground disabled:opacity-50">
           {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {isSaving ? "Saving..." : "Save school profile"}
         </button>
       </div>

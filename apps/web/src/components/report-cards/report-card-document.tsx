@@ -63,7 +63,7 @@ function curriculum(report: ReportCardDocumentData) {
 
 function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.05em] text-[#08265f]">
+    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.05em] text-foreground">
       <span className="text-[#f2a900]">{icon}</span>
       <span>{children}</span>
     </div>
@@ -73,7 +73,7 @@ function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode
 function Info({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <div className="min-w-0 border-r border-slate-200 px-2 last:border-r-0">
-      <p className="text-[7px] font-black text-[#08265f]">{label}</p>
+      <p className="text-[7px] font-black text-foreground">{label}</p>
       <p className="mt-1 truncate text-[9px] font-semibold text-slate-900">{children}</p>
     </div>
   );
@@ -82,14 +82,14 @@ function Info({ label, children }: { label: string; children?: ReactNode }) {
 function Header({ report }: { report: ReportCardDocumentData }) {
   const reportingPeriod = period(report);
   return (
-    <header data-report-section="header" className="border-b-2 border-[#08265f] pb-2">
+    <header data-report-section="header" className="border-b-2 border-primary pb-2">
       <div className="grid grid-cols-[76px_1fr_76px] items-center gap-3">
         <div className="flex h-[66px] w-[66px] items-center justify-center rounded-xl border border-[#e4aa31] bg-white p-1 shadow-sm">
           {report.school.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={report.school.logoUrl} alt={`${report.school.name} logo`} className="h-full w-full object-contain" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-lg bg-[#08265f] text-[#f2a900]">
+            <div className="flex h-full w-full items-center justify-center rounded-lg bg-primary text-[#f2a900]">
               <School className="h-8 w-8" />
             </div>
           )}
@@ -98,27 +98,27 @@ function Header({ report }: { report: ReportCardDocumentData }) {
           <div className="flex items-center justify-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/myshule-mark-192.png" alt="MyShule" className="h-9 w-9 object-contain" />
-            <p className="text-[24px] font-black leading-none tracking-tight text-[#08265f]">My<span className="text-[#f2a900]">Shule</span></p>
+            <p className="text-[24px] font-black leading-none tracking-tight text-foreground">My<span className="text-[#f2a900]">Shule</span></p>
           </div>
-          <h1 className="mt-1 truncate text-[19px] font-black leading-tight text-[#08265f]">{report.school.name}</h1>
+          <h1 className="mt-1 truncate text-[19px] font-black leading-tight text-foreground">{report.school.name}</h1>
           {report.school.motto ? <p className="mt-0.5 text-[7px] font-semibold italic text-slate-500">{report.school.motto}</p> : null}
         </div>
         <div className="rounded-xl border border-[#dce4f0] bg-[#f7faff] p-2 text-center">
           <p className="text-[6px] font-black uppercase tracking-[0.12em] text-slate-500">Report No.</p>
-          <p className="mt-1 truncate text-[8px] font-black text-[#08265f]">{report.reportNumber}</p>
+          <p className="mt-1 truncate text-[8px] font-black text-foreground">{report.reportNumber}</p>
           <p className="mt-1 text-[6px] font-bold uppercase text-[#0f8a69]">{report.curriculum.reportStatus}</p>
         </div>
       </div>
 
-      <div className="mx-auto mt-2 flex max-w-[610px] items-center justify-center divide-x divide-slate-300 border-b border-[#efb340] pb-1.5 text-[8px] font-semibold text-[#08265f]">
+      <div className="mx-auto mt-2 flex max-w-[610px] items-center justify-center divide-x divide-slate-300 border-b border-[#efb340] pb-1.5 text-[8px] font-semibold text-foreground">
         <span className="flex items-center gap-1 px-3"><BookOpenCheck className="h-3 w-3" />Academic Report Card</span>
         {reportingPeriod ? <span className="flex items-center gap-1 px-3"><CalendarDays className="h-3 w-3" />{reportingPeriod}</span> : null}
         <span className="flex items-center gap-1 px-3"><GraduationCap className="h-3 w-3" />Curriculum: {curriculum(report)}</span>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[7px] font-medium text-slate-600">
-        {report.school.address ? <span className="flex items-center gap-1"><MapPin className="h-2.5 w-2.5 text-[#08265f]" />{report.school.address}</span> : null}
-        {report.school.email ? <span className="flex items-center gap-1"><Mail className="h-2.5 w-2.5 text-[#08265f]" />{report.school.email}</span> : null}
-        {report.school.phone ? <span className="flex items-center gap-1"><Phone className="h-2.5 w-2.5 text-[#08265f]" />{report.school.phone}</span> : null}
+        {report.school.address ? <span className="flex items-center gap-1"><MapPin className="h-2.5 w-2.5 text-foreground" />{report.school.address}</span> : null}
+        {report.school.email ? <span className="flex items-center gap-1"><Mail className="h-2.5 w-2.5 text-foreground" />{report.school.email}</span> : null}
+        {report.school.phone ? <span className="flex items-center gap-1"><Phone className="h-2.5 w-2.5 text-foreground" />{report.school.phone}</span> : null}
       </div>
     </header>
   );
@@ -161,7 +161,7 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
       <p className="sr-only">{legacy ? "Legacy Subject Results" : "Marks-Based Assessment Supplement"}</p>
       <table className="w-full table-fixed border-collapse text-[7.5px]">
         <thead>
-          <tr className="bg-[#eef5fb] text-[#08265f]">
+          <tr className="bg-[#eef5fb] text-foreground">
             <th className="border border-slate-200 px-2 py-1 text-left">Subject</th>
             <th className="border border-slate-200 px-1 py-1">{examName}</th>
             <th className="border border-slate-200 px-1 py-1">Grade</th>
@@ -177,7 +177,7 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
               <tr key={`${row.subjectName}-${index}`} className="even:bg-slate-50/60">
                 <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.subjectName}</td>
                 <td className="border border-slate-200 px-1 py-[3px] text-center font-bold">{displayScore}</td>
-                <td className="border border-slate-200 px-1 py-[3px] text-center font-black text-[#08265f]">{row.grade}</td>
+                <td className="border border-slate-200 px-1 py-[3px] text-center font-black text-foreground">{row.grade}</td>
                 <td className="border border-slate-200 px-2 py-[3px] text-center">{row.achievementLevel ?? row.teacherComment}</td>
               </tr>
             );
@@ -185,7 +185,7 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
         </tbody>
       </table>
       {report.academicSummary ? (
-        <div className="grid divide-x divide-[#e6b54b] rounded-b-lg border border-[#e6b54b] bg-[#fff9ec] text-center text-[8px] text-[#08265f]" style={{ gridTemplateColumns: `repeat(${[report.academicSummary.percentage ?? report.academicSummary.meanScore, report.academicSummary.overallGrade, report.academicSummary.classPosition ?? report.academicSummary.totalScore].filter(Boolean).length}, minmax(0, 1fr))` }}>
+        <div className="grid divide-x divide-[#e6b54b] rounded-b-lg border border-[#e6b54b] bg-[#fff9ec] text-center text-[8px] text-foreground" style={{ gridTemplateColumns: `repeat(${[report.academicSummary.percentage ?? report.academicSummary.meanScore, report.academicSummary.overallGrade, report.academicSummary.classPosition ?? report.academicSummary.totalScore].filter(Boolean).length}, minmax(0, 1fr))` }}>
           {report.academicSummary.percentage ?? report.academicSummary.meanScore ? <p className="p-1.5">Average: <strong className="text-[11px]">{report.academicSummary.percentage ?? report.academicSummary.meanScore}</strong></p> : null}
           {report.academicSummary.overallGrade ? <p className="p-1.5">Overall Grade: <strong className="text-[11px]">{report.academicSummary.overallGrade}</strong></p> : null}
           {report.academicSummary.classPosition ?? report.academicSummary.totalScore ? <p className="p-1.5">{report.academicSummary.classPosition ? "Class Position" : "Total Score"}: <strong className="text-[11px]">{report.academicSummary.classPosition ?? report.academicSummary.totalScore}</strong></p> : null}
@@ -200,7 +200,7 @@ function CompetencyTable({ report }: { report: ReportCardDocumentData }) {
     <>
       <p className="sr-only">Learning Areas and Competency Progress</p>
       <table className="w-full table-fixed border-collapse text-[7.5px]">
-        <thead><tr className="bg-[#eef5fb] text-[#08265f]">
+        <thead><tr className="bg-[#eef5fb] text-foreground">
           {[
             ["Learning Area", "24%"], ["Assessment Task", "20%"], ["Performance Level", "16%"],
             ["Descriptor", "18%"], ["Teacher Observation", "22%"],
@@ -233,16 +233,16 @@ function AcademicPerformance({ report }: { report: ReportCardDocumentData }) {
   }
   return (
     <section data-report-section="academic-performance" className="overflow-hidden rounded-lg border border-slate-200">
-      <div className="flex items-center justify-between bg-[#08265f] px-3 py-1.5 text-white">
+      <div className="flex items-center justify-between bg-primary px-3 py-1.5 text-white">
         <h2 className="text-[10px] font-black uppercase tracking-[0.04em]">Academic Performance</h2>
         <span className="text-[6px] font-semibold uppercase tracking-[0.12em] text-blue-100">{report.academic.reportingPeriod}</span>
       </div>
       {showMarks ? <MarksTable report={report} /> : <CompetencyTable report={report} />}
       {showMarks && learningAreaSummary.length ? (
-        <div className="border-t border-slate-200 bg-[#f8fbff] px-3 py-1.5 text-[7px]"><strong className="text-[#08265f]">Learning Areas and Competency Progress:</strong> {learningAreaSummary.join(" | ")}</div>
+        <div className="border-t border-slate-200 bg-[#f8fbff] px-3 py-1.5 text-[7px]"><strong className="text-foreground">Learning Areas and Competency Progress:</strong> {learningAreaSummary.join(" | ")}</div>
       ) : null}
-      {report.gradingScale.length ? <div className="border-t border-slate-200 px-3 py-1 text-[6.5px] text-slate-500"><strong className="text-[#08265f]">Grading Scale:</strong> {report.gradingScale.map((item) => `${item.grade} ${item.range}`).join(" | ")}</div> : null}
-      {report.descriptorLegend.length ? <div className="border-t border-slate-200 px-3 py-1 text-[6.5px] text-slate-500"><strong className="text-[#08265f]">Descriptor Legend:</strong> {report.descriptorLegend.map((item) => `${item.code} - ${item.label}`).join(" | ")}</div> : null}
+      {report.gradingScale.length ? <div className="border-t border-slate-200 px-3 py-1 text-[6.5px] text-slate-500"><strong className="text-foreground">Grading Scale:</strong> {report.gradingScale.map((item) => `${item.grade} ${item.range}`).join(" | ")}</div> : null}
+      {report.descriptorLegend.length ? <div className="border-t border-slate-200 px-3 py-1 text-[6.5px] text-slate-500"><strong className="text-foreground">Descriptor Legend:</strong> {report.descriptorLegend.map((item) => `${item.code} - ${item.label}`).join(" | ")}</div> : null}
     </section>
   );
 }
@@ -266,7 +266,7 @@ function Development({ report }: { report: ReportCardDocumentData }) {
   if (!panels.length) return null;
   return (
     <section className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-[6.5px]" style={{ gridTemplateColumns: `repeat(${panels.length}, minmax(0, 1fr))` }}>
-      {panels.map((panel) => <div key={panel.title}><p className="font-black text-[#08265f]">{panel.title}</p><p className="mt-1 text-slate-600">{panel.body}</p></div>)}
+      {panels.map((panel) => <div key={panel.title}><p className="font-black text-foreground">{panel.title}</p><p className="mt-1 text-slate-600">{panel.body}</p></div>)}
     </section>
   );
 }
@@ -274,8 +274,8 @@ function Development({ report }: { report: ReportCardDocumentData }) {
 function Metric({ icon, label, metric, accent }: { icon: ReactNode; label: string; metric: string; accent: "navy" | "gold" }) {
   return (
     <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-1.5">
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white ${accent === "gold" ? "bg-[#f2a900]" : "bg-[#08265f]"}`}>{icon}</div>
-      <div className="min-w-0"><p className="text-[6px] font-black uppercase text-slate-500">{label}</p><p className="truncate text-[10px] font-black text-[#08265f]">{metric}</p></div>
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white ${accent === "gold" ? "bg-[#f2a900]" : "bg-primary"}`}>{icon}</div>
+      <div className="min-w-0"><p className="text-[6px] font-black uppercase text-slate-500">{label}</p><p className="truncate text-[10px] font-black text-foreground">{metric}</p></div>
     </div>
   );
 }
@@ -339,7 +339,7 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
         <SectionTitle icon={<BarChart3 className="h-3.5 w-3.5" />}>Performance Analytics</SectionTitle>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <div className="rounded-md border border-slate-200 bg-[#fbfdff] p-1.5">
-            <p className="text-center text-[7px] font-black text-[#08265f]">Term Performance Trend</p>
+            <p className="text-center text-[7px] font-black text-foreground">Term Performance Trend</p>
             <svg viewBox="0 0 190 100" className="mt-0.5 h-[96px] w-full" role="img" aria-label="Current and prior term performance trend">
               {[20, 46, 72].map((y, index) => <g key={y}><line x1="25" y1={y} x2="174" y2={y} stroke={index === 2 ? "#8795a9" : "#e1e7ef"} strokeWidth="0.8" /><text x="20" y={y + 2} textAnchor="end" fontSize="5" fill="#607087">{100 - (index * 50)}</text></g>)}
               <line x1="25" y1="20" x2="25" y2="72" stroke="#8795a9" strokeWidth="0.8" />
@@ -348,7 +348,7 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
             </svg>
           </div>
           <div className="rounded-md border border-slate-200 bg-[#fbfdff] p-1.5">
-            <p className="text-center text-[7px] font-black text-[#08265f]">Subject Performance</p>
+            <p className="text-center text-[7px] font-black text-foreground">Subject Performance</p>
             <svg viewBox="0 0 190 90" className="mt-0.5 h-[86px] w-full" role="img" aria-label="Subject performance over recorded reporting periods">
               {[20, 46, 72].map((y, index) => <g key={y}><line x1="25" y1={y} x2="174" y2={y} stroke={index === 2 ? "#8795a9" : "#e1e7ef"} strokeWidth="0.8" /><text x="20" y={y + 2} textAnchor="end" fontSize="5" fill="#607087">{100 - (index * 50)}</text></g>)}
               <line x1="25" y1="20" x2="25" y2="72" stroke="#8795a9" strokeWidth="0.8" />
@@ -380,7 +380,7 @@ function ReportSignature({ label, imageUrl }: { label: string; imageUrl?: string
         <div className="relative min-h-9">
           {status === "loading" ? <p role="status" className="text-slate-500 print:hidden">Loading signature...</p> : null}
           {status === "failed" ? (
-            <p role="alert" className="text-amber-800">
+            <p role="alert" className="text-warning">
               Signature could not load. <button type="button" className="font-bold underline print:hidden" onClick={() => { setStatus("loading"); setAttempt((value) => value + 1); }}>Retry {label.toLowerCase()}</button>
             </p>
           ) : (
@@ -405,7 +405,7 @@ function Comments({ report }: { report: ReportCardDocumentData }) {
   return (
     <section data-report-section="comments" className="rounded-lg border border-slate-200 p-2">
       <SectionTitle icon={<MessageCircle className="h-3.5 w-3.5" />}>Comments</SectionTitle>
-      {comments.length ? <div className="mt-2 grid divide-x divide-slate-200 text-[7px]" style={{ gridTemplateColumns: `repeat(${comments.length}, minmax(0, 1fr))` }}>{comments.map((comment, index) => <div key={comment.label} className={index ? "pl-3" : "pr-3"}><p className="font-black text-[#08265f]">{comment.label}</p><p className="mt-1 leading-relaxed text-slate-700">{comment.body}</p></div>)}</div> : null}
+      {comments.length ? <div className="mt-2 grid divide-x divide-slate-200 text-[7px]" style={{ gridTemplateColumns: `repeat(${comments.length}, minmax(0, 1fr))` }}>{comments.map((comment, index) => <div key={comment.label} className={index ? "pl-3" : "pr-3"}><p className="font-black text-foreground">{comment.label}</p><p className="mt-1 leading-relaxed text-slate-700">{comment.body}</p></div>)}</div> : null}
       <div data-report-section="signatures" className="mt-3 grid grid-cols-2 gap-16 px-14 text-center text-[7px]">
         <ReportSignature key={`${report.id}-teacher-${teacher?.imageUrl}`} label="Class Teacher Signature" imageUrl={teacher?.imageUrl} />
         <ReportSignature key={`${report.id}-principal-${principal?.imageUrl}`} label="Principal Signature" imageUrl={principal?.imageUrl} />
@@ -415,7 +415,7 @@ function Comments({ report }: { report: ReportCardDocumentData }) {
 }
 
 function Footer({ report }: { report: ReportCardDocumentData }) {
-  return <footer data-report-section="footer" className="flex items-center justify-center gap-1.5 border-t border-[#e4aa31] pt-1.5 text-[6.5px] font-semibold text-[#08265f]"><LockKeyhole className="h-3 w-3 text-[#f2a900]" /><span>{report.verification.securityNote || "Generated securely by MyShule School Management System"}</span><span className="text-slate-400">|</span><span>Report {report.reportNumber}</span></footer>;
+  return <footer data-report-section="footer" className="flex items-center justify-center gap-1.5 border-t border-[#e4aa31] pt-1.5 text-[6.5px] font-semibold text-foreground"><LockKeyhole className="h-3 w-3 text-[#f2a900]" /><span>{report.verification.securityNote || "Generated securely by MyShule School Management System"}</span><span className="text-slate-400">|</span><span>Report {report.reportNumber}</span></footer>;
 }
 
 export function ReportCardDocument({ report }: { report: ReportCardDocumentData }) {

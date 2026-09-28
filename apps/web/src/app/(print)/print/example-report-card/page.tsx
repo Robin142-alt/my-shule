@@ -18,7 +18,7 @@ export default function DocumentPrintPage() {
       }}
       onClose={() => window.history.back()}
     >
-      <section className="rounded border border-amber-300 bg-amber-50 p-6 text-sm text-amber-950">
+      <section className="rounded border border-amber-300 bg-warning-soft p-6 text-sm text-amber-950">
         <h2 className="text-lg font-bold">No generated report card selected</h2>
         <p className="mt-2">
           Report cards are printed from generated report artifacts after exams are configured,

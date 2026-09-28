@@ -32,7 +32,7 @@ export function SubjectsClassesWorkspace() {
         {displayData.map((item) => (
           <Card key={item.id} className="p-6 border border-slate-200 flex flex-col hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-start justify-between mb-4">
-              <div className="p-2 bg-blue-50 rounded-md">
+              <div className="p-2 bg-info-soft rounded-md">
                 <BookOpen className="w-5 h-5 text-blue-600" />
               </div>
               <span className="text-xs font-semibold px-2 py-1 bg-slate-100 text-slate-700 rounded-full">
@@ -48,7 +48,7 @@ export function SubjectsClassesWorkspace() {
                 <span>{item.studentsCount} Students</span>
               </div>
               <div className="ml-auto">
-                <Button variant="ghost" size="sm" className="gap-1 h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openRoster(item)}>
+                <Button variant="ghost" size="sm" className="gap-1 h-8 text-blue-600 hover:text-info hover:bg-info-soft" onClick={() => openRoster(item)}>
                   Open Roster <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>

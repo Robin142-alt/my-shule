@@ -10,7 +10,7 @@ export function RequestsWorkspace() {
   if (isLoading) {
     return (
       <Panel title="Learner Requests" description="Pending requests for learners (e.g., leave, gate pass)." icon={GitPullRequest}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -18,7 +18,7 @@ export function RequestsWorkspace() {
   if (error || !data) {
     return (
       <Panel title="Learner Requests" description="Pending requests for learners (e.g., leave, gate pass)." icon={GitPullRequest}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load requests.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load requests.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -26,9 +26,9 @@ export function RequestsWorkspace() {
 
   return (
     <Panel title="Learner Requests" description="Pending requests for learners (e.g., leave, gate pass)." icon={GitPullRequest}>
-      <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-left text-sm text-[#071D49]">
-          <thead className="bg-[#F8FAFC]">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="p-3 font-semibold">Date</th>
               <th className="p-3 font-semibold">Learner</th>
@@ -38,7 +38,7 @@ export function RequestsWorkspace() {
               <th className="p-3 font-semibold">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {(Array.isArray(data) ? data : []).map((row: any) => (
               <tr key={row.id}>
                 <td className="p-3">{row.date}</td>
@@ -47,7 +47,7 @@ export function RequestsWorkspace() {
                 <td className="p-3">{row.requestedBy}</td>
                 <td className="p-3"><StatusChip label={row.status} tone={row.status === 'Pending' ? 'warning' : 'success'}/></td>
                 <td className="p-3">
-                   <button type="button" className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8]" onClick={() => openClassTeacherRecord("Learner request review", [["Date", String(row.date)], ["Learner", String(row.learner)], ["Type", String(row.type)], ["Requested By", String(row.requestedBy)], ["Status", String(row.status)]])}>Review</button>
+                   <button type="button" className="rounded bg-info-soft px-2 py-1 text-xs font-bold text-info" onClick={() => openClassTeacherRecord("Learner request review", [["Date", String(row.date)], ["Learner", String(row.learner)], ["Type", String(row.type)], ["Requested By", String(row.requestedBy)], ["Status", String(row.status)]])}>Review</button>
                 </td>
               </tr>
             ))}

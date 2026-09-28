@@ -15,19 +15,19 @@ export function buttonClasses({
   className?: string;
 }) {
   const base =
-    "inline-flex min-w-0 max-w-full touch-manipulation items-center justify-center gap-2 rounded-[var(--radius)] font-medium transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none disabled:active:scale-100";
+    "inline-flex min-w-0 max-w-full touch-manipulation items-center justify-center gap-2 rounded-[var(--radius)] font-medium transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-none disabled:active:scale-100";
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:
-      "bg-gradient-to-b from-primary to-primary-hover text-white shadow-sm border border-black/10 hover:shadow-md hover:from-primary-hover hover:to-primary-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] active:shadow-sm",
+      "bg-primary text-white shadow-sm border border-primary hover:shadow-md hover:bg-primary-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] active:shadow-sm",
     default:
-      "bg-gradient-to-b from-primary to-primary-hover text-white shadow-sm border border-black/10 hover:shadow-md hover:from-primary-hover hover:to-primary-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] active:shadow-sm",
+      "bg-primary text-white shadow-sm border border-primary hover:shadow-md hover:bg-primary-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] active:shadow-sm",
     secondary:
-      "bg-white text-foreground border border-border shadow-sm hover:bg-surface-strong hover:text-foreground hover:-translate-y-[1px] hover:shadow-md hover:border-border-strong active:translate-y-0 active:scale-[0.98]",
+      "bg-surface text-foreground border border-border shadow-sm hover:bg-surface-strong hover:text-foreground hover:-translate-y-[1px] hover:shadow-md hover:border-border-strong active:translate-y-0 active:scale-[0.98]",
     danger:
-      "bg-gradient-to-b from-danger to-danger-hover text-white shadow-sm border border-red-700/50 hover:shadow-md hover:from-danger-hover hover:to-danger-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
+      "bg-danger text-white shadow-sm border border-danger hover:shadow-md hover:bg-danger-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
     destructive:
-      "bg-gradient-to-b from-danger to-danger-hover text-white shadow-sm border border-red-700/50 hover:shadow-md hover:from-danger-hover hover:to-danger-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
+      "bg-danger text-white shadow-sm border border-danger hover:shadow-md hover:bg-danger-hover hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]",
     ghost:
       "bg-transparent text-muted-strong hover:bg-surface-strong hover:text-foreground active:scale-[0.98]",
     outline:

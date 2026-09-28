@@ -76,7 +76,7 @@ function ReportCardCommentsDialog({ children, reportCards, onSuccess, onNotice }
           <div className="space-y-2"><Label htmlFor="report-card-class-teacher-comment">Class teacher comment</Label><Textarea id="report-card-class-teacher-comment" maxLength={2000} value={classTeacherComment} onChange={(event) => setClassTeacherComment(event.target.value)} rows={4} /></div>
           <div className="space-y-2"><Label htmlFor="report-card-principal-comment">Principal comment</Label><Textarea id="report-card-principal-comment" maxLength={2000} value={principalComment} onChange={(event) => setPrincipalComment(event.target.value)} rows={4} /></div>
           {error ? <div role="alert" className="text-sm text-destructive">{error}</div> : null}
-          {!editableCards.length ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No editable draft report cards are selected.</div> : null}
+          {!editableCards.length ? <div className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">No editable draft report cards are selected.</div> : null}
         </div>
         <DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button type="submit" disabled={saving || !editableCards.length || (!classTeacherComment.trim() && !principalComment.trim())}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Save Comments</Button></DialogFooter>
       </form>
@@ -176,7 +176,7 @@ export function ReportCardsWorkspace({ model }: { model: unknown }) {
           <Button disabled={!!savingAction} onClick={() => void generateReports(visibleCards)}>{savingAction === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Generate Reports</Button>
         </div>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">

@@ -38,7 +38,7 @@ export function AllocationWorkspace() {
   if (error) {
     return (
       <Panel title="Student Allocation" description="Allocate students to hostels and rooms." icon={UserPlus}>
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <p className="font-black">Boarding allocations could not be loaded.</p>
           <p className="mt-1">{error.message}</p>
           <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
@@ -50,22 +50,22 @@ export function AllocationWorkspace() {
   return (
     <Panel title="Student Allocation" description="Allocate students to hostels and rooms." icon={UserPlus}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Allocated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.allocated ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Allocated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.allocated ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Unallocated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.unallocated ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Unallocated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.unallocated ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Capacity</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.capacity ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Capacity</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.capacity ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Student Name</th>
               <th className="px-4 py-3 font-bold">Class</th>
@@ -77,17 +77,17 @@ export function AllocationWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.hostel}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.room}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.bed}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{row.class}</td>
+                  <td className="px-4 py-3 text-muted">{row.hostel}</td>
+                  <td className="px-4 py-3 text-muted">{row.room}</td>
+                  <td className="px-4 py-3 text-muted">{row.bed}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                 </tr>
               ))

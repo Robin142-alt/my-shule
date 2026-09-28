@@ -49,7 +49,7 @@ export function AcademicIntelligenceReport({filters,view,disabled,subjectOnly=fa
           <button className={button} disabled={mutation.isPending} onClick={()=>void generate()}><FileText size={16} aria-hidden="true"/>{mutation.isPending?'Preparing report…':result?'Regenerate preview':'Prepare preview'}</button>
         </div>
         <p className="text-sm text-slate-600">A4 layout with school details, selected filters and generation date. {section==='learners'?'Includes only the current learner page; its range and total are shown in the report.':'Summary figures cover the selected academic scope.'}</p>
-        {error&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+        {error&&<p role="alert" className="rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger">{error}</p>}
         {mutation.isPending&&<p role="status" className="rounded-lg bg-slate-50 p-4 text-sm">Loading authorized results and preparing your document…</p>}
         {result&&<>
           <div className="flex flex-wrap items-center gap-3"><button className={button} onClick={print} disabled={!ready}><Printer size={16} aria-hidden="true"/>Print report</button><a className={button} href={pdfUrl} download={result.filename}><Download size={16} aria-hidden="true"/>Download PDF</a><span role="status" className="text-xs text-slate-500">Preview ready · {result.report.document_number}</span></div>

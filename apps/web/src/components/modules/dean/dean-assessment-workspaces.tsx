@@ -89,7 +89,7 @@ export function ContinuousAssessmentWorkspace({ dataset }: { dataset: DeanDatase
       <div className="flex gap-3 mt-4">
         <Button variant="primary" onClick={() => setIsReminderOpen(true)}>Remind Teachers</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Assessment Progress" 
@@ -233,7 +233,7 @@ export function ExamReviewWorkspace({ dataset }: { dataset: DeanDataset }) {
         <Button variant="primary" disabled={isSaving} onClick={approveReviewedResults}>{isSaving ? "Recording..." : "Approve All Reviewed"}</Button>
         <Button variant="secondary" onClick={() => setIsRemarkOpen(true)}>Request HOD Re-mark</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Subject Performance Anomalies" 
@@ -423,7 +423,7 @@ export function ReportCardOversightWorkspace({ dataset }: { dataset: DeanDataset
         <Button variant="primary" onClick={() => setIsPublishOpen(true)}>Publish Reports</Button>
         <Button variant="secondary" onClick={() => setIsNotifyOpen(true)}>Notify Class Teachers</Button>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <DataTable 
         title="Report Card Readiness" 
@@ -440,7 +440,7 @@ export function ReportCardOversightWorkspace({ dataset }: { dataset: DeanDataset
             <div className="mt-1 text-muted-foreground">Blocked batches: {blockedRows.length}</div>
           </div>
           {blockedRows.length > 0 ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
               Resolve missing marks, comments, grade status, and dean review before those batches can be published.
             </div>
           ) : null}

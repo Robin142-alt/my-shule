@@ -520,7 +520,7 @@ export function PrincipalCommandCenter({
     }
 
     return (
-      <section role="alert" aria-label="Principal workspace unavailable" className="rounded-xl border border-amber-200/30 bg-amber-200/10 p-5 text-amber-100">
+      <section role="alert" aria-label="Principal workspace unavailable" className="rounded-xl border border-warning-border/30 bg-amber-200/10 p-5 text-amber-100">
         <h2 className="text-lg font-black">This Principal workspace route is not registered.</h2>
         <p className="mt-2 text-sm font-semibold">Choose a listed workspace so MyShule can load a verified tenant-scoped contract.</p>
       </section>
@@ -549,7 +549,7 @@ export function PrincipalCommandCenter({
         <div
           data-testid={activeWorkspace === "exams-reports" ? undefined : "role-operational-command-center"}
           data-route-mode={routeMode ?? "hosted"}
-          className="authenticated-app min-h-dvh bg-[#F3F4F6] pb-6"
+          className="authenticated-app min-h-dvh bg-background pb-6"
         >
           {mobileSidebarOpen ? (
             <button
@@ -571,7 +571,7 @@ export function PrincipalCommandCenter({
               aria-label="Principal navigation"
               tabIndex={-1}
               className={cn(
-                "app-principal-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(88vw,320px)] min-h-0 flex-col overflow-hidden border-r border-[#C8D5EA]/30 bg-[#071D49] p-4 text-white shadow-2xl outline-none transition-transform duration-200 xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100dvh-40px)] xl:w-auto xl:translate-x-0 xl:rounded-[var(--radius-xl)] xl:border-[#C8D5EA]/50 xl:shadow-[0_24px_70px_rgba(7,29,73,0.22)]",
+                "app-principal-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(88vw,320px)] min-h-0 flex-col overflow-hidden border-r border-border-strong/30 bg-primary p-4 text-white shadow-2xl outline-none transition-transform duration-200 xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100dvh-40px)] xl:w-auto xl:translate-x-0 xl:rounded-[var(--radius-xl)] xl:border-border-strong/50 xl:shadow-[0_24px_70px_rgba(7,29,73,0.22)]",
                 mobileSidebarOpen ? "translate-x-0" : "-translate-x-full",
               )}
             >
@@ -651,7 +651,7 @@ export function PrincipalCommandCenter({
             </aside>
 
             <main className="min-w-0 space-y-5">
-              <header className="app-workspace-header rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
+              <header className="app-workspace-header rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <DashboardGreeting name={principalName} context={`${schoolName} command center`} />
@@ -663,7 +663,7 @@ export function PrincipalCommandCenter({
                       type="button"
                       aria-label="Open principal navigation"
                       aria-expanded={mobileSidebarOpen}
-                      className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] px-3 py-2 text-sm font-black text-[#071D49] xl:hidden"
+                      className="rounded-xl border border-border-strong bg-surface-muted px-3 py-2 text-sm font-black text-foreground xl:hidden"
                       onClick={() => setMobileSidebarOpen(true)}
                     >
                       <Menu className="mr-2 inline h-4 w-4" aria-hidden="true" />
@@ -673,7 +673,7 @@ export function PrincipalCommandCenter({
                 </div>
               </header>
 
-              <div className={cn("app-principal-workspace rounded-[var(--radius-xl)] bg-[#071D49] p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]", activeWorkspace === "overview" && "app-overview-canvas")}>
+              <div className={cn("app-principal-workspace rounded-[var(--radius-xl)] bg-primary p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]", activeWorkspace === "overview" && "app-overview-canvas")}>
                 <section className="max-h-none overflow-y-auto">{renderWorkspace()}</section>
               </div>
             </main>

@@ -59,7 +59,7 @@ export function ReportCardGenerator({ tenantId, examSeriesId }: ReportCardGenera
       <h3 className="font-semibold text-lg">Generate Report Cards</h3>
       
       {!readiness.ready ? (
-        <div className="bg-red-50 p-4 border border-red-200 rounded text-red-800">
+        <div className="bg-danger-soft p-4 border border-danger-border rounded text-danger">
           <p className="font-medium mb-2">Exam Series is NOT ready for publishing.</p>
           <ul className="list-disc ml-5 text-sm space-y-1">
             {readiness.issues.map((issue: string, idx: number) => (
@@ -68,7 +68,7 @@ export function ReportCardGenerator({ tenantId, examSeriesId }: ReportCardGenera
           </ul>
         </div>
       ) : (
-        <div className="bg-green-50 p-4 border border-green-200 rounded text-green-800">
+        <div className="bg-success-soft p-4 border border-success-border rounded text-success">
           <p className="font-medium">All marks are approved. The exam series is ready for report card generation.</p>
         </div>
       )}

@@ -166,7 +166,7 @@ export function ClassesStreamsWorkspace() {
           type="button"
           disabled={isSaving}
           onClick={openClassForm}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
           Add Class
@@ -180,36 +180,36 @@ export function ClassesStreamsWorkspace() {
         <MetricCard label="Avg Class Size" value={isLoading ? "..." : data?.metrics?.avg_class_size ?? 0} icon={Users} tone="info" />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Class</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Level</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Class Teacher</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Students</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Streams</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 font-bold">Status</th>
-              <th className="border-b border-[#D8E0EC] px-4 py-3 text-right font-bold">Actions</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Class</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Level</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Class Teacher</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Students</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Streams</th>
+              <th className="border-b border-border px-4 py-3 font-bold">Status</th>
+              <th className="border-b border-border px-4 py-3 text-right font-bold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading classes...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading classes...</td></tr>
             ) : classes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted">
                   No classes configured. Add the first class and stream so admissions can place applicants and exams can assign mark entry windows.
                 </td>
               </tr>
             ) : (
               classes.map((cls) => (
-                <tr key={cls.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{cls.name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{cls.level || "-"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{cls.class_teacher || "-"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{cls.total_students}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{cls.streams.length > 0 ? cls.streams.map((s) => `${s.name} (${s.students_count})`).join(", ") : "No streams"}</td>
+                <tr key={cls.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{cls.name}</td>
+                  <td className="px-4 py-3 text-muted">{cls.level || "-"}</td>
+                  <td className="px-4 py-3 text-muted">{cls.class_teacher || "-"}</td>
+                  <td className="px-4 py-3 text-muted">{cls.total_students}</td>
+                  <td className="px-4 py-3 text-muted">{cls.streams.length > 0 ? cls.streams.map((s) => `${s.name} (${s.students_count})`).join(", ") : "No streams"}</td>
                   <td className="px-4 py-3"><StatusChip label={cls.status || "Active"} tone={cls.status === "Active" ? "success" : "neutral"} /></td>
                   <td className="px-4 py-3 text-right">
                     <button
@@ -239,7 +239,7 @@ export function ClassesStreamsWorkspace() {
               type="button"
               onClick={() => setIsClassOpen(false)}
               disabled={isSaving}
-              className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50"
+              className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -247,7 +247,7 @@ export function ClassesStreamsWorkspace() {
               type="submit"
               form="principal-class-create-form"
               disabled={isSaving}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50"
             >
               {isSaving ? "Saving..." : "Save class"}
             </button>
@@ -255,56 +255,56 @@ export function ClassesStreamsWorkspace() {
         }
       >
         <form id="principal-class-create-form" onSubmit={handleCreateClass} className="space-y-4">
-          {formError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{formError}</div> : null}
+          {formError ? <div className="rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{formError}</div> : null}
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               Class name
               <input
                 value={classForm.name}
                 onChange={(event) => setClassForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="Form 1 East"
-                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
                 required
               />
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               Level
               <select
                 value={classForm.level}
                 onChange={(event) => setClassForm((current) => ({ ...current, level: event.target.value }))}
-                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
                 required
               >
                 <option value="">Select level</option>
                 {levelOptions.map((level) => <option key={level} value={level}>{level}</option>)}
               </select>
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               First stream
               <input
                 value={classForm.stream_name}
                 onChange={(event) => setClassForm((current) => ({ ...current, stream_name: event.target.value }))}
                 placeholder="East"
-                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
               />
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               Capacity
               <input
                 type="number"
                 min={1}
                 value={classForm.capacity}
                 onChange={(event) => setClassForm((current) => ({ ...current, capacity: event.target.value }))}
-                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
               />
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155] md:col-span-2">
+            <label className="space-y-1 text-sm font-bold text-foreground md:col-span-2">
               Class teacher label
               <input
                 value={classForm.class_teacher}
                 onChange={(event) => setClassForm((current) => ({ ...current, class_teacher: event.target.value }))}
                 placeholder="Assign after staff onboarding, or type a label for now"
-                className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+                className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
               />
             </label>
           </div>
@@ -323,7 +323,7 @@ export function ClassesStreamsWorkspace() {
               type="button"
               onClick={() => setStreamClass(null)}
               disabled={isSaving}
-              className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50"
+              className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -331,7 +331,7 @@ export function ClassesStreamsWorkspace() {
               type="submit"
               form="principal-stream-create-form"
               disabled={isSaving}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50"
             >
               {isSaving ? "Saving..." : "Save stream"}
             </button>
@@ -339,25 +339,25 @@ export function ClassesStreamsWorkspace() {
         }
       >
         <form id="principal-stream-create-form" onSubmit={handleCreateStream} className="space-y-4">
-          {formError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{formError}</div> : null}
-          <label className="block space-y-1 text-sm font-bold text-[#334155]">
+          {formError ? <div className="rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{formError}</div> : null}
+          <label className="block space-y-1 text-sm font-bold text-foreground">
             Stream name
             <input
               value={streamForm.name}
               onChange={(event) => setStreamForm((current) => ({ ...current, name: event.target.value }))}
               placeholder="North"
-              className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+              className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
               required
             />
           </label>
-          <label className="block space-y-1 text-sm font-bold text-[#334155]">
+          <label className="block space-y-1 text-sm font-bold text-foreground">
             Capacity
             <input
               type="number"
               min={1}
               value={streamForm.capacity}
               onChange={(event) => setStreamForm((current) => ({ ...current, capacity: event.target.value }))}
-              className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400"
+              className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400"
             />
           </label>
         </form>

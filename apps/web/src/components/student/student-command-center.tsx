@@ -13,7 +13,7 @@ function Panel({ title, description, children, actions }: { title: string; descr
     <div className="rounded-xl border bg-white shadow-sm overflow-hidden mb-6">
       <div className="border-b bg-gray-50/50 p-4 flex justify-between items-start">
         <div>
-          <h2 className="text-lg font-semibold text-[#071D49]">{title}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
           {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
         </div>
         {actions && <div>{actions}</div>}
@@ -29,11 +29,11 @@ function StudentOverviewWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="Student Overview" description="Your upcoming schedule and latest updates.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading overview...</p>
+            <p className="text-muted text-sm">Loading overview...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.schedule?.length ? "Schedule found." : "No upcoming schedule."}
             </p>
           )}
@@ -49,11 +49,11 @@ function StudentAcademicsWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="Academics & Grades" description="Your assignments, exams, and report cards.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading academics...</p>
+            <p className="text-muted text-sm">Loading academics...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.assignments?.length ? "Assignments found." : "No active assignments."}
             </p>
           )}
@@ -69,11 +69,11 @@ function StudentAttendanceWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="My Attendance" description="Your attendance history for the term.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading attendance...</p>
+            <p className="text-muted text-sm">Loading attendance...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.records?.length ? "Attendance records found." : "No attendance records."}
             </p>
           )}
@@ -97,11 +97,11 @@ export function StudentCommandCenter() {
   const [activeView, setActiveView] = useState("overview");
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f97316]/90">MyShule</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-inverse-accent">MyShule</p>
           <h2 className="mt-2 text-xl font-black">Student Portal</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">Learn and Grow.</p>
         </div>
@@ -129,17 +129,17 @@ export function StudentCommandCenter() {
       {/* Main Area */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden pb-[60px] lg:pb-0">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">S</div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">S</div>
               <div>
-                <h1 className="text-lg font-black text-[#071D49]">Shule Platform</h1>
-                <p className="text-xs font-bold text-[#64748B]">Student Access</p>
+                <h1 className="text-lg font-black text-foreground">Shule Platform</h1>
+                <p className="text-xs font-bold text-muted">Student Access</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <button className="relative text-[#64748B] hover:text-[#071D49]">
+              <button className="relative text-muted hover:text-foreground">
                 <Bell className="h-6 w-6" />
               </button>
             </div>
@@ -155,7 +155,7 @@ export function StudentCommandCenter() {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#D8E0EC] bg-white lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white lg:hidden">
         <div className="flex justify-around items-center px-2 py-2">
           {navItems.map(item => {
             const isActive = activeView === item.id;
@@ -164,8 +164,8 @@ export function StudentCommandCenter() {
                 key={item.id} 
                 onClick={() => setActiveView(item.id)}
                 className={cn(
-                  "flex flex-col items-center gap-1 p-2 rounded-xl text-[#64748B]",
-                  isActive && "text-[#f97316]"
+                  "flex flex-col items-center gap-1 p-2 rounded-xl text-muted",
+                  isActive && "bg-accent-soft text-accent"
                 )}
               >
                 <item.icon className="h-5 w-5" />

@@ -311,8 +311,8 @@ export function PapersComponentsWorkspace({ model }: { model: unknown }) {
         </div>
       </div>
 
-      {notice ? <div role="status" className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
-      {assessments.length === 0 && !isLoading ? <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Create an exam assessment before adding paper components.</div> : null}
+      {notice ? <div role="status" className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {assessments.length === 0 && !isLoading ? <div className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-950">Create an exam assessment before adding paper components.</div> : null}
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">

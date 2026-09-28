@@ -72,54 +72,54 @@ export function AttendanceFollowUpWorkspace() {
   return (
     <Panel title="Attendance Follow-Up" description="Track absent learners, contact parents, and resolve attendance issues." icon={ClipboardCheck}>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Absent Today</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.total_absent_today ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Absent Today</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.total_absent_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Chronic Absentees</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.chronic_absentees ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Chronic Absentees</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.chronic_absentees ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Pending Follow-Ups</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.pending_follow_ups ?? 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Pending Follow-Ups</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : metrics?.pending_follow_ups ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Resolved Today</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.resolved_today ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Resolved Today</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.resolved_today ?? 0}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Adm No</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Days Absent</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Last Absent</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Parent</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Adm No</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Days Absent</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Last Absent</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Parent</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reason</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading attendance data...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading attendance data...</td></tr>
             ) : students.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">All students are present or all absences have been resolved. Great work!</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">All students are present or all absences have been resolved. Great work!</td></tr>
             ) : (
               students.map((s) => (
-                <tr key={s.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{s.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.admission_no}</td>
+                <tr key={s.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{s.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{s.admission_no}</td>
                   <td className="px-4 py-3">
-                    <span className={`font-bold ${s.absent_days >= 5 ? "text-rose-600" : s.absent_days >= 3 ? "text-amber-600" : "text-[#071D49]"}`}>{s.absent_days}</span>
+                    <span className={`font-bold ${s.absent_days >= 5 ? "text-rose-600" : s.absent_days >= 3 ? "text-amber-600" : "text-foreground"}`}>{s.absent_days}</span>
                   </td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.last_absent_date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.parent_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.reason || "Unknown"}</td>
+                  <td className="px-4 py-3 text-muted">{s.last_absent_date}</td>
+                  <td className="px-4 py-3 text-muted">{s.parent_name}</td>
+                  <td className="px-4 py-3 text-muted">{s.reason || "Unknown"}</td>
                   <td className="px-4 py-3"><StatusChip label={s.follow_up_status} tone={getFollowUpTone(s.follow_up_status)} /></td>
                   <td className="px-4 py-3 text-right flex gap-2 justify-end">
                     {s.follow_up_status !== "Resolved" && (
@@ -127,14 +127,14 @@ export function AttendanceFollowUpWorkspace() {
                         <button
                           disabled={actionLoading === s.id}
                           onClick={() => handleNotifyParent(s.id)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-info-border bg-info-soft px-3 py-1.5 text-xs font-bold text-info hover:bg-blue-100 disabled:opacity-50"
                         >
                           <Phone className="w-3 h-3" /> Notify
                         </button>
                         <button
                           disabled={actionLoading === `resolve-${s.id}`}
                           onClick={() => handleResolve(s.id)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-success-border bg-success-soft px-3 py-1.5 text-xs font-bold text-success hover:bg-emerald-100 disabled:opacity-50"
                         >
                           <CheckCircle className="w-3 h-3" /> Resolve
                         </button>

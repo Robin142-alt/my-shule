@@ -39,7 +39,7 @@ export function TripsWorkspace() {
   if (error) {
     return (
       <Panel title="Trips" description="Track scheduled and completed transport trips." icon={Navigation}>
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <p className="font-black">Trips could not be loaded.</p>
           <p className="mt-1">{error.message}</p>
           <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
@@ -51,22 +51,22 @@ export function TripsWorkspace() {
   return (
     <Panel title="Trip Log" description="Log and track daily transport trips." icon={Navigation}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Trips Today</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.trips_today ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Trips Today</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.trips_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Completed</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.completed ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Completed</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.completed ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">In Progress</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.in_progress ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">In Progress</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.in_progress ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Route</th>
               <th className="px-4 py-3 font-bold">Driver</th>
@@ -79,18 +79,18 @@ export function TripsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No school-scoped records are loaded for this workspace yet. Use the primary action, import, or connected setup workflow to create the first record.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.route}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.driver}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.vehicle}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.departure_time}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.arrival_time}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.students}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.route}</td>
+                  <td className="px-4 py-3 text-muted">{row.driver}</td>
+                  <td className="px-4 py-3 text-muted">{row.vehicle}</td>
+                  <td className="px-4 py-3 text-muted">{row.departure_time}</td>
+                  <td className="px-4 py-3 text-muted">{row.arrival_time}</td>
+                  <td className="px-4 py-3 text-muted">{row.students}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                 </tr>
               ))

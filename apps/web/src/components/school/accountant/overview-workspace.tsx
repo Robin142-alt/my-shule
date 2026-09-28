@@ -82,12 +82,12 @@ function formatActivityTime(value: string) {
 
 function statusClasses(status: string) {
   if (/paid|cleared|matched/i.test(status)) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-success-border bg-success-soft text-success";
   }
   if (/failed|bounced|reversed|void/i.test(status)) {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+    return "border-danger-border bg-danger-soft text-danger";
   }
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-warning-border bg-warning-soft text-warning";
 }
 
 export function AccountantOverviewWorkspace({
@@ -121,18 +121,18 @@ export function AccountantOverviewWorkspace({
 
   if (isError || !isAccountantOverviewResponse(data)) {
     return (
-      <section className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-900" role="alert">
+      <section className="rounded-xl border border-danger-border bg-danger-soft p-5 text-rose-900" role="alert">
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
           <div className="min-w-0">
             <h2 className="text-lg font-black">Finance overview could not be loaded</h2>
-            <p className="mt-1 text-sm text-rose-800">
+            <p className="mt-1 text-sm text-danger">
               {error?.message || "The live school finance read model is unavailable."}
             </p>
             <button
               type="button"
               onClick={() => void refetch()}
-              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-900 hover:bg-rose-100"
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-danger-border bg-white px-4 text-sm font-semibold text-rose-900 hover:bg-rose-100"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Retry live finance data
@@ -191,28 +191,28 @@ export function AccountantOverviewWorkspace({
               key={card.label}
               type="button"
               onClick={() => onNavigate(card.target)}
-              className="group rounded-xl border border-white/12 bg-white p-4 text-left text-[#071D49] shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg"
+              className="group rounded-xl border border-white/12 bg-white p-4 text-left text-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg"
             >
               <div className="flex items-start justify-between gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#EAF3FF] text-[#1D4ED8]">
+                <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#EAF3FF] text-info">
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <ArrowRight className="h-4 w-4 text-[#94A3B8] transition group-hover:translate-x-0.5 group-hover:text-[#1D4ED8]" aria-hidden="true" />
+                <ArrowRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-info" aria-hidden="true" />
               </div>
-              <p className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">{card.label}</p>
+              <p className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-muted">{card.label}</p>
               <p className="mt-1 text-2xl font-black">{card.value}</p>
-              <p className="mt-2 text-xs font-semibold text-[#64748B]">{card.helper}</p>
+              <p className="mt-2 text-xs font-semibold text-muted">{card.helper}</p>
             </button>
           );
         })}
       </section>
 
-      <section className="rounded-xl border border-white/12 bg-white p-5 text-[#071D49] shadow-sm">
+      <section className="rounded-xl border border-white/12 bg-white p-5 text-foreground shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1D4ED8]">Finance operations</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-info">Finance operations</p>
             <h2 className="mt-1 text-xl font-black">Today&apos;s finance desk</h2>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">
+            <p className="mt-1 text-sm font-semibold text-muted">
               Live records from this school only. No demo balances or synthetic collection totals are used.
             </p>
           </div>
@@ -220,7 +220,7 @@ export function AccountantOverviewWorkspace({
             <button
               type="button"
               onClick={() => onNavigate("payments")}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#071D49] px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
             >
               <ReceiptText className="h-4 w-4" aria-hidden="true" />
               Record payment
@@ -228,7 +228,7 @@ export function AccountantOverviewWorkspace({
             <button
               type="button"
               onClick={() => onNavigate("fee-structures")}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49] hover:bg-[#F8FAFC]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-strong bg-white px-4 text-sm font-black text-foreground hover:bg-surface-muted"
             >
               <Layers3 className="h-4 w-4" aria-hidden="true" />
               Set fee structure
@@ -237,7 +237,7 @@ export function AccountantOverviewWorkspace({
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49] hover:bg-[#F8FAFC] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-strong bg-white px-4 text-sm font-black text-foreground hover:bg-surface-muted disabled:cursor-wait disabled:opacity-60"
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
               Refresh
@@ -249,36 +249,36 @@ export function AccountantOverviewWorkspace({
           <button
             type="button"
             onClick={() => onNavigate("arrears")}
-            className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left hover:border-[#93C5FD]"
+            className="rounded-lg border border-border bg-surface-muted p-4 text-left hover:border-[#93C5FD]"
           >
             <p className="text-sm font-black">Arrears follow-up</p>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">
+            <p className="mt-1 text-sm font-semibold text-muted">
               {metrics.balances_above_threshold_count} learner{metrics.balances_above_threshold_count === 1 ? "" : "s"} above KES 10,000
             </p>
           </button>
           <button
             type="button"
             onClick={() => onNavigate("invoices")}
-            className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left hover:border-[#93C5FD]"
+            className="rounded-lg border border-border bg-surface-muted p-4 text-left hover:border-[#93C5FD]"
           >
             <p className="text-sm font-black">Student invoices</p>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">
+            <p className="mt-1 text-sm font-semibold text-muted">
               {metrics.open_invoice_count} invoice{metrics.open_invoice_count === 1 ? "" : "s"} awaiting full payment
             </p>
           </button>
           <button
             type="button"
             onClick={() => onNavigate("reports")}
-            className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left hover:border-[#93C5FD]"
+            className="rounded-lg border border-border bg-surface-muted p-4 text-left hover:border-[#93C5FD]"
           >
             <p className="text-sm font-black">Finance reports</p>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">Preview, download, and print school-scoped records</p>
+            <p className="mt-1 text-sm font-semibold text-muted">Preview, download, and print school-scoped records</p>
           </button>
         </div>
       </section>
 
       {isFreshFinanceWorkspace ? (
-        <section className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-[#173559]">
+        <section className="rounded-xl border border-info-border bg-info-soft p-5 text-foreground">
           <h2 className="text-xl font-black">No school finance records yet</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
             Create the first fee structure, generate student invoices after learners are admitted, then record or reconcile payments. This school starts at zero by design.
@@ -287,14 +287,14 @@ export function AccountantOverviewWorkspace({
             <button
               type="button"
               onClick={() => onNavigate("fee-structures")}
-              className="min-h-10 rounded-lg bg-cyan-300 px-4 text-sm font-black text-[#071D49] hover:bg-cyan-200"
+              className="min-h-10 rounded-lg bg-cyan-300 px-4 text-sm font-black text-foreground hover:bg-cyan-200"
             >
               Create first fee structure
             </button>
             <button
               type="button"
               onClick={() => onNavigate("invoices")}
-              className="min-h-10 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-[#173559] hover:bg-blue-100"
+              className="min-h-10 rounded-lg border border-info-border bg-white px-4 text-sm font-semibold text-foreground hover:bg-blue-100"
             >
               Open student invoicing
             </button>
@@ -302,24 +302,24 @@ export function AccountantOverviewWorkspace({
         </section>
       ) : null}
 
-      <section className="overflow-hidden rounded-xl border border-white/12 bg-white text-[#071D49] shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-[#D8E0EC] px-5 py-4">
+      <section className="overflow-hidden rounded-xl border border-white/12 bg-white text-foreground shadow-sm">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1D4ED8]">Tenant activity</p>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-info">Tenant activity</p>
             <h2 className="mt-1 text-xl font-black">Recent finance records</h2>
           </div>
-          <FileText className="h-5 w-5 text-[#64748B]" aria-hidden="true" />
+          <FileText className="h-5 w-5 text-muted" aria-hidden="true" />
         </div>
         {data.recent_activity.length === 0 ? (
           <div className="p-8 text-center">
-            <ReceiptText className="mx-auto h-8 w-8 text-[#94A3B8]" aria-hidden="true" />
+            <ReceiptText className="mx-auto h-8 w-8 text-muted" aria-hidden="true" />
             <p className="mt-3 font-black">No payments or student invoices have been recorded.</p>
-            <p className="mt-1 text-sm font-semibold text-[#64748B]">The first real finance transaction will appear here.</p>
+            <p className="mt-1 text-sm font-semibold text-muted">The first real finance transaction will appear here.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-[#F8FAFC] text-xs font-black uppercase tracking-[0.1em] text-[#64748B]">
+              <thead className="bg-surface-muted text-xs font-black uppercase tracking-[0.1em] text-muted">
                 <tr>
                   <th className="px-5 py-3">Reference</th>
                   <th className="px-5 py-3">Record</th>
@@ -328,13 +328,13 @@ export function AccountantOverviewWorkspace({
                   <th className="px-5 py-3">Time</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0]">
+              <tbody className="divide-y divide-border">
                 {data.recent_activity.map((activity) => (
-                  <tr key={`${activity.entity_type}:${activity.id}`} className="hover:bg-[#F8FAFC]">
+                  <tr key={`${activity.entity_type}:${activity.id}`} className="hover:bg-surface-muted">
                     <td className="px-5 py-4 font-black">{activity.reference}</td>
                     <td className="px-5 py-4">
                       <p className="font-bold capitalize">{activity.entity_type}</p>
-                      <p className="mt-0.5 max-w-[280px] truncate text-xs font-semibold text-[#64748B]">{activity.description}</p>
+                      <p className="mt-0.5 max-w-[280px] truncate text-xs font-semibold text-muted">{activity.description}</p>
                     </td>
                     <td className="px-5 py-4 font-black">{formatMinorKes(activity.amount_minor)}</td>
                     <td className="px-5 py-4">
@@ -342,7 +342,7 @@ export function AccountantOverviewWorkspace({
                         {activity.status.replace(/_/g, " ")}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4 font-semibold text-[#64748B]">{formatActivityTime(activity.occurred_at)}</td>
+                    <td className="whitespace-nowrap px-5 py-4 font-semibold text-muted">{formatActivityTime(activity.occurred_at)}</td>
                   </tr>
                 ))}
               </tbody>

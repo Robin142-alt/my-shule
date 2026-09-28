@@ -62,28 +62,28 @@ export function SettingsWorkspace() {
       {error ? (
         <WorkspaceFailure title="Counselling settings could not be loaded." error={error} onRetry={() => void refetch()} />
       ) : isLoading ? (
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-6 text-sm text-[#64748B]">Loading counselling settings…</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-6 text-sm text-muted">Loading counselling settings…</div>
       ) : (
         <div className="max-w-2xl space-y-4">
-          <label className="flex items-start gap-3 rounded-xl border border-[#D8E0EC] p-4 text-sm text-[#334155]">
+          <label className="flex items-start gap-3 rounded-xl border border-border p-4 text-sm text-foreground">
             <input
               type="checkbox"
               checked={settings.notify_referrer_on_acceptance}
               onChange={(event) => updateSettings({ notify_referrer_on_acceptance: event.target.checked })}
               className="mt-1 h-4 w-4"
             />
-            <span><strong className="block text-[#071D49]">Notify the referrer when a referral is accepted</strong>Creates a school-scoped workflow notification without exposing private case notes.</span>
+            <span><strong className="block text-foreground">Notify the referrer when a referral is accepted</strong>Creates a school-scoped workflow notification without exposing private case notes.</span>
           </label>
-          <label className="flex items-start gap-3 rounded-xl border border-[#D8E0EC] p-4 text-sm text-[#334155]">
+          <label className="flex items-start gap-3 rounded-xl border border-border p-4 text-sm text-foreground">
             <input
               type="checkbox"
               checked={settings.require_audit_reason}
               onChange={(event) => updateSettings({ require_audit_reason: event.target.checked })}
               className="mt-1 h-4 w-4"
             />
-            <span><strong className="block text-[#071D49]">Require an audit reason for sensitive actions</strong>Preserves an explicit reason when counsellors flag or escalate records.</span>
+            <span><strong className="block text-foreground">Require an audit reason for sensitive actions</strong>Preserves an explicit reason when counsellors flag or escalate records.</span>
           </label>
-          <label className="block rounded-xl border border-[#D8E0EC] p-4 text-sm font-bold text-[#334155]">
+          <label className="block rounded-xl border border-border p-4 text-sm font-bold text-foreground">
             Default case visibility
             <select
               aria-label="Default case visibility"
@@ -99,13 +99,13 @@ export function SettingsWorkspace() {
             </select>
           </label>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-[#64748B]">{data?.saved_at ? `Last saved ${data.saved_at}` : "Using secure defaults until this school saves its settings."}</p>
+            <p className="text-xs text-muted">{data?.saved_at ? `Last saved ${data.saved_at}` : "Using secure defaults until this school saves its settings."}</p>
             <button
               type="button"
               disabled={permissionsLoading || !canWrite || saveSettings.isPending}
               onClick={() => saveSettings.mutate(settings)}
               title={!permissionsLoading && !canWrite ? "Counselling write permission is required" : undefined}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saveSettings.isPending ? "Saving…" : "Save Settings"}
             </button>

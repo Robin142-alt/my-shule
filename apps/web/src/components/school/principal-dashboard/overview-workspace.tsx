@@ -129,9 +129,9 @@ export function PrincipalOverviewWorkspace({
     : [];
   const recentActivity = Array.isArray(data.recentActivity) ? data.recentActivity : [];
   const metrics = [
-    { label: "Total Students", value: totalStudents, detail: "School enrolment", icon: GraduationCap, tone: "text-blue-700 bg-blue-50" },
-    { label: "Total Staff", value: totalStaff, detail: "School team", icon: Users, tone: "text-emerald-700 bg-emerald-50" },
-    { label: "Pending Approvals", value: pendingApprovals, detail: "Awaiting a decision", icon: ClipboardCheck, tone: "text-amber-700 bg-amber-50" },
+    { label: "Total Students", value: totalStudents, detail: "School enrolment", icon: GraduationCap, tone: "text-info bg-info-soft" },
+    { label: "Total Staff", value: totalStaff, detail: "School team", icon: Users, tone: "text-success bg-success-soft" },
+    { label: "Pending Approvals", value: pendingApprovals, detail: "Awaiting a decision", icon: ClipboardCheck, tone: "text-warning bg-warning-soft" },
     { label: "Active Issues", value: activeIssues, detail: "Open school issues", icon: ShieldAlert, tone: "text-violet-700 bg-violet-50" },
   ];
 
@@ -144,7 +144,7 @@ export function PrincipalOverviewWorkspace({
           <p className="mt-2 max-w-lg text-sm leading-6 text-slate-200">A clear view of your school. The people, priorities, and decisions that matter today.</p>
         </div>
         {onNavigate ? <div className="flex shrink-0 flex-wrap gap-2 lg:flex-col">
-          <button type="button" onClick={() => onNavigate("approvals")} className="inline-flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#173559] hover:bg-orange-50">Review approvals <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></button>
+          <button type="button" onClick={() => onNavigate("approvals")} className="inline-flex min-h-11 items-center justify-between gap-3 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-foreground hover:bg-orange-50">Review approvals <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></button>
           <button type="button" onClick={() => onNavigate("students")} className="inline-flex min-h-11 items-center justify-between gap-3 rounded-xl border border-white/25 px-4 py-2 text-sm font-medium text-white hover:bg-white/10">View students <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></button>
         </div> : null}
       </section>
@@ -165,7 +165,7 @@ export function PrincipalOverviewWorkspace({
               Updates from your school&apos;s enabled services.
             </p>
           </div>
-          <span className="w-fit rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-semibold text-blue-800">
+          <span className="w-fit rounded-full border border-blue-100 bg-info-soft px-3 py-1 text-[10px] font-semibold text-info">
             {executiveDashboardStreamDegraded
               ? "Live updates reconnecting"
               : executiveDashboardLoading && !executiveDashboard
@@ -189,15 +189,15 @@ export function PrincipalOverviewWorkspace({
                   <span
                     className={
                       alert.severity === "critical"
-                        ? "rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-red-700"
-                        : "rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800"
+                        ? "rounded-full bg-danger-soft px-2 py-0.5 text-[10px] font-semibold uppercase text-danger"
+                        : "rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold uppercase text-warning"
                     }
                   >
                     {alert.severity}
                   </span>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-muted">{alert.message}</p>
-                <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-blue-700">
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-info">
                   {alert.module_code}
                 </p>
                 {alert.action_hint ? (

@@ -36,7 +36,7 @@ export default function DocumentHeader({ title, documentNumber, schoolDetails }:
           </div>
         )}
         <div>
-          <h1 className="text-[16px] md:text-[20px] font-bold uppercase text-[#071D49] m-0 leading-tight">
+          <h1 className="text-[16px] md:text-[20px] font-bold uppercase text-foreground m-0 leading-tight">
             {schoolDetails?.name || 'School name not configured'}
           </h1>
           {schoolDetails?.motto && (

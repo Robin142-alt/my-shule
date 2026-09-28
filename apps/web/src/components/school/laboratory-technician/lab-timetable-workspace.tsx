@@ -84,8 +84,8 @@ type PreparationItem = {
 };
 
 const fieldClass =
-  "min-h-11 w-full rounded-xl border border-[#C8D5EA] bg-white px-3 text-sm text-[#071D49] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
-const labelClass = "mb-1.5 block text-sm font-black text-[#071D49]";
+  "min-h-11 w-full rounded-xl border border-border-strong bg-white px-3 text-sm text-foreground outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+const labelClass = "mb-1.5 block text-sm font-black text-foreground";
 
 function asNumber(value: string | number | null | undefined) {
   const number = Number(value ?? 0);
@@ -633,7 +633,7 @@ export function LabTimetableWorkspace() {
         }
       >
         {requestsQuery.isLoading ? (
-          <div className="rounded-xl border border-[#D8E0EC] p-8 text-center text-sm text-[#64748B]">
+          <div className="rounded-xl border border-border p-8 text-center text-sm text-muted">
             Loading practical requests…
           </div>
         ) : requestsQuery.error ? (
@@ -662,15 +662,15 @@ export function LabTimetableWorkspace() {
               return (
                 <article
                   key={request.id}
-                  className="rounded-2xl border border-[#D8E0EC] bg-white p-4 shadow-sm"
+                  className="rounded-2xl border border-border bg-white p-4 shadow-sm"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-lg bg-[#071D49] px-2.5 py-1 text-xs font-black text-white">
+                        <span className="rounded-lg bg-primary px-2.5 py-1 text-xs font-black text-white">
                           {index + 1}
                         </span>
-                        <span className="text-lg font-black text-[#071D49]">
+                        <span className="text-lg font-black text-foreground">
                           {request.lesson_time}
                         </span>
                         <StatusChip
@@ -687,20 +687,20 @@ export function LabTimetableWorkspace() {
                           />
                         ) : null}
                       </div>
-                      <h3 className="mt-2 text-base font-black text-[#071D49]">
+                      <h3 className="mt-2 text-base font-black text-foreground">
                         {request.subject} · {request.class_name}
                       </h3>
-                      <p className="mt-1 text-sm text-[#334155]">
+                      <p className="mt-1 text-sm text-foreground">
                         {request.practical_title}
                       </p>
-                      <p className="mt-1 text-sm text-[#64748B]">
+                      <p className="mt-1 text-sm text-muted">
                         {formatKenyanDate(request.practical_date)} ·{" "}
                         {request.teacher_name} · {request.items.length}{" "}
                         requested{" "}
                         {request.items.length === 1 ? "item" : "items"}
                       </p>
                       {shortages.length ? (
-                        <p className="mt-2 text-sm font-bold text-amber-700">
+                        <p className="mt-2 text-sm font-bold text-warning">
                           Shortage to review:{" "}
                           {shortages.map((item) => item.item_name).join(", ")}
                         </p>
@@ -772,7 +772,7 @@ export function LabTimetableWorkspace() {
           {formError ? (
             <div
               role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+              className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-rose-900"
             >
               {formError}
             </div>
@@ -838,8 +838,8 @@ export function LabTimetableWorkspace() {
           <div
             className={`rounded-2xl border p-4 ${
               requestForm.is_assessment
-                ? "border-amber-300 bg-amber-50"
-                : "border-[#D8E0EC] bg-[#F8FAFC]"
+                ? "border-amber-300 bg-warning-soft"
+                : "border-border bg-surface-muted"
             }`}
           >
             <label className="flex cursor-pointer items-start gap-3">
@@ -855,11 +855,11 @@ export function LabTimetableWorkspace() {
                 }
               />
               <span>
-                <span className="flex items-center gap-2 font-black text-[#071D49]">
+                <span className="flex items-center gap-2 font-black text-foreground">
                   <LockKeyhole className="h-4 w-4" aria-hidden="true" />
                   Secure assessment or examination practical
                 </span>
-                <span className="mt-1 block text-sm leading-6 text-[#64748B]">
+                <span className="mt-1 block text-sm leading-6 text-muted">
                   Use this only when preparation details must be restricted to authorized examination staff.
                 </span>
               </span>
@@ -903,7 +903,7 @@ export function LabTimetableWorkspace() {
           </div>
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h4 className="font-black text-[#071D49]">Requested Items</h4>
+              <h4 className="font-black text-foreground">Requested Items</h4>
               <Button
                 size="sm"
                 variant="secondary"
@@ -921,7 +921,7 @@ export function LabTimetableWorkspace() {
               {requestForm.items.map((row, index) => (
                 <div
                   key={row.key}
-                  className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3"
+                  className="rounded-xl border border-border bg-surface-muted p-3"
                 >
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <label className="lg:col-span-2">
@@ -1014,7 +1014,7 @@ export function LabTimetableWorkspace() {
                       </select>
                     </label>
                     <div className="flex items-end gap-2">
-                      <label className="flex min-h-11 flex-1 items-center gap-2 rounded-xl border border-[#C8D5EA] bg-white px-3 text-sm font-bold text-[#071D49]">
+                      <label className="flex min-h-11 flex-1 items-center gap-2 rounded-xl border border-border-strong bg-white px-3 text-sm font-bold text-foreground">
                         <input
                           type="checkbox"
                           checked={row.is_returnable}
@@ -1046,7 +1046,7 @@ export function LabTimetableWorkspace() {
                               ),
                             }))
                           }
-                          className="min-h-11 rounded-xl border border-rose-200 px-3 text-rose-700"
+                          className="min-h-11 rounded-xl border border-danger-border px-3 text-danger"
                         >
                           <XCircle className="h-4 w-4" />
                         </button>
@@ -1073,7 +1073,7 @@ export function LabTimetableWorkspace() {
       >
         {selectedRequest ? (
           <div className="space-y-4 text-sm">
-            <div className="grid gap-3 rounded-xl bg-[#F8FAFC] p-4 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-xl bg-surface-muted p-4 sm:grid-cols-2">
               <p>
                 <strong>Date and time:</strong>
                 <br />
@@ -1097,12 +1097,12 @@ export function LabTimetableWorkspace() {
               </p>
             </div>
             {selectedRequest.teacher_notes ? (
-              <p className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <p className="rounded-xl border border-info-border bg-info-soft p-3">
                 <strong>Teacher notes:</strong> {selectedRequest.teacher_notes}
               </p>
             ) : null}
             {selectedRequest.is_assessment ? (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950">
+              <div className="rounded-xl border border-amber-300 bg-warning-soft p-3 text-amber-950">
                 <p className="flex items-center gap-2 font-black">
                   <LockKeyhole className="h-4 w-4" aria-hidden="true" /> Authorized assessment preparation
                 </p>
@@ -1113,7 +1113,7 @@ export function LabTimetableWorkspace() {
               </div>
             ) : null}
             {selectedRequest.confidential_notes ? (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <p className="rounded-xl border border-warning-border bg-warning-soft p-3">
                 <strong>Authorized assessment note:</strong>{" "}
                 {selectedRequest.confidential_notes}
               </p>
@@ -1122,9 +1122,9 @@ export function LabTimetableWorkspace() {
               {selectedRequest.items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex flex-wrap justify-between gap-2 rounded-xl border border-[#D8E0EC] p-3"
+                  className="flex flex-wrap justify-between gap-2 rounded-xl border border-border p-3"
                 >
-                  <span className="font-black text-[#071D49]">
+                  <span className="font-black text-foreground">
                     {item.item_name}
                   </span>
                   <span>
@@ -1185,7 +1185,7 @@ export function LabTimetableWorkspace() {
           {formError ? (
             <div
               role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+              className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-rose-900"
             >
               {formError}
             </div>
@@ -1193,10 +1193,10 @@ export function LabTimetableWorkspace() {
           {reviewItems.map((item, index) => (
             <div
               key={item.request_item_id}
-              className="rounded-xl border border-[#D8E0EC] p-4"
+              className="rounded-xl border border-border p-4"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className="font-black text-[#071D49]">{item.item_name}</h4>
+                <h4 className="font-black text-foreground">{item.item_name}</h4>
                 <StatusChip
                   label={
                     item.available_quantity >= item.requested_quantity
@@ -1212,12 +1212,12 @@ export function LabTimetableWorkspace() {
                   }
                 />
               </div>
-              <p className="mt-1 text-sm text-[#64748B]">
+              <p className="mt-1 text-sm text-muted">
                 Requested: {item.requested_quantity} {item.unit} · Available
                 now: {item.available_quantity} {item.unit}
               </p>
               {item.substitute_available_quantity !== null ? (
-                <p className="mt-1 text-sm font-bold text-blue-700">
+                <p className="mt-1 text-sm font-bold text-info">
                   Substitute available: {item.substitute_available_quantity}{" "}
                   {item.unit}
                 </p>
@@ -1333,13 +1333,13 @@ export function LabTimetableWorkspace() {
           {formError ? (
             <div
               role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+              className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-rose-900"
             >
               {formError}
             </div>
           ) : null}
           {selectedRequest?.is_assessment ? (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            <div className="rounded-xl border border-amber-300 bg-warning-soft p-3 text-sm text-amber-950">
               <p className="flex items-center gap-2 font-black">
                 <LockKeyhole className="h-4 w-4" aria-hidden="true" /> Secure assessment preparation — authorized staff only
               </p>
@@ -1389,21 +1389,21 @@ export function LabTimetableWorkspace() {
             return (
               <div
                 key={item.key}
-                className="rounded-xl border border-[#D8E0EC] p-4"
+                className="rounded-xl border border-border p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h4 className="font-black text-[#071D49]">
+                    <h4 className="font-black text-foreground">
                       {item.original_item_name}
                     </h4>
                     {item.substitute_item_name ? (
-                      <p className="text-xs font-bold text-blue-700">
+                      <p className="text-xs font-bold text-info">
                         Substitute: {item.substitute_item_name}
                       </p>
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="flex min-h-10 items-center gap-2 rounded-xl border border-[#C8D5EA] px-3 text-sm font-black text-[#071D49]">
+                    <label className="flex min-h-10 items-center gap-2 rounded-xl border border-border-strong px-3 text-sm font-black text-foreground">
                       <input
                         type="checkbox"
                         checked={prepared > 0}
@@ -1436,7 +1436,7 @@ export function LabTimetableWorkspace() {
                     />
                   </div>
                 </div>
-                <p className="mt-1 text-sm text-[#64748B]">
+                <p className="mt-1 text-sm text-muted">
                   Requested: {item.requested_quantity || "Additional"}{" "}
                   {item.unit} · Available: {item.available_quantity} {item.unit}
                 </p>

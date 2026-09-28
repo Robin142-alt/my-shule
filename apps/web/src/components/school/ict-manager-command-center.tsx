@@ -48,17 +48,17 @@ async function recordIctWorkflowAction(title: string, description: string, prior
 
 function Panel({ title, description, icon: Icon, children, actions }: { title: string; description?: string; icon?: any; children: React.ReactNode; actions?: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon && (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           )}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description && <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p>}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description && <p className="mt-1 text-sm leading-6 text-muted">{description}</p>}
           </div>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
@@ -83,11 +83,11 @@ function OverviewWorkspace() {
       <div className="grid gap-6 md:grid-cols-3 mb-8">
         <Card className="p-6">
           <div className="text-sm font-semibold text-gray-500">Open IT Tickets</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{openTickets}</div>
+          <div className="mt-2 text-3xl font-black text-foreground">{openTickets}</div>
         </Card>
         <Card className="p-6">
           <div className="text-sm font-semibold text-gray-500">Assigned Devices</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{assignedDevices}</div>
+          <div className="mt-2 text-3xl font-black text-foreground">{assignedDevices}</div>
         </Card>
         <Card className="p-6">
           <div className="text-sm font-semibold text-gray-500">Pending Maintenance</div>
@@ -98,7 +98,7 @@ function OverviewWorkspace() {
       </div>
 
       <Card className="p-6">
-        <h2 className="text-xl font-bold text-[#071D49] mb-4">Recent Helpdesk Tickets</h2>
+        <h2 className="text-xl font-bold text-foreground mb-4">Recent Helpdesk Tickets</h2>
         {tickets.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <Monitor className="h-12 w-12 mx-auto mb-4 opacity-20" />
@@ -109,7 +109,7 @@ function OverviewWorkspace() {
             {tickets.map((ticket: any) => (
               <div key={ticket.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50 hover:bg-gray-50 transition">
                 <div>
-                  <p className="font-semibold text-[#071D49]">{ticket.subject}</p>
+                  <p className="font-semibold text-foreground">{ticket.subject}</p>
                   <p className="text-sm text-gray-500 mt-1">{ticket.status} • {new Date(ticket.created_at).toLocaleDateString()}</p>
                 </div>
                 <StatusPill label={ticket.priority} tone={ticket.priority === 'urgent' ? 'critical' : 'ok'} />
@@ -149,19 +149,19 @@ function ItHelpdeskWorkspace({
 
   return (
     <>
-      <Panel title="IT Helpdesk" description="Manage support tickets from staff and students." icon={Monitor} actions={<Button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white" onClick={() => onTicketModalOpenChange(true)}><Plus className="w-4 h-4 mr-2" /> New Ticket</Button>}>
+      <Panel title="IT Helpdesk" description="Manage support tickets from staff and students." icon={Monitor} actions={<Button className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white" onClick={() => onTicketModalOpenChange(true)}><Plus className="w-4 h-4 mr-2" /> New Ticket</Button>}>
         {isLoading ? (
           <p className="text-sm text-slate-500">Loading tickets...</p>
         ) : !tickets.length ? (
-          <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
-            <p className="font-semibold text-[#071D49]">No IT tickets found.</p>
+          <div className="rounded-lg border border-dashed border-border p-8 text-center text-slate-500">
+            <p className="font-semibold text-foreground">No IT tickets found.</p>
             <p className="mt-1 text-sm">Create a ticket for device faults, account issues, or software support requests.</p>
-            <Button className="mt-4 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white" onClick={() => onTicketModalOpenChange(true)}>Create first ticket</Button>
+            <Button className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white" onClick={() => onTicketModalOpenChange(true)}>Create first ticket</Button>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+          <div className="overflow-hidden rounded-xl border border-border">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+              <thead className="bg-surface-muted text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3 font-black">Subject</th>
                   <th className="px-4 py-3 font-black">Status</th>
@@ -170,15 +170,15 @@ function ItHelpdeskWorkspace({
                   <th className="px-4 py-3 text-right font-black">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#D8E0EC]">
+              <tbody className="divide-y divide-border">
                 {tickets.map((t: any, i: number) => (
                   <tr key={i} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-semibold text-[#071D49]">{t.subject}</td>
+                    <td className="px-4 py-3 font-semibold text-foreground">{t.subject}</td>
                     <td className="px-4 py-3"><StatusPill label={t.status} tone="ok" /></td>
                     <td className="px-4 py-3"><StatusPill label={t.priority} tone={t.priority === 'urgent' ? 'critical' : 'ok'} /></td>
-                    <td className="px-4 py-3 text-[#64748B]">{t.created_at ? new Date(t.created_at).toLocaleDateString() : "-"}</td>
+                    <td className="px-4 py-3 text-muted">{t.created_at ? new Date(t.created_at).toLocaleDateString() : "-"}</td>
                     <td className="px-4 py-3 text-right">
-                      <button type="button" onClick={() => openTicket(t)} className="text-[#1D4ED8] hover:underline text-xs font-bold">View</button>
+                      <button type="button" onClick={() => openTicket(t)} className="text-info hover:underline text-xs font-bold">View</button>
                     </td>
                   </tr>
                 ))}
@@ -200,19 +200,19 @@ function DeviceInventoryWorkspace() {
 
   return (
     <>
-      <Panel title="Device Inventory" description="Manage laptops, tablets, projectors, and other IT assets." icon={Smartphone} actions={<Button className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white" onClick={() => setDeviceModalOpen(true)}><Plus className="w-4 h-4 mr-2" /> Register Device</Button>}>
+      <Panel title="Device Inventory" description="Manage laptops, tablets, projectors, and other IT assets." icon={Smartphone} actions={<Button className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white" onClick={() => setDeviceModalOpen(true)}><Plus className="w-4 h-4 mr-2" /> Register Device</Button>}>
         {isLoading ? (
           <p className="text-sm text-slate-500">Loading assets...</p>
         ) : !assets.length ? (
-          <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
-            <p className="font-semibold text-[#071D49]">No IT assets found.</p>
+          <div className="rounded-lg border border-dashed border-border p-8 text-center text-slate-500">
+            <p className="font-semibold text-foreground">No IT assets found.</p>
             <p className="mt-1 text-sm">Register laptops, tablets, printers, projectors, and network equipment before assigning custodians.</p>
-            <Button className="mt-4 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white" onClick={() => setDeviceModalOpen(true)}>Register first device</Button>
+            <Button className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white" onClick={() => setDeviceModalOpen(true)}>Register first device</Button>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
+          <div className="overflow-hidden rounded-xl border border-border">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#F8FAFC] text-xs uppercase text-[#64748B]">
+              <thead className="bg-surface-muted text-xs uppercase text-muted">
                 <tr>
                   <th className="px-4 py-3 font-black">Item Name</th>
                   <th className="px-4 py-3 font-black">Category</th>
@@ -220,16 +220,16 @@ function DeviceInventoryWorkspace() {
                   <th className="px-4 py-3 text-right font-black">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#D8E0EC]">
+              <tbody className="divide-y divide-border">
                 {assets.map((a: any, i: number) => {
                   const assetName = a.item_name ?? a.title ?? a.name ?? "Device";
                   return (
                     <tr key={a.id ?? i} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-semibold text-[#071D49]">{assetName}</td>
-                      <td className="px-4 py-3 text-[#64748B]">{a.category ?? "-"}</td>
+                      <td className="px-4 py-3 font-semibold text-foreground">{assetName}</td>
+                      <td className="px-4 py-3 text-muted">{a.category ?? "-"}</td>
                       <td className="px-4 py-3"><StatusPill label={a.status || 'Active'} tone="ok" /></td>
                       <td className="px-4 py-3 text-right">
-                        <button type="button" className="text-[#1D4ED8] hover:underline text-xs font-bold" onClick={() => setSelectedAssetForManagement(a)}>Manage</button>
+                        <button type="button" className="text-info hover:underline text-xs font-bold" onClick={() => setSelectedAssetForManagement(a)}>Manage</button>
                       </td>
                     </tr>
                   );
@@ -263,10 +263,10 @@ function AccessControlWorkspace() {
             key={title}
             type="button"
             onClick={() => recordIctWorkflowAction(title, detail, priority === "high" ? "high" : "normal")}
-            className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-left transition hover:border-[#1D4ED8]"
+            className="rounded-xl border border-border bg-surface-muted p-4 text-left transition hover:border-info"
           >
-            <p className="font-black text-[#071D49]">{title}</p>
-            <p className="mt-2 text-sm font-semibold text-[#64748B]">{detail}</p>
+            <p className="font-black text-foreground">{title}</p>
+            <p className="mt-2 text-sm font-semibold text-muted">{detail}</p>
           </button>
         ))}
       </div>
@@ -323,14 +323,14 @@ function NewIctTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
     <Modal title="New ICT ticket" open={open} onClose={onClose} size="lg">
       <form onSubmit={submitTicket} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Subject
-            <input name="subject" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="e.g. Lab projector not working" />
+          <label className="text-sm font-bold text-foreground">Subject
+            <input name="subject" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="e.g. Lab projector not working" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Affected module
-            <input name="module_affected" required defaultValue="ICT" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Affected module
+            <input name="module_affected" required defaultValue="ICT" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Category
-            <select name="category" defaultValue="Bug Report" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Category
+            <select name="category" defaultValue="Bug Report" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
               <option>Bug Report</option>
               <option>Performance</option>
               <option>Login Issues</option>
@@ -338,22 +338,22 @@ function NewIctTicketModal({ open, onClose, onCreated }: { open: boolean; onClos
               <option>Feature Request</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Priority
-            <select name="priority" defaultValue="Medium" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Priority
+            <select name="priority" defaultValue="Medium" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
               <option>Low</option>
               <option>Medium</option>
               <option>High</option>
               <option>Critical</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Device or location
-            <input name="device" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Computer lab 2, printer serial, staff laptop..." />
+          <label className="text-sm font-bold text-foreground sm:col-span-2">Device or location
+            <input name="device" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Computer lab 2, printer serial, staff laptop..." />
           </label>
-          <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Description
-            <textarea name="description" required rows={4} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground sm:col-span-2">Description
+            <textarea name="description" required rows={4} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
           <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Ticket"}</Button>
         </div>
@@ -416,14 +416,14 @@ function RegisterIctDeviceModal({ open, onClose, onCreated }: { open: boolean; o
     <Modal title="Register ICT device" open={open} onClose={onClose} size="lg">
       <form onSubmit={submitDevice} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Device name
-            <input name="title" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="e.g. HP LaserJet Finance Office" />
+          <label className="text-sm font-bold text-foreground">Device name
+            <input name="title" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="e.g. HP LaserJet Finance Office" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Asset tag
-            <input name="asset_tag" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="ICT-2026-001" />
+          <label className="text-sm font-bold text-foreground">Asset tag
+            <input name="asset_tag" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="ICT-2026-001" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Category
-            <select name="category" defaultValue="laptop" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Category
+            <select name="category" defaultValue="laptop" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
               <option value="laptop">Laptop</option>
               <option value="tablet">Tablet</option>
               <option value="projector">Projector</option>
@@ -432,30 +432,30 @@ function RegisterIctDeviceModal({ open, onClose, onCreated }: { open: boolean; o
               <option value="fault">Fault report</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Condition
-            <select name="condition" defaultValue="serviceable" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Condition
+            <select name="condition" defaultValue="serviceable" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
               <option value="serviceable">Serviceable</option>
               <option value="needs_maintenance">Needs maintenance</option>
               <option value="faulty">Faulty</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Custodian
-            <input name="owner_name" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="ICT Department or staff name" />
+          <label className="text-sm font-bold text-foreground">Custodian
+            <input name="owner_name" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="ICT Department or staff name" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Location
-            <input name="location" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Lab, office, classroom..." />
+          <label className="text-sm font-bold text-foreground">Location
+            <input name="location" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Lab, office, classroom..." />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Serial number
-            <input name="serial_number" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Serial number
+            <input name="serial_number" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Support owner
-            <input name="support_owner" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Support owner
+            <input name="support_owner" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
-          <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Notes
-            <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground sm:col-span-2">Notes
+            <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
           <Button type="submit" disabled={submitting}>{submitting ? "Registering..." : "Register Device"}</Button>
         </div>
@@ -525,14 +525,14 @@ function ManageIctAssetModal({
   return (
     <Modal title="Manage ICT asset" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleManageIctAsset} className="space-y-4 p-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-[#64748B]">Selected asset</p>
-          <p className="mt-1 text-lg font-black text-[#071D49]">{assetName}</p>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">{asset?.category ?? "Uncategorised"} • {asset?.status ?? "Active"}</p>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-muted">Selected asset</p>
+          <p className="mt-1 text-lg font-black text-foreground">{assetName}</p>
+          <p className="mt-1 text-sm font-semibold text-muted">{asset?.category ?? "Uncategorised"} • {asset?.status ?? "Active"}</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Action
-            <select name="action" required defaultValue="Review assignment" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Action
+            <select name="action" required defaultValue="Review assignment" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
               <option>Review assignment</option>
               <option>Assign custodian</option>
               <option>Schedule maintenance</option>
@@ -540,19 +540,19 @@ function ManageIctAssetModal({
               <option>Escalate replacement</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Condition
-            <select name="condition" defaultValue={asset?.metadata?.condition ?? "serviceable"} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Condition
+            <select name="condition" defaultValue={asset?.metadata?.condition ?? "serviceable"} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm">
               <option value="serviceable">Serviceable</option>
               <option value="needs_maintenance">Needs maintenance</option>
               <option value="faulty">Faulty</option>
               <option value="retired">Retired</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49] sm:col-span-2">Notes
-            <textarea name="notes" rows={4} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Assignment change, maintenance details, handover notes, or replacement reason..." />
+          <label className="text-sm font-bold text-foreground sm:col-span-2">Notes
+            <textarea name="notes" rows={4} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Assignment change, maintenance details, handover notes, or replacement reason..." />
           </label>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
           <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save Management Action"}</Button>
         </div>
@@ -574,21 +574,21 @@ function SystemLogsWorkspace() {
       {isLoading ? (
         <p className="text-sm text-slate-500">Loading school ICT records...</p>
       ) : error ? (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div role="alert" className="rounded-lg border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <p className="font-bold">School ICT records could not be loaded.</p>
           <button type="button" className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-bold" onClick={() => void refetch()}>Retry</button>
         </div>
       ) : !records.length ? (
-        <div className="rounded-lg border border-dashed border-[#D8E0EC] p-8 text-center text-slate-500">
+        <div className="rounded-lg border border-dashed border-border p-8 text-center text-slate-500">
           No school ICT maintenance records have been logged yet.
         </div>
       ) : (
         <div className="space-y-4">
           {records.map((record: any, i: number) => (
-            <div key={record.id ?? i} className="flex items-center justify-between rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+            <div key={record.id ?? i} className="flex items-center justify-between rounded-lg border border-border bg-surface-muted p-4">
               <div>
-                <p className="font-bold text-[#071D49]">{record.asset_name ?? record.title ?? record.name ?? "ICT maintenance record"}</p>
-                <p className="mt-1 text-xs text-[#64748B]">{record.description ?? record.notes ?? record.issue ?? "No additional notes recorded."}</p>
+                <p className="font-bold text-foreground">{record.asset_name ?? record.title ?? record.name ?? "ICT maintenance record"}</p>
+                <p className="mt-1 text-xs text-muted">{record.description ?? record.notes ?? record.issue ?? "No additional notes recorded."}</p>
               </div>
               <StatusPill label={record.status ?? "Recorded"} tone={record.status === "completed" ? "ok" : "warning"} />
             </div>
@@ -615,11 +615,11 @@ export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSe
   };
 
   return (
-    <div className="authenticated-app min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app min-h-screen bg-background">
       <div className="mx-auto flex max-w-[1920px] flex-col gap-6 p-4 lg:flex-row lg:p-6">
         
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
+        <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
           <SchoolCommandSidebarIdentity eyebrow="ICT command" title="ICT Manager" subtitle="Systems, devices, access, and support" />
           <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
               <button onClick={() => handleSetView("overview")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "overview" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
@@ -644,27 +644,27 @@ export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSe
         <main className="min-w-0 flex-1">
           <div className="min-h-[calc(100vh-3rem)] rounded-2xl bg-white shadow-[0_2px_40px_rgba(7,29,73,0.04)] overflow-hidden">
             
-            <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-[#F3F6FA]/90 px-4 py-2 backdrop-blur">
+            <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-background/90 px-4 py-2 backdrop-blur">
               <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex items-center gap-3">
                   <MyShuleMark size={36} />
                   <div>
-                    <h1 className="text-lg font-black text-[#071D49]">ICT Manager Dashboard</h1>
+                    <h1 className="text-lg font-black text-foreground">ICT Manager Dashboard</h1>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    <label className="flex min-h-10 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white px-3 text-[#64748B] shadow-sm focus-within:border-[#1D4ED8] focus-within:ring-1 focus-within:ring-[#1D4ED8]">
+                    <label className="flex min-h-10 items-center gap-3 rounded-xl border border-border bg-white px-3 text-muted shadow-sm focus-within:border-info focus-within:ring-1 focus-within:ring-focus">
                       <Search className="h-4 w-4" />
                       <input
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#94A3B8]"
+                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted"
                         placeholder="Search devices or tickets..."
                       />
                     </label>
                   </div>
-                  <Button className="bg-[#071D49] hover:bg-[#071D49]/90 text-white rounded-xl" onClick={() => { handleSetView("helpdesk"); setTicketModalOpen(true); }}>New IT Ticket</Button>
+                  <Button className="bg-primary hover:bg-primary/90 text-white rounded-xl" onClick={() => { handleSetView("helpdesk"); setTicketModalOpen(true); }}>New IT Ticket</Button>
                 </div>
               </div>
             </header>

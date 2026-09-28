@@ -127,7 +127,7 @@ export function OnboardingWorkspace() {
         }
       />
       {statusMessage ? (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+        <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">
           {statusMessage}
         </div>
       ) : null}

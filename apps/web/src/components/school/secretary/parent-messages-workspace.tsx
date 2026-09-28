@@ -83,55 +83,55 @@ export function ParentMessagesWorkspace() {
     <Panel title="Parent Messages" description="View and respond to messages from parents and guardians." icon={MessageSquare}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><Mail className="w-4 h-4" /> Total Messages</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_messages || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted"><Mail className="w-4 h-4" /> Total Messages</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.total_messages || 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Unread</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.unread || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Unread</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.unread || 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Replied</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.replied || 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Replied</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.replied || 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">High Priority</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.high_priority || 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">High Priority</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.high_priority || 0}</div>
         </div>
       </div>
 
       {/* Messages Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Priority</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Parent</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Subject</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Channel</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Received</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Priority</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Parent</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Subject</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Channel</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Received</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">Loading messages...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">Loading messages...</td></tr>
             ) : messages.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">No parent messages received. Messages from parents via SMS, email, or the portal will appear here.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">No parent messages received. Messages from parents via SMS, email, or the portal will appear here.</td></tr>
             ) : (
               messages.map((msg) => (
-                <tr key={msg.id} className={`hover:bg-[#F8FAFC] ${!msg.is_read ? "bg-blue-50/30" : ""}`}>
+                <tr key={msg.id} className={`hover:bg-surface-muted ${!msg.is_read ? "bg-info-soft/30" : ""}`}>
                   <td className="px-4 py-3"><StatusChip label={msg.priority} tone={getPriorityTone(msg.priority)} /></td>
-                  <td className="px-4 py-3 font-medium text-[#071D49]">{msg.parent_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{msg.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{msg.class}</td>
-                  <td className="px-4 py-3 text-[#64748B] max-w-[200px] truncate">{msg.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{msg.channel}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{msg.received_at}</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{msg.parent_name}</td>
+                  <td className="px-4 py-3 text-muted">{msg.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{msg.class}</td>
+                  <td className="px-4 py-3 text-muted max-w-[200px] truncate">{msg.subject}</td>
+                  <td className="px-4 py-3 text-muted">{msg.channel}</td>
+                  <td className="px-4 py-3 text-muted">{msg.received_at}</td>
                   <td className="px-4 py-3">
                     <StatusChip
                       label={msg.is_replied ? "Replied" : msg.is_read ? "Read" : "Unread"}
@@ -141,7 +141,7 @@ export function ParentMessagesWorkspace() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
                       {!msg.is_read && (
-                        <button disabled={actionId === msg.id} onClick={() => handleMarkRead(msg.id)} className="inline-flex items-center gap-1 rounded-lg border border-[#D8E0EC] bg-white px-3 py-1.5 text-xs font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+                        <button disabled={actionId === msg.id} onClick={() => handleMarkRead(msg.id)} className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
                           <Eye className="w-3 h-3" /> Read
                         </button>
                       )}

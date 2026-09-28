@@ -116,7 +116,7 @@ export function AcademicsWorkspace() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+        <div className="rounded-lg border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           Academic records could not be loaded: {error.message}
         </div>
       ) : null}
@@ -172,10 +172,10 @@ export function AcademicsWorkspace() {
                   <h4 className="font-medium text-slate-900">{assignment.title}</h4>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                     assignment.is_complete
-                      ? "bg-emerald-50 text-emerald-700"
+                      ? "bg-success-soft text-success"
                       : isPastDue(assignment.due_at)
-                        ? "bg-rose-50 text-rose-700"
-                        : "bg-amber-50 text-amber-700"
+                        ? "bg-danger-soft text-danger"
+                        : "bg-warning-soft text-warning"
                   }`}>
                     {assignment.is_complete ? "Completed" : isPastDue(assignment.due_at) ? "Overdue" : "Pending"}
                   </span>
@@ -268,7 +268,7 @@ export function AcademicsWorkspace() {
           ) : reportCards.map((report) => (
             <Card key={report.id} className="flex items-center justify-between gap-4 border border-slate-200 p-4">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="rounded-lg bg-rose-50 p-2 text-rose-600">
+                <div className="rounded-lg bg-danger-soft p-2 text-rose-600">
                   <FileText className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">

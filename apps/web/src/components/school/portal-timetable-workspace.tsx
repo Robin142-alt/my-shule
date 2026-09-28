@@ -124,7 +124,7 @@ export function PortalTimetableWorkspace() {
       </div>
 
       {timetableQuery.error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           The published timetable could not be loaded. No cached schedule is being shown. Check the connection and retry.
         </div>
       ) : null}
@@ -177,7 +177,7 @@ export function PortalTimetableWorkspace() {
                   <p className="mt-1 text-sm text-slate-600">{slot.teacher_name || slot.teacher || "Teacher not recorded"}</p>
                   {slot.class_name ? <p className="mt-1 text-xs text-slate-500">{slot.class_name}</p> : null}
                 </div>
-                <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+                <span className="shrink-0 rounded-full bg-info-soft px-2.5 py-1 text-xs font-bold text-info">
                   {hhmm(slot.starts_at)}–{hhmm(slot.ends_at)}
                 </span>
               </div>

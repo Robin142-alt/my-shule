@@ -180,17 +180,17 @@ export function DemoManagerWorkspace() {
           </div>
         }
       />
-      {resetStatus ? <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{resetStatus}</div> : null}
+      {resetStatus ? <div className="rounded border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{resetStatus}</div> : null}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-4"><div className="text-sm font-medium text-muted">Active Demo Schools</div><div className="mt-2 text-2xl font-bold">{schools.filter((school) => String(school.schoolName ?? "").toLowerCase().includes("demo")).length}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">Real Production Schools</div><div className="mt-2 text-2xl font-bold">{schools.length}</div></Card>
-        <Card className="p-4 border-red-500 bg-red-50/50"><div className="text-sm font-medium text-red-600">Demo Leakages Detected</div><div className="mt-2 text-2xl font-bold text-red-700">{currentScannerRows.reduce((total, row) => total + Number(row.leakedRecords ?? 0), 0)}</div></Card>
+        <Card className="p-4 border-red-500 bg-danger-soft/50"><div className="text-sm font-medium text-red-600">Demo Leakages Detected</div><div className="mt-2 text-2xl font-bold text-danger">{currentScannerRows.reduce((total, row) => total + Number(row.leakedRecords ?? 0), 0)}</div></Card>
       </div>
       <DataTable title="Demo Leakage Scanner" subtitle="Scan real tenants for traces of demo seeds." columns={scannerColumns} rows={currentScannerRows} getRowKey={(row) => row.id} emptyMessage={isLoading ? "Loading..." : "No schools found."} />
       
       <Modal open={isResetOpen} title="Reset Kisumu Boys Demo" onClose={() => setIsResetOpen(false)}>
         <form className="space-y-4" onSubmit={handleKisumuReset}>
-          <div className="p-3 bg-red-50 text-red-700 text-sm rounded border border-red-200">
+          <div className="p-3 bg-danger-soft text-danger text-sm rounded border border-danger-border">
             <strong>WARNING:</strong> This action will destroy all current data in the Kisumu Boys Demo tenant and re-run the pristine demo seed. This cannot be undone.
           </div>
           <label className="block space-y-1">
@@ -211,7 +211,7 @@ export function DemoManagerWorkspace() {
 
       <Modal open={isCreateOpen} title="Create Clean Demo Tenant" onClose={() => setIsCreateOpen(false)}>
         <form className="space-y-4" onSubmit={handleCreateDemoTenant}>
-          <div className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+          <div className="rounded border border-info-border bg-info-soft p-3 text-sm text-blue-900">
             This creates an isolated demo tenant shell only. It does not seed demo learners into production schools.
           </div>
           <label className="block space-y-1">

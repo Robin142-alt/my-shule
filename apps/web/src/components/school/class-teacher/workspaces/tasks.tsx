@@ -49,7 +49,7 @@ export function TasksWorkspace() {
   if (isLoading) {
     return (
       <Panel title="My Tasks" description="Your to-do list and reminders." icon={CheckSquare}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -57,7 +57,7 @@ export function TasksWorkspace() {
   if (error || !data) {
     return (
       <Panel title="My Tasks" description="Your to-do list and reminders." icon={CheckSquare}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load tasks.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load tasks.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -66,18 +66,18 @@ export function TasksWorkspace() {
   return (
     <Panel title="My Tasks" description="Your to-do list and reminders." icon={CheckSquare}>
       <div className="mb-4 flex justify-end">
-         <button type="button" className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white" onClick={() => setShowForm((current) => !current)}>{showForm ? "Cancel" : "Create Task"}</button>
+         <button type="button" className="rounded-lg bg-info px-4 py-2 text-sm font-black text-white" onClick={() => setShowForm((current) => !current)}>{showForm ? "Cancel" : "Create Task"}</button>
       </div>
       {showForm ? (
-        <div className="mb-4 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-[1fr_220px_auto]">
-          <label className="text-sm font-bold text-[#071D49]">Task<input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2" /></label>
-          <label className="text-sm font-bold text-[#071D49]">Due date<input type="date" value={draft.due_date} onChange={(event) => setDraft((current) => ({ ...current, due_date: event.target.value }))} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2" /></label>
-          <div className="flex items-end"><button type="button" onClick={createTask} disabled={submitting} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Saving..." : "Save Task"}</button></div>
+        <div className="mb-4 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-[1fr_220px_auto]">
+          <label className="text-sm font-bold text-foreground">Task<input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+          <label className="text-sm font-bold text-foreground">Due date<input type="date" value={draft.due_date} onChange={(event) => setDraft((current) => ({ ...current, due_date: event.target.value }))} className="mt-1 w-full rounded-lg border border-border px-3 py-2" /></label>
+          <div className="flex items-end"><button type="button" onClick={createTask} disabled={submitting} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">{submitting ? "Saving..." : "Save Task"}</button></div>
         </div>
       ) : null}
-      <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-left text-sm text-[#071D49]">
-          <thead className="bg-[#F8FAFC]">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="p-3 font-semibold">Task</th>
               <th className="p-3 font-semibold">Due Date</th>
@@ -85,14 +85,14 @@ export function TasksWorkspace() {
               <th className="p-3 font-semibold text-right">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {(Array.isArray(data) ? data : []).map((row: any) => (
               <tr key={row.id}>
                 <td className="p-3 font-bold">{row.task}</td>
                 <td className="p-3">{row.dueDate}</td>
                 <td className="p-3"><StatusChip label={row.status} tone={row.status === 'Pending' ? 'warning' : 'neutral'}/></td>
                 <td className="p-3 text-right">
-                  {String(row.status).toUpperCase() !== "COMPLETED" ? <button type="button" disabled={completingId === row.id} className="rounded bg-[#EEF5FF] px-2 py-1 text-xs font-bold text-[#1D4ED8] disabled:opacity-50" onClick={() => completeTask(String(row.id))}>{completingId === row.id ? "Saving..." : "Complete"}</button> : <span className="text-xs font-bold text-emerald-700">Done</span>}
+                  {String(row.status).toUpperCase() !== "COMPLETED" ? <button type="button" disabled={completingId === row.id} className="rounded bg-info-soft px-2 py-1 text-xs font-bold text-info disabled:opacity-50" onClick={() => completeTask(String(row.id))}>{completingId === row.id ? "Saving..." : "Complete"}</button> : <span className="text-xs font-bold text-success">Done</span>}
                 </td>
               </tr>
             ))}

@@ -78,53 +78,53 @@ export function AppointmentsWorkspace() {
     <Panel title="Appointments" description="Schedule and manage visitor appointments with school staff." icon={CalendarDays}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><CalendarDays className="w-4 h-4" /> Today</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.today || 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-info"><CalendarDays className="w-4 h-4" /> Today</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : metrics?.today || 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-700"><Clock className="w-4 h-4" /> Upcoming</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.upcoming || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-warning"><Clock className="w-4 h-4" /> Upcoming</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.upcoming || 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Confirmed</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.confirmed || 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Confirmed</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.confirmed || 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Cancelled</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.cancelled || 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Cancelled</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.cancelled || 0}</div>
         </div>
       </div>
 
       {/* Appointments Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Visitor</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Phone</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Purpose</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Person to See</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Visitor</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Phone</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Purpose</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Person to See</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading appointments...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading appointments...</td></tr>
             ) : appointments.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No appointments scheduled. Schedule a new appointment when a visitor requests to meet with school staff.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No appointments scheduled. Schedule a new appointment when a visitor requests to meet with school staff.</td></tr>
             ) : (
               appointments.map((appt) => (
-                <tr key={appt.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-medium text-[#071D49]">{appt.visitor_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{appt.phone}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{appt.purpose}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{appt.person_to_see}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{appt.date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{appt.time_slot}</td>
+                <tr key={appt.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-medium text-foreground">{appt.visitor_name}</td>
+                  <td className="px-4 py-3 text-muted">{appt.phone}</td>
+                  <td className="px-4 py-3 text-muted">{appt.purpose}</td>
+                  <td className="px-4 py-3 text-muted">{appt.person_to_see}</td>
+                  <td className="px-4 py-3 text-muted">{appt.date}</td>
+                  <td className="px-4 py-3 text-muted">{appt.time_slot}</td>
                   <td className="px-4 py-3"><StatusChip label={appt.status} tone={getStatusTone(appt.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -133,13 +133,13 @@ export function AppointmentsWorkspace() {
                           <button disabled={actionId === appt.id} onClick={() => handleConfirm(appt.id)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
                             <CheckCircle className="w-3 h-3" /> Confirm
                           </button>
-                          <button disabled={actionId === appt.id} onClick={() => handleCancel(appt.id)} className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                          <button disabled={actionId === appt.id} onClick={() => handleCancel(appt.id)} className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-soft disabled:opacity-50">
                             <XCircle className="w-3 h-3" /> Cancel
                           </button>
                         </>
                       )}
                       {appt.status === "Confirmed" && (
-                        <button disabled={actionId === appt.id} onClick={() => handleCancel(appt.id)} className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                        <button disabled={actionId === appt.id} onClick={() => handleCancel(appt.id)} className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-bold text-danger hover:bg-danger-soft disabled:opacity-50">
                           <XCircle className="w-3 h-3" /> Cancel
                         </button>
                       )}

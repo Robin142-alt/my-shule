@@ -262,10 +262,10 @@ export function AccountantCommandCenter({
     <div
       data-route-mode={routeMode}
       data-testid="accountant-command-center"
-      className="authenticated-app app-padded min-h-dvh bg-[#F3F6FA] p-3 md:p-5"
+      className="authenticated-app app-padded min-h-dvh bg-background p-3 md:p-5"
     >
       <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <SchoolCommandSidebarIdentity
             eyebrow="Finance command"
             title={roleLabel}
@@ -318,7 +318,7 @@ export function AccountantCommandCenter({
                 <button
                   type="button"
                   onClick={() => navigateTo("payments")}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#071D49] px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
                 >
                   <Banknote className="h-4 w-4" aria-hidden={true} />
                   Record payment
@@ -326,7 +326,7 @@ export function AccountantCommandCenter({
                 <button
                   type="button"
                   onClick={() => navigateTo("m-pesa-reconciliation")}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49] hover:bg-[#F8FAFC]"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-strong bg-white px-4 text-sm font-black text-foreground hover:bg-surface-muted"
                 >
                   <Smartphone className="h-4 w-4" aria-hidden={true} />
                   Reconcile M-Pesa
@@ -345,7 +345,7 @@ export function AccountantCommandCenter({
             />
           </div>
 
-          <section className="app-dark-workspace app-finance-canvas rounded-2xl bg-[#071D49] p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
+          <section className="app-dark-workspace app-finance-canvas rounded-2xl bg-primary p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
             <div className="app-workspace-heading mb-5">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
                 Live school finance

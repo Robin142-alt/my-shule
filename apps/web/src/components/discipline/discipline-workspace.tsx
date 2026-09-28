@@ -816,7 +816,7 @@ export function DisciplineWorkspace({
                         ? `Learner context: ${incidentLearnerContext.learner_label} (${incidentLearnerContext.admission_number}) - ${incidentLearnerContext.class_label ?? "Class pending"} - ${incidentLearnerContext.academic_year_label ?? "Academic year pending"}`
                         : "Search learner by name or admission number to load their active class and term context."}
                     {!incidentAcademicContextReady && selectedIncidentLearner ? (
-                      <span className="mt-2 block text-amber-700">
+                      <span className="mt-2 block text-warning">
                         Select the learner&apos;s active class and term before creating this case. Discipline records cannot be saved against unknown academic context.
                       </span>
                     ) : null}

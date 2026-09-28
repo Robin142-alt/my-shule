@@ -751,30 +751,30 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   return (
     <section className="space-y-5" aria-label={`${copy.title} workspace`}>
       {/* Header */}
-      <div className="rounded-2xl border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_14px_40px_rgba(7,29,73,0.09)]">
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1D4ED8]">{copy.eyebrow}</p>
+      <div className="rounded-2xl border border-border-strong bg-white p-5 text-foreground shadow-[0_14px_40px_rgba(7,29,73,0.09)]">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-info">{copy.eyebrow}</p>
         <div className="mt-2 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h2 className="text-2xl font-black">{copy.title}</h2>
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#64748B]">{copy.summary}</p>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">{copy.summary}</p>
           </div>
           <StatusPill label={`${scopeBreadcrumbLabel(scope, identity.schoolName)} - ${scope.type} scoped`} tone="ok" />
         </div>
       </div>
 
       {/* Scope breadcrumb navigation */}
-      <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold text-[#071D49]" aria-label="Report card scope">
+      <nav className="flex flex-wrap items-center gap-1 text-sm font-semibold text-foreground" aria-label="Report card scope">
         <button
-          className={`rounded px-2 py-1 hover:bg-[#EEF2F7] ${scope.type === "school" ? "font-black text-[#1D4ED8]" : ""}`}
+          className={`rounded px-2 py-1 hover:bg-surface-strong ${scope.type === "school" ? "font-black text-info" : ""}`}
           onClick={() => navigateUp("school")}
         >
           {identity.schoolName}
         </button>
         {scope.type !== "school" && scope.classLabel ? (
           <>
-            <ChevronRight className="h-4 w-4 text-[#94A3B8]" />
+            <ChevronRight className="h-4 w-4 text-muted" />
             <button
-              className={`rounded px-2 py-1 hover:bg-[#EEF2F7] ${scope.type === "class" ? "font-black text-[#1D4ED8]" : ""}`}
+              className={`rounded px-2 py-1 hover:bg-surface-strong ${scope.type === "class" ? "font-black text-info" : ""}`}
               onClick={() => navigateUp("class")}
             >
               {scope.classLabel}
@@ -783,8 +783,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
         ) : null}
         {scope.streamLabel ? (
           <>
-            <ChevronRight className="h-4 w-4 text-[#94A3B8]" />
-            <button className="font-black text-[#1D4ED8]" onClick={() => navigateUp("stream")}>{scope.streamLabel}</button>
+            <ChevronRight className="h-4 w-4 text-muted" />
+            <button className="font-black text-info" onClick={() => navigateUp("stream")}>{scope.streamLabel}</button>
           </>
         ) : null}
         {scope.studentLabel ? <><ChevronRight className="h-4 w-4" /><span>{scope.studentLabel}</span></> : null}
@@ -792,8 +792,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
       {/* Exam series filter */}
       {scope.type === "school" && examSeriesOptions.length > 0 ? (
-        <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4">
-          <label className="text-sm font-black text-[#071D49]">
+        <div className="rounded-2xl border border-border-strong bg-white p-4">
+          <label className="text-sm font-black text-foreground">
             Filter by exam
             <select
               value={examSeriesFilter}
@@ -804,7 +804,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 setSelectedIds(new Set());
                 setBulkResult(null);
               }}
-              className="ml-3 h-10 rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8]"
+              className="ml-3 h-10 rounded-lg border border-border-strong bg-white px-3 text-sm font-semibold outline-none focus:border-info"
             >
               <option value="">All exams</option>
               {examSeriesOptions.map((opt) => (
@@ -820,8 +820,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
         <div
           className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
             feedback.tone === "ok"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-red-200 bg-red-50 text-red-800"
+              ? "border-success-border bg-success-soft text-success"
+              : "border-danger-border bg-danger-soft text-danger"
           }`}
           role="status"
         >
@@ -837,20 +837,20 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               ["Failed", batchStatus.failed_students ?? 0],
               ["Not yet processed", Math.max(0, batchStatus.total_students - batchStatus.completed_students - (batchStatus.failed_students ?? 0))],
             ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-                <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
+              <div key={String(label)} className="rounded-lg border border-border bg-surface-muted px-4 py-3">
+                <p className="text-xs font-bold uppercase text-muted">{label}</p>
                 <p className="mt-1 text-xl font-black">{value}</p>
               </div>
             ))}
           </div>
-          <p className="break-all text-xs text-[#64748B]" role="status" aria-live="polite">
+          <p className="break-all text-xs text-muted" role="status" aria-live="polite">
             {batchStatus.queue_status === "running" ? "Generating report cards… " : ""}
             {batchStatus.id ? `Batch reference: ${batchStatus.id}. ` : ""}
             {batchStatus.reused_students ? `${batchStatus.reused_students} unchanged cards reused. ` : ""}
             {batchStatus.duration_ms ? `Processing time: ${(batchStatus.duration_ms / 1000).toFixed(1)} seconds.` : ""}
           </p>
           {batchStatus.failures?.length ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+            <div className="rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
               <p className="font-black">Generation issues</p>
               <ul className="mt-1 list-disc space-y-1 pl-5">
                 {batchStatus.failures.map((failure) => (
@@ -863,7 +863,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           ) : null}
         </div>
       ) : null}
-      {recentJobs.error ? <p role="alert" className="text-sm text-rose-700">Report task history could not be loaded. <button onClick={()=>void recentJobs.refetch()}>Retry</button></p> : null}
+      {recentJobs.error ? <p role="alert" className="text-sm text-danger">Report task history could not be loaded. <button onClick={()=>void recentJobs.refetch()}>Retry</button></p> : null}
       {recentJobs.data?.length ? <details className="rounded-xl border border-slate-200 bg-white p-3">
         <summary className="cursor-pointer text-sm font-semibold">Recent report tasks</summary>
         <p className="mt-2 text-xs text-slate-600">Tasks continue when you leave this page. Exports remain available for 24 hours.</p>
@@ -883,44 +883,44 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
       {/* Bulk result summary */}
       {bulkResult ? (
-        <div className="rounded-xl border border-[#C8D5EA] bg-white p-4 text-sm">
-          <p className="font-black text-[#071D49]">Bulk {bulkResult.action} result</p>
+        <div className="rounded-xl border border-border-strong bg-white p-4 text-sm">
+          <p className="font-black text-foreground">Bulk {bulkResult.action} result</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-              <p className="text-xs font-bold uppercase text-[#64748B]">Total in scope</p>
+            <div className="rounded-lg border border-border bg-surface-muted px-4 py-3">
+              <p className="text-xs font-bold uppercase text-muted">Total in scope</p>
               <p className="mt-1 text-xl font-black">{bulkResult.total_in_scope}</p>
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="text-xs font-bold uppercase text-emerald-700">Transitioned</p>
-              <p className="mt-1 text-xl font-black text-emerald-800">{bulkResult.transitioned}</p>
+            <div className="rounded-lg border border-success-border bg-success-soft px-4 py-3">
+              <p className="text-xs font-bold uppercase text-success">Transitioned</p>
+              <p className="mt-1 text-xl font-black text-success">{bulkResult.transitioned}</p>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-              <p className="text-xs font-bold uppercase text-amber-700">Skipped</p>
-              <p className="mt-1 text-xl font-black text-amber-800">{bulkResult.skipped}</p>
+            <div className="rounded-lg border border-warning-border bg-warning-soft px-4 py-3">
+              <p className="text-xs font-bold uppercase text-warning">Skipped</p>
+              <p className="mt-1 text-xl font-black text-warning">{bulkResult.skipped}</p>
             </div>
           </div>
-          {bulkResult.failed > 0 ? <p className="mt-3 font-bold text-red-700">{bulkResult.failed} failed; retry after reviewing the reasons.</p> : null}
+          {bulkResult.failed > 0 ? <p className="mt-3 font-bold text-danger">{bulkResult.failed} failed; retry after reviewing the reasons.</p> : null}
           {[...(bulkResult.skipped_cards ?? []), ...(bulkResult.failed_cards ?? [])].length ? <details className="mt-3">
             <summary>Skipped and failed learners</summary><ul className="mt-2 max-h-48 overflow-auto">
               {[...(bulkResult.skipped_cards ?? []), ...(bulkResult.failed_cards ?? [])].map(card => <li key={card.id}>{card.student_name}: {card.reason}</li>)}
             </ul></details> : null}
           {bulkResult.cards.length > 0 ? (
             <details className="mt-3">
-              <summary className="cursor-pointer font-semibold text-[#1D4ED8]">
+              <summary className="cursor-pointer font-semibold text-info">
                 View {bulkResult.cards.length} transitioned cards
               </summary>
               <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto pl-4 text-xs">
                 {bulkResult.cards.map((card) => (
                   <li key={card.id}>
                     <span className="font-semibold">{card.student_name}</span>
-                    <span className="text-[#64748B]"> {statusLabel(card.previous_status)} → {statusLabel(card.new_status)}</span>
+                    <span className="text-muted"> {statusLabel(card.previous_status)} → {statusLabel(card.new_status)}</span>
                   </li>
                 ))}
               </ul>
             </details>
           ) : null}
           <button
-            className="mt-3 text-xs font-semibold text-[#64748B] underline"
+            className="mt-3 text-xs font-semibold text-muted underline"
             onClick={() => setBulkResult(null)}
           >
             Dismiss
@@ -929,7 +929,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       ) : null}
 
       {queryError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           <p>{queryError.message}</p>
           <Button
             variant="secondary"
@@ -948,23 +948,23 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
       {/* Class/stream hierarchy navigation */}
       {scope.type === "school" && hierarchy.length > 0 ? (
-        <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4 text-[#071D49]">
+        <div className="rounded-2xl border border-border-strong bg-white p-4 text-foreground">
           <p className="text-sm font-black">Drill down by class</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {hierarchy.map((node) => (
               <button
                 key={node.class_section_id}
-                className="flex items-center justify-between rounded-lg border border-[#D8E0EC] px-4 py-3 text-left hover:border-[#1D4ED8] hover:bg-[#F8FAFC]"
+                className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-left hover:border-info hover:bg-surface-muted"
                 onClick={() => drillToClass(node)}
               >
                 <div>
                   <p className="font-black">{node.class_name}</p>
-                  <p className="mt-1 text-xs text-[#64748B]">
+                  <p className="mt-1 text-xs text-muted">
                     {node.card_count} cards
                     {node.streams.length > 0 ? ` · ${node.streams.length} streams` : ""}
                   </p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-[#94A3B8]" />
+                <ChevronRight className="h-4 w-4 text-muted" />
               </button>
             ))}
           </div>
@@ -975,20 +975,20 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
         const classNode = hierarchy.find((n) => n.class_section_id === scope.classSectionId);
         if (!classNode?.streams.length) return null;
         return (
-          <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4 text-[#071D49]">
+          <div className="rounded-2xl border border-border-strong bg-white p-4 text-foreground">
             <p className="text-sm font-black">Drill down by stream</p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {classNode.streams.map((stream) => (
                 <button
                   key={stream.stream_id}
-                  className="flex items-center justify-between rounded-lg border border-[#D8E0EC] px-4 py-3 text-left hover:border-[#1D4ED8] hover:bg-[#F8FAFC]"
+                  className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-left hover:border-info hover:bg-surface-muted"
                   onClick={() => drillToStream(classNode, stream)}
                 >
                   <div>
                     <p className="font-black">{stream.stream_name}</p>
-                    <p className="mt-1 text-xs text-[#64748B]">{stream.card_count} cards</p>
+                    <p className="mt-1 text-xs text-muted">{stream.card_count} cards</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-[#94A3B8]" />
+                  <ChevronRight className="h-4 w-4 text-muted" />
                 </button>
               ))}
             </div>
@@ -998,7 +998,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
       {/* Generation panel (exams-manager only) */}
       {audience === "exams-manager" ? (
-        <div className="rounded-2xl border border-[#C8D5EA] bg-white p-5 text-[#071D49]">
+        <div className="rounded-2xl border border-border-strong bg-white p-5 text-foreground">
           {scope.type !== "students" ? (
             <>
               <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -1015,7 +1015,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                       setFeedback(null);
                       setBatchStatus(null);
                     }}
-                    className="mt-2 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8] xl:max-w-xl"
+                    className="mt-2 h-11 w-full rounded-lg border border-border-strong bg-white px-3 text-sm font-semibold outline-none focus:border-info xl:max-w-xl"
                   >
                     <option value="">Select class generation scope</option>
                     {visibleGenerationScopes.map((s) => (
@@ -1026,12 +1026,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   </select>
                   {generationQuery.isLoading ? <p className="mt-2 text-sm">Checking exam readiness...</p> : null}
                   {!generationQuery.isLoading && !generationQuery.error && generationScopes.length === 0 ? (
-                    <p className="mt-2 text-sm font-semibold text-amber-700">
+                    <p className="mt-2 text-sm font-semibold text-warning">
                       No mark sheets are available. Create the exam, assign subjects, enter marks, and lock the mark sheets first.
                     </p>
                   ) : null}
                   {!generationQuery.isLoading && generationScopes.length > 0 && !generationScopes.some((s) => s.ready) ? (
-                    <p className="mt-2 text-sm font-semibold text-amber-700">
+                    <p className="mt-2 text-sm font-semibold text-warning">
                       Select an exam to see its outstanding subjects. Teachers submit marks, then the Dean reviews and locks them before report cards can be generated.
                     </p>
                   ) : null}
@@ -1055,7 +1055,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   </p>
                   {selectedScope.expected_mark_count === 0 ? <p className="text-sm">Check this class’s learner enrollments and subject assignments, then refresh readiness.</p> : null}
                   {selectedScope.blockers.length > 0 ? (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                    <div className="rounded-lg border border-warning-border bg-warning-soft p-4 text-sm text-amber-950">
                       <p className="font-bold">Complete these subjects before generating this class:</p>
                       <ul className="mt-2 space-y-2">
                         {selectedScope.blockers.map((subject) => (
@@ -1073,15 +1073,15 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                       <Link className="mt-3 inline-flex min-h-11 items-center font-bold underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
                     </div>
                   ) : selectedScope.expected_mark_count === 0 ? (
-                    <p className="text-sm text-amber-800">Check this class&apos;s learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
+                    <p className="text-sm text-warning">Check this class&apos;s learner enrollments and exam subjects in Academic Setup and Exam Setup before generating report cards.</p>
                   ) : null}
                 </div>
               ) : null}
             </>
           ) : null}
-          <section aria-label="Regenerate report cards" className="mt-5 border-t border-[#C8D5EA] pt-4">
+          <section aria-label="Regenerate report cards" className="mt-5 border-t border-border-strong pt-4">
             <h3 className="text-lg font-black">Regenerate all report cards</h3>
-            <p className="mt-2 text-sm text-[#64748B]">
+            <p className="mt-2 text-sm text-muted">
               Refresh existing drafts for {examSeriesOptions.find(exam => exam.id === examSeriesFilter)?.name ?? "a selected exam"}
               {scope.classLabel ? ` / ${scope.classLabel}` : " across all classes"}{scope.streamLabel ? ` / ${scope.streamLabel}` : ""}{scope.studentLabel ? ` / ${scope.studentLabel}` : ""}.
               This includes all pages. Unchanged cards are reused; reports under review, approved or published must follow the recall or withdrawal workflow first.
@@ -1090,7 +1090,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               onClick={() => void requestBulkAction("regenerate", "Regenerate all")}>
               <RefreshCw className="h-4 w-4" />Regenerate all
             </Button>
-            {!examSeriesFilter ? <p className="mt-2 text-sm text-amber-800">Select one exam above to regenerate its report cards.</p> : null}
+            {!examSeriesFilter ? <p className="mt-2 text-sm text-warning">Select one exam above to regenerate its report cards.</p> : null}
           </section>
         </div>
       ) : null}
@@ -1104,28 +1104,28 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           ["Published", counts.published],
           ["Eligible", counts.eligible],
         ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-[#071D49]">
-            <p className="text-xs font-black uppercase tracking-[0.08em] text-[#64748B]">{label}</p>
+          <div key={String(label)} className="rounded-xl border border-border bg-white p-4 text-foreground">
+            <p className="text-xs font-black uppercase tracking-[0.08em] text-muted">{label}</p>
             <p className="mt-2 text-2xl font-black">{value}</p>
           </div>
         ))}
       </div>
 
       {/* Scope summary and action bar */}
-      <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4 text-[#071D49]">
+      <div className="rounded-2xl border border-border-strong bg-white p-4 text-foreground">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span className="font-black">{counts.total} report cards</span>
           {primaryAction ? (
-            <span className="text-emerald-700 font-semibold">{counts.eligible} eligible for {primaryAction}</span>
+            <span className="text-success font-semibold">{counts.eligible} eligible for {primaryAction}</span>
           ) : null}
           {counts.total > 0 && counts.eligible < counts.total ? (
-            <span className="text-[#64748B] font-semibold">{counts.total - counts.eligible} not eligible</span>
+            <span className="text-muted font-semibold">{counts.total - counts.eligible} not eligible</span>
           ) : null}
         </div>
 
         {selectedIds.size > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-[#1D4ED8]/20 bg-[#EEF2F7] px-3 py-2">
-            <span className="text-sm font-black text-[#1D4ED8]">{selectedIds.size} selected</span>
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-info/20 bg-surface-strong px-3 py-2">
+            <span className="text-sm font-black text-info">{selectedIds.size} selected</span>
             {primaryAction ? (
               <Button
                 size="sm"
@@ -1144,7 +1144,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               <Download className="h-4 w-4" />
               {busyAction === "bulk:download" ? "Downloading..." : "Download Selected"}
             </Button>
-            <button className="ml-auto text-xs font-semibold text-[#64748B] underline" onClick={() => setSelectedIds(new Set())}>
+            <button className="ml-auto text-xs font-semibold text-muted underline" onClick={() => setSelectedIds(new Set())}>
               Clear selection
             </button>
           </div>
@@ -1191,7 +1191,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               onChange={(e) => setBulkReason(e.target.value)}
               aria-label="Reason for recall or withdrawal"
               placeholder="Reason (for recall/unpublish)"
-              className="h-9 max-w-xs rounded-lg border border-[#C8D5EA] px-3 text-xs outline-none focus:border-[#1D4ED8]"
+              className="h-9 max-w-xs rounded-lg border border-border-strong px-3 text-xs outline-none focus:border-info"
             />
           ) : null}
           <Button
@@ -1208,15 +1208,15 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
 
       {/* Confirmation dialog */}
       {confirmAction ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#071D49]/60 backdrop-blur-sm" onClick={() => setConfirmAction(null)}>
-          <div role="dialog" aria-modal="true" aria-label={confirmAction.label} className="mx-4 max-h-[90vh] overflow-y-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-[#071D49]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-primary/60 backdrop-blur-sm" onClick={() => setConfirmAction(null)}>
+          <div role="dialog" aria-modal="true" aria-label={confirmAction.label} className="mx-4 max-h-[90vh] overflow-y-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-foreground" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-black">{confirmAction.label}?</h3>
             {new URLSearchParams(confirmAction.params).get("exam_series_id") ? <p className="mt-2 text-sm font-semibold">
               Exam: {examSeriesOptions.find(exam => exam.id === new URLSearchParams(confirmAction.params).get("exam_series_id"))?.name ?? "Selected exam"}
             </p> : null}
             <div className="mt-4 space-y-2 text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-[#64748B]">Scope:</span>
+                <span className="font-semibold text-muted">Scope:</span>
                 <span className="font-black">
                   {identity.schoolName}
                   {scope.classLabel ? ` / ${scope.classLabel}` : ""}
@@ -1225,17 +1225,17 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-3 mt-3">
-                <div className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] px-3 py-2 text-center">
-                  <p className="text-xs font-bold text-[#64748B]">Total</p>
+                <div className="rounded-lg border border-border bg-surface-muted px-3 py-2 text-center">
+                  <p className="text-xs font-bold text-muted">Total</p>
                   <p className="text-xl font-black">{confirmAction.summary.total_cards}</p>
                 </div>
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
-                  <p className="text-xs font-bold text-emerald-700">Eligible</p>
-                  <p className="text-xl font-black text-emerald-800">{confirmAction.summary.eligible_cards}</p>
+                <div className="rounded-lg border border-success-border bg-success-soft px-3 py-2 text-center">
+                  <p className="text-xs font-bold text-success">Eligible</p>
+                  <p className="text-xl font-black text-success">{confirmAction.summary.eligible_cards}</p>
                 </div>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center">
-                  <p className="text-xs font-bold text-amber-700">Not eligible</p>
-                  <p className="text-xl font-black text-amber-800">{confirmAction.summary.ineligible_cards}</p>
+                <div className="rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-center">
+                  <p className="text-xs font-bold text-warning">Not eligible</p>
+                  <p className="text-xl font-black text-warning">{confirmAction.summary.ineligible_cards}</p>
                 </div>
               </div>
             </div>
@@ -1244,8 +1244,8 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             {confirmAction.action === "regenerate" ? <label className="mt-4 block text-sm font-semibold">
               Regeneration reason
               <textarea value={regenerationReason} onChange={event => setRegenerationReason(event.target.value)} maxLength={1000}
-                className="mt-2 block w-full rounded-lg border border-[#C8D5EA] p-3" placeholder="What needs updating on these report cards?" />
-              <span className="mt-2 block text-xs text-[#64748B]">The task continues if you leave this page. Follow its progress in Recent report tasks.</span>
+                className="mt-2 block w-full rounded-lg border border-border-strong p-3" placeholder="What needs updating on these report cards?" />
+              <span className="mt-2 block text-xs text-muted">The task continues if you leave this page. Follow its progress in Recent report tasks.</span>
             </label> : null}
             <div className="mt-5 flex items-center gap-3">
               <Button variant="secondary" onClick={() => setConfirmAction(null)}>Cancel</Button>
@@ -1259,16 +1259,16 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       ) : null}
 
       {/* Search and filter */}
-      <div className="rounded-2xl border border-[#C8D5EA] bg-white p-4 text-[#071D49]">
+      <div className="rounded-2xl border border-border-strong bg-white p-4 text-foreground">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
           <label className="relative">
             <span className="sr-only">Search report cards</span>
-            <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-[#64748B]" />
+            <Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-muted" />
             <input
               value={search}
               onChange={(event) => { setSearch(event.target.value); setPage(0); }}
               placeholder="Search learner, admission number, exam, or verification code"
-              className="h-11 w-full rounded-lg border border-[#C8D5EA] pl-10 pr-3 text-sm outline-none focus:border-[#1D4ED8]"
+              className="h-11 w-full rounded-lg border border-border-strong pl-10 pr-3 text-sm outline-none focus:border-info"
             />
           </label>
           <label>
@@ -1276,7 +1276,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <select
               value={statusFilter}
               onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }}
-              className="h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-sm font-semibold outline-none focus:border-[#1D4ED8]"
+              className="h-11 w-full rounded-lg border border-border-strong bg-white px-3 text-sm font-semibold outline-none focus:border-info"
             >
               <option value="all">All statuses</option>
               {statuses.map((status) => (
@@ -1286,16 +1286,16 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           </label>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
-            <thead className="bg-[#F1F5F9] text-xs uppercase tracking-[0.06em] text-[#475569]">
+            <thead className="bg-surface-strong text-xs uppercase tracking-[0.06em] text-muted-strong">
               <tr>
                 <th className="w-10 px-3 py-3">
                   <input
                     type="checkbox"
                     checked={allFilteredSelected}
                     onChange={toggleSelectAll}
-                    className="h-4 w-4 rounded border-[#C8D5EA]"
+                    className="h-4 w-4 rounded border-border-strong"
                     aria-label="Select all visible report cards"
                   />
                 </th>
@@ -1310,21 +1310,21 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center font-semibold text-[#64748B]">
+                  <td colSpan={7} className="px-4 py-10 text-center font-semibold text-muted">
                     Loading report cards for {scopeBreadcrumbLabel(scope, identity.schoolName)}...
                   </td>
                 </tr>
               ) : filteredReports.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center">
-                    <p className="font-black text-[#071D49]">No report cards match this view.</p>
-                    <p className="mt-1 text-sm font-semibold text-[#64748B]">
+                    <p className="font-black text-foreground">No report cards match this view.</p>
+                    <p className="mt-1 text-sm font-semibold text-muted">
                       {search || statusFilter !== "all" || page > 0 ? "Clear the filters to see other report cards in this scope." : copy.empty}
                     </p>
                     {search || statusFilter !== "all" || page > 0 ? (
                       <Button variant="secondary" className="mt-3" onClick={() => { setSearch(""); setStatusFilter("all"); setPage(0); setSelectedIds(new Set()); }}>Clear filters</Button>
                     ) : audience === "exams-manager" && visibleGenerationScopes.length === 0 ? (
-                      <Link className="mt-3 inline-flex min-h-11 items-center font-bold text-[#1D4ED8] underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
+                      <Link className="mt-3 inline-flex min-h-11 items-center font-bold text-info underline" href="/school/exams-manager/marks-entry">Open Marks Entry Hub</Link>
                     ) : null}
                   </td>
                 </tr>
@@ -1336,43 +1336,43 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                   || (audience === "dean" && status === "under_review")
                   || (audience === "principal" && status === "published");
                 return (
-                  <tr key={report.id} className="border-t border-[#E2E8F0] align-top">
+                  <tr key={report.id} className="border-t border-border align-top">
                     <td className="px-3 py-4">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(report.id)}
                         onChange={() => toggleSelect(report.id)}
-                        className="h-4 w-4 rounded border-[#C8D5EA]"
+                        className="h-4 w-4 rounded border-border-strong"
                         aria-label={`Select ${report.student_name}`}
                       />
                     </td>
                     <td className="px-4 py-4">
-                      <button className="font-black text-left text-[#1D4ED8] hover:underline" disabled={Boolean(busyAction)} onClick={() => navigateScope({
+                      <button className="font-black text-left text-info hover:underline" disabled={Boolean(busyAction)} onClick={() => navigateScope({
                         type: "students", studentId: report.student_id, studentLabel: report.student_name ?? "Learner",
                         examSeriesId: report.exam_series_id ?? undefined, classSectionId: report.student_class_section_id ?? scope.classSectionId,
                         classLabel: report.class_name ?? scope.classLabel, streamId: report.student_stream_id ?? scope.streamId,
                         streamLabel: report.stream_name ?? scope.streamLabel,
                       })}>{report.student_name?.trim() || "Learner name unavailable"}</button>
-                      <p className="mt-1 text-xs font-semibold text-[#64748B]">
+                      <p className="mt-1 text-xs font-semibold text-muted">
                         {report.admission_number?.trim() || "Admission number unavailable"}
                       </p>
                     </td>
                     <td className="px-4 py-4">
                       <p className="font-semibold">{report.exam_series_name?.trim() || "Exam series unavailable"}</p>
-                      <p className="mt-1 text-xs text-[#64748B]">
+                      <p className="mt-1 text-xs text-muted">
                         {[report.term, report.academic_year].filter(Boolean).join(" - ") || "Academic period unavailable"}
                       </p>
                     </td>
                     <td className="px-4 py-4 font-semibold">
                       v{report.revision_number ?? 1}
-                      <p className="mt-1 text-xs font-normal text-[#64748B]">
+                      <p className="mt-1 text-xs font-normal text-muted">
                         {report.verification_code || "Verification pending"}
                       </p>
                     </td>
                     <td className="px-4 py-4">
                       <StatusPill label={statusLabel(report.status)} tone={statusTone(report.status)} />
                     </td>
-                    <td className="px-4 py-4 text-xs font-semibold text-[#64748B]">
+                    <td className="px-4 py-4 text-xs font-semibold text-muted">
                       {displayDate(report.updated_at ?? report.created_at)}
                     </td>
                     <td className="px-4 py-4">
@@ -1484,13 +1484,13 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                             [report.id]: event.target.value,
                           }))}
                           placeholder={audience === "principal" ? "Required withdrawal reason" : "Required correction reason"}
-                          className="mt-2 min-h-16 w-full max-w-[360px] rounded-lg border border-[#C8D5EA] px-3 py-2 text-xs outline-none focus:border-[#1D4ED8]"
+                          className="mt-2 min-h-16 w-full max-w-[360px] rounded-lg border border-border-strong px-3 py-2 text-xs outline-none focus:border-info"
                           disabled={reportBusy}
                         />
                       ) : null}
                       {rowFeedback[report.id] ? (
                         <p
-                          className={`mt-2 max-w-[360px] text-xs font-semibold ${rowFeedback[report.id]?.tone === "critical" ? "text-red-700" : "text-emerald-700"}`}
+                          className={`mt-2 max-w-[360px] text-xs font-semibold ${rowFeedback[report.id]?.tone === "critical" ? "text-danger" : "text-success"}`}
                           role="status"
                           aria-live="polite"
                         >
@@ -1514,12 +1514,12 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       </div>
       {/* Preview modal */}
       {selectedReport && selectedDocument ? (
-        <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#071D49]/80 p-3 backdrop-blur-sm md:p-6">
-          <div className="mx-auto max-w-5xl rounded-2xl bg-[#EEF2F7] p-3 shadow-2xl md:p-5">
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-primary/80 p-3 backdrop-blur-sm md:p-6">
+          <div className="mx-auto max-w-5xl rounded-2xl bg-surface-strong p-3 shadow-2xl md:p-5">
             <div className="mb-3 flex items-center justify-between gap-3 print:hidden">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#1D4ED8]">Persisted snapshot preview</p>
-                <p className="mt-1 font-black text-[#071D49]">{selectedDocument.learner.fullName}</p>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-info">Persisted snapshot preview</p>
+                <p className="mt-1 font-black text-foreground">{selectedDocument.learner.fullName}</p>
               </div>
               <Button variant="secondary" size="icon" onClick={() => setSelectedReportId(null)} title="Close preview">
                 <X className="h-5 w-5" />
@@ -1527,7 +1527,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             </div>
             <ReportCardVerificationStrip report={selectedDocument} />
             {selectedReport.artifact_ineligible_reason ? (
-              <p role="status" className="my-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+              <p role="status" className="my-3 rounded-lg border border-amber-300 bg-warning-soft p-3 text-sm text-amber-950">
                 Saved snapshot requires attention: {selectedReport.artifact_ineligible_reason}. Official PDF delivery remains subject to current validation.
               </p>
             ) : null}
@@ -1535,28 +1535,28 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               && ["draft_requested", "draft_generated", "draft", "regeneration_required"].includes(
                 selectedReport.status,
               ) ? (
-              <div className="my-3 grid gap-3 rounded-xl border border-[#C8D5EA] bg-white p-4 print:hidden md:grid-cols-2">
-                <label className="text-sm font-black text-[#071D49]">
+              <div className="my-3 grid gap-3 rounded-xl border border-border-strong bg-white p-4 print:hidden md:grid-cols-2">
+                <label className="text-sm font-black text-foreground">
                   Class teacher comment
-                  <span className="mt-1 block text-xs font-semibold text-[#64748B]">
+                  <span className="mt-1 block text-xs font-semibold text-muted">
                     {commentSourceLabel(selectedDocument.comments.classTeacherSource)}
                   </span>
                   <textarea
                     value={classTeacherComment}
                     onChange={(event) => setClassTeacherComment(event.target.value)}
-                    className="mt-2 min-h-24 w-full rounded-lg border border-[#C8D5EA] px-3 py-2 text-sm font-normal outline-none focus:border-[#1D4ED8]"
+                    className="mt-2 min-h-24 w-full rounded-lg border border-border-strong px-3 py-2 text-sm font-normal outline-none focus:border-info"
                     maxLength={2000}
                   />
                 </label>
-                <label className="text-sm font-black text-[#071D49]">
+                <label className="text-sm font-black text-foreground">
                   Principal comment
-                  <span className="mt-1 block text-xs font-semibold text-[#64748B]">
+                  <span className="mt-1 block text-xs font-semibold text-muted">
                     {commentSourceLabel(selectedDocument.comments.principalDeputySource)}
                   </span>
                   <textarea
                     value={principalComment}
                     onChange={(event) => setPrincipalComment(event.target.value)}
-                    className="mt-2 min-h-24 w-full rounded-lg border border-[#C8D5EA] px-3 py-2 text-sm font-normal outline-none focus:border-[#1D4ED8]"
+                    className="mt-2 min-h-24 w-full rounded-lg border border-border-strong px-3 py-2 text-sm font-normal outline-none focus:border-info"
                     maxLength={2000}
                   />
                 </label>

@@ -125,10 +125,10 @@ const toneStyles: Record<
     glow: "shadow-[0_0_34px_rgba(34,211,238,0.18)]",
   },
   safe: {
-    border: "border-emerald-200/35",
+    border: "border-success-border/35",
     bg: "bg-emerald-300/12",
     text: "text-emerald-50",
-    chip: "border-emerald-200/35 bg-emerald-300/14 text-emerald-50",
+    chip: "border-success-border/35 bg-emerald-300/14 text-emerald-50",
     dot: "bg-emerald-200",
     icon: "text-emerald-100",
     glow: "shadow-[0_0_34px_rgba(16,185,129,0.18)]",
@@ -161,10 +161,10 @@ const toneStyles: Record<
     glow: "shadow-[0_0_34px_rgba(246,197,111,0.2)]",
   },
   critical: {
-    border: "border-rose-200/45",
+    border: "border-danger-border/45",
     bg: "bg-rose-500/12",
     text: "text-rose-50",
-    chip: "border-rose-200/45 bg-rose-500/14 text-rose-50",
+    chip: "border-danger-border/45 bg-rose-500/14 text-rose-50",
     dot: "bg-rose-300",
     icon: "text-rose-100",
     glow: "shadow-[0_0_42px_rgba(225,29,72,0.24)]",
@@ -182,12 +182,12 @@ const toneStyles: Record<
 
 const lightToneChipStyles: Record<Tone, string> = {
   calm: "border-cyan-200 bg-cyan-50 text-cyan-800",
-  safe: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  safe: "border-success-border bg-success-soft text-success",
   teal: "border-teal-200 bg-teal-50 text-teal-800",
   lavender: "border-violet-200 bg-violet-50 text-violet-800",
-  amber: "border-amber-200 bg-amber-50 text-amber-800",
-  critical: "border-rose-200 bg-rose-50 text-rose-800",
-  neutral: "border-[#C8D5EA] bg-white text-[#071D49]",
+  amber: "border-warning-border bg-warning-soft text-warning",
+  critical: "border-danger-border bg-danger-soft text-danger",
+  neutral: "border-border-strong bg-white text-foreground",
 };
 
 const navItems: NavItem[] = [
@@ -465,7 +465,7 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <section id={id} className={cn("rounded-[24px] border border-white/12 bg-[#071D49] p-5 text-white shadow-[0_20px_60px_rgba(7,29,73,0.15)]", className)}>
+    <section id={id} className={cn("rounded-[24px] border border-white/12 bg-primary p-5 text-white shadow-[0_20px_60px_rgba(7,29,73,0.15)]", className)}>
       <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/70">{eyebrow}</p>
       <h2 className="mt-2 text-2xl font-black tracking-tight">{title}</h2>
       <p className="mt-2 max-w-4xl text-sm leading-6 text-white/66">{description}</p>
@@ -480,7 +480,7 @@ function Sidebar() {
   return (
     <aside
       aria-label="Guidance counselling dashboard navigation"
-      className="hidden h-full rounded-[24px] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.2)] xl:sticky xl:top-5 xl:block"
+      className="hidden h-full rounded-[24px] border border-border-strong/50 bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.2)] xl:sticky xl:top-5 xl:block"
     >
       <div className="rounded-[20px] border border-white/10 bg-white/[0.06] p-4">
         <p className="text-xs font-black uppercase text-cyan-200">Wellbeing command</p>
@@ -549,19 +549,19 @@ function TopNav({
     : "Wellness clock syncing";
 
   return (
-    <header className="rounded-[24px] border border-[#C8D5EA]/70 bg-white/92 p-4 shadow-[0_18px_55px_rgba(7,29,73,0.1)] backdrop-blur-xl">
+    <header className="rounded-[24px] border border-border-strong/70 bg-white/92 p-4 shadow-[0_18px_55px_rgba(7,29,73,0.1)] backdrop-blur-xl">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] lg:items-start">
         <div className="flex items-start gap-4">
           <MyShuleMark size={48} />
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#5F6F89]">MyShule student wellbeing</p>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-[#071D49] md:text-3xl">Guidance & Counselling Department</h1>
-            <p className="mt-2 text-sm font-bold text-[#5F6F89]">{timeLabel} - Term 2 Week 4 - Every quiet signal matters.</p>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">MyShule student wellbeing</p>
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-foreground md:text-3xl">Guidance & Counselling Department</h1>
+            <p className="mt-2 text-sm font-bold text-muted">{timeLabel} - Term 2 Week 4 - Every quiet signal matters.</p>
           </div>
         </div>
         <div className="space-y-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-[#5F6F89]" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-muted" aria-hidden="true" />
             <input
               value={searchTerm}
               onChange={(event) => onSearchTermChange(event.target.value)}
@@ -572,19 +572,19 @@ function TopNav({
               }}
               aria-label="Search student cases, appointments, referrals, parent meetings, wellness alerts, or reports"
               placeholder="Search cases, appointments, referrals, parent meetings, or wellness alerts"
-              className="h-12 w-full rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] pl-12 pr-4 text-sm font-semibold text-[#071D49] outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-300/20"
+              className="h-12 w-full rounded-2xl border border-border-strong bg-surface-muted pl-12 pr-4 text-sm font-semibold text-foreground outline-none transition focus:border-teal-400 focus:ring-4 focus:ring-teal-300/20"
             />
             {searchTerm.trim().length > 0 ? (
-              <div className="absolute left-0 right-0 top-14 z-20 overflow-hidden rounded-2xl border border-[#C8D5EA] bg-white text-[#071D49] shadow-2xl">
+              <div className="absolute left-0 right-0 top-14 z-20 overflow-hidden rounded-2xl border border-border-strong bg-white text-foreground shadow-2xl">
                 {searchResults.length > 0 ? (
                   searchResults.map((record) => (
                     <button key={record.id} type="button" onClick={() => onSearchResult(record)} className="block w-full px-4 py-3 text-left text-sm hover:bg-teal-50">
                       <span className="block font-black">{record.label}</span>
-                      <span className="mt-1 block text-xs font-semibold text-[#5F6F89]">{record.detail}</span>
+                      <span className="mt-1 block text-xs font-semibold text-muted">{record.detail}</span>
                     </button>
                   ))
                 ) : (
-                  <p className="px-4 py-3 text-sm font-bold text-[#5F6F89]">No matching counselling record found.</p>
+                  <p className="px-4 py-3 text-sm font-bold text-muted">No matching counselling record found.</p>
                 )}
               </div>
             ) : null}
@@ -601,7 +601,7 @@ function TopNav({
             <button
               type="button"
               onClick={onQuickAddSession}
-              className="inline-flex min-h-9 items-center gap-2 rounded-2xl bg-[#071D49] px-3 text-xs font-black text-white"
+              className="inline-flex min-h-9 items-center gap-2 rounded-2xl bg-primary px-3 text-xs font-black text-white"
             >
               <MessageCircleHeart className="h-3.5 w-3.5" aria-hidden="true" />
               Quick-add session
@@ -615,7 +615,7 @@ function TopNav({
 
 function Hero() {
   return (
-    <section className="overflow-hidden rounded-[24px] border border-[#C8D5EA]/45 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(196,181,253,0.16),transparent_32%),linear-gradient(135deg,#071D49_0%,#0E4264_56%,#102A60_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.18)]">
+    <section className="overflow-hidden rounded-[24px] border border-border-strong/45 bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(196,181,253,0.16),transparent_32%),linear-gradient(135deg,#071D49_0%,#0E4264_56%,#102A60_100%)] p-5 text-white shadow-[0_24px_70px_rgba(7,29,73,0.18)]">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(330px,0.7fr)]">
         <div>
           <div className="flex flex-wrap gap-2">
@@ -677,7 +677,7 @@ function KpiCard({ item, index }: { item: Kpi; index: number }) {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className={cn("rounded-[24px] border bg-[#071D49] p-5 text-white", toneStyles[item.tone].border, toneStyles[item.tone].glow)}
+      className={cn("rounded-[24px] border bg-primary p-5 text-white", toneStyles[item.tone].border, toneStyles[item.tone].glow)}
     >
       <div className="flex items-start justify-between gap-3">
         <IconFrame icon={item.icon} tone={item.tone} />
@@ -996,7 +996,7 @@ function MobileQuickActions({
   ] as const;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#071D49] px-3 py-2 text-white shadow-[0_-20px_50px_rgba(7,29,73,0.25)] xl:hidden" aria-label="Mobile guidance counselling quick actions">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-primary px-3 py-2 text-white shadow-[0_-20px_50px_rgba(7,29,73,0.25)] xl:hidden" aria-label="Mobile guidance counselling quick actions">
       <div className="grid grid-cols-5 gap-1">
         {actions.map(([label, Icon]) => (
           <button
@@ -1345,7 +1345,7 @@ export function GuidanceCounsellingCommandCenter({
             onSearchResult={openSearchRecord}
             onSearchTermChange={setSearchTerm}
           />
-          <div role="status" className="rounded-2xl border border-[#C8D5EA] bg-white px-4 py-3 text-sm font-black text-[#071D49] shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
+          <div role="status" className="rounded-2xl border border-border-strong bg-white px-4 py-3 text-sm font-black text-foreground shadow-[0_12px_30px_rgba(7,29,73,0.08)]">
             {notice}
           </div>
           {sessionDialogOpen ? (
@@ -1353,11 +1353,11 @@ export function GuidanceCounsellingCommandCenter({
               role="dialog"
               aria-modal="true"
               aria-label="Counselling session action"
-              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+              className="rounded-[24px] border border-border-strong bg-white p-5 text-foreground shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
             >
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school counselling record</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Same-school counselling record</p>
               <h2 className="mt-2 text-xl font-black">Quick-add counselling session</h2>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
                 This records a counselling session, notifies the relevant school leadership and class follow-up roles, and keeps the event scoped to the current school workspace.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1366,8 +1366,8 @@ export function GuidanceCounsellingCommandCenter({
                   ["Follow-up owner", "School Counsellor"],
                   ["Linked dashboard", "Deputy, Principal, Class Teacher"],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                  <div key={label} className="rounded-2xl border border-border-strong bg-surface-muted p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
                     <p className="mt-1 text-sm font-black">{value}</p>
                   </div>
                 ))}
@@ -1376,7 +1376,7 @@ export function GuidanceCounsellingCommandCenter({
                 <button
                   type="button"
                   onClick={saveCounsellingSession}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-black text-white"
                 >
                   <MessageCircleHeart className="h-4 w-4" aria-hidden="true" />
                   Save counselling session
@@ -1384,7 +1384,7 @@ export function GuidanceCounsellingCommandCenter({
                 <button
                   type="button"
                   onClick={() => setSessionDialogOpen(false)}
-                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-border-strong bg-white px-4 text-sm font-black text-foreground"
                 >
                   Cancel
                 </button>
@@ -1396,11 +1396,11 @@ export function GuidanceCounsellingCommandCenter({
               role="dialog"
               aria-modal="true"
               aria-label="Counselling intervention action"
-              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+              className="rounded-[24px] border border-border-strong bg-white p-5 text-foreground shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
             >
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school intervention record</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Same-school intervention record</p>
               <h2 className="mt-2 text-xl font-black">{activeInterventionAction.label}</h2>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
                 This saves the counselling intervention, creates role-specific notifications, and keeps the follow-up inside the current school workspace.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1409,8 +1409,8 @@ export function GuidanceCounsellingCommandCenter({
                   ["Follow-up roles", "Principal, Deputy, Nurse, Class Teacher"],
                   ["School scope", getCurrentSchoolId()],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                  <div key={label} className="rounded-2xl border border-border-strong bg-surface-muted p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
                     <p className="mt-1 text-sm font-black">{value}</p>
                   </div>
                 ))}
@@ -1419,7 +1419,7 @@ export function GuidanceCounsellingCommandCenter({
                 <button
                   type="button"
                   onClick={saveInterventionAction}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-black text-white"
                 >
                   <ShieldAlert className="h-4 w-4" aria-hidden="true" />
                   Save intervention action
@@ -1427,7 +1427,7 @@ export function GuidanceCounsellingCommandCenter({
                 <button
                   type="button"
                   onClick={() => setActiveInterventionAction(null)}
-                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-border-strong bg-white px-4 text-sm font-black text-foreground"
                 >
                   Cancel
                 </button>
@@ -1439,11 +1439,11 @@ export function GuidanceCounsellingCommandCenter({
               role="dialog"
               aria-modal="true"
               aria-label="Counselling timeline action"
-              className="rounded-[24px] border border-[#C8D5EA] bg-white p-5 text-[#071D49] shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
+              className="rounded-[24px] border border-border-strong bg-white p-5 text-foreground shadow-[0_18px_55px_rgba(7,29,73,0.12)]"
             >
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#5F6F89]">Same-school timeline record</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-muted">Same-school timeline record</p>
               <h2 className="mt-2 text-xl font-black">{activeTimelineAction.action}</h2>
-              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[#5F6F89]">
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted">
                 This records the selected counselling timeline action, notifies the connected school roles, and keeps the update traceable to the original case.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1452,8 +1452,8 @@ export function GuidanceCounsellingCommandCenter({
                   ["Timeline detail", activeTimelineAction.item.time],
                   ["Follow-up roles", "Deputy, Principal, Class Teacher"],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-[#C8D5EA] bg-[#F8FAFC] p-3">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-[#5F6F89]">{label}</p>
+                  <div key={label} className="rounded-2xl border border-border-strong bg-surface-muted p-3">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-muted">{label}</p>
                     <p className="mt-1 text-sm font-black">{value}</p>
                   </div>
                 ))}
@@ -1462,7 +1462,7 @@ export function GuidanceCounsellingCommandCenter({
                 <button
                   type="button"
                   onClick={saveTimelineAction}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-[#071D49] px-4 text-sm font-black text-white"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-2xl bg-primary px-4 text-sm font-black text-white"
                 >
                   <CalendarClock className="h-4 w-4" aria-hidden="true" />
                   Save timeline action
@@ -1470,7 +1470,7 @@ export function GuidanceCounsellingCommandCenter({
                 <button
                   type="button"
                   onClick={() => setActiveTimelineAction(null)}
-                  className="inline-flex min-h-10 items-center rounded-2xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]"
+                  className="inline-flex min-h-10 items-center rounded-2xl border border-border-strong bg-white px-4 text-sm font-black text-foreground"
                 >
                   Cancel
                 </button>

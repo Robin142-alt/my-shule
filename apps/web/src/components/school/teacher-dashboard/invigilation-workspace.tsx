@@ -30,17 +30,17 @@ export function InvigilationWorkspace() {
   return (
     <Panel title="Invigilation Duties" description="View exam duties and report exam attendance/issues." icon={PenTool}>
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Upcoming Duties</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.upcoming ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Upcoming Duties</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.upcoming ?? 0}</p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Completed</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.completed ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Completed</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.completed ?? 0}</p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load data. Please retry.
         </div>
       ) : (

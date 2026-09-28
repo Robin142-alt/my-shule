@@ -82,8 +82,8 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
   const activeItem = nurseNavItems.find((item) => item.id === section) ?? nurseNavItems[0];
 
   return (
-    <div className="authenticated-app flex min-h-screen bg-[#F3F6FA]">
-      <aside className="hidden h-screen w-[280px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <div className="authenticated-app flex min-h-screen bg-background">
+      <aside className="hidden h-screen w-[280px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Health command" title="School Nurse" subtitle="Visits, medicine, incidents, and referrals" />
         <nav className="space-y-1" aria-label="Nurse workspace navigation">
           <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Health Centre</p>
@@ -111,14 +111,14 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
         </nav>
       </aside>
       <main className="app-command-main flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="app-command-topbar flex min-h-[84px] shrink-0 flex-col justify-center gap-1 border-b border-[#D8E0EC] bg-white px-4 py-4 lg:px-6">
+        <header className="app-command-topbar flex min-h-[84px] shrink-0 flex-col justify-center gap-1 border-b border-border bg-white px-4 py-4 lg:px-6">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-600">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-danger-soft text-rose-600">
               <HeartPulse className="h-5 w-5" />
             </span>
             <div>
-              <h1 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{activeItem.label}</h1>
-              <p className="text-sm font-semibold text-[#64748B]">{activeItem.description}</p>
+              <h1 className="text-xl font-black tracking-[-0.01em] text-foreground">{activeItem.label}</h1>
+              <p className="text-sm font-semibold text-muted">{activeItem.description}</p>
             </div>
           </div>
           <div className="mt-3 lg:hidden"><MobileWorkspaceNavigation label="Health workspace" items={nurseNavItems} value={section} onValueChange={(value) => router.push(`/school/nurse/${value}`)} /></div>

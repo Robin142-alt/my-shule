@@ -176,7 +176,7 @@ export function ItemsWorkspace() {
             addItemForm.reset();
             setIsAddItemOpen(true);
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> Add Item
         </button>
@@ -184,36 +184,36 @@ export function ItemsWorkspace() {
     >
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Items</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_items || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Items</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_items || 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Categories</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_categories || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Categories</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_categories || 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Stock Value</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : `KES ${(data?.metrics?.total_stock_value || 0).toLocaleString()}`}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Stock Value</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : `KES ${(data?.metrics?.total_stock_value || 0).toLocaleString()}`}</div>
         </div>
       </div>
 
       {/* Search & Filter */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#64748B]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
           <input
             type="text"
             placeholder="Search items..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-10 pr-4 text-sm outline-none focus:border-[#071D49]"
+            className="w-full rounded-xl border border-border py-2 pl-10 pr-4 text-sm outline-none focus:border-primary"
           />
         </div>
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-xl border border-[#D8E0EC] py-2 px-3 text-sm outline-none focus:border-[#071D49] text-[#071D49]"
+          className="rounded-xl border border-border py-2 px-3 text-sm outline-none focus:border-primary text-foreground"
         >
           <option value="All">All Categories</option>
           {categories.map((cat) => (
@@ -223,34 +223,34 @@ export function ItemsWorkspace() {
       </div>
 
       {/* Items Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Item Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Category</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">In Stock</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Unit</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reorder Level</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Unit Cost</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Item Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Category</th>
+              <th className="px-4 py-3 font-bold border-b border-border">In Stock</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Unit</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reorder Level</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Unit Cost</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading inventory...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading inventory...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No items found. Add the first item to your store catalogue to get started.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No items found. Add the first item to your store catalogue to get started.</td></tr>
             ) : (
               filtered.map((item) => (
-                <tr key={item.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{item.name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{item.category}</td>
-                  <td className="px-4 py-3 font-bold text-[#071D49]">{item.quantity_in_stock}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{item.unit}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{item.reorder_level}</td>
-                  <td className="px-4 py-3 text-[#64748B]">KES {item.unit_cost.toLocaleString()}</td>
+                <tr key={item.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{item.name}</td>
+                  <td className="px-4 py-3 text-muted">{item.category}</td>
+                  <td className="px-4 py-3 font-bold text-foreground">{item.quantity_in_stock}</td>
+                  <td className="px-4 py-3 text-muted">{item.unit}</td>
+                  <td className="px-4 py-3 text-muted">{item.reorder_level}</td>
+                  <td className="px-4 py-3 text-muted">KES {item.unit_cost.toLocaleString()}</td>
                   <td className="px-4 py-3"><StatusChip label={getStockLabel(item)} tone={getStockTone(item)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-2">
@@ -295,7 +295,7 @@ export function ItemsWorkspace() {
             <input
               type="text"
               {...addItemForm.register("name", { required: "Item name is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="e.g. Science Beakers"
             />
             {addItemForm.formState.errors.name && (
@@ -308,7 +308,7 @@ export function ItemsWorkspace() {
             <input
               type="text"
               {...addItemForm.register("category", { required: "Category is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="e.g. Lab Supplies"
             />
             {addItemForm.formState.errors.category && (
@@ -321,7 +321,7 @@ export function ItemsWorkspace() {
             <input
               type="text"
               {...addItemForm.register("unit", { required: "Unit is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="e.g. pieces"
             />
             {addItemForm.formState.errors.unit && (
@@ -338,7 +338,7 @@ export function ItemsWorkspace() {
                 min: { value: 0, message: "Cannot be negative" },
                 valueAsNumber: true,
               })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="10"
             />
             {addItemForm.formState.errors.reorderLevel && (
@@ -355,7 +355,7 @@ export function ItemsWorkspace() {
                 min: { value: 0, message: "Cannot be negative" },
                 valueAsNumber: true,
               })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="0"
             />
             {addItemForm.formState.errors.unitCost && (
@@ -367,14 +367,14 @@ export function ItemsWorkspace() {
             <button
               type="button"
               onClick={() => setIsAddItemOpen(false)}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isAdding}
-              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
+              className="px-4 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-blue-900 disabled:opacity-50"
             >
               {isAdding ? "Adding..." : "Add Item"}
             </button>
@@ -401,7 +401,7 @@ export function ItemsWorkspace() {
                 min: { value: 1, message: "Must be at least 1" },
                 valueAsNumber: true,
               })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="1"
             />
             {receiveForm.formState.errors.quantity && (
@@ -414,7 +414,7 @@ export function ItemsWorkspace() {
             <input
               type="text"
               {...receiveForm.register("supplier", { required: "Supplier name is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="Enter supplier name"
             />
             {receiveForm.formState.errors.supplier && (
@@ -429,7 +429,7 @@ export function ItemsWorkspace() {
                 setIsReceiveOpen(false);
                 setSelectedItem(null);
               }}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>
@@ -463,7 +463,7 @@ export function ItemsWorkspace() {
                 max: selectedItem ? { value: selectedItem.quantity_in_stock, message: `Only ${selectedItem.quantity_in_stock} available` } : undefined,
                 valueAsNumber: true,
               })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="1"
             />
             {issueForm.formState.errors.quantity && (
@@ -476,7 +476,7 @@ export function ItemsWorkspace() {
             <input
               type="text"
               {...issueForm.register("issuedTo", { required: "Recipient is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="e.g. Science Department"
             />
             {issueForm.formState.errors.issuedTo && (
@@ -491,7 +491,7 @@ export function ItemsWorkspace() {
                 setIsIssueOpen(false);
                 setSelectedItem(null);
               }}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>

@@ -28,7 +28,7 @@ const REASONS: Array<{ value: MissingMarkReason; label: string }> = [
 const EMPTY_WINDOWS: PendingMarksWindow[] = [];
 const EMPTY_ROWS: TeacherMarkSheetRow[] = [];
 const buttonClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50";
-const primaryClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-semibold text-white hover:bg-[#123A7A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50";
+const primaryClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-[#123A7A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50";
 
 function entryUnavailableReason(windowTask: PendingMarksWindow) {
   switch (windowTask.entryState) {
@@ -245,20 +245,20 @@ function TeacherMarkbooks({ liveSession, onStartAction }: {
     <section className="min-w-0 rounded-xl border border-slate-200 bg-white text-slate-900">
       <header className="flex items-center justify-between gap-3 border-b border-slate-200 p-3 sm:p-4 sm:px-6">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-[#071D49]">Exams & Marks</h2>
+          <h2 className="text-xl font-semibold text-foreground">Exams & Marks</h2>
           <p className="mt-1 hidden text-sm text-slate-500 sm:block">Enter scores, save your draft, then submit results.</p>
         </div>
         <button type="button" aria-label="Refresh exams" title="Refresh exams" onClick={() => void pendingMarksQuery.refetch()} disabled={pendingMarksQuery.isFetching || isSaving} className={cn(buttonClass, "shrink-0")}>
           <RefreshCw className={cn("h-4 w-4", pendingMarksQuery.isFetching && "animate-spin")} /><span className="hidden sm:inline">Refresh exams</span>
         </button>
       </header>
-      {notice && <p role="status" className="m-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
+      {notice && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-success">{notice}</p>}
       {pendingMarksQuery.isLoading || liveSession.isLoading ? (
         <p role="status" className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Loading your assigned markbooks...</p>
       ) : pendingMarksQuery.isError || !liveSession.session ? (
-        <div role="alert" className="m-4 rounded-lg border border-red-200 bg-red-50 p-4">
+        <div role="alert" className="m-4 rounded-lg border border-danger-border bg-danger-soft p-4">
           <h3 className="font-semibold text-red-900">We couldn&apos;t load your assigned markbooks</h3>
-          <p className="mt-1 break-words text-sm text-red-800">{pendingMarksQuery.error instanceof Error ? pendingMarksQuery.error.message : "Sign in with your school account to load your markbooks."}</p>
+          <p className="mt-1 break-words text-sm text-danger">{pendingMarksQuery.error instanceof Error ? pendingMarksQuery.error.message : "Sign in with your school account to load your markbooks."}</p>
           <button type="button" onClick={() => void pendingMarksQuery.refetch()} disabled={pendingMarksQuery.isFetching} className={cn(buttonClass, "mt-3")} aria-label="Retry loading markbooks">Retry</button>
         </div>
       ) : !activeWindow ? (
@@ -285,14 +285,14 @@ function TeacherMarkbooks({ liveSession, onStartAction }: {
               </div>
             </div>
           </div>
-          {actionError && <p role="alert" className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{actionError}</p>}
+          {actionError && <p role="alert" className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{actionError}</p>}
           {activeWindow.canEnter === false && !submittedView ? (
-            <div role="status" className="m-4 rounded-lg border border-amber-200 bg-amber-50 p-4"><h3 className="font-semibold">{activeWindow.entryState || "Entry unavailable"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{entryUnavailableReason(activeWindow)}</p></div>
+            <div role="status" className="m-4 rounded-lg border border-warning-border bg-warning-soft p-4"><h3 className="font-semibold">{activeWindow.entryState || "Entry unavailable"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{entryUnavailableReason(activeWindow)}</p></div>
           ) : markSheetQuery.isLoading ? (
             <p role="status" className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Loading students...</p>
           ) : markSheetQuery.isError ? (
-            <div role="alert" className="m-4 rounded-lg border border-red-200 bg-red-50 p-4">
-              <p className="break-words text-sm text-red-800">{markSheetQuery.error instanceof Error ? markSheetQuery.error.message : "Could not load this markbook. Please retry."}</p>
+            <div role="alert" className="m-4 rounded-lg border border-danger-border bg-danger-soft p-4">
+              <p className="break-words text-sm text-danger">{markSheetQuery.error instanceof Error ? markSheetQuery.error.message : "Could not load this markbook. Please retry."}</p>
               <button type="button" onClick={() => void markSheetQuery.refetch()} disabled={markSheetQuery.isFetching} className={cn(buttonClass, "mt-3")}>Retry markbook</button>
             </div>
           ) : !markRows.length ? (
@@ -317,10 +317,10 @@ function TeacherMarkbooks({ liveSession, onStartAction }: {
             </section>
           ) : (
             <>
-              {readOnly && <p role="status" className="m-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
+              {readOnly && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
               <div className="flex flex-wrap items-center gap-2 p-3 sm:gap-3 sm:p-4 sm:px-6">
                 <label className="relative min-w-0 flex-1 basis-48"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input type="search" aria-label="Find student" placeholder="Name or admission number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-base focus:outline-blue-600" /></label>
-                <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-blue-50 text-blue-700")}>Blank ({blankRows.length})</button>
+                <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-info-soft text-info")}>Blank ({blankRows.length})</button>
                 <p className="text-sm text-slate-500" aria-live="polite">{enteredCount} / {markRows.length} entered</p>
               </div>
               <div role="table" aria-label="Student scores" className="w-full">
@@ -331,7 +331,7 @@ function TeacherMarkbooks({ liveSession, onStartAction }: {
                   {visibleRows.map(row => {
                     const draft = activeDrafts[row.student_id];
                     const error = scoreError(draft, activeWindow.outOf);
-                    return <div role="row" key={row.student_id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1 px-4 py-3 focus-within:bg-blue-50/50 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
+                    return <div role="row" key={row.student_id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1 px-4 py-3 focus-within:bg-info-soft/50 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
                       <div role="cell" className="min-w-0"><label htmlFor={`score-${row.student_id}`} className="block break-words text-sm font-medium leading-5">{row.student_name ?? "Unnamed student"}</label><p className="mt-1 text-xs text-slate-500 sm:hidden">{row.admission_number ?? "No admission number"}</p></div>
                       <span role="cell" className="hidden text-sm text-slate-500 sm:block">{row.admission_number ?? "-"}</span>
                       <div role="cell"><input id={`score-${row.student_id}`} ref={element => { scoreInputs.current[row.student_id] = element; }} aria-label={`${row.student_name ?? "Student"} score`}
@@ -339,9 +339,9 @@ function TeacherMarkbooks({ liveSession, onStartAction }: {
                         aria-invalid={!!error} aria-describedby={error ? `error-${row.student_id}` : undefined}
                         onChange={event => updateDraft(row.student_id, { score: event.target.value, scoreStatus: event.target.value.trim() ? "entered" : "" })}
                         onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); const next = visibleRows[visibleRows.indexOf(row) + 1]; if (next) scoreInputs.current[next.student_id]?.focus(); } }}
-                        className={cn("min-h-12 w-full rounded-lg border bg-white px-2 text-center text-base tabular-nums focus:outline-2 focus:outline-blue-600 disabled:bg-slate-50", error ? "border-red-400 text-red-800" : "border-slate-300")} />
+                        className={cn("min-h-12 w-full rounded-lg border bg-white px-2 text-center text-base tabular-nums focus:outline-2 focus:outline-blue-600 disabled:bg-slate-50", error ? "border-red-400 text-danger" : "border-slate-300")} />
                       </div>
-                      {error && <p id={`error-${row.student_id}`} className="col-span-full text-right text-xs text-red-700">{error}</p>}
+                      {error && <p id={`error-${row.student_id}`} className="col-span-full text-right text-xs text-danger">{error}</p>}
                     </div>;
                   })}
                 </div>

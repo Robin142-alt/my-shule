@@ -45,11 +45,11 @@ export function ParentPortalShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="authenticated-app flex min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f97316]/90">MyShule</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-inverse-accent">MyShule</p>
           <h2 className="mt-2 text-xl font-black">Parent Portal</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">Stay connected.</p>
         </div>
@@ -76,35 +76,35 @@ export function ParentPortalShell({ children }: { children: ReactNode }) {
       {/* Main Area */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden pb-[60px] lg:pb-0">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">KB</div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">KB</div>
               <div>
-                <h1 className="text-lg font-black text-[#071D49]">Kisumu Boys High School</h1>
-                <p className="text-xs font-bold text-[#64748B]">2026 Academic Year • Term 2</p>
+                <h1 className="text-lg font-black text-foreground">Kisumu Boys High School</h1>
+                <p className="text-xs font-bold text-muted">2026 Academic Year • Term 2</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
               <div className="relative">
-                <select className="h-10 w-full appearance-none rounded-xl border border-[#D8E0EC] bg-white pl-4 pr-10 text-sm font-bold text-[#071D49] outline-none hover:border-[#071D49]">
+                <select className="h-10 w-full appearance-none rounded-xl border border-border bg-white pl-4 pr-10 text-sm font-bold text-foreground outline-none hover:border-primary">
                   <option>Viewing: Brian Otieno (Form 2)</option>
                   <option>Viewing: Mark Otieno (Form 4)</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#071D49]">
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-foreground">
                   <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20">
                     <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
                   </svg>
                 </div>
               </div>
               
-              <Link href="/parent/notifications" className="relative text-[#64748B] hover:text-[#071D49]">
+              <Link href="/parent/notifications" className="relative text-muted hover:text-foreground">
                 <Bell className="h-6 w-6" />
                 <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">3</span>
               </Link>
               
-              <button className="hidden sm:inline-flex h-10 items-center justify-center rounded-xl bg-[#f97316] px-4 text-sm font-black text-white hover:bg-[#ea580c] transition">
+              <button className="hidden sm:inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-white hover:bg-accent-hover transition">
                 Quick Pay Fees
               </button>
             </div>
@@ -118,7 +118,7 @@ export function ParentPortalShell({ children }: { children: ReactNode }) {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#D8E0EC] bg-white lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white lg:hidden">
         <div className="flex justify-around items-center px-2 py-2">
           {[
             { id: 'dashboard', label: 'Home', icon: LayoutDashboard, href: '/parent' },
@@ -133,8 +133,8 @@ export function ParentPortalShell({ children }: { children: ReactNode }) {
                 key={item.id} 
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 p-2 rounded-xl text-[#64748B]",
-                  active && "text-[#f97316]"
+                  "flex flex-col items-center gap-1 p-2 rounded-xl text-muted",
+                  active && "bg-accent-soft text-accent"
                 )}
               >
                 <item.icon className="h-5 w-5" />

@@ -47,7 +47,7 @@ export const NotificationBell: React.FC = () => {
     >
       <div>
         {visibleError ? (
-          <div role="alert" className="m-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div role="alert" className="m-3 rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-danger">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <div className="min-w-0 flex-1">
@@ -58,7 +58,7 @@ export const NotificationBell: React.FC = () => {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-xs font-semibold text-red-800"
+              className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-danger-border bg-white px-3 text-xs font-semibold text-danger"
             >
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" /> Retry
             </button>

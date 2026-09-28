@@ -54,9 +54,9 @@ const navItems: NavItem[] = [
 ];
 
 const statusClasses: Record<HealthStatus, string> = {
-  healthy: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  degraded: "border-amber-200 bg-amber-50 text-amber-700",
-  critical: "border-rose-200 bg-rose-50 text-rose-700",
+  healthy: "border-success-border bg-success-soft text-success",
+  degraded: "border-warning-border bg-warning-soft text-warning",
+  critical: "border-danger-border bg-danger-soft text-danger",
   unknown: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
@@ -80,11 +80,11 @@ function Panel({
   action?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-sm">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl font-black text-[#071D49]">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p>
+          <h2 className="text-xl font-black text-foreground">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
         </div>
         {action}
       </div>
@@ -95,7 +95,7 @@ function Panel({
 
 function EmptyState({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#C7D2E1] bg-[#F8FAFC] px-5 py-8 text-center text-sm text-[#64748B]">
+    <div className="rounded-xl border border-dashed border-[#C7D2E1] bg-surface-muted px-5 py-8 text-center text-sm text-muted">
       {children}
     </div>
   );
@@ -128,10 +128,10 @@ function OverviewWorkspace({ health }: { health: ObservabilityHealthResponse | n
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {metrics.map((metric) => (
-        <div key={metric.label} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#64748B]">{metric.label}</p>
-          <p className="mt-2 break-words text-xl font-black capitalize text-[#071D49]">{metric.value}</p>
-          <p className="mt-2 text-xs leading-5 text-[#64748B]">{metric.helper}</p>
+        <div key={metric.label} className="rounded-xl border border-border bg-surface-muted p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-muted">{metric.label}</p>
+          <p className="mt-2 break-words text-xl font-black capitalize text-foreground">{metric.value}</p>
+          <p className="mt-2 text-xs leading-5 text-muted">{metric.helper}</p>
         </div>
       ))}
     </div>
@@ -146,18 +146,18 @@ function ServicesWorkspace({ health }: { health: ObservabilityHealthResponse | n
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.08em] text-[#64748B]">
+        <thead className="bg-surface-muted text-xs uppercase tracking-[0.08em] text-muted">
           <tr>
             <th className="px-4 py-3">Subsystem</th>
             <th className="px-4 py-3">Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E2E8F0]">
+        <tbody className="divide-y divide-border">
           {services.map((service) => (
             <tr key={service.subsystem}>
-              <td className="px-4 py-3 font-bold uppercase text-[#071D49]">{service.subsystem}</td>
+              <td className="px-4 py-3 font-bold uppercase text-foreground">{service.subsystem}</td>
               <td className="px-4 py-3"><StatusChip status={service.status} /></td>
             </tr>
           ))}
@@ -175,18 +175,18 @@ function AlertsWorkspace({ alerts }: { alerts: ObservabilityAlert[] }) {
   return (
     <div className="space-y-3">
       {alerts.map((alert) => (
-        <article key={alert.id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+        <article key={alert.id} className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <AlertTriangle className={`h-4 w-4 ${alert.severity === "critical" ? "text-rose-600" : "text-amber-600"}`} />
-              <h3 className="font-bold text-[#071D49]">{alert.title}</h3>
+              <h3 className="font-bold text-foreground">{alert.title}</h3>
             </div>
-            <span className="rounded-full border border-[#D8E0EC] bg-white px-2.5 py-1 text-xs font-bold uppercase text-[#64748B]">
+            <span className="rounded-full border border-border bg-white px-2.5 py-1 text-xs font-bold uppercase text-muted">
               {alert.subsystem} · {alert.severity}
             </span>
           </div>
-          <p className="mt-2 text-sm leading-6 text-[#475569]">{alert.message}</p>
-          <p className="mt-2 text-xs text-[#64748B]">Triggered {formatGeneratedAt(alert.triggered_at)}</p>
+          <p className="mt-2 text-sm leading-6 text-muted-strong">{alert.message}</p>
+          <p className="mt-2 text-xs text-muted">Triggered {formatGeneratedAt(alert.triggered_at)}</p>
         </article>
       ))}
     </div>
@@ -199,9 +199,9 @@ function ApiFailuresWorkspace({ failures }: { failures: RecentApiFailure[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.08em] text-[#64748B]">
+        <thead className="bg-surface-muted text-xs uppercase tracking-[0.08em] text-muted">
           <tr>
             <th className="px-4 py-3">Time</th>
             <th className="px-4 py-3">Request</th>
@@ -210,14 +210,14 @@ function ApiFailuresWorkspace({ failures }: { failures: RecentApiFailure[] }) {
             <th className="px-4 py-3">Duration</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E2E8F0]">
+        <tbody className="divide-y divide-border">
           {failures.map((failure, index) => (
             <tr key={`${failure.timestamp}-${failure.method}-${failure.path}-${index}`}>
-              <td className="whitespace-nowrap px-4 py-3 text-[#64748B]">{formatGeneratedAt(failure.timestamp)}</td>
-              <td className="px-4 py-3 font-mono text-xs text-[#071D49]">{failure.method} {failure.path}</td>
-              <td className="px-4 py-3 font-bold text-rose-700">{failure.status_code}</td>
-              <td className="px-4 py-3 text-[#475569]">{failure.event}</td>
-              <td className="whitespace-nowrap px-4 py-3 text-[#64748B]">
+              <td className="whitespace-nowrap px-4 py-3 text-muted">{formatGeneratedAt(failure.timestamp)}</td>
+              <td className="px-4 py-3 font-mono text-xs text-foreground">{failure.method} {failure.path}</td>
+              <td className="px-4 py-3 font-bold text-danger">{failure.status_code}</td>
+              <td className="px-4 py-3 text-muted-strong">{failure.event}</td>
+              <td className="whitespace-nowrap px-4 py-3 text-muted">
                 {failure.duration_ms === null ? "Not reported" : `${failure.duration_ms} ms`}
               </td>
             </tr>
@@ -278,8 +278,8 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
   const activeItem = navItems.find((item) => item.id === activeView) ?? navItems[0];
 
   return (
-    <div className="authenticated-app flex min-h-dvh bg-[#F3F6FA] font-sans">
-      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <div className="authenticated-app flex min-h-dvh bg-background font-sans">
+      <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
           <MyShuleBrand markSize={38} nameClassName="text-base" />
           <h2 className="mt-2 text-xl font-black">System Monitor</h2>
@@ -309,15 +309,15 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
       </aside>
 
       <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col">
-        <header className="app-command-topbar sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur">
+        <header className="app-command-topbar sticky top-0 z-20 shrink-0 border-b border-border bg-white/90 px-4 py-3 backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <MyShuleMark size={40} />
               <div>
-                <h1 className="text-lg font-black text-[#071D49]">{activeItem.label}</h1>
-                <p className="text-xs text-[#64748B]">{activeItem.desc}</p>
+                <h1 className="text-lg font-black text-foreground">{activeItem.label}</h1>
+                <p className="text-xs text-muted">{activeItem.desc}</p>
               </div>
-              <span className="rounded-full border border-[#D8E0EC] bg-[#F8FAFC] px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#64748B]">
+              <span className="rounded-full border border-border bg-surface-muted px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-muted">
                 {routeMode}
               </span>
             </div>
@@ -327,7 +327,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
                 type="button"
                 onClick={() => void loadLiveMonitor()}
                 disabled={loading}
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#071D49] px-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
@@ -347,7 +347,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
 
         <div className="app-content flex-1 space-y-5 overflow-y-auto p-4 lg:p-6">
           {error ? (
-            <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div role="alert" className="flex items-start gap-3 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 text-sm text-amber-900">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -361,7 +361,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
               description={`${activeItem.desc}. Values are rendered only from the current observability API response.`}
               action={
                 health ? (
-                  <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-muted">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" />
                     Live API snapshot
                   </div>
@@ -375,7 +375,7 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
             </Panel>
           )}
 
-          <div className="flex items-center gap-2 text-xs text-[#64748B]">
+          <div className="flex items-center gap-2 text-xs text-muted">
             <Activity className="h-4 w-4" />
             School names, learner records, and fabricated incidents are never used as monitor fallbacks.
           </div>

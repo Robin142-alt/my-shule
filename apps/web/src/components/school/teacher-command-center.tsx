@@ -89,14 +89,14 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
   };
 
   return (
-    <div data-testid="teacher-command-center" className="authenticated-app flex min-h-dvh bg-[#F3F6FA]">
+    <div data-testid="teacher-command-center" className="authenticated-app flex min-h-dvh bg-background">
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
       <main className="app-command-main flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar activeView={activeView} onViewChange={setActiveView} />
         <div className="app-content flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <IntegratedSchoolCommandHeader roleTitle="Teacher Dashboard" fallbackUserLabel="Teacher" />
           {notice && (
-            <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm font-semibold text-blue-800">
+            <div className="rounded-xl bg-info-soft border border-info-border p-3 text-sm font-semibold text-info">
               {notice}
             </div>
           )}
@@ -137,8 +137,8 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
             "practical-requisitions", "store-requests", "reports", "notifications", "profile", "class-teacher",
             "club", "invigilation"
           ].includes(activeView) && (
-            <div className="rounded-xl bg-white border border-[#D8E0EC] p-12 text-center text-[#64748B]">
-              <p className="font-bold text-[#071D49] text-lg">Workspace Not Found</p>
+            <div className="rounded-xl bg-white border border-border p-12 text-center text-muted">
+              <p className="font-bold text-foreground text-lg">Workspace Not Found</p>
               <p className="mt-2 text-sm">The requested workspace &quot;{activeView}&quot; does not exist or is currently unavailable.</p>
             </div>
           )}
@@ -150,7 +150,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
 
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
   return (
-    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Teacher command" title="Teacher Dashboard" subtitle="Personal teaching workspace" />
       <nav className="space-y-1">
         {navItems.map((item, index) => {
@@ -182,21 +182,21 @@ function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewC
     : [];
 
   return (
-    <header className="app-command-topbar app-compact-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+    <header className="app-command-topbar app-compact-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">TR</div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">TR</div>
           <div className="flex min-w-0 items-center gap-2 text-sm">
             <span className="hidden text-slate-500 sm:inline">Workspace</span>
             <ChevronRight className="hidden h-3.5 w-3.5 text-slate-400 sm:block" aria-hidden="true" />
-            <p className="truncate font-semibold text-[#071D49]">{navItems.find((item) => item.id === activeView)?.label ?? "Teacher"}</p>
+            <p className="truncate font-semibold text-foreground">{navItems.find((item) => item.id === activeView)?.label ?? "Teacher"}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-64 hidden md:block">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input 
-              className="h-10 w-full rounded-xl border border-[#D8E0EC] pl-9 pr-4 text-sm outline-none focus:border-[#071D49]" 
+              className="h-10 w-full rounded-xl border border-border pl-9 pr-4 text-sm outline-none focus:border-primary"
               aria-label="Search teacher workspaces"
               placeholder="Find a workspace…"
               value={search}

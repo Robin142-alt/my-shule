@@ -101,20 +101,20 @@ function AttentionCard({ item }: { item: LabAttentionItem }) {
       type="button"
       onClick={open}
       className={`w-full rounded-xl border p-4 text-left transition hover:shadow-sm ${
-        item.severity === "danger" ? "border-rose-200 bg-rose-50" : "border-amber-200 bg-amber-50"
+        item.severity === "danger" ? "border-danger-border bg-danger-soft" : "border-warning-border bg-warning-soft"
       }`}
     >
       <div className="flex items-start gap-3">
         <AlertTriangle
-          className={`mt-0.5 h-5 w-5 shrink-0 ${item.severity === "danger" ? "text-rose-700" : "text-amber-700"}`}
+          className={`mt-0.5 h-5 w-5 shrink-0 ${item.severity === "danger" ? "text-danger" : "text-warning"}`}
           aria-hidden="true"
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-black text-[#071D49]">{item.title}</p>
+            <p className="font-black text-foreground">{item.title}</p>
             <StatusChip label={item.type} tone={item.severity} />
           </div>
-          <p className="mt-1 text-sm leading-6 text-[#64748B]">{item.detail}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">{item.detail}</p>
         </div>
       </div>
     </button>
@@ -179,7 +179,7 @@ export function OverviewWorkspace() {
         icon={CalendarClock}
       >
         {homeQuery.isLoading ? (
-          <p className="py-8 text-center text-sm font-semibold text-[#64748B]">Loading today’s practicals…</p>
+          <p className="py-8 text-center text-sm font-semibold text-muted">Loading today’s practicals…</p>
         ) : today.length === 0 ? (
           <WorkspaceEmpty
             title="There are no practical requests awaiting preparation today."
@@ -188,7 +188,7 @@ export function OverviewWorkspace() {
               <button
                 type="button"
                 onClick={() => navigateTo("lab-timetable")}
-                className="min-h-11 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white"
+                className="min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white"
               >
                 View Upcoming Practicals
               </button>
@@ -200,33 +200,33 @@ export function OverviewWorkspace() {
               const nextAction = practicalAction(request);
               const ActionIcon = nextAction?.icon;
               return (
-                <article key={request.id} className="rounded-xl border border-[#D8E0EC] bg-white p-4">
+                <article key={request.id} className="rounded-xl border border-border bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-lg font-black text-[#071D49]">{request.lesson_time} · {request.subject}</p>
-                      <p className="mt-1 text-sm font-bold text-[#334155]">{request.class_name} · {request.teacher_name}</p>
+                      <p className="text-lg font-black text-foreground">{request.lesson_time} · {request.subject}</p>
+                      <p className="mt-1 text-sm font-bold text-foreground">{request.class_name} · {request.teacher_name}</p>
                     </div>
                     <StatusChip label={practicalStatus(request)} tone={statusTone(request.status)} />
                   </div>
-                  <p className="mt-3 font-bold text-[#071D49]">{request.practical_title}</p>
-                  <p className="mt-1 text-sm text-[#64748B]">
+                  <p className="mt-3 font-bold text-foreground">{request.practical_title}</p>
+                  <p className="mt-1 text-sm text-muted">
                     {request.items.length} requested {request.items.length === 1 ? "item" : "items"} · {formatKenyanDate(request.practical_date)}
                   </p>
                   <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                    <div className="rounded-lg bg-[#F8FAFC] px-3 py-2">
-                      <dt className="font-semibold text-[#64748B]">Preparation</dt>
-                      <dd className="mt-0.5 font-black text-[#071D49]">{preparationLabel(request.status)}</dd>
+                    <div className="rounded-lg bg-surface-muted px-3 py-2">
+                      <dt className="font-semibold text-muted">Preparation</dt>
+                      <dd className="mt-0.5 font-black text-foreground">{preparationLabel(request.status)}</dd>
                     </div>
-                    <div className="rounded-lg bg-[#F8FAFC] px-3 py-2">
-                      <dt className="font-semibold text-[#64748B]">Issue</dt>
-                      <dd className="mt-0.5 font-black text-[#071D49]">{issueLabel(request.status)}</dd>
+                    <div className="rounded-lg bg-surface-muted px-3 py-2">
+                      <dt className="font-semibold text-muted">Issue</dt>
+                      <dd className="mt-0.5 font-black text-foreground">{issueLabel(request.status)}</dd>
                     </div>
                   </dl>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => navigateTo("lab-timetable", { request: request.id })}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C8D5EA] px-3 text-sm font-black text-[#071D49]"
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-strong px-3 text-sm font-black text-foreground"
                     >
                       <Eye className="h-4 w-4" aria-hidden="true" /> View Request
                     </button>
@@ -234,7 +234,7 @@ export function OverviewWorkspace() {
                       <button
                         type="button"
                         onClick={() => navigateTo(nextAction.section, { request: request.id, action: nextAction.action })}
-                        className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#071D49] px-3 text-sm font-black text-white"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-black text-white"
                       >
                         <ActionIcon className="h-4 w-4" aria-hidden="true" /> {nextAction.label}
                       </button>
@@ -254,7 +254,7 @@ export function OverviewWorkspace() {
       >
         <div className="mb-3"><SaveState state={saveState} /></div>
         {homeQuery.isLoading ? (
-          <p className="py-8 text-center text-sm font-semibold text-[#64748B]">Checking issued items…</p>
+          <p className="py-8 text-center text-sm font-semibold text-muted">Checking issued items…</p>
         ) : awaitingReturn.length === 0 ? (
           <WorkspaceEmpty
             title="All issued laboratory items have been returned or accounted for."
@@ -263,22 +263,22 @@ export function OverviewWorkspace() {
         ) : (
           <div className="grid gap-3 xl:grid-cols-2">
             {awaitingReturn.map((issue) => (
-              <article key={issue.id} className="rounded-xl border border-[#D8E0EC] p-4">
+              <article key={issue.id} className="rounded-xl border border-border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-black text-[#071D49]">{issue.practical_title}</p>
-                    <p className="mt-1 text-sm font-bold text-[#334155]">{issue.subject} · {issue.class_name}</p>
+                    <p className="font-black text-foreground">{issue.practical_title}</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{issue.subject} · {issue.class_name}</p>
                   </div>
                   <StatusChip label={issue.status.replaceAll("_", " ")} tone={statusTone(issue.status)} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-[#64748B]">
+                <p className="mt-3 text-sm leading-6 text-muted">
                   Received by {issue.received_by}. {issueReturnableCount(issue)} returnable items still need attention.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => navigateTo("apparatus-issue", { issue: issue.id, action: "return" })}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#071D49] px-3 text-sm font-black text-white"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-black text-white"
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden="true" /> Receive Return
                   </button>
@@ -286,7 +286,7 @@ export function OverviewWorkspace() {
                     type="button"
                     disabled={remindingIssueId === issue.id}
                     onClick={() => void sendReminder(issue)}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C8D5EA] px-3 text-sm font-black text-[#071D49] disabled:opacity-60"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-strong px-3 text-sm font-black text-foreground disabled:opacity-60"
                   >
                     <Bell className="h-4 w-4" aria-hidden="true" />
                     {remindingIssueId === issue.id ? "Sending…" : "Send Reminder"}
@@ -294,7 +294,7 @@ export function OverviewWorkspace() {
                   <button
                     type="button"
                     onClick={() => navigateTo("apparatus-issue", { issue: issue.id })}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C8D5EA] px-3 text-sm font-black text-[#071D49]"
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-strong px-3 text-sm font-black text-foreground"
                   >
                     <Eye className="h-4 w-4" aria-hidden="true" /> View Issue
                   </button>
@@ -307,7 +307,7 @@ export function OverviewWorkspace() {
 
       <Panel title="Attention Required" description="Low stock, expiry, damage, missing items, overdue returns, and safety checks due." icon={AlertTriangle}>
         {homeQuery.isLoading ? (
-          <p className="py-8 text-center text-sm font-semibold text-[#64748B]">Checking laboratory attention items…</p>
+          <p className="py-8 text-center text-sm font-semibold text-muted">Checking laboratory attention items…</p>
         ) : attention.length === 0 ? (
           <WorkspaceEmpty
             title="No laboratory records need urgent attention."

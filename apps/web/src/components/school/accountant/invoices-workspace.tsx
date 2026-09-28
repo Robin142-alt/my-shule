@@ -952,7 +952,7 @@ export function InvoicesWorkspace({
               <Button onClick={openInvoiceModal}>Generate invoice</Button>
             </div>
           ) : (
-            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+            <span className="text-xs font-bold text-muted">Restricted</span>
           )
         }
       />

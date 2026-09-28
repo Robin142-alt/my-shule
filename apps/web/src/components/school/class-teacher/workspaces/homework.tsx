@@ -10,7 +10,7 @@ export function HomeworkWorkspace() {
   if (isLoading) {
     return (
       <Panel title="Assignments & Homework" description="Track homework assigned to the class across subjects." icon={BookOpenCheck}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -18,7 +18,7 @@ export function HomeworkWorkspace() {
   if (error || !data) {
     return (
       <Panel title="Assignments & Homework" description="Track homework assigned to the class across subjects." icon={BookOpenCheck}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load homework.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load homework.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -26,9 +26,9 @@ export function HomeworkWorkspace() {
 
   return (
     <Panel title="Assignments & Homework" description="Track homework assigned to the class across subjects." icon={BookOpenCheck}>
-      <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-left text-sm text-[#071D49]">
-          <thead className="bg-[#F8FAFC]">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="p-3 font-semibold">Subject</th>
               <th className="p-3 font-semibold">Assignment Title</th>
@@ -36,7 +36,7 @@ export function HomeworkWorkspace() {
               <th className="p-3 font-semibold text-right">Completion Rate</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {(Array.isArray(data) ? data : []).map((row: any) => (
               <tr key={row.id}>
                 <td className="p-3 font-bold">{row.subject}</td>
@@ -45,7 +45,7 @@ export function HomeworkWorkspace() {
                 <td className="p-3 text-right">
                   <div className="flex items-center justify-end gap-2">
                     <span>{row.completionRate}</span>
-                    <div className="h-2 w-16 overflow-hidden rounded bg-[#D8E0EC]">
+                    <div className="h-2 w-16 overflow-hidden rounded bg-border">
                       <div className="h-full bg-emerald-500" style={{ width: row.completionRate }}></div>
                     </div>
                   </div>

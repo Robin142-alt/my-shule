@@ -76,7 +76,7 @@ export function ReportsWorkspace() {
       icon={FileText}
       actions={
         <div className="flex flex-wrap items-end gap-2">
-          <label className="text-xs font-bold text-[#334155]">Format
+          <label className="text-xs font-bold text-foreground">Format
             <select aria-label="Report format" value={format} onChange={(event) => setFormat(event.target.value)} className={fieldClassName}>
               <option value="pdf">PDF</option><option value="csv">CSV</option><option value="xlsx">Excel</option>
             </select>
@@ -85,7 +85,7 @@ export function ReportsWorkspace() {
             type="button"
             disabled={permissionsLoading || !canWrite || generateReport.isPending}
             onClick={() => generateReport.mutate({ title: "Counselling operations report", format })}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus className="h-4 w-4" /> {generateReport.isPending ? "Generating…" : "Generate Report"}
           </button>
@@ -97,15 +97,15 @@ export function ReportsWorkspace() {
       </div>
 
       {error ? <WorkspaceFailure title="Counselling reports could not be loaded." error={error} onRetry={() => void refetch()} /> : (
-        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <RecordTable className="w-full whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Title</th><th className="px-4 py-3 font-bold">Generated</th><th className="px-4 py-3 font-bold">Format</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Download</th></tr></thead>
+            <thead className="bg-surface-muted text-foreground"><tr><th className="px-4 py-3 font-bold">Title</th><th className="px-4 py-3 font-bold">Generated</th><th className="px-4 py-3 font-bold">Format</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 font-bold">Download</th></tr></thead>
             <tbody>
-              {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading counselling reports…</td></tr> : null}
-              {!isLoading && items.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No counselling report has been generated. Choose a format and generate the first live operational report.</td></tr> : null}
-              {items.map((row) => <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{row.title}</td><td className="px-4 py-3 text-[#64748B]">{row.generated_at}</td><td className="px-4 py-3 uppercase text-[#64748B]">{row.type}</td><td className="px-4 py-3"><StatusChip label={row.status} tone={toneForStatus(row.status)} /></td>
-                <td className="px-4 py-3"><button type="button" disabled={downloadingId === row.id} onClick={() => void downloadReport(row)} className="inline-flex items-center gap-1 font-black text-blue-700 underline disabled:opacity-50"><Download className="h-4 w-4" /> {downloadingId === row.id ? "Preparing…" : "Download"}</button></td>
+              {isLoading ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading counselling reports…</td></tr> : null}
+              {!isLoading && items.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No counselling report has been generated. Choose a format and generate the first live operational report.</td></tr> : null}
+              {items.map((row) => <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{row.title}</td><td className="px-4 py-3 text-muted">{row.generated_at}</td><td className="px-4 py-3 uppercase text-muted">{row.type}</td><td className="px-4 py-3"><StatusChip label={row.status} tone={toneForStatus(row.status)} /></td>
+                <td className="px-4 py-3"><button type="button" disabled={downloadingId === row.id} onClick={() => void downloadReport(row)} className="inline-flex items-center gap-1 font-black text-info underline disabled:opacity-50"><Download className="h-4 w-4" /> {downloadingId === row.id ? "Preparing…" : "Download"}</button></td>
               </tr>)}
             </tbody>
           </RecordTable>

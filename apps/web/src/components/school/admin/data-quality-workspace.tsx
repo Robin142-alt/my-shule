@@ -104,7 +104,7 @@ export function DataQualityWorkspace() {
           <p className="text-sm text-slate-500">Data completeness score</p>
         </Card>
         
-        <Card className="p-6 border border-slate-200 bg-rose-50/50">
+        <Card className="p-6 border border-slate-200 bg-danger-soft/50">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-medium text-slate-900">Critical Issues</h3>
             <AlertTriangle className="w-5 h-5 text-rose-500" />

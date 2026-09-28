@@ -365,7 +365,7 @@ export function PrincipalApprovalsWorkspace() {
             {selectedRequest?.title}. This decision will be persisted in the originating procurement workflow.
           </p>
           {actionError ? (
-            <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</div>
+            <div role="alert" className="rounded border border-danger-border bg-danger-soft p-3 text-sm text-danger">{actionError}</div>
           ) : null}
           <label className="block space-y-2 text-sm font-medium text-slate-800">
             {decision === "reject" ? "Rejection reason" : "Decision note (optional)"}

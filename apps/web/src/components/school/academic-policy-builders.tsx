@@ -63,7 +63,7 @@ const themeClasses = {
     panel: "border-white/10 bg-white/[0.04]",
     row: "border-white/10 bg-white/[0.04]",
     secondaryButton: "border-white/15 bg-white/5 text-white hover:bg-white/10",
-    dangerButton: "border-red-200/20 bg-red-300/10 text-red-100 hover:bg-red-300/20",
+    dangerButton: "border-danger-border/20 bg-red-300/10 text-red-100 hover:bg-red-300/20",
     chip: "border-white/15 bg-white/5 text-white",
   },
   light: {
@@ -73,7 +73,7 @@ const themeClasses = {
     panel: "border-slate-200 bg-slate-50",
     row: "border-slate-200 bg-white",
     secondaryButton: "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-    dangerButton: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+    dangerButton: "border-danger-border bg-danger-soft text-danger hover:bg-red-100",
     chip: "border-slate-200 bg-white text-slate-700",
   },
 } as const;
@@ -407,7 +407,7 @@ export function AcademicGradeBandsEditor({
         <button type="button" onClick={() => setRows((current) => [...current, blankGradeBand()])} className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
           <Plus className="h-4 w-4" /> Add grade band
         </button>
-        <p aria-live="polite" className={`text-xs font-bold ${validation ? "text-amber-300" : theme === "dark" ? "text-emerald-300" : "text-emerald-700"}`}>
+        <p aria-live="polite" className={`text-xs font-bold ${validation ? "text-amber-300" : theme === "dark" ? "text-emerald-300" : "text-success"}`}>
           {validation ?? `${rows.length} grade bands cover every mark from 0 to 100.`}
         </p>
       </div>
@@ -470,7 +470,7 @@ export function AcademicAttendancePolicyEditor({
         Mark learners late after
         <input type="time" value={configuration.late_after} onChange={(event) => setConfiguration((current) => ({ ...current, late_after: event.target.value }))} className={`${baseInputClass} ${styles.input}`} required />
       </label>
-      <p aria-live="polite" className={`mt-3 text-xs font-bold ${validation ? "text-amber-300" : theme === "dark" ? "text-emerald-300" : "text-emerald-700"}`}>
+      <p aria-live="polite" className={`mt-3 text-xs font-bold ${validation ? "text-amber-300" : theme === "dark" ? "text-emerald-300" : "text-success"}`}>
         {validation ?? "Attendance register schedule is complete."}
       </p>
     </div>

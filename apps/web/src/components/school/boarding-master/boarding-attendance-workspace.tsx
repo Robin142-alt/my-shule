@@ -118,14 +118,14 @@ export function BoardingAttendanceWorkspace() {
           disabled={permissionsLoading || referencesLoading || !canWrite || referencesUnavailable}
           onClick={() => setShowForm(true)}
           title={!permissionsLoading && !canWrite ? "Boarding write permission is required" : undefined}
-          className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> Submit Roll Call
         </button>
       }
     >
       {!referencesLoading && !referencesError && referencesIncomplete ? (
-        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div role="alert" className="mb-4 rounded-xl border border-warning-border bg-warning-soft p-4 text-sm text-amber-900">
           Boarding house and learner references are incomplete. Refresh this workspace before submitting a roll call.
         </div>
       ) : null}
@@ -140,25 +140,25 @@ export function BoardingAttendanceWorkspace() {
         </div>
       ) : null}
       {showForm ? (
-        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="text-sm font-black text-[#071D49]">Record the current hostel check</h3>
+        <div className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
+          <h3 className="text-sm font-black text-foreground">Record the current hostel check</h3>
           {referencesError ? (
-            <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">Boarding house and learner references could not be loaded: {referencesError.message}</p>
+            <p role="alert" className="mt-3 text-sm font-semibold text-danger">Boarding house and learner references could not be loaded: {referencesError.message}</p>
           ) : null}
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Boarding house
               <select
                 value={form.house_id}
                 disabled={referencesUnavailable}
                 onChange={(event) => setForm((current) => ({ ...current, house_id: event.target.value, missing_student_ids: [] }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="">Select a house</option>
                 {houses.map((house) => <option key={house.id} value={house.id}>{house.title}</option>)}
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Check result
               <select
                 value={form.status}
@@ -167,36 +167,36 @@ export function BoardingAttendanceWorkspace() {
                   status: event.target.value as RollCallPayload["status"],
                   missing_student_ids: event.target.value === "clear" ? [] : current.missing_student_ids,
                 }))}
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               >
                 <option value="clear">All accounted for</option>
                 <option value="attention_required">Attention required</option>
               </select>
             </label>
-            <label className="text-xs font-bold text-[#334155]">
+            <label className="text-xs font-bold text-foreground">
               Notes {form.status === "attention_required" ? "*" : ""}
               <input
                 value={form.notes}
                 onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                 placeholder="Missing learner, late return, or handover note"
-                className="mt-1 w-full rounded-lg border border-[#D8E0EC] bg-white p-2 text-sm"
+                className="mt-1 w-full rounded-lg border border-border bg-white p-2 text-sm"
               />
             </label>
             {form.status === "attention_required" ? (
-              <fieldset className="rounded-lg border border-[#D8E0EC] bg-white p-3 text-xs md:col-span-2">
-                <legend className="px-1 font-bold text-[#334155]">Missing learners</legend>
-                {!form.house_id ? <p className="text-[#64748B]">Select a house first.</p> : null}
-                {form.house_id && houseStudents.length === 0 ? <p className="text-rose-700">No active boarders are assigned to this house.</p> : null}
+              <fieldset className="rounded-lg border border-border bg-white p-3 text-xs md:col-span-2">
+                <legend className="px-1 font-bold text-foreground">Missing learners</legend>
+                {!form.house_id ? <p className="text-muted">Select a house first.</p> : null}
+                {form.house_id && houseStudents.length === 0 ? <p className="text-danger">No active boarders are assigned to this house.</p> : null}
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {houseStudents.map((student) => (
-                    <label key={student.id} className="flex items-start gap-2 rounded-md border border-[#E2E8F0] p-2">
+                    <label key={student.id} className="flex items-start gap-2 rounded-md border border-border p-2">
                       <input
                         type="checkbox"
                         checked={form.missing_student_ids.includes(student.id)}
                         onChange={() => toggleMissingStudent(student.id)}
                         className="mt-0.5"
                       />
-                      <span>{student.student_name}<span className="block text-[11px] text-[#64748B]">{student.admission_number}</span></span>
+                      <span>{student.student_name}<span className="block text-[11px] text-muted">{student.admission_number}</span></span>
                     </label>
                   ))}
                 </div>
@@ -204,12 +204,12 @@ export function BoardingAttendanceWorkspace() {
             ) : null}
           </div>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted">Cancel</button>
             <button
               type="button"
               disabled={submitRollCall.isPending || referencesLoading || Boolean(referencesError) || referencesUnavailable}
               onClick={saveRollCall}
-              className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50"
             >
               {submitRollCall.isPending ? "Submitting…" : "Confirm Roll Call"}
             </button>
@@ -218,30 +218,30 @@ export function BoardingAttendanceWorkspace() {
       ) : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Checks Today</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.checks_today ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Checks Today</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.checks_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Clear</div>
-          <div className="mt-1 text-lg font-black text-emerald-800">{isLoading ? "..." : data?.metrics?.clear ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Clear</div>
+          <div className="mt-1 text-lg font-black text-success">{isLoading ? "..." : data?.metrics?.clear ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Attention Required</div>
-          <div className="mt-1 text-lg font-black text-rose-800">{isLoading ? "..." : data?.metrics?.attention_required ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Attention Required</div>
+          <div className="mt-1 text-lg font-black text-danger">{isLoading ? "..." : data?.metrics?.attention_required ?? 0}</div>
         </div>
       </div>
 
       {error ? (
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
           <p className="font-black">Boarding roll calls could not be loaded.</p>
           <p className="mt-1">{error.message}</p>
           <button type="button" onClick={() => void refetch()} className="mt-3 font-black underline">Retry</button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <RecordTable className="w-full whitespace-nowrap text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-[#071D49]">
+            <thead className="bg-surface-muted text-foreground">
               <tr>
                 <th className="px-4 py-3 font-bold">Hostel / House</th>
                 <th className="px-4 py-3 font-bold">Checked At</th>
@@ -252,17 +252,17 @@ export function BoardingAttendanceWorkspace() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">Loading roll calls…</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading roll calls…</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No boarding roll call has been submitted for this school. Submit the first check before handover.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No boarding roll call has been submitted for this school. Submit the first check before handover.</td></tr>
               ) : (
                 items.map((row) => (
-                  <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                    <td className="px-4 py-3 font-semibold text-[#071D49]">{row.house_name || "All hostels"}</td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.checked_at}</td>
+                  <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                    <td className="px-4 py-3 font-semibold text-foreground">{row.house_name || "All hostels"}</td>
+                    <td className="px-4 py-3 text-muted">{row.checked_at}</td>
                     <td className="px-4 py-3"><StatusChip label={row.status.replaceAll("_", " ")} tone={getStatusTone(row.status)} /></td>
-                    <td className="px-4 py-3 text-[#64748B]">{row.missing_students ?? 0} missing / {row.expected_students ?? 0} expected</td>
-                    <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-[#64748B]">{row.notes || "No issue recorded"}</td>
+                    <td className="px-4 py-3 text-muted">{row.missing_students ?? 0} missing / {row.expected_students ?? 0} expected</td>
+                    <td className="max-w-[24rem] whitespace-normal px-4 py-3 text-muted">{row.notes || "No issue recorded"}</td>
                   </tr>
                 ))
               )}

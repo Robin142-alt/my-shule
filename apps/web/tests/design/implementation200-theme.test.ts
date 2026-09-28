@@ -13,12 +13,12 @@ describe("Implementation 400 enterprise SaaS theme", () => {
     expect(globalsCss).toContain("--darkblue: #0F2345;");
     expect(globalsCss).toContain("--white: #FFFFFF;");
     expect(globalsCss).toContain("--surface: #FFFFFF;");
-    expect(globalsCss).toContain("--sidebar: #071D49;");
+    expect(globalsCss).toContain("--sidebar: #10243E;");
   });
 
   it("keeps orange as an accent while using light workspace surfaces", () => {
-    expect(globalsCss).toContain("--background: #F3F4F6;");
-    expect(globalsCss).toContain("--accent: #FF7A1A;");
+    expect(globalsCss).toContain("--background: #F4F6FA;");
+    expect(globalsCss).toContain("--accent: #B94712;");
     expect(globalsCss).toContain(".ui-button-primary");
     expect(globalsCss).toContain(".enterprise-sidebar");
     expect(globalsCss).toContain(".enterprise-analytics-panel");

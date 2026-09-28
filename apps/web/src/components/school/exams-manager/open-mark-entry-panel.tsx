@@ -67,8 +67,8 @@ export function OpenMarkEntryPanel({ entries, unavailable, onOpened }: {
         </label>
       </fieldset>
       <p className="text-sm text-slate-600">{examId && (scope === "everyone" || target) ? `${windowCount} subject/class windows selected. ` : ""}Reviewed, locked and published results keep their existing protection. Opening for one teacher preserves everyone else’s access.</p>
-      {unavailable ? <p className="text-sm text-amber-800">Load teacher progress below before choosing who can enter marks.</p> : null}
-      {feedback ? <p role={feedback.error ? "alert" : "status"} className={`rounded-lg p-3 text-sm ${feedback.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{feedback.text}</p> : null}
+      {unavailable ? <p className="text-sm text-warning">Load teacher progress below before choosing who can enter marks.</p> : null}
+      {feedback ? <p role={feedback.error ? "alert" : "status"} className={`rounded-lg p-3 text-sm ${feedback.error ? "bg-danger-soft text-danger" : "bg-success-soft text-success"}`}>{feedback.text}</p> : null}
       <button type="submit" disabled={busy || unavailable || !windowCount || !deadline} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Unlock className="h-4 w-4" />{busy ? "Opening…" : "Open mark entry"}</button>
     </form>
   </section>;

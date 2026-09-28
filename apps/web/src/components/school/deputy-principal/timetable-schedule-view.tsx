@@ -51,17 +51,17 @@ function LessonCard({
     <article
       draggable={draggable && editable && !slot.locked}
       onDragStart={(event) => event.dataTransfer.setData("application/x-myshule-timetable-slot", slot.id)}
-      className={`min-w-0 rounded-xl border border-l-4 p-3 ${slot.locked ? "border-amber-300 bg-amber-50" : "border-[#C8D5EA] border-l-[#174EA6] bg-white"}`}
+      className={`min-w-0 rounded-xl border border-l-4 p-3 ${slot.locked ? "border-amber-300 bg-warning-soft" : "border-border-strong border-l-[#174EA6] bg-white"}`}
       data-slot-id={slot.id}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="break-words text-base font-bold leading-snug text-[#071D49] lg:text-sm">{slotDisplayName(slot, view)}</p>
-          <p className="mt-1 text-xs font-bold text-[#47658F]">{timeLabel(slot.starts_at)}-{timeLabel(slot.ends_at)}{(slot.duration_periods ?? 1) > 1 ? ` - ${slot.duration_periods} periods` : ""}</p>
+          <p className="break-words text-base font-bold leading-snug text-foreground lg:text-sm">{slotDisplayName(slot, view)}</p>
+          <p className="mt-1 text-xs font-bold text-muted-strong">{timeLabel(slot.starts_at)}-{timeLabel(slot.ends_at)}{(slot.duration_periods ?? 1) > 1 ? ` - ${slot.duration_periods} periods` : ""}</p>
         </div>
         {draggable && editable && !slot.locked ? <GripVertical aria-hidden="true" className="h-5 w-5 shrink-0 text-[#8FA7C8]" /> : null}
       </div>
-      <div className="mt-2 space-y-1 break-words text-sm leading-snug text-[#475569] lg:text-xs">
+      <div className="mt-2 space-y-1 break-words text-sm leading-snug text-muted-strong lg:text-xs">
         {view !== "teacher" ? <p>{slot.teacher_name}</p> : null}
         {view !== "class" ? <p>{slot.class_name}{slot.stream_name ? ` - ${slot.stream_name}` : ""}</p> : null}
         {view === "class" && slot.stream_name ? <p>{slot.stream_name}</p> : null}
@@ -70,17 +70,17 @@ function LessonCard({
       </div>
       {slot.locked ? <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-1 text-[11px] font-black uppercase text-amber-950"><Lock className="h-3 w-3" /> Locked</span> : null}
       {editable ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#E2E8F0] pt-2 text-xs font-semibold">
-          <button type="button" onClick={() => onEdit(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 text-[#174EA6] disabled:opacity-40" aria-label={`Edit ${slot.subject_name}`}><Pencil className="h-4 w-4" />Edit</button>
-          <button type="button" onClick={() => onMove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-50 text-[#174EA6] disabled:opacity-40" aria-label={`Move ${slot.subject_name}`}><Move className="h-4 w-4" />Move</button>
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-2 text-xs font-semibold">
+          <button type="button" onClick={() => onEdit(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-info-soft text-info disabled:opacity-40" aria-label={`Edit ${slot.subject_name}`}><Pencil className="h-4 w-4" />Edit</button>
+          <button type="button" onClick={() => onMove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-info-soft text-info disabled:opacity-40" aria-label={`Move ${slot.subject_name}`}><Move className="h-4 w-4" />Move</button>
         </div>
       ) : null}
       {editable ? (
-        <details className="mt-2 border-t border-[#E2E8F0] pt-1">
-          <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-[#174EA6]" aria-label={`Lesson actions for ${slot.subject_name}`}>More actions</summary>
+        <details className="mt-2 border-t border-border pt-1">
+          <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-info" aria-label={`Lesson actions for ${slot.subject_name}`}>More actions</summary>
           <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-            <button type="button" onClick={() => onLock(slot)} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#C8D5EA] text-[#174EA6]" aria-label={`${slot.locked ? "Unlock" : "Lock"} ${slot.subject_name}`}>{slot.locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}{slot.locked ? "Unlock" : "Lock"}</button>
-            <button type="button" onClick={() => onRemove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-rose-200 text-rose-700 disabled:opacity-40" aria-label={`Remove ${slot.subject_name}`}><Trash2 className="h-4 w-4" />Remove</button>
+            <button type="button" onClick={() => onLock(slot)} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border-strong text-info" aria-label={`${slot.locked ? "Unlock" : "Lock"} ${slot.subject_name}`}>{slot.locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}{slot.locked ? "Unlock" : "Lock"}</button>
+            <button type="button" onClick={() => onRemove(slot)} disabled={slot.locked} className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-danger-border text-danger disabled:opacity-40" aria-label={`Remove ${slot.subject_name}`}><Trash2 className="h-4 w-4" />Remove</button>
           </div>
         </details>
       ) : null}
@@ -130,17 +130,17 @@ export function TimetableScheduleView({
   return (
     <div className="min-w-0" aria-label={`${view} timetable view`}>
       <div className="lg:hidden">
-        <div className="mb-3 grid grid-cols-[44px_1fr_44px] items-center gap-2 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-2">
-          <button type="button" onClick={() => changeDay(-1)} className="grid min-h-11 place-items-center rounded-lg bg-white text-[#174EA6]" aria-label="Previous day"><ChevronLeft className="h-5 w-5" /></button>
-          <label className="text-center text-xs font-black uppercase tracking-wide text-[#47658F]">
+        <div className="mb-3 grid grid-cols-[44px_1fr_44px] items-center gap-2 rounded-xl border border-border bg-surface-muted p-2">
+          <button type="button" onClick={() => changeDay(-1)} className="grid min-h-11 place-items-center rounded-lg bg-white text-info" aria-label="Previous day"><ChevronLeft className="h-5 w-5" /></button>
+          <label className="text-center text-xs font-black uppercase tracking-wide text-muted-strong">
             Timetable day
-            <select value={activeDay} onChange={(event) => onSelectedDayChange(Number(event.target.value))} className="mt-1 h-11 w-full rounded-lg border border-[#C8D5EA] bg-white px-3 text-center text-sm font-black normal-case tracking-normal text-[#071D49]">
+            <select value={activeDay} onChange={(event) => onSelectedDayChange(Number(event.target.value))} className="mt-1 h-11 w-full rounded-lg border border-border-strong bg-white px-3 text-center text-sm font-black normal-case tracking-normal text-foreground">
               {effectiveDays.map((day) => <option key={day} value={day}>{dayLabel(day)}</option>)}
             </select>
           </label>
-          <button type="button" onClick={() => changeDay(1)} className="grid min-h-11 place-items-center rounded-lg bg-white text-[#174EA6]" aria-label="Next day"><ChevronRight className="h-5 w-5" /></button>
+          <button type="button" onClick={() => changeDay(1)} className="grid min-h-11 place-items-center rounded-lg bg-white text-info" aria-label="Next day"><ChevronRight className="h-5 w-5" /></button>
         </div>
-        <div className="mb-4 grid grid-flow-col auto-cols-fr gap-1" aria-label="Choose timetable day">{effectiveDays.map((day) => <button key={day} type="button" aria-pressed={day === activeDay} onClick={() => onSelectedDayChange(day)} className={`min-h-11 rounded-lg text-sm font-semibold ${day === activeDay ? "bg-[#071D49] text-white" : "bg-slate-100 text-slate-600"}`}>{dayLabel(day).slice(0, 3)}</button>)}</div>
+        <div className="mb-4 grid grid-flow-col auto-cols-fr gap-1" aria-label="Choose timetable day">{effectiveDays.map((day) => <button key={day} type="button" aria-pressed={day === activeDay} onClick={() => onSelectedDayChange(day)} className={`min-h-11 rounded-lg text-sm font-semibold ${day === activeDay ? "bg-primary text-white" : "bg-slate-100 text-slate-600"}`}>{dayLabel(day).slice(0, 3)}</button>)}</div>
         {activePeriods.length ? <ol className="space-y-3" aria-label={`${dayLabel(activeDay)} lesson timeline`}>{activePeriods.map((period) => {
           const lessons = covering(activeDay, period.starts_at, period.ends_at);
           const starting = lessons.filter((slot) => timeLabel(slot.starts_at) === timeLabel(period.starts_at));
@@ -150,29 +150,29 @@ export function TimetableScheduleView({
             <div className="mb-1.5 flex items-center justify-between gap-2 text-xs font-semibold text-slate-500"><span>{period.name}</span><span>{timeLabel(period.starts_at)}–{timeLabel(period.ends_at)}</span></div>
             {starting.length ? <div className="space-y-2">{starting.map((slot) => <LessonCard key={slot.id} slot={slot} view={view} editable={editable} onMove={onMove} onEdit={onEdit} onLock={onLock} onRemove={onRemove} />)}</div>
               : !period.is_teaching || block ? <div className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-600">{block?.name ?? period.name}</div>
-                : <div className={`rounded-xl border border-dashed p-4 text-sm ${view === "class" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-500"}`}>{view === "class" ? "Needs a lesson — regenerate to fill the week." : "No lesson in this period"}</div>}
+                : <div className={`rounded-xl border border-dashed p-4 text-sm ${view === "class" ? "border-amber-300 bg-warning-soft text-amber-900" : "border-slate-200 text-slate-500"}`}>{view === "class" ? "Needs a lesson — regenerate to fill the week." : "No lesson in this period"}</div>}
           </li>;
         })}</ol> : mobileRows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#C8D5EA] bg-[#F8FAFC] p-8 text-center">
-            <p className="font-black text-[#071D49]">No lessons on {dayLabel(activeDay)}</p>
-            <p className="mt-1 text-sm text-[#64748B]">Choose another day or place an unscheduled requirement.</p>
+          <div className="rounded-xl border border-dashed border-border-strong bg-surface-muted p-8 text-center">
+            <p className="font-black text-foreground">No lessons on {dayLabel(activeDay)}</p>
+            <p className="mt-1 text-sm text-muted">Choose another day or place an unscheduled requirement.</p>
           </div>
         ) : <div className="space-y-3">{mobileRows.map((slot) => <LessonCard key={slot.id} slot={slot} view={view} editable={editable} onMove={onMove} onEdit={onEdit} onLock={onLock} onRemove={onRemove} />)}</div>}
         {unmatchedRows.length ? <section className="mt-4 space-y-3 rounded-xl border border-amber-300 p-3"><p className="text-sm font-semibold text-amber-900">These saved lessons use earlier school times. Review or regenerate them.</p>{unmatchedRows.map((slot) => <LessonCard key={slot.id} slot={slot} view={view} editable={editable} onMove={onMove} onEdit={onEdit} onLock={onLock} onRemove={onRemove} />)}</section> : null}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-xl border border-[#D8E0EC] lg:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-border lg:block">
         {configuredDays.length === 0 ? (
-          <div className="p-8 text-center text-sm font-bold text-amber-800">Configure school days and periods to display the weekly grid.</div>
+          <div className="p-8 text-center text-sm font-bold text-warning">Configure school days and periods to display the weekly grid.</div>
         ) : (
           <table className="w-full min-w-[980px] table-fixed border-collapse text-left text-sm">
-            <thead className="bg-[#071D49] text-white">
+            <thead className="bg-primary text-white">
               <tr><th className="w-24 px-3 py-3">Period</th>{configuredDays.map((day) => <th key={day.day_of_week} className="border-l border-white/20 px-3 py-3">{day.name || dayLabel(day.day_of_week)}</th>)}</tr>
             </thead>
-            <tbody className="divide-y divide-[#D8E0EC] bg-[#F8FAFC]">
+            <tbody className="divide-y divide-border bg-surface-muted">
               {Array.from({ length: maxPeriods }, (_, periodIndex) => (
                 <tr key={periodIndex}>
-                  <th className="align-top px-3 py-3 text-xs font-black text-[#47658F]">Period {periodIndex + 1}</th>
+                  <th className="align-top px-3 py-3 text-xs font-black text-muted-strong">Period {periodIndex + 1}</th>
                   {configuredDays.map((day) => {
                     const period = [...day.periods].sort((a, b) => a.order_index - b.order_index)[periodIndex];
                     const cellRows = period ? rows.filter((slot) => Number(slot.day_of_week) === day.day_of_week && (slot.period_id === period.id || (!slot.period_id && slot.starts_at.slice(0, 5) === period.starts_at.slice(0, 5)))) : [];
@@ -192,12 +192,12 @@ export function TimetableScheduleView({
                             onMoveTo(slot, { day_of_week: day.day_of_week, period_id: period.id, swap_slot_id: target?.id, state: "VALID", reasons: [] });
                           }
                         }}
-                        className={`border-l border-[#D8E0EC] p-2 align-top ${period?.is_teaching ? "bg-white" : "bg-slate-100"}`}
+                        className={`border-l border-border p-2 align-top ${period?.is_teaching ? "bg-white" : "bg-slate-100"}`}
                       >
                         {!period ? null : !period.is_teaching || block ? (
-                          <div className="rounded-lg border border-dashed border-[#C8D5EA] p-3 text-center text-xs font-black uppercase text-[#64748B]">{block?.name ?? period.name}<br /><span className="font-medium normal-case">{timeLabel(period.starts_at)}-{timeLabel(period.ends_at)}</span></div>
+                          <div className="rounded-lg border border-dashed border-border-strong p-3 text-center text-xs font-black uppercase text-muted">{block?.name ?? period.name}<br /><span className="font-medium normal-case">{timeLabel(period.starts_at)}-{timeLabel(period.ends_at)}</span></div>
                         ) : <div className="space-y-2">{cellRows.length === 0 && continuation.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-amber-200 p-3 text-xs text-amber-800">{period.name}<br />{timeLabel(period.starts_at)} · {view === "class" ? "Needs a lesson" : "No lesson"}</div>
+                          <div className="rounded-lg border border-dashed border-warning-border p-3 text-xs text-warning">{period.name}<br />{timeLabel(period.starts_at)} · {view === "class" ? "Needs a lesson" : "No lesson"}</div>
                         ) : null}{[...cellRows, ...continuation].map((slot) => <LessonCard key={slot.id} slot={slot} view={view} editable={editable} draggable onMove={onMove} onEdit={onEdit} onLock={onLock} onRemove={onRemove} />)}</div>}
                       </td>
                     );

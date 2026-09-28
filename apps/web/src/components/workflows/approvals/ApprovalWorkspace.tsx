@@ -101,10 +101,10 @@ export function ApprovalWorkspace() {
                 </div>
                 <div>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    req.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                    req.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                    req.status === 'APPROVED' ? 'bg-green-100 text-success' :
+                    req.status === 'REJECTED' ? 'bg-red-100 text-danger' :
                     req.status === 'CHANGES_REQUESTED' ? 'bg-yellow-100 text-yellow-800' :
-                    req.status === 'PENDING_APPROVAL' ? 'bg-blue-100 text-blue-800' :
+                    req.status === 'PENDING_APPROVAL' ? 'bg-blue-100 text-info' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {req.status.replace('_', ' ')}

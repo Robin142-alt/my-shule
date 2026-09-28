@@ -1732,7 +1732,7 @@ function NurseClinicWorkspace({
   const [newBatch, setNewBatch] = useState("");
   const [newQuantity, setNewQuantity] = useState("10");
   const [newExpiry, setNewExpiry] = useState("2026-12-31");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
 
   const lowStock = medicines.filter((item) => item.quantity <= item.reorderAt);
   const treatedToday = visits.length;
@@ -1769,7 +1769,7 @@ function NurseClinicWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -1831,7 +1831,7 @@ function NurseClinicWorkspace({
             </select>
             <input value={quantity} onChange={(event) => setQuantity(event.currentTarget.value)} className={fieldClass} aria-label="Quantity dispensed" inputMode="numeric" placeholder="Quantity" required />
             <textarea value={symptoms} onChange={(event) => setSymptoms(event.currentTarget.value)} className={`${fieldClass} md:col-span-2 xl:col-span-3`} aria-label="Symptoms and treatment notes" placeholder="Symptoms, vitals, and treatment notes" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">Save Visit and Deduct Stock</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">Save Visit and Deduct Stock</button>
           </form>
         </Card>
 
@@ -1841,18 +1841,18 @@ function NurseClinicWorkspace({
               <p className="eyebrow">Clinic visits</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Today&apos;s sick bay register</h3>
             </div>
-            <button type="button" onClick={onPrintRegister} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
+            <button type="button" onClick={onPrintRegister} className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">
               <Printer className="h-4 w-4" /> Print Register
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Student", "Symptoms", "Medicine", "Guardian", "Status", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {visits.map((visit) => (
                   <tr key={visit.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -1865,10 +1865,10 @@ function NurseClinicWorkspace({
                     <td className="px-3 py-3"><StatusPill label={visit.status} tone={visit.status === "Referred" ? "critical" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onNotifyParent(visit.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
-                        <button type="button" onClick={() => onRefer(visit.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer</button>
-                        <button type="button" onClick={() => onRelease(visit.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Release</button>
-                        <button type="button" onClick={() => onPrint(visit.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Slip</button>
+                        <button type="button" onClick={() => onNotifyParent(visit.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Parent</button>
+                        <button type="button" onClick={() => onRefer(visit.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Refer</button>
+                        <button type="button" onClick={() => onRelease(visit.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Release</button>
+                        <button type="button" onClick={() => onPrint(visit.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Slip</button>
                       </div>
                     </td>
                   </tr>
@@ -1887,7 +1887,7 @@ function NurseClinicWorkspace({
           </div>
           <div className="mt-4 space-y-2">
             {medicines.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-black text-foreground">{item.medicine}</p>
                   <StatusPill label={item.quantity <= item.reorderAt ? "Low stock" : "OK"} tone={item.quantity <= item.reorderAt ? "critical" : "ok"} compact />
@@ -1923,7 +1923,7 @@ function NurseClinicWorkspace({
             <input value={newBatch} onChange={(event) => setNewBatch(event.currentTarget.value)} className={fieldClass} aria-label="Batch number" placeholder="Batch number" required />
             <input value={newQuantity} onChange={(event) => setNewQuantity(event.currentTarget.value)} className={fieldClass} aria-label="Stock quantity" inputMode="numeric" placeholder="Quantity" required />
             <input value={newExpiry} onChange={(event) => setNewExpiry(event.currentTarget.value)} className={fieldClass} aria-label="Expiry date" type="date" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Stock</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Add Stock</button>
           </form>
         </Card>
 
@@ -1970,7 +1970,7 @@ function AdmissionsWorkspace({
   const [documents, setDocuments] = useState<AdmissionApplicantRecord["documents"]>("Partial");
   const [interviewDate, setInterviewDate] = useState("2026-05-29");
   const [note, setNote] = useState("Parent requested boarding placement and fee structure.");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
 
   const pendingApplications = applicants.filter((item) => item.status === "Inquiry" || item.status === "Application Pending").length;
   const missingDocuments = applicants.filter((item) => item.documents !== "Complete").length;
@@ -2001,7 +2001,7 @@ function AdmissionsWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -2058,7 +2058,7 @@ function AdmissionsWorkspace({
             </select>
             <input value={interviewDate} onChange={(event) => setInterviewDate(event.currentTarget.value)} className={fieldClass} aria-label="Interview date" type="date" required />
             <textarea value={note} onChange={(event) => setNote(event.currentTarget.value)} className={`${fieldClass} md:col-span-2 xl:col-span-3`} aria-label="Admission note" placeholder="Admission note" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">
               Save Inquiry
             </button>
           </form>
@@ -2070,18 +2070,18 @@ function AdmissionsWorkspace({
               <p className="eyebrow">Application pipeline</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Applications, documents, interviews, and letters</h3>
             </div>
-            <button type="button" onClick={onPrintPipeline} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
+            <button type="button" onClick={onPrintPipeline} className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">
               <Printer className="h-4 w-4" /> Print Pipeline
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Applicant", "Class/Form", "Parent", "Documents", "Status", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {applicants.map((item) => (
                   <tr key={item.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -2098,12 +2098,12 @@ function AdmissionsWorkspace({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onVerifyDocuments(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Verify Documents</button>
-                        <button type="button" onClick={() => onScheduleInterview(item.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Schedule Interview</button>
-                        <button type="button" onClick={() => onApprove(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Approve Admission</button>
-                        <button type="button" onClick={() => onReject(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Reject</button>
-                        <button type="button" onClick={() => onPrintLetter(item.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Letter</button>
-                        <button type="button" onClick={() => onSendSms(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Send Parent SMS</button>
+                        <button type="button" onClick={() => onVerifyDocuments(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Verify Documents</button>
+                        <button type="button" onClick={() => onScheduleInterview(item.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Schedule Interview</button>
+                        <button type="button" onClick={() => onApprove(item.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Approve Admission</button>
+                        <button type="button" onClick={() => onReject(item.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Reject</button>
+                        <button type="button" onClick={() => onPrintLetter(item.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Letter</button>
+                        <button type="button" onClick={() => onSendSms(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Send Parent SMS</button>
                       </div>
                     </td>
                   </tr>
@@ -2122,7 +2122,7 @@ function AdmissionsWorkspace({
           </div>
           <div className="mt-4 space-y-2">
             {["Document verification", "Interview or assessment", "Admission decision", "Admission number", "First invoice", "Parent SMS onboarding"].map((item) => (
-              <div key={item} className="flex items-center justify-between gap-2 rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item} className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-muted p-3">
                 <p className="text-sm font-black text-foreground">{item}</p>
                 <StatusPill label="Tracked" tone="ok" compact />
               </div>
@@ -2147,9 +2147,9 @@ function AdmissionsWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {applicants.filter((item) => item.documents !== "Complete").length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">All applicant documents are complete.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">All applicant documents are complete.</p>
             ) : applicants.filter((item) => item.documents !== "Complete").map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#FED7AA] bg-warning-soft/50 p-3">
+              <div key={item.id} className="rounded-xl border border-warning-border bg-warning-soft/50 p-3">
                 <p className="text-sm font-black text-foreground">{item.applicant}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.documents} documents - {item.note}</p>
               </div>
@@ -2198,7 +2198,7 @@ function LibraryWorkspace({
   const [borrower, setBorrower] = useState(firstBorrowerContext?.borrower ?? KB_BRIAN_OTIENO);
   const [admissionNo, setAdmissionNo] = useState(firstBorrowerContext?.admissionNo ?? "KBI/2026/044");
   const [dueDate, setDueDate] = useState("2026-06-04");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredBooks = books.filter((book) => (
     `${book.title} ${book.barcode} ${book.author} ${book.category} ${book.shelf}`.toLowerCase().includes(normalizedSearch)
@@ -2250,7 +2250,7 @@ function LibraryWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -2300,7 +2300,7 @@ function LibraryWorkspace({
             </select>
             <input value={admissionNo} onChange={(event) => setAdmissionNo(event.currentTarget.value)} className={fieldClass} aria-label="Admission number" placeholder="Admission number" required />
             <input value={dueDate} onChange={(event) => setDueDate(event.currentTarget.value)} className={fieldClass} aria-label="Due date" type="date" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Issue Book</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Issue Book</button>
           </form>
         </Card>
 
@@ -2310,18 +2310,18 @@ function LibraryWorkspace({
               <p className="eyebrow">Borrower records</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Issued, returned, overdue, lost, and damaged books</h3>
             </div>
-            <button type="button" onClick={onPrintReport} className="inline-flex items-center gap-2 rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">
+            <button type="button" onClick={onPrintReport} className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">
               <Printer className="h-4 w-4" /> Print Library Report
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Book Title", "Barcode", "Borrower", "Due Date", "Status", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {loans.map((loan) => (
                   <tr key={loan.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -2336,11 +2336,11 @@ function LibraryWorkspace({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onReturnBook(loan.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Return Book</button>
-                        <button type="button" onClick={() => onMarkLost(loan.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Mark Lost</button>
-                        <button type="button" onClick={() => onMarkDamaged(loan.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Mark Damaged</button>
-                        <button type="button" onClick={() => onSendSms(loan.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Send Overdue SMS</button>
-                        <button type="button" onClick={() => onPrintSlip(loan.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Slip</button>
+                        <button type="button" onClick={() => onReturnBook(loan.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Return Book</button>
+                        <button type="button" onClick={() => onMarkLost(loan.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Mark Lost</button>
+                        <button type="button" onClick={() => onMarkDamaged(loan.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Mark Damaged</button>
+                        <button type="button" onClick={() => onSendSms(loan.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Send Overdue SMS</button>
+                        <button type="button" onClick={() => onPrintSlip(loan.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Slip</button>
                       </div>
                     </td>
                   </tr>
@@ -2366,9 +2366,9 @@ function LibraryWorkspace({
           </label>
           <div className="mt-3 space-y-2">
             {filteredBooks.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No book matches that search.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">No book matches that search.</p>
             ) : filteredBooks.map((book) => (
-              <div key={book.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={book.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{book.title}</p>
                   <StatusPill label={book.status} tone={book.status === "Available" ? "ok" : book.status === "Issued" ? "warning" : "critical"} compact />
@@ -2403,7 +2403,7 @@ function LibraryWorkspace({
             <input value={author} onChange={(event) => setAuthor(event.currentTarget.value)} className={fieldClass} aria-label="Author" placeholder="Author" required />
             <input value={category} onChange={(event) => setCategory(event.currentTarget.value)} className={fieldClass} aria-label="Category" placeholder="Category" required />
             <input value={shelf} onChange={(event) => setShelf(event.currentTarget.value)} className={fieldClass} aria-label="Shelf number" placeholder="Shelf number" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Book</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Add Book</button>
           </form>
         </Card>
 
@@ -2414,9 +2414,9 @@ function LibraryWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {overdueLoans.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No overdue books right now.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">No overdue books right now.</p>
             ) : overdueLoans.map((loan) => (
-              <div key={loan.id} className="rounded-xl border border-[#FED7AA] bg-warning-soft/50 p-3">
+              <div key={loan.id} className="rounded-xl border border-warning-border bg-warning-soft/50 p-3">
                 <p className="text-sm font-black text-foreground">{loan.borrower}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{loan.bookTitle} overdue. Fine KSh {loan.fine.toLocaleString("en-KE")}.</p>
               </div>
@@ -2462,7 +2462,7 @@ function StorekeeperWorkspace({
   const [movementDepartment, setMovementDepartment] = useState("Mathematics");
   const [movementReceiver, setMovementReceiver] = useState("Mr Otieno");
   const [movementNote, setMovementNote] = useState("Issued for classroom use.");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const lowStock = items.filter((item) => item.status === "Low Stock" || item.quantity <= 20);
   const stockValue = items.reduce((total, item) => total + item.quantity * item.unitCost, 0);
   const damagedCount = items.filter((item) => item.status === "Damaged").length + movements.filter((item) => item.movementType === "Damaged/Lost").length;
@@ -2483,7 +2483,7 @@ function StorekeeperWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -2541,7 +2541,7 @@ function StorekeeperWorkspace({
             <input name="movementDepartment" defaultValue={movementDepartment} className={fieldClass} aria-label="Receiving department" placeholder="Department" required />
             <input name="movementReceiver" defaultValue={movementReceiver} className={fieldClass} aria-label="Receiver name" placeholder="Receiver" required />
             <textarea name="movementNote" defaultValue={movementNote} className={`${fieldClass} md:col-span-2 xl:col-span-2`} aria-label="Stock movement note" placeholder="Purpose or note" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">Issue Stock</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-3">Issue Stock</button>
           </form>
         </Card>
 
@@ -2551,16 +2551,16 @@ function StorekeeperWorkspace({
               <p className="eyebrow">Movement history</p>
               <h3 className="mt-1 text-lg font-black text-foreground">Who took what, when, and for what purpose</h3>
             </div>
-            <button type="button" onClick={onExport} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Export Stock Report</button>
+            <button type="button" onClick={onExport} className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">Export Stock Report</button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Item", "Quantity", "Department", "Receiver", "Type", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {movements.map((movement) => (
                   <tr key={movement.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -2575,8 +2575,8 @@ function StorekeeperWorkspace({
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onPrintSlip(movement.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Slip</button>
-                        <button type="button" onClick={() => onMarkDamaged(movement.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Mark Damaged</button>
+                        <button type="button" onClick={() => onPrintSlip(movement.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Slip</button>
+                        <button type="button" onClick={() => onMarkDamaged(movement.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Mark Damaged</button>
                       </div>
                     </td>
                   </tr>
@@ -2635,7 +2635,7 @@ function StorekeeperWorkspace({
             <input name="department" defaultValue={department} className={fieldClass} aria-label="Responsible department" placeholder="Department" required />
             <input name="receiver" defaultValue={receiver} className={fieldClass} aria-label="Received by" placeholder="Received by" required />
             <input name="unitCost" defaultValue={unitCost} className={fieldClass} aria-label="Unit cost" inputMode="numeric" placeholder="Unit cost" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Receive Stock</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Receive Stock</button>
           </form>
         </Card>
 
@@ -2646,7 +2646,7 @@ function StorekeeperWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {items.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{item.item}</p>
                   <StatusPill label={item.status} tone={item.status === "Low Stock" || item.status === "Damaged" ? "critical" : item.status === "Approval Required" ? "warning" : "ok"} compact />
@@ -2698,7 +2698,7 @@ function BoardingWorkspace({
   const [exeatDorm, setExeatDorm] = useState(firstBoarderContext?.dorm ?? "Lake House");
   const [exeatReason, setExeatReason] = useState("Medical appointment");
   const [exeatPhone, setExeatPhone] = useState("0712345678");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const missing = rollCalls.filter((item) => item.status === "Missing");
   const sick = rollCalls.filter((item) => item.status === "Sick");
   const pendingExeats = exeats.filter((item) => item.status === "Pending" || item.status === "Forwarded");
@@ -2782,7 +2782,7 @@ function BoardingWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -2807,7 +2807,7 @@ function BoardingWorkspace({
               <h3 className="mt-1 text-lg font-black text-foreground">Mark boarder roll call</h3>
               <p className="mt-1 text-sm font-semibold text-muted">Missing or sick boarders can notify parents, deputy, security, or nurse from the same table.</p>
             </div>
-            <button type="button" onClick={onPrintRollCall} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Print Roll Call</button>
+            <button type="button" onClick={onPrintRollCall} className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">Print Roll Call</button>
           </div>
           <form
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5"
@@ -2830,7 +2830,7 @@ function BoardingWorkspace({
             <select value={status} onChange={(event) => setStatus(event.currentTarget.value as BoardingRollCallRecord["status"])} className={fieldClass} aria-label="Roll call status">
               {["Present", "Missing", "Sick", "On Exeat"].map((option) => <option key={option}>{option}</option>)}
             </select>
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Save Roll Call</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Save Roll Call</button>
           </form>
         </Card>
 
@@ -2842,14 +2842,14 @@ function BoardingWorkspace({
             </div>
             <StatusPill label={`${rollCalls.length} boarders`} tone="ok" />
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Student", "Dorm/Bed", "Status", "Last Marked", "Parent SMS", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {rollCalls.map((item) => (
                   <tr key={item.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -2864,10 +2864,10 @@ function BoardingWorkspace({
                     <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Queued" : "Not queued"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onMarkPresent(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Present</button>
-                        <button type="button" onClick={() => onMarkMissing(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Mark Missing</button>
-                        <button type="button" onClick={() => onNotifyParent(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
-                        <button type="button" onClick={() => onReferNurse(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer to Nurse</button>
+                        <button type="button" onClick={() => onMarkPresent(item.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Mark Present</button>
+                        <button type="button" onClick={() => onMarkMissing(item.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Mark Missing</button>
+                        <button type="button" onClick={() => onNotifyParent(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Parent</button>
+                        <button type="button" onClick={() => onReferNurse(item.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Refer to Nurse</button>
                       </div>
                     </td>
                   </tr>
@@ -2902,7 +2902,7 @@ function BoardingWorkspace({
             <input value={exeatDorm} onChange={(event) => setExeatDorm(event.currentTarget.value)} className={fieldClass} aria-label="Exeat dormitory" placeholder="Dormitory" required />
             <input value={exeatPhone} onChange={(event) => setExeatPhone(event.currentTarget.value)} className={fieldClass} aria-label="Exeat parent phone" placeholder="Parent phone" required />
             <textarea value={exeatReason} onChange={(event) => setExeatReason(event.currentTarget.value)} className={fieldClass} aria-label="Exeat reason" placeholder="Reason" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Exeat Request</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Add Exeat Request</button>
           </form>
         </Card>
 
@@ -2913,15 +2913,15 @@ function BoardingWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {exeats.map((request) => (
-              <div key={request.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={request.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{request.student}</p>
                   <StatusPill label={request.status} tone={request.status === "Approved" ? "ok" : request.status === "Rejected" ? "critical" : "warning"} compact />
                 </div>
                 <p className="mt-1 text-xs font-semibold text-muted">{request.dorm} - {request.reason} - {request.parentPhone}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onApproveExeat(request.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Approve Exeat</button>
-                  <button type="button" onClick={() => onForwardExeat(request.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Forward to Deputy</button>
+                  <button type="button" onClick={() => onApproveExeat(request.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Approve Exeat</button>
+                  <button type="button" onClick={() => onForwardExeat(request.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Forward to Deputy</button>
                 </div>
               </div>
             ))}
@@ -2961,7 +2961,7 @@ function TransportWorkspace({
   const [admissionNo, setAdmissionNo] = useState("KBI/2026/220");
   const [route, setRoute] = useState(vehicles[0]?.route ?? "Mamboleo Route");
   const [stop, setStop] = useState("Kibuye Market");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const activeRoutes = new Set(vehicles.map((item) => item.route)).size;
   const notPicked = trips.filter((trip) => trip.status === "Not Picked");
   const vehicleIssues = vehicles.filter((vehicle) => vehicle.status === "Maintenance" || vehicle.status === "Offline" || vehicle.status === "Delayed");
@@ -3011,7 +3011,7 @@ function TransportWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -3036,7 +3036,7 @@ function TransportWorkspace({
               <h3 className="mt-1 text-lg font-black text-foreground">Record pickup or drop-off</h3>
               <p className="mt-1 text-sm font-semibold text-muted">Adds the learner to trip attendance and keeps parent alerts available.</p>
             </div>
-            <button type="button" onClick={onPrintRouteList} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Print Route List</button>
+            <button type="button" onClick={onPrintRouteList} className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">Print Route List</button>
           </div>
           <form
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
@@ -3058,7 +3058,7 @@ function TransportWorkspace({
               {vehicles.map((vehicle) => <option key={vehicle.id}>{vehicle.route}</option>)}
             </select>
             <input value={stop} onChange={(event) => setStop(event.currentTarget.value)} className={fieldClass} aria-label="Transport stop" placeholder="Stop" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Add Trip Record</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Add Trip Record</button>
           </form>
         </Card>
 
@@ -3070,14 +3070,14 @@ function TransportWorkspace({
             </div>
             <StatusPill label={`${trips.length} trip records`} tone="ok" />
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Student", "Route", "Stop", "Status", "Parent Alert", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {trips.map((trip) => (
                   <tr key={trip.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -3092,9 +3092,9 @@ function TransportWorkspace({
                     <td className="px-3 py-3"><StatusPill label={trip.parentAlertSent ? "Queued" : "Not queued"} tone={trip.parentAlertSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onMarkPicked(trip.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Picked</button>
-                        <button type="button" onClick={() => onMarkDropped(trip.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Mark Dropped</button>
-                        <button type="button" onClick={() => onNotifyParent(trip.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
+                        <button type="button" onClick={() => onMarkPicked(trip.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Mark Picked</button>
+                        <button type="button" onClick={() => onMarkDropped(trip.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Mark Dropped</button>
+                        <button type="button" onClick={() => onNotifyParent(trip.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Parent</button>
                       </div>
                     </td>
                   </tr>
@@ -3113,7 +3113,7 @@ function TransportWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {vehicles.map((vehicle) => (
-              <div key={vehicle.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={vehicle.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{vehicle.vehicle}</p>
                   <StatusPill label={vehicle.status} tone={vehicle.status === "Active" ? "ok" : vehicle.status === "Maintenance" || vehicle.status === "Delayed" ? "warning" : "critical"} compact />
@@ -3121,9 +3121,9 @@ function TransportWorkspace({
                 <p className="mt-1 text-xs font-semibold text-muted">{vehicle.route} - {vehicle.driver} - fuel {vehicle.fuelLevel}%</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{vehicle.maintenanceNote}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onReportVehicleIssue(vehicle.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Report Vehicle Issue</button>
-                  <button type="button" onClick={() => onAddFuel(vehicle.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Add Fuel Record</button>
-                  <button type="button" onClick={() => onScheduleMaintenance(vehicle.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Schedule Maintenance</button>
+                  <button type="button" onClick={() => onReportVehicleIssue(vehicle.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Report Vehicle Issue</button>
+                  <button type="button" onClick={() => onAddFuel(vehicle.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Add Fuel Record</button>
+                  <button type="button" onClick={() => onScheduleMaintenance(vehicle.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Schedule Maintenance</button>
                 </div>
               </div>
             ))}
@@ -3173,7 +3173,7 @@ function LaboratoryWorkspace({
   const defaultStockUnit = "litres";
   const defaultStockLocation = "Chemical cabinet B";
   const [hazard, setHazard] = useState<LabInventoryRecord["hazard"]>("Medium");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const lowStock = inventory.filter((item) => item.status === "Low Stock");
   const safetyAlerts = inventory.filter((item) => item.status === "Hazard" || item.hazard === "High");
   const breakages = issues.filter((item) => item.status === "Broken");
@@ -3229,7 +3229,7 @@ function LaboratoryWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -3254,7 +3254,7 @@ function LaboratoryWorkspace({
               <h3 className="mt-1 text-lg font-black text-foreground">Add practical request</h3>
               <p className="mt-1 text-sm font-semibold text-muted">Captures teacher practical requests and keeps safety checks visible.</p>
             </div>
-            <button type="button" onClick={onPrintPracticalChecklist} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Print Practical Checklist</button>
+            <button type="button" onClick={onPrintPracticalChecklist} className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">Print Practical Checklist</button>
           </div>
           <form
             className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5"
@@ -3283,7 +3283,7 @@ function LaboratoryWorkspace({
             <input name="subject" value={subject} onChange={(event) => setSubject(event.currentTarget.value)} className={fieldClass} aria-label="Lab subject" placeholder="Subject" required />
             <input name="practical" defaultValue={defaultPractical} className={fieldClass} aria-label="Lab practical" placeholder="Practical" required />
             <input name="requestedFor" defaultValue={defaultRequestedFor} className={fieldClass} aria-label="Practical time" placeholder="Requested for" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Add Practical Request</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Add Practical Request</button>
           </form>
         </Card>
 
@@ -3295,14 +3295,14 @@ function LaboratoryWorkspace({
             </div>
             <StatusPill label={`${requests.length} requests`} tone="ok" />
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Practical", "Teacher/Class", "Time", "Status", "Teacher Alert", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {requests.map((request) => (
                   <tr key={request.id}>
                     <td className="px-3 py-3 font-black text-foreground">
@@ -3315,9 +3315,9 @@ function LaboratoryWorkspace({
                     <td className="px-3 py-3"><StatusPill label={request.teacherAlerted ? "Queued" : "Not queued"} tone={request.teacherAlerted ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onApprovePracticalPrep(request.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Approve Practical Prep</button>
-                        <button type="button" onClick={() => onIssueApparatus(request.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Issue Apparatus</button>
-                        <button type="button" onClick={() => onAlertTeacher(request.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Alert Teacher</button>
+                        <button type="button" onClick={() => onApprovePracticalPrep(request.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Approve Practical Prep</button>
+                        <button type="button" onClick={() => onIssueApparatus(request.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Issue Apparatus</button>
+                        <button type="button" onClick={() => onAlertTeacher(request.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Alert Teacher</button>
                       </div>
                     </td>
                   </tr>
@@ -3361,7 +3361,7 @@ function LaboratoryWorkspace({
               <option>Medium</option>
               <option>High</option>
             </select>
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Add Chemical Stock</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Add Chemical Stock</button>
           </form>
         </Card>
 
@@ -3372,7 +3372,7 @@ function LaboratoryWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {inventory.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{item.item}</p>
                   <StatusPill label={item.status} tone={item.status === "OK" ? "ok" : item.status === "Hazard" || item.hazard === "High" ? "critical" : "warning"} compact />
@@ -3390,7 +3390,7 @@ function LaboratoryWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {issues.map((issue) => (
-              <div key={issue.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={issue.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{issue.item}</p>
                   <StatusPill label={issue.status} tone={issue.status === "Broken" ? "critical" : issue.status === "Returned" ? "ok" : "warning"} compact />
@@ -3398,8 +3398,8 @@ function LaboratoryWorkspace({
                 <p className="mt-1 text-xs font-semibold text-muted">{issue.teacher} - {issue.className} - {issue.quantity} issued</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{issue.note}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onReturnApparatus(issue.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Return Apparatus</button>
-                  <button type="button" onClick={() => onRecordBreakage(issue.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Record Breakage</button>
+                  <button type="button" onClick={() => onReturnApparatus(issue.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Return Apparatus</button>
+                  <button type="button" onClick={() => onRecordBreakage(issue.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Record Breakage</button>
                 </div>
               </div>
             ))}
@@ -3441,7 +3441,7 @@ function AccountantWorkspace({
   const [term, setTerm] = useState("Term 2 2026");
   const [reference, setReference] = useState("QNEW123456");
   const [searchTerm, setSearchTerm] = useState("");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const collectedToday = payments.reduce((total, item) => total + item.amount, 0);
   const pendingMpesa = payments.filter((item) => item.status === "M-Pesa Pending");
   const highBalances = balances.filter((item) => item.status === "High Balance");
@@ -3457,7 +3457,7 @@ function AccountantWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">{notice}</div>
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">{notice}</div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {summaryCards.map(({ label, value, helper, tone, Icon }) => (
             <Card key={label} className="p-4">
@@ -3480,10 +3480,10 @@ function AccountantWorkspace({
               <p className="mt-1 text-sm font-semibold text-muted">Updates the student balance and keeps receipt/SMS actions available.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/finance" className="rounded-xl bg-[#071D49] px-3 py-2 text-sm font-black text-white">
+              <Link href="/finance" className="rounded-xl bg-primary px-3 py-2 text-sm font-black text-white">
                 Record payment
               </Link>
-              <button type="button" onClick={onExportFees} className="rounded-xl border border-[#D7E0EF] px-3 py-2 text-sm font-black text-[#071D49]">Export Fee List CSV</button>
+              <button type="button" onClick={onExportFees} className="rounded-xl border border-border px-3 py-2 text-sm font-black text-foreground">Export Fee List CSV</button>
             </div>
           </div>
           <form
@@ -3521,7 +3521,7 @@ function AccountantWorkspace({
             </select>
             <input value={term} onChange={(event) => setTerm(event.currentTarget.value)} className={fieldClass} aria-label="Payment term" placeholder="Term" required />
             <input value={reference} onChange={(event) => setReference(event.currentTarget.value)} className={fieldClass} aria-label="Payment reference" placeholder="Reference" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-6">Record Payment</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-6">Record Payment</button>
           </form>
         </Card>
 
@@ -3534,12 +3534,12 @@ function AccountantWorkspace({
             </div>
             <StatusPill label={`${payments.length} payments`} tone="ok" />
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>{["Student", "Amount", "Method", "Receipt", "Status", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}</tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {payments.map((payment) => (
                   <tr key={payment.id}>
                     <td className="px-3 py-3 font-black text-foreground">{payment.student}<span className="block text-xs font-semibold text-muted">{payment.admissionNo}</span></td>
@@ -3549,10 +3549,10 @@ function AccountantWorkspace({
                     <td className="px-3 py-3"><StatusPill label={payment.status} tone={payment.status === "Confirmed" || payment.status === "Recorded" ? "ok" : payment.status === "Reversal Requested" ? "critical" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onConfirmMpesa(payment.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Confirm M-Pesa</button>
-                        <button type="button" onClick={() => onPrintReceipt(payment.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Receipt</button>
-                        <button type="button" onClick={() => onSendReceiptSms(payment.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Send Receipt SMS</button>
-                        <button type="button" onClick={() => onRequestReversal(payment.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-danger">Request Reversal</button>
+                        <button type="button" onClick={() => onConfirmMpesa(payment.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Confirm M-Pesa</button>
+                        <button type="button" onClick={() => onPrintReceipt(payment.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Print Receipt</button>
+                        <button type="button" onClick={() => onSendReceiptSms(payment.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Send Receipt SMS</button>
+                        <button type="button" onClick={() => onRequestReversal(payment.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-danger">Request Reversal</button>
                       </div>
                     </td>
                   </tr>
@@ -3570,15 +3570,15 @@ function AccountantWorkspace({
           <input value={searchTerm} onChange={(event) => setSearchTerm(event.currentTarget.value)} className={`${fieldClass} mt-4 w-full`} aria-label="Search fee balances" placeholder="Search student, admission no, class" />
           <div className="mt-3 space-y-2">
             {filteredBalances.map((student) => (
-              <div key={student.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={student.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{student.student}</p>
                   <StatusPill label={student.status} tone={student.status === "Clear" ? "ok" : student.status === "High Balance" ? "critical" : "warning"} compact />
                 </div>
                 <p className="mt-1 text-xs font-semibold text-muted">{student.className} - {student.admissionNo} - balance KSh {student.balance.toLocaleString("en-KE")}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onSendFeeReminder(student.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Send Fee Reminder</button>
-                  <button type="button" onClick={() => onExportFees()} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Statement</button>
+                  <button type="button" onClick={() => onSendFeeReminder(student.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Send Fee Reminder</button>
+                  <button type="button" onClick={() => onExportFees()} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Statement</button>
                 </div>
               </div>
             ))}
@@ -3630,7 +3630,7 @@ function SecretaryWorkspace({
   const [issue, setIssue] = useState("Fee statement request");
   const [department, setDepartment] = useState<SecretaryInquiryRecord["department"]>("Finance");
   const [studentSearch, setStudentSearch] = useState("");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const waitingParents = inquiries.filter((item) => item.status === "Waiting");
   const waitingVisitors = visitors.filter((item) => item.status === "Waiting");
   const insideVisitors = visitors.filter((item) => item.status === "Inside" || item.status === "Overstayed");
@@ -3676,7 +3676,7 @@ function SecretaryWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">{notice}</div>
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">{notice}</div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {summaryCards.map(({ label, value, helper, tone, Icon }) => (
             <Card key={label} className="p-4">
@@ -3709,7 +3709,7 @@ function SecretaryWorkspace({
             <input value={visiting} onChange={(event) => setVisiting(event.currentTarget.value)} className={fieldClass} aria-label="Person being visited" placeholder="Visiting" required />
             <input value={reason} onChange={(event) => setReason(event.currentTarget.value)} className={fieldClass} aria-label="Visit reason" placeholder="Reason" required />
             <input value={vehicle} onChange={(event) => setVehicle(event.currentTarget.value)} className={fieldClass} aria-label="Vehicle number" placeholder="Vehicle no. optional" />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Check In Visitor</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-5">Check In Visitor</button>
           </form>
         </Card>
 
@@ -3748,7 +3748,7 @@ function SecretaryWorkspace({
               <option>Academics</option>
               <option>Principal</option>
             </select>
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Register Complaint</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Register Complaint</button>
           </form>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -3761,7 +3761,7 @@ function SecretaryWorkspace({
                 }
                 onAddInquiry({ parent, student, className, phone, issue: `Served: ${issue}`, department });
               }}
-              className="rounded-xl border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-2 text-sm font-black text-success"
+              className="rounded-xl border border-success-border bg-success-soft px-3 py-2 text-sm font-black text-success"
             >
               Mark Parent Served
             </button>
@@ -3775,17 +3775,17 @@ function SecretaryWorkspace({
                 }
                 onAddInquiry({ parent, student, className, phone, issue: `SMS queued: ${issue}`, department });
               }}
-              className="rounded-xl border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-sm font-black text-warning"
+              className="rounded-xl border border-warning-border bg-warning-soft px-3 py-2 text-sm font-black text-warning"
             >
               Send SMS
             </button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>{["Parent", "Student", "Issue", "Status", "SMS", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}</tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {inquiries.map((item) => (
                   <tr key={item.id}>
                     <td className="px-3 py-3 font-black text-foreground">{item.parent}<span className="block text-xs font-semibold text-muted">{item.phone}</span></td>
@@ -3795,9 +3795,9 @@ function SecretaryWorkspace({
                     <td className="px-3 py-3"><StatusPill label={item.smsSent ? "Queued" : "Not queued"} tone={item.smsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onMarkParentServed(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Parent Served</button>
-                        <button type="button" onClick={() => onSendParentSms(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Send SMS</button>
-                        <button type="button" onClick={() => onEscalateInquiry(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Escalate Issue</button>
+                        <button type="button" onClick={() => onMarkParentServed(item.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Mark Parent Served</button>
+                        <button type="button" onClick={() => onSendParentSms(item.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Send SMS</button>
+                        <button type="button" onClick={() => onEscalateInquiry(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Escalate Issue</button>
                       </div>
                     </td>
                   </tr>
@@ -3818,21 +3818,21 @@ function SecretaryWorkspace({
                 const latestPayment = latestPaymentForStudent(studentRecord);
 
                 return (
-                  <div key={studentRecord.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+                  <div key={studentRecord.id} className="rounded-xl border border-border bg-surface-muted p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-black text-foreground">{studentRecord.student}</p>
                       <StatusPill label={studentRecord.status} tone={studentRecord.status === "Clear" ? "ok" : studentRecord.status === "High Balance" ? "critical" : "warning"} compact />
                     </div>
                     <p className="mt-1 text-xs font-semibold text-muted">{studentRecord.className} - {studentRecord.admissionNo} - balance KSh {studentRecord.balance.toLocaleString("en-KE")}</p>
                     {latestPayment ? (
-                      <div className="mt-2 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-2 py-2 text-xs font-bold text-[#047857]">
+                      <div className="mt-2 rounded-lg border border-success-border bg-[#F0FDF4] px-2 py-2 text-xs font-bold text-success">
                         <p>Latest payment KSh {latestPayment.amount.toLocaleString("en-KE")} by {latestPayment.method}</p>
                         <p>Receipt {latestPayment.receiptNo} - {latestPayment.status}</p>
                       </div>
                     ) : (
-                      <p className="mt-2 rounded-lg border border-[#D7E0EF] bg-white px-2 py-2 text-xs font-bold text-muted">No payment recorded today</p>
+                      <p className="mt-2 rounded-lg border border-border bg-white px-2 py-2 text-xs font-bold text-muted">No payment recorded today</p>
                     )}
-                    <button type="button" onClick={() => onPrintFeeStatement(studentRecord)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Fee Statement</button>
+                    <button type="button" onClick={() => onPrintFeeStatement(studentRecord)} className="mt-2 rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Print Fee Statement</button>
                   </div>
                 );
               })()
@@ -3844,15 +3844,15 @@ function SecretaryWorkspace({
           <h3 className="text-lg font-black text-foreground">Visitors currently inside</h3>
           <div className="mt-3 space-y-2">
             {visitors.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{item.visitor}</p>
                   <StatusPill label={item.status} tone={item.status === "Exited" ? "ok" : item.status === "Overstayed" ? "critical" : "warning"} compact />
                 </div>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.phoneOrId} - visiting {item.visiting} - {item.checkInTime}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onPrintVisitorSlip(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Print Visitor Slip</button>
-                  <button type="button" onClick={() => onCheckOutVisitor(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Check Out Visitor</button>
+                  <button type="button" onClick={() => onPrintVisitorSlip(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Print Visitor Slip</button>
+                  <button type="button" onClick={() => onCheckOutVisitor(item.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Check Out Visitor</button>
                 </div>
               </div>
             ))}
@@ -3896,7 +3896,7 @@ function DisciplineWorkspace({
   const [guardianPhone, setGuardianPhone] = useState("0711 555 990");
   const [notes, setNotes] = useState("Parent follow-up needed after repeated lesson lateness.");
   const [searchTerm, setSearchTerm] = useState("");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const seriousCases = cases.filter((item) => item.severity === "Serious" || item.severity === "Critical");
   const openCases = cases.filter((item) => item.status !== "Resolved");
   const parentSmsPending = cases.filter((item) => !item.parentSmsSent && item.status !== "Resolved");
@@ -3932,7 +3932,7 @@ function DisciplineWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_400px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -3986,7 +3986,7 @@ function DisciplineWorkspace({
             <input value={reportedBy} onChange={(event) => setReportedBy(event.currentTarget.value)} className={fieldClass} aria-label="Reported by" placeholder="Reported by" required />
             <input value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
             <textarea value={notes} onChange={(event) => setNotes(event.currentTarget.value)} className={`${fieldClass} md:col-span-2`} aria-label="Incident notes" placeholder="Evidence, witnesses, action taken" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Add Incident</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Add Incident</button>
           </form>
         </Card>
 
@@ -4003,14 +4003,14 @@ function DisciplineWorkspace({
             <span className="sr-only">Search discipline cases</span>
             <input value={searchTerm} onChange={(event) => setSearchTerm(event.currentTarget.value)} className={`${fieldClass} w-full`} aria-label="Search discipline cases" placeholder="Search student, case type, class, reporter" />
           </label>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Student", "Case", "Severity", "Status", "Parent SMS", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {filteredCases.length === 0 ? (
                   <tr>
                     <td className="px-3 py-6 text-center text-sm font-semibold text-muted" colSpan={6}>No discipline cases match that search.</td>
@@ -4030,11 +4030,11 @@ function DisciplineWorkspace({
                     <td className="px-3 py-3"><StatusPill label={item.parentSmsSent ? "Queued" : "Not queued"} tone={item.parentSmsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onNotifyParent(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
-                        <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
-                        <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
-                        <button type="button" onClick={() => onPrintLetter(item.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Letter</button>
-                        <button type="button" onClick={() => onResolveCase(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Resolved</button>
+                        <button type="button" onClick={() => onNotifyParent(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Parent</button>
+                        <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
+                        <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                        <button type="button" onClick={() => onPrintLetter(item.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Letter</button>
+                        <button type="button" onClick={() => onResolveCase(item.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Mark Resolved</button>
                       </div>
                     </td>
                   </tr>
@@ -4066,14 +4066,14 @@ function DisciplineWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {seriousCases.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No serious discipline cases today.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">No serious discipline cases today.</p>
             ) : seriousCases.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#FECACA] bg-critical-soft/40 p-3">
+              <div key={item.id} className="rounded-xl border border-danger-border bg-critical-soft/40 p-3">
                 <p className="text-sm font-black text-foreground">{item.student}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.caseType} - {item.className} - {item.status}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
-                  <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
+                  <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                  <button type="button" onClick={() => onReferCounsellor(item.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Refer Counsellor</button>
                 </div>
               </div>
             ))}
@@ -4087,9 +4087,9 @@ function DisciplineWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {linkedCounsellingSessions.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No counselling support updates linked to discipline today.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">No counselling support updates linked to discipline today.</p>
             ) : linkedCounsellingSessions.slice(0, 5).map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#FED7AA] bg-warning-soft/45 p-3">
+              <div key={item.id} className="rounded-xl border border-warning-border bg-warning-soft/45 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-black text-foreground">{item.student} counselling support linked to discipline</p>
                   <StatusPill label={item.riskLevel} tone={item.riskLevel === "High" || item.riskLevel === "Critical" ? "critical" : "warning"} compact />
@@ -4108,12 +4108,12 @@ function DisciplineWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {parentSmsPending.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">All open discipline cases have parent communication recorded.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">All open discipline cases have parent communication recorded.</p>
             ) : parentSmsPending.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <p className="text-sm font-black text-foreground">{item.student}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.guardianPhone} - {item.caseType}</p>
-                <button type="button" onClick={() => onNotifyParent(item.id)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Parent</button>
+                <button type="button" onClick={() => onNotifyParent(item.id)} className="mt-2 rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Parent</button>
               </div>
             ))}
           </div>
@@ -4151,7 +4151,7 @@ function CounsellingWorkspace({
   const defaultNotes = "Bullying stress follow-up and parent meeting needed.";
   const defaultFollowUpDate = "2026-06-02";
   const [searchTerm, setSearchTerm] = useState("");
-  const fieldClass = "rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#1D4ED8]";
+  const fieldClass = "rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info";
   const openSessions = sessions.filter((item) => item.status !== "Closed");
   const highRisk = sessions.filter((item) => item.riskLevel === "High" || item.riskLevel === "Critical");
   const followUpsDue = sessions.filter((item) => item.status === "Follow-up Scheduled" || item.status === "Open");
@@ -4182,7 +4182,7 @@ function CounsellingWorkspace({
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
       <div className="space-y-4">
-        <div role="status" className="rounded-xl border border-[#B8D4FF] bg-[#EFF6FF] px-4 py-3 text-sm font-black text-[#1D4ED8]">
+        <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-black text-info">
           {notice}
         </div>
 
@@ -4250,7 +4250,7 @@ function CounsellingWorkspace({
             <input name="guardianPhone" value={guardianPhone} onChange={(event) => setGuardianPhone(event.currentTarget.value)} className={fieldClass} aria-label="Guardian phone" placeholder="Guardian phone" required />
             <input name="followUpDate" defaultValue={defaultFollowUpDate} className={fieldClass} aria-label="Follow-up date" type="date" required />
             <textarea name="notes" defaultValue={defaultNotes} className={`${fieldClass} md:col-span-2 xl:col-span-1`} aria-label="Session notes" placeholder="Confidential notes and follow-up plan" required />
-            <button type="submit" className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Save Session</button>
+            <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white md:col-span-2 xl:col-span-4">Save Session</button>
           </form>
         </Card>
 
@@ -4267,14 +4267,14 @@ function CounsellingWorkspace({
             <span className="sr-only">Search counselling sessions</span>
             <input value={searchTerm} onChange={(event) => setSearchTerm(event.currentTarget.value)} className={`${fieldClass} w-full`} aria-label="Search counselling sessions" placeholder="Search student, referral source, risk, session type" />
           </label>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-[#D7E0EF]">
-            <table className="min-w-full divide-y divide-[#E2E8F0] text-sm">
-              <thead className="bg-[#F8FAFC] text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-surface-muted text-left text-xs font-black uppercase tracking-[0.12em] text-muted">
                 <tr>
                   {["Student", "Referral", "Risk", "Status", "Guardian SMS", "Action"].map((column) => <th key={column} className="px-3 py-3">{column}</th>)}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E2E8F0] bg-white">
+              <tbody className="divide-y divide-border bg-white">
                 {filteredSessions.length === 0 ? (
                   <tr>
                     <td className="px-3 py-6 text-center text-sm font-semibold text-muted" colSpan={6}>No counselling sessions match that search.</td>
@@ -4295,11 +4295,11 @@ function CounsellingWorkspace({
                     <td className="px-3 py-3"><StatusPill label={item.guardianSmsSent ? "Queued" : "Not queued"} tone={item.guardianSmsSent ? "ok" : "warning"} compact /></td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
-                        <button type="button" onClick={() => onScheduleFollowUp(item.id)} className="rounded-lg border border-[#FED7AA] px-2 py-1 text-xs font-black text-warning">Schedule Follow-up</button>
-                        <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
-                        <button type="button" onClick={() => onPrintSummary(item.id)} className="rounded-lg border border-[#D7E0EF] px-2 py-1 text-xs font-black text-[#071D49]">Print Summary</button>
-                        <button type="button" onClick={() => onCloseFollowUp(item.id)} className="rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Follow-up Done</button>
+                        <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Guardian</button>
+                        <button type="button" onClick={() => onScheduleFollowUp(item.id)} className="rounded-lg border border-warning-border px-2 py-1 text-xs font-black text-warning">Schedule Follow-up</button>
+                        <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                        <button type="button" onClick={() => onPrintSummary(item.id)} className="rounded-lg border border-border px-2 py-1 text-xs font-black text-foreground">Print Summary</button>
+                        <button type="button" onClick={() => onCloseFollowUp(item.id)} className="rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Mark Follow-up Done</button>
                       </div>
                     </td>
                   </tr>
@@ -4318,14 +4318,14 @@ function CounsellingWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {highRisk.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No high-risk counselling cases today.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">No high-risk counselling cases today.</p>
             ) : highRisk.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#FECACA] bg-critical-soft/40 p-3">
+              <div key={item.id} className="rounded-xl border border-danger-border bg-critical-soft/40 p-3">
                 <p className="text-sm font-black text-foreground">{item.student}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.sessionType} - {item.className} - {item.status}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-[#FECACA] px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
-                  <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
+                  <button type="button" onClick={() => onEscalateDeputy(item.id)} className="rounded-lg border border-danger-border px-2 py-1 text-xs font-black text-critical">Escalate Deputy</button>
+                  <button type="button" onClick={() => onNotifyGuardian(item.id)} className="rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Guardian</button>
                 </div>
               </div>
             ))}
@@ -4339,12 +4339,12 @@ function CounsellingWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {followUpsDue.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">No counselling follow-ups due today.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">No counselling follow-ups due today.</p>
             ) : followUpsDue.slice(0, 5).map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <p className="text-sm font-black text-foreground">{item.student}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.followUpDate} - {item.sessionType}</p>
-                <button type="button" onClick={() => onCloseFollowUp(item.id)} className="mt-2 rounded-lg border border-[#BBF7D0] px-2 py-1 text-xs font-black text-success">Mark Follow-up Done</button>
+                <button type="button" onClick={() => onCloseFollowUp(item.id)} className="mt-2 rounded-lg border border-success-border px-2 py-1 text-xs font-black text-success">Mark Follow-up Done</button>
               </div>
             ))}
           </div>
@@ -4357,12 +4357,12 @@ function CounsellingWorkspace({
           </div>
           <div className="mt-3 space-y-2">
             {guardianSmsPending.length === 0 ? (
-              <p className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3 text-sm font-semibold text-muted">All open counselling cases have guardian communication recorded.</p>
+              <p className="rounded-xl border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">All open counselling cases have guardian communication recorded.</p>
             ) : guardianSmsPending.map((item) => (
-              <div key={item.id} className="rounded-xl border border-[#D7E0EF] bg-surface-muted p-3">
+              <div key={item.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <p className="text-sm font-black text-foreground">{item.student}</p>
                 <p className="mt-1 text-xs font-semibold text-muted">{item.guardianPhone} - {item.riskLevel} risk</p>
-                <button type="button" onClick={() => onNotifyGuardian(item.id)} className="mt-2 rounded-lg border border-[#B8D4FF] px-2 py-1 text-xs font-black text-[#1D4ED8]">Notify Guardian</button>
+                <button type="button" onClick={() => onNotifyGuardian(item.id)} className="mt-2 rounded-lg border border-info-border px-2 py-1 text-xs font-black text-info">Notify Guardian</button>
               </div>
             ))}
           </div>
@@ -4410,13 +4410,13 @@ function ExecutionInlineNotice({ items }: { items: ExecutionLogItem[] }) {
   }
 
   return (
-    <div className="rounded-xl border border-[#D7E0EF] bg-white/75 px-3 py-2 shadow-sm">
+    <div className="rounded-xl border border-border bg-white/75 px-3 py-2 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-xs font-bold text-[#071D49]">{latest.label}</p>
+      <p className="text-xs font-bold text-foreground">{latest.label}</p>
         <StatusPill label={latest.status} tone={latest.status === "SUCCESS" ? "ok" : latest.status === "FAILED" ? "critical" : "warning"} compact />
       </div>
-      <p className="mt-1 text-[11px] font-semibold text-[#40608F]">{latest.events.map(schoolFriendlyText).join(", ")}</p>
-      <p className="mt-1 text-[11px] font-semibold text-[#40608F]">Saved for reporting</p>
+      <p className="mt-1 text-[11px] font-semibold text-muted-strong">{latest.events.map(schoolFriendlyText).join(", ")}</p>
+      <p className="mt-1 text-[11px] font-semibold text-muted-strong">Saved for reporting</p>
     </div>
   );
 }
@@ -4601,7 +4601,7 @@ function WorkspacePanelTabs({
   onChange: (panel: WorkspacePanel) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2 rounded-2xl border border-[#D7E0EF] bg-white/70 p-2 shadow-sm">
+    <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-white/70 p-2 shadow-sm">
       {workspacePanels.map((panel) => (
         <button
           key={panel.id}
@@ -4610,8 +4610,8 @@ function WorkspacePanelTabs({
           aria-pressed={activePanel === panel.id}
           className={`rounded-xl px-3 py-2 text-xs font-black transition hover:-translate-y-0.5 ${
             activePanel === panel.id
-              ? "bg-[#0B3A7A] text-white shadow-[0_10px_28px_rgba(11,58,122,0.22)]"
-              : "bg-white text-[#40608F] hover:bg-[#EDF4FF]"
+              ? "bg-info text-white shadow-[0_10px_28px_rgba(11,58,122,0.22)]"
+              : "bg-white text-muted-strong hover:bg-[#EDF4FF]"
           }`}
         >
           {panel.label}
@@ -4639,12 +4639,12 @@ function KisumuBoysDemoFeedPanel({
   }
 
   return (
-    <Card className="border-[#B8D4FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#EDF5FF_100%)] p-5">
+    <Card className="border-info-border bg-[linear-gradient(135deg,#FFFFFF_0%,#EDF5FF_100%)] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow">Kisumu Boys live updates</p>
-          <h3 className="mt-1 text-lg font-black text-[#071D49]">{profile.sidebarTitle} activity is active</h3>
-          <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#40608F]">
+          <h3 className="mt-1 text-lg font-black text-foreground">{profile.sidebarTitle} activity is active</h3>
+          <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-muted-strong">
             {profile.todayContext} These records come from the {profile.sectionNoun} and update when staff complete
             their daily actions.
           </p>
@@ -4673,15 +4673,15 @@ function KisumuBoysDemoFeedPanel({
           return (
             <div
               key={item.id}
-              className="grid gap-3 rounded-xl border border-[#D7E0EF] bg-white/85 p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_auto]"
+              className="grid gap-3 rounded-xl border border-border bg-white/85 p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_auto]"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusPill label={schoolFriendlyText(item.eventType.replace(/_/g, " "))} tone="ok" compact />
-                  <p className="text-sm font-black text-[#071D49]">{item.title}</p>
+                  <p className="text-sm font-black text-foreground">{item.title}</p>
                 </div>
-                <p className="mt-1 text-xs font-semibold leading-5 text-[#52657F]">{item.body}</p>
-                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#40608F]">
+                <p className="mt-1 text-xs font-semibold leading-5 text-muted">{item.body}</p>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-[0.14em] text-muted-strong">
                   Work list: {schoolFriendlyText(item.queue)} | update record ready
                 </p>
               </div>
@@ -8161,7 +8161,7 @@ function GenericRoleOperationalCommandCenter({
   }
 
   return (
-    <div className="authenticated-app min-h-dvh bg-[#F3F6FA] lg:h-dvh lg:overflow-hidden" data-testid="role-operational-command-center">
+    <div className="authenticated-app min-h-dvh bg-background lg:h-dvh lg:overflow-hidden" data-testid="role-operational-command-center">
       <div className="mx-auto grid min-h-dvh max-w-none gap-0 lg:h-full lg:min-h-0 lg:grid-cols-[292px_minmax(0,1fr)]">
         {mobileSidebarOpen ? (
           <button
@@ -8172,7 +8172,7 @@ function GenericRoleOperationalCommandCenter({
           />
         ) : null}
         <aside
-          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,292px)] min-h-0 flex-col overflow-hidden border-r border-[#D7E0EF] bg-[linear-gradient(180deg,#071D49_0%,#102E63_58%,#0F172A_100%)] p-4 text-white shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:shadow-none ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,292px)] min-h-0 flex-col overflow-hidden border-r border-border bg-[linear-gradient(180deg,#071D49_0%,#102E63_58%,#0F172A_100%)] p-4 text-white shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:h-full lg:w-auto lg:translate-x-0 lg:shadow-none ${
             mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -8255,7 +8255,7 @@ function GenericRoleOperationalCommandCenter({
                 <div className="flex flex-wrap justify-end gap-2">
                   <MobileMenuTrigger
                     type="button"
-                    className="rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] p-2 text-[#071D49] lg:hidden"
+                    className="rounded-xl border border-border-strong bg-surface-muted p-2 text-foreground lg:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
                     aria-label={`Open ${roleTitle} menu`}
                     aria-expanded={mobileSidebarOpen}
@@ -8264,13 +8264,13 @@ function GenericRoleOperationalCommandCenter({
                   </MobileMenuTrigger>
                 <label className="relative w-full sm:w-[320px]">
                   <span className="sr-only">{searchPlaceholder(role, roleProfile, resolvedWorkspace)}</span>
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#5F6F89]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
                   <input
                     type="search"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.currentTarget.value)}
                     placeholder={searchPlaceholder(role, roleProfile, resolvedWorkspace)}
-                    className="w-full rounded-xl border border-[#C8D5EA] bg-[#F8FAFC] py-2 pl-9 pr-3 text-sm font-semibold text-[#071D49] outline-none transition placeholder:text-[#5F6F89] focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
+                    className="w-full rounded-xl border border-border-strong bg-surface-muted py-2 pl-9 pr-3 text-sm font-semibold text-foreground outline-none transition placeholder:text-muted focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
                   />
                 </label>
                 <StatusPill label="Authorized actions" tone="ok" />
@@ -8285,14 +8285,14 @@ function GenericRoleOperationalCommandCenter({
             <div className="flex min-h-full flex-col gap-4">
             {activeWorkspaceIndex === 0 && !isSearching ? (
               <div className="space-y-6">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#40608F]">Live records</p>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-strong">Live records</p>
                 <PracticalSummaryGrid profile={roleProfile} />
               </div>
             ) : null}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#40608F]">Active section</p>
-                <p className="text-xl font-black text-[#071D49]">{schoolFriendlyText(resolvedWorkspace)}</p>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-strong">Active section</p>
+                <p className="text-xl font-black text-foreground">{schoolFriendlyText(resolvedWorkspace)}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusPill label={`${visibleQueueContract.items.length} tasks`} tone="warning" />
@@ -8604,7 +8604,7 @@ function GenericRoleOperationalCommandCenter({
             )}
             </div>
 
-            <p className="shrink-0 flex items-center gap-2 rounded-xl border border-[#D7E0EF] bg-white/70 px-3 py-2 text-xs font-semibold text-[#40608F]">
+            <p className="shrink-0 flex items-center gap-2 rounded-xl border border-border bg-white/70 px-3 py-2 text-xs font-semibold text-muted-strong">
               <Clock3 className="h-3.5 w-3.5 text-accent" />
               Use the role menu to switch sections. System issues and retries stay in reports.
             </p>

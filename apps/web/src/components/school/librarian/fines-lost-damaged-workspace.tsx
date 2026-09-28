@@ -111,96 +111,96 @@ export function FinesLostDamagedWorkspace() {
       description="Manage fines for lost, damaged, and overdue library books."
       icon={AlertTriangle}
       actions={
-        <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
+        <button onClick={() => setShowForm(!showForm)} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
           <AlertTriangle className="w-4 h-4" /> Record Fine
         </button>
       }
     >
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Fines</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_fines ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Fines</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_fines ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Pending (KES)</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : (data?.metrics?.pending_amount ?? 0).toLocaleString()}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Pending (KES)</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : (data?.metrics?.pending_amount ?? 0).toLocaleString()}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Collected (KES)</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : (data?.metrics?.collected_amount ?? 0).toLocaleString()}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Collected (KES)</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : (data?.metrics?.collected_amount ?? 0).toLocaleString()}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Waived (KES)</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : (data?.metrics?.waived_amount ?? 0).toLocaleString()}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Waived (KES)</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : (data?.metrics?.waived_amount ?? 0).toLocaleString()}</div>
         </div>
       </div>
 
       {/* Create fine form */}
       {showForm && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
-          <h3 className="text-sm font-bold text-[#071D49] mb-3">Record a Fine</h3>
+        <div className="mb-6 rounded-xl border border-warning-border bg-warning-soft p-5">
+          <h3 className="text-sm font-bold text-foreground mb-3">Record a Fine</h3>
           <div className="grid gap-3 md:grid-cols-3">
-            <input className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Student Admission No. *" value={form.student_admission_no} onChange={(e) => setForm({ ...form, student_admission_no: e.target.value })} />
-            <input className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Book ISBN / Title *" value={form.book_isbn} onChange={(e) => setForm({ ...form, book_isbn: e.target.value })} />
-            <select className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" value={form.fine_type} onChange={(e) => setForm({ ...form, fine_type: e.target.value })}>
+            <input className="rounded-lg border border-border px-3 py-2 text-sm" placeholder="Student Admission No. *" value={form.student_admission_no} onChange={(e) => setForm({ ...form, student_admission_no: e.target.value })} />
+            <input className="rounded-lg border border-border px-3 py-2 text-sm" placeholder="Book ISBN / Title *" value={form.book_isbn} onChange={(e) => setForm({ ...form, book_isbn: e.target.value })} />
+            <select className="rounded-lg border border-border px-3 py-2 text-sm" value={form.fine_type} onChange={(e) => setForm({ ...form, fine_type: e.target.value })}>
               <option value="Lost">Lost Book</option>
               <option value="Damaged">Damaged Book</option>
               <option value="Overdue Fine">Overdue Fine</option>
             </select>
-            <input className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" type="number" min={0} placeholder="Amount (KES) *" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) || 0 })} />
-            <input className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm md:col-span-2" placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <input className="rounded-lg border border-border px-3 py-2 text-sm" type="number" min={0} placeholder="Amount (KES) *" value={form.amount || ""} onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) || 0 })} />
+            <input className="rounded-lg border border-border px-3 py-2 text-sm md:col-span-2" placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
           <div className="mt-3 flex gap-2">
-            <button disabled={isCreating} onClick={handleCreateFine} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">{isCreating ? "Creating..." : "Save Fine"}</button>
-            <button onClick={() => setShowForm(false)} className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-50">Cancel</button>
+            <button disabled={isCreating} onClick={handleCreateFine} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">{isCreating ? "Creating..." : "Save Fine"}</button>
+            <button onClick={() => setShowForm(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-muted hover:bg-slate-50">Cancel</button>
           </div>
         </div>
       )}
 
       {/* Search */}
       <div className="mb-4 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
-        <input className="w-full rounded-lg border border-[#D8E0EC] py-2 pl-10 pr-4 text-sm placeholder:text-[#94A3B8]" placeholder="Search fines by student or book..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+        <input className="w-full rounded-lg border border-border py-2 pl-10 pr-4 text-sm placeholder:text-muted" placeholder="Search fines by student or book..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Adm No.</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Book</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Amount (KES)</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Adm No.</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Book</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Amount (KES)</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading fines...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading fines...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">{searchTerm ? "No fines match your search." : "No fines recorded. Click \"Record Fine\" to create a fine for a lost or damaged book."}</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">{searchTerm ? "No fines match your search." : "No fines recorded. Click \"Record Fine\" to create a fine for a lost or damaged book."}</td></tr>
             ) : (
               filtered.map((f) => (
-                <tr key={f.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{f.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B] font-mono text-xs">{f.admission_no}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{f.book_title}</td>
+                <tr key={f.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{f.student_name}</td>
+                  <td className="px-4 py-3 text-muted font-mono text-xs">{f.admission_no}</td>
+                  <td className="px-4 py-3 text-muted">{f.book_title}</td>
                   <td className="px-4 py-3"><StatusChip label={f.fine_type} tone={getTypeTone(f.fine_type)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{f.amount.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{f.date_created}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{f.amount.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-muted">{f.date_created}</td>
                   <td className="px-4 py-3"><StatusChip label={f.status} tone={getStatusTone(f.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {f.status === "Pending" && (
                       <div className="inline-flex gap-2">
-                        <button disabled={actionId === f.id} onClick={() => handleMarkPaid(f)} className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 font-semibold text-xs disabled:opacity-50">
+                        <button disabled={actionId === f.id} onClick={() => handleMarkPaid(f)} className="inline-flex items-center gap-1 text-emerald-600 hover:text-success font-semibold text-xs disabled:opacity-50">
                           <Check className="w-3 h-3" /> Paid
                         </button>
-                        <button disabled={actionId === f.id} onClick={() => handleWaive(f)} className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold text-xs disabled:opacity-50">
+                        <button disabled={actionId === f.id} onClick={() => handleWaive(f)} className="inline-flex items-center gap-1 text-blue-600 hover:text-info font-semibold text-xs disabled:opacity-50">
                           <XCircle className="w-3 h-3" /> Waive
                         </button>
                       </div>

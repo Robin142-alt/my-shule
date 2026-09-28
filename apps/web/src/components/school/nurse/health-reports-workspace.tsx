@@ -124,64 +124,64 @@ export function HealthReportsWorkspace() {
   return (
     <Panel title="Health Reports" description="Generate and download health summaries for the school." icon={FileBarChart} actions={
       <div className="flex items-center gap-2">
-        <select value={reportType} onChange={e => setReportType(e.target.value)} className="rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm focus:border-[#071D49] focus:outline-none">
+        <select value={reportType} onChange={e => setReportType(e.target.value)} className="rounded-lg border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none">
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="term">Term</option>
           <option value="annual">Annual</option>
         </select>
-        <button disabled={isGenerating} onClick={handleGenerate} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
+        <button disabled={isGenerating} onClick={handleGenerate} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
           <RefreshCw className={`w-4 h-4 ${isGenerating ? "animate-spin" : ""}`} />
           {isGenerating ? "Generating..." : "Generate Report"}
         </button>
       </div>
     }>
       {isError ? (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+        <div className="mb-6 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger" role="alert">
           Health reports could not be loaded. {error instanceof Error ? error.message : "Please retry."}{" "}
           <button type="button" className="font-black underline" onClick={() => void refetch()}>Retry</button>
         </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Reports</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : reportsData.metrics.total_reports}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Reports</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : reportsData.metrics.total_reports}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Generated This Term</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : reportsData.metrics.generated_this_term}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Generated This Term</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : reportsData.metrics.generated_this_term}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Report</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Period</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Visits</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Dispensed</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Generated</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Report</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Period</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Visits</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Dispensed</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Generated</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading reports...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading reports...</td></tr>
             ) : reports.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">No reports generated yet. Select a report type and click &quot;Generate Report&quot; to create a health summary.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No reports generated yet. Select a report type and click &quot;Generate Report&quot; to create a health summary.</td></tr>
             ) : (
               reports.map(r => (
-                <tr key={r.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{r.title}</td>
-                  <td className="px-4 py-3 text-[#64748B] capitalize">{r.report_type}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.period}</td>
-                  <td className="px-4 py-3 font-bold text-[#071D49]">{r.total_visits}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.total_dispensed}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{r.generated_at}</td>
+                <tr key={r.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{r.title}</td>
+                  <td className="px-4 py-3 text-muted capitalize">{r.report_type}</td>
+                  <td className="px-4 py-3 text-muted">{r.period}</td>
+                  <td className="px-4 py-3 font-bold text-foreground">{r.total_visits}</td>
+                  <td className="px-4 py-3 text-muted">{r.total_dispensed}</td>
+                  <td className="px-4 py-3 text-muted">{r.generated_at}</td>
                   <td className="px-4 py-3"><StatusChip label={r.status} tone={getStatusTone(r.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {r.status === "Ready" && (

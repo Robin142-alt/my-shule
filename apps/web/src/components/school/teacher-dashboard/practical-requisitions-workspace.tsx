@@ -72,7 +72,7 @@ type FieldErrors = Partial<
 >;
 
 const fieldClass =
-  "mt-1 min-h-11 w-full rounded-xl border border-[#C8D5EA] bg-white px-3 text-sm text-[#071D49] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+  "mt-1 min-h-11 w-full rounded-xl border border-border-strong bg-white px-3 text-sm text-foreground outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
 const invalidFieldClass =
   "border-rose-400 focus:border-rose-500 focus:ring-rose-100";
 
@@ -344,7 +344,7 @@ export function PracticalRequisitionsWorkspace() {
         icon={FlaskConical}
       >
         <form ref={formRef} onSubmit={submit} className="space-y-5" noValidate>
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+          <div className="rounded-xl border border-info-border bg-info-soft p-4 text-sm text-blue-950">
             <p className="font-black">Requesting as {teacherName}</p>
             <p className="mt-1 leading-6">
               Sending this request does not deduct stock. The Laboratory
@@ -357,8 +357,8 @@ export function PracticalRequisitionsWorkspace() {
               role="status"
               className={`rounded-xl border p-4 text-sm font-bold ${
                 saveState === "pending_sync"
-                  ? "border-amber-200 bg-amber-50 text-amber-900"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  ? "border-warning-border bg-warning-soft text-amber-900"
+                  : "border-success-border bg-success-soft text-emerald-900"
               }`}
             >
               <CheckCircle2
@@ -472,11 +472,11 @@ export function PracticalRequisitionsWorkspace() {
               <div>
                 <h3
                   id="requested-items-heading"
-                  className="font-black text-[#071D49]"
+                  className="font-black text-foreground"
                 >
                   Requested Items
                 </h3>
-                <p className="mt-1 text-sm text-[#64748B]">
+                <p className="mt-1 text-sm text-muted">
                   Add each item and the quantity needed for the whole lesson.
                 </p>
               </div>
@@ -486,7 +486,7 @@ export function PracticalRequisitionsWorkspace() {
             </div>
 
             {errors.items ? (
-              <p role="alert" className="mb-3 text-sm font-bold text-rose-700">
+              <p role="alert" className="mb-3 text-sm font-bold text-danger">
                 {errors.items}
               </p>
             ) : null}
@@ -495,10 +495,10 @@ export function PracticalRequisitionsWorkspace() {
               {draft.items.map((item, index) => (
                 <article
                   key={item.key}
-                  className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4"
+                  className="rounded-2xl border border-border bg-surface-muted p-4"
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="font-black text-[#071D49]">
+                    <p className="font-black text-foreground">
                       Item {index + 1}
                     </p>
                     {draft.items.length > 1 ? (
@@ -506,14 +506,14 @@ export function PracticalRequisitionsWorkspace() {
                         type="button"
                         aria-label={`Remove item ${index + 1}`}
                         onClick={() => removeItem(index)}
-                        className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-rose-200 bg-white text-rose-700 hover:bg-rose-50"
+                        className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-danger-border bg-white text-danger hover:bg-danger-soft"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     ) : null}
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <label className="text-sm font-black text-[#071D49] lg:col-span-2">
+                    <label className="text-sm font-black text-foreground lg:col-span-2">
                       Item Name
                       <input
                         data-field={index === 0 ? "items" : undefined}
@@ -526,7 +526,7 @@ export function PracticalRequisitionsWorkspace() {
                         className={`${fieldClass} ${errors.items ? invalidFieldClass : ""}`}
                       />
                     </label>
-                    <label className="text-sm font-black text-[#071D49]">
+                    <label className="text-sm font-black text-foreground">
                       Quantity Needed
                       <input
                         type="number"
@@ -545,7 +545,7 @@ export function PracticalRequisitionsWorkspace() {
                         className={`${fieldClass} ${errors.items ? invalidFieldClass : ""}`}
                       />
                     </label>
-                    <label className="text-sm font-black text-[#071D49]">
+                    <label className="text-sm font-black text-foreground">
                       Unit
                       <select
                         value={item.unit}
@@ -562,7 +562,7 @@ export function PracticalRequisitionsWorkspace() {
                       </select>
                     </label>
                     {item.unit === "Custom" ? (
-                      <label className="text-sm font-black text-[#071D49]">
+                      <label className="text-sm font-black text-foreground">
                         Custom Unit
                         <input
                           value={item.custom_unit}
@@ -574,7 +574,7 @@ export function PracticalRequisitionsWorkspace() {
                         />
                       </label>
                     ) : null}
-                    <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#C8D5EA] bg-white px-3 text-sm font-black text-[#071D49] lg:col-span-2 lg:mt-6">
+                    <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border-strong bg-white px-3 text-sm font-black text-foreground lg:col-span-2 lg:mt-6">
                       <input
                         type="checkbox"
                         checked={item.is_returnable}
@@ -588,7 +588,7 @@ export function PracticalRequisitionsWorkspace() {
                       />
                       Returnable after the practical
                     </label>
-                    <label className="text-sm font-black text-[#071D49] lg:col-span-2">
+                    <label className="text-sm font-black text-foreground lg:col-span-2">
                       Item Note (optional)
                       <input
                         value={item.notes}
@@ -605,7 +605,7 @@ export function PracticalRequisitionsWorkspace() {
             </div>
           </section>
 
-          <label className="block text-sm font-black text-[#071D49]">
+          <label className="block text-sm font-black text-foreground">
             Teacher Notes (optional)
             <textarea
               value={draft.teacher_notes}
@@ -617,7 +617,7 @@ export function PracticalRequisitionsWorkspace() {
             />
           </label>
 
-          <div className="sticky bottom-0 -mx-5 flex flex-col gap-3 border-t border-[#D8E0EC] bg-white/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div className="sticky bottom-0 -mx-5 flex flex-col gap-3 border-t border-border bg-white/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
             <SaveState state={saveState} />
             <Button
               type="submit"
@@ -639,7 +639,7 @@ export function PracticalRequisitionsWorkspace() {
         icon={FlaskConical}
       >
         {requestsQuery.isLoading ? (
-          <div className="rounded-xl border border-[#D8E0EC] p-8 text-center text-sm text-[#64748B]">
+          <div className="rounded-xl border border-border p-8 text-center text-sm text-muted">
             Loading your practical requests…
           </div>
         ) : requestsQuery.error ? (
@@ -657,14 +657,14 @@ export function PracticalRequisitionsWorkspace() {
             {myRequests.map((request) => (
               <article
                 key={request.id}
-                className="rounded-2xl border border-[#D8E0EC] p-4 shadow-sm"
+                className="rounded-2xl border border-border p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="font-black text-[#071D49]">
+                    <p className="font-black text-foreground">
                       {request.subject} · {request.class_name}
                     </p>
-                    <p className="mt-1 text-sm text-[#334155]">
+                    <p className="mt-1 text-sm text-foreground">
                       {request.practical_title}
                     </p>
                   </div>
@@ -675,11 +675,11 @@ export function PracticalRequisitionsWorkspace() {
                     tone={statusTone(request.status)}
                   />
                 </div>
-                <p className="mt-3 text-sm text-[#64748B]">
+                <p className="mt-3 text-sm text-muted">
                   {formatKenyanDate(request.practical_date)} at{" "}
                   {request.lesson_time}
                 </p>
-                <div className="mt-3 space-y-1 text-sm text-[#334155]">
+                <div className="mt-3 space-y-1 text-sm text-foreground">
                   {request.items.map((item) => (
                     <p key={item.id}>
                       {item.item_name}: {item.requested_quantity} {item.unit}
@@ -687,7 +687,7 @@ export function PracticalRequisitionsWorkspace() {
                   ))}
                 </div>
                 {request.rejection_reason ? (
-                  <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-sm text-rose-800">
+                  <p className="mt-3 rounded-lg border border-danger-border bg-danger-soft p-2 text-sm text-danger">
                     Reason: {request.rejection_reason}
                   </p>
                 ) : null}
@@ -713,16 +713,16 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="text-sm font-black text-[#071D49]">
+    <label className="text-sm font-black text-foreground">
       {label}
       {children}
       {hint && !error ? (
-        <span className="mt-1 block text-xs font-medium text-[#64748B]">
+        <span className="mt-1 block text-xs font-medium text-muted">
           {hint}
         </span>
       ) : null}
       {error ? (
-        <span className="mt-1 block text-xs font-bold text-rose-700">
+        <span className="mt-1 block text-xs font-bold text-danger">
           {error}
         </span>
       ) : null}

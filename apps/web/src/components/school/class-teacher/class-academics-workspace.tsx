@@ -41,54 +41,54 @@ export function ClassAcademicsWorkspace() {
   return (
     <Panel title="Class Academics" description={`Academic performance summary${data?.term ? ` — ${data.term}` : ""}.`} icon={BookOpen}>
       <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Class Mean</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.class_mean?.toFixed(1) ?? "—"}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Class Mean</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.class_mean?.toFixed(1) ?? "—"}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Class Position</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.class_position ?? "—"}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Class Position</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.class_position ?? "—"}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Above Average</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.subjects_above_average ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Above Average</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.subjects_above_average ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Below Average</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.subjects_below_average ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Below Average</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.subjects_below_average ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Pass Rate</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : `${metrics?.overall_pass_rate ?? 0}%`}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Pass Rate</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : `${metrics?.overall_pass_rate ?? 0}%`}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Subject</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Teacher</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Mean Score</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Highest</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Lowest</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Pass Rate</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Trend</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Subject</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Teacher</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Mean Score</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Highest</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Lowest</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Pass Rate</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Trend</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading academic data...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading academic data...</td></tr>
             ) : subjects.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No exam results available yet. Results will appear after the first exam cycle.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No exam results available yet. Results will appear after the first exam cycle.</td></tr>
             ) : (
               subjects.map((s) => (
-                <tr key={s.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{s.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.teacher_name}</td>
-                  <td className="px-4 py-3 font-bold text-[#071D49]">{s.mean_score.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-emerald-700 font-medium">{s.highest_score}</td>
-                  <td className="px-4 py-3 text-rose-700 font-medium">{s.lowest_score}</td>
+                <tr key={s.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{s.subject}</td>
+                  <td className="px-4 py-3 text-muted">{s.teacher_name}</td>
+                  <td className="px-4 py-3 font-bold text-foreground">{s.mean_score.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-success font-medium">{s.highest_score}</td>
+                  <td className="px-4 py-3 text-danger font-medium">{s.lowest_score}</td>
                   <td className="px-4 py-3"><StatusChip label={`${s.pass_rate}%`} tone={getPassRateTone(s.pass_rate)} /></td>
                   <td className="px-4 py-3">
                     {s.trend === "up" ? (
@@ -96,7 +96,7 @@ export function ClassAcademicsWorkspace() {
                     ) : s.trend === "down" ? (
                       <span className="inline-flex items-center gap-1 text-rose-600 font-bold text-xs"><TrendingDown className="w-3.5 h-3.5" /> Down</span>
                     ) : (
-                      <span className="text-[#64748B] text-xs font-bold">Stable</span>
+                      <span className="text-muted text-xs font-bold">Stable</span>
                     )}
                   </td>
                 </tr>

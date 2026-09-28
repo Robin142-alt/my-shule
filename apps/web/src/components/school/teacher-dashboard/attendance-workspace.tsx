@@ -77,31 +77,31 @@ function AttendanceModal({
       <div className="p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-black text-[#071D49]">{task.subjectName}</h3>
-            <p className="text-sm text-[#64748B]">{task.date} • {task.expected} learners expected</p>
+            <h3 className="text-lg font-black text-foreground">{task.subjectName}</h3>
+            <p className="text-sm text-muted">{task.date} • {task.expected} learners expected</p>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => markAll("present")} className="rounded-lg bg-[#EFF6FF] px-3 py-1.5 text-xs font-bold text-[#1D4ED8]">All Present</button>
-            <button type="button" onClick={() => markAll("absent")} className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600">All Absent</button>
+            <button type="button" onClick={() => markAll("present")} className="rounded-lg bg-info-soft px-3 py-1.5 text-xs font-bold text-info">All Present</button>
+            <button type="button" onClick={() => markAll("absent")} className="rounded-lg bg-danger-soft px-3 py-1.5 text-xs font-bold text-red-600">All Absent</button>
           </div>
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
           {isLoading ? (
-            <p className="py-8 text-center text-sm font-semibold text-[#64748B]">Loading class list...</p>
+            <p className="py-8 text-center text-sm font-semibold text-muted">Loading class list...</p>
           ) : students?.length === 0 ? (
-            <p className="py-8 text-center text-sm font-semibold text-[#64748B]">No active learners assigned to this class.</p>
+            <p className="py-8 text-center text-sm font-semibold text-muted">No active learners assigned to this class.</p>
           ) : (
-            <div className="divide-y divide-[#F1F5F9] border-t border-[#F1F5F9]">
+            <div className="divide-y divide-surface-strong border-t border-surface-strong">
               {students?.map(student => {
                 const currentStatus = statuses[student.id] || "present"; // Default
                 return (
                   <div key={student.id} className="flex items-center justify-between py-3">
                     <div>
-                      <p className="text-sm font-bold text-[#071D49]">{student.name}</p>
-                      <p className="text-xs text-[#64748B]">{student.admissionNo}</p>
+                      <p className="text-sm font-bold text-foreground">{student.name}</p>
+                      <p className="text-xs text-muted">{student.admissionNo}</p>
                     </div>
-                    <div className="flex rounded-lg border border-[#D8E0EC] p-1">
+                    <div className="flex rounded-lg border border-border p-1">
                       {(["present", "absent", "late", "excused"] as const).map(s => (
                         <button
                           key={s}
@@ -109,11 +109,11 @@ function AttendanceModal({
                           onClick={() => handleStatusChange(student.id, s)}
                           className={`rounded-md px-3 py-1.5 text-xs font-bold capitalize transition-colors ${
                             currentStatus === s 
-                              ? s === "present" ? "bg-green-100 text-green-800" 
-                                : s === "absent" ? "bg-red-100 text-red-800"
+                              ? s === "present" ? "bg-green-100 text-success"
+                                : s === "absent" ? "bg-red-100 text-danger"
                                 : s === "late" ? "bg-yellow-100 text-yellow-800"
                                 : "bg-purple-100 text-purple-800"
-                              : "text-[#64748B] hover:bg-[#F8FAFC]"
+                              : "text-muted hover:bg-surface-muted"
                           }`}
                         >
                           {s}
@@ -127,13 +127,13 @@ function AttendanceModal({
           )}
         </div>
 
-        <div className="mt-6 flex justify-end gap-3 border-t border-[#F1F5F9] pt-6">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
+        <div className="mt-6 flex justify-end gap-3 border-t border-surface-strong pt-6">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
           <button 
             type="button" 
             onClick={handleSubmit} 
             disabled={submitting || isLoading}
-            className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white"
+            className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white"
           >
             {submitting ? "Saving..." : "Save Register"}
           </button>
@@ -174,12 +174,12 @@ export function AttendanceWorkspace() {
       <button 
         key={t.id + 'btn'} 
         onClick={() => setActiveTask(t)}
-        className="text-[#1D4ED8] hover:underline font-bold"
+        className="text-info hover:underline font-bold"
       >
         {t.status === 'Completed' ? 'Edit Register' : 'Mark Register'}
       </button>
     ) : (
-      <span key={t.id + 'btn'} className="text-[#64748B] text-xs">Restricted</span>
+      <span key={t.id + 'btn'} className="text-muted text-xs">Restricted</span>
     )
   ]) || [];
 
@@ -200,7 +200,7 @@ export function AttendanceWorkspace() {
             </div>
           )}
           <div className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-bold ${
-            isOnline ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"
+            isOnline ? "border-success-border bg-success-soft text-success" : "border-danger-border bg-danger-soft text-danger"
           }`}>
             {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isOnline ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
             {syncing ? "Syncing..." : isOnline ? "Online" : "Offline Mode"}
@@ -209,26 +209,26 @@ export function AttendanceWorkspace() {
       }
     >
       <div className="grid gap-3 sm:grid-cols-4 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Today's Tasks</p>
-          <p className="text-2xl font-black text-[#071D49]">
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Today's Tasks</p>
+          <p className="text-2xl font-black text-foreground">
             {isLoading ? "..." : stats.totalTasks}
           </p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Pending Classes</p>
-          <p className="text-2xl font-black text-[#071D49]">
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Pending Classes</p>
+          <p className="text-2xl font-black text-foreground">
             {isLoading ? "..." : stats.pendingTasks}
           </p>
         </article>
       </div>
       <div className="mb-4">
         {hasPermission('teacher:write') && (
-          <button type="button" onClick={() => setActiveTask(data?.tasks?.[0] ?? null)} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white">Mark All Present</button>
+          <button type="button" onClick={() => setActiveTask(data?.tasks?.[0] ?? null)} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Mark All Present</button>
         )}
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load attendance tasks. Please retry.
         </div>
       ) : (

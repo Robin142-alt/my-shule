@@ -121,59 +121,59 @@ export function RequestsWorkspace() {
     >
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Requests</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_requests || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Requests</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_requests || 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.pending || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.pending || 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Approved</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : data?.metrics?.approved || 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Approved</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : data?.metrics?.approved || 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Fulfilled</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.fulfilled || 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Fulfilled</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.fulfilled || 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Rejected</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : data?.metrics?.rejected || 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Rejected</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.rejected || 0}</div>
         </div>
       </div>
 
       {/* Requests Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Priority</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Requester</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Department</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Item</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Qty</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Reason</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Priority</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Requester</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Department</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Item</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Qty</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Reason</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">Loading requests...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">Loading requests...</td></tr>
             ) : requests.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">No departmental requests. Requests from staff and departments will appear here for processing.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">No departmental requests. Requests from staff and departments will appear here for processing.</td></tr>
             ) : (
               requests.map((req) => (
-                <tr key={req.id} className="hover:bg-[#F8FAFC]">
+                <tr key={req.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3"><StatusChip label={req.priority} tone={getPriorityTone(req.priority)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{req.requester_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{req.department}</td>
-                  <td className="px-4 py-3 text-[#071D49]">{req.item_name}</td>
-                  <td className="px-4 py-3 text-[#071D49]">{req.quantity_requested} {req.unit}</td>
-                  <td className="px-4 py-3 text-[#64748B] max-w-[180px] truncate">{req.reason}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{req.requested_date}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{req.requester_name}</td>
+                  <td className="px-4 py-3 text-muted">{req.department}</td>
+                  <td className="px-4 py-3 text-foreground">{req.item_name}</td>
+                  <td className="px-4 py-3 text-foreground">{req.quantity_requested} {req.unit}</td>
+                  <td className="px-4 py-3 text-muted max-w-[180px] truncate">{req.reason}</td>
+                  <td className="px-4 py-3 text-muted">{req.requested_date}</td>
                   <td className="px-4 py-3"><StatusChip label={req.status} tone={getStatusTone(req.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-2">
@@ -201,7 +201,7 @@ export function RequestsWorkspace() {
                         </button>
                       )}
                       {(req.status === "Fulfilled" || req.status === "Rejected") && (
-                        <span className="text-xs text-[#64748B]">Closed</span>
+                        <span className="text-xs text-muted">Closed</span>
                       )}
                     </div>
                   </td>
@@ -222,7 +222,7 @@ export function RequestsWorkspace() {
         title={`Reject Request: ${selectedRequestForReject?.item_name || ""}`}
       >
         <form onSubmit={rejectForm.handleSubmit(onSubmitReject)} className="space-y-4 py-4">
-          <p className="text-sm text-[#64748B]">
+          <p className="text-sm text-muted">
             Reason for rejecting {selectedRequestForReject?.requester_name}&apos;s request for &quot;{selectedRequestForReject?.item_name}&quot;:
           </p>
 
@@ -230,7 +230,7 @@ export function RequestsWorkspace() {
             <label className="text-sm font-medium">Rejection Reason</label>
             <textarea
               {...rejectForm.register("reason", { required: "Reason is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="Provide a reason for rejection..."
               rows={3}
             />
@@ -246,7 +246,7 @@ export function RequestsWorkspace() {
                 setIsRejectOpen(false);
                 setSelectedRequestForReject(null);
               }}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>

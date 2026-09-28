@@ -126,62 +126,62 @@ export function LettersDocumentsWorkspace() {
     <Panel title="Letters & Documents" description="Create, manage, and print official school letters, certificates, and memos." icon={FileText}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Documents</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_documents || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Documents</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.total_documents || 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Letters</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.letters || 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Letters</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : metrics?.letters || 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Certificates</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.certificates || 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Certificates</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.certificates || 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Drafts</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.drafts || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Drafts</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.drafts || 0}</div>
         </div>
       </div>
 
       {/* Documents Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Title</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Category</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Recipient</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Prepared By</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Format</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Title</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Category</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Recipient</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Prepared By</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Format</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">Loading documents...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">Loading documents...</td></tr>
             ) : documents.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">No documents created yet. Create official letters, certificates, or memos using the templates available.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">No documents created yet. Create official letters, certificates, or memos using the templates available.</td></tr>
             ) : (
               documents.map((doc) => (
-                <tr key={doc.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-medium text-[#071D49]">{doc.title}</td>
+                <tr key={doc.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-medium text-foreground">{doc.title}</td>
                   <td className="px-4 py-3"><StatusChip label={doc.type} tone={getTypeTone(doc.type)} /></td>
-                  <td className="px-4 py-3 text-[#64748B]">{doc.category}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{doc.recipient}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{doc.prepared_by}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{doc.date_created}</td>
-                  <td className="px-4 py-3 text-[#64748B] uppercase text-xs font-mono">{doc.file_format}</td>
+                  <td className="px-4 py-3 text-muted">{doc.category}</td>
+                  <td className="px-4 py-3 text-muted">{doc.recipient}</td>
+                  <td className="px-4 py-3 text-muted">{doc.prepared_by}</td>
+                  <td className="px-4 py-3 text-muted">{doc.date_created}</td>
+                  <td className="px-4 py-3 text-muted uppercase text-xs font-mono">{doc.file_format}</td>
                   <td className="px-4 py-3"><StatusChip label={doc.status} tone={getStatusTone(doc.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button disabled={actionId === doc.id} onClick={() => handleDownload(doc.id)} className="inline-flex items-center gap-1 rounded-lg border border-[#D8E0EC] bg-white px-3 py-1.5 text-xs font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+                      <button disabled={actionId === doc.id} onClick={() => handleDownload(doc.id)} className="inline-flex items-center gap-1 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
                         <Download className="w-3 h-3" /> Download
                       </button>
-                      <button disabled={actionId === doc.id} onClick={() => handlePrint(doc.id)} className="inline-flex items-center gap-1 rounded-lg bg-[#071D49] px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-900 disabled:opacity-50">
+                      <button disabled={actionId === doc.id} onClick={() => handlePrint(doc.id)} className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-900 disabled:opacity-50">
                         <Printer className="w-3 h-3" /> Print
                       </button>
                     </div>

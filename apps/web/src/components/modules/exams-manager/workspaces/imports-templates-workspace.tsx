@@ -314,7 +314,7 @@ export function ImportsTemplatesWorkspace({ model }: { model: unknown }) {
         </div>
       </div>
 
-      {notice ? <div role="status" className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{notice}</div> : null}
+      {notice ? <div role="status" className="flex items-start gap-2 rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{notice}</div> : null}
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {templates.map((template) => (
@@ -341,7 +341,7 @@ export function ImportsTemplatesWorkspace({ model }: { model: unknown }) {
             <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Found</p><p className="text-xl font-semibold">{preview.total_rows}</p></div>
             <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Valid</p><p className="text-xl font-semibold text-success">{preview.valid_rows}</p></div>
             <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Invalid</p><p className="text-xl font-semibold text-destructive">{preview.invalid_rows}</p></div>
-            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Duplicates</p><p className="text-xl font-semibold text-amber-700">{preview.duplicate_rows}</p></div>
+            <div className="rounded-md border p-3"><p className="text-xs text-muted-foreground">Duplicates</p><p className="text-xl font-semibold text-warning">{preview.duplicate_rows}</p></div>
           </div>
           {preview.row_results.some((row) => row.errors.length > 0) ? (
             <div className="mt-4 max-h-48 overflow-y-auto rounded-md border border-destructive/30 p-3">

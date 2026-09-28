@@ -61,37 +61,37 @@ export function AttendanceMonitoringWorkspace() {
         <MetricCard label="Not Yet Marked" value={isLoading ? "…" : data?.metrics?.classes_not_marked ?? 0} icon={Clock} tone={(data?.metrics?.classes_not_marked ?? 0) > 0 ? "warning" : "success"} />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Stream</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Total</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Present</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Absent</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Rate</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class Teacher</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Marked</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Stream</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Total</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Present</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Absent</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Rate</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Class Teacher</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Marked</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">Loading attendance data…</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">Loading attendance data…</td></tr>
             ) : classes.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[#64748B]">No attendance records for today. Attendance will appear once class teachers mark their registers.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted">No attendance records for today. Attendance will appear once class teachers mark their registers.</td></tr>
             ) : (
               classes.map((c) => (
-                <tr key={c.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{c.class_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{c.stream || "—"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{c.total_students}</td>
-                  <td className="px-4 py-3 text-emerald-700 font-bold">{c.present}</td>
-                  <td className="px-4 py-3 text-rose-700 font-bold">{c.absent}</td>
+                <tr key={c.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{c.class_name}</td>
+                  <td className="px-4 py-3 text-muted">{c.stream || "—"}</td>
+                  <td className="px-4 py-3 text-muted">{c.total_students}</td>
+                  <td className="px-4 py-3 text-success font-bold">{c.present}</td>
+                  <td className="px-4 py-3 text-danger font-bold">{c.absent}</td>
                   <td className="px-4 py-3"><StatusChip label={`${c.rate}%`} tone={getRateTone(c.rate)} /></td>
-                  <td className="px-4 py-3 text-[#64748B]">{c.class_teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{c.marked_at || <StatusChip label="Not Marked" tone="warning" />}</td>
+                  <td className="px-4 py-3 text-muted">{c.class_teacher}</td>
+                  <td className="px-4 py-3 text-muted">{c.marked_at || <StatusChip label="Not Marked" tone="warning" />}</td>
                   <td className="px-4 py-3 text-right">
                     {!c.marked_at && (
                       <button

@@ -56,7 +56,7 @@ export function ApprovalDetailDrawer({ request, isOpen, onClose, onProcessed }: 
           </div>
           <div>
             <h3 className="text-sm font-medium text-gray-500">Status</h3>
-            <span className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <span className="mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-info">
               {request.status}
             </span>
           </div>

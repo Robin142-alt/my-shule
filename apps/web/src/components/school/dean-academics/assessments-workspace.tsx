@@ -391,7 +391,7 @@ export function AssessmentsWorkspace({
       {actionError ? (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+          className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm text-danger"
         >
           {actionError} Review the queue and retry the action.
         </div>
@@ -476,9 +476,9 @@ export function AssessmentsWorkspace({
                       : ""}
                   </p>
                 ) : null}
-                <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+                <div className="overflow-x-auto rounded-xl border border-border">
                   <table className={`w-full text-sm text-left ${styles.table}`}>
-                    <thead className="bg-[#F8FAFC] text-[#071D49]">
+                    <thead className="bg-surface-muted text-foreground">
                       <tr>
                         <th className="px-4 py-3 font-bold">Exam / subject</th>
                         <th className="px-4 py-3 font-bold">Class</th>
@@ -502,7 +502,7 @@ export function AssessmentsWorkspace({
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-8 text-center text-[#64748B]"
+                            className="px-4 py-8 text-center text-muted"
                           >
                             Loading submissions…
                           </td>
@@ -511,7 +511,7 @@ export function AssessmentsWorkspace({
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-8 text-center text-[#64748B]"
+                            className="px-4 py-8 text-center text-muted"
                           >
                             No assessment records found yet. Teacher submissions
                             appear here when marks are ready for Dean review.
@@ -527,7 +527,7 @@ export function AssessmentsWorkspace({
                             No submissions match these filters.{" "}
                             <button
                               type="button"
-                              className="font-medium text-blue-700 underline"
+                              className="font-medium text-info underline"
                               onClick={() => {
                                 setSearch("");
                                 setStatusFilter("all");
@@ -553,11 +553,11 @@ export function AssessmentsWorkspace({
                           return (
                             <tr
                               key={rowId}
-                              className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]"
+                              className="border-t border-border hover:bg-surface-muted"
                             >
                               <td
                                 data-label="Exam / subject"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
                                 <div className="font-semibold text-slate-800">
                                   {fieldValue(row, ["subject", "subject_name"])}
@@ -577,7 +577,7 @@ export function AssessmentsWorkspace({
                               </td>
                               <td
                                 data-label="Class"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
                                 {fieldValue(row, [
                                   "class",
@@ -587,7 +587,7 @@ export function AssessmentsWorkspace({
                               </td>
                               <td
                                 data-label="Marks"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
                                 <div>
                                   {fieldValue(
@@ -636,7 +636,7 @@ export function AssessmentsWorkspace({
                                         Boolean(submittingActionId) ||
                                         normalizedStatus !== "submitted"
                                       }
-                                      className="rounded-lg border border-[#BFDBFE] bg-[#EEF5FF] px-3 py-1.5 text-xs font-black text-[#0B63CE] disabled:opacity-50"
+                                      className="rounded-lg border border-info-border bg-info-soft px-3 py-1.5 text-xs font-black text-info disabled:opacity-50"
                                     >
                                       {submittingActionId === approveActionId
                                         ? "Approving..."
@@ -655,7 +655,7 @@ export function AssessmentsWorkspace({
                                           normalizedStatus,
                                         )
                                       }
-                                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 disabled:opacity-50"
+                                      className="rounded-lg border border-warning-border bg-warning-soft px-3 py-1.5 text-xs font-black text-warning disabled:opacity-50"
                                     >
                                       Return
                                     </button>
@@ -664,7 +664,7 @@ export function AssessmentsWorkspace({
                                   <div className="flex min-w-0 flex-col gap-2 sm:min-w-56">
                                     <label
                                       htmlFor={`assessment-return-${rowId}`}
-                                      className="text-xs font-bold text-[#475569]"
+                                      className="text-xs font-bold text-muted-strong"
                                     >
                                       Required correction reason
                                     </label>
@@ -677,7 +677,7 @@ export function AssessmentsWorkspace({
                                         )
                                       }
                                       rows={2}
-                                      className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#071D49]"
+                                      className="rounded-lg border border-border-strong bg-white px-3 py-2 text-sm text-foreground"
                                     />
                                     <div className="flex justify-end gap-2">
                                       <button
@@ -689,7 +689,7 @@ export function AssessmentsWorkspace({
                                         disabled={
                                           submittingActionId === returnActionId
                                         }
-                                        className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-black text-[#475569]"
+                                        className="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs font-black text-muted-strong"
                                       >
                                         Cancel
                                       </button>
@@ -731,7 +731,7 @@ export function AssessmentsWorkspace({
                     <h3 id="report-card-approval-heading" className="sr-only">
                       Report Card Approval Queue
                     </h3>
-                    <p className="mt-1 text-sm text-[#64748B]">
+                    <p className="mt-1 text-sm text-muted">
                       Approve complete report cards for Principal release, or
                       return them to the Exams Manager with a correction reason.
                     </p>
@@ -749,7 +749,7 @@ export function AssessmentsWorkspace({
                 </div>
 
                 {reportCardsError ? (
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
                     <span>
                       Report-card approvals could not be loaded:{" "}
                       {reportCardsError.message}
@@ -757,16 +757,16 @@ export function AssessmentsWorkspace({
                     <button
                       type="button"
                       onClick={() => void refetchReportCards()}
-                      className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-black text-red-700"
+                      className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-black text-danger"
                     >
                       Retry queue
                     </button>
                   </div>
                 ) : null}
 
-                <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+                <div className="overflow-x-auto rounded-xl border border-border">
                   <table className={`w-full text-left text-sm ${styles.table}`}>
-                    <thead className="bg-[#F8FAFC] text-[#071D49]">
+                    <thead className="bg-surface-muted text-foreground">
                       <tr>
                         <th className="px-4 py-3 font-bold">Learner</th>
                         <th className="px-4 py-3 font-bold">Exam</th>
@@ -782,7 +782,7 @@ export function AssessmentsWorkspace({
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-8 text-center text-[#64748B]"
+                            className="px-4 py-8 text-center text-muted"
                           >
                             The approval queue is temporarily unavailable. Retry
                             above after the connection recovers.
@@ -792,7 +792,7 @@ export function AssessmentsWorkspace({
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-8 text-center text-[#64748B]"
+                            className="px-4 py-8 text-center text-muted"
                           >
                             Loading report-card approval queue...
                           </td>
@@ -801,7 +801,7 @@ export function AssessmentsWorkspace({
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-8 text-center text-[#64748B]"
+                            className="px-4 py-8 text-center text-muted"
                           >
                             No report cards are awaiting Dean approval. Cards
                             appear after the Exams Manager submits generated
@@ -817,13 +817,13 @@ export function AssessmentsWorkspace({
                           return (
                             <tr
                               key={reportCard.id}
-                              className="border-t border-[#D8E0EC] align-top hover:bg-[#F8FAFC]"
+                              className="border-t border-border align-top hover:bg-surface-muted"
                             >
                               <td
                                 data-label="Learner"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
-                                <div className="font-bold text-[#071D49]">
+                                <div className="font-bold text-foreground">
                                   {reportCard.student_name || "Learner"}
                                 </div>
                                 <div>
@@ -833,7 +833,7 @@ export function AssessmentsWorkspace({
                               </td>
                               <td
                                 data-label="Exam"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
                                 {reportCard.exam_series_name ||
                                   reportCard.exam_series_id ||
@@ -841,7 +841,7 @@ export function AssessmentsWorkspace({
                               </td>
                               <td
                                 data-label="Term"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
                                 {[reportCard.term, reportCard.academic_year]
                                   .filter(Boolean)
@@ -849,7 +849,7 @@ export function AssessmentsWorkspace({
                               </td>
                               <td
                                 data-label="Submitted"
-                                className="px-4 py-3 text-[#64748B]"
+                                className="px-4 py-3 text-muted"
                               >
                                 {reportCard.submitted_at
                                   ? displayDate(reportCard.submitted_at)
@@ -883,7 +883,7 @@ export function AssessmentsWorkspace({
                                         setRecallReason("");
                                       }}
                                       disabled={Boolean(submittingActionId)}
-                                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-amber-700 disabled:opacity-50"
+                                      className="rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-xs font-black text-warning disabled:opacity-50"
                                     >
                                       Return for correction
                                     </button>
@@ -892,7 +892,7 @@ export function AssessmentsWorkspace({
                                   <div className="ml-auto flex max-w-sm flex-col gap-2">
                                     <label
                                       htmlFor={`dean-recall-${reportCard.id}`}
-                                      className="text-left text-xs font-bold text-[#475569]"
+                                      className="text-left text-xs font-bold text-muted-strong"
                                     >
                                       Required correction reason
                                     </label>
@@ -903,7 +903,7 @@ export function AssessmentsWorkspace({
                                         setRecallReason(event.target.value)
                                       }
                                       rows={2}
-                                      className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#071D49]"
+                                      className="rounded-lg border border-border-strong bg-white px-3 py-2 text-sm text-foreground"
                                     />
                                     <div className="flex justify-end gap-2">
                                       <button
@@ -915,7 +915,7 @@ export function AssessmentsWorkspace({
                                         disabled={
                                           submittingActionId === recallActionId
                                         }
-                                        className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-black text-[#475569]"
+                                        className="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs font-black text-muted-strong"
                                       >
                                         Cancel
                                       </button>

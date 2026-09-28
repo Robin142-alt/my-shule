@@ -87,7 +87,7 @@ const blindSpotGroups = [
 function SchoolControlPreview() {
   return (
     <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
-      <div className="rounded-xl bg-[#071D49] p-5 text-white">
+      <div className="rounded-xl bg-primary p-5 text-white">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold">School Portal</p>

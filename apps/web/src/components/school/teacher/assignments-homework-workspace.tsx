@@ -81,7 +81,7 @@ export function AssignmentsHomeworkWorkspace() {
       </div>
 
       {isCreating && (
-        <Card className="p-4 border border-blue-200 bg-blue-50 space-y-4">
+        <Card className="p-4 border border-info-border bg-info-soft space-y-4">
           <h3 className="font-medium text-slate-900">New Assignment</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -158,16 +158,16 @@ export function AssignmentsHomeworkWorkspace() {
              </Card>
           ) : activeAssignments.length > 0 ? (
             activeAssignments.map((task, idx) => (
-              <Card key={task.id ?? idx} className="p-4 border border-slate-200 flex flex-col md:flex-row gap-4 justify-between group hover:border-blue-200 transition-colors cursor-pointer">
+              <Card key={task.id ?? idx} className="p-4 border border-slate-200 flex flex-col md:flex-row gap-4 justify-between group hover:border-info-border transition-colors cursor-pointer">
                 <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-info-soft text-blue-600 flex items-center justify-center shrink-0">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="font-medium text-slate-900">{task.title}</h4>
                     <p className="text-sm text-slate-500 mt-1">{task.class_section || task.class_id || 'All Sections'} - {task.subject || task.subject_id || 'General'}</p>
                     <div className="flex items-center gap-3 mt-3">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/50">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-warning-soft text-warning border border-warning-border/50">
                         <Clock className="w-3 h-3" /> Due: {new Date(task.due_date || new Date()).toLocaleDateString()}
                       </span>
                     </div>
@@ -199,14 +199,14 @@ export function AssignmentsHomeworkWorkspace() {
       </div>
 
       {selectedAssignment && (
-        <Card className="border border-blue-200 bg-blue-50 p-5">
+        <Card className="border border-info-border bg-info-soft p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h3 className="font-semibold text-slate-900">Submission review: {selectedAssignment.title}</h3>
               <p className="mt-1 text-sm text-slate-600">
                 {selectedAssignment.class_section || selectedAssignment.class_id || "All Sections"} - {selectedAssignment.subject || selectedAssignment.subject_id || "General"}
               </p>
-              <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <div className="mt-3 flex items-center gap-2 rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-sm text-warning">
                 <AlertTriangle className="h-4 w-4" />
                 No submitted student files are available yet. This panel will list submissions, scores, and feedback when learners submit.
               </div>

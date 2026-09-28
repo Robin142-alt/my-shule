@@ -15,13 +15,13 @@
 .workspace input:focus-visible,
 .workspace select:focus-visible,
 .workspace textarea:focus-visible {
-  outline: 2px solid #245994;
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 .table th {
   font-size: 12px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--muted);
 }
 .table td {
   vertical-align: top;
@@ -71,7 +71,7 @@
     margin-bottom: 3px;
     font-size: 11px;
     font-weight: 500;
-    color: #64748b;
+    color: var(--muted);
   }
   .table td[data-label="Class"],
   .table td[data-label="Marks"],

@@ -112,7 +112,7 @@ export function OverviewWorkspace({ model }: { model: unknown }) {
         title="Overview"
         description="Monitor exam readiness, marks entry progress, validation issues, approvals, and report card publishing."
       />
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         {isLoading && <div className="col-span-full py-10 flex flex-col items-center"><Loader2 className="h-6 w-6 animate-spin mb-2" /> Loading stats...</div>}

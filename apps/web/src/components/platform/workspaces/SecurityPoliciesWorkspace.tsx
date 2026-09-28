@@ -138,7 +138,7 @@ export function SecurityPoliciesWorkspace() {
                         <td className="px-4 py-3 font-medium">{u.user || u.name}</td>
                         <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
                         <td className="px-4 py-3">
-                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                          <span className="px-2 py-1 bg-green-100 text-success rounded-full text-xs font-medium">
                             {u.mfaStatus || "Enabled"}
                           </span>
                         </td>

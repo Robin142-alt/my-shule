@@ -1273,9 +1273,9 @@ export function UserManagementWorkspace({
       <Card className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#40608F]">School access control</p>
-            <h2 className="mt-1 text-2xl font-black tracking-tight text-[#071D49]">Users & Invitations</h2>
-            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#52657F]">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-strong">School access control</p>
+            <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">Users & Invitations</h2>
+            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-muted">
               {actorRole} can invite school users in {schoolName}. Records, invitations, and activity shown here are scoped to this school only.
             </p>
           </div>
@@ -1288,12 +1288,12 @@ export function UserManagementWorkspace({
       </Card>
 
       {notice ? (
-        <div className="break-words rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-2 text-sm font-bold text-[#047857]" role="status" aria-atomic="true">
+        <div className="break-words rounded-xl border border-success-border bg-success-soft px-3 py-2 text-sm font-bold text-success" role="status" aria-atomic="true">
           {notice}
         </div>
       ) : null}
       {error ? (
-        <div className="break-words rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm font-bold text-[#B91C1C]" role="alert" aria-atomic="true">
+        <div className="break-words rounded-xl border border-danger-border bg-[#FEF2F2] px-3 py-2 text-sm font-bold text-[#B91C1C]" role="alert" aria-atomic="true">
           {error}
         </div>
       ) : null}
@@ -1306,8 +1306,8 @@ export function UserManagementWorkspace({
             onClick={() => setActiveTab(tab.id)}
             className={`shrink-0 rounded-xl border px-3 py-2 text-sm font-black transition ${
               activeTab === tab.id
-                ? "border-[#9BC5FF] bg-[#EEF6FF] text-[#0B3A7A]"
-                : "border-[#D7E0EF] bg-white text-[#40608F] hover:border-[#9BC5FF]"
+                ? "border-info-border bg-info-soft text-info"
+                : "border-border bg-white text-muted-strong hover:border-info-border"
             }`}
           >
             {tab.label}
@@ -1319,14 +1319,14 @@ export function UserManagementWorkspace({
         <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">Current school only</p>
-              <h3 className="mt-1 text-lg font-black text-[#071D49]">All Staff</h3>
-              <p className="mt-1 text-sm text-[#52657F]">Search teaching and non-teaching staff in this school. Parents and students are excluded.</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-strong">Current school only</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">All Staff</h3>
+              <p className="mt-1 text-sm text-muted">Search teaching and non-teaching staff in this school. Parents and students are excluded.</p>
             </div>
             <button
               type="button"
               onClick={() => setActiveTab("invite")}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-3 py-2 text-sm font-black text-[#0B3A7A]"
+              className="inline-flex items-center gap-2 rounded-xl border border-info-border bg-info-soft px-3 py-2 text-sm font-black text-info"
             >
               <UserPlus className="h-4 w-4" />
               Open Invite Form
@@ -1343,15 +1343,15 @@ export function UserManagementWorkspace({
             onStatusFilter={setStatusFilter}
             onDepartmentFilter={setDepartmentFilter}
           />
-          {loadingUsers ? <p role="status" className="mt-3 text-sm text-[#52657F]">Loading all school staff…</p> : null}
+          {loadingUsers ? <p role="status" className="mt-3 text-sm text-muted">Loading all school staff…</p> : null}
           {loadError ? (
-            <div role="alert" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+            <div role="alert" className="mt-3 rounded-xl border border-amber-300 bg-warning-soft p-3 text-sm">
               <p>{loadError}</p>
               <button type="button" className="mt-2 font-bold underline" onClick={() => setLoadVersion((version) => version + 1)}>Retry staff search</button>
             </div>
           ) : null}
           {(userSearch || roleFilter !== "All roles" || statusFilter !== "All statuses" || departmentFilter !== "All departments") ? (
-            <button type="button" className="mt-3 text-sm font-bold text-[#0B3A7A] underline" onClick={() => {
+            <button type="button" className="mt-3 text-sm font-bold text-info underline" onClick={() => {
               setUserSearch(""); setRoleFilter("All roles"); setStatusFilter("All statuses"); setDepartmentFilter("All departments");
             }}>Clear filters</button>
           ) : null}
@@ -1376,13 +1376,13 @@ export function UserManagementWorkspace({
         <Card className="p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">Expiry protected</p>
-              <h3 className="mt-1 text-lg font-black text-[#071D49]">Pending Invitations</h3>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-strong">Expiry protected</p>
+              <h3 className="mt-1 text-lg font-black text-foreground">Pending Invitations</h3>
             </div>
             <button
               type="button"
               onClick={() => setActiveTab("invite")}
-              className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-3 py-2 text-sm font-black text-[#0B3A7A]"
+              className="rounded-xl border border-info-border bg-info-soft px-3 py-2 text-sm font-black text-info"
             >
               Open Invite Form
             </button>
@@ -1403,15 +1403,15 @@ export function UserManagementWorkspace({
       {activeTab === "invite" ? (
         <Card className="p-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">School-scoped invite</p>
-            <h3 className="mt-1 text-lg font-black text-[#071D49]">Invite New User</h3>
-            <p className="mt-1 text-sm font-semibold text-[#52657F]">Super Admin accounts are excluded. Every invite receives this school ID and expires automatically.</p>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-strong">School-scoped invite</p>
+            <h3 className="mt-1 text-lg font-black text-foreground">Invite New User</h3>
+            <p className="mt-1 text-sm font-semibold text-muted">Super Admin accounts are excluded. Every invite receives this school ID and expires automatically.</p>
           </div>
           <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={createInvitation}>
             <FormField label="Full name" value={inviteForm.fullName} onChange={(value) => setInviteForm((form) => ({ ...form, fullName: value }))} required />
             <FormField label="Phone number" value={inviteForm.phone} onChange={(value) => setInviteForm((form) => ({ ...form, phone: value }))} required />
             <FormField label="Email address" value={inviteForm.email} onChange={(value) => setInviteForm((form) => ({ ...form, email: value }))} required />
-            <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+            <label className="grid gap-1 text-sm font-bold text-muted-strong">
               Role
               <select
                 value={inviteForm.role}
@@ -1419,7 +1419,7 @@ export function UserManagementWorkspace({
                   const value = event.currentTarget.value;
                   setInviteForm((form) => ({ ...form, role: value }));
                 }}
-                className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+                className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info-border"
               >
                 {schoolRoles.map((role) => (
                   <option key={role} value={role}>{role}</option>
@@ -1432,7 +1432,7 @@ export function UserManagementWorkspace({
             {inviteForm.role === "Teacher" && (
               <>
                 <FormField label="TSC Number" value={inviteForm.tscNumber ?? ""} onChange={(value) => setInviteForm((form) => ({ ...form, tscNumber: value }))} />
-                <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+                <label className="grid gap-1 text-sm font-bold text-muted-strong">
                   Employment Type
                   <select
                     value={inviteForm.employmentType ?? ""}
@@ -1440,7 +1440,7 @@ export function UserManagementWorkspace({
                       const value = event.currentTarget.value;
                       setInviteForm((form) => ({ ...form, employmentType: value }));
                     }}
-                    className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+                    className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info-border"
                   >
                     <option value="">Select type</option>
                     <option value="TSC">TSC (Government)</option>
@@ -1451,15 +1451,15 @@ export function UserManagementWorkspace({
                 </label>
               </>
             )}
-            <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+            <label className="grid gap-1 text-sm font-bold text-muted-strong">
               Send invite by
               <input
                 value="Email invitation"
                 readOnly
-                className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none"
+                className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm font-semibold text-foreground outline-none"
               />
             </label>
-            <label className="grid gap-1 text-sm font-bold text-[#40608F] md:col-span-2 xl:col-span-3">
+            <label className="grid gap-1 text-sm font-bold text-muted-strong md:col-span-2 xl:col-span-3">
               Optional note/message
               <textarea
                 value={inviteForm.note}
@@ -1467,14 +1467,14 @@ export function UserManagementWorkspace({
                   const value = event.currentTarget.value;
                   setInviteForm((form) => ({ ...form, note: value }));
                 }}
-                className="min-h-24 rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+                className="min-h-24 rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info-border"
               />
             </label>
             <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
-              <button type="submit" disabled={inviteBusy} className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857] disabled:cursor-wait disabled:opacity-70">
+              <button type="submit" disabled={inviteBusy} className="rounded-xl border border-success-border bg-success-soft px-4 py-2 text-sm font-black text-success disabled:cursor-wait disabled:opacity-70">
                 {inviteBusy ? "Sending Invitation..." : "Send Invitation"}
               </button>
-              <button type="button" onClick={() => setInviteForm(initialInviteForm())} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">
+              <button type="button" onClick={() => setInviteForm(initialInviteForm())} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-muted-strong">
                 Clear Form
               </button>
             </div>
@@ -1489,8 +1489,8 @@ export function UserManagementWorkspace({
       {activeTab === "inactive" ? (
         <Card className="p-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">Access blocked</p>
-            <h3 className="mt-1 text-lg font-black text-[#071D49]">Suspended / Deactivated Users</h3>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-strong">Access blocked</p>
+            <h3 className="mt-1 text-lg font-black text-foreground">Suspended / Deactivated Users</h3>
           </div>
           <UsersTable
             users={inactiveUsers}
@@ -1546,12 +1546,12 @@ export function UserManagementWorkspace({
               : "Reactivation restores this user’s school access."}
           onClose={() => setPendingStatusChange(null)}
         >
-          <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+          <label className="grid gap-1 text-sm font-bold text-muted-strong">
             Reason
             <textarea
               value={pendingStatusChange.reason}
               onChange={(event) => setPendingStatusChange((current) => current ? { ...current, reason: event.currentTarget.value } : null)}
-              className="min-h-20 rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]"
+              className="min-h-20 rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground"
             />
           </label>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -1559,27 +1559,27 @@ export function UserManagementWorkspace({
               type="button"
               disabled={!pendingStatusChange.reason.trim() || userActionBusy !== null}
               onClick={() => void updateUserStatus(pendingStatusChange.user, pendingStatusChange.status, pendingStatusChange.reason.trim())}
-              className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-4 py-2 text-sm font-black text-[#0B3A7A] disabled:cursor-wait disabled:opacity-60"
+              className="rounded-xl border border-info-border bg-info-soft px-4 py-2 text-sm font-black text-info disabled:cursor-wait disabled:opacity-60"
             >
               {userActionBusy === `status:${pendingStatusChange.user.id}` ? "Saving..." : `Confirm ${pendingStatusChange.status.toLowerCase()}`}
             </button>
-            <button type="button" onClick={() => setPendingStatusChange(null)} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">Cancel</button>
+            <button type="button" onClick={() => setPendingStatusChange(null)} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-muted-strong">Cancel</button>
           </div>
         </UserDialog>
       ) : null}
       {passwordResetUser ? (
         <UserDialog title={`Reset password for ${passwordResetUser.name}`} description={`Send password recovery instructions to ${passwordResetUser.email || "the user’s verified email"}.`} onClose={() => setPasswordResetUser(null)}>
-          <p className="text-sm font-semibold leading-6 text-[#52657F]">MyShule will issue a short-lived recovery link. The current password is never exposed to the school administrator.</p>
+          <p className="text-sm font-semibold leading-6 text-muted">MyShule will issue a short-lived recovery link. The current password is never exposed to the school administrator.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               disabled={userActionBusy !== null}
               onClick={() => void resetPassword(passwordResetUser)}
-              className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-4 py-2 text-sm font-black text-[#0B3A7A] disabled:cursor-wait disabled:opacity-60"
+              className="rounded-xl border border-info-border bg-info-soft px-4 py-2 text-sm font-black text-info disabled:cursor-wait disabled:opacity-60"
             >
               {userActionBusy === `password:${passwordResetUser.id}` ? "Requesting..." : "Send recovery email"}
             </button>
-            <button type="button" onClick={() => setPasswordResetUser(null)} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F]">Cancel</button>
+            <button type="button" onClick={() => setPasswordResetUser(null)} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-muted-strong">Cancel</button>
           </div>
         </UserDialog>
       ) : null}
@@ -1599,13 +1599,13 @@ function FormField({
   required?: boolean;
 }) {
   return (
-    <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+    <label className="grid gap-1 text-sm font-bold text-muted-strong">
       {label}
       <input
         value={value}
         required={required}
         onChange={(event) => onChange(event.currentTarget.value)}
-        className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+        className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info-border"
       />
     </label>
   );
@@ -1636,27 +1636,27 @@ function UserFilters({
     <div className="mt-4 grid gap-2 md:grid-cols-4">
       <label className="relative md:col-span-1">
         <span className="sr-only">Search by name, phone, or email</span>
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#40608F]" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-strong" />
         <input
           type="search"
           value={search}
           onChange={(event) => onSearch(event.currentTarget.value)}
           placeholder="Search name, phone, email"
-          className="w-full rounded-xl border border-[#D7E0EF] bg-white py-2 pl-9 pr-3 text-sm font-semibold text-[#071D49] outline-none focus:border-[#9BC5FF]"
+          className="w-full rounded-xl border border-border bg-white py-2 pl-9 pr-3 text-sm font-semibold text-foreground outline-none focus:border-info-border"
         />
       </label>
-      <select aria-label="Filter by role" value={roleFilter} onChange={(event) => onRoleFilter(event.currentTarget.value)} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+      <select aria-label="Filter by role" value={roleFilter} onChange={(event) => onRoleFilter(event.currentTarget.value)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
         <option>All roles</option>
         {staffFilterRoles.map((role) => <option key={role}>{role}</option>)}
       </select>
-      <select aria-label="Filter by status" value={statusFilter} onChange={(event) => onStatusFilter(event.currentTarget.value)} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+      <select aria-label="Filter by status" value={statusFilter} onChange={(event) => onStatusFilter(event.currentTarget.value)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
         <option>All statuses</option>
         <option>Active</option>
         <option>Pending</option>
         <option>Suspended</option>
         <option>Deactivated</option>
       </select>
-      <select aria-label="Filter by department" value={departmentFilter} onChange={(event) => onDepartmentFilter(event.currentTarget.value)} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+      <select aria-label="Filter by department" value={departmentFilter} onChange={(event) => onDepartmentFilter(event.currentTarget.value)} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
         {departmentOptions.map((department) => <option key={department}>{department}</option>)}
       </select>
     </div>
@@ -1692,7 +1692,7 @@ function UsersTable({
 }) {
   if (!users.length) {
     return (
-      <p className="mt-4 rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-4 text-sm font-bold text-[#52657F]">
+      <p className="mt-4 rounded-xl border border-border bg-surface-muted px-3 py-4 text-sm font-bold text-muted">
         No staff match this view. Clear the filters or open the invite form to add school staff.
       </p>
     );
@@ -1702,48 +1702,48 @@ function UsersTable({
     <>
       <div className="mt-4 grid gap-3 lg:hidden">
         {users.map((user) => (
-          <article key={user.id} className="rounded-2xl border border-[#D7E0EF] bg-white p-4 shadow-sm">
+          <article key={user.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="break-words font-black text-[#071D49]">{user.name}</h3>
-                <p className="mt-0.5 text-sm font-semibold text-[#40608F]">{user.role}</p>
+                <h3 className="break-words font-black text-foreground">{user.name}</h3>
+                <p className="mt-0.5 text-sm font-semibold text-muted-strong">{user.role}</p>
               </div>
               <StatusPill label={user.status} tone={statusTone(user.status)} compact />
             </div>
-            <dl className="mt-3 grid gap-2 rounded-xl bg-[#F8FAFC] p-3 text-sm">
+            <dl className="mt-3 grid gap-2 rounded-xl bg-surface-muted p-3 text-sm">
               <div className="min-w-0">
-                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Assignment</dt>
-                <dd className="mt-0.5 break-words font-semibold text-[#52657F]">
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Assignment</dt>
+                <dd className="mt-0.5 break-words font-semibold text-muted">
                   {user.department || "Not assigned"} · {user.assignment || "No class/department assignment"}
                 </dd>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="min-w-0">
-                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Phone</dt>
-                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.phone || "Not recorded"}</dd>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Phone</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-muted">{user.phone || "Not recorded"}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Last active</dt>
-                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.lastActive}</dd>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Last active</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-muted">{user.lastActive}</dd>
                 </div>
               </div>
               <div className="min-w-0">
-                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Email</dt>
-                <dd className="mt-0.5 break-all font-semibold text-[#52657F]">{user.email || "No email"}</dd>
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Email</dt>
+                <dd className="mt-0.5 break-all font-semibold text-muted">{user.email || "No email"}</dd>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="min-w-0">
-                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Employment</dt>
-                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.employmentType || "Not recorded"}</dd>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Employment</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-muted">{user.employmentType || "Not recorded"}</dd>
                 </div>
                 <div className="min-w-0">
-                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">TSC number</dt>
-                  <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{user.tscNumber || "Not recorded"}</dd>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">TSC number</dt>
+                  <dd className="mt-0.5 break-words font-semibold text-muted">{user.tscNumber || "Not recorded"}</dd>
                 </div>
               </div>
               <div className="min-w-0">
-                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Joined</dt>
-                <dd className="mt-0.5 font-semibold text-[#52657F]">{displayDate(user.joinedAt)}</dd>
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Joined</dt>
+                <dd className="mt-0.5 font-semibold text-muted">{displayDate(user.joinedAt)}</dd>
               </div>
             </dl>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1766,7 +1766,7 @@ function UsersTable({
       </div>
       <div className="mt-4 hidden overflow-x-auto lg:block">
       <table className="min-w-[980px] w-full text-left text-sm">
-        <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.12em] text-[#597091]">
+        <thead className="bg-surface-muted text-xs uppercase tracking-[0.12em] text-muted">
           <tr>
             <th className="px-3 py-2">Name</th>
             <th className="px-3 py-2">Role</th>
@@ -1779,24 +1779,24 @@ function UsersTable({
             <th className="px-3 py-2">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#D7E0EF]">
+        <tbody className="divide-y divide-border">
           {users.map((user) => (
             <tr key={user.id} className="align-top">
-              <td className="px-3 py-3 font-black text-[#071D49]">{user.name}</td>
-                <td className="px-3 py-3 text-[#52657F]">
-                  <span className="block font-semibold text-[#40608F]">{user.role}</span>
+              <td className="px-3 py-3 font-black text-foreground">{user.name}</td>
+                <td className="px-3 py-3 text-muted">
+                  <span className="block font-semibold text-muted-strong">{user.role}</span>
                   {user.employmentType && <span className="block text-xs mt-0.5">Emp: {user.employmentType}</span>}
                   {user.tscNumber && <span className="block text-xs">TSC: {user.tscNumber}</span>}
                 </td>
-              <td className="px-3 py-3 text-[#52657F]">
+              <td className="px-3 py-3 text-muted">
                 <span className="block font-bold">{user.department || "Not assigned"}</span>
                 <span>{user.assignment || "No class/department assignment"}</span>
               </td>
-              <td className="px-3 py-3 text-[#52657F]">{user.phone}</td>
-              <td className="px-3 py-3 text-[#52657F]">{user.email || "No email"}</td>
+              <td className="px-3 py-3 text-muted">{user.phone}</td>
+              <td className="px-3 py-3 text-muted">{user.email || "No email"}</td>
               <td className="px-3 py-3"><StatusPill label={user.status} tone={statusTone(user.status)} compact /></td>
-              <td className="px-3 py-3 text-[#52657F]">{user.lastActive}</td>
-              <td className="px-3 py-3 text-[#52657F]">{displayDate(user.joinedAt)}</td>
+              <td className="px-3 py-3 text-muted">{user.lastActive}</td>
+              <td className="px-3 py-3 text-muted">{displayDate(user.joinedAt)}</td>
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1.5">
                   <SmallAction label="View details" icon={Eye} onClick={() => onView(user)} disabled={busyAction !== null} />
@@ -1842,7 +1842,7 @@ function InvitationsTable({
 }) {
   if (!invitations.length) {
     return (
-      <p className="mt-4 rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-4 text-sm font-bold text-[#047857]">
+      <p className="mt-4 rounded-xl border border-success-border bg-success-soft px-3 py-4 text-sm font-bold text-success">
         No pending school invitations.
       </p>
     );
@@ -1852,33 +1852,33 @@ function InvitationsTable({
     <>
       <div className="mt-4 grid gap-3 lg:hidden">
         {invitations.map((invite) => (
-          <article key={invite.id} className="rounded-2xl border border-[#D7E0EF] bg-white p-4 shadow-sm">
+          <article key={invite.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="break-words font-black text-[#071D49]">{invite.invitedName}</h3>
-                <p className="mt-0.5 text-sm font-semibold text-[#40608F]">{invite.role}</p>
+                <h3 className="break-words font-black text-foreground">{invite.invitedName}</h3>
+                <p className="mt-0.5 text-sm font-semibold text-muted-strong">{invite.role}</p>
               </div>
               <StatusPill label={invite.invitationStatus} tone={statusTone(invite.invitationStatus)} compact />
             </div>
-            <dl className="mt-3 grid gap-2 rounded-xl bg-[#F8FAFC] p-3 text-sm">
+            <dl className="mt-3 grid gap-2 rounded-xl bg-surface-muted p-3 text-sm">
               <div className="min-w-0">
-                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Contact</dt>
-                <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{invite.phone || "Not recorded"}</dd>
-                <dd className="break-all text-[#52657F]">{invite.email || "No email"}</dd>
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Contact</dt>
+                <dd className="mt-0.5 break-words font-semibold text-muted">{invite.phone || "Not recorded"}</dd>
+                <dd className="break-all text-muted">{invite.email || "No email"}</dd>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Invited</dt>
-                  <dd className="mt-0.5 font-semibold text-[#52657F]">{displayDate(invite.createdAt)}</dd>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Invited</dt>
+                  <dd className="mt-0.5 font-semibold text-muted">{displayDate(invite.createdAt)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Expires</dt>
-                  <dd className="mt-0.5 font-semibold text-[#52657F]">{displayDate(invite.expiryDate)}</dd>
+                  <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Expires</dt>
+                  <dd className="mt-0.5 font-semibold text-muted">{displayDate(invite.expiryDate)}</dd>
                 </div>
               </div>
               <div>
-                <dt className="text-xs font-black uppercase tracking-[0.1em] text-[#597091]">Invited by</dt>
-                <dd className="mt-0.5 break-words font-semibold text-[#52657F]">{invite.invitedByRole || "Not recorded"}</dd>
+                <dt className="text-xs font-black uppercase tracking-[0.1em] text-muted">Invited by</dt>
+                <dd className="mt-0.5 break-words font-semibold text-muted">{invite.invitedByRole || "Not recorded"}</dd>
               </div>
             </dl>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1911,7 +1911,7 @@ function InvitationsTable({
       </div>
       <div className="mt-4 hidden overflow-x-auto lg:block">
       <table className="min-w-[940px] w-full text-left text-sm">
-        <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.12em] text-[#597091]">
+        <thead className="bg-surface-muted text-xs uppercase tracking-[0.12em] text-muted">
           <tr>
             <th className="px-3 py-2">Invited name</th>
             <th className="px-3 py-2">Phone/email</th>
@@ -1923,19 +1923,19 @@ function InvitationsTable({
             <th className="px-3 py-2">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#D7E0EF]">
+        <tbody className="divide-y divide-border">
           {invitations.map((invite) => (
             <tr key={invite.id} className="align-top">
-              <td className="px-3 py-3 font-black text-[#071D49]">{invite.invitedName}</td>
-              <td className="px-3 py-3 text-[#52657F]">
+              <td className="px-3 py-3 font-black text-foreground">{invite.invitedName}</td>
+              <td className="px-3 py-3 text-muted">
                 <span className="block font-bold">{invite.phone}</span>
                 <span>{invite.email || "No email"}</span>
               </td>
-              <td className="px-3 py-3 font-semibold text-[#40608F]">{invite.role}</td>
-              <td className="px-3 py-3 text-[#52657F]">{invite.invitedByRole}</td>
+              <td className="px-3 py-3 font-semibold text-muted-strong">{invite.role}</td>
+              <td className="px-3 py-3 text-muted">{invite.invitedByRole}</td>
               <td className="px-3 py-3"><StatusPill label={invite.invitationStatus} tone={statusTone(invite.invitationStatus)} compact /></td>
-              <td className="px-3 py-3 text-[#52657F]">{displayDate(invite.createdAt)}</td>
-              <td className="px-3 py-3 text-[#52657F]">{displayDate(invite.expiryDate)}</td>
+              <td className="px-3 py-3 text-muted">{displayDate(invite.createdAt)}</td>
+              <td className="px-3 py-3 text-muted">{displayDate(invite.expiryDate)}</td>
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1.5">
                   <SmallAction label="View details" icon={Eye} onClick={() => onView(invite)} />
@@ -1981,9 +1981,9 @@ function RolesPermissionsPanel({ users, actorRole }: { users: SchoolUserRecord[]
   return (
     <Card className="p-4">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">Permission summary</p>
-        <h3 className="mt-1 text-lg font-black text-[#071D49]">Roles & Permissions</h3>
-        <p className="mt-1 text-sm font-semibold text-[#52657F]">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-strong">Permission summary</p>
+        <h3 className="mt-1 text-lg font-black text-foreground">Roles & Permissions</h3>
+        <p className="mt-1 text-sm font-semibold text-muted">
           {actorRole === "Principal"
             ? "Principal can manage school users and assign school roles, but cannot create Super Admin accounts."
             : "Deputy Principal can invite school users and manage accounts only when the permission is enabled."}
@@ -1991,7 +1991,7 @@ function RolesPermissionsPanel({ users, actorRole }: { users: SchoolUserRecord[]
       </div>
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-[820px] w-full text-left text-sm">
-          <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.12em] text-[#597091]">
+          <thead className="bg-surface-muted text-xs uppercase tracking-[0.12em] text-muted">
             <tr>
               <th className="px-3 py-2">Role name</th>
               <th className="px-3 py-2">Users</th>
@@ -2001,12 +2001,12 @@ function RolesPermissionsPanel({ users, actorRole }: { users: SchoolUserRecord[]
               <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D7E0EF]">
+          <tbody className="divide-y divide-border">
             {schoolRoles.map((role) => (
               <tr key={role}>
-                <td className="px-3 py-3 font-black text-[#071D49]">{role}</td>
-                <td className="px-3 py-3 text-[#52657F]">{countsByRole.get(role) ?? 0}</td>
-                <td className="px-3 py-3 text-[#52657F]">{rolePermissionSummary(role)}</td>
+                <td className="px-3 py-3 font-black text-foreground">{role}</td>
+                <td className="px-3 py-3 text-muted">{countsByRole.get(role) ?? 0}</td>
+                <td className="px-3 py-3 text-muted">{rolePermissionSummary(role)}</td>
                 <td className="px-3 py-3"><StatusPill label={roleCanInvite(role) ? "Yes" : "No"} tone={roleCanInvite(role) ? "ok" : "warning"} compact /></td>
                 <td className="px-3 py-3"><StatusPill label={role === "Principal" || role === "Deputy Principal" ? "Yes" : "No"} tone={role === "Principal" || role === "Deputy Principal" ? "ok" : "warning"} compact /></td>
                 <td className="px-3 py-3"><SmallAction label="View permissions" icon={ShieldCheck} onClick={() => setSelectedRole(role)} /></td>
@@ -2016,14 +2016,14 @@ function RolesPermissionsPanel({ users, actorRole }: { users: SchoolUserRecord[]
         </table>
       </div>
       {selectedRole ? (
-        <div className="mt-4 rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] p-3">
+        <div className="mt-4 rounded-xl border border-info-border bg-info-soft p-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#40608F]">Role permission details</p>
-              <h4 className="mt-1 text-base font-black text-[#071D49]">{selectedRole}</h4>
-              <p className="mt-1 text-sm font-semibold text-[#40608F]">{rolePermissionSummary(selectedRole)}</p>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-muted-strong">Role permission details</p>
+              <h4 className="mt-1 text-base font-black text-foreground">{selectedRole}</h4>
+              <p className="mt-1 text-sm font-semibold text-muted-strong">{rolePermissionSummary(selectedRole)}</p>
             </div>
-            <button type="button" onClick={() => setSelectedRole(null)} className="rounded-lg border border-[#BFD7FF] bg-white px-3 py-1.5 text-xs font-black text-[#0B3A7A]">
+            <button type="button" onClick={() => setSelectedRole(null)} className="rounded-lg border border-info-border bg-white px-3 py-1.5 text-xs font-black text-info">
               Close
             </button>
           </div>
@@ -2042,13 +2042,13 @@ function AuditPanel({ records }: { records: UserManagementAuditRecord[] }) {
   return (
     <Card className="p-4">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-[#40608F]">School-scoped activity</p>
-        <h3 className="mt-1 text-lg font-black text-[#071D49]">Audit Log / Activity</h3>
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-strong">School-scoped activity</p>
+        <h3 className="mt-1 text-lg font-black text-foreground">Audit Log / Activity</h3>
       </div>
       {records.length ? (
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-[860px] w-full text-left text-sm">
-            <thead className="bg-[#F8FAFC] text-xs uppercase tracking-[0.12em] text-[#597091]">
+            <thead className="bg-surface-muted text-xs uppercase tracking-[0.12em] text-muted">
               <tr>
                 <th className="px-3 py-2">Action</th>
                 <th className="px-3 py-2">Actor</th>
@@ -2059,23 +2059,23 @@ function AuditPanel({ records }: { records: UserManagementAuditRecord[] }) {
                 <th className="px-3 py-2">Reason</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#D7E0EF]">
+            <tbody className="divide-y divide-border">
               {records.map((record) => (
                 <tr key={record.id}>
-                  <td className="px-3 py-3 font-black text-[#071D49]">{record.action}</td>
-                  <td className="px-3 py-3 text-[#52657F]">{record.actorUser} ({record.actorRole})</td>
-                  <td className="px-3 py-3 text-[#52657F]">{record.target}</td>
-                  <td className="px-3 py-3 text-[#52657F]">{displayDate(record.timestamp)}</td>
-                  <td className="px-3 py-3 text-[#52657F]">{record.oldValue || "-"}</td>
-                  <td className="px-3 py-3 text-[#52657F]">{record.newValue || "-"}</td>
-                  <td className="px-3 py-3 text-[#52657F]">{record.reason || "-"}</td>
+                  <td className="px-3 py-3 font-black text-foreground">{record.action}</td>
+                  <td className="px-3 py-3 text-muted">{record.actorUser} ({record.actorRole})</td>
+                  <td className="px-3 py-3 text-muted">{record.target}</td>
+                  <td className="px-3 py-3 text-muted">{displayDate(record.timestamp)}</td>
+                  <td className="px-3 py-3 text-muted">{record.oldValue || "-"}</td>
+                  <td className="px-3 py-3 text-muted">{record.newValue || "-"}</td>
+                  <td className="px-3 py-3 text-muted">{record.reason || "-"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <p className="mt-4 rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-3 py-4 text-sm font-bold text-[#047857]">
+        <p className="mt-4 rounded-xl border border-success-border bg-success-soft px-3 py-4 text-sm font-bold text-success">
           No user management activity yet.
         </p>
       )}
@@ -2098,37 +2098,37 @@ function EditUserForm({
     <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit}>
       <input type="hidden" name="id" defaultValue={user.id} />
       <input type="hidden" name="role" defaultValue={user.role} />
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         Name
-        <input name="name" defaultValue={user.name} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="name" defaultValue={user.name} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground" />
       </label>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         Phone
-        <input name="phone" defaultValue={user.phone} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="phone" defaultValue={user.phone} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground" />
       </label>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         Email
-        <input name="email" defaultValue={user.email} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="email" defaultValue={user.email} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground" />
       </label>
-      <div className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <div className="grid gap-1 text-sm font-bold text-muted-strong">
         Role
-        <div className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold text-[#071D49]">{user.role}</div>
+        <div className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm font-semibold text-foreground">{user.role}</div>
       </div>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         Department
-        <input name="department" defaultValue={user.department} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="department" defaultValue={user.department} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground" />
       </label>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         Assignment
-        <input name="assignment" defaultValue={user.assignment} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="assignment" defaultValue={user.assignment} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground" />
       </label>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         TSC Number
-        <input name="tscNumber" defaultValue={user.tscNumber ?? ""} placeholder="Teaching staff only" className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]" />
+        <input name="tscNumber" defaultValue={user.tscNumber ?? ""} placeholder="Teaching staff only" className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground" />
       </label>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         Employment Type
-        <select name="employmentType" defaultValue={user.employmentType ?? ""} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+        <select name="employmentType" defaultValue={user.employmentType ?? ""} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
           <option value="">Select type</option>
           <option value="TSC">TSC (Government)</option>
           <option value="BOM">BOM (Board of Management)</option>
@@ -2137,8 +2137,8 @@ function EditUserForm({
         </select>
       </label>
       <div className="flex flex-wrap gap-2 md:col-span-2">
-        <button type="submit" disabled={busy} className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857] disabled:cursor-wait disabled:opacity-60">{busy ? "Saving..." : "Save User"}</button>
-        <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F] disabled:opacity-60">Cancel</button>
+        <button type="submit" disabled={busy} className="rounded-xl border border-success-border bg-success-soft px-4 py-2 text-sm font-black text-success disabled:cursor-wait disabled:opacity-60">{busy ? "Saving..." : "Save User"}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-muted-strong disabled:opacity-60">Cancel</button>
       </div>
     </form>
   );
@@ -2157,16 +2157,16 @@ function RoleChangeForm({
 }) {
   return (
     <form className="grid gap-4" onSubmit={onSubmit}>
-      <label className="grid gap-1 text-sm font-bold text-[#40608F]">
+      <label className="grid gap-1 text-sm font-bold text-muted-strong">
         School role
-        <select name="role" defaultValue={user.role} className="rounded-xl border border-[#D7E0EF] bg-white px-3 py-2 text-sm font-semibold text-[#071D49]">
+        <select name="role" defaultValue={user.role} className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
           {schoolRoles.map((role) => <option key={role}>{role}</option>)}
         </select>
       </label>
-      <p className="rounded-xl border border-[#BFD7FF] bg-[#EEF6FF] px-3 py-2 text-sm font-semibold text-[#40608F]">Role changes are tenant-scoped, permission-checked, and recorded in the audit log.</p>
+      <p className="rounded-xl border border-info-border bg-info-soft px-3 py-2 text-sm font-semibold text-muted-strong">Role changes are tenant-scoped, permission-checked, and recorded in the audit log.</p>
       <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={busy} className="rounded-xl border border-[#BFE8D7] bg-[#ECFDF5] px-4 py-2 text-sm font-black text-[#047857] disabled:cursor-wait disabled:opacity-60">{busy ? "Saving..." : "Save role"}</button>
-        <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl border border-[#D7E0EF] bg-white px-4 py-2 text-sm font-black text-[#40608F] disabled:opacity-60">Cancel</button>
+        <button type="submit" disabled={busy} className="rounded-xl border border-success-border bg-success-soft px-4 py-2 text-sm font-black text-success disabled:cursor-wait disabled:opacity-60">{busy ? "Saving..." : "Save role"}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-muted-strong disabled:opacity-60">Cancel</button>
       </div>
     </form>
   );
@@ -2184,16 +2184,16 @@ function UserDialog({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#071D49]/45 p-4" role="presentation" onMouseDown={(event) => {
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-primary/45 p-4" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section role="dialog" aria-modal="true" aria-label={title} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#D7E0EF] bg-white p-4 shadow-2xl md:p-5">
+      <section role="dialog" aria-modal="true" aria-label={title} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-white p-4 shadow-2xl md:p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black text-[#071D49]">{title}</h3>
-            <p className="mt-1 text-sm font-semibold leading-6 text-[#52657F]">{description}</p>
+            <h3 className="text-lg font-black text-foreground">{title}</h3>
+            <p className="mt-1 text-sm font-semibold leading-6 text-muted">{description}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={`Close ${title}`} className="shrink-0 rounded-lg border border-[#D7E0EF] bg-white px-3 py-1.5 text-xs font-black text-[#40608F]">Close</button>
+          <button type="button" onClick={onClose} aria-label={`Close ${title}`} className="shrink-0 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-black text-muted-strong">Close</button>
         </div>
         {children}
       </section>
@@ -2218,9 +2218,9 @@ function DetailPanel({
     >
       <dl className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {entries.map(([key, value]) => (
-          <div key={key} className="rounded-xl border border-[#D7E0EF] bg-[#F8FAFC] px-3 py-2">
-            <dt className="text-[10px] font-black uppercase tracking-[0.12em] text-[#597091]">{key.replace(/([A-Z])/g, " $1")}</dt>
-            <dd className="mt-1 break-words text-sm font-bold text-[#071D49]">{String(value || "-")}</dd>
+          <div key={key} className="rounded-xl border border-border bg-surface-muted px-3 py-2">
+            <dt className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">{key.replace(/([A-Z])/g, " $1")}</dt>
+            <dd className="mt-1 break-words text-sm font-bold text-foreground">{String(value || "-")}</dd>
           </div>
         ))}
       </dl>
@@ -2244,10 +2244,10 @@ function SmallAction({
   icon?: typeof Eye;
 }) {
   const toneClass = tone === "danger"
-    ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
+    ? "border-danger-border bg-[#FEF2F2] text-[#B91C1C]"
     : tone === "warning"
-      ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
-      : "border-[#BFD7FF] bg-[#EEF6FF] text-[#0B3A7A]";
+      ? "border-warning-border bg-warning-soft text-[#C2410C]"
+      : "border-info-border bg-info-soft text-info";
 
   return (
     <button
@@ -2255,7 +2255,7 @@ function SmallAction({
       disabled={disabled}
       aria-disabled={locked ? "true" : undefined}
       onClick={onClick}
-      className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs font-black disabled:cursor-wait disabled:opacity-70 sm:min-h-0 sm:justify-start sm:py-1 ${locked ? "border-[#D7E0EF] bg-[#F8FAFC] text-[#597091]" : toneClass}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-xs font-black disabled:cursor-wait disabled:opacity-70 sm:min-h-0 sm:justify-start sm:py-1 ${locked ? "border-border bg-surface-muted text-muted" : toneClass}`}
     >
       {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
       {locked ? <Lock className="h-3.5 w-3.5" /> : null}

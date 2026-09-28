@@ -10,7 +10,7 @@ export function NotificationsWorkspace() {
   if (isLoading) {
     return (
       <Panel title="Notifications" description="Alerts and messages regarding your class." icon={Bell}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -18,7 +18,7 @@ export function NotificationsWorkspace() {
   if (error || !data) {
     return (
       <Panel title="Notifications" description="Alerts and messages regarding your class." icon={Bell}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load notifications.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load notifications.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -28,10 +28,10 @@ export function NotificationsWorkspace() {
     <Panel title="Notifications" description="Alerts and messages regarding your class." icon={Bell}>
       <div className="flex flex-col gap-3">
         {(Array.isArray(data) ? data : []).map((notif: any) => (
-          <div key={notif.id} className={`rounded-xl border p-4 ${notif.isRead ? 'border-[#D8E0EC] bg-white' : 'border-[#1D4ED8] bg-[#EEF5FF]'}`}>
+          <div key={notif.id} className={`rounded-xl border p-4 ${notif.isRead ? 'border-border bg-white' : 'border-info bg-info-soft'}`}>
             <div className="flex items-center justify-between">
-              <p className="font-bold text-[#071D49]">{notif.message}</p>
-              <span className="text-xs text-[#64748B]">{notif.date}</span>
+              <p className="font-bold text-foreground">{notif.message}</p>
+              <span className="text-xs text-muted">{notif.date}</span>
             </div>
           </div>
         ))}

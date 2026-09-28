@@ -18,7 +18,7 @@ export function WelfareWorkspace() {
   if (isLoading) {
     return (
       <Panel title="Welfare & Counselling" description="Track the well-being and welfare needs of your learners." icon={Heart}>
-        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#1D4ED8] border-t-transparent"></div></div>
+        <div className="flex justify-center p-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-info border-t-transparent"></div></div>
       </Panel>
     );
   }
@@ -26,7 +26,7 @@ export function WelfareWorkspace() {
   if (error || !data) {
     return (
       <Panel title="Welfare & Counselling" description="Track the well-being and welfare needs of your learners." icon={Heart}>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 font-bold">Failed to load welfare records.</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger font-bold">Failed to load welfare records.</div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Panel>
     );
@@ -53,20 +53,20 @@ export function WelfareWorkspace() {
   return (
     <Panel title="Welfare & Counselling" description="Track the well-being and welfare needs of your learners." icon={Heart}>
       <div className="mb-4 flex justify-end">
-         <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-black text-white">
+         <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-info px-4 py-2 text-sm font-black text-white">
            {showForm ? "Cancel" : "Log Welfare Concern"}
          </button>
       </div>
 
-      {referMutation.isSuccess && <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-700 font-bold">Welfare case referred successfully!</div>}
+      {referMutation.isSuccess && <div className="mb-4 rounded border border-success-border bg-success-soft p-2 text-sm text-success font-bold">Welfare case referred successfully!</div>}
 
       {showForm && (
-        <div className="mb-6 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <h3 className="mb-4 font-bold text-[#071D49]">New Welfare Referral</h3>
+        <div className="mb-6 rounded-xl border border-border bg-surface-muted p-4">
+          <h3 className="mb-4 font-bold text-foreground">New Welfare Referral</h3>
           <div className="flex flex-col gap-4">
             <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-wide text-[#4B5563]">
               Learner
-              <select className="rounded border border-[#D8E0EC] bg-white p-2 text-sm normal-case text-[#071D49]" value={selectedLearnerId} onChange={e => setSelectedLearnerId(e.target.value)}>
+              <select className="rounded border border-border bg-white p-2 text-sm normal-case text-foreground" value={selectedLearnerId} onChange={e => setSelectedLearnerId(e.target.value)}>
                 <option value="">{isRegisterLoading ? "Loading learners..." : "Select learner"}</option>
                 {learners.map((learner: any) => (
                   <option key={learner.id} value={String(learner.id)}>
@@ -75,17 +75,17 @@ export function WelfareWorkspace() {
                 ))}
               </select>
             </label>
-            <textarea className="rounded border border-[#D8E0EC] p-2 text-sm" placeholder="Reason for referral" value={reason} onChange={e => setReason(e.target.value)} />
-            <button onClick={handleReferral} disabled={referMutation.isPending || !selectedLearnerId || !reason.trim()} className="self-end rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+            <textarea className="rounded border border-border p-2 text-sm" placeholder="Reason for referral" value={reason} onChange={e => setReason(e.target.value)} />
+            <button onClick={handleReferral} disabled={referMutation.isPending || !selectedLearnerId || !reason.trim()} className="self-end rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">
               {referMutation.isPending ? "Submitting..." : "Submit Referral"}
             </button>
           </div>
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-[#D8E0EC]">
-        <table className="w-full text-left text-sm text-[#071D49]">
-          <thead className="bg-[#F8FAFC]">
+      <div className="overflow-hidden rounded-xl border border-border">
+        <table className="w-full text-left text-sm text-foreground">
+          <thead className="bg-surface-muted">
             <tr>
               <th className="p-3 font-semibold">Date</th>
               <th className="p-3 font-semibold">Learner</th>
@@ -94,14 +94,14 @@ export function WelfareWorkspace() {
               <th className="p-3 font-semibold">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {(Array.isArray(data) ? data : []).map((row: any) => (
               <tr key={row.id}>
                 <td className="p-3">{row.date}</td>
                 <td className="p-3 font-bold">{row.learner}</td>
                 <td className="p-3">{row.concern}</td>
                 <td className="p-3">
-                  <span className={`rounded px-2 py-1 text-xs font-bold ${row.priority === 'High' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                  <span className={`rounded px-2 py-1 text-xs font-bold ${row.priority === 'High' ? 'bg-rose-100 text-danger' : 'bg-emerald-100 text-success'}`}>
                     {row.priority}
                   </span>
                 </td>

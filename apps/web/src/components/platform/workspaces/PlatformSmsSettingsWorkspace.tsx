@@ -187,12 +187,12 @@ export function PlatformSmsSettingsWorkspace() {
         <Card className="p-4"><div className="text-sm font-medium text-muted">Active SMS Gateways</div><div className="mt-2 text-2xl font-bold">{isLoading ? "..." : metrics.activeSms}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">Active Email Gateways</div><div className="mt-2 text-2xl font-bold">{isLoading ? "..." : metrics.activeEmail}</div></Card>
         <Card className="p-4"><div className="text-sm font-medium text-muted">Messages Sent (Today)</div><div className="mt-2 text-2xl font-bold">{isLoading ? "..." : metrics.messagesSent}</div></Card>
-        <Card className="p-4 border-red-500 bg-red-50/50"><div className="text-sm font-medium text-red-600">Failed Deliveries</div><div className="mt-2 text-2xl font-bold text-red-700">{isLoading ? "..." : metrics.failedDeliveries}</div></Card>
+        <Card className="p-4 border-red-500 bg-danger-soft/50"><div className="text-sm font-medium text-red-600">Failed Deliveries</div><div className="mt-2 text-2xl font-bold text-danger">{isLoading ? "..." : metrics.failedDeliveries}</div></Card>
       </div>
 
       <div className="space-y-4">
         {statusMessage ? (
-          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+          <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">
             {statusMessage}
           </div>
         ) : null}
@@ -232,7 +232,7 @@ export function PlatformSmsSettingsWorkspace() {
                         </td>
                         <td className="px-4 py-3 font-medium">{p.sender_id || "N/A"}</td>
                         <td className="px-4 py-3">
-                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                          <span className="px-2 py-1 bg-green-100 text-success rounded-full text-xs font-medium">
                             {p.is_active ? "Active" : "Inactive"}{p.is_default ? " / Default" : ""}
                           </span>
                         </td>
@@ -263,7 +263,7 @@ export function PlatformSmsSettingsWorkspace() {
       <Modal open={isProviderOpen} title={editingProviderId ? "Edit SMS Provider" : "Add SMS Provider"} onClose={closeProviderModal}>
         <form className="space-y-4" onSubmit={saveProvider}>
           {submitError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm text-danger">
               {submitError}
             </div>
           ) : null}

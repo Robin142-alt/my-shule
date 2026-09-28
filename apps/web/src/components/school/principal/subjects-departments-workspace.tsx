@@ -160,7 +160,7 @@ export function SubjectsDepartmentsWorkspace() {
             type="button"
             onClick={openDepartmentForm}
             disabled={isSaving}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49] transition hover:bg-[#F8FAFC] disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-white px-4 py-2 text-sm font-black text-foreground transition hover:bg-surface-muted disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             Add Department
@@ -169,7 +169,7 @@ export function SubjectsDepartmentsWorkspace() {
             type="button"
             onClick={openSubjectForm}
             disabled={isSaving}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white transition hover:bg-blue-900 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
             Add Subject
@@ -178,22 +178,22 @@ export function SubjectsDepartmentsWorkspace() {
       }
     >
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Subjects</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_subjects ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Subjects</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_subjects ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Departments</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_departments ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Departments</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_departments ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Unassigned Subjects</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.unassigned_subjects ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Unassigned Subjects</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.unassigned_subjects ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Name</th>
               <th className="px-4 py-3 font-bold">Type</th>
@@ -205,21 +205,21 @@ export function SubjectsDepartmentsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading subjects and departments...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading subjects and departments...</td></tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   No subjects or departments are configured. Add departments and subjects before setting timetables, creating exam papers, assigning teachers, or opening marks entry.
                 </td>
               </tr>
             ) : (
               items.map((row) => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{row.name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.type}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.department || "-"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.hod || "Not assigned"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.teachers_count}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{row.name}</td>
+                  <td className="px-4 py-3 text-muted">{row.type}</td>
+                  <td className="px-4 py-3 text-muted">{row.department || "-"}</td>
+                  <td className="px-4 py-3 text-muted">{row.hod || "Not assigned"}</td>
+                  <td className="px-4 py-3 text-muted">{row.teachers_count}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status || "Active"} tone={getStatusTone(row.status || "Active")} /></td>
                 </tr>
               ))
@@ -236,39 +236,39 @@ export function SubjectsDepartmentsWorkspace() {
         size="lg"
         footer={
           <>
-            <button type="button" onClick={() => setSubjectOpen(false)} disabled={isSaving} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+            <button type="button" onClick={() => setSubjectOpen(false)} disabled={isSaving} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="principal-subject-create-form" disabled={isSaving} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="principal-subject-create-form" disabled={isSaving} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isSaving ? "Saving..." : "Save subject"}
             </button>
           </>
         }
       >
         <form id="principal-subject-create-form" onSubmit={handleCreateSubject} className="space-y-4">
-          {formError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{formError}</div> : null}
+          {formError ? <div className="rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{formError}</div> : null}
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               Subject name
-              <input value={subjectForm.name} onChange={(event) => setSubjectForm((current) => ({ ...current, name: event.target.value }))} placeholder="Mathematics" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" required />
+              <input value={subjectForm.name} onChange={(event) => setSubjectForm((current) => ({ ...current, name: event.target.value }))} placeholder="Mathematics" className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400" required />
             </label>
 
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               Type
-              <select value={subjectForm.type} onChange={(event) => setSubjectForm((current) => ({ ...current, type: event.target.value }))} className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400">
+              <select value={subjectForm.type} onChange={(event) => setSubjectForm((current) => ({ ...current, type: event.target.value }))} className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400">
                 {subjectTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155]">
+            <label className="space-y-1 text-sm font-bold text-foreground">
               Department
-              <input list="principal-departments" value={subjectForm.department} onChange={(event) => setSubjectForm((current) => ({ ...current, department: event.target.value }))} placeholder="Mathematics Department" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" required />
+              <input list="principal-departments" value={subjectForm.department} onChange={(event) => setSubjectForm((current) => ({ ...current, department: event.target.value }))} placeholder="Mathematics Department" className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400" required />
               <datalist id="principal-departments">
                 {departments.map((department) => <option key={department} value={department} />)}
               </datalist>
             </label>
-            <label className="space-y-1 text-sm font-bold text-[#334155] md:col-span-2">
+            <label className="space-y-1 text-sm font-bold text-foreground md:col-span-2">
               Level coverage
-              <input value={subjectForm.level_coverage} onChange={(event) => setSubjectForm((current) => ({ ...current, level_coverage: event.target.value }))} placeholder="Grade 7-9, Form 1-4, or whole school" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" />
+              <input value={subjectForm.level_coverage} onChange={(event) => setSubjectForm((current) => ({ ...current, level_coverage: event.target.value }))} placeholder="Grade 7-9, Form 1-4, or whole school" className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400" />
             </label>
           </div>
         </form>
@@ -282,28 +282,28 @@ export function SubjectsDepartmentsWorkspace() {
         size="md"
         footer={
           <>
-            <button type="button" onClick={() => setDepartmentOpen(false)} disabled={isSaving} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] hover:bg-[#F8FAFC] disabled:opacity-50">
+            <button type="button" onClick={() => setDepartmentOpen(false)} disabled={isSaving} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="principal-department-create-form" disabled={isSaving} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="principal-department-create-form" disabled={isSaving} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isSaving ? "Saving..." : "Save department"}
             </button>
           </>
         }
       >
         <form id="principal-department-create-form" onSubmit={handleCreateDepartment} className="space-y-4">
-          {formError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{formError}</div> : null}
-          <label className="block space-y-1 text-sm font-bold text-[#334155]">
+          {formError ? <div className="rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-semibold text-danger">{formError}</div> : null}
+          <label className="block space-y-1 text-sm font-bold text-foreground">
             Department name
-            <input value={departmentForm.name} onChange={(event) => setDepartmentForm((current) => ({ ...current, name: event.target.value }))} placeholder="Science Department" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" required />
+            <input value={departmentForm.name} onChange={(event) => setDepartmentForm((current) => ({ ...current, name: event.target.value }))} placeholder="Science Department" className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400" required />
           </label>
-          <label className="block space-y-1 text-sm font-bold text-[#334155]">
+          <label className="block space-y-1 text-sm font-bold text-foreground">
             HOD label
-            <input value={departmentForm.hod} onChange={(event) => setDepartmentForm((current) => ({ ...current, hod: event.target.value }))} placeholder="Assign after staff setup, or type a label for now" className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" />
+            <input value={departmentForm.hod} onChange={(event) => setDepartmentForm((current) => ({ ...current, hod: event.target.value }))} placeholder="Assign after staff setup, or type a label for now" className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400" />
           </label>
-          <label className="block space-y-1 text-sm font-bold text-[#334155]">
+          <label className="block space-y-1 text-sm font-bold text-foreground">
             Notes
-            <textarea value={departmentForm.notes} onChange={(event) => setDepartmentForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional setup notes" rows={3} className="w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-400" />
+            <textarea value={departmentForm.notes} onChange={(event) => setDepartmentForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional setup notes" rows={3} className="w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-blue-400" />
           </label>
         </form>
       </Modal>

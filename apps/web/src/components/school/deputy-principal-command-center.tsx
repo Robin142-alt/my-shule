@@ -178,7 +178,7 @@ export function DeputyPrincipalCommandCenter({
   if (!schoolId) {
     return (
       <main className="grid min-h-[60vh] place-items-center px-5 py-12">
-        <div role="alert" className="w-full max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-900">
+        <div role="alert" className="w-full max-w-md rounded-2xl border border-danger-border bg-danger-soft p-6 text-center text-red-900">
           <p className="text-sm font-black">School context is unavailable</p>
           <p className="mt-2 text-xs font-semibold leading-5">
             Sign in again before opening deputy-principal records. No fallback school has been selected.
@@ -258,15 +258,15 @@ export function DeputyPrincipalCommandCenter({
       case "support-knowledge-base":
       case "support-system-status":
         return <SupportCenterWorkspace tenantSlug={schoolId} defaultView={activeWorkspace} />;
-      default: return <section className="rounded-xl bg-white p-6 text-[#071D49]"><h2 className="text-xl font-black">Workspace unavailable</h2><p className="mt-2">Choose a workspace from the deputy menu to continue.</p><button type="button" onClick={() => setActiveWorkspace("overview")} className="mt-4 min-h-11 rounded-lg border px-4 font-bold">Open overview</button></section>;
+      default: return <section className="rounded-xl bg-white p-6 text-foreground"><h2 className="text-xl font-black">Workspace unavailable</h2><p className="mt-2">Choose a workspace from the deputy menu to continue.</p><button type="button" onClick={() => setActiveWorkspace("overview")} className="mt-4 min-h-11 rounded-lg border px-4 font-bold">Open overview</button></section>;
     }
   };
 
   return (
-    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="authenticated-app min-h-dvh bg-[#F3F4F6] pb-6">
+    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="authenticated-app min-h-dvh bg-background pb-6">
       <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-[var(--radius-xl)] border border-[#C8D5EA]/50 bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-[var(--radius-xl)] border border-border-strong/50 bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
           <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
             <div className="flex items-center gap-3">
               {schoolIdentity?.logoUrl && failedLogoUrl !== schoolIdentity.logoUrl ? (
@@ -320,7 +320,7 @@ export function DeputyPrincipalCommandCenter({
 
         {/* Main Content */}
         <main className="min-w-0 space-y-5">
-          <header className="app-workspace-header rounded-[var(--radius-xl)] border border-[#C8D5EA] bg-white p-4 text-[#071D49] shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
+          <header className="app-workspace-header rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
                 <DashboardGreeting name={deputyName} context={`${schoolName} command center`} />
@@ -328,10 +328,10 @@ export function DeputyPrincipalCommandCenter({
               </div>
               <div className="grid min-w-0 gap-3 xl:w-full xl:max-w-[640px]">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-[#5F6F89]" aria-hidden="true" />
+                  <Search className="pointer-events-none absolute left-4 top-3.5 h-5 w-5 text-muted" aria-hidden="true" />
                   <input
                     placeholder="Search student, teacher, incident, class, parent, or report"
-                    className="h-12 w-full rounded-[var(--radius-lg)] border border-[#C8D5EA] bg-[#F8FAFC] pl-12 pr-4 text-sm font-semibold text-[#071D49] outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
+                    className="h-12 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-muted pl-12 pr-4 text-sm font-semibold text-foreground outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-300/20"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -354,7 +354,7 @@ export function DeputyPrincipalCommandCenter({
             />
           </div>
 
-          <div className={`app-workspace-surface min-w-0 rounded-[var(--radius-xl)] bg-[#071D49] ${activeWorkspace === "timetable" ? "p-2 sm:p-5" : "p-5"} shadow-[0_24px_70px_rgba(7,29,73,0.22)]`}>
+          <div className={`app-workspace-surface min-w-0 rounded-[var(--radius-xl)] bg-primary ${activeWorkspace === "timetable" ? "p-2 sm:p-5" : "p-5"} shadow-[0_24px_70px_rgba(7,29,73,0.22)]`}>
             <h1 className="app-workspace-title mb-4 px-2 text-2xl font-black text-white sm:text-3xl">
               {navItems.find((n) => n.id === activeWorkspace)?.label ?? "Overview"}
             </h1>

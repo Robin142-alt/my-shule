@@ -57,7 +57,7 @@ export function PortalShell({
             type="button"
             aria-label="Close sidebar backdrop"
             onClick={() => setMobileOpen(false)}
-            className="fixed inset-0 z-30 bg-[#071D49]/40 lg:hidden"
+            className="fixed inset-0 z-30 bg-primary/40 lg:hidden"
           />
         ) : null
       }

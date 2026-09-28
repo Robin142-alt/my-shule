@@ -86,7 +86,7 @@ function IntelligencePreview() {
 
   return (
     <div className="rounded-xl border border-white/10 bg-surface/80 p-4 shadow-[0_20px_70px_rgba(2,6,23,0.26)] backdrop-blur">
-      <div className="rounded-xl bg-[#071D49] p-5 text-white">
+      <div className="rounded-xl bg-primary p-5 text-white">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-white">MyShule command view</p>
@@ -101,7 +101,7 @@ function IntelligencePreview() {
             <div key={label} className="rounded-xl border border-white/10 bg-white/[0.08] p-4">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm font-semibold">{label}</p>
-                <p className="text-xl font-semibold text-[#fed7aa]">{value}</p>
+                <p className="text-xl font-semibold text-warning-border">{value}</p>
               </div>
               <p className="mt-1 text-xs leading-5 text-white/65">{helper}</p>
             </div>
@@ -133,7 +133,7 @@ export default function PublicLandingPage() {
         visual={<IntelligencePreview />}
       />
 
-      <section className="border-y border-white/10 bg-[#071D49]/90">
+      <section className="border-y border-white/10 bg-primary/90">
         <div className="mx-auto grid w-full max-w-7xl gap-4 px-5 py-8 sm:px-8 md:grid-cols-3 lg:px-10">
           <InfoCard
             title="Parent Portal"

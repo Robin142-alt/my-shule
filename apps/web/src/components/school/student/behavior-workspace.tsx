@@ -46,7 +46,7 @@ export function BehaviorWorkspace() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+        <div className="rounded-lg border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           Conduct records could not be loaded: {error.message}
         </div>
       ) : null}
@@ -95,7 +95,7 @@ export function BehaviorWorkspace() {
             ) : commendations.length > 0 ? (
               commendations.map((item) => (
                 <div key={item.id} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                  <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded bg-warning-soft text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
                     <Award className="w-4 h-4" />
                   </div>
                   <div>
@@ -126,7 +126,7 @@ export function BehaviorWorkspace() {
             ) : infractions.length > 0 ? (
               infractions.map((item) => (
                 <div key={item.id} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                  <div className="w-8 h-8 rounded bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded bg-danger-soft text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <div>

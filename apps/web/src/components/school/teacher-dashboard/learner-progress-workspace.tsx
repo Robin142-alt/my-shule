@@ -29,17 +29,17 @@ export function LearnerProgressWorkspace() {
   return (
     <Panel title="Learner Progress" description="Track individual learner academic progress." icon={TrendingUp}>
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">Tracked Learners</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.tracked ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">Tracked Learners</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.tracked ?? 0}</p>
         </article>
-        <article className="rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <p className="text-xs font-bold uppercase text-[#64748B]">At Risk</p>
-          <p className="text-2xl font-black text-[#071D49]">{isLoading ? "..." : stats?.at_risk ?? 0}</p>
+        <article className="app-metric-card rounded-xl border border-border bg-white p-3">
+          <p className="text-xs font-bold uppercase text-muted">At Risk</p>
+          <p className="text-2xl font-black text-foreground">{isLoading ? "..." : stats?.at_risk ?? 0}</p>
         </article>
       </div>
       {isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
           Failed to load data. Please retry.
         </div>
       ) : (

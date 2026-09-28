@@ -130,12 +130,12 @@ export function WaiversDiscountsWorkspace({
 
       <div className="rounded-md border border-slate-200 bg-white p-6 shadow-sm">
         {notice ? (
-          <div className="mb-4 rounded-md bg-emerald-50 p-4 text-sm text-emerald-700">
+          <div className="mb-4 rounded-md bg-success-soft p-4 text-sm text-success">
             {notice}
           </div>
         ) : null}
         {error ? (
-          <div className="rounded-md bg-red-50 p-4 text-sm text-red-600">
+          <div className="rounded-md bg-danger-soft p-4 text-sm text-red-600">
             {error}
           </div>
         ) : (
@@ -166,7 +166,7 @@ export function WaiversDiscountsWorkspace({
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Apply Fee Waiver">
         <form onSubmit={handleApplyWaiver} className="space-y-4 py-4">
           {submitError && (
-            <div className="rounded bg-red-50 p-3 text-sm text-red-600">
+            <div className="rounded bg-danger-soft p-3 text-sm text-red-600">
               {submitError}
             </div>
           )}
@@ -187,7 +187,7 @@ export function WaiversDiscountsWorkspace({
               ))}
             </select>
             {students.length === 0 ? (
-              <p className="mt-1 text-xs text-amber-700">No invoiced learner accounts are available. Generate student invoices before requesting a waiver.</p>
+              <p className="mt-1 text-xs text-warning">No invoiced learner accounts are available. Generate student invoices before requesting a waiver.</p>
             ) : null}
           </div>
           

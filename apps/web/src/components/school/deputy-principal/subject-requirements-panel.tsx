@@ -6,8 +6,8 @@ import { toast } from "sonner";
 import { useSchoolMutation } from "@/lib/data/school-hooks";
 import { isOfflineQueued, teacherId, teacherLabel, type ClassSection, type OfflineAware, type RequirementsResponse, type Subject, type Teacher, type TeacherAssignment, type TimetableConfiguration, type TimetableRequirement, type TimetableResource } from "./timetable-types";
 
-const fieldClass = "mt-1 h-11 w-full min-w-0 rounded-lg border border-[#C8D5EA] bg-white px-3 text-base sm:text-sm font-semibold text-[#071D49] focus:border-cyan-500";
-const buttonClass = "min-h-11 rounded-lg border border-[#C8D5EA] px-4 text-sm font-bold disabled:opacity-50";
+const fieldClass = "mt-1 h-11 w-full min-w-0 rounded-lg border border-border-strong bg-white px-3 text-base sm:text-sm font-semibold text-foreground focus:border-cyan-500";
+const buttonClass = "min-h-11 rounded-lg border border-border-strong px-4 text-sm font-bold disabled:opacity-50";
 
 export function SubjectRequirementsPanel({ response, academicYear, termName, classes, subjects, teachers, resources, assignments = [], configuration, onContinue, onDirtyChange, loading, error, onRetry, onSaved, onSaveState }: {
   response?: RequirementsResponse;
@@ -121,32 +121,32 @@ export function SubjectRequirementsPanel({ response, academicYear, termName, cla
   };
 
   if (loading) return <p role="status">Loading subject requirements...</p>;
-  if (error) return <div role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-800"><p>Subject requirements could not be loaded. {error.message}</p><button type="button" onClick={onRetry} className={buttonClass}>Retry</button></div>;
+  if (error) return <div role="alert" className="rounded-xl bg-danger-soft p-4 text-danger"><p>Subject requirements could not be loaded. {error.message}</p><button type="button" onClick={onRetry} className={buttonClass}>Retry</button></div>;
 
   return <section className="space-y-4" aria-label="Subject period requirements">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div><h3 className="flex items-center gap-2 text-lg font-black text-[#071D49]"><Clock3 className="h-5 w-5" /> Subject period requirements</h3><p className="mt-1 text-sm text-[#64748B]">Add your allocated subjects together, adjust weekly periods, then save. Teachers come from Academic Setup.</p></div>
+      <div><h3 className="flex items-center gap-2 text-lg font-black text-foreground"><Clock3 className="h-5 w-5" /> Subject period requirements</h3><p className="mt-1 text-sm text-muted">Add your allocated subjects together, adjust weekly periods, then save. Teachers come from Academic Setup.</p></div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={save} disabled={saveMutation.isPending || !dirty} className={`${buttonClass} inline-flex items-center gap-2 bg-[#174EA6] text-white`}><Save className="h-4 w-4" /> {saveMutation.isPending ? "Saving..." : "Save requirements"}</button>
+        <button type="button" onClick={save} disabled={saveMutation.isPending || !dirty} className={`${buttonClass} inline-flex items-center gap-2 bg-info text-white`}><Save className="h-4 w-4" /> {saveMutation.isPending ? "Saving..." : "Save requirements"}</button>
         {onContinue ? <button type="button" onClick={onContinue} disabled={dirty || saveMutation.isPending || !items.length} className={buttonClass}>Continue to generation</button> : null}
       </div>
     </div>
-    {saveError ? <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm font-bold text-rose-800">{saveError}</p> : null}
+    {saveError ? <p role="alert" className="rounded-xl bg-danger-soft p-4 text-sm font-bold text-danger">{saveError}</p> : null}
     <fieldset disabled={saveMutation.isPending} className="min-w-0 space-y-4 disabled:opacity-60">
-      <div className="grid items-end gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_10rem_auto_auto]">
+      <div className="grid items-end gap-3 rounded-xl border border-border bg-surface-muted p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_10rem_auto_auto]">
         <label className="min-w-0 text-sm font-bold">Show class<select value={classFilter} onChange={(event) => setClassFilter(event.target.value)} className={fieldClass}><option value="">All classes</option>{classes.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
         <label className="text-sm font-bold">Default periods/week<input type="number" min={1} max={40} value={defaultPeriods} onChange={(event) => setDefaultPeriods(Number(event.target.value))} className={fieldClass} /></label>
-        <button type="button" onClick={addAllocatedSubjects} className={`${buttonClass} bg-[#071D49] text-white`}>Add allocated subjects</button>
+        <button type="button" onClick={addAllocatedSubjects} className={`${buttonClass} bg-primary text-white`}>Add allocated subjects</button>
         <button type="button" onClick={add} className={`${buttonClass} inline-flex items-center justify-center gap-2 bg-white`}><Plus className="h-4 w-4" /> Add requirement</button>
       </div>
-      <p className="text-sm text-[#475569]" role="status">{dirty ? "Unsaved changes — save before leaving this step." : "Requirements match the saved setup."} Showing {visibleItems.length} of {items.length} requirements.</p>
-      <p className="rounded-xl bg-blue-50 p-4 text-sm leading-relaxed text-[#174EA6]">Auto-balance shares the full teaching week evenly between subjects. Choose Fixed periods to keep a subject’s exact weekly count; automatic subjects share the remaining periods. Breaks and school activities keep their reserved times.</p>
-      <p className="text-sm text-[#64748B]">Weekly periods include doubles: 5 periods with double lessons gives two doubles and one single.</p>
+      <p className="text-sm text-muted-strong" role="status">{dirty ? "Unsaved changes — save before leaving this step." : "Requirements match the saved setup."} Showing {visibleItems.length} of {items.length} requirements.</p>
+      <p className="rounded-xl bg-info-soft p-4 text-sm leading-relaxed text-info">Auto-balance shares the full teaching week evenly between subjects. Choose Fixed periods to keep a subject’s exact weekly count; automatic subjects share the remaining periods. Breaks and school activities keep their reserved times.</p>
+      <p className="text-sm text-muted">Weekly periods include doubles: 5 periods with double lessons gives two doubles and one single.</p>
       {classes.filter((row) => !classFilter || row.id === classFilter).map((row) => {
         const total = items.filter((item) => item.class_section_id === row.id).reduce((sum, item) => sum + (item.weekly_periods_mode === "fixed" ? item.periods_per_week : item.balanced_periods_per_week ?? item.periods_per_week), 0);
-        return total > 0 ? <p key={row.id} className={capacity && total > capacity ? "text-sm font-bold text-amber-800" : "text-sm text-[#475569]"}>{row.name}: {total} periods requested{capacity ? ` / ${capacity} available per week` : " (configure school periods to check capacity)"}{capacity && total > capacity ? ". Above capacity; reduce periods or review parallel groups before generating." : ""}</p> : null;
+        return total > 0 ? <p key={row.id} className={capacity && total > capacity ? "text-sm font-bold text-warning" : "text-sm text-muted-strong"}>{row.name}: {total} periods requested{capacity ? ` / ${capacity} available per week` : " (configure school periods to check capacity)"}{capacity && total > capacity ? ". Above capacity; reduce periods or review parallel groups before generating." : ""}</p> : null;
       })}
-      {visibleItems.length === 0 ? <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">No requirements for this selection. Use Add allocated subjects to start from your teaching assignments, or add a requirement manually.</div> : null}
+      {visibleItems.length === 0 ? <div className="rounded-xl border border-dashed border-amber-300 bg-warning-soft p-5 text-sm text-amber-900">No requirements for this selection. Use Add allocated subjects to start from your teaching assignments, or add a requirement manually.</div> : null}
       {visibleItems.map(({ item, index }) => {
         const allocation = allocationFor(item);
         const allocatedIds = new Set(activeAssignments.filter((row) => row.class_section_id === item.class_section_id && row.subject_id === item.subject_id
@@ -161,19 +161,19 @@ export function SubjectRequirementsPanel({ response, academicYear, termName, cla
             ? "Multiple teachers are allocated. Choose the teacher below."
             : selectedTeacher ? teacherLabel(selectedTeacher)
               : item.resolved_teacher_name || (allocatedIds.size === 1 ? allocatedNames[0] || "Allocated teacher" : "No allocation found. Assign a teacher in Academic Foundation before generating.");
-        return <article key={item.id ?? `new-${index}`} aria-label={`Requirement ${index + 1}`} className="space-y-3 rounded-xl border border-[#D8E0EC] bg-white p-4">
+        return <article key={item.id ?? `new-${index}`} aria-label={`Requirement ${index + 1}`} className="space-y-3 rounded-xl border border-border bg-white p-4">
           <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <label className="min-w-0 text-sm font-bold">Class<select value={item.class_section_id} onChange={(event) => update(index, { class_section_id: event.target.value, stream_id: null, teacher_id: null })} className={fieldClass}><option value="">Select class</option>{classes.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
             <label className="min-w-0 text-sm font-bold">Subject<select value={item.subject_id} onChange={(event) => update(index, { subject_id: event.target.value, teacher_id: null })} className={fieldClass}><option value="">Select subject</option>{subjects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
             <label className="text-sm font-bold">Weekly allocation<select value={item.weekly_periods_mode ?? "auto"} onChange={(event) => update(index, { weekly_periods_mode: event.target.value as "auto" | "fixed" })} className={fieldClass}><option value="auto">Auto-balance</option><option value="fixed">Fixed periods</option></select></label>
             <label className="text-sm font-bold">Periods/week<input type="number" min={1} max={40} disabled={item.weekly_periods_mode !== "fixed"} value={item.weekly_periods_mode === "fixed" ? item.periods_per_week : item.balanced_periods_per_week ?? item.periods_per_week} onChange={(event) => update(index, { periods_per_week: Number(event.target.value) })} className={`${fieldClass} disabled:bg-slate-100`} />{item.weekly_periods_mode !== "fixed" ? <span className="mt-1 block text-xs font-normal text-slate-600">Recalculated when requirements are saved.</span> : null}</label>
             <label className="text-sm font-bold">Lesson length<select value={item.duration_periods} onChange={(event) => update(index, { duration_periods: Number(event.target.value) })} className={fieldClass}><option value={1}>Single period</option><option value={2}>Double period</option><option value={3}>3 periods</option><option value={4}>4 periods</option></select></label>
-            <button type="button" onClick={() => edit((current) => current.filter((_, i) => i !== index))} aria-label="Remove subject requirement" className="grid h-11 w-11 place-items-center rounded-lg border border-rose-200 bg-white text-rose-700"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" onClick={() => edit((current) => current.filter((_, i) => i !== index))} aria-label="Remove subject requirement" className="grid h-11 w-11 place-items-center rounded-lg border border-danger-border bg-white text-danger"><Trash2 className="h-4 w-4" /></button>
           </div>
-          <p className="text-sm text-[#64748B]">Teacher: {teacherText}{!allocation.streamRequired && !item.teacher_id && (item.allocation_status === "resolved" || (!item.allocation_status && allocatedIds.size === 1)) ? " (from academic allocation)" : ""}</p>
-          {allocation.streamId ? <p className="text-sm text-[#64748B]">Stream: {allocation.streamName || allocation.streamId}{!item.stream_id ? " (from academic allocation)" : ""}</p> : null}
+          <p className="text-sm text-muted">Teacher: {teacherText}{!allocation.streamRequired && !item.teacher_id && (item.allocation_status === "resolved" || (!item.allocation_status && allocatedIds.size === 1)) ? " (from academic allocation)" : ""}</p>
+          {allocation.streamId ? <p className="text-sm text-muted">Stream: {allocation.streamName || allocation.streamId}{!item.stream_id ? " (from academic allocation)" : ""}</p> : null}
           <details open={Boolean(item.resource_id || item.parallel_key || item.teacher_id || item.stream_id || allocation.streamRequired || item.allocation_status === "ambiguous" || allocatedIds.size > 1)}>
-            <summary className="cursor-pointer text-sm font-bold text-[#174EA6]">Teacher, room & parallel options</summary>
+            <summary className="cursor-pointer text-sm font-bold text-info">Teacher, room & parallel options</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {streamOptions.length > 0 || item.stream_id || allocation.streamId ? <label className="min-w-0 text-sm font-bold">Stream<select value={item.stream_id ?? ""} onChange={(event) => update(index, { stream_id: event.target.value || null, teacher_id: null })} className={fieldClass}><option value="">Use academic allocation automatically</option>{item.stream_id && !streamOptions.some(([id]) => id === item.stream_id) ? <option value={item.stream_id}>{item.stream_name || item.stream_id}</option> : null}{streamOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label> : null}
               <label className="min-w-0 text-sm font-bold">Allocated teacher<select value={item.teacher_id ?? ""} onChange={(event) => update(index, { teacher_id: event.target.value || null })} className={fieldClass}><option value="">Use academic allocation automatically</option>{item.teacher_id && !allocatedIds.has(item.teacher_id) ? <option value={item.teacher_id}>{selectedTeacher ? teacherLabel(selectedTeacher) : "Previous teacher"} (allocation needs review)</option> : null}{teachers.filter((row) => allocatedIds.has(teacherId(row))).map((row) => <option key={teacherId(row)} value={teacherId(row)}>{teacherLabel(row)}</option>)}</select></label>

@@ -73,7 +73,7 @@ export function AcademicsWorkspace() {
       </div>
 
       {error ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">
+        <div className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
           Academic records could not be loaded: {error.message}
         </div>
       ) : null}
@@ -144,7 +144,7 @@ export function AcademicsWorkspace() {
           </div>
         </Card>
       </div>
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <Card className="border border-slate-200 overflow-hidden mt-6">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -157,9 +157,9 @@ export function AcademicsWorkspace() {
              </div>
           ) : publishedReports.length > 0 ? (
              publishedReports.map((report, idx) => (
-              <div key={report.id ?? idx} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg bg-white hover:border-blue-200 transition-colors">
+              <div key={report.id ?? idx} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg bg-white hover:border-info-border transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-rose-50 text-rose-600 rounded">
+                  <div className="p-2 bg-danger-soft text-rose-600 rounded">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>

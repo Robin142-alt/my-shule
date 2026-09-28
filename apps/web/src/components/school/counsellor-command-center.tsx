@@ -70,11 +70,11 @@ const navItems = [
 ];
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
-  success: { card: "border-emerald-200 bg-emerald-50 text-emerald-900", chip: "border-emerald-200 bg-emerald-50 text-emerald-700", dot: "bg-emerald-500", text: "text-emerald-700" },
-  info: { card: "border-blue-200 bg-blue-50 text-blue-950", chip: "border-blue-200 bg-blue-50 text-blue-700", dot: "bg-blue-500", text: "text-blue-700" },
-  warning: { card: "border-amber-200 bg-amber-50 text-amber-950", chip: "border-amber-200 bg-amber-50 text-amber-700", dot: "bg-amber-500", text: "text-amber-700" },
-  danger: { card: "border-rose-200 bg-rose-50 text-rose-950", chip: "border-rose-200 bg-rose-50 text-rose-700", dot: "bg-rose-500", text: "text-rose-700" },
-  neutral: { card: "border-slate-200 bg-white text-[#071D49]", chip: "border-slate-200 bg-slate-50 text-slate-700", dot: "bg-slate-400", text: "text-slate-600" },
+  success: { card: "border-success-border bg-success-soft text-emerald-900", chip: "border-success-border bg-success-soft text-success", dot: "bg-emerald-500", text: "text-success" },
+  info: { card: "border-info-border bg-info-soft text-blue-950", chip: "border-info-border bg-info-soft text-info", dot: "bg-blue-500", text: "text-info" },
+  warning: { card: "border-warning-border bg-warning-soft text-amber-950", chip: "border-warning-border bg-warning-soft text-warning", dot: "bg-amber-500", text: "text-warning" },
+  danger: { card: "border-danger-border bg-danger-soft text-rose-950", chip: "border-danger-border bg-danger-soft text-danger", dot: "bg-rose-500", text: "text-danger" },
+  neutral: { card: "border-slate-200 bg-white text-foreground", chip: "border-slate-200 bg-slate-50 text-slate-700", dot: "bg-slate-400", text: "text-slate-600" },
 };
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -131,13 +131,13 @@ function StatusChip({ label, tone = "neutral" }: { label: string; tone?: Tone })
 
 function Panel({ title, description, icon: Icon, children, actions }: { title: string; description?: string; icon?: any; children: ReactNode; actions?: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
-          {Icon ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]"><Icon className="h-5 w-5" aria-hidden="true" /></span> : null}
+          {Icon ? <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info"><Icon className="h-5 w-5" aria-hidden="true" /></span> : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions}
@@ -149,17 +149,17 @@ function Panel({ title, description, icon: Icon, children, actions }: { title: s
 
 function DataTable({ title, columns, rows }: { title?: string; columns: string[]; rows: ReactNode[][] }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white">
-      {title && <div className="border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3"><h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3></div>}
+    <div className="overflow-hidden rounded-2xl border border-border bg-white">
+      {title && <div className="border-b border-border bg-surface-muted px-4 py-3"><h3 className="text-sm font-black uppercase tracking-[0.14em] text-foreground">{title}</h3></div>}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-[#64748B]">
+          <thead className="bg-[#EEF2FF] text-xs uppercase tracking-[0.12em] text-muted">
             <tr>{columns.map((column, i) => <th key={i} className="px-4 py-3 font-black whitespace-nowrap">{column}</th>)}</tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {rows.map((row, i) => (
-              <tr key={i} className="transition hover:bg-[#F8FAFC]">
-                {row.map((cell, j) => <td key={j} className="px-4 py-3 font-semibold text-[#334155] whitespace-nowrap">{cell}</td>)}
+              <tr key={i} className="transition hover:bg-surface-muted">
+                {row.map((cell, j) => <td key={j} className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">{cell}</td>)}
               </tr>
             ))}
             {rows.length === 0 && (
@@ -246,58 +246,58 @@ function NewCounsellingCaseModal({
     <Modal title="New counselling case" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleCreateCounsellingReferral} className="space-y-4 p-6">
         {error ? (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+          <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
             {error}
           </div>
         ) : null}
         {setupMissing ? (
-          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+          <div role="status" className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-amber-900">
             Add active learners, classes, terms, and academic years before creating a counselling case.
           </div>
         ) : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Learner
-            <select name="student_id" required disabled={optionsLoading || studentOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Learner
+            <select name="student_id" required disabled={optionsLoading || studentOptions.length === 0} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{optionsLoading ? "Loading learners..." : "Select learner"}</option>
               {studentOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Current class
-            <select name="class_id" required disabled={optionsLoading || classOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Current class
+            <select name="class_id" required disabled={optionsLoading || classOptions.length === 0} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{optionsLoading ? "Loading classes..." : "Select class"}</option>
               {classOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Academic term
-            <select name="academic_term_id" required disabled={optionsLoading || termOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Academic term
+            <select name="academic_term_id" required disabled={optionsLoading || termOptions.length === 0} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{optionsLoading ? "Loading terms..." : "Select term"}</option>
               {termOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Academic year
-            <select name="academic_year_id" required disabled={optionsLoading || yearOptions.length === 0} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Academic year
+            <select name="academic_year_id" required disabled={optionsLoading || yearOptions.length === 0} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{optionsLoading ? "Loading years..." : "Select year"}</option>
               {yearOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Linked incident
-            <select name="incident_id" disabled={optionsLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="text-sm font-bold text-foreground">Linked incident
+            <select name="incident_id" disabled={optionsLoading} className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
               <option value="">{optionsLoading ? "Loading incidents..." : "No linked incident"}</option>
               {incidentOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Risk level
-            <select name="risk_level" defaultValue="medium" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <label className="text-sm font-bold text-foreground">Risk level
+            <select name="risk_level" defaultValue="medium" className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
@@ -305,12 +305,12 @@ function NewCounsellingCaseModal({
             </select>
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Referral reason
-          <textarea name="reason" required rows={4} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Summarise the concern, source, and first support step." />
+        <label className="block text-sm font-bold text-foreground">Referral reason
+          <textarea name="reason" required rows={4} className="mt-1 w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Summarise the concern, source, and first support step." />
         </label>
-        <div className="flex justify-end gap-3 border-t border-[#D8E0EC] pt-4">
-          <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button type="submit" disabled={submitting || setupMissing} className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+        <div className="flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button type="submit" disabled={submitting || setupMissing} className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Creating..." : "Create Case"}
           </button>
         </div>
@@ -505,15 +505,15 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
   };
 
   return (
-    <div className="authenticated-app flex h-screen flex-col bg-[#F8FAFC]">
+    <div className="authenticated-app flex h-screen flex-col bg-surface-muted">
       {/* Topbar */}
-      <header className="app-command-topbar sticky top-0 z-30 border-b border-[#D8E0EC] bg-white px-4 py-3 shadow-sm sm:px-6">
+      <header className="app-command-topbar sticky top-0 z-30 border-b border-border bg-white px-4 py-3 shadow-sm sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <MyShuleMark size={40} />
             <div>
-              <h1 className="text-sm font-black text-[#071D49]">Counselling workspace controls</h1>
-              <p className="text-xs font-bold text-[#64748B]">MyShule Ã¢â‚¬Â¢ Term 2, 2026</p>
+              <h1 className="text-sm font-black text-foreground">Counselling workspace controls</h1>
+              <p className="text-xs font-bold text-muted">MyShule Ã¢â‚¬Â¢ Term 2, 2026</p>
             </div>
           </div>
           <div className="flex-1 max-w-md hidden md:block relative">
@@ -527,7 +527,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
             />
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setNewCaseOpen(true)} className="hidden sm:inline-flex rounded-full bg-[#1D4ED8] px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
+            <button onClick={() => setNewCaseOpen(true)} className="hidden sm:inline-flex rounded-full bg-info px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
               <Plus className="mr-2 h-4 w-4" /> New Case
             </button>
             <TaskQueue />
@@ -539,7 +539,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="hidden w-64 flex-col border-r border-[#D8E0EC] bg-white p-4 md:flex overflow-y-auto">
+        <aside className="hidden w-64 flex-col border-r border-border bg-white p-4 md:flex overflow-y-auto">
           <SchoolCommandSidebarIdentity eyebrow="Counselling command" title="School Counsellor" subtitle="Confidential student support" tone="light" />
           <div className="mb-4 rounded-xl bg-indigo-50 p-3 border border-indigo-100 flex items-start gap-2">
             <LockKeyhole className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
@@ -550,7 +550,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           </div>
           {Array.from(new Set(navItems.map(i => i.group))).map(group => (
             <div key={group} className="mb-6">
-              <h4 className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#94A3B8]">{group}</h4>
+              <h4 className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted">{group}</h4>
               <nav className="space-y-0.5">
                 {navItems.filter(i => i.group === group).map(item => {
                   const active = activeView === item.id;
@@ -558,10 +558,11 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                   return (
                     <button
                       key={item.id}
+                      aria-current={active ? "page" : undefined}
                       onClick={() => setActiveView(item.id as CounsellorView)}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm font-bold transition",
-                        active ? "bg-[#EEF5FF] text-[#1D4ED8]" : "text-[#475569] hover:bg-slate-50 hover:text-[#071D49]"
+                        active ? "bg-info-soft text-info" : "text-muted-strong hover:bg-slate-50 hover:text-foreground"
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
@@ -592,7 +593,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                   { label: "Follow-ups Due", value: counsellingMetrics.followUpsDue ?? counsellingMetrics.follow_ups_due ?? 0, tone: "danger" },
                   { label: "Appointments Today", value: counsellingMetrics.appointmentsToday ?? counsellingMetrics.appointments_today ?? 0, tone: "success" }
                 ].map((stat, i) => (
-                  <div key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div key={i} data-tone={stat.tone} className="app-metric-card rounded-2xl border border-border bg-white p-5 shadow-sm">
                     <p className="text-xs font-black uppercase text-slate-500">{stat.label}</p>
                     <p className="mt-2 text-3xl font-black text-slate-900">{isLoadingDashboard ? "..." : stat.value}</p>
                   </div>
@@ -630,7 +631,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "referrals" && (
-            <Panel title="Referral Inbox" description="Manage incoming referrals from teachers, discipline masters, and boarding." actions={<button onClick={() => handleAction("Bulk Accept")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Bulk Accept</button>}>
+            <Panel title="Referral Inbox" description="Manage incoming referrals from teachers, discipline masters, and boarding." actions={<button onClick={() => handleAction("Bulk Accept")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Bulk Accept</button>}>
               <DataTable
                 columns={["ID", "Date", "Student", "Reason", "Priority", "Status", "Actions"]}
                 rows={isLoadingReferrals ? [] : referralRows.map((r: any) => [
@@ -650,7 +651,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "cases" && (
-            <Panel title="Student Cases" description="Confidential student cases under your management." actions={<button onClick={() => setNewCaseOpen(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">New Case</button>}>
+            <Panel title="Student Cases" description="Confidential student cases under your management." actions={<button onClick={() => setNewCaseOpen(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">New Case</button>}>
               <DataTable
                 columns={["Case #", "Student", "Class", "Category", "Priority", "Status", "Next Follow-up", "Actions"]}
                 rows={(caseRows.length ? caseRows : referralRows).map((caseRecord: any) => [
@@ -668,7 +669,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "appointments" && (
-            <Panel title="Appointments" description="Manage your counselling calendar." actions={<button onClick={() => handleAction("Schedule Appointment")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Schedule Appointment</button>}>
+            <Panel title="Appointments" description="Manage your counselling calendar." actions={<button onClick={() => handleAction("Schedule Appointment")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Schedule Appointment</button>}>
               <DataTable
                 columns={["Date", "Time", "Student", "Location", "Status", "Actions"]}
                 rows={(appointmentRows.length ? appointmentRows : sessionRows).map((s: any) => [
@@ -703,7 +704,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "followups" && (
-            <Panel title="Follow-ups" description="Track learners requiring ongoing support." actions={<button onClick={() => handleAction("Add Follow-up")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Add Follow-up</button>}>
+            <Panel title="Follow-ups" description="Track learners requiring ongoing support." actions={<button onClick={() => handleAction("Add Follow-up")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Add Follow-up</button>}>
               <DataTable
                 columns={["Student", "Reason", "Due Date", "Priority", "Status", "Actions"]}
                 rows={followupRows.map((followup: any) => [
@@ -719,7 +720,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "welfare" && (
-            <Panel title="Welfare Concerns" description="Broader concerns regarding attendance, basics, and general welfare." actions={<button onClick={() => handleAction("New Concern")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Log Concern</button>}>
+            <Panel title="Welfare Concerns" description="Broader concerns regarding attendance, basics, and general welfare." actions={<button onClick={() => handleAction("New Concern")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Log Concern</button>}>
               <DataTable
                 columns={["Student", "Category", "Reported By", "Priority", "Status", "Actions"]}
                 rows={welfareRows.map((concern: any) => [
@@ -735,7 +736,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "group" && (
-            <Panel title="Group Guidance" description="Manage life skills and school-wide wellbeing programs." actions={<button onClick={() => handleAction("Create Session")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Create Group Session</button>}>
+            <Panel title="Group Guidance" description="Manage life skills and school-wide wellbeing programs." actions={<button onClick={() => handleAction("Create Session")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Create Group Session</button>}>
               <DataTable
                 columns={["Title", "Target Group", "Date", "Status", "Actions"]}
                 rows={groupRows.map((groupSession: any) => [
@@ -750,7 +751,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "parents" && (
-            <Panel title="Parent Engagement" description="Log parent communications safely without exposing private notes." actions={<button onClick={() => handleAction("Log Contact")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Log Parent Contact</button>}>
+            <Panel title="Parent Engagement" description="Log parent communications safely without exposing private notes." actions={<button onClick={() => handleAction("Log Contact")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Log Parent Contact</button>}>
               <DataTable
                 columns={["Student", "Guardian", "Method", "Reason", "Status", "Actions"]}
                 rows={parentRows.map((contact: any) => [
@@ -766,7 +767,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "teachers" && (
-            <Panel title="Teacher Collaboration" description="Request feedback or classroom observations." actions={<button onClick={() => handleAction("Request Feedback")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Request Feedback</button>}>
+            <Panel title="Teacher Collaboration" description="Request feedback or classroom observations." actions={<button onClick={() => handleAction("Request Feedback")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Request Feedback</button>}>
               <DataTable
                 columns={["Request ID", "Student", "Staff Member", "Request Type", "Due", "Status", "Actions"]}
                 rows={teacherRows.map((request: any) => [
@@ -783,7 +784,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "discipline" && (
-            <Panel title="Discipline Support" description="Support plans for discipline referrals." actions={<button onClick={() => handleAction("Create Plan")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Create Support Plan</button>}>
+            <Panel title="Discipline Support" description="Support plans for discipline referrals." actions={<button onClick={() => handleAction("Create Plan")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Create Support Plan</button>}>
               <DataTable
                 columns={["Student", "Incident Ref", "Referred By", "Status", "Next Action", "Actions"]}
                 rows={disciplineRows.map((incident: any) => [
@@ -799,7 +800,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeView === "health" && (
-            <Panel title="Health Referrals" description="Coordinate with the Nurse/Sick Bay." actions={<button onClick={() => handleAction("Refer Nurse")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Refer to Nurse</button>}>
+            <Panel title="Health Referrals" description="Coordinate with the Nurse/Sick Bay." actions={<button onClick={() => handleAction("Refer Nurse")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Refer to Nurse</button>}>
               <DataTable
                 columns={["Student", "Direction", "Summary", "Status", "Actions"]}
                 rows={healthRows.map((referral: any) => [
@@ -815,8 +816,8 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
 
           {activeViewState === "escalations" && (
             <Panel title="Safeguarding & Escalations" description="Urgent matters escalated to school leadership." actions={<button onClick={() => handleAction("Escalate Case")} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white">New Escalation</button>}>
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
-                <div className="flex items-start gap-3 text-red-800">
+              <div className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-4">
+                <div className="flex items-start gap-3 text-danger">
                   <AlertTriangle className="h-5 w-5 shrink-0" />
                   <div>
                     <h3 className="font-bold">Restricted Access Area</h3>
@@ -853,7 +854,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                       <FileBarChart2 className="mx-auto mb-2 h-8 w-8 text-blue-600" />
                       <h4 className="font-bold text-slate-800">{report.title || report.name || "Counselling report"}</h4>
                       <p className="mt-1 text-xs font-semibold text-slate-500">{report.status || report.format || "Report template"}</p>
-                      <button onClick={() => handleAction(`Generate ${report.title || report.name || "Counselling Report"}`)} className="mt-3 w-full rounded-lg bg-blue-50 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100">Generate PDF</button>
+                      <button onClick={() => handleAction(`Generate ${report.title || report.name || "Counselling Report"}`)} className="mt-3 w-full rounded-lg bg-info-soft py-2 text-xs font-bold text-info hover:bg-blue-100">Generate PDF</button>
                     </div>
                   ))}
                 </div>
@@ -862,7 +863,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           )}
 
           {activeViewState === "templates" && (
-            <Panel title="Resources & Templates" description="Forms and materials for counselling support." actions={<button onClick={() => handleAction("Upload Resource")} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">Upload File</button>}>
+            <Panel title="Resources & Templates" description="Forms and materials for counselling support." actions={<button onClick={() => handleAction("Upload Resource")} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">Upload File</button>}>
               <DataTable
                 columns={["Resource Name", "Category", "Uploaded", "Visibility", "Actions"]}
                 rows={templateRows.map((template: any) => [
@@ -909,7 +910,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                     <select
                       value={counsellorSettings.default_case_visibility}
                       onChange={(event) => setCounsellorSettings((current) => ({ ...current, default_case_visibility: event.currentTarget.value }))}
-                      className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49]"
+                      className="mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary"
                     >
                       <option value="restricted">Restricted</option>
                       <option value="private">Private counsellor only</option>

@@ -369,7 +369,7 @@ function ScannerPanel({
         </div>
       ) : null}
       {error ? (
-        <div className="mt-4 rounded-[var(--radius-sm)] border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] font-semibold text-rose-800">
+        <div className="mt-4 rounded-[var(--radius-sm)] border border-danger-border bg-danger-soft px-3 py-2 text-[13px] font-semibold text-danger">
           {error}
         </div>
       ) : null}
@@ -1354,7 +1354,7 @@ export function LibraryWorkspace({
   return (
     <main className="min-h-screen bg-[#eef3f1] text-foreground">
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <aside className="border-b border-white/10 bg-[#071D49] text-white lg:w-[250px] lg:border-b-0 lg:border-r">
+        <aside className="border-b border-white/10 bg-primary text-white lg:w-[250px] lg:border-b-0 lg:border-r">
           <div className="sticky top-0 p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] bg-teal-500/15 text-teal-300">
@@ -1385,7 +1385,7 @@ export function LibraryWorkspace({
                     href={item.href}
                     className={`rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-semibold transition ${
                       isActive
-                        ? "bg-[#FF7A1A] text-white"
+                        ? "bg-accent text-white"
                         : "text-slate-300 hover:bg-slate-900 hover:text-white"
                     }`}
                   >

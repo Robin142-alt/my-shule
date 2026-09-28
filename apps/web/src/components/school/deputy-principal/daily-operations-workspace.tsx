@@ -67,48 +67,48 @@ export function DeputyDailyOperationsWorkspace() {
 
   return (
     <Panel title="Daily Operations" description="Manage the school day from morning to evening." icon={Activity} actions={
-      <button type="button" onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900">Create Operation Note</button>
+      <button type="button" onClick={() => setShowModal(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900">Create Operation Note</button>
     }>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Morning Parade</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Morning Parade</div>
           <div className="mt-1 text-lg font-black text-emerald-600">{isLoading ? "..." : metrics.morning_parade_status}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Staff on Duty</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : `${metrics.staff_on_duty_present} / ${metrics.staff_on_duty_total} Present`}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Staff on Duty</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : `${metrics.staff_on_duty_present} / ${metrics.staff_on_duty_total} Present`}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Gate Security</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metrics.gate_security_status}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Gate Security</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : metrics.gate_security_status}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Classes Not Started</div>
-          <div className="mt-1 text-lg font-black text-rose-700">{isLoading ? "..." : metrics.classes_not_started}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Classes Not Started</div>
+          <div className="mt-1 text-lg font-black text-danger">{isLoading ? "..." : metrics.classes_not_started}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Area</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Issue</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Area</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Issue</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {notes.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No operational notes logged today.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">No operational notes logged today.</td>
               </tr>
             ) : (
               notes.map((note) => (
-                <tr key={note.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{note.time}</td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{note.area}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{note.issue}</td>
+                <tr key={note.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{note.time}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{note.area}</td>
+                  <td className="px-4 py-3 text-muted">{note.issue}</td>
                   <td className="px-4 py-3"><StatusChip label={note.status} tone={getStatusTone(note.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => openDeputyRecord("Daily operation note", [["Time", note.time], ["Area", note.area], ["Issue", note.issue], ["Status", note.status]])}>View Note</button>
@@ -122,7 +122,7 @@ export function DeputyDailyOperationsWorkspace() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log Daily Operation Note" footer={
         <>
-          <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:bg-slate-100">Cancel</button>
           <button disabled={!formData.area || !formData.issue || isSubmitting} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save Note"}
           </button>
@@ -130,12 +130,12 @@ export function DeputyDailyOperationsWorkspace() {
       }>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-bold text-[#334155]">Area</label>
-            <input value={formData.area} onChange={(e) => setFormData({...formData, area: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="text-sm font-bold text-foreground">Area</label>
+            <input value={formData.area} onChange={(e) => setFormData({...formData, area: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="text-sm font-bold text-[#334155]">Issue Details</label>
-            <input value={formData.issue} onChange={(e) => setFormData({...formData, issue: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="text-sm font-bold text-foreground">Issue Details</label>
+            <input value={formData.issue} onChange={(e) => setFormData({...formData, issue: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
       </Modal>

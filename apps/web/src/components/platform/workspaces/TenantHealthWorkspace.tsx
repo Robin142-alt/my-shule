@@ -132,7 +132,7 @@ export function TenantHealthWorkspace() {
               <div className="font-semibold">Message</div>
               <div className="mt-1 text-muted-foreground">{selectedAlert.message || "No alert message was supplied."}</div>
             </div>
-            <div className="rounded-md border bg-blue-50 p-3 text-blue-900">
+            <div className="rounded-md border bg-info-soft p-3 text-blue-900">
               Review the related queue, integration, or service health before retrying affected jobs.
             </div>
           </div>

@@ -136,31 +136,31 @@ const navItems: NavItem[] = [
 
 const toneClasses: Record<Tone, { card: string; chip: string; dot: string; text: string }> = {
   success: {
-    card: "border-emerald-200 bg-emerald-50 text-emerald-900",
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    card: "border-success-border bg-success-soft text-emerald-900",
+    chip: "border-success-border bg-success-soft text-success",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
   },
   info: {
-    card: "border-blue-200 bg-blue-50 text-blue-950",
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
+    card: "border-info-border bg-info-soft text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
   },
   warning: {
-    card: "border-amber-200 bg-amber-50 text-amber-950",
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
+    card: "border-warning-border bg-warning-soft text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
   },
   danger: {
-    card: "border-rose-200 bg-rose-50 text-rose-950",
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
+    card: "border-danger-border bg-danger-soft text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
   },
   neutral: {
-    card: "border-slate-200 bg-white text-[#071D49]",
+    card: "border-slate-200 bg-white text-foreground",
     chip: "border-slate-200 bg-slate-50 text-slate-700",
     dot: "bg-slate-400",
     text: "text-slate-600",
@@ -194,17 +194,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
@@ -302,43 +302,43 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
   return (
     <Panel title="Library Overview" description="Manage books, loans, returns, overdue items, stock status, and borrower activity for the current term." icon={Home}>
       <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-6 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("catalogue")}>
-          <div className="text-sm font-semibold text-[#64748B]">Total Books</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{totalBooks}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("catalogue")}>
+          <div className="text-sm font-semibold text-muted">Total Books</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{totalBooks}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("catalogue")}>
-          <div className="text-sm font-semibold text-[#64748B]">Available</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("catalogue")}>
+          <div className="text-sm font-semibold text-muted">Available</div>
           <div className="mt-1 text-2xl font-black text-emerald-600">{availableBooks}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("loans")}>
-          <div className="text-sm font-semibold text-[#64748B]">Issued Out</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{issuedOut}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("loans")}>
+          <div className="text-sm font-semibold text-muted">Issued Out</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{issuedOut}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 cursor-pointer hover:border-rose-300 transition" onClick={() => onNavigate("loans")}>
-          <div className="text-sm font-semibold text-rose-700">Overdue Books</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{overdueBooks}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 cursor-pointer hover:border-rose-300 transition" onClick={() => onNavigate("loans")}>
+          <div className="text-sm font-semibold text-danger">Overdue Books</div>
+          <div className="mt-1 text-2xl font-black text-danger">{overdueBooks}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("lost_damaged")}>
-          <div className="text-sm font-semibold text-[#64748B]">Lost / Damaged</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{lostBooks}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("lost_damaged")}>
+          <div className="text-sm font-semibold text-muted">Lost / Damaged</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{lostBooks}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("fines")}>
-          <div className="text-sm font-semibold text-[#64748B]">Fines Pending</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{finesPending}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 cursor-pointer hover:border-blue-300 transition" onClick={() => onNavigate("fines")}>
+          <div className="text-sm font-semibold text-muted">Fines Pending</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{finesPending}</div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl border border-[#D8E0EC] overflow-hidden">
-            <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC] flex justify-between items-center">
-              <h3 className="font-bold text-[#071D49]">TodayÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Library Queue</h3>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="bg-surface-muted px-4 py-3 border-b border-border flex justify-between items-center">
+              <h3 className="font-bold text-foreground">TodayÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s Library Queue</h3>
               <button type="button" className="text-sm text-blue-600 font-semibold hover:underline" onClick={() => onNavigate("loans")}>View All</button>
             </div>
             <div className="p-4">
               <table className="w-full text-sm text-left">
                 <thead>
-                  <tr className="text-[#64748B] border-b border-[#D8E0EC]">
+                  <tr className="text-muted border-b border-border">
                     <th className="pb-2 font-semibold">Borrower</th>
                     <th className="pb-2 font-semibold">Class</th>
                     <th className="pb-2 font-semibold">Book</th>
@@ -346,17 +346,17 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
                     <th className="pb-2 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#D8E0EC]">
+                <tbody className="divide-y divide-border">
                   {loadingCirc ? (
-                    <tr><td colSpan={5} className="py-3 text-center text-[#64748B]">Loading...</td></tr>
+                    <tr><td colSpan={5} className="py-3 text-center text-muted">Loading...</td></tr>
                   ) : circulation.length === 0 ? (
-                    <tr><td colSpan={5} className="py-3 text-center text-[#64748B]">No active library queue.</td></tr>
+                    <tr><td colSpan={5} className="py-3 text-center text-muted">No active library queue.</td></tr>
                   ) : (
                     circulation.slice(0, 5).map((item) => (
                       <tr key={item.id}>
-                        <td className="py-3 font-medium text-[#071D49]">{item.borrower_id}</td>
-                        <td className="py-3 text-[#64748B]">-</td>
-                        <td className="py-3 text-[#071D49]">{item.copy_id}</td>
+                        <td className="py-3 font-medium text-foreground">{item.borrower_id}</td>
+                        <td className="py-3 text-muted">-</td>
+                        <td className="py-3 text-foreground">{item.copy_id}</td>
                         <td className="py-3"><StatusChip label={item.status || "Active"} tone={item.status === "Overdue" ? "danger" : "info"} /></td>
                         <td className="py-3 text-right">
                           <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => onNavigate(item.action === "issue" ? "return" : "loans")}>Action</button>
@@ -369,13 +369,13 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
             </div>
           </div>
           
-          <div className="rounded-xl border border-[#D8E0EC] overflow-hidden">
-            <div className="bg-[#F8FAFC] px-4 py-3 border-b border-[#D8E0EC]">
-              <h3 className="font-bold text-[#071D49]">Recent Activity</h3>
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="bg-surface-muted px-4 py-3 border-b border-border">
+              <h3 className="font-bold text-foreground">Recent Activity</h3>
             </div>
             <div className="p-4 space-y-4 text-sm">
               {recentActivity.length === 0 ? (
-                <div className="text-[#64748B] italic">No recent activity.</div>
+                <div className="text-muted italic">No recent activity.</div>
               ) : (
                 recentActivity.map((activity) => (
                   <div key={activity.id} className="flex gap-3">
@@ -392,31 +392,31 @@ function OverviewWorkspace({ onNavigate }: { onNavigate: (v: LibrarianView) => v
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-xl border border-rose-200 bg-rose-50 overflow-hidden">
-            <div className="px-4 py-3 border-b border-rose-200 flex items-center gap-2">
+          <div className="rounded-xl border border-danger-border bg-danger-soft overflow-hidden">
+            <div className="px-4 py-3 border-b border-danger-border flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-rose-600" />
               <h3 className="font-bold text-rose-900">Urgent Alerts</h3>
             </div>
-            <div className="p-4 space-y-3 text-sm text-rose-800">
+            <div className="p-4 space-y-3 text-sm text-danger">
               {(summaryData?.overdue_loans ?? 0) > 0 ? (
                 <div className="flex justify-between items-start">
                   <span><strong>{summaryData?.overdue_loans ?? 0} books</strong> are currently overdue.</span>
                   <button type="button" className="text-rose-900 underline font-semibold text-xs" onClick={() => onNavigate("loans")}>View</button>
                 </div>
               ) : (
-                <div className="flex justify-between items-start text-emerald-700">
+                <div className="flex justify-between items-start text-success">
                   <span>No overdue books.</span>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 text-center">
-            <ScanBarcode className="h-10 w-10 text-[#071D49] mx-auto mb-2 opacity-80" />
-            <p className="text-sm font-bold text-[#071D49] mb-4">Quick Issue / Return</p>
+          <div className="rounded-xl border border-border bg-surface-muted p-4 text-center">
+            <ScanBarcode className="h-10 w-10 text-foreground mx-auto mb-2 opacity-80" />
+            <p className="text-sm font-bold text-foreground mb-4">Quick Issue / Return</p>
             <div className="flex flex-col gap-2">
-              <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("issue")}>Open Issue Desk</button>
-              <button type="button" className="rounded-lg border border-[#071D49] px-4 py-2 text-sm font-black text-[#071D49]" onClick={() => onNavigate("return")}>Open Return Desk</button>
+              <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => onNavigate("issue")}>Open Issue Desk</button>
+              <button type="button" className="rounded-lg border border-primary px-4 py-2 text-sm font-black text-foreground" onClick={() => onNavigate("return")}>Open Return Desk</button>
             </div>
           </div>
         </div>
@@ -462,7 +462,7 @@ function IssueBooksWorkspace() {
   return (
     <Panel title="Issue Books" description="Fast book issuing using barcode scan or manual search." icon={BookUp}>
       {successMsg && (
-        <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-emerald-800 flex justify-between">
+        <div className="mb-4 rounded-xl bg-success-soft border border-success-border p-4 text-sm font-bold text-success flex justify-between">
           <div className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5" /> {successMsg}</div>
           <button type="button" className="underline" onClick={() => openLibraryRecord("Library issue slip", [["Borrower", selectedBorrower?.name || "Borrower"], ["Books issued", String(basket.length)], ["Status", successMsg]])}>Print Issue Slip</button>
         </div>
@@ -471,16 +471,16 @@ function IssueBooksWorkspace() {
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">1. Select Borrower</label>
+            <label className="block text-sm font-bold text-foreground mb-1">1. Select Borrower</label>
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-              <input type="text" placeholder="Search student by name, admission number, class..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+              <input type="text" placeholder="Search student by name, admission number, class..." className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
             </div>
             {selectedBorrower && (
-              <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 p-3 flex justify-between items-center">
+              <div className="mt-2 rounded-xl border border-info-border bg-info-soft p-3 flex justify-between items-center">
                 <div>
                   <div className="font-bold text-blue-900">{selectedBorrower.name}</div>
-                  <div className="text-xs text-blue-700">{selectedBorrower.adm} â€¢ {selectedBorrower.class} â€¢ <span className="font-bold">{selectedBorrower.status}</span></div>
+                  <div className="text-xs text-info">{selectedBorrower.adm} â€¢ {selectedBorrower.class} â€¢ <span className="font-bold">{selectedBorrower.status}</span></div>
                 </div>
                 <button type="button" onClick={() => setSelectedBorrower(null)} className="text-blue-500 hover:bg-blue-100 p-1 rounded"><X className="w-4 h-4" /></button>
               </div>
@@ -488,29 +488,29 @@ function IssueBooksWorkspace() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">2. Scan or Search Book</label>
+            <label className="block text-sm font-bold text-foreground mb-1">2. Scan or Search Book</label>
             <form onSubmit={handleScan} className="relative">
-              <ScanBarcode className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-              <input autoFocus type="text" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode or search title, ISBN..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]" />
+              <ScanBarcode className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+              <input autoFocus type="text" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan barcode or search title, ISBN..." className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
             </form>
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] flex flex-col">
-          <div className="px-4 py-3 border-b border-[#D8E0EC] font-bold text-[#071D49] flex justify-between">
+        <div className="rounded-xl border border-border bg-surface-muted flex flex-col">
+          <div className="px-4 py-3 border-b border-border font-bold text-foreground flex justify-between">
             <span>Issue Basket ({basket.length})</span>
             {basket.length > 0 && <button type="button" className="text-xs text-rose-600 hover:underline" onClick={() => setBasket([])}>Clear</button>}
           </div>
           <div className="p-4 flex-1 overflow-auto min-h-[200px]">
             {basket.length === 0 ? (
-              <div className="text-center text-[#64748B] text-sm py-8">Scan a book to add to basket</div>
+              <div className="text-center text-muted text-sm py-8">Scan a book to add to basket</div>
             ) : (
               <ul className="space-y-2">
                 {basket.map((item, idx) => (
-                  <li key={idx} className="flex justify-between items-center bg-white p-2 border border-[#D8E0EC] rounded-lg text-sm">
+                  <li key={idx} className="flex justify-between items-center bg-white p-2 border border-border rounded-lg text-sm">
                     <div>
-                      <div className="font-semibold text-[#071D49]">{item.title}</div>
-                      <div className="text-xs text-[#64748B]">Barcode: {item.barcode}</div>
+                      <div className="font-semibold text-foreground">{item.title}</div>
+                      <div className="text-xs text-muted">Barcode: {item.barcode}</div>
                     </div>
                     <button type="button" aria-label={`Remove ${item.title} from issue basket`} className="text-rose-500" onClick={() => setBasket((current) => current.filter((_, itemIndex) => itemIndex !== idx))}><XCircle className="w-4 h-4" /></button>
                   </li>
@@ -518,18 +518,18 @@ function IssueBooksWorkspace() {
               </ul>
             )}
           </div>
-          <div className="p-4 border-t border-[#D8E0EC] bg-white rounded-b-xl">
+          <div className="p-4 border-t border-border bg-white rounded-b-xl">
             {hasPermission('library:write') ? (
               <button 
                 type="button"
                 disabled={basket.length === 0 || isSubmitting}
                 onClick={handleIssue}
-                className="w-full rounded-xl bg-[#071D49] py-3 text-sm font-black text-white disabled:opacity-50"
+                className="w-full rounded-xl bg-primary py-3 text-sm font-black text-white disabled:opacity-50"
               >
                 {isSubmitting ? "Issuing..." : `Issue ${basket.length} Books`}
               </button>
             ) : (
-              <div className="w-full rounded-xl bg-[#F8FAFC] py-3 text-sm font-black text-[#64748B] text-center border border-[#D8E0EC]">
+              <div className="w-full rounded-xl bg-surface-muted py-3 text-sm font-black text-muted text-center border border-border">
                 Permission Restricted
               </div>
             )}
@@ -568,21 +568,21 @@ function ReturnBooksWorkspace() {
     <Panel title="Return Books" description="Receive returned books, update condition, and clear loans." icon={BookDown}>
       <div className="max-w-2xl mx-auto">
         <form onSubmit={handleScan} className="mb-6 relative">
-          <ScanBarcode className="absolute left-4 top-3.5 h-5 w-5 text-[#64748B]" />
-          <input autoFocus type="text" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan book barcode to return..." className="w-full rounded-2xl border-2 border-[#D8E0EC] py-3 pl-12 pr-4 text-base focus:border-[#071D49] focus:outline-none" />
-          <button disabled={isSubmitting} type="submit" className="absolute right-2 top-2 rounded-lg bg-[#071D49] px-4 py-1.5 text-sm font-black text-white disabled:opacity-50">
+          <ScanBarcode className="absolute left-4 top-3.5 h-5 w-5 text-muted" />
+          <input autoFocus type="text" value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)} placeholder="Scan book barcode to return..." className="w-full rounded-2xl border-2 border-border py-3 pl-12 pr-4 text-base focus:border-primary focus:outline-none" />
+          <button disabled={isSubmitting} type="submit" className="absolute right-2 top-2 rounded-lg bg-primary px-4 py-1.5 text-sm font-black text-white disabled:opacity-50">
             {isSubmitting ? "Returning..." : "Return"}
           </button>
         </form>
 
         {returned && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center animate-in fade-in slide-in-from-bottom-4">
+          <div className="rounded-2xl border border-success-border bg-success-soft p-6 text-center animate-in fade-in slide-in-from-bottom-4">
             <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
             <h3 className="text-xl font-black text-emerald-900 mb-1">Book Returned Successfully</h3>
-            <p className="text-emerald-700 font-medium mb-4">{returned.title} returned by {returned.borrower}.</p>
+            <p className="text-success font-medium mb-4">{returned.title} returned by {returned.borrower}.</p>
             <div className="flex justify-center gap-3">
               <button type="button" className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-black text-white" onClick={() => setReturned(null)}>Scan Next Book</button>
-              <button type="button" className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-black text-emerald-800" onClick={() => openLibraryRecord("Library return slip", [["Book", returned.title], ["Borrower", returned.borrower], ["Fine", returned.fine]])}>Print Return Slip</button>
+              <button type="button" className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-black text-success" onClick={() => openLibraryRecord("Library return slip", [["Book", returned.title], ["Borrower", returned.borrower], ["Fine", returned.fine]])}>Print Return Slip</button>
             </div>
           </div>
         )}
@@ -613,22 +613,22 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
     <Modal title="Add New Book" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Title</label>
-          <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Book title" />
+          <label className="block text-sm font-bold text-foreground mb-1">Title</label>
+          <input required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Book title" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">Author</label>
-            <input required type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Author name" />
+            <label className="block text-sm font-bold text-foreground mb-1">Author</label>
+            <input required type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Author name" />
           </div>
           <div>
-            <label className="block text-sm font-bold text-[#071D49] mb-1">ISBN</label>
-            <input type="text" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="ISBN number" />
+            <label className="block text-sm font-bold text-foreground mb-1">ISBN</label>
+            <input type="text" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="ISBN number" />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Subject / Category</label>
-          <select required className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <label className="block text-sm font-bold text-foreground mb-1">Subject / Category</label>
+          <select required className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
             <option value="">Select category...</option>
             <option value="science">Science</option>
             <option value="mathematics">Mathematics</option>
@@ -636,12 +636,12 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Initial Copies</label>
-          <input required type="number" min="1" defaultValue="1" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          <label className="block text-sm font-bold text-foreground mb-1">Initial Copies</label>
+          <input required type="number" min="1" defaultValue="1" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={submitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white">
             {submitting ? "Saving..." : "Add Book"}
           </button>
         </div>
@@ -668,29 +668,29 @@ function BookCatalogueWorkspace() {
     <>
       <Panel title="Book Catalogue" description="View, search, filter, edit, and manage all library books and copies." icon={Library} actions={
         hasPermission('library:write') ? (
-          <button type="button" onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white">
+          <button type="button" onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white">
             <Plus className="h-4 w-4" /> Add Book
           </button>
         ) : (
-          <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+          <span className="text-xs font-bold text-muted">Restricted</span>
         )
       }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
           <input
             type="text"
             value={catalogueSearchTerm}
             onChange={(event) => setCatalogueSearchTerm(event.target.value)}
             placeholder="Search title, author, ISBN, barcode..."
-            className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]"
+            className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
         <button
           type="button"
           className={cn(
             "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold",
-            availableOnly ? "border-[#071D49] bg-[#071D49] text-white" : "border-[#D8E0EC] bg-white text-[#071D49]",
+            availableOnly ? "border-primary bg-primary text-white" : "border-border bg-white text-foreground",
           )}
           onClick={() => setAvailableOnly((current) => !current)}
         >
@@ -698,34 +698,34 @@ function BookCatalogueWorkspace() {
         </button>
       </div>
       
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Title</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Author</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">ISBN</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Subject</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Total</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Available</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Title</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Author</th>
+              <th className="px-4 py-3 font-bold border-b border-border">ISBN</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Subject</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Total</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Available</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : filteredCatalogue.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No books found in catalogue.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No books found in catalogue.</td></tr>
             ) : filteredCatalogue.map((b, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{b.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{b.author || "-"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{b.isbn || "-"}</td>
-                <td className="px-4 py-3 text-[#64748B]">{b.subject || "-"}</td>
+              <tr key={i} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{b.title}</td>
+                <td className="px-4 py-3 text-muted">{b.author || "-"}</td>
+                <td className="px-4 py-3 text-muted">{b.isbn || "-"}</td>
+                <td className="px-4 py-3 text-muted">{b.subject || "-"}</td>
                 <td className="px-4 py-3 font-medium">{b.total || 0}</td>
                 <td className="px-4 py-3 font-medium text-emerald-600">{b.available || 0}</td>
                 <td className="px-4 py-3 text-right">
-                  <button type="button" aria-label={`View ${b.title} catalogue details`} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => openLibraryRecord("Catalogue item", [["Title", String(b.title)], ["Author", String(b.author || "-")], ["ISBN", String(b.isbn || "-")], ["Subject", String(b.subject || "-")], ["Total", String(b.total || 0)], ["Available", String(b.available || 0)]])}><MoreHorizontal className="w-4 h-4" /></button>
+                  <button type="button" aria-label={`View ${b.title} catalogue details`} className="p-1 text-muted hover:bg-border rounded" onClick={() => openLibraryRecord("Catalogue item", [["Title", String(b.title)], ["Author", String(b.author || "-")], ["ISBN", String(b.isbn || "-")], ["Subject", String(b.subject || "-")], ["Total", String(b.total || 0)], ["Available", String(b.available || 0)]])}><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -749,41 +749,41 @@ function DepartmentsWorkspace() {
   return (
     <>
     <Panel title="Departments & Subject Resources" description="Manage resources assigned to subjects, departments, teachers, and learning areas." icon={Briefcase} actions={
-      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsDepartmentIssueOpen(true)}>Issue to Department</button>
+      <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsDepartmentIssueOpen(true)}>Issue to Department</button>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <select className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]">
+        <select className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-bold text-foreground">
           <option>All Departments</option>
           <option>Science</option>
           <option>Languages</option>
           <option>Humanities</option>
           <option>Mathematics</option>
         </select>
-        <select className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]">
+        <select className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-bold text-foreground">
           <option>All Resource Types</option>
           <option>Teacher Guide</option>
           <option>Reference Book</option>
           <option>Dictionary / Atlas</option>
         </select>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Resource Title</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Department</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Assigned To</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Total</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Available</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Resource Title</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Department</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Assigned To</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Total</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Available</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {resources.map((d, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{d.title}</td>
-                <td className="px-4 py-3 text-[#64748B]">{d.dept}</td>
-                <td className="px-4 py-3 text-[#64748B]">{d.assigned}</td>
+              <tr key={i} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{d.title}</td>
+                <td className="px-4 py-3 text-muted">{d.dept}</td>
+                <td className="px-4 py-3 text-muted">{d.assigned}</td>
                 <td className="px-4 py-3 font-medium">{d.total}</td>
                 <td className="px-4 py-3 font-medium text-emerald-600">{d.available}</td>
                 <td className="px-4 py-3 text-right">
@@ -810,45 +810,45 @@ function VisitsWorkspace() {
   return (
     <>
     <Panel title="Library Visits & Reading Logs" description="Record student library visits, reading sessions, and reading program participation." icon={Footprints} actions={
-      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsVisitOpen(true)}>Log Visit</button>
+      <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsVisitOpen(true)}>Log Visit</button>
     }>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Visits Today</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">45</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Visits Today</div>
+          <div className="mt-1 text-2xl font-black text-foreground">45</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Class Sessions</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">2</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Class Sessions</div>
+          <div className="mt-1 text-2xl font-black text-foreground">2</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Books Read (Term)</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">320</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Books Read (Term)</div>
+          <div className="mt-1 text-2xl font-black text-foreground">320</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student/Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time In</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time Out</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Purpose</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student/Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time In</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time Out</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Purpose</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {visits.map((v, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{v.name}</td>
-                <td className="px-4 py-3 text-[#64748B]">{v.in}</td>
-                <td className="px-4 py-3 text-[#64748B]">{v.out}</td>
-                <td className="px-4 py-3 text-[#64748B]">{v.purpose}</td>
+              <tr key={i} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{v.name}</td>
+                <td className="px-4 py-3 text-muted">{v.in}</td>
+                <td className="px-4 py-3 text-muted">{v.out}</td>
+                <td className="px-4 py-3 text-muted">{v.purpose}</td>
                 <td className="px-4 py-3"><StatusChip label={v.status} tone={v.status === 'Active' ? 'success' : 'neutral'} /></td>
                 <td className="px-4 py-3 text-right">
                   {v.status === "Active" && <button type="button" className="text-blue-600 hover:underline font-semibold mr-3" onClick={() => openLibraryRecord("Library visit checkout", [["Student/Class", v.name], ["Time in", v.in], ["Purpose", v.purpose], ["Next action", "Use the routed visits workspace to persist checkout with notes."]])}>Check Out</button>}
-                  <button type="button" aria-label={`View visit for ${v.name}`} className="p-1 text-[#64748B] hover:bg-[#D8E0EC] rounded" onClick={() => openLibraryRecord("Library visit", [["Student/Class", v.name], ["Time in", v.in], ["Time out", v.out], ["Purpose", v.purpose], ["Status", v.status]])}><MoreHorizontal className="w-4 h-4" /></button>
+                  <button type="button" aria-label={`View visit for ${v.name}`} className="p-1 text-muted hover:bg-border rounded" onClick={() => openLibraryRecord("Library visit", [["Student/Class", v.name], ["Time in", v.in], ["Time out", v.out], ["Purpose", v.purpose], ["Status", v.status]])}><MoreHorizontal className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -871,27 +871,27 @@ function RequestsApprovalsWorkspace() {
   return (
     <>
     <Panel title="Requests & Approvals" description="Handle book requests, stock purchase requests, write-off approvals, and waivers." icon={CheckSquare} actions={
-      <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsRequestOpen(true)}>Create Request</button>
+      <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsRequestOpen(true)}>Create Request</button>
     }>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Request Type</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Target Role</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Details</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Request Type</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Target Role</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Details</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {requests.map((r, i) => (
-              <tr key={i} className="hover:bg-[#F8FAFC]">
-                <td className="px-4 py-3 font-semibold text-[#071D49]">{r.type}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.target}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.details}</td>
-                <td className="px-4 py-3 text-[#64748B]">{r.date}</td>
+              <tr key={i} className="hover:bg-surface-muted">
+                <td className="px-4 py-3 font-semibold text-foreground">{r.type}</td>
+                <td className="px-4 py-3 text-muted">{r.target}</td>
+                <td className="px-4 py-3 text-muted">{r.details}</td>
+                <td className="px-4 py-3 text-muted">{r.date}</td>
                 <td className="px-4 py-3"><StatusChip label={r.status} tone={r.status === 'Approved' ? 'success' : 'warning'} /></td>
                 <td className="px-4 py-3 text-right">
                   <button type="button" className="text-blue-600 hover:underline font-semibold" onClick={() => openLibraryRecord("Library request", [["Type", r.type], ["Target role", r.target], ["Details", r.details], ["Date", r.date], ["Status", r.status]])}>View</button>
@@ -930,10 +930,10 @@ function ReportsDownloadsWorkspace() {
   return (
     <Panel title="Reports & Downloads" description="Generate, preview, and export tenant-scoped library reports." icon={FileText} actions={
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={isGenerating} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-50" onClick={() => generateReport("pdf")}>
+        <button type="button" disabled={isGenerating} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50" onClick={() => generateReport("pdf")}>
           {isGenerating ? "Generating..." : "Generate PDF"}
         </button>
-        <button type="button" disabled={isGenerating} className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49] disabled:opacity-50" onClick={() => generateReport("csv")}>
+        <button type="button" disabled={isGenerating} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50" onClick={() => generateReport("csv")}>
           Generate CSV
         </button>
       </div>
@@ -1106,26 +1106,26 @@ function EndpointTable({
   const visibleColumns = columns.length > 0 ? columns : Object.keys(rows[0] ?? {}).slice(0, 6);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+    <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className="bg-[#F8FAFC] text-[#071D49]">
+        <thead className="bg-surface-muted text-foreground">
           <tr>
             {visibleColumns.map((column) => (
-              <th key={column} className="border-b border-[#D8E0EC] px-4 py-3 font-bold">{column.replace(/_/g, " ")}</th>
+              <th key={column} className="border-b border-border px-4 py-3 font-bold">{column.replace(/_/g, " ")}</th>
             ))}
-            <th className="border-b border-[#D8E0EC] px-4 py-3 text-right font-bold">Actions</th>
+            <th className="border-b border-border px-4 py-3 text-right font-bold">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#D8E0EC]">
+        <tbody className="divide-y divide-border">
           {isLoading ? (
-            <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center text-[#64748B]">Loading {title.toLowerCase()}...</td></tr>
+            <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center text-muted">Loading {title.toLowerCase()}...</td></tr>
           ) : rows.length === 0 ? (
-            <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center text-[#64748B]">{emptyText}</td></tr>
+            <tr><td colSpan={visibleColumns.length + 1} className="px-4 py-8 text-center text-muted">{emptyText}</td></tr>
           ) : (
             rows.map((row, index) => (
-              <tr key={String(row.id ?? index)} className="hover:bg-[#F8FAFC]">
+              <tr key={String(row.id ?? index)} className="hover:bg-surface-muted">
                 {visibleColumns.map((column) => (
-                  <td key={column} className="px-4 py-3 text-[#64748B]">{valueText(row[column])}</td>
+                  <td key={column} className="px-4 py-3 text-muted">{valueText(row[column])}</td>
                 ))}
                 <td className="px-4 py-3 text-right">
                   {rowActions?.(row, index)}
@@ -1211,16 +1211,16 @@ function CreateLibraryReservationModal({
     <Modal title="Create library reservation" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleCreateReservation} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Borrower
-            <select name="borrower_id" required defaultValue="" disabled={optionsLoading || borrowerOptions.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
+          <label className="text-sm font-bold text-foreground">Borrower
+            <select name="borrower_id" required defaultValue="" disabled={optionsLoading || borrowerOptions.length === 0} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
               <option value="">{optionsLoading ? "Loading borrowers..." : "Choose borrower"}</option>
               {borrowerOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Catalogue item
-            <select name="catalog_item_id" required defaultValue="" disabled={optionsLoading || catalogItemOptions.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
+          <label className="text-sm font-bold text-foreground">Catalogue item
+            <select name="catalog_item_id" required defaultValue="" disabled={optionsLoading || catalogItemOptions.length === 0} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
               <option value="">{optionsLoading ? "Loading catalogue..." : "Choose catalogue item"}</option>
               {catalogItemOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
@@ -1229,16 +1229,16 @@ function CreateLibraryReservationModal({
           </label>
         </div>
         {setupMissing ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+          <p className="rounded-lg border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-warning">
             Add at least one library borrower and one catalogue item before creating a reservation.
           </p>
         ) : null}
-        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+        <p className="rounded-lg border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">
           Reservations are saved to the tenant-scoped library reservation queue and appended to the circulation ledger.
         </p>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
-          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsLoading || setupMissing}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsLoading || setupMissing}>
             {submitting ? "Creating..." : "Create Reservation"}
           </button>
         </div>
@@ -1314,41 +1314,41 @@ function IssueDepartmentResourceModal({
     <Modal title="Issue resource to department" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleIssueDepartmentResource} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Book ISBN, title, accession, or barcode
-            <input name="book_code" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="CHEM-ADV or accession number" />
+          <label className="text-sm font-bold text-foreground">Book ISBN, title, accession, or barcode
+            <input name="book_code" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="CHEM-ADV or accession number" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Responsible staff
-            <select name="staff_identifier" required defaultValue="" disabled={optionsLoading || staffOptions.length === 0} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
+          <label className="text-sm font-bold text-foreground">Responsible staff
+            <select name="staff_identifier" required defaultValue="" disabled={optionsLoading || staffOptions.length === 0} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm disabled:bg-slate-100 disabled:text-slate-500">
               <option value="">{optionsLoading ? "Loading staff..." : "Choose responsible staff"}</option>
               {staffOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Department
-            <input name="department" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Science, Languages..." />
+          <label className="text-sm font-bold text-foreground">Department
+            <input name="department" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Science, Languages..." />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Assigned to
-            <input name="assigned_to" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Mr. Omondi / Department office" />
+          <label className="text-sm font-bold text-foreground">Assigned to
+            <input name="assigned_to" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Mr. Omondi / Department office" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Due date
-            <input name="due_date" type="date" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Due date
+            <input name="due_date" type="date" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Notes
-          <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Purpose, class set, return condition, or handover notes" />
+        <label className="block text-sm font-bold text-foreground">Notes
+          <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Purpose, class set, return condition, or handover notes" />
         </label>
         {setupMissing ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+          <p className="rounded-lg border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-warning">
             Invite or activate staff before issuing a department resource.
           </p>
         ) : null}
-        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+        <p className="rounded-lg border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">
           Department resources are issued against a responsible staff borrower and saved in the tenant-scoped circulation ledger.
         </p>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
-          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsLoading || setupMissing}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsLoading || setupMissing}>
             {submitting ? "Issuing..." : "Issue Resource"}
           </button>
         </div>
@@ -1434,39 +1434,39 @@ function LogLibraryVisitModal({
     <Modal title="Log library visit" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleLogLibraryVisit} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Student, staff, class, or group
-            <input name="visitor_name" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Joy Kendi / Form 1 East / Debate Club" />
+          <label className="text-sm font-bold text-foreground">Student, staff, class, or group
+            <input name="visitor_name" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Joy Kendi / Form 1 East / Debate Club" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Visitor type
-            <select name="visitor_type" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="student">
+          <label className="text-sm font-bold text-foreground">Visitor type
+            <select name="visitor_type" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" defaultValue="student">
               <option value="student">Student</option>
               <option value="class">Class</option>
               <option value="staff">Staff</option>
               <option value="club">Club / Group</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Purpose
-            <input name="purpose" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Reading, research, class session..." />
+          <label className="text-sm font-bold text-foreground">Purpose
+            <input name="purpose" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Reading, research, class session..." />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Reading program
-            <input name="reading_program" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="DEAR, book club, remedial reading..." />
+          <label className="text-sm font-bold text-foreground">Reading program
+            <input name="reading_program" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="DEAR, book club, remedial reading..." />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Time in
-            <input name="time_in" type="datetime-local" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Time in
+            <input name="time_in" type="datetime-local" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Time out
-            <input name="time_out" type="datetime-local" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Time out
+            <input name="time_out" type="datetime-local" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Notes
-          <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Books read, session outcome, teacher notes, or follow-up needed" />
+        <label className="block text-sm font-bold text-foreground">Notes
+          <textarea name="notes" rows={3} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Books read, session outcome, teacher notes, or follow-up needed" />
         </label>
-        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+        <p className="rounded-lg border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">
           Visit logs are saved as tenant-scoped library workflow events and appear in the visits workspace.
         </p>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
-          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
             {submitting ? "Logging..." : "Log Visit"}
           </button>
         </div>
@@ -1549,44 +1549,44 @@ function CreateLibraryRequestModal({
     <Modal title="Create library request" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleCreateLibraryRequest} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Request type
-            <select name="request_type" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="purchase">
+          <label className="text-sm font-bold text-foreground">Request type
+            <select name="request_type" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" defaultValue="purchase">
               <option value="purchase">Purchase request</option>
               <option value="write_off">Write-off approval</option>
               <option value="stock_adjustment">Stock adjustment</option>
               <option value="fine_waiver">Fine waiver</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Target role
-            <select name="target_role" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="principal">
+          <label className="text-sm font-bold text-foreground">Target role
+            <select name="target_role" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" defaultValue="principal">
               <option value="principal">Principal</option>
               <option value="procurement_officer">Procurement Officer</option>
               <option value="accountant">Accountant</option>
               <option value="storekeeper">Storekeeper</option>
             </select>
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Required by
-            <input name="required_by" type="date" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Required by
+            <input name="required_by" type="date" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Priority
-            <select name="priority" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="normal">
+          <label className="text-sm font-bold text-foreground">Priority
+            <select name="priority" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" defaultValue="normal">
               <option value="normal">Normal</option>
               <option value="high">High</option>
             </select>
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Details
-          <textarea name="details" required rows={3} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Books, quantities, affected copies, fine waiver reason, or adjustment details" />
+        <label className="block text-sm font-bold text-foreground">Details
+          <textarea name="details" required rows={3} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Books, quantities, affected copies, fine waiver reason, or adjustment details" />
         </label>
-        <label className="block text-sm font-bold text-[#071D49]">Notes
-          <textarea name="notes" rows={2} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Approval context, budget notes, supplier notes, or learner/borrower reference" />
+        <label className="block text-sm font-bold text-foreground">Notes
+          <textarea name="notes" rows={2} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Approval context, budget notes, supplier notes, or learner/borrower reference" />
         </label>
-        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+        <p className="rounded-lg border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">
           Requests are saved as tenant-scoped approval workflow records and remain visible in the Requests workspace.
         </p>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
-          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
             {submitting ? "Submitting..." : "Submit Request"}
           </button>
         </div>
@@ -1658,21 +1658,21 @@ function ComposeLibraryNoticeModal({
     <Modal title="Compose library notice" open={open} onClose={onClose} size="lg">
       <form onSubmit={handleSendLibraryNotice} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Notice title
-            <input name="title" required className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Library opening hours" />
+          <label className="text-sm font-bold text-foreground">Notice title
+            <input name="title" required className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Library opening hours" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Notice type
-            <select name="notice_type" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="general">
+          <label className="text-sm font-bold text-foreground">Notice type
+            <select name="notice_type" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" defaultValue="general">
               <option value="general">General</option>
               <option value="new_arrival">New arrival</option>
             </select>
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Message
-          <textarea name="message" required rows={4} className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" placeholder="Write the notice that recipients should receive." />
+        <label className="block text-sm font-bold text-foreground">Message
+          <textarea name="message" required rows={4} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" placeholder="Write the notice that recipients should receive." />
         </label>
-        <fieldset className="rounded-lg border border-[#D8E0EC] p-3">
-          <legend className="px-1 text-sm font-bold text-[#071D49]">Recipient roles</legend>
+        <fieldset className="rounded-lg border border-border p-3">
+          <legend className="px-1 text-sm font-bold text-foreground">Recipient roles</legend>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {[
               ["parent", "Parents"],
@@ -1681,7 +1681,7 @@ function ComposeLibraryNoticeModal({
               ["principal", "Principal"],
               ["librarian", "Librarians"],
             ].map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2 text-sm font-semibold text-[#64748B]">
+              <label key={value} className="flex items-center gap-2 text-sm font-semibold text-muted">
                 <input type="checkbox" name="target_roles" value={value} defaultChecked={value === "parent"} />
                 {label}
               </label>
@@ -1689,22 +1689,22 @@ function ComposeLibraryNoticeModal({
           </div>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+          <div className="rounded-lg border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">
             Delivery channel: verified in-app notification.
           </div>
-          <label className="text-sm font-bold text-[#071D49]">Priority
-            <select name="priority" className="mt-1 w-full rounded-lg border border-[#D8E0EC] px-3 py-2 text-sm" defaultValue="normal">
+          <label className="text-sm font-bold text-foreground">Priority
+            <select name="priority" className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm" defaultValue="normal">
               <option value="normal">Normal</option>
               <option value="high">High</option>
             </select>
           </label>
         </div>
-        <p className="rounded-lg border border-[#D8E0EC] bg-[#F8FAFC] p-3 text-sm font-semibold text-[#64748B]">
+        <p className="rounded-lg border border-border bg-surface-muted p-3 text-sm font-semibold text-muted">
           This composer is for non-person-specific notices. Send overdue reminders from Loans &amp; Overdues so only the exact borrower and linked guardians receive the details.
         </p>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
-          <button type="button" className="rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm font-bold text-[#071D49]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button type="button" className="rounded-lg border border-border px-4 py-2 text-sm font-bold text-foreground" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting}>
             {submitting ? "Sending..." : "Send Notice"}
           </button>
         </div>
@@ -1810,7 +1810,7 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
         return (
           <button
             type="button"
-            className="mr-3 text-emerald-700 hover:underline font-semibold disabled:opacity-60"
+            className="mr-3 text-success hover:underline font-semibold disabled:opacity-60"
             disabled={pendingVisitCheckout === visitId}
             onClick={() => void handleCheckoutLibraryVisit(row)}
           >
@@ -1825,7 +1825,7 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
         return (
           <button
             type="button"
-            className="mr-3 text-blue-700 hover:underline font-semibold disabled:opacity-60"
+            className="mr-3 text-info hover:underline font-semibold disabled:opacity-60"
             disabled={pendingOverdueReminder === loanId}
             onClick={() => void handleOverdueReminder(row)}
           >
@@ -1840,26 +1840,26 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
       <Panel title={contract.title} description={contract.description} icon={Icon} actions={
         <div className="flex flex-wrap gap-2">
           {viewId === "add_books" ? (
-            <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsAddBookOpen(true)}>Add Book</button>
+            <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsAddBookOpen(true)}>Add Book</button>
           ) : null}
               {viewId === "reservations" ? (
-                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsReservationOpen(true)}>Create Reservation</button>
+                <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsReservationOpen(true)}>Create Reservation</button>
               ) : null}
               {viewId === "departments" ? (
-                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsDepartmentIssueOpen(true)}>Issue to Department</button>
+                <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsDepartmentIssueOpen(true)}>Issue to Department</button>
               ) : null}
               {viewId === "visits" ? (
-                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsVisitOpen(true)}>Log Visit</button>
+                <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsVisitOpen(true)}>Log Visit</button>
               ) : null}
               {viewId === "requests" ? (
-                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsRequestOpen(true)}>Create Request</button>
+                <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsRequestOpen(true)}>Create Request</button>
               ) : null}
               {viewId === "notices" ? (
-                <button type="button" className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white" onClick={() => setIsNoticeOpen(true)}>Compose Notice</button>
+                <button type="button" className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white" onClick={() => setIsNoticeOpen(true)}>Compose Notice</button>
               ) : null}
               <button
             type="button"
-            className="rounded-lg border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-bold text-[#071D49]"
+            className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground"
             onClick={() => exportLibraryCsv(
               `library-${viewId}.csv`,
               contract.columns,
@@ -1872,13 +1872,13 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
         </div>
       }>
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
           <input
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={`Search ${contract.title.toLowerCase()}...`}
-            className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none focus:ring-1 focus:ring-[#071D49]"
+            className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
           <EndpointTable isLoading={isLoading} rows={rows} emptyText={contract.emptyText} columns={contract.columns} title={contract.title} rowActions={workspaceRowActions} />
@@ -1909,7 +1909,7 @@ export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSec
   };
 
   return (
-    <div className="authenticated-app flex min-h-screen bg-[#F3F6FA] font-sans">
+    <div className="authenticated-app flex min-h-screen bg-background font-sans">
       <Sidebar activeView={activeViewState} onViewChange={setActiveView} />
       <main className="app-command-main flex-1 min-w-0 flex flex-col h-screen">
         <Topbar activeView={activeViewState} onViewChange={setActiveView} />
@@ -1943,7 +1943,7 @@ export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSec
 
 function Sidebar({ activeView, onViewChange }: { activeView: LibrarianView; onViewChange: (view: LibrarianView) => void }) {
   return (
-    <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+    <aside className="hidden h-screen w-[260px] overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
       <SchoolCommandSidebarIdentity eyebrow="Library command" title="Librarian Dashboard" subtitle="Catalogue, circulation, fines, and stock" />
       <nav className="space-y-1" aria-label="Librarian navigation">
         {navItems.map((item, index) => {
@@ -1974,15 +1974,15 @@ function Sidebar({ activeView, onViewChange }: { activeView: LibrarianView; onVi
 function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onViewChange: (view: LibrarianView) => void }) {
   const label = navItems.find(i => i.id === activeView)?.label || "Dashboard";
   return (
-    <header className="app-command-topbar sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+    <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white shrink-0">LB</div>
-          <h1 className="text-lg font-black text-[#071D49] truncate">{label}</h1>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white shrink-0">LB</div>
+          <h1 className="text-lg font-black text-foreground truncate">{label}</h1>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <StatusChip label="Term 2 (2026)" tone="info" />
-          <button type="button" aria-label="Search library records" className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#D8E0EC] hover:bg-[#F8FAFC] transition text-[#071D49]" onClick={() => onViewChange("catalogue")}>
+          <button type="button" aria-label="Search library records" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border hover:bg-surface-muted transition text-foreground" onClick={() => onViewChange("catalogue")}>
             <Search className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2">
@@ -1991,7 +1991,7 @@ function Topbar({ activeView, onViewChange }: { activeView: LibrarianView; onVie
             <NotificationBell />
           </div>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><button type="button" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 text-sm font-semibold text-white">Quick Action <ChevronDown className="h-4 w-4" /></button></DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild><button type="button" className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white">Quick Action <ChevronDown className="h-4 w-4" /></button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onViewChange("issue")}>Scan Book</DropdownMenuItem>
               <DropdownMenuItem onClick={() => onViewChange("issue")}>Issue Book</DropdownMenuItem>

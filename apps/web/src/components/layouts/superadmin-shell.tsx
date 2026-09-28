@@ -68,9 +68,9 @@ export function SuperAdminShell({
   }
 
   return (
-    <div className="authenticated-app sa-shell min-h-screen bg-[#F3F4F6]">
+    <div className="authenticated-app sa-shell min-h-screen bg-background">
       {/* ── Desktop Sidebar ── */}
-      <aside className="sa-sidebar fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-white/10 bg-[#071D49] lg:flex">
+      <aside className="sa-sidebar fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-white/10 bg-primary lg:flex">
         {/* Brand */}
         <div className="border-b border-white/[0.06] px-5 py-5">
           <div className="flex items-center gap-3">
@@ -115,7 +115,7 @@ export function SuperAdminShell({
         {/* Bottom profile */}
         <div className="border-t border-white/[0.06] px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FF7A1A] text-xs font-bold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
               {(userName ?? "RM").slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
@@ -137,8 +137,8 @@ export function SuperAdminShell({
       {/* ── Mobile Overlay ── */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-[#071D49]/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="slide-in-sidebar absolute inset-y-0 left-0 w-[280px] border-r border-white/10 bg-[#071D49] shadow-2xl">
+          <div className="absolute inset-0 bg-primary/55 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="slide-in-sidebar absolute inset-y-0 left-0 w-[280px] border-r border-white/10 bg-primary shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
               <p className="text-sm font-semibold text-white">Navigation</p>
               <button
@@ -188,7 +188,7 @@ export function SuperAdminShell({
                 <Menu className="h-4 w-4" />
               </button>
               <div className="hidden items-center gap-2 md:flex">
-                <div className="h-2 w-2 rounded-full bg-[#FF7A1A] pulse-indicator" />
+                <div className="h-2 w-2 rounded-full bg-accent pulse-indicator" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted">
                   Platform healthy
                 </span>

@@ -103,7 +103,7 @@ export function ReportsWorkspace({ model }: { model: unknown }) {
         </div>
       </div>
 
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
       {filtersOpen ? (
         <Card className="p-4 text-sm text-muted-foreground">
           Filters active: current school only, all loaded exam series, all classes, all streams. Apply narrower filters before exporting sensitive reports.

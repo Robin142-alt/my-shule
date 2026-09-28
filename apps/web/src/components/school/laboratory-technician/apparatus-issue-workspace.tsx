@@ -60,8 +60,8 @@ type ReturnDraftLine = Record<ReturnField, string> & {
 };
 
 const fieldClass =
-  "min-h-11 w-full rounded-xl border border-[#C8D5EA] bg-white px-3 text-sm text-[#071D49] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
-const labelClass = "mb-1.5 block text-sm font-black text-[#071D49]";
+  "min-h-11 w-full rounded-xl border border-border-strong bg-white px-3 text-sm text-foreground outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+const labelClass = "mb-1.5 block text-sm font-black text-foreground";
 
 function asNumber(value: string | number | null | undefined) {
   const number = Number(value ?? 0);
@@ -478,20 +478,20 @@ export function ApparatusIssueWorkspace() {
         }
       >
         <div className="mb-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-            <p className="text-sm font-bold text-blue-800">Ready to Issue</p>
+          <div className="rounded-xl border border-info-border bg-info-soft p-4">
+            <p className="text-sm font-bold text-info">Ready to Issue</p>
             <p className="mt-1 text-2xl font-black text-blue-950">
               {readyRequests.length}
             </p>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm font-bold text-amber-800">Awaiting Return</p>
+          <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+            <p className="text-sm font-bold text-warning">Awaiting Return</p>
             <p className="mt-1 text-2xl font-black text-amber-950">
               {issues.filter(isActiveIssue).length}
             </p>
           </div>
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-            <p className="text-sm font-bold text-rose-800">Overdue</p>
+          <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+            <p className="text-sm font-bold text-danger">Overdue</p>
             <p className="mt-1 text-2xl font-black text-rose-950">
               {issues.filter((issue) => issue.status === "overdue").length}
             </p>
@@ -500,24 +500,24 @@ export function ApparatusIssueWorkspace() {
 
         {readyRequests.length ? (
           <div className="mb-6">
-            <h3 className="mb-3 font-black text-[#071D49]">
+            <h3 className="mb-3 font-black text-foreground">
               Practicals Ready for Issue
             </h3>
             <div className="grid gap-3 md:grid-cols-2">
               {readyRequests.map((request) => (
                 <article
                   key={request.id}
-                  className="rounded-xl border border-blue-200 bg-blue-50 p-4"
+                  className="rounded-xl border border-info-border bg-info-soft p-4"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-black text-blue-950">
                         {request.subject} · {request.class_name}
                       </p>
-                      <p className="mt-1 text-sm text-blue-800">
+                      <p className="mt-1 text-sm text-info">
                         {request.lesson_time} · {request.practical_title}
                       </p>
-                      <p className="mt-1 text-sm text-blue-700">
+                      <p className="mt-1 text-sm text-info">
                         Teacher: {request.teacher_name}
                       </p>
                     </div>
@@ -536,7 +536,7 @@ export function ApparatusIssueWorkspace() {
         ) : null}
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-black text-[#071D49]">
+          <h3 className="font-black text-foreground">
             {showAll ? "Issue History" : "Items Awaiting Return"}
           </h3>
           <Button
@@ -548,7 +548,7 @@ export function ApparatusIssueWorkspace() {
           </Button>
         </div>
         {issuesQuery.isLoading ? (
-          <div className="rounded-xl border border-[#D8E0EC] p-8 text-center text-sm text-[#64748B]">
+          <div className="rounded-xl border border-border p-8 text-center text-sm text-muted">
             Loading issue and return records…
           </div>
         ) : issuesQuery.error ? (
@@ -566,14 +566,14 @@ export function ApparatusIssueWorkspace() {
             {visibleIssues.map((issue) => (
               <article
                 key={issue.id}
-                className="rounded-2xl border border-[#D8E0EC] p-4 shadow-sm"
+                className="rounded-2xl border border-border p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="font-black text-[#071D49]">
+                    <p className="font-black text-foreground">
                       {issue.subject} · {issue.class_name}
                     </p>
-                    <p className="mt-1 text-sm text-[#334155]">
+                    <p className="mt-1 text-sm text-foreground">
                       {issue.practical_title}
                     </p>
                   </div>
@@ -585,10 +585,10 @@ export function ApparatusIssueWorkspace() {
                     tone={statusTone(issue.status)}
                   />
                 </div>
-                <div className="mt-3 grid gap-1 text-sm text-[#64748B]">
+                <div className="mt-3 grid gap-1 text-sm text-muted">
                   <p>
                     Issued to:{" "}
-                    <strong className="text-[#334155]">
+                    <strong className="text-foreground">
                       {issue.received_by}
                     </strong>
                   </p>
@@ -664,7 +664,7 @@ export function ApparatusIssueWorkspace() {
           {formError ? (
             <div
               role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+              className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-rose-900"
             >
               {formError}
             </div>
@@ -687,7 +687,7 @@ export function ApparatusIssueWorkspace() {
           </label>
           {selectedRequest ? (
             <>
-              <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 rounded-xl border border-info-border bg-info-soft p-4 sm:grid-cols-2 lg:grid-cols-4">
                 <p>
                   <strong>Teacher</strong>
                   <br />
@@ -720,17 +720,17 @@ export function ApparatusIssueWorkspace() {
                 </p>
               </div>
               <div className="space-y-3">
-                <h4 className="font-black text-[#071D49]">Prepared Items</h4>
+                <h4 className="font-black text-foreground">Prepared Items</h4>
                 {issueLines.map((line, index) => (
                   <div
                     key={line.request_item_id}
-                    className="grid gap-3 rounded-xl border border-[#D8E0EC] p-4 sm:grid-cols-[1fr_10rem_12rem]"
+                    className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-[1fr_10rem_12rem]"
                   >
                     <div>
-                      <p className="font-black text-[#071D49]">
+                      <p className="font-black text-foreground">
                         {line.item_name}
                       </p>
-                      <p className="text-sm text-[#64748B]">
+                      <p className="text-sm text-muted">
                         Prepared: {line.prepared_quantity} {line.unit}
                       </p>
                     </div>
@@ -815,7 +815,7 @@ export function ApparatusIssueWorkspace() {
               </label>
             </>
           ) : requestsQuery.isLoading ? (
-            <p className="text-sm text-[#64748B]">Loading ready practicals…</p>
+            <p className="text-sm text-muted">Loading ready practicals…</p>
           ) : (
             <WorkspaceEmpty
               title="No practical is ready for issue."
@@ -840,7 +840,7 @@ export function ApparatusIssueWorkspace() {
           <>
             <SaveState state={saveState} />
             <span
-              className={`mr-auto text-sm font-black ${returnFullyResolved ? "text-emerald-700" : "text-amber-700"}`}
+              className={`mr-auto text-sm font-black ${returnFullyResolved ? "text-success" : "text-warning"}`}
             >
               {returnFullyResolved
                 ? "All quantities accounted for"
@@ -862,7 +862,7 @@ export function ApparatusIssueWorkspace() {
           {formError ? (
             <div
               role="alert"
-              className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+              className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm text-rose-900"
             >
               {formError}
             </div>
@@ -881,14 +881,14 @@ export function ApparatusIssueWorkspace() {
             return (
               <div
                 key={line.issue_line_id}
-                className="rounded-xl border border-[#D8E0EC] p-4"
+                className="rounded-xl border border-border p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h4 className="font-black text-[#071D49]">
+                    <h4 className="font-black text-foreground">
                       {line.item_name}
                     </h4>
-                    <p className="mt-1 text-sm text-[#64748B]">
+                    <p className="mt-1 text-sm text-muted">
                       Issued: {line.quantity_issued} {line.unit} ·{" "}
                       {line.is_returnable
                         ? "Returnable"
@@ -937,7 +937,7 @@ export function ApparatusIssueWorkspace() {
               </div>
             );
           })}
-          <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+          <p className="rounded-xl border border-info-border bg-info-soft p-3 text-sm text-blue-900">
             Broken, missing and spilled quantities are recorded in the Breakage
             and Loss Register from this return. No learner or teacher is charged
             automatically.
@@ -967,7 +967,7 @@ export function ApparatusIssueWorkspace() {
       >
         {selectedIssue ? (
           <div className="space-y-3 text-sm">
-            <div className="grid gap-3 rounded-xl bg-[#F8FAFC] p-4 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-xl bg-surface-muted p-4 sm:grid-cols-2">
               <p>
                 <strong>Practical:</strong>
                 <br />
@@ -994,12 +994,12 @@ export function ApparatusIssueWorkspace() {
             {selectedIssue.items.map((item) => (
               <div
                 key={item.id}
-                className="rounded-xl border border-[#D8E0EC] p-3"
+                className="rounded-xl border border-border p-3"
               >
-                <p className="font-black text-[#071D49]">
+                <p className="font-black text-foreground">
                   {item.item_name} · {item.quantity_issued} {item.unit}
                 </p>
-                <p className="mt-1 text-[#64748B]">
+                <p className="mt-1 text-muted">
                   Good {item.returned_good} · Used {item.used_or_consumed} ·
                   Broken {item.broken} · Missing {item.missing} · Still with
                   teacher {item.still_with_teacher} · Maintenance{" "}

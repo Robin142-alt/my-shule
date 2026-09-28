@@ -61,7 +61,7 @@ const registers: RegisterDefinition[] = [
 ];
 
 const fieldClass =
-  "min-h-12 w-full rounded-xl border border-[#C8D5EA] bg-white px-3 text-base text-[#071D49] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+  "min-h-12 w-full rounded-xl border border-border-strong bg-white px-3 text-base text-foreground outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
 
 const omittedSummaryKeys = new Set([
   "id", "tenant_id", "school_id", "created_by", "updated_by",
@@ -212,23 +212,23 @@ export function ReportsWorkspace() {
   return (
     <div className="space-y-5">
       <LabQuickActions compact />
-      {notice ? <div role="status" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-950">{notice}</div> : null}
+      {notice ? <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-bold text-blue-950">{notice}</div> : null}
       <SaveState state={saveState} />
 
       <Panel title="Laboratory Registers and Reports" description="Prepare live school records for preview, PDF printing or CSV download." icon={FileText}>
-        <div className="mb-5 grid gap-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-4">
-          <label className="text-sm font-bold text-[#071D49]">Report Heading<input value={laboratory} onChange={(event) => setLaboratory(event.target.value)} className={`${fieldClass} mt-2`} placeholder="School Laboratory" /><span className="mt-1 block font-normal text-[#64748B]">This appears on the printed register; it does not filter records.</span></label>
-          <label className="text-sm font-bold text-[#071D49]">Filter by Storage Location (optional)<input list="laboratory-report-locations" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={`${fieldClass} mt-2`} placeholder="All laboratory locations" /><datalist id="laboratory-report-locations">{(locationsQuery.data ?? []).map((location) => <option key={location.id} value={location.full_path} />)}</datalist><span className="mt-1 block font-normal text-[#64748B]">Leave blank to include records from every laboratory location.</span></label>
-          <label className="text-sm font-bold text-[#071D49]">Start Date (optional)<input inputMode="numeric" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className={`${fieldClass} mt-2`} placeholder="DD/MM/YYYY" /></label>
-          <label className="text-sm font-bold text-[#071D49]">End Date (optional)<input inputMode="numeric" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className={`${fieldClass} mt-2`} placeholder="DD/MM/YYYY" /></label>
-          {dateRangeError ? <p role="alert" className="text-sm font-bold text-rose-700 md:col-span-3">{dateRangeError}</p> : null}
+        <div className="mb-5 grid gap-4 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-4">
+          <label className="text-sm font-bold text-foreground">Report Heading<input value={laboratory} onChange={(event) => setLaboratory(event.target.value)} className={`${fieldClass} mt-2`} placeholder="School Laboratory" /><span className="mt-1 block font-normal text-muted">This appears on the printed register; it does not filter records.</span></label>
+          <label className="text-sm font-bold text-foreground">Filter by Storage Location (optional)<input list="laboratory-report-locations" value={locationFilter} onChange={(event) => setLocationFilter(event.target.value)} className={`${fieldClass} mt-2`} placeholder="All laboratory locations" /><datalist id="laboratory-report-locations">{(locationsQuery.data ?? []).map((location) => <option key={location.id} value={location.full_path} />)}</datalist><span className="mt-1 block font-normal text-muted">Leave blank to include records from every laboratory location.</span></label>
+          <label className="text-sm font-bold text-foreground">Start Date (optional)<input inputMode="numeric" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className={`${fieldClass} mt-2`} placeholder="DD/MM/YYYY" /></label>
+          <label className="text-sm font-bold text-foreground">End Date (optional)<input inputMode="numeric" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className={`${fieldClass} mt-2`} placeholder="DD/MM/YYYY" /></label>
+          {dateRangeError ? <p role="alert" className="text-sm font-bold text-danger md:col-span-3">{dateRangeError}</p> : null}
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
           {registers.map((definition) => (
-            <article key={definition.type} className="flex flex-col rounded-xl border border-[#D8E0EC] bg-white p-4">
-              <div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]"><FileCheck2 className="h-5 w-5" aria-hidden="true" /></span><div><h3 className="font-black text-[#071D49]">{definition.title}</h3><p className="mt-1 text-sm leading-6 text-[#64748B]">{definition.description}</p></div></div>
-              <button type="button" disabled={mutation.isPending || Boolean(dateRangeError)} onClick={() => generate(definition)} className="mt-4 min-h-11 rounded-xl border border-blue-300 bg-blue-50 px-4 text-sm font-black text-blue-900 disabled:opacity-50">
+            <article key={definition.type} className="flex flex-col rounded-xl border border-border bg-white p-4">
+              <div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info"><FileCheck2 className="h-5 w-5" aria-hidden="true" /></span><div><h3 className="font-black text-foreground">{definition.title}</h3><p className="mt-1 text-sm leading-6 text-muted">{definition.description}</p></div></div>
+              <button type="button" disabled={mutation.isPending || Boolean(dateRangeError)} onClick={() => generate(definition)} className="mt-4 min-h-11 rounded-xl border border-blue-300 bg-info-soft px-4 text-sm font-black text-blue-900 disabled:opacity-50">
                 {activeType === definition.type ? "Preparing from Live Records…" : "Generate and Preview"}
               </button>
             </article>
@@ -238,18 +238,18 @@ export function ReportsWorkspace() {
 
       {generated ? (
         <Panel title="Prepared Register" description="The server confirmed and audited this report. You can now preview, print or download it." icon={FileCheck2}>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="rounded-xl border border-success-border bg-success-soft p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 items-start gap-3">
-                {generated.report.school_logo ? <img src={generated.report.school_logo} alt={`${generated.report.school_name} logo`} className="h-14 w-14 rounded-lg border border-emerald-200 bg-white object-contain p-1" /> : null}
-                <div><p className="font-black text-emerald-950">{generated.report.school_name}</p><h3 className="mt-1 text-lg font-black text-[#071D49]">{generated.definition.title}</h3><p className="mt-1 break-all text-sm text-[#334155]">{generated.report.document_number} · {generated.report.rows.length} records</p></div>
+                {generated.report.school_logo ? <img src={generated.report.school_logo} alt={`${generated.report.school_name} logo`} className="h-14 w-14 rounded-lg border border-success-border bg-white object-contain p-1" /> : null}
+                <div><p className="font-black text-emerald-950">{generated.report.school_name}</p><h3 className="mt-1 text-lg font-black text-foreground">{generated.definition.title}</h3><p className="mt-1 break-all text-sm text-foreground">{generated.report.document_number} · {generated.report.rows.length} records</p></div>
               </div>
               <div className="grid gap-2 sm:min-w-48">
-                <button type="button" onClick={() => openRegister(generated.report, generated.definition)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0F3F8A] px-4 font-black text-white"><Printer className="h-4 w-4" aria-hidden="true" /> Preview / Print PDF</button>
+                <button type="button" onClick={() => openRegister(generated.report, generated.definition)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-info px-4 font-black text-white"><Printer className="h-4 w-4" aria-hidden="true" /> Preview / Print PDF</button>
                 <button type="button" onClick={() => downloadRegister(generated.report, generated.definition)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 font-black text-emerald-900"><Download className="h-4 w-4" aria-hidden="true" /> Download CSV</button>
               </div>
             </div>
-            <dl className="mt-4 grid gap-3 border-t border-emerald-200 pt-4 text-sm sm:grid-cols-3"><div><dt className="text-emerald-800">Laboratory</dt><dd className="font-bold text-emerald-950">{generated.report.laboratory}</dd></div><div><dt className="text-emerald-800">Generated Date</dt><dd className="font-bold text-emerald-950">{formatKenyanDate(generated.report.generated_at)}</dd></div><div><dt className="text-emerald-800">Generated By</dt><dd className="break-all font-bold text-emerald-950">{generated.report.generated_by}</dd></div></dl>
+            <dl className="mt-4 grid gap-3 border-t border-success-border pt-4 text-sm sm:grid-cols-3"><div><dt className="text-success">Laboratory</dt><dd className="font-bold text-emerald-950">{generated.report.laboratory}</dd></div><div><dt className="text-success">Generated Date</dt><dd className="font-bold text-emerald-950">{formatKenyanDate(generated.report.generated_at)}</dd></div><div><dt className="text-success">Generated By</dt><dd className="break-all font-bold text-emerald-950">{generated.report.generated_by}</dd></div></dl>
           </div>
         </Panel>
       ) : (

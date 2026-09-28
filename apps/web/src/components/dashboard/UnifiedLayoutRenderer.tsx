@@ -88,9 +88,9 @@ export function UnifiedLayoutRenderer({ layoutPayload }: { layoutPayload: Unifie
               </div>
               <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  widget.state === "ACTIVE" ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" :
-                  widget.state === "DEGRADED" ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" :
-                  "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
+                  widget.state === "ACTIVE" ? "bg-success-soft text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" :
+                  widget.state === "DEGRADED" ? "bg-warning-soft text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" :
+                  "bg-danger-soft text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
                 }`}>
                   {widget.state}
                 </span>

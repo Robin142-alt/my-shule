@@ -639,8 +639,8 @@ export function AppTopbar({
               }
               aria-label="Sign out"
               title="Sign out"
-              className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted text-danger transition hover:border-red-200 hover:bg-red-50 disabled:cursor-wait disabled:opacity-65"
-              pendingLabel={<span className="h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />}
+              className="inline-flex h-11 w-11 touch-manipulation items-center justify-center rounded-[var(--radius-sm)] border border-border bg-surface-muted text-danger transition hover:border-danger-border hover:bg-danger-soft disabled:cursor-wait disabled:opacity-65"
+              pendingLabel={<span className="h-4 w-4 animate-spin rounded-full border-2 border-danger-border border-t-red-600" />}
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
             </SessionSignOutButton>

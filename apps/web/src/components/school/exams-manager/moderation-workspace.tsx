@@ -97,56 +97,56 @@ export function ModerationWorkspace() {
   return (
     <Panel title="Marks Moderation" description="Review and moderate submitted marks before publishing results." icon={ShieldCheck}>
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Submissions</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_submissions ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Submissions</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_submissions ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending Review</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending Review</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Approved</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Approved</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Rejected</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : data?.metrics?.rejected ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Rejected</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.rejected ?? 0}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Exam</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Subject</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Class</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Teacher</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Original Mean</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Moderated Mean</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Variance</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Students</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Exam</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Subject</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Class</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Teacher</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Original Mean</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Moderated Mean</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Variance</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Students</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">Loading moderation queue...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">Loading moderation queue...</td></tr>
             ) : submissions.length === 0 ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">No marks submissions pending moderation. Marks will appear here after teachers submit them.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">No marks submissions pending moderation. Marks will appear here after teachers submit them.</td></tr>
             ) : (
               submissions.map((sub) => (
-                <tr key={sub.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{sub.exam_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{sub.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{sub.class_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{sub.teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{sub.original_mean?.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{sub.moderated_mean?.toFixed(1)}</td>
+                <tr key={sub.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{sub.exam_name}</td>
+                  <td className="px-4 py-3 text-muted">{sub.subject}</td>
+                  <td className="px-4 py-3 text-muted">{sub.class_name}</td>
+                  <td className="px-4 py-3 text-muted">{sub.teacher}</td>
+                  <td className="px-4 py-3 text-muted">{sub.original_mean?.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-muted">{sub.moderated_mean?.toFixed(1)}</td>
                   <td className="px-4 py-3 font-bold text-amber-600">{sub.variance?.toFixed(1)}%</td>
-                  <td className="px-4 py-3 text-[#64748B]">{sub.students_affected}</td>
+                  <td className="px-4 py-3 text-muted">{sub.students_affected}</td>
                   <td className="px-4 py-3"><StatusChip label={sub.status} tone={getStatusTone(sub.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -179,7 +179,7 @@ export function ModerationWorkspace() {
             <label className="text-sm font-medium">Rejection Reason</label>
             <textarea
               {...rejectForm.register("reason", { required: "Reason is required" })}
-              className="w-full rounded border border-slate-300 p-2 text-sm text-[#071D49]"
+              className="w-full rounded border border-slate-300 p-2 text-sm text-foreground"
               placeholder="Provide a reason for rejection..."
               rows={3}
             />
@@ -195,13 +195,13 @@ export function ModerationWorkspace() {
                 setIsRejectOpen(false);
                 setSelectedSubId(null);
               }}
-              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-[#071D49]"
+              className="px-4 py-2 border rounded text-sm font-medium hover:bg-slate-50 text-foreground"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#071D49] text-white rounded text-sm font-medium hover:bg-blue-900"
+              className="px-4 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-blue-900"
             >
               Reject Submission
             </button>

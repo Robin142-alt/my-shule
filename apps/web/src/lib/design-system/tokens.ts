@@ -7,8 +7,8 @@ export const implementation400BrandTokens = {
     white: "#FFFFFF",
   },
   usage: {
-    navy: ["sidebar", "top-navigation", "system-headers", "executive-analytics"],
-    orange: ["primary-actions", "active-states", "notification-badges", "kpi-highlights"],
+    navy: ["sidebar", "primary-actions", "system-headers", "executive-analytics"],
+    orange: ["brand-highlights", "active-states", "kpi-highlights"],
     lightgray: ["workspace-background", "form-zones", "table-areas"],
     darkblue: ["body-text", "headings", "labels", "statistics"],
     white: ["cards", "dialogs", "inputs", "tables"],

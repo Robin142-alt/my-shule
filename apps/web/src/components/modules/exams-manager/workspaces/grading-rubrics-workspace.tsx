@@ -327,7 +327,7 @@ function PolicyDialog({
           </DialogHeader>
           <div className="space-y-4 py-2">
             {sourcePolicy ? (
-              <p className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              <p className="rounded-md border border-info-border bg-info-soft p-3 text-sm text-blue-900">
                 Boundaries and subject weightings from version {sourcePolicy.version ?? 1} will be copied
                 into an editable draft. Existing report cards keep their original policy version.
               </p>
@@ -498,7 +498,7 @@ function DescriptorEditorDialog({
         </DialogHeader>
         <div className="space-y-4 py-2">
           {!canEdit ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
               This version is immutable because it has left draft status. Create a new version to change
               boundaries without altering historical results.
             </p>
@@ -686,7 +686,7 @@ function ImpactDialog({
               </div>
             ))}
             {(impact.published_report_count ?? 0) > 0 ? (
-              <p className="sm:col-span-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="sm:col-span-2 rounded-md border border-warning-border bg-warning-soft p-3 text-sm text-amber-900">
                 Published reports retain this exact policy version. Archive or supersede it; do not edit
                 historical grading evidence.
               </p>
@@ -976,7 +976,7 @@ export function GradingRubricsWorkspace({ model }: { model: unknown }) {
       </div>
 
       {notice ? (
-        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+        <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">
           {notice}
         </div>
       ) : null}

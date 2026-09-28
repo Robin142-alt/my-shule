@@ -48,7 +48,7 @@ export function SchoolProfileWorkspace() {
   if (isLoading) {
     return (
       <Panel title="School Profile" description="Your school's identity and contact information." icon={Building2}>
-        <div className="py-12 text-center text-[#64748B]">Loading school profile…</div>
+        <div className="py-12 text-center text-muted">Loading school profile…</div>
       </Panel>
     );
   }
@@ -56,7 +56,7 @@ export function SchoolProfileWorkspace() {
   if (!school) {
     return (
       <Panel title="School Profile" description="Your school's identity and contact information." icon={Building2}>
-        <div className="py-12 text-center text-[#64748B]">School profile not available. Contact support if this persists.</div>
+        <div className="py-12 text-center text-muted">School profile not available. Contact support if this persists.</div>
       </Panel>
     );
   }
@@ -67,7 +67,7 @@ export function SchoolProfileWorkspace() {
       description="Your school's identity, location, and contact information."
       icon={Building2}
       actions={
-        <button disabled={isSaving} onClick={handleSaveProfile} className="inline-flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
+        <button disabled={isSaving} onClick={handleSaveProfile} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">
           <Save className="h-4 w-4" />
           {isSaving ? "Saving…" : "Save Changes"}
         </button>
@@ -75,30 +75,30 @@ export function SchoolProfileWorkspace() {
     >
       <div className="grid gap-6 md:grid-cols-2">
         {/* Identity */}
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-5">
-          <h3 className="text-sm font-bold text-[#071D49] mb-3">Identity</h3>
+        <div className="rounded-xl border border-border bg-surface-muted p-5">
+          <h3 className="text-sm font-bold text-foreground mb-3">Identity</h3>
           <dl className="space-y-3 text-sm">
-            <div className="flex justify-between"><dt className="text-[#64748B]">School Name</dt><dd className="font-semibold text-[#071D49]">{school.name}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Motto</dt><dd className="font-semibold text-[#071D49]">{school.motto || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Type</dt><dd className="font-semibold text-[#071D49]">{school.type || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Category</dt><dd className="font-semibold text-[#071D49]">{school.category || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Registration No.</dt><dd className="font-semibold text-[#071D49]">{school.registration_number || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Established</dt><dd className="font-semibold text-[#071D49]">{school.established_year || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Principal</dt><dd className="font-semibold text-[#071D49]">{school.principal_name || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">School Name</dt><dd className="font-semibold text-foreground">{school.name}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Motto</dt><dd className="font-semibold text-foreground">{school.motto || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Type</dt><dd className="font-semibold text-foreground">{school.type || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Category</dt><dd className="font-semibold text-foreground">{school.category || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Registration No.</dt><dd className="font-semibold text-foreground">{school.registration_number || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Established</dt><dd className="font-semibold text-foreground">{school.established_year || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Principal</dt><dd className="font-semibold text-foreground">{school.principal_name || "—"}</dd></div>
           </dl>
         </div>
 
         {/* Location & Contact */}
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-5">
-          <h3 className="text-sm font-bold text-[#071D49] mb-3">Location & Contact</h3>
+        <div className="rounded-xl border border-border bg-surface-muted p-5">
+          <h3 className="text-sm font-bold text-foreground mb-3">Location & Contact</h3>
           <dl className="space-y-3 text-sm">
-            <div className="flex justify-between"><dt className="text-[#64748B] flex items-center gap-1"><MapPin className="h-3 w-3" /> County</dt><dd className="font-semibold text-[#071D49]">{school.county || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Sub-County</dt><dd className="font-semibold text-[#071D49]">{school.sub_county || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Ward</dt><dd className="font-semibold text-[#071D49]">{school.ward || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B]">Postal Address</dt><dd className="font-semibold text-[#071D49]">{school.postal_address || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B] flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</dt><dd className="font-semibold text-[#071D49]">{school.phone || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B] flex items-center gap-1"><Mail className="h-3 w-3" /> Email</dt><dd className="font-semibold text-[#071D49]">{school.email || "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-[#64748B] flex items-center gap-1"><Globe className="h-3 w-3" /> Website</dt><dd className="font-semibold text-[#071D49]">{school.website || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted flex items-center gap-1"><MapPin className="h-3 w-3" /> County</dt><dd className="font-semibold text-foreground">{school.county || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Sub-County</dt><dd className="font-semibold text-foreground">{school.sub_county || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Ward</dt><dd className="font-semibold text-foreground">{school.ward || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Postal Address</dt><dd className="font-semibold text-foreground">{school.postal_address || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</dt><dd className="font-semibold text-foreground">{school.phone || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted flex items-center gap-1"><Mail className="h-3 w-3" /> Email</dt><dd className="font-semibold text-foreground">{school.email || "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted flex items-center gap-1"><Globe className="h-3 w-3" /> Website</dt><dd className="font-semibold text-foreground">{school.website || "—"}</dd></div>
           </dl>
         </div>
       </div>

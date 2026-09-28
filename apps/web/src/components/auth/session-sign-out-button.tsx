@@ -48,7 +48,7 @@ export function SessionSignOutButton({
       </button>
       {session.error ? (
         <span
-          className="fixed bottom-4 left-4 right-4 z-[90] rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-bold text-red-700 shadow-xl sm:left-auto sm:max-w-sm"
+          className="fixed bottom-4 left-4 right-4 z-[90] rounded-xl border border-danger-border bg-white px-4 py-3 text-sm font-bold text-danger shadow-xl sm:left-auto sm:max-w-sm"
           role="alert"
         >
           {session.error}

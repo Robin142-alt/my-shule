@@ -198,9 +198,9 @@ function updateBrowserPath(view: ExamsManagerCanonicalView, routeMode: ExamsMana
 
 function LockedWorkspace({ reason }: { reason: string }) {
   return (
-    <section className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-[#071D49]">
+    <section className="rounded-3xl border border-warning-border bg-warning-soft p-6 text-foreground">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-700 shadow-sm">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-warning shadow-sm">
           <LockKeyhole className="h-5 w-5" aria-hidden="true" />
         </span>
         <div>
@@ -358,7 +358,7 @@ export function ExamsManagerCommandCenter({
       className="authenticated-app min-h-dvh bg-slate-50 text-slate-900"
     >
       <div className="flex min-h-dvh">
-        <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col border-r border-white/10 bg-[#101F36] p-3 text-white lg:flex">
+        <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col border-r border-white/10 bg-sidebar p-3 text-white lg:flex">
           <SchoolCommandSidebarIdentity eyebrow="Examinations" className="!rounded-lg !border-0 !bg-transparent !p-2 !shadow-none" />
 
           <nav aria-label="Exams Manager navigation" className="mt-3 flex-1 space-y-1 overflow-y-auto">
@@ -373,7 +373,7 @@ export function ExamsManagerCommandCenter({
                   aria-current={selected ? "page" : undefined}
                   onClick={() => setActiveView(item.id)}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
-                    selected ? "bg-white text-[#071D49]" : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    selected ? "bg-white text-foreground" : "text-slate-300 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -406,23 +406,23 @@ export function ExamsManagerCommandCenter({
                     className="w-44 bg-transparent text-sm outline-none placeholder:text-slate-400"
                   />
                   {searchTerm.trim().length > 0 ? (
-                    <div className="absolute right-0 top-12 z-30 w-96 overflow-hidden rounded-2xl border border-[#D9E2EF] bg-white text-[#071D49] shadow-2xl">
+                    <div className="absolute right-0 top-12 z-30 w-96 overflow-hidden rounded-2xl border border-[#D9E2EF] bg-white text-foreground shadow-2xl">
                       {searchResults.length > 0 ? (
                         searchResults.map((item) => (
                           <button
                             key={item.id}
                             type="button"
                             onClick={() => setActiveView(item.id)}
-                            className="block w-full px-4 py-3 text-left hover:bg-blue-50"
+                            className="block w-full px-4 py-3 text-left hover:bg-info-soft"
                           >
                             <span className="block font-black">{item.label}</span>
-                            <span className="mt-1 block text-xs font-semibold text-[#64748B]">
+                            <span className="mt-1 block text-xs font-semibold text-muted">
                               {item.summary}
                             </span>
                           </button>
                         ))
                       ) : (
-                        <p className="px-4 py-3 text-sm font-bold text-[#64748B]">
+                        <p className="px-4 py-3 text-sm font-bold text-muted">
                           No matching exams workspace found.
                         </p>
                       )}

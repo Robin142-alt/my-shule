@@ -13,7 +13,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   onRetry 
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center bg-red-50/50 rounded-xl border border-red-100">
+    <div className="flex flex-col items-center justify-center p-8 text-center bg-danger-soft/50 rounded-xl border border-red-100">
       <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
         <AlertCircle className="w-6 h-6 text-red-600" />
       </div>

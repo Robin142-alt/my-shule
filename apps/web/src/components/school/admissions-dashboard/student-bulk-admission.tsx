@@ -204,15 +204,15 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
     <div aria-busy={busy !== null} className="mb-6 min-w-0 rounded-xl border border-[#B8D7E8] bg-[#F4FBFF] p-4 [&_button]:min-h-11">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-cyan-100 text-[#071D49]">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-cyan-100 text-foreground">
             <FileSpreadsheet className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <h3 className="font-black text-[#071D49]">Bulk student admission</h3>
+            <h3 className="font-black text-foreground">Bulk student admission</h3>
             <p className="mt-1 text-sm text-[#52637A]">Download template, upload, validate, preview, correct, confirm, then review results.</p>
           </div>
         </div>
-        <button type="button" disabled={busy !== null} onClick={() => { clearFeedback(); setExpanded((value) => !value); }} className="rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 text-sm font-black text-[#071D49] disabled:opacity-60">
+        <button type="button" disabled={busy !== null} onClick={() => { clearFeedback(); setExpanded((value) => !value); }} className="rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 text-sm font-black text-foreground disabled:opacity-60">
           {expanded ? "Close bulk admission" : "Open bulk admission"}
         </button>
       </div>
@@ -220,7 +220,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
       {expanded ? (
         <div className="mt-4 border-t border-[#CFE3EF] pt-4">
           <div className="grid gap-3 lg:grid-cols-3">
-            <button type="button" disabled={busy !== null} onClick={() => void downloadTemplate()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 font-bold text-[#071D49] disabled:opacity-60">
+            <button type="button" disabled={busy !== null} onClick={() => void downloadTemplate()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 font-bold text-foreground disabled:opacity-60">
               {busy === "template" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               1. Download template
             </button>
@@ -238,40 +238,40 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
                   clearFeedback();
                 }}
               />
-              <button type="button" disabled={busy !== null} onClick={() => fileInputRef.current?.click()} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 font-bold text-[#071D49] disabled:opacity-60">
+              <button type="button" disabled={busy !== null} onClick={() => fileInputRef.current?.click()} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 font-bold text-foreground disabled:opacity-60">
                 <Upload className="h-4 w-4" />
                 <span className="min-w-0 break-all">2. {file ? file.name : "Upload completed CSV"}</span>
               </button>
             </div>
-            <button type="button" disabled={busy !== null || !file} onClick={() => void validateFile()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 font-bold text-white disabled:opacity-60">
+            <button type="button" disabled={busy !== null || !file} onClick={() => void validateFile()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 font-bold text-white disabled:opacity-60">
               {busy === "preview" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               3. Validate and preview
             </button>
           </div>
 
-          {error ? <div role="alert" className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+          {error ? <div role="alert" className="mt-4 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm font-bold text-danger">{error}</div> : null}
 
           {preview ? (
             <div className="mt-4">
               <div className="flex flex-wrap items-center gap-2 text-sm font-bold">
-                <span className="rounded-full bg-white px-3 py-1 text-[#071D49]">{preview.total_rows} total</span>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-800">{preview.valid_rows} valid</span>
-                <span className="rounded-full bg-rose-100 px-3 py-1 text-rose-800">{preview.invalid_rows} need correction</span>
+                <span className="rounded-full bg-white px-3 py-1 text-foreground">{preview.total_rows} total</span>
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-success">{preview.valid_rows} valid</span>
+                <span className="rounded-full bg-rose-100 px-3 py-1 text-danger">{preview.invalid_rows} need correction</span>
               </div>
               <div className="mt-3 max-h-80 overflow-auto rounded-lg border border-[#CFE3EF] bg-white">
                 <table className="w-full min-w-[850px] text-left text-sm">
-                  <thead className="sticky top-0 bg-[#EAF5FB] text-[#071D49]">
+                  <thead className="sticky top-0 bg-[#EAF5FB] text-foreground">
                     <tr><th className="px-3 py-2">Row</th><th className="px-3 py-2">Admission no.</th><th className="px-3 py-2">Learner</th><th className="px-3 py-2">Class</th><th className="px-3 py-2">Guardian phone</th><th className="px-3 py-2">Validation</th></tr>
                   </thead>
                   <tbody>
                     {preview.rows.map((row) => (
                       <tr key={`${row.row_number}-${row.admission_number}`} className="border-t border-[#E3EDF4] align-top">
                         <td className="px-3 py-2">{row.row_number}</td>
-                        <td className="px-3 py-2 font-bold text-[#071D49]">{row.admission_number || "Missing"}</td>
+                        <td className="px-3 py-2 font-bold text-foreground">{row.admission_number || "Missing"}</td>
                         <td className="px-3 py-2">{row.learner_name || "Missing"}</td>
                         <td className="px-3 py-2">{[row.class_name, row.stream_name].filter(Boolean).join(" / ") || "Missing"}</td>
                         <td className="px-3 py-2">{row.guardian_phone || "Missing"}</td>
-                        <td className={`px-3 py-2 font-bold ${row.status === "valid" ? "text-emerald-700" : "text-rose-700"}`}>
+                        <td className={`px-3 py-2 font-bold ${row.status === "valid" ? "text-success" : "text-danger"}`}>
                           {row.status === "valid" ? "Ready" : row.errors.join("; ")}
                         </td>
                       </tr>
@@ -282,8 +282,8 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
               <div className="mt-3 flex flex-wrap gap-2">
                 {preview.invalid_rows > 0 ? (
                   <>
-                    <button type="button" onClick={downloadCorrectionReport} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-700"><Download className="h-4 w-4" /> Download errors</button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-bold text-white">4. Upload corrected file</button>
+                    <button type="button" onClick={downloadCorrectionReport} className="inline-flex items-center gap-2 rounded-lg border border-danger-border bg-white px-4 py-2 text-sm font-bold text-danger"><Download className="h-4 w-4" /> Download errors</button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white">4. Upload corrected file</button>
                   </>
                 ) : (
                   <button type="button" disabled={busy !== null || preview.valid_rows === 0} onClick={() => void confirmImport()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-black text-white disabled:opacity-60">
@@ -296,12 +296,12 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
           ) : null}
 
           {result ? (
-            <div role="status" className={`mt-4 rounded-lg border p-4 ${result.failed_rows === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-              <div className="flex items-center gap-2 font-black text-[#071D49]">
-                {result.failed_rows === 0 ? <CheckCircle2 className="h-5 w-5 text-emerald-700" /> : <XCircle className="h-5 w-5 text-amber-700" />}
+            <div role="status" className={`mt-4 rounded-lg border p-4 ${result.failed_rows === 0 ? "border-success-border bg-success-soft" : "border-warning-border bg-warning-soft"}`}>
+              <div className="flex items-center gap-2 font-black text-foreground">
+                {result.failed_rows === 0 ? <CheckCircle2 className="h-5 w-5 text-success" /> : <XCircle className="h-5 w-5 text-warning" />}
                 Import results: {result.admitted_rows} admitted, {result.failed_rows} failed
               </div>
-              {result.failed_rows > 0 ? <button type="button" onClick={downloadCorrectionReport} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-800"><Download className="h-4 w-4" /> Download failed rows</button> : null}
+              {result.failed_rows > 0 ? <button type="button" onClick={downloadCorrectionReport} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-warning"><Download className="h-4 w-4" /> Download failed rows</button> : null}
             </div>
           ) : null}
         </div>

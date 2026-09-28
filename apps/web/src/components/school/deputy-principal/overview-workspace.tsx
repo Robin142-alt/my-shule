@@ -117,38 +117,38 @@ export function DeputyOverviewWorkspace({ schoolId }: { schoolId?: string }) {
 
   return (
     <Panel title="Overview" description="Today's Priority Queue and school state." icon={LayoutDashboard} actions={
-      <button type="button" disabled={isSubmitting} onClick={handleStartMorningReview} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">{isSubmitting ? "Starting..." : "Start Morning Review"}</button>
+      <button type="button" disabled={isSubmitting} onClick={handleStartMorningReview} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition disabled:opacity-50">{isSubmitting ? "Starting..." : "Start Morning Review"}</button>
     }>
       <div className="app-metric-grid grid gap-4 md:grid-cols-4 lg:grid-cols-4 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><UserCheck className="w-4 h-4"/> Present Today</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted"><UserCheck className="w-4 h-4"/> Present Today</div>
           <div className="mt-2 text-3xl font-black text-emerald-600">{isLoading ? "..." : presentToday}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-rose-700"><UserX className="w-4 h-4"/> Absent Today</div>
-          <div className="mt-2 text-3xl font-black text-rose-700">{isLoading ? "..." : absentToday}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-danger"><UserX className="w-4 h-4"/> Absent Today</div>
+          <div className="mt-2 text-3xl font-black text-danger">{isLoading ? "..." : absentToday}</div>
         </div>
         <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 flex flex-col justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold text-orange-700"><ShieldAlert className="w-4 h-4"/> Open Incidents</div>
           <div className="mt-2 text-3xl font-black text-orange-700">{isLoading ? "..." : reportedIncidents}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><AlertTriangle className="w-4 h-4"/> Escalations</div>
-          <div className="mt-2 text-3xl font-black text-[#071D49]">{isLoading ? "..." : escalatedIncidents}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted"><AlertTriangle className="w-4 h-4"/> Escalations</div>
+          <div className="mt-2 text-3xl font-black text-foreground">{isLoading ? "..." : escalatedIncidents}</div>
         </div>
       </div>
 
       {counsellingFollowUps.length > 0 ? (
-        <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4" aria-labelledby="deputy-counselling-follow-ups">
+        <section className="mb-6 rounded-xl border border-warning-border bg-warning-soft p-4" aria-labelledby="deputy-counselling-follow-ups">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <h2 id="deputy-counselling-follow-ups" className="font-black text-amber-950">Counselling support requiring follow-up</h2>
               <div className="mt-3 grid gap-2">
                 {counsellingFollowUps.slice(0, 5).map((session) => (
-                  <div key={session.id} className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-[#071D49]">
+                  <div key={session.id} className="rounded-lg border border-warning-border bg-white px-3 py-2 text-sm text-foreground">
                     <p className="font-black">{session.student} high-risk counselling follow-up</p>
-                    <p className="mt-1 text-[#64748B]">{session.sessionType} - {session.status}</p>
+                    <p className="mt-1 text-muted">{session.sessionType} - {session.status}</p>
                   </div>
                 ))}
               </div>
@@ -157,29 +157,29 @@ export function DeputyOverviewWorkspace({ schoolId }: { schoolId?: string }) {
         </section>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Priority</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Title</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student/Staff</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Priority</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Title</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student/Staff</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {recentIncidents.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No recent incidents found.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">No recent incidents found.</td>
               </tr>
             ) : (
               recentIncidents.map((incident) => (
-                <tr key={incident.id} className="hover:bg-[#F8FAFC]">
+                <tr key={incident.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3"><StatusChip label={incident.severity || "Normal"} tone={getToneForSeverity(incident.severity)} /></td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{incident.title}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{incident.involved_parties || "Unknown"}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{incident.status}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{incident.title}</td>
+                  <td className="px-4 py-3 text-muted">{incident.involved_parties || "Unknown"}</td>
+                  <td className="px-4 py-3 text-muted">{incident.status}</td>
                   <td className="px-4 py-3 text-right">
                     <button type="button" className="text-blue-600 hover:underline font-semibold text-xs" onClick={() => openDeputyRecord("Priority incident details", [["Title", incident.title], ["Parties", incident.involved_parties || "Unknown"], ["Status", incident.status], ["Severity", incident.severity || "Normal"], ["Created At", incident.created_at || "-"]])}>View Details</button>
                   </td>

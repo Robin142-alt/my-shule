@@ -686,58 +686,58 @@ export function StudentAdmissionWizard({
       .filter(Boolean)
       .join(" ");
     return (
-      <section className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+      <section className="mb-6 rounded-2xl border border-success-border bg-success-soft p-5">
         <div className="flex items-start gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white">
             <UserRoundCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <div>
-            <h3 className="text-lg font-black text-[#071D49]">Student admitted</h3>
-            <p className="mt-1 text-sm font-semibold text-emerald-800">
+            <h3 className="text-lg font-black text-foreground">Student admitted</h3>
+            <p className="mt-1 text-sm font-semibold text-success">
               {studentName} is now active in {result.placement.class_name}
               {result.placement.stream_name ? `, ${result.placement.stream_name}` : ""}.
             </p>
           </div>
         </div>
         <dl className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-emerald-200 bg-white p-3">
-            <dt className="text-xs font-bold uppercase text-[#64748B]">Admission number</dt>
-            <dd className="mt-1 font-black text-[#071D49]">{result.student.admission_number}</dd>
+          <div className="rounded-xl border border-success-border bg-white p-3">
+            <dt className="text-xs font-bold uppercase text-muted">Admission number</dt>
+            <dd className="mt-1 font-black text-foreground">{result.student.admission_number}</dd>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-white p-3">
-            <dt className="text-xs font-bold uppercase text-[#64748B]">Subjects</dt>
-            <dd className="mt-1 font-black text-[#071D49]">{result.subjects.length} enrolled</dd>
+          <div className="rounded-xl border border-success-border bg-white p-3">
+            <dt className="text-xs font-bold uppercase text-muted">Subjects</dt>
+            <dd className="mt-1 font-black text-foreground">{result.subjects.length} enrolled</dd>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-white p-3">
-            <dt className="text-xs font-bold uppercase text-[#64748B]">Parent access</dt>
-            <dd className="mt-1 font-black text-[#071D49]">
+          <div className="rounded-xl border border-success-border bg-white p-3">
+            <dt className="text-xs font-bold uppercase text-muted">Parent access</dt>
+            <dd className="mt-1 font-black text-foreground">
               {result.guardian.portal_access === "otp_ready" ? "OTP ready" : "Needs role setup"}
             </dd>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-white p-3">
-            <dt className="text-xs font-bold uppercase text-[#64748B]">Fees</dt>
-            <dd className="mt-1 font-black text-[#071D49]">
+          <div className="rounded-xl border border-success-border bg-white p-3">
+            <dt className="text-xs font-bold uppercase text-muted">Fees</dt>
+            <dd className="mt-1 font-black text-foreground">
               {result.fees.status === "invoiced" ? result.fees.invoice_number : "Fee structure not set"}
             </dd>
           </div>
         </dl>
         {result.placement.capacity_warning ? (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+          <p className="mt-3 rounded-xl border border-warning-border bg-warning-soft px-3 py-2 text-sm font-bold text-warning">
             Capacity warning: this placement is above the configured class or stream capacity. Admission was retained for review.
           </p>
         ) : null}
         {result.placement.age_warning ? (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+          <p className="mt-3 rounded-xl border border-warning-border bg-warning-soft px-3 py-2 text-sm font-bold text-warning">
             Age review retained: the learner was admitted after staff confirmed the unusual age and grade combination.
           </p>
         ) : null}
         {result.downstream_sync?.status === "degraded" ? (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+          <p className="mt-3 rounded-xl border border-warning-border bg-warning-soft px-3 py-2 text-sm font-bold text-warning">
             {result.downstream_sync.message ?? "The learner is admitted. Some dashboard notifications are still synchronizing."}
           </p>
         ) : null}
         {nextAdmissionError ? (
-          <p role="alert" className="mt-3 break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+          <p role="alert" className="mt-3 break-words rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-bold text-danger">
             {nextAdmissionError}
           </p>
         ) : null}
@@ -746,7 +746,7 @@ export function StudentAdmissionWizard({
             type="button"
             onClick={() => void beginNextAdmission(false)}
             disabled={startingNextAdmission}
-            className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60"
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60"
           >
             {startingNextAdmission ? "Preparing fresh admission..." : "Admit another student"}
           </button>
@@ -755,12 +755,12 @@ export function StudentAdmissionWizard({
               type="button"
               onClick={() => void beginNextAdmission(true)}
               disabled={startingNextAdmission}
-              className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-black text-emerald-800 disabled:opacity-60"
+              className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-black text-success disabled:opacity-60"
             >
               Admit sibling
             </button>
           ) : null}
-          <button type="button" onClick={onCancel} className="rounded-xl border border-[#D8E0EC] bg-white px-4 py-2 text-sm font-black text-[#071D49]">
+          <button type="button" onClick={onCancel} className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-black text-foreground">
             Close admission
           </button>
         </div>
@@ -772,8 +772,8 @@ export function StudentAdmissionWizard({
     <section className="mb-6 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#071D49]">New student admission</h3>
-          <p className="mt-1 text-sm font-semibold text-[#64748B]">
+          <h3 className="text-lg font-black text-foreground">New student admission</h3>
+          <p className="mt-1 text-sm font-semibold text-muted">
             Complete each stage. The final action creates the learner, placement, subjects, guardian access, fees, and downstream records together.
           </p>
         </div>
@@ -781,14 +781,14 @@ export function StudentAdmissionWizard({
           type="button"
           onClick={() => void foundationQuery.refetch()}
           disabled={foundationQuery.isFetching}
-          className="shrink-0 rounded-xl border border-cyan-300 bg-white px-3 py-2 text-xs font-black text-[#071D49] disabled:opacity-60"
+          className="shrink-0 rounded-xl border border-cyan-300 bg-white px-3 py-2 text-xs font-black text-foreground disabled:opacity-60"
         >
           {foundationQuery.isFetching ? "Refreshing setup..." : "Refresh classes, streams & subjects"}
         </button>
       </div>
       {admissionSettings ? (
-        <details className="mb-4 rounded-xl border border-[#D8E0EC] bg-white p-3">
-          <summary className="cursor-pointer text-sm font-black text-[#071D49]">Admission numbering and safeguards</summary>
+        <details className="mb-4 rounded-xl border border-border bg-white p-3">
+          <summary className="cursor-pointer text-sm font-black text-foreground">Admission numbering and safeguards</summary>
           <form onSubmit={(event) => void saveAdmissionSettings(event)}>
           <fieldset disabled={closingDraft || discardingDraft} className="mt-4 grid min-w-0 gap-3 md:grid-cols-3 xl:grid-cols-4">
             <Field label="Admission number mode">
@@ -809,10 +809,10 @@ export function StudentAdmissionWizard({
             <Field label="Maximum learner age"><input name="maximum_age" type="number" min={2} max={30} defaultValue={admissionSettings.maximum_age ?? ""} /></Field>
             <Field label="Minimum subjects"><input name="minimum_subjects" type="number" min={1} max={40} defaultValue={admissionSettings.minimum_subjects ?? ""} /></Field>
             <Field label="Maximum subjects"><input name="maximum_subjects" type="number" min={1} max={40} defaultValue={admissionSettings.maximum_subjects ?? ""} /></Field>
-            <label className="flex items-center gap-2 text-sm font-bold text-[#071D49]"><input name="include_academic_year" type="checkbox" defaultChecked={admissionSettings.include_academic_year} /> Include academic year</label>
-            <label className="flex items-center gap-2 text-sm font-bold text-[#071D49]"><input name="strict_capacity" type="checkbox" defaultChecked={admissionSettings.strict_capacity} /> Block full classes/streams</label>
-            <label className="flex items-center gap-2 text-sm font-bold text-[#071D49]"><input name="strict_age_rules" type="checkbox" defaultChecked={admissionSettings.strict_age_rules} /> Enforce age range</label>
-            <button type="submit" disabled={updateSettings.isPending} className="rounded-xl bg-[#071D49] px-4 py-2 text-sm font-black text-white disabled:opacity-60">
+            <label className="flex items-center gap-2 text-sm font-bold text-foreground"><input name="include_academic_year" type="checkbox" defaultChecked={admissionSettings.include_academic_year} /> Include academic year</label>
+            <label className="flex items-center gap-2 text-sm font-bold text-foreground"><input name="strict_capacity" type="checkbox" defaultChecked={admissionSettings.strict_capacity} /> Block full classes/streams</label>
+            <label className="flex items-center gap-2 text-sm font-bold text-foreground"><input name="strict_age_rules" type="checkbox" defaultChecked={admissionSettings.strict_age_rules} /> Enforce age range</label>
+            <button type="submit" disabled={updateSettings.isPending} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-60">
               {updateSettings.isPending ? "Saving policy..." : "Save admission policy"}
             </button>
           </fieldset>
@@ -827,10 +827,10 @@ export function StudentAdmissionWizard({
             aria-current={index === step ? "step" : undefined}
             className={`rounded-xl border px-3 py-2 text-xs font-black ${
               index === step
-                ? "border-cyan-400 bg-cyan-100 text-[#071D49]"
+                ? "border-cyan-400 bg-cyan-100 text-foreground"
                 : index < step
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-[#D8E0EC] bg-white text-[#64748B]"
+                  ? "border-success-border bg-success-soft text-success"
+                  : "border-border bg-white text-muted"
             }`}
           >
             <span className="mr-2 inline-grid h-5 w-5 place-items-center rounded-full bg-white">
@@ -842,18 +842,18 @@ export function StudentAdmissionWizard({
       </ol>
 
       {foundationQuery.isLoading ? (
-        <div role="status" className="flex items-center gap-2 rounded-xl border border-[#D8E0EC] bg-white p-4 text-sm font-bold text-[#64748B]">
+        <div role="status" className="flex items-center gap-2 rounded-xl border border-border bg-white p-4 text-sm font-bold text-muted">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading this school&apos;s academic foundation...
         </div>
       ) : foundationQuery.isError ? (
-        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+        <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold text-danger">
           Academic foundation could not be loaded. Retry before admitting a learner.
           <button type="button" onClick={() => void foundationQuery.refetch()} disabled={foundationQuery.isFetching} className="ml-3 rounded-lg border border-rose-300 bg-white px-3 py-1 disabled:opacity-60">
             {foundationQuery.isFetching ? "Retrying..." : "Retry"}
           </button>
         </div>
       ) : years.length === 0 ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4 text-sm font-bold text-warning">
           No academic year is configured. Ask the Principal or Deputy Principal to complete Academic Foundation first.
         </div>
       ) : (
@@ -912,18 +912,18 @@ export function StudentAdmissionWizard({
 
           {step === 2 ? (
             <div>
-              <p className="mb-3 text-sm font-semibold text-[#64748B]">Compulsory subjects are selected automatically. Choose the learner&apos;s optional subjects.</p>
+              <p className="mb-3 text-sm font-semibold text-muted">Compulsory subjects are selected automatically. Choose the learner&apos;s optional subjects.</p>
               {subjects.length === 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">No subjects are assigned to this class and academic year.</div>
+                <div className="rounded-xl border border-warning-border bg-warning-soft p-4 text-sm font-bold text-warning">No subjects are assigned to this class and academic year.</div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {subjects.map((subject) => {
                     const compulsory = subject.is_compulsory;
                     const checked = compulsory || form.subject_ids.includes(subject.id);
                     return (
-                      <label key={subject.id} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 ${checked ? "border-cyan-300 bg-cyan-50" : "border-[#D8E0EC] bg-white"}`}>
+                      <label key={subject.id} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 ${checked ? "border-cyan-300 bg-cyan-50" : "border-border bg-white"}`}>
                         <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={checked} disabled={compulsory} aria-describedby={subjectSummaryId} onChange={(event) => update("subject_ids", event.target.checked ? [...form.subject_ids, subject.id] : form.subject_ids.filter((id) => id !== subject.id))} />
-                        <span className="min-w-0 break-words"><span className="block font-black text-[#071D49]">{subject.name}</span><span className="text-xs font-semibold text-[#64748B]">{subject.code} - {compulsory ? "Compulsory" : "Optional"}</span></span>
+                        <span className="min-w-0 break-words"><span className="block font-black text-foreground">{subject.name}</span><span className="text-xs font-semibold text-muted">{subject.code} - {compulsory ? "Compulsory" : "Optional"}</span></span>
                       </label>
                     );
                   })}
@@ -943,7 +943,7 @@ export function StudentAdmissionWizard({
           {step === 4 ? (
             <div className="grid gap-4">
               {preflight?.warnings.length ? (
-                <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <section className="rounded-xl border border-warning-border bg-warning-soft p-4">
                   <h4 className="font-black text-amber-900">Review warnings</h4>
                   <ul className="mt-2 grid gap-2 text-sm font-semibold text-amber-900">
                     {preflight.warnings.map((warning) => <li key={`${warning.code}-${warning.message}`}>{warning.blocking ? "Action required: " : "Confirm: "}{warning.message}</li>)}
@@ -952,9 +952,9 @@ export function StudentAdmissionWizard({
               ) : null}
               {preflight?.guardian ? (
                 <section className="rounded-xl border border-cyan-200 bg-cyan-50 p-4">
-                  <h4 className="font-black text-[#071D49]">Existing guardian found</h4>
-                  <p className="mt-1 text-sm font-semibold text-[#475569]">{preflight.guardian.display_name} ({preflight.guardian.masked_phone}) will be reused. No duplicate parent account will be created.</p>
-                  {preflight.guardian.children.length ? <p className="mt-2 text-sm font-bold text-[#071D49]">Linked learners: {preflight.guardian.children.map((child) => `${child.full_name} (${child.admission_number})`).join(", ")}</p> : null}
+                  <h4 className="font-black text-foreground">Existing guardian found</h4>
+                  <p className="mt-1 text-sm font-semibold text-muted-strong">{preflight.guardian.display_name} ({preflight.guardian.masked_phone}) will be reused. No duplicate parent account will be created.</p>
+                  {preflight.guardian.children.length ? <p className="mt-2 text-sm font-bold text-foreground">Linked learners: {preflight.guardian.children.map((child) => `${child.full_name} (${child.admission_number})`).join(", ")}</p> : null}
                 </section>
               ) : null}
               <div className="grid gap-4 lg:grid-cols-2">
@@ -970,7 +970,7 @@ export function StudentAdmissionWizard({
 
           <div role="group" aria-label="Admission actions" aria-busy={actionPending} className="mt-5 grid min-w-0 gap-3">
             {step === 2 ? (
-              <p id={subjectSummaryId} role="status" className={`rounded-xl border px-3 py-2 text-sm font-bold ${subjectLimitExceeded ? "border-amber-300 bg-amber-50 text-amber-900" : "border-cyan-200 bg-white text-[#071D49]"}`}>
+              <p id={subjectSummaryId} role="status" className={`rounded-xl border px-3 py-2 text-sm font-bold ${subjectLimitExceeded ? "border-amber-300 bg-warning-soft text-amber-900" : "border-cyan-200 bg-white text-foreground"}`}>
                 {canonicalSubjectIds.length} {canonicalSubjectIds.length === 1 ? "subject" : "subjects"} selected.
                 {admissionSettings?.minimum_subjects != null ? ` Minimum: ${admissionSettings.minimum_subjects}.` : ""}
                 {admissionSettings?.maximum_subjects != null ? ` Maximum: ${admissionSettings.maximum_subjects}.` : ""}
@@ -980,23 +980,23 @@ export function StudentAdmissionWizard({
               </p>
             ) : null}
             {formError ? (
-              <div id={feedbackId} role="alert" aria-atomic="true" className="break-words rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              <div id={feedbackId} role="alert" aria-atomic="true" className="break-words rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-sm font-bold text-danger">
                 {formError}
               </div>
             ) : null}
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
               {step < steps.length - 1 ? (
-                <button type="button" onClick={() => void next()} disabled={actionPending} aria-describedby={formError ? feedbackId : step === 2 ? subjectSummaryId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Checking...</> : <>Continue <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></>}</button>
+                <button type="button" onClick={() => void next()} disabled={actionPending} aria-describedby={formError ? feedbackId : step === 2 ? subjectSummaryId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Checking...</> : <>Continue <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></>}</button>
               ) : (
                 <button type="button" onClick={() => void submit()} disabled={actionPending || preflight?.warnings.some((warning) => warning.blocking)} aria-describedby={formError ? feedbackId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#FF6B1A] px-5 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{admitStudent.isPending || preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Verifying and admitting...</> : "Admit student"}</button>
               )}
               <div className="grid min-w-0 gap-2 sm:col-start-1 sm:row-start-1 sm:flex sm:flex-wrap [&_button]:min-h-11 [&_button]:min-w-0 [&_button]:py-2.5 [&_button]:disabled:opacity-60">
-                {step > 0 ? <button type="button" disabled={actionPending} onClick={() => { clearFormError(); focusNextStep.current = true; setStep((current) => current - 1); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D8E0EC] bg-white px-4 text-sm font-black text-[#071D49]"><ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" /> Back</button> : null}
-                <button type="button" onClick={() => void closeAndKeepDraft()} disabled={actionPending} className="rounded-xl border border-[#D8E0EC] bg-white px-4 text-sm font-black text-[#071D49]">{closingDraft ? "Saving draft..." : "Close and keep draft"}</button>
-                <button type="button" onClick={() => void discardAndClose()} disabled={actionPending} className="rounded-xl border border-rose-200 bg-white px-4 text-sm font-black text-rose-700">{discardingDraft || discardDraft.isPending ? "Discarding draft..." : "Discard draft"}</button>
+                {step > 0 ? <button type="button" disabled={actionPending} onClick={() => { clearFormError(); focusNextStep.current = true; setStep((current) => current - 1); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-black text-foreground"><ChevronLeft className="h-4 w-4 shrink-0" aria-hidden="true" /> Back</button> : null}
+                <button type="button" onClick={() => void closeAndKeepDraft()} disabled={actionPending} className="rounded-xl border border-border bg-white px-4 text-sm font-black text-foreground">{closingDraft ? "Saving draft..." : "Close and keep draft"}</button>
+                <button type="button" onClick={() => void discardAndClose()} disabled={actionPending} className="rounded-xl border border-danger-border bg-white px-4 text-sm font-black text-danger">{discardingDraft || discardDraft.isPending ? "Discarding draft..." : "Discard draft"}</button>
               </div>
             </div>
-            <p role="status" className={`text-xs font-bold ${draftStatus === "failed" ? "text-rose-700" : "text-[#64748B]"}`}>{draftMessage}</p>
+            <p role="status" className={`text-xs font-bold ${draftStatus === "failed" ? "text-danger" : "text-muted"}`}>{draftMessage}</p>
           </div>
         </>
       )}
@@ -1006,20 +1006,20 @@ export function StudentAdmissionWizard({
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <label className="grid gap-1 text-sm font-bold text-[#071D49] [&_input]:rounded-xl [&_input]:border [&_input]:border-[#D8E0EC] [&_input]:bg-white [&_input]:px-3 [&_input]:py-2.5 [&_select]:rounded-xl [&_select]:border [&_select]:border-[#D8E0EC] [&_select]:bg-white [&_select]:px-3 [&_select]:py-2.5 [&_select:disabled]:bg-[#F1F5F9] [&_select:disabled]:text-[#64748B]">
+    <label className="grid gap-1 text-sm font-bold text-foreground [&_input]:rounded-xl [&_input]:border [&_input]:border-border [&_input]:bg-white [&_input]:px-3 [&_input]:py-2.5 [&_select]:rounded-xl [&_select]:border [&_select]:border-border [&_select]:bg-white [&_select]:px-3 [&_select]:py-2.5 [&_select:disabled]:bg-surface-strong [&_select:disabled]:text-muted">
       {label}
       {children}
-      {hint ? <span className="text-xs font-semibold leading-5 text-[#64748B]">{hint}</span> : null}
+      {hint ? <span className="text-xs font-semibold leading-5 text-muted">{hint}</span> : null}
     </label>
   );
 }
 
 function Review({ title, rows }: { title: string; rows: string[][] }) {
   return (
-    <section className="rounded-xl border border-[#D8E0EC] bg-white p-4">
-      <h4 className="font-black text-[#071D49]">{title}</h4>
+    <section className="rounded-xl border border-border bg-white p-4">
+      <h4 className="font-black text-foreground">{title}</h4>
       <dl className="mt-3 grid gap-2">
-        {rows.map(([label, value]) => <div key={`${label}-${value}`} className="flex items-start justify-between gap-4 text-sm"><dt className="font-semibold text-[#64748B]">{label}</dt><dd className="text-right font-bold text-[#071D49]">{value || "Not set"}</dd></div>)}
+        {rows.map(([label, value]) => <div key={`${label}-${value}`} className="flex items-start justify-between gap-4 text-sm"><dt className="font-semibold text-muted">{label}</dt><dd className="text-right font-bold text-foreground">{value || "Not set"}</dd></div>)}
       </dl>
     </section>
   );

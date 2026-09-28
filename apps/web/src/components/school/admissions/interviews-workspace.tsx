@@ -64,51 +64,51 @@ export function InterviewsWorkspace() {
   return (
     <Panel title="Interviews" description="Schedule and manage admission interviews." icon={CalendarCheck}>
       <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Scheduled</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.total_scheduled ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Scheduled</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_scheduled ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Completed</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : data?.metrics?.completed ?? 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Completed</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : data?.metrics?.completed ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Passed</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : data?.metrics?.passed ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Passed</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.passed ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Failed</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : data?.metrics?.failed ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Failed</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.failed ?? 0}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Grade</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Interviewer</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Outcome</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Grade</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Interviewer</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Outcome</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">Loading interviews...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading interviews...</td></tr>
             ) : interviews.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-[#64748B]">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted">
                   <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
                     <p>No interviews scheduled. Review applications first, then schedule interviews for shortlisted candidates.</p>
-                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-[#071D49] px-4 py-2 text-xs font-black text-white">
+                    <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-primary px-4 py-2 text-xs font-black text-white">
                       Review applications
                     </Link>
                   </div>
@@ -116,12 +116,12 @@ export function InterviewsWorkspace() {
               </tr>
             ) : (
               interviews.map((iv) => (
-                <tr key={iv.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{iv.student_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{iv.grade_applied}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{iv.interviewer}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{iv.scheduled_date}</td>
-                  <td className="px-4 py-3 text-[#64748B]"><span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{iv.scheduled_time}</span></td>
+                <tr key={iv.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{iv.student_name}</td>
+                  <td className="px-4 py-3 text-muted">{iv.grade_applied}</td>
+                  <td className="px-4 py-3 text-muted">{iv.interviewer}</td>
+                  <td className="px-4 py-3 text-muted">{iv.scheduled_date}</td>
+                  <td className="px-4 py-3 text-muted"><span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{iv.scheduled_time}</span></td>
                   <td className="px-4 py-3"><StatusChip label={iv.status} tone={getStatusTone(iv.status)} /></td>
                   <td className="px-4 py-3"><StatusChip label={iv.outcome || "Pending"} tone={getOutcomeTone(iv.outcome)} /></td>
                   <td className="px-4 py-3 text-right">

@@ -233,7 +233,7 @@ function InvigilatorDialog({
                 ))}
               </select>
               {staffUnavailable ? (
-                <p className="text-sm text-amber-700">
+                <p className="text-sm text-warning">
                   No active staff accounts are available for invigilation. Add or activate staff before assigning this slot.
                 </p>
               ) : null}
@@ -406,7 +406,7 @@ export function ExamTimetableWorkspace({ model }: { model: unknown }) {
         </div>
       </div>
 
-      {notice ? <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
+      {notice ? <div className="rounded-md border border-info-border bg-info-soft p-3 text-sm font-semibold text-blue-900">{notice}</div> : null}
 
       <div className={`${conflicts.length ? "bg-destructive/10 border-destructive/20 text-destructive" : "bg-muted border-border text-muted-foreground"} border p-4 rounded-md flex items-start gap-3`}>
         <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />

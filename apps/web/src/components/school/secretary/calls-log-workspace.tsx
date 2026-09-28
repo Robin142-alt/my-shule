@@ -66,66 +66,66 @@ export function CallsLogWorkspace() {
     <Panel title="Calls Log" description="Log and track all incoming, outgoing, and missed calls." icon={Phone}>
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><Phone className="w-4 h-4" /> Total Today</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_today || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-muted"><Phone className="w-4 h-4" /> Total Today</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.total_today || 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><PhoneIncoming className="w-4 h-4" /> Incoming</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.incoming || 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-info"><PhoneIncoming className="w-4 h-4" /> Incoming</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : metrics?.incoming || 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700"><PhoneOutgoing className="w-4 h-4" /> Outgoing</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.outgoing || 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-success"><PhoneOutgoing className="w-4 h-4" /> Outgoing</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.outgoing || 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-rose-700"><PhoneMissed className="w-4 h-4" /> Missed</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.missed || 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-danger"><PhoneMissed className="w-4 h-4" /> Missed</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.missed || 0}</div>
         </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="text-sm font-semibold text-amber-700">Pending Follow-Up</div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{isLoading ? "..." : metrics?.pending_follow_up || 0}</div>
+        <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
+          <div className="text-sm font-semibold text-warning">Pending Follow-Up</div>
+          <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : metrics?.pending_follow_up || 0}</div>
         </div>
       </div>
 
       {/* Calls Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <RecordTable className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Direction</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Caller</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Phone</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Purpose</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Person Called</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Date</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Time</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Duration</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Follow-Up</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Direction</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Caller</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Phone</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Purpose</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Person Called</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Date</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Time</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Duration</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Follow-Up</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">Loading calls log...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">Loading calls log...</td></tr>
             ) : calls.length === 0 ? (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-[#64748B]">No calls logged yet. Log incoming and outgoing calls to keep a communication record.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">No calls logged yet. Log incoming and outgoing calls to keep a communication record.</td></tr>
             ) : (
               calls.map((call) => (
-                <tr key={call.id} className="hover:bg-[#F8FAFC]">
+                <tr key={call.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-3"><StatusChip label={call.direction} tone={getDirectionTone(call.direction)} /></td>
-                  <td className="px-4 py-3 font-medium text-[#071D49]">{call.caller_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{call.phone_number}</td>
-                  <td className="px-4 py-3 text-[#64748B] max-w-[200px] truncate">{call.purpose}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{call.person_called}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{call.date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{call.time}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{call.duration_minutes} min</td>
+                  <td className="px-4 py-3 font-medium text-foreground">{call.caller_name}</td>
+                  <td className="px-4 py-3 text-muted">{call.phone_number}</td>
+                  <td className="px-4 py-3 text-muted max-w-[200px] truncate">{call.purpose}</td>
+                  <td className="px-4 py-3 text-muted">{call.person_called}</td>
+                  <td className="px-4 py-3 text-muted">{call.date}</td>
+                  <td className="px-4 py-3 text-muted">{call.time}</td>
+                  <td className="px-4 py-3 text-muted">{call.duration_minutes} min</td>
                   <td className="px-4 py-3">
                     {call.follow_up_required ? (
                       <StatusChip label={call.follow_up_done ? "Done" : "Pending"} tone={call.follow_up_done ? "success" : "warning"} />
                     ) : (
-                      <span className="text-xs text-[#94A3B8]">N/A</span>
+                      <span className="text-xs text-muted">N/A</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">

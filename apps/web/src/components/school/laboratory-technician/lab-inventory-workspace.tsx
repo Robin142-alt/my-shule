@@ -322,16 +322,16 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="block text-sm font-bold text-[#071D49]">
-      <span>{label}{required ? <span className="text-rose-700"> *</span> : null}</span>
+    <label className="block text-sm font-bold text-foreground">
+      <span>{label}{required ? <span className="text-danger"> *</span> : null}</span>
       <span className="mt-1.5 block">{children}</span>
-      {help ? <span className="mt-1 block text-xs font-medium leading-5 text-[#64748B]">{help}</span> : null}
-      {error ? <span role="alert" className="mt-1 block text-xs font-bold text-rose-700">{error}</span> : null}
+      {help ? <span className="mt-1 block text-xs font-medium leading-5 text-muted">{help}</span> : null}
+      {error ? <span role="alert" className="mt-1 block text-xs font-bold text-danger">{error}</span> : null}
     </label>
   );
 }
 
-const inputClass = "min-h-11 w-full rounded-xl border border-[#C8D5EA] bg-white px-3 text-sm font-semibold text-[#071D49] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+const inputClass = "min-h-11 w-full rounded-xl border border-border-strong bg-white px-3 text-sm font-semibold text-foreground outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
 
 const itemKinds: Array<{
   type: LabItemType;
@@ -934,7 +934,7 @@ export function LabInventoryWorkspace() {
       </Panel>
 
       {confirmation ? (
-        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 font-bold text-emerald-800">
+        <div role="status" className="rounded-xl border border-success-border bg-success-soft p-4 font-bold text-success">
           {confirmation}
         </div>
       ) : null}
@@ -955,7 +955,7 @@ export function LabInventoryWorkspace() {
               type="button"
               aria-label="Close Add Item form"
               onClick={() => setItemFormOpen(false)}
-              className="grid h-11 w-11 place-items-center rounded-xl border border-[#C8D5EA] text-[#071D49]"
+              className="grid h-11 w-11 place-items-center rounded-xl border border-border-strong text-foreground"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
@@ -969,23 +969,23 @@ export function LabInventoryWorkspace() {
                   type="button"
                   name="item_type"
                   onClick={() => selectItemType(type)}
-                  className="flex min-h-28 items-start gap-4 rounded-2xl border border-[#C8D5EA] bg-white p-4 text-left transition hover:border-blue-500 hover:bg-blue-50 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                  className="flex min-h-28 items-start gap-4 rounded-2xl border border-border-strong bg-white p-4 text-left transition hover:border-blue-500 hover:bg-info-soft focus:outline-none focus:ring-4 focus:ring-blue-100"
                 >
-                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <span>
-                    <span className="block font-black text-[#071D49]">{label}</span>
-                    <span className="mt-1 block text-sm leading-6 text-[#64748B]">{example}</span>
+                    <span className="block font-black text-foreground">{label}</span>
+                    <span className="mt-1 block text-sm leading-6 text-muted">{example}</span>
                   </span>
                 </button>
               ))}
             </div>
           ) : (
             <form onSubmit={(event) => { event.preventDefault(); void submitItem(); }} noValidate>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-info-border bg-info-soft p-3">
                 <p className="text-sm font-bold text-blue-900">Adding: {itemDraft.item_type ? itemTypeLabel(itemDraft.item_type) : "Item"}</p>
-                <button type="button" onClick={() => setItemStage("type")} className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 text-sm font-black text-blue-800">
+                <button type="button" onClick={() => setItemStage("type")} className="min-h-10 rounded-lg border border-blue-300 bg-white px-3 text-sm font-black text-info">
                   Change Type
                 </button>
               </div>
@@ -1074,7 +1074,7 @@ export function LabInventoryWorkspace() {
                   <button
                     type="button"
                     onClick={() => setLocationFormOpen((open) => !open)}
-                    className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-black text-blue-700 hover:bg-blue-50"
+                    className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-black text-info hover:bg-info-soft"
                   >
                     <MapPinPlus className="h-4 w-4" aria-hidden="true" /> Add New Location
                   </button>
@@ -1101,11 +1101,11 @@ export function LabInventoryWorkspace() {
               </div>
 
               {locationFormOpen ? (
-                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div className="mt-4 rounded-xl border border-info-border bg-info-soft p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="font-black text-blue-950">Add New Location</p>
-                      <p className="mt-1 text-sm text-blue-800">Build the location in the same order you walk through the laboratory.</p>
+                      <p className="mt-1 text-sm text-info">Build the location in the same order you walk through the laboratory.</p>
                     </div>
                     <button type="button" aria-label="Close location form" onClick={() => setLocationFormOpen(false)} className="grid h-10 w-10 place-items-center rounded-lg bg-white text-blue-900">
                       <X className="h-4 w-4" aria-hidden="true" />
@@ -1132,14 +1132,14 @@ export function LabInventoryWorkspace() {
               ) : null}
 
               {itemDraft.item_type === "chemical" ? (
-                <div className="mt-4 grid gap-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-3">
+                <div className="mt-4 grid gap-4 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-3">
                   <Field label="Concentration">
                     <input value={itemDraft.concentration} onChange={(event) => setItemDraft((current) => ({ ...current, concentration: event.target.value }))} placeholder="For example, 0.1 M" className={inputClass} />
                   </Field>
                   <Field label="Expiry Date" help="Type DD/MM/YYYY or choose a date.">
                     <div className="flex gap-2">
                       <input name="expiry_date" inputMode="numeric" value={itemDraft.expiry_date} onChange={(event) => setItemDraft((current) => ({ ...current, expiry_date: event.target.value }))} placeholder="DD/MM/YYYY" className={inputClass} />
-                      <input type="date" aria-label="Choose expiry date" onChange={(event) => setItemDraft((current) => ({ ...current, expiry_date: pickerDateToKenyan(event.target.value) }))} className="h-11 w-12 rounded-xl border border-[#C8D5EA] bg-white p-2" />
+                      <input type="date" aria-label="Choose expiry date" onChange={(event) => setItemDraft((current) => ({ ...current, expiry_date: pickerDateToKenyan(event.target.value) }))} className="h-11 w-12 rounded-xl border border-border-strong bg-white p-2" />
                     </div>
                   </Field>
                   <Field label="Safety Classification">
@@ -1152,16 +1152,16 @@ export function LabInventoryWorkspace() {
               ) : null}
 
               {itemDraft.item_type === "apparatus" ? (
-                <div className="mt-4 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-                  <p className="text-sm font-black text-[#071D49]">How should this be tracked?</p>
+                <div className="mt-4 rounded-xl border border-border bg-surface-muted p-4">
+                  <p className="text-sm font-black text-foreground">How should this be tracked?</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <button type="button" onClick={() => { setTrackingManuallySet(true); setItemDraft((current) => ({ ...current, tracking_method: "quantity" })); }} className={cn("rounded-xl border p-3 text-left", itemDraft.tracking_method === "quantity" ? "border-blue-500 bg-blue-50" : "border-[#C8D5EA] bg-white")}>
-                      <span className="block font-black text-[#071D49]">Track by Quantity</span>
-                      <span className="mt-1 block text-xs leading-5 text-[#64748B]">Recommended for test tubes, beakers, funnels, slides and similar apparatus.</span>
+                    <button type="button" onClick={() => { setTrackingManuallySet(true); setItemDraft((current) => ({ ...current, tracking_method: "quantity" })); }} className={cn("rounded-xl border p-3 text-left", itemDraft.tracking_method === "quantity" ? "border-blue-500 bg-info-soft" : "border-border-strong bg-white")}>
+                      <span className="block font-black text-foreground">Track by Quantity</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted">Recommended for test tubes, beakers, funnels, slides and similar apparatus.</span>
                     </button>
-                    <button type="button" onClick={() => { setTrackingManuallySet(true); setItemDraft((current) => ({ ...current, tracking_method: "individual" })); }} className={cn("rounded-xl border p-3 text-left", itemDraft.tracking_method === "individual" ? "border-blue-500 bg-blue-50" : "border-[#C8D5EA] bg-white")}>
-                      <span className="block font-black text-[#071D49]">Track Individually</span>
-                      <span className="mt-1 block text-xs leading-5 text-[#64748B]">Useful for microscopes, electronic balances and other sensitive equipment.</span>
+                    <button type="button" onClick={() => { setTrackingManuallySet(true); setItemDraft((current) => ({ ...current, tracking_method: "individual" })); }} className={cn("rounded-xl border p-3 text-left", itemDraft.tracking_method === "individual" ? "border-blue-500 bg-info-soft" : "border-border-strong bg-white")}>
+                      <span className="block font-black text-foreground">Track Individually</span>
+                      <span className="mt-1 block text-xs leading-5 text-muted">Useful for microscopes, electronic balances and other sensitive equipment.</span>
                     </button>
                   </div>
                   {itemDraft.tracking_method === "individual" ? (
@@ -1182,8 +1182,8 @@ export function LabInventoryWorkspace() {
                 </div>
               ) : null}
 
-              <details className="mt-4 rounded-xl border border-[#D8E0EC] bg-white p-4">
-                <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between font-black text-[#071D49]">
+              <details className="mt-4 rounded-xl border border-border bg-white p-4">
+                <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between font-black text-foreground">
                   Add More Details <ChevronDown className="h-4 w-4" aria-hidden="true" />
                 </summary>
                 <div className="mt-3">
@@ -1194,9 +1194,9 @@ export function LabInventoryWorkspace() {
               </details>
 
               {duplicateItem ? (
-                <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-warning-soft p-4">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
                     <div>
                       <p className="font-black text-amber-950">{duplicateItem.item_name} already exists in {duplicateItem.storage_location || "this laboratory"}.</p>
                       <p className="mt-1 text-sm leading-6 text-amber-900">Would you like to add {itemDraft.quantity} {duplicateItem.unit} to the existing stock?</p>
@@ -1211,15 +1211,15 @@ export function LabInventoryWorkspace() {
                 </div>
               ) : null}
 
-              <div className="sticky bottom-0 z-10 -mx-5 mt-5 flex flex-col gap-3 border-t border-[#D8E0EC] bg-white/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+              <div className="sticky bottom-0 z-10 -mx-5 mt-5 flex flex-col gap-3 border-t border-border bg-white/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <SaveState state={saveState} />
-                  {draftStored && saveState !== "saved" ? <p className="text-xs font-semibold text-[#64748B]">Draft saved on this device.</p> : null}
+                  {draftStored && saveState !== "saved" ? <p className="text-xs font-semibold text-muted">Draft saved on this device.</p> : null}
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setItemFormOpen(false)} className="min-h-12 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">Keep as Draft</button>
+                  <button type="button" onClick={() => setItemFormOpen(false)} className="min-h-12 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground">Keep as Draft</button>
                   {!duplicateItem ? (
-                    <button type="submit" disabled={createItemMutation.isPending} className="min-h-12 flex-1 rounded-xl bg-[#071D49] px-5 text-sm font-black text-white disabled:opacity-60 sm:flex-none">
+                    <button type="submit" disabled={createItemMutation.isPending} className="min-h-12 flex-1 rounded-xl bg-primary px-5 text-sm font-black text-white disabled:opacity-60 sm:flex-none">
                       {createItemMutation.isPending ? "Adding Item…" : "Add Item"}
                     </button>
                   ) : null}
@@ -1236,7 +1236,7 @@ export function LabInventoryWorkspace() {
           description="Choose the item, enter the quantity received, and confirm."
           icon={PackagePlus}
           actions={(
-            <button type="button" aria-label="Close Add Stock form" onClick={() => setStockFormOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl border border-[#C8D5EA] text-[#071D49]"><X className="h-5 w-5" aria-hidden="true" /></button>
+            <button type="button" aria-label="Close Add Stock form" onClick={() => setStockFormOpen(false)} className="grid h-11 w-11 place-items-center rounded-xl border border-border-strong text-foreground"><X className="h-5 w-5" aria-hidden="true" /></button>
           )}
         >
           <form onSubmit={(event) => { event.preventDefault(); void addStock(); }} className="grid gap-4 md:grid-cols-2">
@@ -1252,15 +1252,15 @@ export function LabInventoryWorkspace() {
             <Field label="Date Added" help="Type DD/MM/YYYY or choose a date.">
               <div className="flex gap-2">
                 <input inputMode="numeric" value={stockDate} onChange={(event) => setStockDate(event.target.value)} placeholder="DD/MM/YYYY" className={inputClass} />
-                <input type="date" aria-label="Choose date added" onChange={(event) => setStockDate(pickerDateToKenyan(event.target.value))} className="h-11 w-12 rounded-xl border border-[#C8D5EA] bg-white p-2" />
+                <input type="date" aria-label="Choose date added" onChange={(event) => setStockDate(pickerDateToKenyan(event.target.value))} className="h-11 w-12 rounded-xl border border-border-strong bg-white p-2" />
               </div>
             </Field>
             <Field label="Note">
               <input value={stockNotes} onChange={(event) => setStockNotes(event.target.value)} placeholder="Optional" className={inputClass} />
             </Field>
             <div className="md:col-span-2"><SaveState state={saveState} /></div>
-            <div className="sticky bottom-0 z-10 -mx-5 flex justify-end border-t border-[#D8E0EC] bg-white/95 px-5 py-4 backdrop-blur md:col-span-2">
-              <button type="submit" disabled={addStockMutation.isPending} className="min-h-12 w-full rounded-xl bg-[#071D49] px-5 text-sm font-black text-white disabled:opacity-60 sm:w-auto">
+            <div className="sticky bottom-0 z-10 -mx-5 flex justify-end border-t border-border bg-white/95 px-5 py-4 backdrop-blur md:col-span-2">
+              <button type="submit" disabled={addStockMutation.isPending} className="min-h-12 w-full rounded-xl bg-primary px-5 text-sm font-black text-white disabled:opacity-60 sm:w-auto">
                 {addStockMutation.isPending ? "Adding Stock…" : "Confirm Stock Added"}
               </button>
             </div>
@@ -1276,14 +1276,14 @@ export function LabInventoryWorkspace() {
             aria-labelledby="import-stock-list-title"
             className="mx-auto flex min-h-screen w-full max-w-5xl flex-col bg-white sm:min-h-0 sm:rounded-2xl sm:shadow-2xl"
           >
-            <header className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-[#D8E0EC] bg-white px-4 py-4 sm:rounded-t-2xl sm:px-6">
+            <header className="sticky top-0 z-20 flex items-start justify-between gap-4 border-b border-border bg-white px-4 py-4 sm:rounded-t-2xl sm:px-6">
               <div className="flex min-w-0 items-start gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
                   <FileUp className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
-                  <h2 id="import-stock-list-title" className="text-xl font-black text-[#071D49]">Import Stock List</h2>
-                  <p className="mt-1 text-sm leading-6 text-[#64748B]">Choose a CSV, check every item in the preview, then import the valid rows.</p>
+                  <h2 id="import-stock-list-title" className="text-xl font-black text-foreground">Import Stock List</h2>
+                  <p className="mt-1 text-sm leading-6 text-muted">Choose a CSV, check every item in the preview, then import the valid rows.</p>
                 </div>
               </div>
               <button
@@ -1291,18 +1291,18 @@ export function LabInventoryWorkspace() {
                 aria-label="Close stock list import"
                 disabled={importMutation.isPending}
                 onClick={() => setImportOpen(false)}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#C8D5EA] text-[#071D49] disabled:opacity-50"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border-strong text-foreground disabled:opacity-50"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </header>
 
             <div className="flex-1 space-y-5 px-4 py-5 sm:px-6">
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div className="rounded-xl border border-info-border bg-info-soft p-4">
                 <p className="font-black text-blue-950">Required CSV columns</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {CSV_REQUIRED_HEADERS.map((header) => (
-                    <code key={header} className="rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-bold text-blue-900">{header}</code>
+                    <code key={header} className="rounded-lg border border-info-border bg-white px-2 py-1 text-xs font-bold text-blue-900">{header}</code>
                   ))}
                 </div>
                 <p className="mt-3 text-sm leading-6 text-blue-900">
@@ -1314,14 +1314,14 @@ export function LabInventoryWorkspace() {
                 <button
                   type="button"
                   onClick={() => importFileInput.current?.click()}
-                  className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white"
+                  className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-black text-white"
                 >
                   <FileUp className="h-4 w-4" aria-hidden="true" /> {importFileName ? "Choose Another CSV" : "Choose CSV File"}
                 </button>
                 <button
                   type="button"
                   onClick={downloadImportTemplate}
-                  className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]"
+                  className="flex min-h-14 items-center justify-center gap-2 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground"
                 >
                   <Download className="h-4 w-4" aria-hidden="true" /> Download Blank CSV Template
                 </button>
@@ -1336,13 +1336,13 @@ export function LabInventoryWorkspace() {
               </div>
 
               {importFileName ? (
-                <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3 text-sm">
-                  <span className="font-black text-[#071D49]">Selected file:</span> <span className="font-semibold text-[#64748B]">{importFileName}</span>
+                <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm">
+                  <span className="font-black text-foreground">Selected file:</span> <span className="font-semibold text-muted">{importFileName}</span>
                 </div>
               ) : null}
 
               {importError ? (
-                <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-900">
+                <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-4 text-sm font-bold leading-6 text-rose-900">
                   {importError}
                 </div>
               ) : null}
@@ -1351,45 +1351,45 @@ export function LabInventoryWorkspace() {
                 <div className="space-y-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-black text-[#071D49]">Preview Stock List</h3>
-                      <p className="mt-1 text-sm text-[#64748B]">Nothing is added until you select Import Valid Rows.</p>
+                      <h3 className="text-lg font-black text-foreground">Preview Stock List</h3>
+                      <p className="mt-1 text-sm text-muted">Nothing is added until you select Import Valid Rows.</p>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-black">
-                      <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-800">{importRows.filter((row) => row.errors.length === 0).length} ready</span>
-                      <span className="rounded-full bg-rose-100 px-3 py-1.5 text-rose-800">{importRows.filter((row) => row.errors.length > 0).length} need correction</span>
-                      <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-800">{importRows.filter((row) => row.warnings.length > 0).length} possible duplicates</span>
+                      <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-success">{importRows.filter((row) => row.errors.length === 0).length} ready</span>
+                      <span className="rounded-full bg-rose-100 px-3 py-1.5 text-danger">{importRows.filter((row) => row.errors.length > 0).length} need correction</span>
+                      <span className="rounded-full bg-amber-100 px-3 py-1.5 text-warning">{importRows.filter((row) => row.warnings.length > 0).length} possible duplicates</span>
                     </div>
                   </div>
 
                   <div className="grid gap-3 md:hidden">
                     {importRows.map((row) => (
-                      <article key={row.row} className={cn("rounded-xl border p-4", row.errors.length ? "border-rose-200 bg-rose-50" : row.warnings.length ? "border-amber-200 bg-amber-50" : "border-[#D8E0EC] bg-white")}>
+                      <article key={row.row} className={cn("rounded-xl border p-4", row.errors.length ? "border-danger-border bg-danger-soft" : row.warnings.length ? "border-warning-border bg-warning-soft" : "border-border bg-white")}>
                         <div className="flex items-start justify-between gap-3">
-                          <div><p className="text-xs font-black text-[#64748B]">CSV row {row.row}</p><p className="mt-1 font-black text-[#071D49]">{row.item.item_name || "Item name missing"}</p></div>
+                          <div><p className="text-xs font-black text-muted">CSV row {row.row}</p><p className="mt-1 font-black text-foreground">{row.item.item_name || "Item name missing"}</p></div>
                           <StatusChip label={row.errors.length ? "Needs Correction" : row.warnings.length ? "Check Duplicate" : "Ready"} tone={row.errors.length ? "danger" : row.warnings.length ? "warning" : "success"} />
                         </div>
-                        <p className="mt-3 text-sm text-[#334155]">{itemTypeLabel(row.item.item_type)} · {row.item.quantity} {row.item.unit === "Custom" ? row.item.custom_unit : row.item.unit} · {row.item.storage_location || "Location missing"}</p>
-                        {row.errors.map((error) => <p key={error} className="mt-2 text-sm font-bold text-rose-800">{error}</p>)}
-                        {row.warnings.map((warning) => <p key={warning} className="mt-2 text-sm font-bold text-amber-800">{warning}</p>)}
+                        <p className="mt-3 text-sm text-foreground">{itemTypeLabel(row.item.item_type)} · {row.item.quantity} {row.item.unit === "Custom" ? row.item.custom_unit : row.item.unit} · {row.item.storage_location || "Location missing"}</p>
+                        {row.errors.map((error) => <p key={error} className="mt-2 text-sm font-bold text-danger">{error}</p>)}
+                        {row.warnings.map((warning) => <p key={warning} className="mt-2 text-sm font-bold text-warning">{warning}</p>)}
                       </article>
                     ))}
                   </div>
 
-                  <div className="hidden overflow-hidden rounded-xl border border-[#D8E0EC] md:block">
+                  <div className="hidden overflow-hidden rounded-xl border border-border md:block">
                     <table className="w-full text-left text-sm">
-                      <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-3 py-3 font-bold">Row</th><th className="px-3 py-3 font-bold">Item</th><th className="px-3 py-3 font-bold">Type</th><th className="px-3 py-3 font-bold">Quantity</th><th className="px-3 py-3 font-bold">Storage Location</th><th className="px-3 py-3 font-bold">Check</th></tr></thead>
+                      <thead className="bg-surface-muted text-foreground"><tr><th className="px-3 py-3 font-bold">Row</th><th className="px-3 py-3 font-bold">Item</th><th className="px-3 py-3 font-bold">Type</th><th className="px-3 py-3 font-bold">Quantity</th><th className="px-3 py-3 font-bold">Storage Location</th><th className="px-3 py-3 font-bold">Check</th></tr></thead>
                       <tbody>
                         {importRows.map((row) => (
-                          <tr key={row.row} className={cn("border-t border-[#D8E0EC] align-top", row.errors.length ? "bg-rose-50" : row.warnings.length ? "bg-amber-50" : "bg-white")}>
-                            <td className="px-3 py-3 font-black text-[#64748B]">{row.row}</td>
-                            <td className="px-3 py-3 font-black text-[#071D49]">{row.item.item_name || "Item name missing"}</td>
-                            <td className="px-3 py-3 text-[#64748B]">{itemTypeLabel(row.item.item_type)}</td>
-                            <td className="px-3 py-3 text-[#64748B]">{row.item.quantity} {row.item.unit === "Custom" ? row.item.custom_unit : row.item.unit}</td>
-                            <td className="px-3 py-3 text-[#64748B]">{row.item.storage_location || "Location missing"}</td>
+                          <tr key={row.row} className={cn("border-t border-border align-top", row.errors.length ? "bg-danger-soft" : row.warnings.length ? "bg-warning-soft" : "bg-white")}>
+                            <td className="px-3 py-3 font-black text-muted">{row.row}</td>
+                            <td className="px-3 py-3 font-black text-foreground">{row.item.item_name || "Item name missing"}</td>
+                            <td className="px-3 py-3 text-muted">{itemTypeLabel(row.item.item_type)}</td>
+                            <td className="px-3 py-3 text-muted">{row.item.quantity} {row.item.unit === "Custom" ? row.item.custom_unit : row.item.unit}</td>
+                            <td className="px-3 py-3 text-muted">{row.item.storage_location || "Location missing"}</td>
                             <td className="max-w-xs px-3 py-3">
                               {row.errors.length === 0 && row.warnings.length === 0 ? <StatusChip label="Ready" tone="success" /> : null}
-                              {row.errors.map((error) => <p key={error} className="mb-1 text-xs font-bold text-rose-800">{error}</p>)}
-                              {row.warnings.map((warning) => <p key={warning} className="mb-1 text-xs font-bold text-amber-800">{warning}</p>)}
+                              {row.errors.map((error) => <p key={error} className="mb-1 text-xs font-bold text-danger">{error}</p>)}
+                              {row.warnings.map((warning) => <p key={warning} className="mb-1 text-xs font-bold text-warning">{warning}</p>)}
                             </td>
                           </tr>
                         ))}
@@ -1397,7 +1397,7 @@ export function LabInventoryWorkspace() {
                     </table>
                   </div>
                   {importRows.some((row) => row.errors.length) ? (
-                    <button type="button" onClick={downloadImportErrors} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-300 px-4 text-sm font-black text-rose-800">
+                    <button type="button" onClick={downloadImportErrors} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-300 px-4 text-sm font-black text-danger">
                       <Download className="h-4 w-4" aria-hidden="true" /> Download Error Report
                     </button>
                   ) : null}
@@ -1406,24 +1406,24 @@ export function LabInventoryWorkspace() {
 
               {importResult ? (
                 <div className="space-y-4">
-                  <div role="status" className={cn("rounded-xl border p-4 font-bold", importResult.failed_count || importResult.duplicate_count ? "border-amber-300 bg-amber-50 text-amber-950" : "border-emerald-200 bg-emerald-50 text-emerald-900")}>
+                  <div role="status" className={cn("rounded-xl border p-4 font-bold", importResult.failed_count || importResult.duplicate_count ? "border-amber-300 bg-warning-soft text-amber-950" : "border-success-border bg-success-soft text-emerald-900")}>
                     {importResult.message}
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center"><p className="text-2xl font-black text-emerald-800">{importResult.imported_count}</p><p className="text-xs font-bold text-emerald-800">Imported</p></div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center"><p className="text-2xl font-black text-amber-800">{importResult.duplicate_count}</p><p className="text-xs font-bold text-amber-800">Duplicates</p></div>
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-center"><p className="text-2xl font-black text-rose-800">{importResult.failed_count}</p><p className="text-xs font-bold text-rose-800">Failed</p></div>
+                    <div className="rounded-xl border border-success-border bg-success-soft p-3 text-center"><p className="text-2xl font-black text-success">{importResult.imported_count}</p><p className="text-xs font-bold text-success">Imported</p></div>
+                    <div className="rounded-xl border border-warning-border bg-warning-soft p-3 text-center"><p className="text-2xl font-black text-warning">{importResult.duplicate_count}</p><p className="text-xs font-bold text-warning">Duplicates</p></div>
+                    <div className="rounded-xl border border-danger-border bg-danger-soft p-3 text-center"><p className="text-2xl font-black text-danger">{importResult.failed_count}</p><p className="text-xs font-bold text-danger">Failed</p></div>
                   </div>
                   <div className="space-y-2">
                     {importResult.results.map((result) => (
-                      <div key={`${result.row}:${result.status}`} className="flex flex-col gap-2 rounded-xl border border-[#D8E0EC] p-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div><p className="text-xs font-black text-[#64748B]">CSV row {result.row}</p><p className="mt-1 text-sm font-semibold leading-6 text-[#334155]">{result.message}</p></div>
+                      <div key={`${result.row}:${result.status}`} className="flex flex-col gap-2 rounded-xl border border-border p-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div><p className="text-xs font-black text-muted">CSV row {result.row}</p><p className="mt-1 text-sm font-semibold leading-6 text-foreground">{result.message}</p></div>
                         <StatusChip label={result.status === "imported" ? "Imported" : result.status === "duplicate" ? "Duplicate — Review" : "Failed"} tone={result.status === "imported" ? "success" : result.status === "duplicate" ? "warning" : "danger"} />
                       </div>
                     ))}
                   </div>
                   {importResult.failed_count > 0 ? (
-                    <button type="button" onClick={downloadImportErrors} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-300 px-4 text-sm font-black text-rose-800">
+                    <button type="button" onClick={downloadImportErrors} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-rose-300 px-4 text-sm font-black text-danger">
                       <Download className="h-4 w-4" aria-hidden="true" /> Download Error Report
                     </button>
                   ) : null}
@@ -1435,17 +1435,17 @@ export function LabInventoryWorkspace() {
               ) : null}
             </div>
 
-            <footer className="sticky bottom-0 z-20 mt-auto flex flex-col gap-3 border-t border-[#D8E0EC] bg-white/95 px-4 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:rounded-b-2xl sm:px-6">
+            <footer className="sticky bottom-0 z-20 mt-auto flex flex-col gap-3 border-t border-border bg-white/95 px-4 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:rounded-b-2xl sm:px-6">
               <SaveState state={importSaveState} />
               <div className="flex flex-wrap justify-end gap-2">
-                {importFileName ? <button type="button" disabled={importMutation.isPending} onClick={clearImport} className="min-h-12 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49] disabled:opacity-50">Clear</button> : null}
-                <button type="button" disabled={importMutation.isPending} onClick={() => setImportOpen(false)} className="min-h-12 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49] disabled:opacity-50">{importResult ? "Done" : "Close"}</button>
+                {importFileName ? <button type="button" disabled={importMutation.isPending} onClick={clearImport} className="min-h-12 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground disabled:opacity-50">Clear</button> : null}
+                <button type="button" disabled={importMutation.isPending} onClick={() => setImportOpen(false)} className="min-h-12 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground disabled:opacity-50">{importResult ? "Done" : "Close"}</button>
                 {importRows.length > 0 && !importResult ? (
                   <button
                     type="button"
                     disabled={importMutation.isPending || !importRows.some((row) => row.errors.length === 0)}
                     onClick={() => void submitStockList()}
-                    className="min-h-12 flex-1 rounded-xl bg-[#071D49] px-5 text-sm font-black text-white disabled:opacity-50 sm:flex-none"
+                    className="min-h-12 flex-1 rounded-xl bg-primary px-5 text-sm font-black text-white disabled:opacity-50 sm:flex-none"
                   >
                     {importMutation.isPending ? "Importing…" : `Import Valid Rows (${importRows.filter((row) => row.errors.length === 0).length})`}
                   </button>
@@ -1462,16 +1462,16 @@ export function LabInventoryWorkspace() {
         icon={ShieldCheck}
         actions={(
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={openAddItem} className="min-h-11 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">Add Item</button>
-            <button type="button" onClick={() => { setStockFormOpen(true); setSaveState(null); setConfirmation(null); }} className="min-h-11 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">Add Stock</button>
-            <button type="button" onClick={() => setImportOpen(true)} className="min-h-11 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">Import Stock List</button>
+            <button type="button" onClick={openAddItem} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white">Add Item</button>
+            <button type="button" onClick={() => { setStockFormOpen(true); setSaveState(null); setConfirmation(null); }} className="min-h-11 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground">Add Stock</button>
+            <button type="button" onClick={() => setImportOpen(true)} className="min-h-11 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground">Import Stock List</button>
           </div>
         )}
       >
         <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
           <label className="relative block">
             <span className="sr-only">Find a laboratory item</span>
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" aria-hidden="true" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
             <input value={search} onChange={(event) => { setSearch(event.target.value); setStockPage(1); }} placeholder="Find an item by name or location" className={`${inputClass} pl-9`} />
           </label>
           <label>
@@ -1484,67 +1484,67 @@ export function LabInventoryWorkspace() {
 
         <div id="lab-stock-list">
           {inventoryQuery.isLoading ? (
-            <p className="py-10 text-center text-sm font-semibold text-[#64748B]">Loading the laboratory stock book…</p>
+            <p className="py-10 text-center text-sm font-semibold text-muted">Loading the laboratory stock book…</p>
           ) : items.length === 0 ? (
             <WorkspaceEmpty
               title="No laboratory items have been added yet."
               description="Add the first item now or import an existing laboratory stock list from a CSV file."
               actions={(
                 <>
-                  <button type="button" onClick={openAddItem} className="min-h-11 rounded-xl bg-[#071D49] px-4 text-sm font-black text-white">Add First Item</button>
-                  <button type="button" onClick={() => setImportOpen(true)} className="min-h-11 rounded-xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49]">Import Stock List</button>
+                  <button type="button" onClick={openAddItem} className="min-h-11 rounded-xl bg-primary px-4 text-sm font-black text-white">Add First Item</button>
+                  <button type="button" onClick={() => setImportOpen(true)} className="min-h-11 rounded-xl border border-border-strong bg-white px-4 text-sm font-black text-foreground">Import Stock List</button>
                 </>
               )}
             />
           ) : filteredItems.length === 0 ? (
-            <WorkspaceEmpty title="No items match this search." description="Try part of the ordinary item name, change the status filter, or clear the search." actions={<button type="button" onClick={() => { setSearch(""); setStatusFilter("All"); setStockPage(1); }} className="min-h-11 rounded-xl border border-[#C8D5EA] px-4 text-sm font-black text-[#071D49]">Clear Search</button>} />
+            <WorkspaceEmpty title="No items match this search." description="Try part of the ordinary item name, change the status filter, or clear the search." actions={<button type="button" onClick={() => { setSearch(""); setStatusFilter("All"); setStockPage(1); }} className="min-h-11 rounded-xl border border-border-strong px-4 text-sm font-black text-foreground">Clear Search</button>} />
           ) : (
             <>
               <div className="grid gap-3 md:hidden">
                 {pagedItems.map((item) => (
-                  <article key={`${item.item_source}:${item.id}`} className="rounded-xl border border-[#D8E0EC] p-4">
+                  <article key={`${item.item_source}:${item.id}`} className="rounded-xl border border-border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-black text-[#071D49]">{item.item_name}</p>
-                        <p className="mt-1 text-sm text-[#64748B]">{item.category}</p>
+                        <p className="font-black text-foreground">{item.item_name}</p>
+                        <p className="mt-1 text-sm text-muted">{item.category}</p>
                       </div>
                       <StatusChip label={item.status} tone={statusTone(item.status)} />
                     </div>
                     <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <div><dt className="font-semibold text-[#64748B]">Available</dt><dd className="mt-1 font-black text-[#071D49]">{item.quantity_available} {item.unit}</dd></div>
-                      <div><dt className="font-semibold text-[#64748B]">Minimum</dt><dd className="mt-1 font-black text-[#071D49]">{item.minimum_stock_level} {item.unit}</dd></div>
-                      <div className="col-span-2"><dt className="font-semibold text-[#64748B]">Storage Location</dt><dd className="mt-1 font-bold text-[#071D49]">{item.storage_location || "Not set"}</dd></div>
-                      {item.item_type === "chemical" && item.expiry_date ? <div className="col-span-2"><dt className="font-semibold text-[#64748B]">Expiry Date</dt><dd className="mt-1 font-bold text-[#071D49]">{formatKenyanDate(item.expiry_date)}</dd></div> : null}
+                      <div><dt className="font-semibold text-muted">Available</dt><dd className="mt-1 font-black text-foreground">{item.quantity_available} {item.unit}</dd></div>
+                      <div><dt className="font-semibold text-muted">Minimum</dt><dd className="mt-1 font-black text-foreground">{item.minimum_stock_level} {item.unit}</dd></div>
+                      <div className="col-span-2"><dt className="font-semibold text-muted">Storage Location</dt><dd className="mt-1 font-bold text-foreground">{item.storage_location || "Not set"}</dd></div>
+                      {item.item_type === "chemical" && item.expiry_date ? <div className="col-span-2"><dt className="font-semibold text-muted">Expiry Date</dt><dd className="mt-1 font-bold text-foreground">{formatKenyanDate(item.expiry_date)}</dd></div> : null}
                     </dl>
-                    <button type="button" onClick={() => { setStockItemId(item.id); setStockFormOpen(true); setSaveState(null); }} className="mt-4 min-h-11 w-full rounded-xl border border-[#C8D5EA] text-sm font-black text-[#071D49]">Add Stock</button>
+                    <button type="button" onClick={() => { setStockItemId(item.id); setStockFormOpen(true); setSaveState(null); }} className="mt-4 min-h-11 w-full rounded-xl border border-border-strong text-sm font-black text-foreground">Add Stock</button>
                   </article>
                 ))}
               </div>
-              <div className="hidden overflow-hidden rounded-xl border border-[#D8E0EC] md:block">
+              <div className="hidden overflow-hidden rounded-xl border border-border md:block">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-[#F8FAFC] text-[#071D49]"><tr><th className="px-4 py-3 font-bold">Item</th><th className="px-4 py-3 font-bold">Available</th><th className="px-4 py-3 font-bold">Minimum</th><th className="px-4 py-3 font-bold">Storage Location</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 text-right font-bold">Action</th></tr></thead>
+                  <thead className="bg-surface-muted text-foreground"><tr><th className="px-4 py-3 font-bold">Item</th><th className="px-4 py-3 font-bold">Available</th><th className="px-4 py-3 font-bold">Minimum</th><th className="px-4 py-3 font-bold">Storage Location</th><th className="px-4 py-3 font-bold">Status</th><th className="px-4 py-3 text-right font-bold">Action</th></tr></thead>
                   <tbody>
                     {pagedItems.map((item) => (
-                      <tr key={`${item.item_source}:${item.id}`} className="border-t border-[#D8E0EC]">
-                        <td className="px-4 py-3"><p className="font-black text-[#071D49]">{item.item_name}</p><p className="mt-1 text-xs font-semibold text-[#64748B]">{item.category} · {itemTypeLabel(item.item_type)}</p></td>
-                        <td className="px-4 py-3 font-bold text-[#071D49]">{item.quantity_available} {item.unit}</td>
-                        <td className="px-4 py-3 text-[#64748B]">{item.minimum_stock_level} {item.unit}</td>
-                        <td className="px-4 py-3 text-[#64748B]">{item.storage_location || "Not set"}</td>
+                      <tr key={`${item.item_source}:${item.id}`} className="border-t border-border">
+                        <td className="px-4 py-3"><p className="font-black text-foreground">{item.item_name}</p><p className="mt-1 text-xs font-semibold text-muted">{item.category} · {itemTypeLabel(item.item_type)}</p></td>
+                        <td className="px-4 py-3 font-bold text-foreground">{item.quantity_available} {item.unit}</td>
+                        <td className="px-4 py-3 text-muted">{item.minimum_stock_level} {item.unit}</td>
+                        <td className="px-4 py-3 text-muted">{item.storage_location || "Not set"}</td>
                         <td className="px-4 py-3"><StatusChip label={item.status} tone={statusTone(item.status)} /></td>
-                        <td className="px-4 py-3 text-right"><button type="button" onClick={() => { setStockItemId(item.id); setStockFormOpen(true); setSaveState(null); }} className="min-h-10 rounded-lg border border-[#C8D5EA] px-3 font-black text-[#071D49]">Add Stock</button></td>
+                        <td className="px-4 py-3 text-right"><button type="button" onClick={() => { setStockItemId(item.id); setStockFormOpen(true); setSaveState(null); }} className="min-h-10 rounded-lg border border-border-strong px-3 font-black text-foreground">Add Stock</button></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <nav aria-label="Stock book pages" className="mt-4 flex flex-col gap-3 rounded-xl bg-[#F8FAFC] p-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-bold text-[#475569]">
+              <nav aria-label="Stock book pages" className="mt-4 flex flex-col gap-3 rounded-xl bg-surface-muted p-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-bold text-muted-strong">
                   Showing {stockPageStart + 1}–{Math.min(stockPageStart + pagedItems.length, filteredItems.length)} of {filteredItems.length} items
                 </p>
                 <div className="flex items-center justify-between gap-2 sm:justify-end">
-                  <button type="button" disabled={currentStockPage === 1} onClick={() => setStockPage((page) => Math.max(1, page - 1))} className="min-h-11 rounded-xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49] disabled:cursor-not-allowed disabled:opacity-45">Previous</button>
-                  <span className="min-w-24 text-center text-sm font-bold text-[#475569]">Page {currentStockPage} of {stockPageCount}</span>
-                  <button type="button" disabled={currentStockPage === stockPageCount} onClick={() => setStockPage((page) => Math.min(stockPageCount, page + 1))} className="min-h-11 rounded-xl border border-[#C8D5EA] bg-white px-4 text-sm font-black text-[#071D49] disabled:cursor-not-allowed disabled:opacity-45">Next</button>
+                  <button type="button" disabled={currentStockPage === 1} onClick={() => setStockPage((page) => Math.max(1, page - 1))} className="min-h-11 rounded-xl border border-border-strong bg-white px-4 text-sm font-black text-foreground disabled:cursor-not-allowed disabled:opacity-45">Previous</button>
+                  <span className="min-w-24 text-center text-sm font-bold text-muted-strong">Page {currentStockPage} of {stockPageCount}</span>
+                  <button type="button" disabled={currentStockPage === stockPageCount} onClick={() => setStockPage((page) => Math.min(stockPageCount, page + 1))} className="min-h-11 rounded-xl border border-border-strong bg-white px-4 text-sm font-black text-foreground disabled:cursor-not-allowed disabled:opacity-45">Next</button>
                 </div>
               </nav>
             </>

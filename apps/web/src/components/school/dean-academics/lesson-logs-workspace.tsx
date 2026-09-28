@@ -38,22 +38,22 @@ export function LessonLogsWorkspace() {
   return (
     <Panel title="Lesson Logs" description="Review submitted lesson logs across the school." icon={FileEdit}>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Logs Today</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.logs_today ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Logs Today</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.logs_today ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Pending Review</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Pending Review</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Approved</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Approved</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Teacher</th>
               <th className="px-4 py-3 font-bold">Subject</th>
@@ -66,18 +66,18 @@ export function LessonLogsWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">No lesson logs yet. Teacher lesson submissions will appear here for dean review.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">No lesson logs yet. Teacher lesson submissions will appear here for dean review.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{row.teacher}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.subject}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.class}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.date}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.topic}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{row.duration}</td>
+                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{row.teacher}</td>
+                  <td className="px-4 py-3 text-muted">{row.subject}</td>
+                  <td className="px-4 py-3 text-muted">{row.class}</td>
+                  <td className="px-4 py-3 text-muted">{row.date}</td>
+                  <td className="px-4 py-3 text-muted">{row.topic}</td>
+                  <td className="px-4 py-3 text-muted">{row.duration}</td>
                   <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
                 </tr>
               ))

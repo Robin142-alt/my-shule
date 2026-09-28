@@ -71,7 +71,7 @@ export function BehaviorWorkspace() {
       </div>
 
       {error ? (
-        <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">
+        <div className="rounded-md border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
           Conduct records could not be loaded: {error.message}
         </div>
       ) : null}
@@ -140,9 +140,9 @@ export function BehaviorWorkspace() {
                   </div>
                ))
             ) : (
-               <div className="text-center p-6 bg-emerald-50 rounded-lg border border-dashed border-emerald-200">
+               <div className="text-center p-6 bg-success-soft rounded-lg border border-dashed border-success-border">
                   <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-emerald-800">Clean Record</p>
+                  <p className="text-sm font-medium text-success">Clean Record</p>
                   <p className="text-xs text-emerald-600 mt-1">No pending disciplinary notices.</p>
                </div>
             )}
@@ -160,7 +160,7 @@ export function BehaviorWorkspace() {
             ) : commendations.length > 0 ? (
                commendations.map((item) => (
                  <div key={item.id} className="flex gap-4 items-start pb-4 border-b border-slate-100 last:border-0 last:pb-0">
-                    <div className="w-8 h-8 rounded bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-8 h-8 rounded bg-warning-soft text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
                       <Award className="w-4 h-4" />
                     </div>
                     <div>

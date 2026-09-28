@@ -58,25 +58,25 @@ export function MyClassWorkspace() {
     >
       {/* Metrics */}
       <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Enrolled</div>
-          <div className="mt-1 text-2xl font-black text-[#071D49]">{isLoading ? "..." : metrics?.total_enrolled ?? 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Enrolled</div>
+          <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : metrics?.total_enrolled ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="text-sm font-semibold text-blue-700">Boys</div>
-          <div className="mt-1 text-2xl font-black text-blue-700">{isLoading ? "..." : metrics?.boys ?? 0}</div>
+        <div className="rounded-xl border border-info-border bg-info-soft p-4">
+          <div className="text-sm font-semibold text-info">Boys</div>
+          <div className="mt-1 text-2xl font-black text-info">{isLoading ? "..." : metrics?.boys ?? 0}</div>
         </div>
         <div className="rounded-xl border border-pink-200 bg-pink-50 p-4">
           <div className="text-sm font-semibold text-pink-700">Girls</div>
           <div className="mt-1 text-2xl font-black text-pink-700">{isLoading ? "..." : metrics?.girls ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div className="text-sm font-semibold text-emerald-700">Active</div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{isLoading ? "..." : metrics?.active ?? 0}</div>
+        <div className="rounded-xl border border-success-border bg-success-soft p-4">
+          <div className="text-sm font-semibold text-success">Active</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : metrics?.active ?? 0}</div>
         </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-          <div className="text-sm font-semibold text-rose-700">Suspended</div>
-          <div className="mt-1 text-2xl font-black text-rose-700">{isLoading ? "..." : metrics?.suspended ?? 0}</div>
+        <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
+          <div className="text-sm font-semibold text-danger">Suspended</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : metrics?.suspended ?? 0}</div>
         </div>
       </div>
 
@@ -87,38 +87,38 @@ export function MyClassWorkspace() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name or admission number..."
-          className="w-full max-w-md rounded-lg border border-[#D8E0EC] px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full max-w-md rounded-lg border border-border px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
       {/* Student Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Adm No</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Full Name</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Gender</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Stream</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Attendance</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Mean Score</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Adm No</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Full Name</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Gender</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Stream</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Attendance</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Mean Score</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">Loading class register...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading class register...</td></tr>
             ) : students.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">{search ? "No students match your search." : "No students assigned to your class yet. Contact the secretary to assign students."}</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">{search ? "No students match your search." : "No students assigned to your class yet. Contact the secretary to assign students."}</td></tr>
             ) : (
               students.map((s) => (
-                <tr key={s.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-medium text-[#071D49]">{s.admission_no}</td>
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{s.full_name}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.gender}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.stream || "—"}</td>
+                <tr key={s.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-medium text-foreground">{s.admission_no}</td>
+                  <td className="px-4 py-3 font-semibold text-foreground">{s.full_name}</td>
+                  <td className="px-4 py-3 text-muted">{s.gender}</td>
+                  <td className="px-4 py-3 text-muted">{s.stream || "—"}</td>
                   <td className="px-4 py-3"><StatusChip label={`${s.attendance_rate}%`} tone={getAttendanceTone(s.attendance_rate)} /></td>
-                  <td className="px-4 py-3 text-[#64748B]">{s.mean_score !== null ? s.mean_score : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{s.mean_score !== null ? s.mean_score : "—"}</td>
                   <td className="px-4 py-3"><StatusChip label={s.status} tone={getStatusTone(s.status)} /></td>
                 </tr>
               ))

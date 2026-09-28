@@ -66,7 +66,7 @@ export function LessonLogsWorkspace() {
           {dailyLessons.map((lesson: any) => (
             <Card 
               key={lesson.id} 
-              className={`p-4 border cursor-pointer transition-colors ${selectedLesson?.id === lesson.id ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/20' : 'border-slate-200 hover:border-slate-300'}`}
+              className={`p-4 border cursor-pointer transition-colors ${selectedLesson?.id === lesson.id ? 'border-blue-500 ring-1 ring-blue-500 bg-info-soft/20' : 'border-slate-200 hover:border-slate-300'}`}
               onClick={() => setSelectedLesson(lesson)}
             >
               <div className="flex justify-between items-start mb-2">
@@ -97,7 +97,7 @@ export function LessonLogsWorkspace() {
                   <p className="text-sm text-slate-500 mt-1">{selectedLesson.subject} • {selectedLesson.class} • {selectedLesson.time}</p>
                 </div>
                 {selectedLesson.logged && (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-success-soft text-success border border-emerald-100">
                     <CheckCircle className="w-3 h-3" /> Submitted
                   </span>
                 )}

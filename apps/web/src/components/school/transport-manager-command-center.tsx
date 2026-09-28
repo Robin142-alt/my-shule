@@ -116,36 +116,36 @@ type TransportAssignmentOptions = {
 
 const toneClasses: Record<Tone, { chip: string; card: string; dot: string; text: string; rail: string }> = {
   success: {
-    chip: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    card: "border-emerald-200 bg-emerald-50/80 text-emerald-950",
+    chip: "border-success-border bg-success-soft text-success",
+    card: "border-success-border bg-success-soft/80 text-emerald-950",
     dot: "bg-emerald-500",
-    text: "text-emerald-700",
+    text: "text-success",
     rail: "bg-emerald-500",
   },
   info: {
-    chip: "border-blue-200 bg-blue-50 text-blue-700",
-    card: "border-blue-200 bg-blue-50/80 text-blue-950",
+    chip: "border-info-border bg-info-soft text-info",
+    card: "border-info-border bg-info-soft/80 text-blue-950",
     dot: "bg-blue-500",
-    text: "text-blue-700",
+    text: "text-info",
     rail: "bg-blue-500",
   },
   warning: {
-    chip: "border-amber-200 bg-amber-50 text-amber-700",
-    card: "border-amber-200 bg-amber-50/85 text-amber-950",
+    chip: "border-warning-border bg-warning-soft text-warning",
+    card: "border-warning-border bg-warning-soft/85 text-amber-950",
     dot: "bg-amber-500",
-    text: "text-amber-700",
+    text: "text-warning",
     rail: "bg-amber-500",
   },
   danger: {
-    chip: "border-rose-200 bg-rose-50 text-rose-700",
-    card: "border-rose-200 bg-rose-50/85 text-rose-950",
+    chip: "border-danger-border bg-danger-soft text-danger",
+    card: "border-danger-border bg-danger-soft/85 text-rose-950",
     dot: "bg-rose-500",
-    text: "text-rose-700",
+    text: "text-danger",
     rail: "bg-rose-500",
   },
   neutral: {
     chip: "border-slate-200 bg-slate-50 text-slate-700",
-    card: "border-slate-200 bg-white/88 text-[#071D49]",
+    card: "border-slate-200 bg-white/88 text-foreground",
     dot: "bg-slate-400",
     text: "text-slate-600",
     rail: "bg-slate-400",
@@ -266,7 +266,7 @@ function Sidebar({
   onViewChange: (view: TransportView) => void;
 }) {
   return (
-    <aside className="hidden h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
+    <aside className="hidden h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Transport command" title="Transport Manager" subtitle="Fleet, routes, safety, and parent communication" />
       <nav className="mt-4 h-[calc(100%-8.5rem)] space-y-1 overflow-y-auto pr-1" aria-label="Transport manager navigation">
         {navItems.map((item, index) => {
@@ -302,18 +302,18 @@ function Topbar({
   const today = "Today";
 
   return (
-    <header className="app-command-topbar sticky top-0 z-20 shrink-0 border-b border-[#D8E0EC] bg-[#F3F6FA]/92 px-4 py-3 backdrop-blur">
+    <header className="app-command-topbar sticky top-0 z-20 shrink-0 border-b border-border bg-background/92 px-4 py-3 backdrop-blur">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-3">
           <MyShuleMark size={44} />
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#64748B]">Term 2 - Transport live</p>
-            <h1 className="text-xl font-black text-[#071D49]">Transport Workspace</h1>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-muted">Term 2 - Transport live</p>
+            <h1 className="text-xl font-black text-foreground">Transport Workspace</h1>
           </div>
         </div>
         <div className="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto_auto_auto_auto] xl:min-w-[760px]">
           <div className="relative">
-            <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[#D8E0EC] bg-white/88 px-3 text-[#64748B] shadow-sm">
+            <label className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-white/88 px-3 text-muted shadow-sm">
               <Search className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">Global transport search</span>
               <input
@@ -325,26 +325,26 @@ function Topbar({
                     onSearchResult(searchResults[0]);
                   }
                 }}
-                className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-[#94A3B8]"
+                className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted"
                 placeholder="Search vehicles, routes, students, drivers, or incidents"
               />
             </label>
             {searchTerm.trim() ? (
-              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-[#D8E0EC] bg-white p-2 shadow-xl">
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-border bg-white p-2 shadow-xl">
                 {searchResults.length > 0 ? (
                   searchResults.map((record) => (
                     <button
                       key={record.id}
                       type="button"
                       onClick={() => onSearchResult(record)}
-                      className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-[#F3F6FA]"
+                      className="w-full rounded-lg px-3 py-2 text-left transition hover:bg-background"
                     >
-                      <span className="block text-sm font-black text-[#071D49]">{record.label}</span>
-                      <span className="mt-0.5 block text-xs font-semibold text-[#64748B]">{record.detail}</span>
+                      <span className="block text-sm font-black text-foreground">{record.label}</span>
+                      <span className="mt-0.5 block text-xs font-semibold text-muted">{record.detail}</span>
                     </button>
                   ))
                 ) : (
-                  <p className="rounded-lg px-3 py-3 text-sm font-semibold text-[#64748B]">No transport records found.</p>
+                  <p className="rounded-lg px-3 py-3 text-sm font-semibold text-muted">No transport records found.</p>
                 )}
               </div>
             ) : null}
@@ -356,7 +356,7 @@ function Topbar({
             <ApprovalInbox />
             <NotificationBell />
           </div>
-          <button type="button" onClick={() => onViewChange("incidents")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#FF7A1A] px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(255,122,26,0.25)]">
+          <button type="button" onClick={() => onViewChange("incidents")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-white shadow-[0_14px_30px_rgba(255,122,26,0.25)]">
             Quick actions
           </button>
         </div>
@@ -388,17 +388,17 @@ function Panel({
   actions?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#D8E0EC] bg-white/82 p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
+    <section className="app-workspace-panel rounded-2xl border border-border bg-white/82 p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           {Icon ? (
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#EEF5FF] text-[#1D4ED8]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
           <div>
-            <h2 className="text-xl font-black tracking-[-0.01em] text-[#071D49]">{title}</h2>
-            {description ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{description}</p> : null}
+            <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-6 text-muted">{description}</p> : null}
           </div>
         </div>
         {actions}
@@ -448,7 +448,7 @@ function QueryStateCard({
       role={error ? "alert" : "status"}
       className={cn(
         "rounded-2xl border p-4 text-sm font-semibold",
-        error ? "border-rose-200 bg-rose-50 text-rose-900" : "border-blue-200 bg-blue-50 text-blue-900",
+        error ? "border-danger-border bg-danger-soft text-rose-900" : "border-info-border bg-info-soft text-blue-900",
       )}
     >
       <p>{error ? error.message : loadingLabel}</p>
@@ -456,7 +456,7 @@ function QueryStateCard({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-black text-rose-800"
+          className="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-black text-danger"
         >
           Retry
         </button>
@@ -483,14 +483,14 @@ function DataTable({
     : rows;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#D8E0EC] bg-white/80">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D8E0EC] bg-[#F8FAFC] px-4 py-3">
-        <h3 className="text-sm font-black uppercase tracking-[0.14em] text-[#071D49]">{title}</h3>
+    <div className="overflow-hidden rounded-2xl border border-border bg-white/80">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted px-4 py-3">
+        <h3 className="text-sm font-black uppercase tracking-[0.14em] text-foreground">{title}</h3>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setIsFilterOpen((current) => !current)}
-            className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-black text-foreground"
           >
             Filters
           </button>
@@ -504,25 +504,25 @@ function DataTable({
               });
               onAction(`${title} CSV file prepared from current transport route records.`);
             }}
-            className="rounded-lg border border-[#D8E0EC] px-3 py-1.5 text-xs font-black text-[#071D49]"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-black text-foreground"
           >
             Export
           </button>
         </div>
       </div>
       {isFilterOpen ? (
-        <div className="border-b border-[#D8E0EC] bg-white px-4 py-3">
-          <label className="text-xs font-black uppercase tracking-[0.12em] text-[#64748B]">
+        <div className="border-b border-border bg-white px-4 py-3">
+          <label className="text-xs font-black uppercase tracking-[0.12em] text-muted">
             Filter {title}
             <input
               value={filterTerm}
               onChange={(event) => setFilterTerm(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm font-semibold text-[#071D49] outline-none focus:border-[#071D49]"
+              className="mt-2 w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-primary"
               placeholder="Search current rows by vehicle, route, student, status, driver..."
             />
           </label>
           {filterTerm ? (
-            <button type="button" className="mt-2 text-xs font-black text-[#1D4ED8] hover:underline" onClick={() => setFilterTerm("")}>
+            <button type="button" className="mt-2 text-xs font-black text-info hover:underline" onClick={() => setFilterTerm("")}>
               Clear filter
             </button>
           ) : null}
@@ -530,18 +530,18 @@ function DataTable({
       ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="sticky top-0 bg-[#EEF5FF] text-xs uppercase tracking-[0.12em] text-[#64748B]">
+          <thead className="sticky top-0 bg-info-soft text-xs uppercase tracking-[0.12em] text-muted">
             <tr>
               {columns.map((column) => (
                 <th key={column} className="px-4 py-3 font-black">{column}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E2E8F0]">
+          <tbody className="divide-y divide-border">
             {displayedRows.map((row) => (
-              <tr key={row.join("-")} className="transition hover:bg-[#F8FAFC]">
+              <tr key={row.join("-")} className="transition hover:bg-surface-muted">
                 {row.map((cell, index) => (
-                  <td key={`${row[0]}-${columns[index]}`} className="px-4 py-3 font-semibold text-[#334155]">
+                  <td key={`${row[0]}-${columns[index]}`} className="px-4 py-3 font-semibold text-foreground">
                     {index === row.length - 1 && ["success", "warning", "danger", "info"].includes(cell)
                       ? <StatusChip label={row[index - 3] ?? "Status"} tone={cell as Tone} />
                       : cell}
@@ -551,7 +551,7 @@ function DataTable({
             ))}
             {displayedRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-6 text-center text-sm font-semibold text-[#64748B]">
+                <td colSpan={columns.length} className="px-4 py-6 text-center text-sm font-semibold text-muted">
                   No transport records match the current filter.
                 </td>
               </tr>
@@ -559,7 +559,7 @@ function DataTable({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-[#D8E0EC] px-4 py-3 text-xs font-bold text-[#64748B]">
+      <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs font-bold text-muted">
         <span>Showing {displayedRows.length} of {rows.length}</span>
         <span>{filterTerm ? "Filtered" : "Ready"}</span>
       </div>
@@ -657,14 +657,14 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
                 onRetry={() => void routesQuery.refetch()}
               />
             ) : routes.length === 0 ? (
-              <div className="p-4 text-center text-[#64748B]">No transport routes have been configured for this school.</div>
+              <div className="p-4 text-center text-muted">No transport routes have been configured for this school.</div>
             ) : routes.map((route) => (
-              <div key={route.id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+              <div key={route.id} className="rounded-xl border border-border bg-surface-muted p-3">
                 <div className="grid gap-3 sm:grid-cols-[90px_minmax(0,1fr)_120px] sm:items-center">
-                  <strong className="text-[#071D49]">{route.code}</strong>
+                  <strong className="text-foreground">{route.code}</strong>
                   <div>
-                    <p className="font-black text-[#071D49]">{route.name}</p>
-                    <p className="text-xs font-semibold text-[#64748B]">{route.vehicle} · {route.driver} · {route.students} student(s)</p>
+                    <p className="font-black text-foreground">{route.name}</p>
+                    <p className="text-xs font-semibold text-muted">{route.vehicle} · {route.driver} · {route.students} student(s)</p>
                   </div>
                   <StatusChip label={route.status} tone={toneFromStatus(route.status)} />
                 </div>
@@ -682,9 +682,9 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
               ["Fleet records", String(metrics.totalVehicles ?? 0), "warning"],
               ["Driver records", String(metrics.totalDrivers ?? 0), "danger"],
             ].map(([title, value, tone]) => (
-              <div key={title} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-[#64748B]">{title}</p>
-                <p className="mt-3 text-2xl font-black text-[#071D49]">{value}</p>
+              <div key={title} className="rounded-xl border border-border bg-surface-muted p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-muted">{title}</p>
+                <p className="mt-3 text-2xl font-black text-foreground">{value}</p>
                 <p className={cn("mt-2 text-xs font-black", toneClasses[tone as Tone].text)}>From school transport records</p>
               </div>
             ))}
@@ -699,7 +699,7 @@ function OverviewWorkspace({ onViewChange }: { onViewChange: (view: TransportVie
               ["Notify Route Guardians", "notifications"],
               ["Log Fuel Refill", "fuel"],
             ].map(([label, view]) => (
-              <button key={label} type="button" onClick={() => onViewChange(view as TransportView)} className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-3 text-left text-sm font-black text-[#071D49] transition hover:-translate-y-0.5 hover:shadow-md">
+              <button key={label} type="button" onClick={() => onViewChange(view as TransportView)} className="rounded-xl border border-border bg-info-soft p-3 text-left text-sm font-black text-foreground transition hover:-translate-y-0.5 hover:shadow-md">
                 {label}
               </button>
             ))}
@@ -756,9 +756,9 @@ function FleetWorkspace({ onAction }: { onAction: TransportActionHandler }) {
         <Panel title="Vehicle profile drawer" description="Side drawer preserves context while exposing vehicle records." icon={CarFront}>
           <div className="space-y-3">
             {["Overview", "Students", "Maintenance", "Fuel", "Compliance", "Routes"].map((tab) => (
-              <div key={tab} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
-                <p className="font-black text-[#071D49]">{tab}</p>
-                <p className="mt-1 text-sm text-[#64748B]">Vehicle details, assigned students, history, documents, and route evidence.</p>
+              <div key={tab} className="rounded-xl border border-border bg-surface-muted p-3">
+                <p className="font-black text-foreground">{tab}</p>
+                <p className="mt-1 text-sm text-muted">Vehicle details, assigned students, history, documents, and route evidence.</p>
               </div>
             ))}
           </div>
@@ -799,21 +799,21 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
       <Panel title="Routes & Stops" description="Logistics planner for route cards, stop ordering, student assignment, and route optimization." icon={Route}>
         <div className="space-y-3">
           {routeCards.map((route: any) => (
-            <article key={route.id || route.name} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+            <article key={route.id || route.name} className="rounded-xl border border-border bg-surface-muted p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-black text-[#071D49]">{route.route_name || route.name || "Transport route"}</h3>
-                  <p className="mt-1 text-sm font-semibold text-[#64748B]">{route.code || "No code"} - {route.zone || "Zone not set"} - {route.direction || "round trip"}</p>
-                  <p className="mt-2 text-xs font-bold text-[#64748B]">Vehicle: {route.vehicle || "Not assigned"}</p>
-                  <p className="mt-1 text-xs font-bold text-[#64748B]">Driver: {route.driver || "Not assigned"}</p>
-                  <p className="mt-1 text-xs font-bold text-[#64748B]">Stops: {route.pickup_points ?? 0} · Students assigned: {route.students_count ?? route.learner_count ?? 0}</p>
+                  <h3 className="font-black text-foreground">{route.route_name || route.name || "Transport route"}</h3>
+                  <p className="mt-1 text-sm font-semibold text-muted">{route.code || "No code"} - {route.zone || "Zone not set"} - {route.direction || "round trip"}</p>
+                  <p className="mt-2 text-xs font-bold text-muted">Vehicle: {route.vehicle || "Not assigned"}</p>
+                  <p className="mt-1 text-xs font-bold text-muted">Driver: {route.driver || "Not assigned"}</p>
+                  <p className="mt-1 text-xs font-bold text-muted">Stops: {route.pickup_points ?? 0} · Students assigned: {route.students_count ?? route.learner_count ?? 0}</p>
                 </div>
                 <StatusChip label={route.status || "active"} tone={toneFromStatus(route.status || "active")} />
               </div>
             </article>
           ))}
           {routeCards.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+            <div className="rounded-xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
               No routes have been configured yet. Use Create Route to add the first tenant-scoped transport route.
             </div>
           ) : null}
@@ -822,17 +822,17 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
       <Panel title="Route assignment details" description="Persisted vehicle, driver, stop, and student assignment counts for each route." icon={Map}>
         <div className="space-y-3">
           {routeCards.map((route: any) => (
-            <article key={`assignment-${route.id || route.route_name}`} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
+            <article key={`assignment-${route.id || route.route_name}`} className="rounded-xl border border-border bg-surface-muted p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-black text-[#071D49]">{route.route_name || "Transport route"}</h3>
-                  <p className="mt-1 text-sm font-semibold text-[#64748B]">{route.vehicle || "Vehicle not assigned"} · {route.driver || "Driver not assigned"}</p>
-                  <p className="mt-1 text-xs font-bold text-[#64748B]">{route.pickup_points ?? 0} stop(s) · {route.students_count ?? route.learner_count ?? 0} student(s)</p>
+                  <h3 className="font-black text-foreground">{route.route_name || "Transport route"}</h3>
+                  <p className="mt-1 text-sm font-semibold text-muted">{route.vehicle || "Vehicle not assigned"} · {route.driver || "Driver not assigned"}</p>
+                  <p className="mt-1 text-xs font-bold text-muted">{route.pickup_points ?? 0} stop(s) · {route.students_count ?? route.learner_count ?? 0} student(s)</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleRoutePlanningAction("Assign students")}
-                  className="rounded-xl bg-[#071D49] px-4 py-2 text-xs font-black text-white"
+                  className="rounded-xl bg-primary px-4 py-2 text-xs font-black text-white"
                 >
                   Assign students
                 </button>
@@ -840,7 +840,7 @@ function RoutesWorkspace({ onViewChange }: { onViewChange: (view: TransportView)
             </article>
           ))}
           {routeCards.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+            <div className="rounded-xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
               Route assignment details will appear after the first transport route is created.
             </div>
           ) : null}
@@ -892,13 +892,13 @@ function AssignRouteModal({ onClose, onAssigned }: { onClose: () => void; onAssi
     <Modal title="Assign Route & Vehicle" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         {setupMissing ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+          <div className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-amber-900">
             Add at least one active route and active learner before assigning transport.
           </div>
         ) : null}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Route</label>
-          <select required name="route_id" disabled={optionsLoading || routeOptions.length === 0} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="block text-sm font-bold text-foreground mb-1">Route</label>
+          <select required name="route_id" disabled={optionsLoading || routeOptions.length === 0} className="w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
             <option value="">{optionsLoading ? "Loading routes..." : "Select route"}</option>
             {routeOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
@@ -906,8 +906,8 @@ function AssignRouteModal({ onClose, onAssigned }: { onClose: () => void; onAssi
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Learner</label>
-          <select required name="student_id" disabled={optionsLoading || studentOptions.length === 0} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="block text-sm font-bold text-foreground mb-1">Learner</label>
+          <select required name="student_id" disabled={optionsLoading || studentOptions.length === 0} className="w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
             <option value="">{optionsLoading ? "Loading learners..." : "Select learner"}</option>
             {studentOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
@@ -915,8 +915,8 @@ function AssignRouteModal({ onClose, onAssigned }: { onClose: () => void; onAssi
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Pickup stop</label>
-          <select name="pickup_stop_id" disabled={optionsLoading} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="block text-sm font-bold text-foreground mb-1">Pickup stop</label>
+          <select name="pickup_stop_id" disabled={optionsLoading} className="w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
             <option value="">{optionsLoading ? "Loading stops..." : "Select pickup stop"}</option>
             {stopOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
@@ -924,8 +924,8 @@ function AssignRouteModal({ onClose, onAssigned }: { onClose: () => void; onAssi
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Drop-off stop</label>
-          <select name="dropoff_stop_id" disabled={optionsLoading} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="block text-sm font-bold text-foreground mb-1">Drop-off stop</label>
+          <select name="dropoff_stop_id" disabled={optionsLoading} className="w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
             <option value="">{optionsLoading ? "Loading stops..." : "Select drop-off stop"}</option>
             {stopOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
@@ -933,16 +933,16 @@ function AssignRouteModal({ onClose, onAssigned }: { onClose: () => void; onAssi
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Guardian Contact</label>
-          <input name="guardian_contact" type="tel" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Parent or guardian phone number" />
+          <label className="block text-sm font-bold text-foreground mb-1">Guardian Contact</label>
+          <input name="guardian_contact" type="tel" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Parent or guardian phone number" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Notes</label>
-          <textarea name="notes" rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Route, pickup instructions, or safety notes"></textarea>
+          <label className="block text-sm font-bold text-foreground mb-1">Notes</label>
+          <textarea name="notes" rows={3} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Route, pickup instructions, or safety notes"></textarea>
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting || setupMissing} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={submitting || setupMissing} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Saving..." : "Assign Transport"}
           </button>
         </div>
@@ -975,7 +975,7 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
           hasPermission('transport:write') ? (
             <Button onClick={() => setIsModalOpen(true)}>Assign Route</Button>
           ) : (
-            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+            <span className="text-xs font-bold text-muted">Restricted</span>
           )
         }
       >
@@ -984,7 +984,7 @@ function AllocationWorkspace({ onAction }: { onAction: TransportActionHandler })
       <Panel title="Student side panel" description="Transport history, attendance, parent contacts, route details, and payment history." icon={UserCheck}>
         <div className="space-y-3">
           {["Transport history", "Attendance", "Parent contacts", "Route details", "Payment history"].map((item) => (
-            <div key={item} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3 font-black text-[#071D49]">{item}</div>
+            <div key={item} className="rounded-xl border border-border bg-surface-muted p-3 font-black text-foreground">{item}</div>
           ))}
         </div>
       </Panel>
@@ -1028,7 +1028,7 @@ function DriversWorkspace() {
           </article>
         );})}
         {driverCards.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+          <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
             No drivers are registered yet. Add driver records before assigning routes.
           </div>
         ) : null}
@@ -1076,7 +1076,7 @@ function FuelWorkspace({ onAction }: { onAction: TransportActionHandler }) {
         {fuelLogRows.length > 0 ? (
           <DataTable title="Fuel log table" columns={["Vehicle", "Litres", "Cost", "Station / Reference", "Date", "Status"]} rows={fuelLogRows} onAction={onAction} />
         ) : (
-          <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+          <div className="rounded-xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
             No fuel records are logged. Record the first refill to create the tenant fuel ledger.
           </div>
         )}
@@ -1123,13 +1123,13 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
     <Modal title="Log Maintenance Issue" open={true} onClose={onClose} size="md">
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         {setupMissing ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+          <div className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm font-semibold text-amber-900">
             Add a fleet vehicle before logging maintenance.
           </div>
         ) : null}
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Vehicle</label>
-          <select required name="vehicle_id" disabled={optionsLoading || vehicleOptions.length === 0} className="w-full rounded-xl border border-[#D8E0EC] bg-white p-3 text-sm outline-none focus:border-[#071D49] disabled:bg-slate-100">
+          <label className="block text-sm font-bold text-foreground mb-1">Vehicle</label>
+          <select required name="vehicle_id" disabled={optionsLoading || vehicleOptions.length === 0} className="w-full rounded-xl border border-border bg-white p-3 text-sm outline-none focus:border-primary disabled:bg-slate-100">
             <option value="">{optionsLoading ? "Loading vehicles..." : "Select vehicle"}</option>
             {vehicleOptions.map((option) => (
               <option key={option.id} value={option.id}>{option.label}</option>
@@ -1137,12 +1137,12 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Issue Description</label>
-          <textarea required name="description" rows={3} className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="Describe the fault or service needed..."></textarea>
+          <label className="block text-sm font-bold text-foreground mb-1">Issue Description</label>
+          <textarea required name="description" rows={3} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Describe the fault or service needed..."></textarea>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Priority</label>
-          <select required name="priority" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]">
+          <label className="block text-sm font-bold text-foreground mb-1">Priority</label>
+          <select required name="priority" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
             <option value="low">Low (Routine)</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -1150,16 +1150,16 @@ function LogMaintenanceModal({ onClose }: { onClose: () => void }) {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Estimated Cost</label>
-          <input name="cost" type="number" min="0" step="0.01" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" placeholder="0.00" />
+          <label className="block text-sm font-bold text-foreground mb-1">Estimated Cost</label>
+          <input name="cost" type="number" min="0" step="0.01" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="0.00" />
         </div>
         <div>
-          <label className="block text-sm font-bold text-[#071D49] mb-1">Log Date</label>
-          <input name="log_date" type="date" className="w-full rounded-xl border border-[#D8E0EC] p-3 text-sm outline-none focus:border-[#071D49]" />
+          <label className="block text-sm font-bold text-foreground mb-1">Log Date</label>
+          <input name="log_date" type="date" className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" />
         </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-[#D8E0EC]">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]">Cancel</button>
-          <button disabled={submitting || setupMissing} type="submit" className="rounded-xl bg-[#071D49] px-6 py-2 text-sm font-black text-white disabled:opacity-60">
+        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
+          <button disabled={submitting || setupMissing} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white disabled:opacity-60">
             {submitting ? "Logging..." : "Log Issue"}
           </button>
         </div>
@@ -1198,7 +1198,7 @@ function MaintenanceWorkspace() {
           hasPermission('transport:write') ? (
             <Button onClick={() => setIsModalOpen(true)}>Log Maintenance</Button>
           ) : (
-            <span className="text-xs font-bold text-[#64748B]">Restricted</span>
+            <span className="text-xs font-bold text-muted">Restricted</span>
           )
         }
       >
@@ -1215,7 +1215,7 @@ function MaintenanceWorkspace() {
             </article>
           );})}
           {maintenanceLogs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+            <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
               No maintenance records are logged. Use Log Maintenance when a vehicle needs service or safety review.
             </div>
           ) : null}
@@ -1257,7 +1257,7 @@ function TripsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
       {tripRows.length > 0 ? (
         <DataTable title="Trip register" columns={["Vehicle", "Route", "Driver", "Status", "Departure", "Arrival", "Students"]} rows={tripRows} onAction={onAction} />
       ) : (
-        <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+        <div className="rounded-xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
           No transport trips have been recorded for this school.
         </div>
       )}
@@ -1308,7 +1308,7 @@ function GpsWorkspace() {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Panel title="GPS Tracking Center" description="Location tracking requires coordinates from a configured GPS provider; trip records alone do not prove a live position." icon={MapPin}>
-        <div className="min-h-[280px] rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 text-amber-950">
+        <div className="min-h-[280px] rounded-2xl border border-dashed border-amber-300 bg-warning-soft p-6 text-amber-950">
           <h3 className="font-black">GPS position feed unavailable</h3>
           <p className="mt-2 text-sm font-semibold leading-6">
             The current transport API provides trip status and assignments but no verified latitude, longitude, speed, or ETA. Map markers are withheld until a provider position record is available.
@@ -1321,18 +1321,18 @@ function GpsWorkspace() {
           {inProgressTrips.map((trip: any) => {
             const tone = toneFromStatus(trip.status || "in progress");
             return (
-            <div key={trip.id || trip.vehicle_id || trip.route_id} className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-3">
+            <div key={trip.id || trip.vehicle_id || trip.route_id} className="rounded-xl border border-border bg-surface-muted p-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-black text-[#071D49]">{trip.vehicle || "Vehicle not recorded"}</p>
-                  <p className="text-xs font-semibold text-[#64748B]">{trip.route || "Route not recorded"} - {trip.driver || "Driver not assigned"} - {trip.status || "Status not recorded"}</p>
+                  <p className="font-black text-foreground">{trip.vehicle || "Vehicle not recorded"}</p>
+                  <p className="text-xs font-semibold text-muted">{trip.route || "Route not recorded"} - {trip.driver || "Driver not assigned"} - {trip.status || "Status not recorded"}</p>
                 </div>
                 <StatusChip label={trip.status || "Status not recorded"} tone={tone} />
               </div>
             </div>
           );})}
           {inProgressTrips.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-3 text-sm font-semibold text-[#64748B]">
+            <div className="rounded-xl border border-dashed border-border bg-white p-3 text-sm font-semibold text-muted">
               No in-progress trip records are available.
             </div>
           ) : null}
@@ -1428,11 +1428,11 @@ function ComposeTransportNoticeModal({
     <Modal title="Send transport notice" open={true} onClose={onClose} size="lg">
       <form onSubmit={handleSendTransportNotice} className="space-y-4 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-bold text-[#071D49]">Title
-            <input name="title" required defaultValue={template} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" />
+          <label className="text-sm font-bold text-foreground">Title
+            <input name="title" required defaultValue={template} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm" />
           </label>
-          <label className="text-sm font-bold text-[#071D49]">Notice type
-            <select name="notice_type" defaultValue={template.toLowerCase().replace(/[^a-z0-9]+/g, "_")} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Notice type
+            <select name="notice_type" defaultValue={template.toLowerCase().replace(/[^a-z0-9]+/g, "_")} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm">
               <option value="bus_arriving">Bus arriving</option>
               <option value="bus_delayed">Bus delayed</option>
               <option value="emergency_alert">Emergency alert</option>
@@ -1441,11 +1441,11 @@ function ComposeTransportNoticeModal({
             </select>
           </label>
         </div>
-        <label className="block text-sm font-bold text-[#071D49]">Message
-          <textarea name="message" required rows={4} defaultValue={defaultMessage} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm" />
+        <label className="block text-sm font-bold text-foreground">Message
+          <textarea name="message" required rows={4} defaultValue={defaultMessage} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm" />
         </label>
-        <fieldset className="rounded-xl border border-[#D8E0EC] p-3">
-          <legend className="px-1 text-sm font-bold text-[#071D49]">Selected transport guardians</legend>
+        <fieldset className="rounded-xl border border-border p-3">
+          <legend className="px-1 text-sm font-bold text-foreground">Selected transport guardians</legend>
           {optionsQuery.error ? (
             <QueryStateCard
               isLoading={false}
@@ -1455,42 +1455,42 @@ function ComposeTransportNoticeModal({
             />
           ) : (
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <label className="text-sm font-semibold text-[#64748B]">Route
-                <select name="route_id" disabled={optionsQuery.isLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+              <label className="text-sm font-semibold text-muted">Route
+                <select name="route_id" disabled={optionsQuery.isLoading} className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm disabled:bg-slate-100">
                   <option value="">{optionsQuery.isLoading ? "Loading routes..." : "Select route (optional)"}</option>
                   {routeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
               </label>
-              <label className="text-sm font-semibold text-[#64748B]">Student
-                <select name="student_id" disabled={optionsQuery.isLoading} className="mt-1 w-full rounded-xl border border-[#D8E0EC] bg-white px-3 py-2 text-sm disabled:bg-slate-100">
+              <label className="text-sm font-semibold text-muted">Student
+                <select name="student_id" disabled={optionsQuery.isLoading} className="mt-1 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm disabled:bg-slate-100">
                   <option value="">{optionsQuery.isLoading ? "Loading students..." : "Select student (optional)"}</option>
                   {studentOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
               </label>
             </div>
           )}
-          <p className="mt-2 text-xs font-semibold text-[#64748B]">
+          <p className="mt-2 text-xs font-semibold text-muted">
             The backend resolves only active same-school transport assignments and their linked guardians. Selecting both fields limits the notice to that student on that route.
           </p>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
-          <fieldset className="rounded-xl border border-[#D8E0EC] p-3">
-            <legend className="px-1 text-sm font-bold text-[#071D49]">Channels</legend>
+          <fieldset className="rounded-xl border border-border p-3">
+            <legend className="px-1 text-sm font-bold text-foreground">Channels</legend>
             <div className="mt-2 space-y-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="in_app" defaultChecked /> In-app</label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-[#64748B]"><input type="checkbox" name="channels" value="sms" /> SMS queue</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-muted"><input type="checkbox" name="channels" value="in_app" defaultChecked /> In-app</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-muted"><input type="checkbox" name="channels" value="sms" /> SMS queue</label>
             </div>
           </fieldset>
-          <label className="text-sm font-bold text-[#071D49]">Priority
-            <select name="priority" defaultValue={template === "Emergency alert" ? "high" : "normal"} className="mt-1 w-full rounded-xl border border-[#D8E0EC] px-3 py-2 text-sm">
+          <label className="text-sm font-bold text-foreground">Priority
+            <select name="priority" defaultValue={template === "Emergency alert" ? "high" : "normal"} className="mt-1 w-full rounded-xl border border-border px-3 py-2 text-sm">
               <option value="normal">Normal</option>
               <option value="high">High</option>
             </select>
           </label>
         </div>
-        <div className="flex justify-end gap-2 border-t border-[#D8E0EC] pt-4">
-          <button type="button" className="rounded-xl px-4 py-2 text-sm font-bold text-[#64748B]" onClick={onClose} disabled={submitting}>Cancel</button>
-          <button type="submit" className="rounded-xl bg-[#071D49] px-5 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsQuery.isLoading || Boolean(optionsQuery.error)}>
+        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <button type="button" className="rounded-xl px-4 py-2 text-sm font-bold text-muted" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="submit" className="rounded-xl bg-primary px-5 py-2 text-sm font-black text-white disabled:opacity-60" disabled={submitting || optionsQuery.isLoading || Boolean(optionsQuery.error)}>
             {submitting ? "Queuing..." : "Queue Notice"}
           </button>
         </div>
@@ -1521,7 +1521,7 @@ function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler
                 key={template}
                 type="button"
                 onClick={() => setSelectedTemplate(template)}
-                className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left text-sm font-black text-[#071D49]"
+                className="rounded-xl border border-border bg-info-soft p-4 text-left text-sm font-black text-foreground"
               >
                 {template}
               </button>
@@ -1543,7 +1543,7 @@ function NotificationsWorkspace({ onAction }: { onAction: TransportActionHandler
                 onAction={onAction}
               />
             ) : (
-              <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+              <div className="rounded-xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
                 No transport notices have been queued. Choose a template, select a route or student, and queue the first guardian notice.
               </div>
             )}
@@ -1585,7 +1585,7 @@ function IncidentsWorkspace({ onAction }: { onAction: TransportActionHandler }) 
       ) : incidentRows.length > 0 ? (
         <DataTable title="Incident table" columns={["Date", "Vehicle", "Driver", "Type", "Severity", "Status"]} rows={incidentRows} onAction={onAction} />
       ) : (
-        <div className="rounded-xl border border-dashed border-[#D8E0EC] bg-white p-4 text-sm font-semibold text-[#64748B]">
+        <div className="rounded-xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-muted">
           No delay, incident, or transport alert records exist for this school.
         </div>
       )}
@@ -1631,8 +1631,8 @@ function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
   return (
     <Panel title="Reports & Analytics" description="Fleet utilization, fuel costs, route efficiency, student transport usage, incident trends, and maintenance costs." icon={ClipboardList}>
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <p className="text-sm font-black text-[#071D49]">Filters</p>
+        <div className="rounded-2xl border border-border bg-surface-muted p-4">
+          <p className="text-sm font-black text-foreground">Filters</p>
           <div className="mt-3 grid gap-2">
             {["Date range", "Vehicle", "Route", "Driver", "Export PDF / Excel / CSV"].map((filter) => (
               <button
@@ -1642,15 +1642,15 @@ function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
                 className={cn(
                   "rounded-xl border px-4 py-3 text-left text-sm font-black",
                   activeReportFilter === filter
-                    ? "border-[#071D49] bg-[#EEF5FF] text-[#071D49]"
-                    : "border-[#D8E0EC] bg-white text-[#071D49]",
+                    ? "border-primary bg-info-soft text-foreground"
+                    : "border-border bg-white text-foreground",
                 )}
               >
                 {filter}
               </button>
             ))}
           </div>
-          <p className="mt-3 rounded-xl border border-[#D8E0EC] bg-white px-4 py-3 text-xs font-bold text-[#64748B]">
+          <p className="mt-3 rounded-xl border border-border bg-white px-4 py-3 text-xs font-bold text-muted">
             Active filter: {activeReportFilter}. Generated reports include this filter in the report title for audit clarity.
           </p>
         </div>
@@ -1660,10 +1660,10 @@ function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
               key={report.id || report.snapshot_id || report.title}
               type="button"
               onClick={() => onAction(`${report.title || "Transport report"} opened from report snapshots.`, { kind: "workflow" })}
-              className="rounded-xl border border-[#D8E0EC] bg-white p-4 text-left font-black text-[#071D49] transition hover:border-[#071D49]"
+              className="rounded-xl border border-border bg-white p-4 text-left font-black text-foreground transition hover:border-primary"
             >
               {report.title || "Transport report"}
-              <span className="mt-1 block text-xs font-semibold text-[#64748B]">{report.status || report.format || "Snapshot"}</span>
+              <span className="mt-1 block text-xs font-semibold text-muted">{report.status || report.format || "Snapshot"}</span>
             </button>
           ))}
           {["Fleet utilization", "Fuel costs", "Route efficiency", "Student transport usage", "Incident trends", "Maintenance costs"].map((report) => (
@@ -1671,7 +1671,7 @@ function ReportsWorkspace({ onAction }: { onAction: TransportActionHandler }) {
               key={report}
               type="button"
               onClick={() => onAction(`${report} report generated and added to downloads.`, { kind: "report", title: `${report} - ${activeReportFilter}` })}
-              className="rounded-xl border border-[#D8E0EC] bg-[#EEF5FF] p-4 text-left font-black text-[#071D49] transition hover:border-[#071D49]"
+              className="rounded-xl border border-border bg-info-soft p-4 text-left font-black text-foreground transition hover:border-primary"
             >
               {report}
             </button>
@@ -1687,9 +1687,9 @@ function SettingsWorkspace() {
     <Panel title="Settings" description="Transport policies, GPS integration, SMS settings, route timing defaults, fuel thresholds, and notification preferences." icon={Settings}>
       <div className="grid gap-3 md:grid-cols-3">
         {["Transport policies", "GPS integration", "SMS settings", "Route timing defaults", "Fuel thresholds", "Notification preferences"].map((item) => (
-          <div key={item} className="rounded-2xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-            <p className="font-black text-[#071D49]">{item}</p>
-            <p className="mt-2 text-sm leading-6 text-[#64748B]">Configured with audit-ready defaults and role-based approvals.</p>
+          <div key={item} className="rounded-2xl border border-border bg-surface-muted p-4">
+            <p className="font-black text-foreground">{item}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">Configured with audit-ready defaults and role-based approvals.</p>
           </div>
         ))}
       </div>
@@ -1787,10 +1787,10 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
   }
 
   return (
-    <div data-route-mode={routeMode} className="authenticated-app app-transport-shell h-dvh overflow-hidden bg-[#F3F6FA] text-[#071D49]">
+    <div data-route-mode={routeMode} className="authenticated-app app-transport-shell h-dvh overflow-hidden bg-background text-foreground">
       <div className="app-transport-grid grid h-full gap-4 p-3 lg:grid-cols-[292px_minmax(0,1fr)]">
         <Sidebar activeView={activeView} onViewChange={openView} />
-        <div className="app-transport-main flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#D8E0EC] bg-[#F3F6FA] shadow-[0_20px_70px_rgba(7,29,73,0.1)]">
+        <div className="app-transport-main flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-[0_20px_70px_rgba(7,29,73,0.1)]">
           <Topbar
             activeView={activeView}
             searchTerm={searchTerm}
@@ -1802,7 +1802,7 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
           <main className="app-content min-h-0 flex-1 overflow-y-auto p-4">
             <div className="space-y-4">
               <IntegratedSchoolCommandHeader roleTitle="Transport Manager Dashboard" fallbackUserLabel="Transport Manager" />
-              <div role="status" className="rounded-xl border border-[#BFDBFE] bg-[#EEF5FF] px-4 py-3 text-sm font-bold text-[#071D49]">
+              <div role="status" className="rounded-xl border border-info-border bg-info-soft px-4 py-3 text-sm font-bold text-foreground">
                 {notice}
               </div>
               <ActiveWorkspace activeView={activeView} onViewChange={openView} onAction={recordTransportAction} />

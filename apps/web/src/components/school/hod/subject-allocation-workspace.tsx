@@ -139,10 +139,10 @@ export function SubjectAllocationWorkspace() {
 
   return (
     <Panel title="Subject Allocation" description="Allocate subjects and classes to department teachers." icon={LayoutGrid}>
-      <form onSubmit={handleSubmit} className="mb-6 grid gap-3 rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-sm font-bold text-[#071D49]">
+      <form onSubmit={handleSubmit} className="mb-6 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-4">
+        <label className="text-sm font-bold text-foreground">
           Teacher
-          <select name="teacher_id" disabled={optionsLoading} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+          <select name="teacher_id" disabled={optionsLoading} className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info disabled:bg-white/70 disabled:text-muted">
             <option value="">{optionsLoading ? "Loading teachers..." : "Leave unassigned for now"}</option>
             {teachers.map((teacher) => (
               <option key={teacher.id} value={teacher.id}>
@@ -151,9 +151,9 @@ export function SubjectAllocationWorkspace() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Subject
-          <select name="subject_id" required disabled={optionsLoading || subjects.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+          <select name="subject_id" required disabled={optionsLoading || subjects.length === 0} className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info disabled:bg-white/70 disabled:text-muted">
             <option value="">{optionsLoading ? "Loading subjects..." : "Select subject"}</option>
             {subjects.map((subject) => (
               <option key={subject.id} value={subject.id}>
@@ -162,9 +162,9 @@ export function SubjectAllocationWorkspace() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Class section
-          <select name="class_section_id" required value={classId} onChange={event=>setClassId(event.target.value)} disabled={optionsLoading || classes.length === 0} className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE] disabled:bg-white/70 disabled:text-[#94A3B8]">
+          <select name="class_section_id" required value={classId} onChange={event=>setClassId(event.target.value)} disabled={optionsLoading || classes.length === 0} className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info disabled:bg-white/70 disabled:text-muted">
             <option value="">{optionsLoading ? "Loading classes..." : "Select class section"}</option>
             {classes.map((classSection) => (
               <option key={classSection.id} value={classSection.id}>
@@ -174,48 +174,48 @@ export function SubjectAllocationWorkspace() {
           </select>
         </label>
 
-        <label className="text-sm font-bold text-[#071D49]">
+        <label className="text-sm font-bold text-foreground">
           Lessons per week
-          <input name="lessons_per_week" type="number" min="1" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="5" />
+          <input name="lessons_per_week" type="number" min="1" className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info" placeholder="5" />
         </label>
-        <label className="text-sm font-bold text-[#071D49]">Stream
-          <select key={classId} name="stream_id" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2">
+        <label className="text-sm font-bold text-foreground">Stream
+          <select key={classId} name="stream_id" className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2">
             <option value="">{streams.length ? "All current streams" : "No stream required"}</option>
             {streams.map(stream=><option key={stream.id} value={stream.id}>{stream.label}</option>)}
           </select>
         </label>
-        <label className="text-sm font-bold text-[#071D49] xl:col-span-2">
+        <label className="text-sm font-bold text-foreground xl:col-span-2">
           Notes
-          <input name="notes" className="mt-1 w-full rounded-xl border border-[#C7D4E6] bg-white px-3 py-2 font-semibold outline-none focus:border-[#0B63CE]" placeholder="Allocation context or constraints" />
+          <input name="notes" className="mt-1 w-full rounded-xl border border-border-strong bg-white px-3 py-2 font-semibold outline-none focus:border-info" placeholder="Allocation context or constraints" />
         </label>
         <div className="flex items-end">
-          <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-[#071D49] px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-50">
+          <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-white shadow-sm disabled:opacity-50">
             {isSubmitting ? "Saving..." : "Save allocation"}
           </button>
         </div>
         {!optionsLoading && (subjects.length === 0 || classes.length === 0) ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800 md:col-span-2 xl:col-span-4">
+          <div className="rounded-xl border border-warning-border bg-warning-soft p-3 text-sm font-bold text-warning md:col-span-2 xl:col-span-4">
             Configure at least one active subject and class section before HOD subject allocation can be saved.
           </div>
         ) : null}
       </form>
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Allocated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "allocated")}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Allocated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : metricFromData(data, "allocated")}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Unallocated</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "unallocated")}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Unallocated</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : metricFromData(data, "unallocated")}</div>
         </div>
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Total Slots</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : metricFromData(data, "total_slots", items.length)}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Total Slots</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : metricFromData(data, "total_slots", items.length)}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Subject</th>
               <th className="px-4 py-3 font-bold">Class</th>
@@ -227,19 +227,19 @@ export function SubjectAllocationWorkspace() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No subject allocations yet. Use the form above to assign a subject to a class and teacher.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No subject allocations yet. Use the form above to assign a subject to a class and teacher.</td></tr>
             ) : (
               items.map(row => (
-                <tr key={row.id ?? `${fieldValue(row, ["subject", "subject_id"])}-${fieldValue(row, ["class", "class_section_id"])}`} className="border-t border-[#D8E0EC] hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["subject", "subject_name", "subject_id"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["class", "class_name", "class_section", "class_section_id"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["teacher", "teacher_name", "staff_member", "teacher_id", "staff_member_id"])}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{fieldValue(row, ["lessons_per_week", "weekly_lessons"], "0")}</td>
+                <tr key={row.id ?? `${fieldValue(row, ["subject", "subject_id"])}-${fieldValue(row, ["class", "class_section_id"])}`} className="border-t border-border hover:bg-surface-muted">
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["subject", "subject_name", "subject_id"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["class", "class_name", "class_section", "class_section_id"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["teacher", "teacher_name", "staff_member", "teacher_id", "staff_member_id"])}</td>
+                  <td className="px-4 py-3 text-muted">{fieldValue(row, ["lessons_per_week", "weekly_lessons"], "0")}</td>
                   <td className="px-4 py-3"><StatusChip label={fieldValue(row, ["status"], "Active")} tone={getStatusTone(fieldValue(row, ["status"], "Active"))} /></td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => handleRevokeSubjectAllocation(row)} disabled={isSubmitting} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 disabled:opacity-50">
+                    <button type="button" onClick={() => handleRevokeSubjectAllocation(row)} disabled={isSubmitting} className="rounded-lg border border-danger-border bg-danger-soft px-3 py-1.5 text-xs font-black text-danger disabled:opacity-50">
                       Revoke
                     </button>
                   </td>

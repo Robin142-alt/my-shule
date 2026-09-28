@@ -50,31 +50,31 @@ export function AcademicsWorkspace() {
         <MetricCard label="Underperforming" value={isLoading ? "…" : data?.metrics?.underperforming_subjects ?? 0} icon={AlertTriangle} tone={(data?.metrics?.underperforming_subjects ?? 0) > 0 ? "danger" : "success"} />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Department</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">HOD</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Avg Score</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Subjects</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Teachers</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Department</th>
+              <th className="px-4 py-3 font-bold border-b border-border">HOD</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Avg Score</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Subjects</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Teachers</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">Loading academic data…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading academic data…</td></tr>
             ) : departments.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No departments configured yet. Set up departments in Subjects & Departments first.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No departments configured yet. Set up departments in Subjects & Departments first.</td></tr>
             ) : (
               departments.map((dept) => (
-                <tr key={dept.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{dept.department}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{dept.hod || "—"}</td>
+                <tr key={dept.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{dept.department}</td>
+                  <td className="px-4 py-3 text-muted">{dept.hod || "—"}</td>
                   <td className="px-4 py-3 font-bold" style={{ color: dept.avg_score >= 70 ? "#059669" : dept.avg_score >= 50 ? "#D97706" : "#DC2626" }}>{dept.avg_score}%</td>
-                  <td className="px-4 py-3 text-[#64748B]">{dept.subjects_count}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{dept.teachers_count}</td>
+                  <td className="px-4 py-3 text-muted">{dept.subjects_count}</td>
+                  <td className="px-4 py-3 text-muted">{dept.teachers_count}</td>
                   <td className="px-4 py-3"><StatusChip label={dept.status} tone={getStatusTone(dept.status)} /></td>
                 </tr>
               ))

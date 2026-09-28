@@ -202,7 +202,7 @@ export function FeesWorkspace() {
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">
+        <div className="rounded-lg border border-danger-border bg-danger-soft p-4 text-sm font-semibold text-danger">
           Fee records could not be loaded: {error.message}
         </div>
       ) : null}
@@ -319,7 +319,7 @@ export function FeesWorkspace() {
                         </div>
                         <div>
                           <dt className="text-xs text-slate-500">Amount</dt>
-                          <dd className="mt-0.5 font-semibold text-emerald-700">{formatMoney(transaction.amount_minor)}</dd>
+                          <dd className="mt-0.5 font-semibold text-success">{formatMoney(transaction.amount_minor)}</dd>
                         </div>
                         <div className="min-w-0 sm:col-span-2">
                           <dt className="text-xs text-slate-500">Receipt</dt>
@@ -380,7 +380,7 @@ export function FeesWorkspace() {
                           <td className="px-4 py-3 text-slate-500">
                             {transaction.receipt_number || transaction.id}
                           </td>
-                          <td className="px-4 py-3 text-right font-medium text-emerald-700">
+                          <td className="px-4 py-3 text-right font-medium text-success">
                             {formatMoney(transaction.amount_minor)}
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -450,7 +450,7 @@ export function FeesWorkspace() {
             />
           </label>
           {paymentError ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <div className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
               {paymentError}
             </div>
           ) : null}
@@ -467,7 +467,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ${
-        positive ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+        positive ? "bg-success-soft text-success" : "bg-warning-soft text-warning"
       }`}
     >
       {positive

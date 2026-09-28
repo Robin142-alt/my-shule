@@ -97,39 +97,39 @@ export function DeputyDisciplineWorkspace() {
 
   return (
     <Panel title="Discipline & Behaviour" description="Student behaviour incidents, investigations, and escalations." icon={ShieldAlert} actions={
-      <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
+      <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">
         <PlusCircle className="w-4 h-4" /> Log Incident
       </button>
     }>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
-          <input type="text" placeholder="Search case no, student..." className="w-full rounded-xl border border-[#D8E0EC] py-2 pl-9 pr-3 text-sm focus:border-[#071D49] focus:outline-none" />
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
+          <input type="text" placeholder="Search case no, student..." className="w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm focus:border-primary focus:outline-none" />
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Case No.</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Incident</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Severity</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Case No.</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Incident</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Severity</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {incidents.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[#64748B]">No recent discipline cases found.</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">No recent discipline cases found.</td>
               </tr>
             ) : (
               incidents.map((inc) => (
-                <tr key={inc.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{inc.caseNo}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{inc.studentName}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{inc.incidentType}</td>
+                <tr key={inc.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{inc.caseNo}</td>
+                  <td className="px-4 py-3 text-muted">{inc.studentName}</td>
+                  <td className="px-4 py-3 text-muted">{inc.incidentType}</td>
                   <td className="px-4 py-3"><StatusChip label={inc.severity} tone={getTone(inc.severity)} /></td>
                   <td className="px-4 py-3"><StatusChip label={inc.status} tone={getStatusTone(inc.status)} /></td>
                   <td className="px-4 py-3 text-right">
@@ -147,7 +147,7 @@ export function DeputyDisciplineWorkspace() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log New Incident" footer={
         <>
-          <button disabled={isSubmittingCreate} onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button disabled={isSubmittingCreate} onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:bg-slate-100">Cancel</button>
           <button disabled={isSubmittingCreate || !formData.studentName} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
             {isSubmittingCreate ? "Saving..." : "Save Incident"}
           </button>
@@ -155,16 +155,16 @@ export function DeputyDisciplineWorkspace() {
       }>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-bold text-[#334155]">Student Name</label>
-            <input value={formData.studentName} onChange={(e) => setFormData({...formData, studentName: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="text-sm font-bold text-foreground">Student Name</label>
+            <input value={formData.studentName} onChange={(e) => setFormData({...formData, studentName: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="text-sm font-bold text-[#334155]">Incident Details</label>
-            <input value={formData.incidentType} onChange={(e) => setFormData({...formData, incidentType: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="text-sm font-bold text-foreground">Incident Details</label>
+            <input value={formData.incidentType} onChange={(e) => setFormData({...formData, incidentType: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="text-sm font-bold text-[#334155]">Severity</label>
-            <select value={formData.severity} onChange={(e) => setFormData({...formData, severity: e.target.value as DisciplineIncident["severity"]})} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
+            <label className="text-sm font-bold text-foreground">Severity</label>
+            <select value={formData.severity} onChange={(e) => setFormData({...formData, severity: e.target.value as DisciplineIncident["severity"]})} className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none">
               <option>Low</option>
               <option>Medium</option>
               <option>High</option>

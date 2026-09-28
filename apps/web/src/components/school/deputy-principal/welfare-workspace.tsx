@@ -68,36 +68,36 @@ export function DeputyWelfareWorkspace() {
 
   return (
     <Panel title="Student Welfare" description="Non-punitive student support, counselling, and general welfare." icon={Stethoscope} actions={
-      <button onClick={() => setShowModal(true)} className="rounded-lg bg-[#071D49] px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Welfare Case</button>
+      <button onClick={() => setShowModal(true)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 transition">Create Welfare Case</button>
     }>
       <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-[#D8E0EC] bg-[#F8FAFC] p-4">
-          <div className="text-sm font-semibold text-[#64748B]">Clinic Visits Today</div>
-          <div className="mt-1 text-lg font-black text-[#071D49]">{isLoading ? "..." : data?.metrics?.clinic_visits_today || 0}</div>
+        <div className="rounded-xl border border-border bg-surface-muted p-4">
+          <div className="text-sm font-semibold text-muted">Clinic Visits Today</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.clinic_visits_today || 0}</div>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#D8E0EC]">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-[#F8FAFC] text-[#071D49]">
+          <thead className="bg-surface-muted text-foreground">
             <tr>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Student</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Concern</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Assigned To</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC]">Status</th>
-              <th className="px-4 py-3 font-bold border-b border-[#D8E0EC] text-right">Actions</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Student</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Concern</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Assigned To</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Status</th>
+              <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#D8E0EC]">
+          <tbody className="divide-y divide-border">
             {cases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[#64748B]">No recent welfare cases found.</td>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">No recent welfare cases found.</td>
               </tr>
             ) : (
               cases.map((wc) => (
-                <tr key={wc.id} className="hover:bg-[#F8FAFC]">
-                  <td className="px-4 py-3 font-semibold text-[#071D49]">{wc.studentName}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{wc.concern}</td>
-                  <td className="px-4 py-3 text-[#64748B]">{wc.assignedTo}</td>
+                <tr key={wc.id} className="hover:bg-surface-muted">
+                  <td className="px-4 py-3 font-semibold text-foreground">{wc.studentName}</td>
+                  <td className="px-4 py-3 text-muted">{wc.concern}</td>
+                  <td className="px-4 py-3 text-muted">{wc.assignedTo}</td>
                   <td className="px-4 py-3"><StatusChip label={wc.status} tone={getStatusTone(wc.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     {wc.status === "Referred" && (
@@ -113,7 +113,7 @@ export function DeputyWelfareWorkspace() {
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Log New Welfare Case" footer={
         <>
-          <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-[#64748B] hover:bg-slate-100">Cancel</button>
+          <button onClick={() => setShowModal(false)} className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:bg-slate-100">Cancel</button>
           <button disabled={!formData.studentName || createMutation.isPending} onClick={handleCreate} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-black text-white hover:bg-rose-700 disabled:opacity-50">
             {createMutation.isPending ? "Saving..." : "Save Case"}
           </button>
@@ -121,16 +121,16 @@ export function DeputyWelfareWorkspace() {
       }>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-bold text-[#334155]">Student Name</label>
-            <input value={formData.studentName} onChange={(e) => setFormData({...formData, studentName: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="text-sm font-bold text-foreground">Student Name</label>
+            <input value={formData.studentName} onChange={(e) => setFormData({...formData, studentName: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="text-sm font-bold text-[#334155]">Welfare Concern</label>
-            <input value={formData.concern} onChange={(e) => setFormData({...formData, concern: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="text-sm font-bold text-foreground">Welfare Concern</label>
+            <input value={formData.concern} onChange={(e) => setFormData({...formData, concern: e.target.value})} type="text" className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="text-sm font-bold text-[#334155]">Assign To</label>
-            <select value={formData.assignedTo} onChange={(e) => setFormData({...formData, assignedTo: e.target.value})} className="mt-1 w-full rounded-xl border border-[#D8E0EC] p-2 text-sm focus:border-blue-500 focus:outline-none">
+            <label className="text-sm font-bold text-foreground">Assign To</label>
+            <select value={formData.assignedTo} onChange={(e) => setFormData({...formData, assignedTo: e.target.value})} className="mt-1 w-full rounded-xl border border-border p-2 text-sm focus:border-blue-500 focus:outline-none">
               <option>School Counsellor</option>
               <option>Class Teacher</option>
               <option>Nurse</option>

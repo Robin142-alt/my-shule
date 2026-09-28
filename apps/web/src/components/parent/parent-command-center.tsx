@@ -14,7 +14,7 @@ function Panel({ title, description, children, actions }: { title: string; descr
     <div className="rounded-xl border bg-white shadow-sm overflow-hidden mb-6">
       <div className="border-b bg-gray-50/50 p-4 flex justify-between items-start">
         <div>
-          <h2 className="text-lg font-semibold text-[#071D49]">{title}</h2>
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
           {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
         </div>
         {actions && <div>{actions}</div>}
@@ -30,11 +30,11 @@ function ParentOverviewWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="Dashboard Overview" description="Recent activities and alerts for your children.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading overview...</p>
+            <p className="text-muted text-sm">Loading overview...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.activities?.length ? "Activities found." : "No recent activities found."}
             </p>
           )}
@@ -50,11 +50,11 @@ function ParentAcademicsWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="Academics & Performance" description="Track grades, assignments, and exam results.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading academics...</p>
+            <p className="text-muted text-sm">Loading academics...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.grades?.length ? "Academic records found." : "No academic records found."}
             </p>
           )}
@@ -70,11 +70,11 @@ function ParentFinanceWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="Fees & Payments" description="View fee statements, invoices, and payment history.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading finances...</p>
+            <p className="text-muted text-sm">Loading finances...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.invoices?.length ? "Finance records found." : "No fee records found."}
             </p>
           )}
@@ -90,11 +90,11 @@ function ParentCommunicationWorkspace() {
   return (
     <div className="space-y-6 max-w-5xl">
       <Panel title="Messages & Notices" description="Communication from the school.">
-        <div className="rounded-2xl border border-[#D8E0EC] bg-white p-6 shadow-sm text-center">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm text-center">
           {isLoading ? (
-            <p className="text-[#64748B] text-sm">Loading communications...</p>
+            <p className="text-muted text-sm">Loading communications...</p>
           ) : (
-            <p className="text-[#64748B] text-sm">
+            <p className="text-muted text-sm">
               {data?.messages?.length ? "Messages found." : "No messages available."}
             </p>
           )}
@@ -119,11 +119,11 @@ export function ParentCommandCenter() {
   const [activeView, setActiveView] = useState("overview");
 
   return (
-    <div className="flex min-h-screen bg-[#F3F6FA]">
+    <div className="authenticated-app flex min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-[#071D49] p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
+      <aside className="hidden h-screen w-[260px] overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block shrink-0">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-6">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-[#f97316]/90">MyShule</p>
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-inverse-accent">MyShule</p>
           <h2 className="mt-2 text-xl font-black">Parent Portal</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">Stay connected.</p>
         </div>
@@ -151,13 +151,13 @@ export function ParentCommandCenter() {
       {/* Main Area */}
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden pb-[60px] lg:pb-0">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-[#D8E0EC] bg-white/90 px-4 py-3 backdrop-blur shrink-0">
+        <header className="sticky top-0 z-20 border-b border-border bg-white/90 px-4 py-3 backdrop-blur shrink-0">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#071D49] text-xs font-black text-white">SP</div>
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-xs font-black text-white">SP</div>
               <div>
-                <h1 className="text-lg font-black text-[#071D49]">Shule Platform</h1>
-                <p className="text-xs font-bold text-[#64748B]">Parent Access</p>
+                <h1 className="text-lg font-black text-foreground">Shule Platform</h1>
+                <p className="text-xs font-bold text-muted">Parent Access</p>
               </div>
             </div>
           </div>
@@ -173,7 +173,7 @@ export function ParentCommandCenter() {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#D8E0EC] bg-white lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white lg:hidden">
         <div className="flex justify-around items-center px-2 py-2">
           {navItems.map(item => {
             const isActive = activeView === item.id;
@@ -182,8 +182,8 @@ export function ParentCommandCenter() {
                 key={item.id} 
                 onClick={() => setActiveView(item.id)}
                 className={cn(
-                  "flex flex-col items-center gap-1 p-2 rounded-xl text-[#64748B]",
-                  isActive && "text-[#f97316]"
+                  "flex flex-col items-center gap-1 p-2 rounded-xl text-muted",
+                  isActive && "bg-accent-soft text-accent"
                 )}
               >
                 <item.icon className="h-5 w-5" />
