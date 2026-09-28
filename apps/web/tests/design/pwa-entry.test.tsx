@@ -72,7 +72,7 @@ describe("installed MyShule app entry", () => {
       expect(routerReplaceMock).toHaveBeenCalledWith("/school/teacher"),
     );
     expect(screen.getByTestId("installed-app-splash")).toHaveTextContent(
-      "Opening your dashboard",
+      "Getting your workspace ready",
     );
   });
 

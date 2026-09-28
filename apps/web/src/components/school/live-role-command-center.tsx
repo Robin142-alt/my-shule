@@ -132,19 +132,8 @@ import { toPortalPath, type PortalSection } from "@/lib/routing/experience-route
 
 import { buildSchoolSectionHref, type SchoolRouteMode } from "./school-pages";
 
-type LiveSchoolRole =
-  | "secretary"
-  | "librarian"
-  | "storekeeper"
-  | "nurse"
-  | "guidance-counselling"
-  | "discipline-master"
-  | "laboratory-technician"
-  | "ict-manager"
-  | "security-officer"
-  | "transport-manager"
-  | "boarding-master"
-  | "student";
+import type { LiveSchoolRole } from "@/lib/routing/live-school-roles";
+export { isLiveRoleCommandCenterRole } from "@/lib/routing/live-school-roles";
 
 type LiveRole = LiveSchoolRole | PortalViewer;
 
@@ -449,10 +438,6 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
     },
   },
 };
-
-export function isLiveRoleCommandCenterRole(role: SchoolExperienceRole): role is LiveSchoolRole {
-  return Object.prototype.hasOwnProperty.call(LIVE_ROLE_CONFIG, role);
-}
 
 function buildPortalCommandSectionHref(
   viewer: PortalViewer,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Loader2 } from "lucide-react";
+import { WorkspaceLoading } from "@/components/shared/workspace-loading";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthCard } from "@/components/auth/auth-card";
 import { useSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
@@ -15,6 +15,7 @@ export function SchoolDashboardSessionGate({
   const state = useSchoolDashboardRole();
   if (!state.liveDataEnabled || state.authenticatedSession) return children;
   const pending = state.isLoading;
+  if (pending) return <WorkspaceLoading />;
   const error =
     state.error ??
     (!pending
@@ -24,18 +25,8 @@ export function SchoolDashboardSessionGate({
     <AuthShell>
       <AuthCard>
         <div className="space-y-5">
-          <div role={error ? "alert" : "status"}>
-            {pending ? (
-              <Loader2
-                className="h-5 w-5 animate-spin text-accent"
-                aria-hidden="true"
-              />
-            ) : null}
-            <h1 className="mt-3">
-              {error
-                ? "Let’s get you signed in"
-                : "Checking your session…"}
-            </h1>
+          <div role="alert">
+            <h1 className="mt-3">Let’s get you signed in</h1>
             {error ? <p className="mt-2 text-sm text-muted">{error}</p> : null}
           </div>
           {error ? (

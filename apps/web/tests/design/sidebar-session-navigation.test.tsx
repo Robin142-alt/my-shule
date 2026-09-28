@@ -53,6 +53,7 @@ test("sidebar route remounts reuse one verified session without the authenticati
     view.rerender(workspace(section));
     expect(screen.getByText(`${section} workspace`)).toBeVisible();
     expect(screen.queryByText("Checking your session…")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-loading")).not.toBeInTheDocument();
   }
   expect(fetch).toHaveBeenCalledTimes(1);
 });

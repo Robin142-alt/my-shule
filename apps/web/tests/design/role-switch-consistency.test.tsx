@@ -117,6 +117,21 @@ describe("role switch consistency", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  test("pending verification shows the workspace loader without mounting protected content", async () => {
+    const pending = deferred<Response>();
+    jest.mocked(fetch).mockReturnValue(pending.promise);
+    render(<SchoolDashboardRoleProvider initialRole="teacher" tenantSlug="school-a" routeMode="public">
+      <SchoolDashboardSessionGate><p>Protected teacher workspace</p></SchoolDashboardSessionGate>
+    </SchoolDashboardRoleProvider>, { wrapper });
+    expect(screen.getByRole("status", { name: "Loading MyShule" })).toBeVisible();
+    expect(screen.queryByText(/Checking your session|Opening your authorized dashboard/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Protected teacher workspace")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => { pending.resolve(response(payload("teacher"))); });
+    expect(await screen.findByText("Protected teacher workspace")).toBeVisible();
+    expect(screen.queryByTestId("workspace-loading")).not.toBeInTheDocument();
+  });
+
   test("retry after an authentication outage restores identity, tenant and dashboard access", async () => {
     jest.mocked(fetch)
       .mockResolvedValueOnce(response({ message: "Authentication service is temporarily unavailable." }, 503))

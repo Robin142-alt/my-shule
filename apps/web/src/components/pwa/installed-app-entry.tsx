@@ -2,31 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthCard } from "@/components/auth/auth-card";
+import { WorkspaceLoading } from "@/components/shared/workspace-loading";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import { useExperienceSession } from "@/lib/auth/use-experience-session";
 
-export function InstalledAppSplash({
-  message = "Checking your session…",
-}: {
-  message?: string;
-}) {
+export function InstalledAppSplash() {
   return (
-    <AuthShell>
-      <AuthCard>
-        <div
-          className="flex items-center gap-3 text-sm text-muted"
-          role="status"
-          data-testid="installed-app-splash"
-        >
-          <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
-          {message}
-        </div>
-      </AuthCard>
-    </AuthShell>
+    <div data-testid="installed-app-splash"><WorkspaceLoading /></div>
   );
 }
 
@@ -87,15 +72,7 @@ function SessionAwareAppEntry({
       router.replace(authSession.session.homePath);
   }, [authSession.session?.homePath, router]);
   if (authSession.isLoading || authSession.session) {
-    return (
-      <InstalledAppSplash
-        message={
-          authSession.session
-            ? "Opening your dashboard"
-            : "Checking your session…"
-        }
-      />
-    );
+    return <InstalledAppSplash />;
   }
   if (
     authSession.errorStatus === 401 ||

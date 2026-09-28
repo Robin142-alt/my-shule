@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { WorkspaceLoading } from "@/components/shared/workspace-loading";
 import { useRouter } from "next/navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
 import { StudentStatusBadge } from "@/components/modules/students/lifecycle/StudentStatusBadge";
@@ -24,25 +26,9 @@ import { VisitorManagementModuleScreen } from "@/components/modules/visitors/vis
 import { MPesaReconciliationWorkspace } from "@/components/school/accountant/m-pesa-reconciliation-workspace";
 import { ErpShell } from "@/components/school/erp-shell";
 import { buttonClasses } from "@/components/ui/button";
-import { DeanAcademicsCommandCenter } from "@/components/school/dean-academics-command-center";
 import { DeanModuleScreen } from "@/components/modules/dean/dean-module-screen";
-import { DeputyPrincipalCommandCenter } from "@/components/school/deputy-principal-command-center";
-import { PrincipalCommandCenter } from "@/components/school/principal-command-center";
-import { AccountantCommandCenter } from "@/components/school/accountant-command-center";
-import { ExamsManagerCommandCenter } from "@/components/school/exams-manager-command-center";
-import { GradeMasterCommandCenter } from "@/components/school/grade-master-command-center";
-import { HosCommandCenter } from "@/components/school/hos-command-center";
-import { HodCommandCenter } from "@/components/school/hod-command-center";
-import {
-  isLiveRoleCommandCenterRole,
-  LiveRoleCommandCenter,
-} from "@/components/school/live-role-command-center";
+import { isLiveRoleCommandCenterRole } from "@/lib/routing/live-school-roles";
 import { OperationalBlueprintWorkspace } from "@/components/school/operational-blueprint-workspace";
-import { RoleOperationalCommandCenter } from "@/components/school/role-operational-command-center";
-import { TeacherCommandCenter } from "@/components/school/teacher-command-center";
-import { ProcurementOfficerCommandCenter } from "@/components/school/procurement-officer-command-center";
-import { ClassTeacherCommandCenter } from "@/components/school/class-teacher-command-center";
-import { AdmissionsDashboardCommandCenter } from "@/components/school/admissions-dashboard/admissions-dashboard-command-center";
 import { SchoolCommandIdentityProvider } from "@/components/school/integrated-school-command-header";
 import { UserManagementPanel } from "@/components/school/user-management-panel";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
@@ -97,6 +83,23 @@ import {
 import { Loader2 } from "lucide-react";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { PermissionProvider } from "@/components/providers/permission-context";
+
+// Session verification must not wait for every role's workspace JavaScript.
+// Keep these boundaries explicit so Next can load only the selected dashboard.
+const DeanAcademicsCommandCenter = dynamic(() => import("./dean-academics-command-center").then((module) => module.DeanAcademicsCommandCenter), { loading: WorkspaceLoading });
+const DeputyPrincipalCommandCenter = dynamic(() => import("./deputy-principal-command-center").then((module) => module.DeputyPrincipalCommandCenter), { loading: WorkspaceLoading });
+const PrincipalCommandCenter = dynamic(() => import("./principal-command-center").then((module) => module.PrincipalCommandCenter), { loading: WorkspaceLoading });
+const AccountantCommandCenter = dynamic(() => import("./accountant-command-center").then((module) => module.AccountantCommandCenter), { loading: WorkspaceLoading });
+const ExamsManagerCommandCenter = dynamic(() => import("./exams-manager-command-center").then((module) => module.ExamsManagerCommandCenter), { loading: WorkspaceLoading });
+const GradeMasterCommandCenter = dynamic(() => import("./grade-master-command-center").then((module) => module.GradeMasterCommandCenter), { loading: WorkspaceLoading });
+const HosCommandCenter = dynamic(() => import("./hos-command-center").then((module) => module.HosCommandCenter), { loading: WorkspaceLoading });
+const HodCommandCenter = dynamic(() => import("./hod-command-center").then((module) => module.HodCommandCenter), { loading: WorkspaceLoading });
+const LiveRoleCommandCenter = dynamic(() => import("./live-role-command-center").then((module) => module.LiveRoleCommandCenter), { loading: WorkspaceLoading });
+const RoleOperationalCommandCenter = dynamic(() => import("./role-operational-command-center").then((module) => module.RoleOperationalCommandCenter), { loading: WorkspaceLoading });
+const TeacherCommandCenter = dynamic(() => import("./teacher-command-center").then((module) => module.TeacherCommandCenter), { loading: WorkspaceLoading });
+const ProcurementOfficerCommandCenter = dynamic(() => import("./procurement-officer-command-center").then((module) => module.ProcurementOfficerCommandCenter), { loading: WorkspaceLoading });
+const ClassTeacherCommandCenter = dynamic(() => import("./class-teacher-command-center").then((module) => module.ClassTeacherCommandCenter), { loading: WorkspaceLoading });
+const AdmissionsDashboardCommandCenter = dynamic(() => import("./admissions-dashboard/admissions-dashboard-command-center").then((module) => module.AdmissionsDashboardCommandCenter), { loading: WorkspaceLoading });
 
 export type SchoolRouteMode = "hosted" | "public";
 export type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
@@ -4545,14 +4548,7 @@ function AuthorizedSchoolPagesContent(
   const roleState = useSchoolDashboardRole();
 
   if (roleState.activeRole !== props.role) {
-    return (
-      <main className="grid min-h-[60vh] place-items-center px-5 py-12">
-        <div role="status" aria-live="polite" className="text-center">
-          <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-          <p className="mt-3 text-sm font-black text-foreground">Opening your authorized dashboard</p>
-        </div>
-      </main>
-    );
+    return <WorkspaceLoading />;
   }
 
   const tenantBinding = resolveSchoolDashboardTenantBinding({
