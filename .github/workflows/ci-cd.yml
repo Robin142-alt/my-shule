@@ -47,7 +47,7 @@ jobs:
         run: npm run web:lint
 
       - name: Browser authentication contracts
-        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
+        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client client-identity session-refreshing-fetch session-logout dashboard-api-cookie-session
 
       - name: Dashboard realtime transport and tenant isolation
         run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant proxy-body experience-routing
@@ -101,6 +101,7 @@ jobs:
       - run: npm run build:cloudflare
       - name: Verify compiled Worker in workerd
         run: |
+          cp .dev.vars.example .dev.vars
           npm run preview:cloudflare -- --port 8787 --ip 127.0.0.1 > /tmp/myshule-workerd.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
@@ -165,10 +166,17 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: '79113628f46775f56ed5f91a0d91a303'
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GATEWAY_IDENTITY_SECRET: ${{ secrets.GATEWAY_IDENTITY_SECRET }}
+          SERVER_API_BASE_URL: https://my-shule-api-production.up.railway.app
           WRANGLER_SEND_METRICS: 'false'
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing scoped Cloudflare deployment credential'; exit 1; }
-          npm run deploy:cloudflare
+          node cloudflare/verify-origin.mjs
+          secret_file=$(mktemp)
+          export SECRET_FILE="$secret_file"
+          trap 'rm -f "$SECRET_FILE"' EXIT
+          node -e 'require("node:fs").writeFileSync(process.env.SECRET_FILE, JSON.stringify({GATEWAY_IDENTITY_SECRET:process.env.GATEWAY_IDENTITY_SECRET}), {mode:0o600})'
+          npm run deploy:cloudflare -- --secrets-file "$SECRET_FILE"
       - name: Verify deployed Worker
         if: steps.revision.outputs.current == 'true'
         env:
@@ -199,6 +207,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Signed gateway client identity
+        run: node -r ts-node/register --test apps/api/src/common/gateway-identity.test.ts
 
       - name: SSE wire format and response compatibility
         run: node -r ts-node/register --test apps/api/test/dashboard-sse-wire.test.ts apps/api/src/interceptors/response-envelope.interceptor.test.ts apps/api/src/middleware/request-logging.middleware.test.ts

@@ -14,6 +14,7 @@ import { AuthorizationRepository } from '../src/auth/repositories/authorization.
 import { TrustedDeviceService } from '../src/auth/trusted-device.service';
 import { InMemoryRedis } from './support/in-memory-redis';
 import { AuthSecurityTestModule } from './support/auth-security-test.module';
+import { getClientIdentityHeaders } from '../../web/src/lib/auth/client-identity';
 
 jest.setTimeout(180000);
 
@@ -240,6 +241,40 @@ describe('Authentication and authorization hardening', () => {
       expect.objectContaining({ previous_role: 'teacher', active_role: 'admissions_officer', primary_role: 'admissions_officer' }),
     ]));
     expect(audits.rows).toHaveLength(2);
+  });
+
+  test('signed browser identity preserves refresh concurrency across different Railway ingress addresses', async () => {
+    const previousRuntime = process.env.MYSHULE_RUNTIME;
+    const previousSecret = process.env.GATEWAY_IDENTITY_SECRET;
+    process.env.MYSHULE_RUNTIME = 'cloudflare';
+    process.env.GATEWAY_IDENTITY_SECRET = 'integration-only-gateway-identity-secret';
+    try {
+      const actor = await registerTenantUser({ app, testingModule, pool },
+        tenantOwner.tenant_id, `gateway+${suffix}@example.test`);
+      const browserHeaders = () => getClientIdentityHeaders(new Request('https://school.integration.test/api/auth/refresh', {
+        headers: { 'cf-connecting-ip': '203.0.113.7', 'user-agent': 'Gateway integration browser' },
+      }));
+      const refresh = (proxyIp: string) => request(app.getHttpServer()).post('/auth/refresh')
+        .set('host', actor.host).set(browserHeaders()).set('x-forwarded-for', proxyIp)
+        .send({ refresh_token: actor.refresh_token });
+      const first = await refresh('198.51.100.20').expect(201);
+      const duplicate = await refresh('198.51.100.21').expect(201);
+      expect(duplicate.body.tokens.refresh_token).toBe(first.body.tokens.refresh_token);
+      await request(app.getHttpServer()).get('/auth/me').set('host', actor.host)
+        .set(browserHeaders()).expect(401);
+      await request(app.getHttpServer()).get('/auth/me').set('host', otherTenantOwner.host)
+        .set(browserHeaders()).set('authorization', `Bearer ${first.body.tokens.access_token}`).expect(401);
+      await request(app.getHttpServer()).get('/auth/me').set('host', actor.host)
+        .set(browserHeaders()).set('x-myshule-client-ip', '203.0.113.8')
+        .set('authorization', `Bearer ${first.body.tokens.access_token}`).expect(401);
+      await request(app.getHttpServer()).get('/auth/me').set('host', actor.host)
+        .set(browserHeaders()).set('authorization', `Bearer ${first.body.tokens.access_token}`).expect(200);
+    } finally {
+      if (previousRuntime === undefined) delete process.env.MYSHULE_RUNTIME;
+      else process.env.MYSHULE_RUNTIME = previousRuntime;
+      if (previousSecret === undefined) delete process.env.GATEWAY_IDENTITY_SECRET;
+      else process.env.GATEWAY_IDENTITY_SECRET = previousSecret;
+    }
   });
 
   test('blocks tampered JWTs', async () => {

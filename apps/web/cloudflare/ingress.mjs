@@ -2,7 +2,8 @@
 export function normalizeIngress(request) {
   const url = new URL(request.url);
   const headers = new Headers(request.headers);
-  for (const name of ['forwarded', 'x-forwarded-for', 'x-real-ip', 'x-tenant-slug', 'x-platform-experience']) {
+  for (const name of ['forwarded', 'x-forwarded-for', 'x-real-ip', 'x-tenant-slug', 'x-platform-experience',
+    'x-myshule-client-ip', 'x-myshule-client-time', 'x-myshule-client-signature']) {
     headers.delete(name);
   }
   headers.set('host', url.host);

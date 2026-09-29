@@ -1,3 +1,4 @@
+import { resolveRequestClientIp } from '../common/gateway-identity';
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
@@ -289,10 +290,7 @@ export class AuthController {
   }
 
   private buildRequestMetadata(request: Request): AuthRequestMetadata {
-    const forwardedFor = request.headers['x-forwarded-for'];
-    const ipAddress = Array.isArray(forwardedFor)
-      ? forwardedFor[0]
-      : forwardedFor?.split(',')[0]?.trim() || request.ip || null;
+    const ipAddress = resolveRequestClientIp(request);
     const userAgentHeader = request.headers['user-agent'];
 
     return {

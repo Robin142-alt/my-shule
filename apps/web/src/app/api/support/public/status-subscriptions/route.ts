@@ -1,3 +1,4 @@
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
+      ...getClientIdentityHeaders(request),
     },
     body: JSON.stringify({
       email: typeof payload.email === "string" ? payload.email : "",

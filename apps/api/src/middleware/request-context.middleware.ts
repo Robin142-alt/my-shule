@@ -6,6 +6,7 @@ import { AUTH_ANONYMOUS_USER_ID, AUTH_GUEST_ROLE } from '../auth/auth.constants'
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { generateSpanId, generateTraceId } from '../common/request-context/trace.utils';
 import { sanitizeRequestPath } from '../common/request-path.util';
+import { resolveRequestClientIp } from '../common/gateway-identity';
 
 @Injectable()
 export class RequestContextMiddleware implements NestMiddleware {
@@ -43,7 +44,7 @@ export class RequestContextMiddleware implements NestMiddleware {
         session_id: null,
         permissions: [],
         is_authenticated: false,
-        client_ip: this.resolveClientIp(request),
+        client_ip: resolveRequestClientIp(request),
         user_agent: this.resolveUserAgent(request),
         method: request.method,
         path: safePath,
@@ -51,20 +52,6 @@ export class RequestContextMiddleware implements NestMiddleware {
       },
       next,
     );
-  }
-
-  private resolveClientIp(request: Request): string | null {
-    const forwardedFor = request.headers['x-forwarded-for'];
-
-    if (Array.isArray(forwardedFor)) {
-      return forwardedFor[0]?.split(',')[0]?.trim() || request.ip || null;
-    }
-
-    if (typeof forwardedFor === 'string' && forwardedFor.trim().length > 0) {
-      return forwardedFor.split(',')[0]?.trim() || request.ip || null;
-    }
-
-    return request.ip || null;
   }
 
   private resolveUserAgent(request: Request): string | null {

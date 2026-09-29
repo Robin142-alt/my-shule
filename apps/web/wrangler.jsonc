@@ -8,6 +8,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "minify": true,
+  "secrets": { "required": ["GATEWAY_IDENTITY_SECRET"] },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",

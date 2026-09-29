@@ -146,7 +146,7 @@ describe("auth and support route production contracts", () => {
       text: async () => JSON.stringify({ data: { components: [], incidents: [] } }),
     } as Response);
 
-    const response = await getPublicSystemStatus();
+    const response = await getPublicSystemStatus(buildRequest("https://myshule.online/api/support/public/system-status"));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({

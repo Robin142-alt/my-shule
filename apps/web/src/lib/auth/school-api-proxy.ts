@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import { NextResponse } from "next/server";
 
 import {
@@ -238,6 +239,7 @@ function fetchSchoolApi(session: SchoolApiSession, input: SchoolProxyRequest) {
     method: input.method,
     headers: {
       Accept: "application/json",
+      ...getClientIdentityHeaders(input.request),
       ...(input.body === undefined ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${session.accessToken}`,
       "x-auth-audience": "school",

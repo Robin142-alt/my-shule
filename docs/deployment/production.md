@@ -2,7 +2,7 @@
 
 ## Runtime layout
 
-- Cloudflare `myshule-web`: Next.js web/BFF candidate, OpenNext and Workers Static Assets; Workers Free plan. Production cutover remains gated by the [migration acceptance record](cloudflare-migration.md).
+- Cloudflare `myshule-web`: Next.js web/BFF candidate, OpenNext and Workers Static Assets; Workers Paid approved and purchased by the owner on 2026-09-29 after Free CPU testing. Production cutover remains gated by the [migration acceptance record](cloudflare-migration.md).
 - Railway `my-shule-api`: NestJS HTTP API; the observed production service currently also enables event dispatch and consumption.
 - Railway `reports-interactive` and `reports-bulk`: existing independent report lanes.
 - Railway PostgreSQL: primary system of record.
@@ -17,7 +17,9 @@ From `apps/web`, install with `npm ci`, build with `npm run build:cloudflare`, t
 
 `npm run deploy:cloudflare` publishes the compiled Worker and its static assets using `CLOUDFLARE_API_TOKEN`. Use the scoped deployment credential, never a global API key. The candidate is `https://myshule-web.ondurobinson.workers.dev`; setting `CLOUDFLARE_SMOKE_URL` runs the same smoke checks against it. Keep production host routes absent until the migration acceptance gates pass.
 
-Workers must remain Free unless the account owner explicitly approves an upgrade after reviewing the measured requirement. Custom CPU limits are therefore omitted. Static files bypass Worker execution where appropriate; private API/HTML/RSC and cookie-bearing responses are never shared-cacheable. Free has a daily Worker request quota and CPU budget, so a successful deployment alone does not establish production suitability.
+Retain the optimized build on Workers Paid. Static files bypass Worker execution where appropriate; private API/HTML/RSC and cookie-bearing responses are never shared-cacheable. Monitor CPU, requests, failures and usage; a successful deployment does not establish production capacity or a spending cap.
+
+Set the same random server-only `GATEWAY_IDENTITY_SECRET` (at least 32 characters) on the Railway API and the encrypted GitHub `production-cloudflare` environment. CI verifies positive and negative signatures against API liveness before deploying the key with the new Worker version. Deploy API verification before signed Worker traffic. The signature authenticates browser IP metadata across proxy hops; JWT, tenant, capability and CSRF checks remain independent. Never expose this secret through `NEXT_PUBLIC_*`, committed files, logs or browser responses. For rotation, coordinate both runtimes; mismatched keys reject signed requests rather than trusting their metadata. Local preview may copy `.dev.vars.example` to ignored `.dev.vars`; its fixed example key must never be used in production.
 
 ## Environment files
 

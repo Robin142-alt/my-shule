@@ -1,3 +1,4 @@
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -286,6 +287,7 @@ export async function proxySchoolApiRequest(
       method: request.method,
       headers: {
         Accept: wantsEventStream ? EVENT_STREAM_CONTENT_TYPE : acceptHeader,
+        ...getClientIdentityHeaders(request),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body && contentType ? { "Content-Type": contentType } : {}),
         "x-auth-audience": audience,

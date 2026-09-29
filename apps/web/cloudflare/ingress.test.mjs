@@ -7,13 +7,18 @@ test('routing uses the requested hostname and discards forged tenant/proxy conte
     headers: { 'x-forwarded-host': 'other.myshule.online', 'x-forwarded-proto': 'http',
       'x-forwarded-for': '198.51.100.99', 'x-tenant-slug': 'other',
       'x-platform-experience': 'superadmin', 'cf-connecting-ip': '203.0.113.12',
-      cookie: 'myshule_refresh=opaque', 'user-agent': 'School browser' },
+      cookie: 'myshule_refresh=opaque', 'user-agent': 'School browser',
+      'x-myshule-client-ip': '198.51.100.99', 'x-myshule-client-time': '1800000000000',
+      'x-myshule-client-signature': 'forged' },
   }));
   assert.equal(request.headers.get('x-forwarded-host'), 'www.myshule.online');
   assert.equal(request.headers.get('x-forwarded-proto'), 'https');
   assert.equal(request.headers.get('x-forwarded-for'), null);
   assert.equal(request.headers.get('x-tenant-slug'), null);
   assert.equal(request.headers.get('x-platform-experience'), null);
+  assert.equal(request.headers.get('x-myshule-client-ip'), null);
+  assert.equal(request.headers.get('x-myshule-client-time'), null);
+  assert.equal(request.headers.get('x-myshule-client-signature'), null);
   assert.equal(request.headers.get('cf-connecting-ip'), '203.0.113.12');
   assert.equal(request.headers.get('cookie'), 'myshule_refresh=opaque');
 });

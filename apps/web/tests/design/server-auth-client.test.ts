@@ -39,6 +39,7 @@ describe("server auth client production gateway", () => {
   const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalApiBaseDomain = process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
   const originalRuntime = process.env.MYSHULE_RUNTIME;
+  const originalGatewaySecret = process.env.GATEWAY_IDENTITY_SECRET;
 
   beforeEach(() => {
     jest.restoreAllMocks();
@@ -46,9 +47,11 @@ describe("server auth client production gateway", () => {
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
     delete process.env.MYSHULE_RUNTIME;
+    process.env.GATEWAY_IDENTITY_SECRET = 'test-only-gateway-key-with-at-least-32-bytes';
   });
 
   afterAll(() => {
+    if (originalGatewaySecret === undefined) delete process.env.GATEWAY_IDENTITY_SECRET; else process.env.GATEWAY_IDENTITY_SECRET = originalGatewaySecret;
     if (originalRuntime === undefined) delete process.env.MYSHULE_RUNTIME; else process.env.MYSHULE_RUNTIME = originalRuntime;
     if (originalApiBaseUrl === undefined) {
       delete process.env.NEXT_PUBLIC_API_BASE_URL;

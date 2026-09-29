@@ -1,3 +1,4 @@
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         Accept: "application/json",
+        ...getClientIdentityHeaders(request),
         "Content-Type": "application/json",
         "x-auth-audience": audience,
         ...(body.tenantSlug ? { "x-tenant-id": body.tenantSlug } : {}),
