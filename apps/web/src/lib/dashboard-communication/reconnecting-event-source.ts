@@ -12,6 +12,7 @@ export function connectDashboardEventSource(options: Options) {
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let failures = 0;
   let disposed = false;
+  let cursor = "";
 
   const closeSource = () => {
     source?.removeEventListener(options.eventType, handleMessage);
@@ -22,13 +23,19 @@ export function connectDashboardEventSource(options: Options) {
   };
   const handleMessage = (event: Event) => {
     if (options.onMessage(event)) {
+      const eventId = (event as MessageEvent).lastEventId;
+      if (typeof eventId === "string" && eventId.length <= 128 && eventId.includes("|")) {
+        cursor = eventId;
+      }
       failures = 0;
       options.onDegraded(false);
     }
   };
   const connect = () => {
     if (disposed) return;
-    source = new EventSource(options.url, { withCredentials: true });
+    const url = new URL(options.url, window.location.origin);
+    if (cursor) url.searchParams.set("since", cursor);
+    source = new EventSource(cursor ? url.toString() : options.url, { withCredentials: true });
     source.addEventListener(options.eventType, handleMessage);
     source.addEventListener("error", handleError);
     source.addEventListener(`${options.eventType}.error`, handleError);

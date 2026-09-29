@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { COHORT_SCHEMA_SQL } from '../modules/academics/cohort-schema';
+import { REPORT_INFRASTRUCTURE_SCHEMA } from '../modules/exams/services/report-infrastructure-schema';
 
 import {
   findTenantTablesWithoutForcedRls,
@@ -116,6 +120,20 @@ test('cohort schema exposes forced RLS for every tenant table to the release aud
   ]), []);
 });
 
+test('report infrastructure exposes forced RLS for every tenant table to the release audit', () => {
+  const file = 'apps/api/src/modules/exams/services/report-infrastructure-schema.ts';
+  assert.deepEqual(findTenantTablesWithoutForcedRls([
+    { file, source: REPORT_INFRASTRUCTURE_SCHEMA },
+  ]), []);
+
+  for (const table of ['report_source_versions', 'report_work', 'report_pdf_cache', 'report_object_uploads']) {
+    const source = REPORT_INFRASTRUCTURE_SCHEMA.replace(
+      `ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;`, '',
+    );
+    assert.deepEqual(findTenantTablesWithoutForcedRls([{ file, source }]), [{ file, table }]);
+  }
+});
+
 test('runTenantIsolationAudit includes a forced-RLS source audit in workspace mode', () => {
   const result = runTenantIsolationAudit({
     generatedAt: '2026-05-16T00:00:00.000Z',
@@ -126,6 +144,25 @@ test('runTenantIsolationAudit includes a forced-RLS source audit in workspace mo
     result.checks.some((check) => check.id === 'all-tenant-tables-forced-rls'),
     true,
   );
+});
+
+test('schema audit scope is independent of the checkout directory name', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tenant-migration-audit-'));
+  const sourceDirectory = join(root, 'apps', 'api', 'src');
+  mkdirSync(sourceDirectory, { recursive: true });
+  const schemaFile = join(sourceDirectory, 'school-schema.ts');
+  const tableSql = 'CREATE TABLE school_records (tenant_id text);';
+  try {
+    writeFileSync(join(sourceDirectory, 'local-fixture.ts'), 'CREATE TABLE fixture_records (tenant_id text);');
+    writeFileSync(schemaFile, `${tableSql} ALTER TABLE school_records FORCE ROW LEVEL SECURITY;`);
+    const status = () => runTenantIsolationAudit({ workspaceRoot: root }).checks
+      .find((check) => check.id === 'all-tenant-tables-forced-rls')?.status;
+    assert.equal(status(), 'pass');
+    writeFileSync(schemaFile, tableSql);
+    assert.equal(status(), 'fail');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 export function buildPassingSources(): Record<string, string> {

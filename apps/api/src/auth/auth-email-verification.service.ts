@@ -256,7 +256,7 @@ export class AuthEmailVerificationService {
   private buildVerifyUrl(token: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://my-shule-erp.vercel.app'
+      'https://www.myshule.online'
     ).replace(/\/$/, '');
 
     return `${baseUrl}/verify-email?token=${encodeURIComponent(token)}`;

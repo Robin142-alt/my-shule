@@ -2170,7 +2170,7 @@ export class PlatformOnboardingService {
   private buildInvitationUrl(token: string, tenantId: string): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://my-shule-erp.vercel.app'
+      'https://www.myshule.online'
     ).replace(/\/$/, '');
 
     const params = new URLSearchParams({

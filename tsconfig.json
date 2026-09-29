@@ -9,6 +9,7 @@
     "target": "ES2022",
     "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": ".",
     "baseUrl": "./",
     "paths": {
       "@/*": [
@@ -22,8 +23,7 @@
     "esModuleInterop": true
   },
   "include": [
-    "apps/api/src/**/*.ts",
-    "api/**/*.ts"
+    "apps/api/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",

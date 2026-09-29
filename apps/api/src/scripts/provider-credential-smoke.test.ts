@@ -123,9 +123,8 @@ test('provider credential smoke env loader reads production env files without ov
         'SUPPORT_NOTIFICATION_EMAILS=local-production-support@myshule.test',
       ].join('\n'),
     );
-    mkdirSync(join(workspace, '.vercel'), { recursive: true });
     writeFileSync(
-      join(workspace, '.vercel', '.env.production.local'),
+      join(workspace, '.env'),
       [
         'RESEND_API_KEY=',
         'EMAIL_FROM=',

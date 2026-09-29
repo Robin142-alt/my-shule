@@ -233,6 +233,6 @@ describe("report-card PDF proxy contract", () => {
     expect(source).toContain('const acceptHeader = request.headers.get("accept") ?? "application/json"');
     expect(source).toContain("Accept: wantsEventStream ? EVENT_STREAM_CONTENT_TYPE : acceptHeader");
     expect(source).toContain('upstreamResponse.headers.get("content-disposition")');
-    expect(source).toContain('upstreamResponse.headers.get("cache-control") ?? "no-store"');
+    expect(source).toContain('upstreamResponse.headers.get("cache-control") ?? "private, no-store"');
   });
 });

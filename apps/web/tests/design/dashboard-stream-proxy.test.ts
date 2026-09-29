@@ -47,6 +47,20 @@ describe("dashboard streaming proxy", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("streams generic downloads without materializing the file in Worker memory", async () => {
+    const upstream = new Response(new Uint8Array([0, 255, 17]), { headers: {
+      "content-type": "application/octet-stream", "content-disposition": 'attachment; filename="export.xlsx"',
+    }});
+    const buffer = jest.spyOn(upstream, "arrayBuffer");
+    global.fetch = jest.fn().mockResolvedValue(upstream);
+    const result = await proxySchoolApiRequest(new NextRequest(
+      "https://school.example.invalid/api/reports/file", {headers:{Accept:"*/*"}},
+    ), {params:{path:["file"]}}, "/reports");
+    expect(buffer).not.toHaveBeenCalled();
+    expect(result.headers.get("content-disposition")).toBe('attachment; filename="export.xlsx"');
+    expect(new Uint8Array(await result.arrayBuffer())).toEqual(new Uint8Array([0,255,17]));
+  });
+
   it.each(["class_teacher", "principal"])("preserves %s signature bytes for report preview images", async (signer) => {
     const image = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff]);
     const fetchMock = jest.fn().mockResolvedValue(new Response(image, { headers: {

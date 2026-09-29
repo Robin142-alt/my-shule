@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-// Vercel uses 0 = skip, 1 = build. Uncertain inputs always build.
+// Exit status is 0 = skip, 1 = build. Uncertain inputs always build.
 // Ignore only independent backend/documentation trees. Unknown files, web
 // changes, lockfiles, shared code, and configuration always rebuild.
 export function onlyIndependentChanges(files) {
@@ -13,8 +13,8 @@ export function onlyIndependentChanges(files) {
 }
 
 export function shouldSkipBuild({ env = process.env, cwd = process.cwd() } = {}) {
-  const base = env.VERCEL_GIT_PREVIOUS_SHA;
-  const head = env.VERCEL_GIT_COMMIT_SHA;
+  const base = env.MYSHULE_PREVIOUS_WEB_SHA;
+  const head = env.MYSHULE_WEB_SHA;
   if (env.MYSHULE_FORCE_WEB_BUILD === '1') return false;
   if (!base || !head || base === head) return false;
   if (![base, head].every((sha) => /^[a-f0-9]{40}$/i.test(sha))) return false;

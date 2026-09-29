@@ -10,7 +10,10 @@ coverage
 .env
 .env.local
 .env.production
-.env.vercel.production
+**/.open-next
+**/.wrangler
+**/node_modules
+**/.dev.vars*
 .deploy-staging
 tmp
 **/.npm-cache

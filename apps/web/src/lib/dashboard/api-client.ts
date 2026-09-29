@@ -219,7 +219,7 @@ const DEFAULT_PRODUCTION_API_BASE_URL = "https://my-shule-api-production.up.rail
 const DEPRECATED_PRODUCTION_API_HOSTS = new Set(["my-shule-erp-api.vercel.app"]);
 
 function isProductionRuntime() {
-  return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+  return process.env.NODE_ENV === "production";
 }
 
 function shouldUseProductionApiFallback(baseUrl: string | null) {

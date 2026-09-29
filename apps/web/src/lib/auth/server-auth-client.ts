@@ -1,4 +1,4 @@
-import { isIP } from "node:net";
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import {
@@ -139,7 +139,7 @@ const DEFAULT_PRODUCTION_AUTH_BASE_URL = "https://my-shule-api-production.up.rai
 const DEPRECATED_PRODUCTION_AUTH_HOSTS = new Set(["my-shule-erp-api.vercel.app"]);
 
 function isProductionRuntime() {
-  return process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+  return process.env.NODE_ENV === "production";
 }
 
 function shouldUseProductionAuthFallback(baseUrl: string | null) {
@@ -271,12 +271,6 @@ async function requestBackendAuth<T>(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
-  // Vercel overwrites this header with the connecting browser's address. Without
-  // forwarding it, each function's egress IP looks like a different refresh client.
-  const clientIp = process.env.VERCEL === "1"
-    ? input.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    : undefined;
-  const userAgent = input.request.headers.get("user-agent");
 
   try {
     const response = await fetch(`${baseUrl}${path}`, {
@@ -284,8 +278,7 @@ async function requestBackendAuth<T>(
       headers: {
         Accept: "application/json",
         "x-auth-audience": input.audience,
-        ...(clientIp && isIP(clientIp) ? { "x-forwarded-for": clientIp } : {}),
-        ...(userAgent ? { "user-agent": userAgent } : {}),
+        ...getClientIdentityHeaders(input.request),
         ...(tenantSlug ? { "x-tenant-id": tenantSlug } : {}),
         ...(input.body ? { "Content-Type": "application/json" } : {}),
         ...(input.accessToken ? { Authorization: `Bearer ${input.accessToken}` } : {}),

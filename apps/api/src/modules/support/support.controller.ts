@@ -1,3 +1,4 @@
+import { resolveRequestClientIp } from '../../common/gateway-identity';
 import {
   Body,
   Controller,
@@ -578,9 +579,5 @@ export class SupportController {
 }
 
 function resolveClientIp(request: { ip?: string; headers?: Record<string, string | string[] | undefined> }): string | null {
-  const forwardedFor = request.headers?.['x-forwarded-for'];
-  const firstForwarded = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-  const clientIp = firstForwarded?.split(',')[0]?.trim() || request.ip?.trim();
-
-  return clientIp || null;
+  return resolveRequestClientIp(request);
 }

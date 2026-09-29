@@ -14,6 +14,11 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  security-audit:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/security-audit.yml
+
   # ──────────────────────────────────────────────────────────────
   # Quality Gate: Lint + Type Check
   # ──────────────────────────────────────────────────────────────
@@ -42,10 +47,13 @@ jobs:
         run: npm run web:lint
 
       - name: Browser authentication contracts
-        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client session-refreshing-fetch session-logout dashboard-api-cookie-session
+        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client client-identity session-refreshing-fetch session-logout dashboard-api-cookie-session
 
       - name: Dashboard realtime transport and tenant isolation
-        run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant
+        run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant proxy-body experience-routing
+
+      - name: Cloudflare ingress and cache isolation
+        run: npm --prefix apps/web run test:cloudflare
 
       - name: Conservative web build skipping
         run: node --test apps/web/scripts/ignore-build.test.mjs
@@ -67,6 +75,113 @@ jobs:
 
       - name: School day builder and timetable interface
         run: npm --prefix apps/web run test:design -- school-day-builder school-day-editor subject-requirements-panel deputy-timetable-management deputy-timetable-class-scope smart-timetable-role-surfaces deputy-page-routes school-command-center-routing
+
+  cloudflare-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      NEXT_PUBLIC_API_BASE_URL: https://my-shule-api-production.up.railway.app
+      SERVER_API_BASE_URL: https://my-shule-api-production.up.railway.app
+      NEXT_PUBLIC_SITE_URL: https://www.myshule.online
+      NEXT_PUBLIC_RELEASE_SHA: ${{ github.sha }}
+      MYSHULE_RUNTIME: cloudflare
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run build:cloudflare
+      - name: Verify compiled Worker in workerd
+        run: |
+          cp .dev.vars.example .dev.vars
+          npm run preview:cloudflare -- --port 8787 --ip 127.0.0.1 > /tmp/myshule-workerd.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8787/api/auth/csrf > /dev/null; then break; fi
+            if ! kill -0 "$PREVIEW_PID" 2>/dev/null; then cat /tmp/myshule-workerd.log; exit 1; fi
+            sleep 2
+          done
+          node cloudflare/smoke.mjs
+      - name: Keep Worker diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-runtime-diagnostics
+          path: /tmp/myshule-workerd.log
+          retention-days: 7
+      - name: Package verified build with module permissions intact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: tar -czf cloudflare-build.tgz .open-next
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: cloudflare-build-${{ github.sha }}
+          path: apps/web/cloudflare-build.tgz
+          retention-days: 7
+
+  deploy-cloudflare:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [quality, security-audit, cloudflare-build, build-and-test, integration-tests]
+    runs-on: ubuntu-latest
+    environment: production-cloudflare
+    permissions:
+      contents: read
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-build-${{ github.sha }}
+          path: apps/web
+      - run: tar -xzf cloudflare-build.tgz
+      - name: Prevent an older workflow from overwriting a newer main revision
+        id: revision
+        shell: bash
+        run: |
+          latest=$(git ls-remote origin refs/heads/main | cut -f1)
+          test -n "$latest"
+          echo "current=$([ "$latest" = "$GITHUB_SHA" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Deploy verified Worker and versioned static assets
+        if: steps.revision.outputs.current == 'true'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: '79113628f46775f56ed5f91a0d91a303'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GATEWAY_IDENTITY_SECRET: ${{ secrets.GATEWAY_IDENTITY_SECRET }}
+          SERVER_API_BASE_URL: https://my-shule-api-production.up.railway.app
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing scoped Cloudflare deployment credential'; exit 1; }
+          node cloudflare/verify-origin.mjs
+          secret_file=$(mktemp)
+          export SECRET_FILE="$secret_file"
+          trap 'rm -f "$SECRET_FILE"' EXIT
+          node -e 'require("node:fs").writeFileSync(process.env.SECRET_FILE, JSON.stringify({GATEWAY_IDENTITY_SECRET:process.env.GATEWAY_IDENTITY_SECRET}), {mode:0o600})'
+          npm run deploy:cloudflare -- --secrets-file "$SECRET_FILE"
+      - name: Verify deployed Worker
+        if: steps.revision.outputs.current == 'true'
+        env:
+          CLOUDFLARE_SMOKE_URL: https://myshule-web.ondurobinson.workers.dev
+        run: node cloudflare/smoke.mjs
 
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests
@@ -92,6 +207,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Signed gateway client identity
+        run: node -r ts-node/register --test apps/api/src/common/gateway-identity.test.ts
 
       - name: SSE wire format and response compatibility
         run: node -r ts-node/register --test apps/api/test/dashboard-sse-wire.test.ts apps/api/src/interceptors/response-envelope.interceptor.test.ts apps/api/src/middleware/request-logging.middleware.test.ts

@@ -66,6 +66,12 @@ describe("experience routing", () => {
     });
   });
 
+  test("resolves Cloudflare candidate hosts without inventing a school", () => {
+    expect(resolveExperienceHost("myshule-web.ondurobinson.workers.dev")).toEqual({
+      experience: "public", host: "myshule-web.ondurobinson.workers.dev", tenantSlug: null,
+    });
+  });
+
   test("redirects a superadmin host root request to the superadmin login without a session", () => {
     expect(
       evaluateExperienceRouting({

@@ -21,6 +21,21 @@ describe("dashboard SSE recovery", () => {
     jest.useRealTimers();
   });
 
+  it("resumes only the last tenant-validated event when recreating EventSource", () => {
+    const accepted = jest.fn().mockReturnValue(true);
+    const stop = connectDashboardEventSource({ url: "/events?tenantSlug=a", eventType: "dashboard.events", onMessage: accepted, onDegraded: jest.fn() });
+    const cursor = "2026-09-28T12:34:56.123456Z|00000000-0000-4000-8000-000000000001";
+    SourceMock.instances[0].dispatchEvent(new MessageEvent("dashboard.events", {lastEventId: cursor}));
+    accepted.mockReturnValue(false);
+    SourceMock.instances[0].dispatchEvent(new MessageEvent("dashboard.events", {lastEventId: "untrusted-school-cursor"}));
+    SourceMock.instances[0].dispatchEvent(new Event("error"));
+    jest.advanceTimersByTime(5000);
+    const retry = new URL(SourceMock.instances[1].url, "https://myshule.online");
+    expect(retry.searchParams.get("tenantSlug")).toBe("a");
+    expect(retry.searchParams.get("since")).toBe(cursor);
+    stop();
+  });
+
   it("bounds a persistent reconnect failure over ten minutes without resetting on open", () => {
     const degraded = jest.fn();
     const stop = connectDashboardEventSource({ url: "/api/events/dashboard/stream?tenantSlug=a", eventType: "dashboard.events", onMessage: () => true, onDegraded: degraded });

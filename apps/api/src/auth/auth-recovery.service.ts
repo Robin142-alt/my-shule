@@ -278,7 +278,7 @@ export class AuthRecoveryService {
   ): string {
     const baseUrl = (
       this.configService.get<string>('email.publicAppUrl') ??
-      'https://my-shule-erp.vercel.app'
+      'https://www.myshule.online'
     ).replace(/\/$/, '');
     const path = audience === 'superadmin'
       ? '/superadmin/reset-password'

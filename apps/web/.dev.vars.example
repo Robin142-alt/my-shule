@@ -1,0 +1,2 @@
+# Local preview only. Production uses a random shared server-only secret.
+GATEWAY_IDENTITY_SECRET=local-preview-only-key-never-use-in-production

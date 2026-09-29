@@ -33,7 +33,7 @@ function applySecurityHeaders(response: NextResponse) {
   return response;
 }
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const decision = evaluateExperienceRouting({
     host:
       request.headers.get("x-forwarded-host") ??

@@ -1,3 +1,4 @@
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import { NextResponse } from "next/server";
 
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 const STATUS_UNAVAILABLE_MESSAGE =
   "System status is temporarily unavailable. Please try again shortly.";
 
-export async function GET() {
+export async function GET(request: Request) {
   const baseUrl = getDashboardApiBaseUrl();
 
   if (!baseUrl) {
@@ -21,6 +22,7 @@ export async function GET() {
     method: "GET",
     headers: {
       Accept: "application/json",
+      ...getClientIdentityHeaders(request),
     },
     cache: "no-store",
   });

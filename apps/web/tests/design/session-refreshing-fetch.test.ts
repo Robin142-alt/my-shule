@@ -24,6 +24,21 @@ function response(body: string, status: number) {
 }
 
 describe("fetchWithSessionRefresh", () => {
+  it("releases the replaced unauthorized stream after a successful retry", async () => {
+    const cancel = jest.fn().mockResolvedValue(undefined);
+    const rejected = { ...response("expired", 401), body: { cancel } } as unknown as Response;
+    const accepted = response("download", 200);
+    const result = await fetchWithSessionRefresh({
+      accessToken: "expired-access",
+      send: jest.fn().mockResolvedValueOnce(rejected).mockResolvedValueOnce(accepted),
+      refreshSession: async () => ({ accessToken: "fresh-access" }),
+      consumeResponseBody: false,
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(result.response).toBe(accepted);
+    expect(result.response.bodyUsed).toBe(false);
+  });
+
   it("refreshes once and retries a request rejected by an expired access token", async () => {
     const send = jest
       .fn<Promise<Response>, [string]>()

@@ -1,0 +1,185 @@
+{
+  "date": "2026-09-29",
+  "candidate": "https://myshule-web.ondurobinson.workers.dev",
+  "plan": "Workers Free (Cloudflare dashboard confirmed)",
+  "source": "Wrangler live tail CPU time, filtered by x-myshule-probe: free-plan; request URLs/query values/headers not retained",
+  "method": "Sequential GET /school/login with a unique nonsensitive probe query and nonsensitive cookie to prevent shared cache hits. No school records, authentication attempts or provider messages were created.",
+  "limits": {
+    "cpuMsPerRequest": 10,
+    "workerRequestsPerDay": 100000
+  },
+  "deployments": [
+    {
+      "bundler": "turbopack",
+      "version": "7b824091-032e-4ff6-a54d-49343427540b",
+      "gzipKiB": 4007.36,
+      "samples": [
+        {
+          "path": "/school/login",
+          "cpuMs": 138,
+          "wallMs": 147,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 23,
+          "wallMs": 24,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 134,
+          "wallMs": 140,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 18,
+          "wallMs": 19,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 20,
+          "wallMs": 24,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 18,
+          "wallMs": 20,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 18,
+          "wallMs": 23,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 10,
+          "wallMs": 10,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 16,
+          "wallMs": 17,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 16,
+          "wallMs": 17,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 23,
+          "wallMs": 24,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 14,
+          "wallMs": 15,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 12,
+          "wallMs": 13,
+          "outcome": "ok",
+          "version": "7b824091-032e-4ff6-a54d-49343427540b"
+        }
+      ]
+    },
+    {
+      "bundler": "webpack",
+      "version": "a1630f1f-2737-42d6-bded-c4cd5c230fac",
+      "gzipKiB": 3164.04,
+      "samples": [
+        {
+          "path": "/school/login",
+          "cpuMs": 94,
+          "wallMs": 100,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 17,
+          "wallMs": 18,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 17,
+          "wallMs": 24,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 16,
+          "wallMs": 17,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 11,
+          "wallMs": 12,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 10,
+          "wallMs": 11,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 15,
+          "wallMs": 21,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 13,
+          "wallMs": 14,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 15,
+          "wallMs": 16,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 16,
+          "wallMs": 17,
+          "outcome": "ok"
+        },
+        {
+          "path": "/school/login",
+          "cpuMs": 10,
+          "wallMs": 11,
+          "outcome": "ok"
+        }
+      ]
+    }
+  ],
+  "assessment": "Both deploy on Free and pass HTTP smoke checks, but repeated uncached SSR exceeds the documented CPU allowance. No upgrade or production cutover authorized/performed. Successful requests are not evidence that over-budget sustained production execution is supported."
+}

@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { catchError, concat, exhaustMap, from, interval, map, Observable, of } from 'rxjs';
+import { catchError, concat, exhaustMap, from, interval, map, Observable, of, takeUntil, timer } from 'rxjs';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ModuleAccessService } from '../module-access/module-access.service';
@@ -573,9 +573,9 @@ export class DashboardRealtimeService {
     };
   }
 
-  streamCurrentTenantEvents(): Observable<MessageEvent> {
+  streamCurrentTenantEvents(since?: string): Observable<MessageEvent> {
     const pollMs = Math.max(5000, Number(this.configService?.get<number>('events.dashboardRealtimePollMs') ?? 15000));
-    let cursor: string | null | undefined;
+    let cursor: string | null | undefined = since;
 
     return concat(of(0), interval(pollMs)).pipe(
       // Database promises cannot be cancelled by RxJS unsubscription. Keep one
@@ -587,6 +587,7 @@ export class DashboardRealtimeService {
             cursor = snapshot.cursor;
 
             return {
+              ...(cursor ? { id: cursor } : {}),
               type: 'dashboard.events',
               data: snapshot,
             };
@@ -599,6 +600,9 @@ export class DashboardRealtimeService {
           })),
         ),
       ),
+      // Reconnect through JWT/session/role guards even on hosts without a
+      // serverless duration cap. Never extend a captured authorization forever.
+      takeUntil(timer(60_000)),
     );
   }
 

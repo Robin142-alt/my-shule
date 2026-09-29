@@ -401,7 +401,7 @@ export function mapReadinessToInfrastructureMetrics(
 ): ExperienceMetric[] {
   const deploymentVersion =
     process.env.NEXT_PUBLIC_APP_VERSION?.trim()
-    || process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7)
+    || process.env.NEXT_PUBLIC_RELEASE_SHA?.slice(0, 7)
     || "Not published";
   const databasePool = readiness.database_pool;
   const supportNotifications = readiness.support_notifications;

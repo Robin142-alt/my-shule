@@ -5,11 +5,12 @@
   "overrides": {
     "@hono/node-server": "1.19.13",
     "archiver": "7.0.1",
+    "brace-expansion@1": "1.1.21",
     "archiver-utils": {
       "glob": "13.0.0"
     },
     "find-my-way": "9.7.0",
-    "multer": "2.3.0",
+    "multer": "2.4.0",
     "qs": "6.16.0",
     "readdir-glob": "3.0.0",
     "tmp": "0.2.7",
@@ -65,8 +66,9 @@
     "deploy:railway:prepare:events-worker": "node scripts/prepare-railway-config.mjs deploy/railway/events-worker.railway.json",
     "deploy:railway:prepare:sms-relay": "node scripts/prepare-railway-config.mjs deploy/railway/sms-relay.railway.json",
     "deploy:railway:prepare:malware-scanner": "node scripts/prepare-railway-config.mjs deploy/railway/malware-scanner.railway.json",
-    "vercel:dev": "npx vercel dev",
-    "deploy:vercel": "npx vercel --prod",
+    "cloudflare:build": "npm --prefix apps/web run build:cloudflare",
+    "cloudflare:preview": "npm --prefix apps/web run preview:cloudflare",
+    "cloudflare:deploy": "npm --prefix apps/web run deploy:cloudflare",
     "auth:production-cleanup": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/production-auth-cleanup.ts",
     "auth:production-verify": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/verify-production-auth-cleanup.ts",
     "auth:rotate-owner-password": "node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/scripts/rotate-platform-owner-password.ts",
