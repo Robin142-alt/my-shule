@@ -5,11 +5,12 @@
   "overrides": {
     "@hono/node-server": "1.19.13",
     "archiver": "7.0.1",
+    "brace-expansion@1": "1.1.21",
     "archiver-utils": {
       "glob": "13.0.0"
     },
     "find-my-way": "9.7.0",
-    "multer": "2.3.0",
+    "multer": "2.4.0",
     "qs": "6.16.0",
     "readdir-glob": "3.0.0",
     "tmp": "0.2.7",

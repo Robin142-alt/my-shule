@@ -44,10 +44,17 @@ CREATE TABLE IF NOT EXISTS report_object_uploads (
 );
 CREATE INDEX IF NOT EXISTS ix_report_pdf_cache_path ON report_pdf_cache(storage_path);
 CREATE INDEX IF NOT EXISTS ix_report_object_uploads_expiry ON report_object_uploads(expires_at);
+-- Keep each table's RLS boundary explicit for the release security audit.
+ALTER TABLE report_source_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_source_versions FORCE ROW LEVEL SECURITY;
+ALTER TABLE report_work ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_work FORCE ROW LEVEL SECURITY;
+ALTER TABLE report_pdf_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_pdf_cache FORCE ROW LEVEL SECURITY;
+ALTER TABLE report_object_uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE report_object_uploads FORCE ROW LEVEL SECURITY;
 DO $$ DECLARE tbl text; BEGIN
   FOREACH tbl IN ARRAY ARRAY['report_source_versions','report_work','report_pdf_cache','report_object_uploads'] LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tbl);
     IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname=current_schema() AND tablename=tbl AND policyname='report_tenant') THEN
       EXECUTE format('CREATE POLICY report_tenant ON %I USING (tenant_id = current_setting(''app.tenant_id'', true)) WITH CHECK (tenant_id = current_setting(''app.tenant_id'', true))', tbl);
     END IF;

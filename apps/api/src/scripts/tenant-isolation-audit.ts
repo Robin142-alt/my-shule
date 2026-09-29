@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 
 import { writeArtifactFileSync } from './artifact-writer';
 
@@ -134,7 +134,7 @@ function readTenantSchemaSources(workspaceRoot: string): ForcedRlsSource[] {
   }
 
   return listSourceFiles(root)
-    .filter((file) => /(?:schema|migration|database)/i.test(file))
+    .filter((file) => /(?:schema|migration|database)/i.test(relative(root, file)))
     .map((file) => ({
       file: file.replace(`${workspaceRoot}\\`, '').replace(`${workspaceRoot}/`, '').replace(/\\/g, '/'),
       source: readFileSync(file, 'utf8'),

@@ -14,6 +14,11 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  security-audit:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/security-audit.yml
+
   # ──────────────────────────────────────────────────────────────
   # Quality Gate: Lint + Type Check
   # ──────────────────────────────────────────────────────────────
@@ -124,7 +129,7 @@ jobs:
 
   deploy-cloudflare:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [quality, cloudflare-build, build-and-test, integration-tests]
+    needs: [quality, security-audit, cloudflare-build, build-and-test, integration-tests]
     runs-on: ubuntu-latest
     environment: production-cloudflare
     permissions:
