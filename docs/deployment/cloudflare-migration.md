@@ -3,6 +3,18 @@
 Status: migration in progress; this document is not a production certification.
 Audit baseline: `d5ffb04197e38431baa7a7001b5bf20d95b8776c`, 2026-09-29 (Africa/Nairobi).
 
+## Staged rollout evidence (2026-09-29 UTC)
+
+- PR #38 merged as `bdb901f0419b927a2f59d01603cc95e270f391e7`. Main CI run `36626905279` passed quality, security, Worker build/workerd, backend, database integration, container publication, automatic Cloudflare deployment and deployed smoke checks. Railway's existing Git integration deployed the API and both report lanes successfully.
+- Worker version `cfab53fd-000b-487e-92f6-d91b99c55c56` includes the gateway secret. Live API probes accept the signed identity and reject forged metadata. API `/health/ready` reports PostgreSQL/Redis up, an empty pool wait queue and healthy API/queue SLO state.
+- The existing Kibabi Exams Manager session survived the Worker update. A current draft report downloaded before and after deployment; both files are 808,686 bytes with identical SHA-256. Both signature images load. Older draft/published snapshots hit existing stale-report guards; those guards were preserved. A readiness request timed out during rollout and recovered after reload. No migration check edited comments, marks or publication status.
+- The account owner also signed into the retained production origin for a session-continuity check during cutover; that check remains pending.
+- Registrar nameservers were changed to `julian.ns.cloudflare.com` and `shubhi.ns.cloudflare.com` at `20:38:48Z`. RDAP confirms both. Cloudflare activated the zone at `20:48:13Z`. Mail/SPF/DKIM/DMARC, verification and CAA records were compared with the previous provider. Web DNS still targets Vercel until certificate and routing gates pass.
+- Wrangler now declares apex and wildcard Worker routes. Route-based hosting is needed for tenant wildcard hosts. After TLS verification, replace the three web CNAMEs with proxied originless records; no Vercel fallback remains after that cutover. Preserve the existing apex-to-www 308 redirect with a Cloudflare Single Redirect, including path, query string and method. No shared cache rule may override private response headers.
+- An existing integration configuration gap was found: production M-Pesa consumer credentials, shortcode and passkey contain placeholders, and its callback URL uses a placeholder domain. Readiness reporting alone does not prove this provider works. Real provider configuration and a controlled transaction are required before claiming live payment parity; migration checks have not initiated payments or bypassed callback verification.
+
+The sections below retain earlier audit evidence; the staged rollout record above supersedes their pre-merge/deployment status. Production web cutover, registrar transfer, final retirement and large-scale HA/capacity certification remain incomplete.
+
 ## Current release gates: authenticated parity and production cutover
 
 The account owner approved Workers Paid after reviewing the measured Free CPU constraint. The owner supplied purchase-complete confirmation on 2026-09-29. The candidate at `https://myshule-web.ondurobinson.workers.dev` passes live public-page, image, PWA, CSRF and unsigned tenant/API protection checks. Authoritative DNS, production web traffic and the Vercel origin remain unchanged.
