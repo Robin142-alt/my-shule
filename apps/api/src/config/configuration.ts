@@ -44,7 +44,7 @@ const isRailwayRuntime = Boolean(
   || process.env.RAILWAY_DEPLOYMENT_ID,
 );
 const isServerlessRuntime =
-  !isRailwayRuntime && (appRuntime === 'serverless' || process.env.VERCEL === '1');
+  !isRailwayRuntime && appRuntime === 'serverless';
 
 export default () => ({
   app: {
@@ -146,7 +146,7 @@ export default () => ({
     publicAppUrl:
       process.env.PUBLIC_APP_URL ??
       process.env.WEB_APP_URL ??
-      'https://my-shule-erp.vercel.app',
+      'https://www.myshule.online',
     passwordRecoveryTtlMinutes: parseNumber(
       process.env.PASSWORD_RECOVERY_TTL_MINUTES,
       30,

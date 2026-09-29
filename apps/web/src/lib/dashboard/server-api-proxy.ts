@@ -20,6 +20,7 @@ import {
 import { getDashboardApiBaseUrl } from "@/lib/dashboard/api-client";
 import { resolveDashboardApiProxyTenant, type DashboardApiProxyAudience } from "@/lib/dashboard/proxy-tenant-context";
 import { fetchWithSessionRefresh } from "@/lib/dashboard/session-refreshing-fetch";
+import { ProxyBodyTooLargeError, readBoundedProxyBody } from "@/lib/dashboard/proxy-body";
 import type { SchoolModuleAccessState } from "@/lib/module-access/server-school-module-access";
 
 type CatchAllContext = {
@@ -264,10 +265,16 @@ export async function proxySchoolApiRequest(
     upstreamQuery.delete(queryParam);
   }
   const query = upstreamQuery.toString();
-  const body =
-    request.method === "GET" || request.method === "HEAD"
-      ? undefined
-      : await request.arrayBuffer();
+  let body: ArrayBuffer | undefined;
+  try {
+    body = await readBoundedProxyBody(request, MAX_PROXY_UPLOAD_BYTES);
+  } catch (error) {
+    if (!(error instanceof ProxyBodyTooLargeError)) throw error;
+    return NextResponse.json(
+      { message: "Upload is too large. Attachments must be 10 MB or smaller." },
+      { status: 413 },
+    );
+  }
   const contentType = request.headers.get("content-type");
   const acceptHeader = request.headers.get("accept") ?? "application/json";
   const wantsEventStream = acceptHeader.toLowerCase().includes(EVENT_STREAM_CONTENT_TYPE);
@@ -286,11 +293,11 @@ export async function proxySchoolApiRequest(
       },
       body: body && body.byteLength > 0 ? body : undefined,
       cache: "no-store",
-      // A departed SSE client must not leave an upstream database-polling stream.
-      ...(wantsEventStream ? { signal: request.signal } : {}),
+      // Cancel downloads and realtime streams when the browser disconnects.
+      signal: request.signal,
     });
 
-  if (wantsEventStream || wantsReportCardPdf) {
+  if (wantsEventStream || wantsReportCardPdf || !options?.responseEnvelope) {
     const {
       response: upstreamResponse,
       refreshedSession,
@@ -325,8 +332,11 @@ export async function proxySchoolApiRequest(
     const response = new NextResponse(upstreamResponse.body, {
       status: upstreamResponse.status,
       headers: {
-        "cache-control": "no-store, no-transform",
-        "content-type": upstreamResponse.headers.get("content-type") ?? (wantsReportCardPdf ? "application/pdf" : EVENT_STREAM_CONTENT_TYPE),
+        "cache-control": wantsEventStream || wantsReportCardPdf
+          ? "no-store, no-transform"
+          : upstreamResponse.headers.get("cache-control") ?? "private, no-store",
+        "content-type": upstreamResponse.headers.get("content-type")
+          ?? (wantsReportCardPdf ? "application/pdf" : wantsEventStream ? EVENT_STREAM_CONTENT_TYPE : "application/json"),
         ...(upstreamResponse.headers.get("content-disposition")
           ? { "content-disposition": upstreamResponse.headers.get("content-disposition")! } : {}),
         "x-accel-buffering": "no",
@@ -379,22 +389,11 @@ export async function proxySchoolApiRequest(
     );
   }
 
-  const response = options?.responseEnvelope
-    ? createEnvelopedProxyResponse(
+  const response = createEnvelopedProxyResponse(
         upstreamResponse,
         responseBody,
         options.responseEnvelope,
-      )
-    : new NextResponse(responseBody, {
-        status: upstreamResponse.status,
-        headers: {
-          "content-type": upstreamResponse.headers.get("content-type") ?? "application/json",
-          ...(upstreamResponse.headers.get("content-disposition")
-            ? { "content-disposition": upstreamResponse.headers.get("content-disposition")! }
-            : {}),
-          "cache-control": upstreamResponse.headers.get("cache-control") ?? "no-store",
-        },
-      });
+      );
 
   const sessionToPersist = refreshedSession ?? moduleRefreshSession;
 

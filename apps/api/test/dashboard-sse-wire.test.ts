@@ -12,6 +12,18 @@ import { RequestContextMiddleware } from '../src/middleware/request-context.midd
 import type { Request, Response, NextFunction } from 'express';
 import { firstValueFrom, timeout } from 'rxjs';
 
+test('SSE resumes the supplied cursor and emits the next exact cursor as its event ID', async () => {
+  const cursor = '2026-09-28T12:34:56.123456Z|00000000-0000-4000-8000-000000000001';
+  const nextCursor = '2026-09-28T12:34:56.123457Z|00000000-0000-4000-8000-000000000002';
+  const service = new DashboardRealtimeService({} as never, {} as never, {} as never, { get: () => 5000 } as never);
+  service.getCurrentTenantSnapshot = async (options) => {
+    assert.equal(options?.since, cursor);
+    return { tenant_id: 'tenant-a', generated_at: new Date().toISOString(), cursor: nextCursor, events: [] };
+  };
+  const frame = await firstValueFrom(service.streamCurrentTenantEvents(cursor));
+  assert.equal(frame.id, nextCursor);
+});
+
 test('slow SSE database polls do not overlap or discard their completed snapshot', { timeout: 9000 }, async () => {
   let polls = 0;
   const service = new DashboardRealtimeService({} as never, {} as never, {} as never, { get: () => 5000 } as never);

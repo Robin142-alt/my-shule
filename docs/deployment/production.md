@@ -2,17 +2,26 @@
 
 ## Runtime layout
 
-- `api`: NestJS HTTP API
-- `payments-worker`: BullMQ worker for MPESA payment jobs
-- `events-worker`: outbox dispatcher plus domain event consumer
-- PostgreSQL: primary system of record
-- Redis / Upstash: BullMQ transport and distributed coordination
+- Cloudflare `myshule-web`: Next.js web/BFF candidate, OpenNext and Workers Static Assets; Workers Free plan. Production cutover remains gated by the [migration acceptance record](cloudflare-migration.md).
+- Railway `my-shule-api`: NestJS HTTP API; the observed production service currently also enables event dispatch and consumption.
+- Railway `reports-interactive` and `reports-bulk`: existing independent report lanes.
+- Railway PostgreSQL: primary system of record.
+- Railway Redis: durable sessions, BullMQ transport and distributed coordination.
+- Existing SMS relay, malware scanner and private R2 report storage remain in use.
 
-The API and workers must run as separate processes in production.
+Dedicated event/payment worker entrypoints below are supported scaling configurations. Do not switch off embedded consumers or create duplicate consumers until the replacement topology has been validated. The audit observed one API, PostgreSQL and Redis instance; this is not a high-availability or million-user capacity certification.
+
+## Cloudflare web deployment
+
+From `apps/web`, install with `npm ci`, build with `npm run build:cloudflare`, then validate the compiled runtime with `npm run preview:cloudflare` and `node cloudflare/smoke.mjs` in a second terminal. Use the public settings in `.env.example`; API/database/provider secrets stay on Railway.
+
+`npm run deploy:cloudflare` publishes the compiled Worker and its static assets using `CLOUDFLARE_API_TOKEN`. Use the scoped deployment credential, never a global API key. The candidate is `https://myshule-web.ondurobinson.workers.dev`; setting `CLOUDFLARE_SMOKE_URL` runs the same smoke checks against it. Keep production host routes absent until the migration acceptance gates pass.
+
+Workers must remain Free unless the account owner explicitly approves an upgrade after reviewing the measured requirement. Custom CPU limits are therefore omitted. Static files bypass Worker execution where appropriate; private API/HTML/RSC and cookie-bearing responses are never shared-cacheable. Free has a daily Worker request quota and CPU budget, so a successful deployment alone does not establish production suitability.
 
 ## Environment files
 
-1. Copy [.env.production.example](/C:/Users/user/Desktop/PROJECTS/Shule%20hub/.env.production.example) to `.env.production`.
+1. Copy [the backend environment template](../../.env.production.example) to `.env.production`.
 2. Fill in real values for:
    - `DATABASE_URL`
    - `REDIS_URL`
@@ -60,7 +69,9 @@ Services:
 
 ## Railway
 
-Create five Railway services in the same project:
+Preserve the existing Railway Git/main integrations for `my-shule-api`, `reports-interactive` and `reports-bulk`. Both report lanes use `deploy/railway/reports-worker.railway.json` with their existing lane-specific variables. Preserve the separately deployed SMS relay and scanner.
+
+For a new installation or a separately validated consumer extraction, these service configurations are available:
 
 1. `api`
 2. `payments-worker`
@@ -68,7 +79,7 @@ Create five Railway services in the same project:
 4. `sms-relay`
 5. `malware-scanner`
 
-Attach the same repository to all five services.
+Attach the repository and correct service config to each new service. Validate queue ownership, event delivery and report processing before switching any existing process off.
 
 ### API service
 
@@ -117,7 +128,7 @@ Attach the same repository to all five services.
 
 ### Shared Railway variables
 
-Set these on all three services:
+Set these on the API and any applicable domain worker services:
 
 - `NODE_ENV=production`
 - `DATABASE_URL`
@@ -128,7 +139,7 @@ Set these on all three services:
 - `MPESA_LEDGER_DEBIT_ACCOUNT_CODE`
 - `MPESA_LEDGER_CREDIT_ACCOUNT_CODE`
 
-Set service-specific variables:
+The following event/payment settings apply only after dedicated consumers are healthy. They are not instructions to change the currently observed embedded production topology. Preserve existing report-lane variables.
 
 - API:
   - `APP_RUNTIME=server`
@@ -171,16 +182,21 @@ Set service-specific variables:
 
 ## CI/CD
 
-The GitHub Actions workflow in [.github/workflows/ci-cd.yml](/C:/Users/user/Desktop/PROJECTS/Shule%20hub/.github/workflows/ci-cd.yml):
+The GitHub Actions workflow in [ci-cd.yml](../../.github/workflows/ci-cd.yml):
 
 - builds on push and pull request
 - runs `npm test`
-- deploys all three Railway services on pushes to `main` when these secrets exist:
+- builds and tests the compiled Cloudflare runtime on pull requests;
+- deploys the verified Cloudflare artifact on `main` after quality, build and integration gates, using the `production-cloudflare` environment's encrypted `CLOUDFLARE_API_TOKEN`;
+- serializes Cloudflare deployments and skips an obsolete main revision;
+- leaves the existing Railway Git/main deployment integrations intact.
+
+The legacy Railway CLI matrix only runs when `DEPLOY_TARGET=railway`. That variable is unset in the audited repository, and the matrix names do not match the live topology. Do not enable it without reconciling the service inventory. Its required secrets are:
   - `RAILWAY_API_TOKEN`
   - `RAILWAY_PROJECT_ID`
   - `RAILWAY_ENVIRONMENT_NAME`
 
-The deploy job copies the correct Railway config into a temporary root `railway.json` before calling `railway up`.
+That optional CLI job copies the selected Railway config into a temporary root `railway.json` before calling `railway up`.
 
 ## Health verification
 
@@ -218,7 +234,7 @@ npm run load:core-api
 npm run perf:query-plan-review
 ```
 
-Production scheduled monitoring is managed by [.github/workflows/production-operability.yml](/C:/Users/user/Desktop/PROJECTS/Shule%20hub/.github/workflows/production-operability.yml). Store all production URLs and tokens as GitHub or Railway secrets only.
+Production scheduled monitoring is managed by [production-operability.yml](../../.github/workflows/production-operability.yml). Store production credentials in GitHub or Railway secrets. Use the canonical domain for web monitoring after cutover.
 
 ## Queue verification
 

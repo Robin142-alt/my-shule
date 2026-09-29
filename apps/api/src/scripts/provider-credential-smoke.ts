@@ -84,8 +84,6 @@ const LOCAL_ENV_FILES = [
   '.env.local',
   '.env.production',
   '.env',
-  '.vercel/.env.local',
-  '.vercel/.env.production.local',
 ];
 
 const RELEVANT_RETIREMENT_FIELDS = [

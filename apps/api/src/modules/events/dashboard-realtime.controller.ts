@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Sse } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Headers, Query, Sse } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { DashboardRealtimeService } from './dashboard-realtime.service';
@@ -21,7 +21,9 @@ export class DashboardRealtimeController {
 
   @Sse('stream')
   @Permissions('auth:read')
-  streamDashboardEvents() {
-    return this.dashboardRealtimeService.streamCurrentTenantEvents();
+  streamDashboardEvents(@Query('since') since?: string, @Headers('last-event-id') lastEventId?: string) {
+    const cursor = (since || lastEventId)?.trim();
+    if (cursor && cursor.length > 128) throw new BadRequestException('Invalid realtime cursor');
+    return this.dashboardRealtimeService.streamCurrentTenantEvents(cursor);
   }
 }

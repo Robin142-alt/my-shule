@@ -1,0 +1,14 @@
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff
+
+/service-worker.js
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: no-cache, no-store, must-revalidate
+  Content-Security-Policy: default-src 'none'; script-src 'self'; connect-src 'self'
+  Service-Worker-Allowed: /
+  X-Content-Type-Options: nosniff
+
+/manifest.webmanifest
+  Cache-Control: no-cache, must-revalidate
+  X-Content-Type-Options: nosniff

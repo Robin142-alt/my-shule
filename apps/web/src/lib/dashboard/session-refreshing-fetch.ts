@@ -39,6 +39,11 @@ export async function fetchWithSessionRefresh<TSession extends RefreshableSessio
   try {
     const refreshedSession = await input.refreshSession();
     const retryResponse = await input.send(refreshedSession.accessToken);
+    // The replacement owns the connection now. Do not retain an unread 401
+    // stream (and its upstream socket) in the Worker during a long download.
+    if (input.consumeResponseBody === false) {
+      await firstResponse.body?.cancel().catch(() => undefined);
+    }
 
     return {
       response: retryResponse,

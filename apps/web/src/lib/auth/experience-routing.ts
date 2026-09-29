@@ -47,7 +47,7 @@ export const PORTAL_SESSION_COOKIE = "myshule.portal.session";
 const reservedSubdomains = new Set(["www", "app", "localhost"]);
 const publicApexDomains = new Set(["myshule.online"]);
 const sharedPublicPaths = new Set(["/login", "/forgot-password", "/reset-password"]);
-const hostedPublicSuffixes = [".vercel.app", ".vercel.sh"] as const;
+const hostedPublicSuffixes = [".workers.dev", ".vercel.app", ".vercel.sh"] as const;
 
 type ExperienceHeaders = Record<string, string>;
 

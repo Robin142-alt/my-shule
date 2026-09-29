@@ -14,7 +14,6 @@ COPY tsconfig.json ./
 COPY .env.example ./
 COPY jest.integration.config.js ./
 COPY prisma ./prisma
-COPY api ./api
 COPY apps ./apps
 
 RUN npx prisma generate

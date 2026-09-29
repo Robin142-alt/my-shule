@@ -16,15 +16,21 @@
     "test:design:e2e": "playwright test -c playwright.config.ts",
     "test:e2e:production-pilot": "playwright test -c tests/e2e/production-pilot.config.ts",
     "test:contract": "playwright test -c playwright.contract.config.ts",
-    "test:design:e2e:list": "playwright test -c playwright.config.ts --list"
+    "test:design:e2e:list": "playwright test -c playwright.config.ts --list",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "preview:cloudflare": "opennextjs-cloudflare preview",
+    "deploy:cloudflare": "opennextjs-cloudflare deploy",
+    "test:cloudflare": "node --test cloudflare/*.test.mjs",
+    "types:cloudflare": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@opennextjs/cloudflare": "1.20.6",
     "@tanstack/react-query": "^5.100.5",
     "framer-motion": "^12.38.0",
     "idb": "^8.0.3",
     "lucide-react": "^1.11.0",
-    "next": "^16.2.6",
+    "next": "16.3.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.75.0",
@@ -44,12 +50,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.3.6",
     "fake-indexeddb": "^6.2.5",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "4.143.0"
   }
 }

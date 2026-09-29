@@ -9,7 +9,7 @@ describe("dashboard API base URL resolution", () => {
   const originalApiBaseDomain = process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
   const originalApiBaseServerUrl = process.env.SERVER_API_BASE_URL;
   const originalApiBasePrivateUrl = process.env.API_BASE_URL;
-  const originalVercelEnv = process.env.VERCEL_ENV;
+  const originalNodeEnv = (process.env as Record<string, string | undefined>).NODE_ENV;
 
   afterEach(() => {
     if (originalApiBaseUrl === undefined) {
@@ -36,10 +36,10 @@ describe("dashboard API base URL resolution", () => {
       process.env.API_BASE_URL = originalApiBasePrivateUrl;
     }
 
-    if (originalVercelEnv === undefined) {
-      delete process.env.VERCEL_ENV;
+    if (originalNodeEnv === undefined) {
+      delete (process.env as Record<string, string | undefined>).NODE_ENV;
     } else {
-      process.env.VERCEL_ENV = originalVercelEnv;
+      (process.env as Record<string, string | undefined>).NODE_ENV = originalNodeEnv;
     }
   });
 
@@ -58,7 +58,7 @@ describe("dashboard API base URL resolution", () => {
   });
 
   it("uses the live Railway API when production env points at stale or local API origins", () => {
-    process.env.VERCEL_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://my-shule-erp-api.vercel.app";
     delete process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
     delete process.env.SERVER_API_BASE_URL;
@@ -72,7 +72,7 @@ describe("dashboard API base URL resolution", () => {
   });
 
   it("allows explicit server API URLs to override public browser API configuration", () => {
-    process.env.VERCEL_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://my-shule-erp-api.vercel.app";
     process.env.SERVER_API_BASE_URL = "https://api.myshule.online";
 

@@ -25,7 +25,7 @@ const webChange = commit('apps/web/src/app/page.tsx', 'pending web fix');
 const laterApi = commit('apps/api/src/main.ts', 'another backend fix');
 const options = (base, head, extra = {}) => ({
   cwd: repository,
-  env: { VERCEL_GIT_PREVIOUS_SHA: base, VERCEL_GIT_COMMIT_SHA: head, ...extra },
+  env: { MYSHULE_PREVIOUS_WEB_SHA: base, MYSHULE_WEB_SHA: head, ...extra },
 });
 
 test('skips independent backend changes from a successful deployed baseline', () => {
@@ -42,7 +42,7 @@ test('builds on first deploy, manual redeploy, missing history, invalid SHA and 
   assert.equal(shouldSkipBuild(options(baseline, apiOnly, { MYSHULE_FORCE_WEB_BUILD: '1' })), false);
 });
 test('builds for web/shared/deployment/lockfile changes; never treats unknown files as independent', () => {
-  for (const file of ['apps/web/src/app/page.tsx', 'packages/shared/types.ts', 'package-lock.json', 'vercel.json', '.npmrc', 'scripts/build.mjs', 'apps/api-shared/index.ts']) {
+  for (const file of ['apps/web/src/app/page.tsx', 'packages/shared/types.ts', 'package-lock.json', 'apps/web/wrangler.jsonc', '.npmrc', 'scripts/build.mjs', 'apps/api-shared/index.ts']) {
     assert.equal(onlyIndependentChanges(['docs/readme.md', file]), false, file);
   }
   assert.equal(onlyIndependentChanges([]), false);

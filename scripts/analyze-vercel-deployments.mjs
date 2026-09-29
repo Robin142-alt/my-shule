@@ -28,7 +28,7 @@ const inventory = deployments.map((deployment) => {
   }
   const key = `${branch}:${target}`;
   const skip = Boolean(branch && shouldSkipBuild({
-    env: { VERCEL_GIT_PREVIOUS_SHA: baselines.get(key), VERCEL_GIT_COMMIT_SHA: sha },
+    env: { MYSHULE_PREVIOUS_WEB_SHA: baselines.get(key), MYSHULE_WEB_SHA: sha },
   }));
   if (!skip && branch && sha) baselines.set(key, sha);
   return {

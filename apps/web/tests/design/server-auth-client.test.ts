@@ -38,18 +38,18 @@ function cookieReader(values: Record<string, string>) {
 describe("server auth client production gateway", () => {
   const originalApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalApiBaseDomain = process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
-  const originalVercel = process.env.VERCEL;
+  const originalRuntime = process.env.MYSHULE_RUNTIME;
 
   beforeEach(() => {
     jest.restoreAllMocks();
     Object.assign(global, { fetch: jest.fn() });
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_DOMAIN;
-    delete process.env.VERCEL;
+    delete process.env.MYSHULE_RUNTIME;
   });
 
   afterAll(() => {
-    if (originalVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = originalVercel;
+    if (originalRuntime === undefined) delete process.env.MYSHULE_RUNTIME; else process.env.MYSHULE_RUNTIME = originalRuntime;
     if (originalApiBaseUrl === undefined) {
       delete process.env.NEXT_PUBLIC_API_BASE_URL;
     } else {
@@ -177,18 +177,18 @@ describe("server auth client production gateway", () => {
   });
 
   it.each([
-    ["1", "203.0.113.12", "203.0.113.12"],
-    ["1", "2001:db8::1", "2001:db8::1"],
-    ["1", "not-an-ip", undefined],
+    ["cloudflare", "203.0.113.12", "203.0.113.12"],
+    ["cloudflare", "2001:db8::1", "2001:db8::1"],
+    ["cloudflare", "not-an-ip", undefined],
     [undefined, "203.0.113.12", undefined],
-  ])("keeps browser identity stable through login, switch and concurrent refresh (Vercel %s, IP %s)", async (vercel, forwardedIp, expectedIp) => {
-    if (vercel) process.env.VERCEL = vercel;
+  ])("keeps browser identity stable through login, switch and concurrent refresh (runtime %s, IP %s)", async (runtime, forwardedIp, expectedIp) => {
+    if (runtime) process.env.MYSHULE_RUNTIME = runtime;
     process.env.NEXT_PUBLIC_API_BASE_URL = "https://api.example.invalid";
     const user = { user_id: "staff-a", tenant_id: "school-a", role: "teacher", audience: "school",
       email: "teacher@example.test", display_name: "Teacher", permissions: ["auth:read"], session_id: "session-a" };
     jest.mocked(fetch).mockResolvedValue(jsonResponse({ user, tokens: { access_token: "access-a", refresh_token: "refresh-a" } }));
     const client = createServerAuthClient(buildRequest("myshule.online", {
-      "x-forwarded-for": forwardedIp!, "user-agent": "School browser",
+      "cf-connecting-ip": forwardedIp!, "x-forwarded-for": "198.51.100.99", "user-agent": "School browser",
     }));
     const cookies = cookieReader({
       [ACCESS_COOKIE]: "access-a", [REFRESH_COOKIE]: "refresh-a", [AUDIENCE_COOKIE]: "school", [TENANT_COOKIE]: "school-a",

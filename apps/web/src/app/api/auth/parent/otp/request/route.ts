@@ -1,3 +1,4 @@
+import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
   const upstreamResponse = await fetch(`${baseUrl}/auth/parent/otp/request`, {
     method: "POST",
     headers: {
+      ...getClientIdentityHeaders(request),
       Accept: "application/json",
       "Content-Type": "application/json",
       "x-auth-audience": "portal",

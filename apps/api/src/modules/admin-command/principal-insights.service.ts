@@ -1,6 +1,6 @@
 import { Injectable, MessageEvent } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { catchError, concat, from, interval, map, Observable, of, switchMap } from 'rxjs';
+import { catchError, concat, exhaustMap, from, interval, map, Observable, of, takeUntil, timer } from 'rxjs';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { ModuleAccessService } from '../module-access/module-access.service';
@@ -125,7 +125,7 @@ export class PrincipalInsightsService {
     const permissions = this.requestContext.getStore()?.permissions ?? [];
 
     return concat(of(0), interval(CACHE_TTL_SECONDS * 1000)).pipe(
-      switchMap(() => from(this.buildDashboardForTenant(tenantId, permissions))),
+      exhaustMap(() => from(this.buildDashboardForTenant(tenantId, permissions))),
       map((dashboard) => ({
         type: 'principal.dashboard',
         data: dashboard,
@@ -138,6 +138,7 @@ export class PrincipalInsightsService {
             : 'Principal dashboard stream failed',
         },
       })),
+      takeUntil(timer(60_000)),
     );
   }
 
