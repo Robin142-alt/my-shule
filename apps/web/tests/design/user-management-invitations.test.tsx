@@ -182,16 +182,17 @@ describe("school-scoped user management and invitations", () => {
     expect(document.querySelector("[data-sonner-toast]")).toBeNull();
 
     const roleSelect = within(commandCenter).getByLabelText(/^Role$/i);
+    const inviteForm = within(roleSelect.closest("form")!);
 
     expect(within(roleSelect).queryByRole("option", { name: /Super Admin/i })).not.toBeInTheDocument();
+    expect(inviteForm.getAllByRole("textbox")).toHaveLength(3);
+    expect(inviteForm.getAllByRole("combobox")).toHaveLength(1);
+    expect(inviteForm.getByText("Invitations are sent by email.")).toBeVisible();
 
     await user.type(within(commandCenter).getByLabelText(/Full name/i), "Grace Njeri");
     await user.type(within(commandCenter).getByLabelText(/Phone number/i), "0712345678");
     await user.type(within(commandCenter).getByLabelText(/Email address/i), "grace.njeri@kisumuboys.ac.ke");
     await user.selectOptions(roleSelect, "Teacher");
-    await user.type(within(commandCenter).getByLabelText(/Department/i), "Mathematics");
-    await user.type(within(commandCenter).getByLabelText(/Class, grade, stream, or subject assignment/i), "Form 2 West");
-    await user.type(within(commandCenter).getByLabelText(/Optional note\/message/i), "Bring TSC number during onboarding.");
     await user.click(within(commandCenter).getByRole("button", { name: /Send Invitation/i }));
 
     expect(await within(commandCenter).findByText(/Invitation email sent to Grace Njeri/i)).toBeVisible();
@@ -206,7 +207,7 @@ describe("school-scoped user management and invitations", () => {
             schoolId: "kisumu-boys",
             invitedName: "Grace Njeri",
             role: "Teacher",
-            note: "Bring TSC number during onboarding.",
+            deliveryMethod: "Email",
             invitationStatus: "Pending",
             invitedByRole: "Principal",
           }),
@@ -227,7 +228,13 @@ describe("school-scoped user management and invitations", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",
-        body: expect.stringContaining('"role_code":"teacher"'),
+        body: JSON.stringify({
+          display_name: "Grace Njeri",
+          email: "grace.njeri@kisumuboys.ac.ke",
+          role_code: "teacher",
+          phone: "0712345678",
+          delivery_method: "Email",
+        }),
       }),
     );
   }, 30000);
