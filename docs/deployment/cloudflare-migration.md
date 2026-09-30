@@ -1,7 +1,19 @@
 # Cloudflare migration: architecture and acceptance record
 
-Status: migration in progress; this document is not a production certification.
+Status: Cloudflare production runtime and DNS are live; Vercel is retained only as domain registrar. This document is not a large-scale capacity certification.
 Audit baseline: `d5ffb04197e38431baa7a7001b5bf20d95b8776c`, 2026-09-29 (Africa/Nairobi).
+
+## Registrar-only cleanup (2026-09-30, Africa/Nairobi)
+
+The owner explicitly cancelled the registrar transfer. Keep `myshule.online` registered with Vercel, automatic renewal enabled, and nameservers `julian.ns.cloudflare.com` / `shubhi.ns.cloudflare.com`. Cloudflare confirmed zero transfers in progress; no transfer checkout/payment was submitted. Registration renewal remains a legitimate domain expense, separate from application hosting.
+
+PR #39 merged as `5b12318954a80bcb76b80cc823f5ec5151b91e01`. Main CI `36684874375` passed every applicable gate and automatically deployed Worker version `2ae7f6a3-c9c2-4520-a279-47a561d84a15`, preserving apex and wildcard routes. Production smoke passed again. Railway continues its existing Git integration; unchanged services correctly skip deployment. All seven Railway services reported running successfully, and the API and both report lanes contain no Vercel/Upstash environment references.
+
+Six legacy Vercel projects were identified by repository/commit history and aliases, then retired: `my-shule-erp-web-clean`, `my-shule-erp-web`, `my-shule-erp-api`, `my-shule-erp`, `shule-hub`, and `web`. Removing these projects removes their retained deployments/functions, aliases, cron configuration and project Git deployment connection. The separately registered domain is retained. Other applications in the Vercel team are outside this cleanup.
+
+The only attached marketplace resource was `upstash-kv-erin-pendant`, a Free-plan Redis resource already archived by Upstash for inactivity. It belonged only to the obsolete Vercel API, not the live Railway Redis service. Its connection and resource were retired. No Vercel Blob stores were present. Encrypted local configuration snapshots were retained for audit; these are configuration records, not database backups. The production PostgreSQL, Redis, R2 objects and background queues remain on their existing infrastructure.
+
+Future main deployments verify both the Worker hostname and canonical production domain. The web README now describes Cloudflare/Railway deployment instead of the generated Vercel instructions. Recovery uses Cloudflare version rollback or redeployment from Git; it must not recreate Vercel hosting. Historical usage counters/invoices may still show usage accrued before retirement; retirement stops new application usage, not previously incurred charges.
 
 ## Staged rollout evidence (2026-09-29 UTC)
 
@@ -13,7 +25,7 @@ Audit baseline: `d5ffb04197e38431baa7a7001b5bf20d95b8776c`, 2026-09-29 (Africa/N
 - Apex, `www` and wildcard web records are now proxied originless AAAA `100::` records. Apex and wildcard routes run `myshule-web`; Wrangler declares these routes for subsequent deployments. There is no Vercel DNS/origin fallback. The Cloudflare Single Redirect preserves the existing apex-to-www 308, path, query and method (GET/HEAD and POST verified). The production Worker smoke passed pages, immutable assets, image optimization, PWA, CSRF and forged-tenant/unsigned API protection. The Kibabi wildcard host responds through Cloudflare. No shared cache rule overrides private response headers.
 - An existing integration configuration gap was found: production M-Pesa consumer credentials, shortcode and passkey contain placeholders, and its callback URL uses a placeholder domain. Readiness reporting alone does not prove this provider works. Real provider configuration and a controlled transaction are required before claiming live payment parity; migration checks have not initiated payments or bypassed callback verification.
 
-The sections below retain earlier audit evidence; the staged rollout record above supersedes their pre-merge/deployment status. Production web/DNS cutover is live. Registrar transfer, final retirement, broader workflow validation and large-scale HA/capacity certification remain incomplete.
+The sections below retain earlier audit evidence; the rollout and registrar-only records above supersede their pre-merge/deployment status. Registrar transfer was cancelled by the owner. Broader workflow validation and large-scale HA/capacity certification are separate from this hosting cleanup.
 
 ## Current release gates: authenticated parity and production cutover
 
@@ -62,7 +74,7 @@ The owner signed into the candidate with existing Kibabi teacher and Exams Manag
 | Realtime | Authenticated SSE with database outbox polling and principal insights | Preserve streaming/cancellation; audit connection lifetime, replay cursor and fan-out capacity |
 | PWA/offline | Same-origin service worker, public-asset cache, IndexedDB/offline queues, no authenticated response cache | Preserve origin and manifest identity; reproduce worker-specific headers on static assets |
 | CI/CD | GitHub quality/build/integration/security workflows; Railway Git source on API and both report lanes | Add gated Cloudflare deployment on main; retain existing Railway Git source and checks |
-| Domain | `myshule.online`, registrar managed through Vercel/Name.com; Vercel authoritative nameservers; apex and www aliases | Cloudflare authoritative DNS and runtime; registrar transfer is a separate tracked dependency |
+| Domain | `myshule.online`, registrar managed through Vercel/Name.com; originally Vercel nameservers and web aliases | Cloudflare authoritative DNS and runtime; retain Vercel registration/renewal by owner decision |
 
 Verified live baseline: website 200; CSRF route 200; Railway readiness 200. No production school records were changed for this audit. Railway API and both report lanes reported the baseline commit. SMS relay/malware scanner are separately deployed services. The legacy GitHub Railway matrix does not describe these live service names and is not enabled by a repository DEPLOY_TARGET variable.
 
@@ -106,10 +118,10 @@ Scale in measured stages: dedicated event/payment consumers before API replicas;
 4. Copy complete DNS; verify certificates, mail records and canonical/wildcard routing. Activate authoritative nameservers only after the zone can serve the existing site safely.
 5. Switch production web routing to the verified Worker. Re-run synthetic and authenticated journeys; monitor errors/latency/queue lag.
 6. Verify main-branch Cloudflare CI deployment and existing Railway deployment behavior.
-7. Move registrar to Cloudflare; verify completion, renewal settings and DNSSEC. Domain transfer can require account-holder action and propagation time.
+7. Retain Vercel registration and automatic renewal with Cloudflare nameservers. Do not initiate a registrar transfer. Coordinate any DNSSEC DS records at the retained registrar with Cloudflare's signing keys.
 8. Verify zero provider-specific runtime/env/callback/DNS/build dependencies and legacy-link usage, then retire Vercel production projects/integration. Do not delete the working origin before these gates pass.
 
-Rollback before final retirement: restore the recorded DNS/origin or prior Cloudflare version; preserve database and queues. After retirement: roll back to a verified Cloudflare version (retain its asset set). No data-schema rollback is introduced by the frontend migration.
+Rollback after retirement: roll back to a verified Cloudflare version with its asset set, or redeploy a verified Git revision to Cloudflare. Preserve the database and queues. Restoring an old Vercel DNS target is no longer a valid rollback. No data-schema rollback is introduced by the frontend migration.
 
 ## Sources
 
