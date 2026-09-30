@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { RequestContextService } from "../../common/request-context/request-context.service";
@@ -14,6 +15,7 @@ import { EventPublisherService } from "../events/event-publisher.service";
 import { SchoolOperationNotificationsRepository } from "../events/repositories/school-operation-notifications.repository";
 import { AuditLogService } from "../observability/audit-log.service";
 import { CollectionSuspenseService } from "./collection-suspense.service";
+import { CollectionReferenceMatcher } from './collection-reference-matcher.service';
 import {
   CollectionPaymentInput,
   normalizeCollectionInput,
@@ -56,6 +58,7 @@ export class CollectionPaymentsService {
     private readonly audit: AuditLogService,
     private readonly notifications: SchoolOperationNotificationsRepository,
     private readonly suspense: CollectionSuspenseService,
+    @Optional() private readonly referenceMatcher?: CollectionReferenceMatcher,
   ) {}
 
   async list(limit = 50, offset = 0) {
@@ -85,7 +88,7 @@ export class CollectionPaymentsService {
           account_number: string;
           channel_id: string;
         }>(
-          `SELECT provider_code,account_number,channel_id FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND id=$2::uuid AND status IN ('active','superseded','suspended')`,
+          `SELECT provider_code,account_number,channel_id FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND id=$2::uuid AND environment='production' AND status IN ('active','superseded','suspended')`,
           [tenant, revisionId],
         )
       ).rows[0];
@@ -178,6 +181,7 @@ export class CollectionPaymentsService {
         await this.db.query<{ id: string; channel_id: string }>(
           `SELECT id,channel_id FROM tenant_payment_channel_revisions
         WHERE tenant_id=$1 AND provider_code=$3 AND account_number=$4
+          AND environment='production'
           AND ($2::uuid IS NULL OR channel_id=$2::uuid) AND activated_at<=$5::timestamptz
           AND status IN ('active','superseded','suspended') ORDER BY activated_at DESC LIMIT 1`,
           [
@@ -197,7 +201,7 @@ export class CollectionPaymentsService {
             ? await this.db.query(
                 `SELECT 1 FROM tenant_payment_channels channel
               JOIN tenant_mpesa_configs config ON config.tenant_id=channel.tenant_id AND config.id=channel.mpesa_config_id
-              WHERE channel.tenant_id=$1 AND channel.id=$2::uuid AND config.shortcode=$3
+              WHERE channel.tenant_id=$1 AND channel.id=$2::uuid AND config.shortcode=$3 AND config.environment='production'
                 AND NOT EXISTS(SELECT 1 FROM tenant_payment_channel_revisions r WHERE r.tenant_id=channel.tenant_id AND r.channel_id=channel.id)`,
                 [tenant, channelId, input.destination_account],
               )
@@ -442,33 +446,13 @@ export class CollectionPaymentsService {
       });
     }
     if (payment.account_reference && !reviewedTarget) {
-      const invoice = await this.invoices.findManualFeeInvoiceTargetByReference(
-        payment.tenant_id,
-        payment.account_reference,
-        true,
-      );
-      if (invoice) {
-        const invoiceStudent =
-          typeof invoice.metadata?.student_id === "string"
-            ? invoice.metadata.student_id
-            : null;
-        if (studentId && studentId !== invoiceStudent)
-          throw new ConflictException(
-            "Payment student does not own the referenced invoice",
-          );
-        invoiceId =
-          BigInt(invoice.amount_paid_minor) < BigInt(invoice.total_amount_minor)
-            ? invoice.id
-            : null;
-        studentId = invoiceStudent;
-      }
-      if (!studentId) {
-        const matches = await this.db.query<{ id: string }>(
-          `SELECT id FROM students WHERE tenant_id=$1 AND admission_number=$2 AND status='active' LIMIT 2`,
-          [payment.tenant_id, payment.account_reference],
-        );
-        if (matches.rows.length === 1) studentId = matches.rows[0].id;
-      }
+      const match = await (this.referenceMatcher ?? new CollectionReferenceMatcher(this.db))
+        .match(payment.tenant_id,payment.account_reference);
+      if (match.reason.startsWith('ambiguous')) studentId = null;
+      else if (studentId && match.student_id && studentId !== match.student_id)
+        throw new ConflictException('Payment student does not own the reference');
+      else studentId = match.student_id ?? studentId;
+      invoiceId = match.invoice_id;
     }
     if (!studentId) {
       const suspenseId = await this.suspense.recognize(payment);

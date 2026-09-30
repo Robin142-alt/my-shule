@@ -114,6 +114,7 @@ describe("Collection approval, persistence and school boundaries", () => {
       CREATE TABLE tenants(tenant_id text PRIMARY KEY,name text);
       CREATE TABLE tenant_financial_accounts(tenant_id text PRIMARY KEY,mpesa_clearing_account_code text,fee_control_account_code text);
       CREATE TABLE students(id uuid PRIMARY KEY,tenant_id text,admission_number text,status text);
+      CREATE TABLE invoices(id uuid PRIMARY KEY,tenant_id text,invoice_number text,status text,total_amount_minor bigint,amount_paid_minor bigint,metadata jsonb);
       CREATE TABLE student_guardians(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE student_portal_access(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE test_effects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,kind text);
@@ -135,6 +136,10 @@ describe("Collection approval, persistence and school boundaries", () => {
         context.requireStore().tenant_id,
         kind,
       ]);
+    const otherStudent = randomUUID();
+    await pool.query(`INSERT INTO students VALUES($1,$2,'ADM-OTHER','active')`,[otherStudent,school]);
+    await pool.query(`INSERT INTO invoices VALUES($1,$2,'INV-LINKED','open',10000,0,$3::jsonb),($4,$2,'INV-OTHER','open',10000,0,$5::jsonb)`,
+      [referencedInvoice,school,JSON.stringify({student_id:student}),randomUUID(),JSON.stringify({student_id:otherStudent})]);
     const audit = { record: () => effect("audit") },
       events = { publish: () => effect("event") },
       notifications = {
@@ -399,7 +404,7 @@ describe("Collection approval, persistence and school boundaries", () => {
           randomUUID(),
         ),
       ),
-    ).rejects.toThrow("Student was not found");
+    ).rejects.toThrow("does not own the reference");
     const failed = await pool.query(
       `SELECT * FROM collection_payments WHERE provider_transaction_id='BAD-STUDENT'`,
     );

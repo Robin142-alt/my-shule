@@ -3,6 +3,7 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   ParseUUIDPipe,
@@ -19,6 +20,7 @@ import {
   DecidePaymentChannelDto,
   RequestPaymentChannelDto,
   SuspendPaymentChannelDto,
+  SandboxPaymentTestDto,
 } from "./dto/payment-channel-workflow.dto";
 import { PaymentChannelWorkflowService } from "./payment-channel-workflow.service";
 
@@ -84,6 +86,12 @@ export class PlatformPaymentIntegrationsController {
   ) {
     return this.service.test(tenant, id);
   }
+  @Get(':tenantId/:id/callbacks') @Header('Cache-Control','no-store') callbacks(
+    @Param('tenantId') tenant:string,@Param('id',ParseUUIDPipe) id:string,
+  ) { return this.service.callbacks(tenant,id); }
+  @Post(':tenantId/:id/sandbox-test') sandboxTest(
+    @Param('tenantId') tenant:string,@Param('id',ParseUUIDPipe) id:string,@Body() dto:SandboxPaymentTestDto,
+  ) { return this.service.sandboxTest(tenant,id,dto); }
   @Post(":tenantId/:id/activate") activate(
     @Param("tenantId") tenant: string,
     @Param("id", ParseUUIDPipe) id: string,

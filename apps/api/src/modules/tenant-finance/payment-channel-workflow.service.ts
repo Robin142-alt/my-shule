@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { SUPERADMIN_ROLE_OWNER } from "../../auth/auth.constants";
 import { RequestContextService } from "../../common/request-context/request-context.service";
 import { PrismaService } from "../../database/prisma.service";
@@ -19,6 +19,7 @@ import {
   ConnectPaymentChannelDto,
   DecidePaymentChannelDto,
   RequestPaymentChannelDto,
+  SandboxPaymentTestDto,
 } from "./dto/payment-channel-workflow.dto";
 import {
   COLLECTION_PROVIDERS,
@@ -59,7 +60,7 @@ export class PaymentChannelWorkflowService {
     return (
       await this.db.query(
         `SELECT id,provider_code,channel_kind,display_name,account_name,account_number,paybill_number,bank_name
-      FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND status='active' ORDER BY display_name,id`,
+      FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND status='active' AND environment='production' ORDER BY display_name,id`,
         [tenantId],
       )
     ).rows;
@@ -97,10 +98,12 @@ export class PaymentChannelWorkflowService {
         (SELECT max(created_at) FROM collection_payments WHERE tenant_id=$1 AND revision_id=$2::uuid) AS last_collection_at,
         (SELECT count(*)::int FROM collection_payments WHERE tenant_id=$1 AND revision_id=$2::uuid AND status='unmatched') AS unmatched_count,
         (SELECT count(*)::int FROM collection_payments WHERE tenant_id=$1 AND revision_id=$2::uuid AND status='pending_review') AS pending_review_count,
-        (SELECT count(*)::int FROM mpesa_c2b_payments WHERE tenant_id=$1 AND payment_channel_id=$3::uuid
-          AND status IN ('received_unverified','verification_requested') AND created_at<NOW()-INTERVAL '10 minutes') AS delayed_confirmation_count,
-        (SELECT count(*)::int FROM mpesa_c2b_payments WHERE tenant_id=$1 AND payment_channel_id=$3::uuid
-          AND status IN ('amount_mismatch','manual_review_required','missing_provider_record')) AS provider_exception_count`,
+        ((SELECT count(*)::int FROM mpesa_c2b_payments WHERE tenant_id=$1 AND payment_channel_id=$3::uuid
+          AND status IN ('received_unverified','verification_requested') AND created_at<NOW()-INTERVAL '10 minutes') +
+         (SELECT count(*)::int FROM payment_ingress WHERE tenant_id=$1 AND revision_id=$2::uuid AND state IN ('received','verifying') AND created_at<NOW()-INTERVAL '10 minutes')) AS delayed_confirmation_count,
+        ((SELECT count(*)::int FROM mpesa_c2b_payments WHERE tenant_id=$1 AND payment_channel_id=$3::uuid
+          AND status IN ('amount_mismatch','manual_review_required','missing_provider_record')) +
+         (SELECT count(*)::int FROM payment_ingress WHERE tenant_id=$1 AND revision_id=$2::uuid AND (state='review' OR conflict_hash IS NOT NULL))) AS provider_exception_count`,
         [tenantId, id, revision.channel_id],
       );
       return {
@@ -109,6 +112,17 @@ export class PaymentChannelWorkflowService {
         connection_mode: revision.connection_mode,
         status: revision.status,
       };
+    });
+  }
+
+  async callbacks(tenantId: string, id: string) {
+    return this.inPlatformSchool(tenantId, async () => {
+      const revision = await this.requireRevision(tenantId,id);
+      if (revision.connection_mode !== 'daraja') throw new BadRequestException('Statement channels do not have provider callbacks');
+      const credentials = this.credentials(revision);
+      await this.audit.record({action:'payment_channel.callback_urls_viewed',resource_type:'payment_channel_revision',resource_id:id});
+      return { ...this.connection.callbackUrls(revision,credentials), environment:revision.environment,
+        trust_mode:credentials._callback_trust_mode ?? 'edge_signed', sandbox_posts_live_fees:false };
     });
   }
 
@@ -232,6 +246,8 @@ export class PaymentChannelWorkflowService {
             "This connection method is not implemented for the provider",
           );
         const credentials: Record<string, string> = {};
+        if (dto.connection_mode === 'statement' && dto.environment !== 'production')
+          throw new BadRequestException('Statement channels record real bank evidence; use production');
         if (dto.connection_mode === "daraja") {
           for (const field of provider.credential_fields) {
             const value = dto.credentials[field.key];
@@ -244,6 +260,8 @@ export class PaymentChannelWorkflowService {
               throw new BadRequestException(`Provide ${field.label}`);
             credentials[field.key] = value.trim();
           }
+          credentials._callback_token = randomBytes(32).toString('hex');
+          credentials._callback_trust_mode = dto.callback_trust_mode ?? 'daraja_direct';
         } else if (Object.keys(dto.credentials).length)
           throw new BadRequestException(
             "Statement reconciliation does not require provider credentials",
@@ -285,6 +303,7 @@ export class PaymentChannelWorkflowService {
       let outcome: string;
       let failure: string | null = null;
       try {
+        await this.reserveSandbox(revision);
         outcome = await this.connection.test(
           revision,
           this.credentials(revision),
@@ -293,6 +312,7 @@ export class PaymentChannelWorkflowService {
         outcome = "failed";
         failure =
           error instanceof BadRequestException ||
+          error instanceof ConflictException ||
           (error instanceof Error && error.name === "BadGatewayException")
             ? error.message
             : "The provider could not be reached. Retry after checking provider availability.";
@@ -321,6 +341,38 @@ export class PaymentChannelWorkflowService {
     });
   }
 
+  async sandboxTest(tenantId: string, id: string, dto: SandboxPaymentTestDto) {
+    return this.inPlatformSchool(tenantId, async () => {
+      const revision = await this.requireRevision(tenantId,id);
+      if (revision.status !== 'active' || revision.environment !== 'sandbox' || revision.connection_mode !== 'daraja')
+        throw new ConflictException('Activate a sandbox Daraja channel before simulating a payment');
+      await this.reserveSandbox(revision);
+      // A unique reference binds shared-shortcode simulations to this exact school
+      // even if a provider retries delivery after another school registers URLs.
+      const reference = `MS${randomBytes(5).toString('hex').toUpperCase()}`;
+      await this.db.withRequestTransaction(async () => {
+        await this.db.query(`INSERT INTO payment_sandbox_tests(tenant_id,revision_id,provider_reference,account_reference) VALUES($1,$2::uuid,$3,$4)`,
+          [tenantId,id,reference,dto.account_reference.trim()]);
+        await this.record(revision,'sandbox_test_requested',['accountant','bursar','principal']);
+      });
+      const credentials = this.credentials(revision);
+      await this.connection.test(revision,credentials);
+      await this.connection.simulate(revision,credentials,reference,dto.amount,dto.msisdn);
+      return {accepted:true,provider_reference:reference,account_reference:dto.account_reference.trim(),
+        message:'Simulation accepted by Safaricom. Inspect Collections for verification and matching; no live fee balance will change.'};
+    });
+  }
+
+  private async reserveSandbox(revision: PaymentChannelRevision) {
+    if (revision.environment !== 'sandbox') return;
+    const result = await this.db.query(`INSERT INTO payment_sandbox_leases(provider_code,destination_account,tenant_id,revision_id,expires_at)
+      VALUES($1,$2,$3,$4::uuid,now()+INTERVAL '15 minutes')
+      ON CONFLICT(provider_code,destination_account) DO UPDATE SET tenant_id=EXCLUDED.tenant_id,revision_id=EXCLUDED.revision_id,expires_at=EXCLUDED.expires_at
+      WHERE payment_sandbox_leases.expires_at<=now() OR payment_sandbox_leases.revision_id=EXCLUDED.revision_id RETURNING revision_id`,
+      [revision.provider_code,revision.account_number,revision.tenant_id,revision.id]);
+    if (!result.rows.length) throw new ConflictException('Another school is testing this shared sandbox shortcode. Retry after its 15-minute test window; production channels are unaffected.');
+  }
+
   async activate(tenantId: string, id: string) {
     return this.inPlatformSchool(tenantId, () =>
       this.db.withRequestTransaction(async () => {
@@ -338,16 +390,14 @@ export class PaymentChannelWorkflowService {
           throw new ConflictException(
             "A successful connection check within the last 24 hours is required",
           );
-        if (revision.environment !== "production")
-          throw new ConflictException(
-            "Sandbox channels cannot receive real school fees. Configure and test production first.",
-          );
         if (revision.replaces_revision_id) {
           const old = await this.requireRevision(
             tenantId,
             revision.replaces_revision_id,
             true,
           );
+          if (old.environment !== revision.environment)
+            throw new ConflictException('Sandbox and production channels cannot replace one another');
           if (old.channel_id)
             await this.repository.updatePaymentChannelStatus({
               tenant_id: tenantId,
@@ -359,8 +409,12 @@ export class PaymentChannelWorkflowService {
             [tenantId, old.id],
           );
         }
-        let channelId: string;
-        if (revision.connection_mode === "daraja") {
+        let channelId: string | null = null;
+        if (revision.environment === 'sandbox') {
+          // A sandbox revision uses the same ingress and verifier but cannot own
+          // live payment channels or create real school ledger entries.
+          if (revision.connection_mode !== 'daraja') throw new ConflictException('Only provider sandboxes can be activated for testing');
+        } else if (revision.connection_mode === "daraja") {
           const credentials = this.credentials(revision);
           const summary = await this.finance.upsertMpesaConfig(tenantId, {
             shortcode: revision.account_number,
@@ -370,7 +424,7 @@ export class PaymentChannelWorkflowService {
             passkey: credentials.passkey,
             initiator_name: credentials.initiator_name,
             environment: "production",
-            callback_url: this.connection.callbackUrl(),
+            callback_url: this.connection.schoolStkCallbackUrl(revision,credentials),
             status: "active",
           });
           const config = summary.mpesa_configs.find(

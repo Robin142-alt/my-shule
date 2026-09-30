@@ -206,7 +206,7 @@ export class MpesaVerificationProcessorService {
       && ['verified_matched','verified_unmatched'].includes(payment.status)) {
       const collection = await this.collections.recognizeVerified(payload.tenant_id,{
         provider_code:'safaricom',provider_transaction_id:payment.trans_id,destination_account:payment.business_short_code,
-        amount_minor:payment.amount_minor,currency_code:'KES',account_reference:payment.bill_ref_number ?? '',occurred_at:payment.received_at.toISOString(),
+        amount_minor:payment.amount_minor,currency_code:'KES',account_reference:payment.bill_ref_number || payment.invoice_number || '',occurred_at:payment.received_at.toISOString(),
       },payment.payment_channel_id);
       if (collection.manual_fee_payment_id) await this.mpesaC2bPaymentsRepository.markMatched({
         tenant_id:payload.tenant_id,payment_id:payment.id,matched_student_id:collection.student_id,matched_invoice_id:collection.invoice_id,

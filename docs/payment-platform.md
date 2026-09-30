@@ -1,5 +1,7 @@
 # School collection platform
 
+The [verified ingress contract and deployment runbook](verified-payment-ingress.md) supersedes the callback configuration and sandbox restrictions below. New school C2B channels use that provider-neutral inbox; the accounting and approval workflow in this document is preserved.
+
 This change extends MyShule's existing NestJS/Next.js, PostgreSQL tenant policies, BullMQ workers, event outbox, encrypted finance configuration, double-entry ledger and fee receipts. MyShule records money collected by a school's provider; it does not hold, pool or transfer school funds.
 
 ## School workflow

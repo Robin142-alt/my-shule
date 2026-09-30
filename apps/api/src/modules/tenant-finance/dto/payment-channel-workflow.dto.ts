@@ -37,8 +37,15 @@ export class ConnectPaymentChannelDto {
   @IsIn(["daraja", "statement"]) connection_mode!: CollectionConnectionMode;
   @IsIn(["sandbox", "production"]) environment!: "sandbox" | "production";
   @IsObject() credentials!: Record<string, string>;
+  @IsOptional() @IsIn(['daraja_direct','edge_signed']) callback_trust_mode?: 'daraja_direct' | 'edge_signed';
 }
 
 export class SuspendPaymentChannelDto {
   @IsString() @Length(5, 1000) reason!: string;
+}
+
+export class SandboxPaymentTestDto {
+  @IsString() @Length(1,120) account_reference!: string;
+  @IsString() @Matches(/^[1-9]\d{0,5}$/) amount!: string;
+  @IsString() @Matches(/^254[17]\d{8}$/) msisdn!: string;
 }

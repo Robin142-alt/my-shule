@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Optional,
   Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UnauthorizedException,
@@ -39,6 +40,7 @@ import {
 } from '../services/mpesa-payload-vault.service';
 import { MpesaCallbackTrustService } from '../services/mpesa-callback-trust.service';
 import { MpesaSignatureService } from '../services/mpesa-signature.service';
+import { PaymentIngressService } from '../ingress/payment-ingress.service';
 
 @Public()
 @Controller(['payments/mpesa', 'mpesa'])
@@ -81,7 +83,15 @@ export class MpesaCallbackController {
     @Optional() private readonly mpesaCallbackTrustService?: MpesaCallbackTrustService,
     @Optional() private readonly mpesaCallbackChannelService?: MpesaCallbackChannelService,
     @Optional() private readonly mpesaVerificationJobsRepository?: MpesaVerificationJobsRepository,
+    @Optional() private readonly ingress?: PaymentIngressService,
   ) {}
+
+  @Post('callback/:tenant/:revision/:token')
+  @HttpCode(HttpStatus.OK)
+  async handleSchoolCallback(@Param('tenant') tenant:string,@Param('revision',ParseUUIDPipe) revision:string,@Param('token') token:string,@Req() request:Request) {
+    if (!this.ingress) throw new UnauthorizedException('School callback verification unavailable');
+    return this.ingress.withStkChannel(tenant,revision,token,channel=>this.handleCallbackInternal(request,null,channel));
+  }
 
   @Post('callback')
   @HttpCode(HttpStatus.OK)
@@ -241,8 +251,8 @@ export class MpesaCallbackController {
       });
     }
 
-    if (!signatureVerified) {
-      if (this.resolveCallbackTrustMode() !== 'manual_review_only') {
+    if (!signatureVerified || callbackChannel?.requires_transaction_status) {
+      if (callbackChannel?.requires_transaction_status || this.resolveCallbackTrustMode() !== 'manual_review_only') {
         if (!this.mpesaVerificationJobsRepository) {
           throw new BadRequestException('M-PESA verification jobs are not configured');
         }

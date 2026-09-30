@@ -29,9 +29,13 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
     ON tenant_payment_channel_revisions(tenant_id,status,created_at DESC);
   CREATE INDEX IF NOT EXISTS ix_collection_revision_connection_queue
     ON tenant_payment_channel_revisions(status,created_at DESC);
-  CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_active_destination
+  DROP INDEX IF EXISTS ux_collection_active_destination;
+  CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_active_production_destination
     ON tenant_payment_channel_revisions(provider_code,channel_kind,account_number)
-    WHERE status = 'active';
+    WHERE status = 'active' AND environment = 'production';
+  CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_active_sandbox_destination
+    ON tenant_payment_channel_revisions(tenant_id,provider_code,channel_kind,account_number)
+    WHERE status = 'active' AND environment = 'sandbox';
   CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_pending_replacement
     ON tenant_payment_channel_revisions(tenant_id,replaces_revision_id)
     WHERE replaces_revision_id IS NOT NULL AND status IN ('pending_approval','approved','connecting','ready');
@@ -65,6 +69,30 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
   DROP TRIGGER IF EXISTS collection_revision_history ON tenant_payment_channel_revisions;
   CREATE TRIGGER collection_revision_history BEFORE UPDATE OR DELETE ON tenant_payment_channel_revisions
     FOR EACH ROW EXECUTE FUNCTION app.guard_collection_revision_history();
+
+  -- Provider routing metadata only; no student/payment data in this global lease.
+  CREATE TABLE IF NOT EXISTS payment_sandbox_leases (
+    provider_code text NOT NULL, destination_account text NOT NULL,
+    tenant_id text NOT NULL, revision_id uuid NOT NULL, expires_at timestamptz NOT NULL,
+    PRIMARY KEY(provider_code,destination_account),
+    FOREIGN KEY(tenant_id,revision_id) REFERENCES tenant_payment_channel_revisions(tenant_id,id)
+  );
+  ALTER TABLE payment_sandbox_leases ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE payment_sandbox_leases FORCE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS sandbox_lease_platform ON payment_sandbox_leases;
+  CREATE POLICY sandbox_lease_platform ON payment_sandbox_leases FOR ALL
+    USING(current_setting('app.role',true)='platform_owner' AND current_setting('app.is_authenticated',true)='true')
+    WITH CHECK(current_setting('app.role',true)='platform_owner' AND current_setting('app.is_authenticated',true)='true');
+  CREATE TABLE IF NOT EXISTS payment_sandbox_tests (
+    tenant_id text NOT NULL, revision_id uuid NOT NULL, provider_reference text NOT NULL UNIQUE,
+    account_reference text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+    FOREIGN KEY(tenant_id,revision_id) REFERENCES tenant_payment_channel_revisions(tenant_id,id)
+  );
+  ALTER TABLE payment_sandbox_tests ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE payment_sandbox_tests FORCE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS sandbox_test_school ON payment_sandbox_tests;
+  CREATE POLICY sandbox_test_school ON payment_sandbox_tests FOR ALL
+    USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
 `;
 
 @Injectable()

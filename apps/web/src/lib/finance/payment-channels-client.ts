@@ -79,6 +79,14 @@ export const getIntegrationHealth = (row: CollectionChannelRevision) =>
   requestDashboardApi<CollectionHealth>(
     `/platform/payment-integrations/${row.tenant_id}/${row.id}/health?audience=superadmin`,
   );
+export interface IntegrationCallbacks {
+  confirmation_url: string; validation_url: string; environment: string; trust_mode: string;
+}
+export const getIntegrationCallbacks = (row: CollectionChannelRevision) =>
+  requestDashboardApi<IntegrationCallbacks>(`/platform/payment-integrations/${row.tenant_id}/${row.id}/callbacks?audience=superadmin`);
+export const simulateIntegrationPayment = (row: CollectionChannelRevision, body: Record<string,unknown>) =>
+  requestDashboardApi<{accepted:boolean;provider_reference:string;message:string}>(`/platform/payment-integrations/${row.tenant_id}/${row.id}/sandbox-test?audience=superadmin`,
+    {method:'POST',body,timeoutMs:75000});
 const integrationAction = (
   row: CollectionChannelRevision,
   action: string,

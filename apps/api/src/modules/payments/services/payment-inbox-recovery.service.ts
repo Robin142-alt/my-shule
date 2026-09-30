@@ -3,6 +3,7 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
+  Optional,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { RequestContextService } from "../../../common/request-context/request-context.service";
@@ -12,6 +13,7 @@ import {
   SUPERADMIN_ROLE_OWNER,
 } from "../../../auth/auth.constants";
 import { PaymentsJobProducerService } from "./payments-job-producer.service";
+import { PaymentIngressService } from '../ingress/payment-ingress.service';
 
 interface PendingVerification {
   id: string;
@@ -34,6 +36,7 @@ export class PaymentInboxRecoveryService
     private readonly db: PrismaService,
     private readonly context: RequestContextService,
     private readonly producer: PaymentsJobProducerService,
+    @Optional() private readonly ingress?: PaymentIngressService,
   ) {}
 
   onApplicationBootstrap() {
@@ -93,6 +96,7 @@ export class PaymentInboxRecoveryService
   }
 
   private async recoverSchool(tenant: string) {
+    await this.ingress?.recoverSchool(tenant);
     // Callback acceptance commits before Redis dispatch. Also recover a worker
     // that stopped after taking a callback; posting itself remains idempotent.
     const callbacks = await this.db.withRequestTransaction(() =>

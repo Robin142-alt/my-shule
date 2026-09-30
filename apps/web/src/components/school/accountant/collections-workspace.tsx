@@ -29,6 +29,10 @@ interface Reversal {
   status: string;
   reason: string;
 }
+interface IngressPayment {
+  id:string;provider_transaction_id:string;provider_code:string;environment:string;amount_minor:string;
+  account_reference:string;state:string;review_reason:string|null;student_id:string|null;has_conflict:boolean;
+}
 type Action =
   | { kind: "statement" }
   | { kind: "match" | "decision" | "reversal"; payment: Collection }
@@ -57,6 +61,7 @@ export function CollectionsWorkspace({
   const channels = useSchoolQuery<CollectionChannelRevision[]>(
     "/tenant-finance/collection-channels",
   );
+  const inbox = useSchoolQuery<IngressPayment[]>('/payments/ingress');
   const [action, setAction] = useState<Action | null>(null);
   const [learner, setLearner] = useState<LearnerLookupItem | null>(null);
   const [reason, setReason] = useState("");
@@ -65,7 +70,7 @@ export function CollectionsWorkspace({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const destinations = (channels.data ?? []).filter((row) =>
-    ["active", "suspended", "superseded"].includes(row.status),
+    row.environment === 'production' && ["active", "suspended", "superseded"].includes(row.status),
   );
 
   function open(next: Action) {
@@ -171,6 +176,24 @@ export function CollectionsWorkspace({
           </Button>
         )}
       </div>
+      <section className="space-y-3 rounded-lg border border-border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Provider verification inbox</h3>
+          <Button variant="secondary" disabled={inbox.isLoading || busy} onClick={()=>void inbox.refetch()}>Refresh verification</Button></div>
+        <p className="text-sm text-muted">Only verified production collections affect fees. Sandbox entries show matching results only. Never credit a review item from a callback alone; verify independent provider evidence before using the statement approval workflow.</p>
+        {inbox.error && <p role="alert">{inbox.error.message}</p>}
+        {inbox.isLoading ? <p role="status">Loading verification…</p> : !inbox.data?.length ? <p>No provider callbacks received yet.</p> :
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Provider / receipt','Reference / amount','Verification','Action'].map(t=><th className="p-2" key={t}>{t}</th>)}</tr></thead>
+            <tbody>{inbox.data.map(row=><tr key={row.id} className="border-t border-border">
+              <td className="p-2">{row.provider_code} · {row.environment}<span className="block font-mono">{row.provider_transaction_id}</span></td>
+              <td className="p-2">{row.account_reference || 'No reference'}<span className="block">{money(row.amount_minor)}</span></td>
+              <td className="p-2">{row.state.replaceAll('_',' ')}{row.student_id && <span className="block">Matched student: {row.student_id}</span>}{row.review_reason && <span className="block text-muted">{row.review_reason}</span>}</td>
+              <td className="p-2">{row.state==='review' && !row.has_conflict ? <Button disabled={busy} variant="secondary" onClick={async()=>{
+                if(!tenantId)return;setBusy(true);setError('');try{await requestDashboardApi(`/payments/ingress/${row.id}/retry`,{tenantId,method:'POST'});await inbox.refetch();setNotice('Provider verification queued. No fee credit has been posted.');}
+                catch(cause){setError(cause instanceof Error?cause.message:'Retry failed');}finally{setBusy(false);}
+              }}>Retry verification</Button>:row.has_conflict?'Conflicting evidence — accountant review':row.state==='unmatched'?'Match in collections below':'—'}</td>
+            </tr>)}</tbody></table></div>}
+      </section>
+      {error && !action && <p role="alert" className="text-danger">{error}</p>}
       {notice && (
         <p role="status" className="rounded-lg bg-success-soft p-3">
           {notice}

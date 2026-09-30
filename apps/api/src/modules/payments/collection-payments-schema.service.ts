@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../../database/prisma.service";
 import { PaymentChannelWorkflowSchemaService } from "../tenant-finance/payment-channel-workflow-schema.service";
 import { MPESA_ASYNC_STATUS_SCHEMA } from "./mpesa-async-status.service";
+import { PAYMENT_INGRESS_SCHEMA } from './ingress/payment-ingress.schema';
 
 export const COLLECTION_PAYMENTS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS collection_payments (
@@ -94,7 +95,7 @@ export class CollectionPaymentsSchemaService implements OnModuleInit {
   async onModuleInit() {
     await this.channels.onModuleInit();
     await this.db.runSchemaBootstrap(
-      COLLECTION_PAYMENTS_SCHEMA + MPESA_ASYNC_STATUS_SCHEMA,
+      COLLECTION_PAYMENTS_SCHEMA + MPESA_ASYNC_STATUS_SCHEMA + PAYMENT_INGRESS_SCHEMA,
     );
   }
 }

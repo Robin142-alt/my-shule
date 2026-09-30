@@ -14,6 +14,8 @@ jest.mock("@/lib/finance/payment-channels-client", () => ({
   testPaymentIntegration: jest.fn(),
   activatePaymentIntegration: jest.fn(),
   suspendPaymentIntegration: jest.fn(),
+  getIntegrationCallbacks: jest.fn(),
+  simulateIntegrationPayment: jest.fn(),
 }));
 jest.mock("@/lib/data/school-hooks", () => ({ useSchoolQuery: jest.fn() }));
 jest.mock("@/lib/data/school-tenant-scope", () => ({
@@ -170,4 +172,18 @@ test("statement setup asks no credentials and cannot activate an untested channe
   expect(
     screen.queryByRole("button", { name: "Activate channel" }),
   ).not.toBeInTheDocument();
+});
+
+test('sandbox channel reveals canonical callbacks only on request and exposes the isolated simulator',async()=>{
+  jest.mocked(api.listPaymentIntegrations).mockResolvedValue([{...revision,provider_code:'safaricom',connection_mode:'daraja',environment:'sandbox',status:'active',credentials_configured:true}]);
+  jest.mocked(api.getIntegrationCallbacks).mockResolvedValue({confirmation_url:'https://example.org/payments/ingress/secret/confirmation',validation_url:'https://example.org/payments/ingress/secret/validation',environment:'sandbox',trust_mode:'daraja_direct'});
+  render(<PaymentGatewaysWorkspace/>);
+  expect(await screen.findByRole('button',{name:'Simulate sandbox payment'})).toBeInTheDocument();
+  expect(api.getIntegrationCallbacks).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Callback URLs'}));
+  expect(await screen.findByLabelText('Confirmation URL')).toHaveValue('https://example.org/payments/ingress/secret/confirmation');
+  fireEvent.click(screen.getByRole('button',{name:'Close'}));
+  fireEvent.click(screen.getByRole('button',{name:'Simulate sandbox payment'}));
+  expect(screen.getByText(/No live payment, receipt or balance is created/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Student admission / invoice reference')).toBeRequired();
 });

@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { RequestContextService } from '../common/request-context/request-context.service';
 import { TenantService } from '../tenant/tenant.service';
+import { isPaymentIngressCallback } from '../common/request-path.util';
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
@@ -13,7 +14,7 @@ export class TenantMiddleware implements NestMiddleware {
 
   async use(request: Request, response: Response, next: NextFunction): Promise<void> {
     try {
-      if (this.isHealthProbeRequest(request)) {
+      if (this.isHealthProbeRequest(request) || isPaymentIngressCallback(request.method, request.path)) {
         next();
         return;
       }

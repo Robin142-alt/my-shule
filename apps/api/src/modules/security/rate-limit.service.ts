@@ -5,6 +5,7 @@ import type { Request } from 'express';
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
+import { isPaymentIngressCallback } from '../../common/request-path.util';
 
 interface RateLimitPolicy {
   bucket: string;
@@ -309,6 +310,7 @@ export class RateLimitService {
 
   private resolveRouteKey(request: Request): string {
     const path = (request.path || request.originalUrl || request.url).toLowerCase();
+    if (isPaymentIngressCallback(request.method,path)) return 'mpesa-callback';
 
     if (path.startsWith('/auth/parent/otp')) {
       return 'auth-parent-otp';

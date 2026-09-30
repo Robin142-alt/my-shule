@@ -38,6 +38,11 @@ import { CollectionSuspenseService } from './collection-suspense.service';
 import { CollectionPaymentsController } from './collection-payments.controller';
 import { MpesaAsyncStatusService } from './mpesa-async-status.service';
 import { MpesaAsyncStatusController } from './mpesa-async-status.controller';
+import { CollectionReferenceMatcher } from './collection-reference-matcher.service';
+import { PaymentIngressController } from './ingress/payment-ingress.controller';
+import { PaymentIngressService } from './ingress/payment-ingress.service';
+import { CollectionAdapterRegistry } from './ingress/collection-adapter-registry.service';
+import { SafaricomCollectionAdapter } from './ingress/safaricom-collection.adapter';
 
 @Module({
   imports: [
@@ -51,11 +56,15 @@ import { MpesaAsyncStatusController } from './mpesa-async-status.controller';
     PaymentsQueueModule,
     forwardRef(() => BillingModule),
   ],
-  controllers: [PaymentsController, MpesaCallbackController, MpesaC2bController, CollectionPaymentsController, MpesaAsyncStatusController],
+  controllers: [PaymentsController, MpesaCallbackController, MpesaC2bController, CollectionPaymentsController, MpesaAsyncStatusController, PaymentIngressController],
   providers: [
     PaymentsSchemaService,
     CollectionPaymentsSchemaService,
     CollectionPaymentsService,
+    CollectionReferenceMatcher,
+    PaymentIngressService,
+    CollectionAdapterRegistry,
+    SafaricomCollectionAdapter,
     CollectionSuspenseService,
     MpesaAsyncStatusService,
     MpesaService,
@@ -79,6 +88,7 @@ import { MpesaAsyncStatusController } from './mpesa-async-status.controller';
     MpesaVerificationJobsRepository,
   ],
   exports: [
+    PaymentIngressService,
     CollectionPaymentsService,
     MpesaService,
     MpesaCallbackChannelService,
