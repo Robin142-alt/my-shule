@@ -90,13 +90,6 @@ type InviteFormState = {
   phone: string;
   email: string;
   role: string;
-  department: string;
-  assignment: string;
-  tscNumber?: string;
-  employmentType?: string;
-  identifier: string;
-  deliveryMethod: InviteDeliveryMethod;
-  note: string;
 };
 
 type ManagedUserApi = {
@@ -253,13 +246,6 @@ function initialInviteForm(): InviteFormState {
     phone: "",
     email: "",
     role: "Teacher",
-    department: "",
-    assignment: "",
-    tscNumber: "",
-    employmentType: "",
-    identifier: "",
-    deliveryMethod: "Email",
-    note: "",
   };
 }
 
@@ -1157,10 +1143,6 @@ export function UserManagementWorkspace({
     const invitedName = inviteForm.fullName.trim();
     const role = inviteForm.role;
     const phone = inviteForm.phone.trim();
-    const department = inviteForm.department.trim();
-    const assignment = inviteForm.assignment.trim();
-    const identifier = inviteForm.identifier.trim();
-    const note = inviteForm.note.trim();
     const invitedByUserId = `${schoolId}-${slug(actorName)}`;
 
     setInviteBusy(true);
@@ -1179,11 +1161,7 @@ export function UserManagementWorkspace({
           email,
           role_code: roleCodeForLabel(role),
           phone,
-          department,
-          assignment,
-          identifier,
           delivery_method: "Email",
-          note,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -1216,11 +1194,11 @@ export function UserManagementWorkspace({
           actorRole,
         ),
         phone: apiInvite.phone ?? phone,
-        department: apiInvite.department ?? department,
-        assignment: apiInvite.assignment ?? assignment,
-        identifier,
+        department: apiInvite.department ?? "",
+        assignment: apiInvite.assignment ?? "",
+        identifier: "",
         deliveryMethod: "Email" as InviteDeliveryMethod,
-        note,
+        note: "",
         invitedByUserId,
         invitedByRole: actorRole,
       };
@@ -1232,7 +1210,7 @@ export function UserManagementWorkspace({
         invitedName,
         undefined,
         invitationSent ? `${role} invitation email sent` : `${role} invitation created; email delivery failed`,
-        invitationSent ? note : deliveryMessage,
+        invitationSent ? undefined : deliveryMessage,
       );
       publishUserEvent(
         invitationSent ? "USER_INVITED" : "USER_INVITE_EMAIL_FAILED",
@@ -1407,10 +1385,10 @@ export function UserManagementWorkspace({
             <h3 className="mt-1 text-lg font-black text-foreground">Invite New User</h3>
             <p className="mt-1 text-sm font-semibold text-muted">Super Admin accounts are excluded. Every invite receives this school ID and expires automatically.</p>
           </div>
-          <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={createInvitation}>
+          <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={createInvitation}>
             <FormField label="Full name" value={inviteForm.fullName} onChange={(value) => setInviteForm((form) => ({ ...form, fullName: value }))} required />
-            <FormField label="Phone number" value={inviteForm.phone} onChange={(value) => setInviteForm((form) => ({ ...form, phone: value }))} required />
-            <FormField label="Email address" value={inviteForm.email} onChange={(value) => setInviteForm((form) => ({ ...form, email: value }))} required />
+            <FormField label="Phone number" type="tel" value={inviteForm.phone} onChange={(value) => setInviteForm((form) => ({ ...form, phone: value }))} required />
+            <FormField label="Email address" type="email" value={inviteForm.email} onChange={(value) => setInviteForm((form) => ({ ...form, email: value }))} required />
             <label className="grid gap-1 text-sm font-bold text-muted-strong">
               Role
               <select
@@ -1426,51 +1404,8 @@ export function UserManagementWorkspace({
                 ))}
               </select>
             </label>
-            <FormField label="Department" value={inviteForm.department} onChange={(value) => setInviteForm((form) => ({ ...form, department: value }))} />
-            <FormField label="Class, grade, stream, or subject assignment" value={inviteForm.assignment} onChange={(value) => setInviteForm((form) => ({ ...form, assignment: value }))} />
-            <FormField label="Staff/student/parent identifier" value={inviteForm.identifier} onChange={(value) => setInviteForm((form) => ({ ...form, identifier: value }))} />
-            {inviteForm.role === "Teacher" && (
-              <>
-                <FormField label="TSC Number" value={inviteForm.tscNumber ?? ""} onChange={(value) => setInviteForm((form) => ({ ...form, tscNumber: value }))} />
-                <label className="grid gap-1 text-sm font-bold text-muted-strong">
-                  Employment Type
-                  <select
-                    value={inviteForm.employmentType ?? ""}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setInviteForm((form) => ({ ...form, employmentType: value }));
-                    }}
-                    className="rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info-border"
-                  >
-                    <option value="">Select type</option>
-                    <option value="TSC">TSC (Government)</option>
-                    <option value="BOM">BOM (Board of Management)</option>
-                    <option value="Intern">Intern / PTA</option>
-                    <option value="Non-Teaching">Non-Teaching Staff</option>
-                  </select>
-                </label>
-              </>
-            )}
-            <label className="grid gap-1 text-sm font-bold text-muted-strong">
-              Send invite by
-              <input
-                value="Email invitation"
-                readOnly
-                className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm font-semibold text-foreground outline-none"
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-bold text-muted-strong md:col-span-2 xl:col-span-3">
-              Optional note/message
-              <textarea
-                value={inviteForm.note}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  setInviteForm((form) => ({ ...form, note: value }));
-                }}
-                className="min-h-24 rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-info-border"
-              />
-            </label>
-            <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-3">
+            <p className="text-sm font-semibold text-muted md:col-span-2">Invitations are sent by email.</p>
+            <div className="flex flex-wrap gap-2 md:col-span-2">
               <button type="submit" disabled={inviteBusy} className="rounded-xl border border-success-border bg-success-soft px-4 py-2 text-sm font-black text-success disabled:cursor-wait disabled:opacity-70">
                 {inviteBusy ? "Sending Invitation..." : "Send Invitation"}
               </button>
@@ -1589,11 +1524,13 @@ export function UserManagementWorkspace({
 
 function FormField({
   label,
+  type = "text",
   value,
   onChange,
   required,
 }: {
   label: string;
+  type?: "text" | "tel" | "email";
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
@@ -1602,6 +1539,7 @@ function FormField({
     <label className="grid gap-1 text-sm font-bold text-muted-strong">
       {label}
       <input
+        type={type}
         value={value}
         required={required}
         onChange={(event) => onChange(event.currentTarget.value)}
