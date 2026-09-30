@@ -81,7 +81,8 @@ export class PaymentIngressService {
         if (previous.amount_minor !== payment.amount_minor || previous.account_reference !== payment.account_reference ||
             previous.currency_code !== payment.currency_code) {
           await this.db.query(`UPDATE payment_ingress SET conflict_hash=$3,review_reason='Conflicting callback identity',
-            state=CASE WHEN collection_id IS NULL THEN 'review' ELSE state END,updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid`,
+            state=CASE WHEN state IN ('posted','unmatched','sandbox_verified') THEN state ELSE 'review' END,
+            updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid`,
             [route.tenant,previous.id,hash]);
           await this.record(previous, 'review_required');
         }
