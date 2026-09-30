@@ -23,6 +23,7 @@ import { InvoicesWorkspace } from "@/components/school/accountant/invoices-works
 import { MPesaReconciliationWorkspace } from "@/components/school/accountant/m-pesa-reconciliation-workspace";
 import { PaymentsWorkspace } from "@/components/school/accountant/payments-workspace";
 import { SchoolPaymentChannels } from "@/components/school/accountant/payment-channels-workspace";
+import { SchoolPaymentSetupSummary, usePaymentSetupSummary } from "@/components/school/accountant/payment-setup-summary";
 import { CollectionsWorkspace } from "@/components/school/accountant/collections-workspace";
 import { ReceiptsWorkspace } from "@/components/school/accountant/receipts-workspace";
 import { ReportsWorkspace } from "@/components/school/accountant/reports-workspace";
@@ -33,6 +34,7 @@ import {
   SchoolCommandSidebarIdentity,
 } from "@/components/school/integrated-school-command-header";
 import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
+import { SchoolNotificationBell } from "@/components/common/notifications/notification-bell";
 
 import { buildSchoolSectionHref, type SchoolRouteMode } from "./school-pages";
 
@@ -168,6 +170,7 @@ export function AccountantCommandCenter({
   );
   const roleTitle = role === "bursar" ? "Bursar Dashboard" : "Accountant Dashboard";
   const roleLabel = role === "bursar" ? "Bursar" : "Accountant";
+  const paymentSetup = usePaymentSetupSummary();
 
   const groupedNavItems = useMemo(
     () =>
@@ -262,7 +265,7 @@ export function AccountantCommandCenter({
         );
       case "overview":
       default:
-        return <AccountantOverviewWorkspace onNavigate={(section) => navigateTo(normalizeAccountantSection(section))} />;
+        return <div className="space-y-6"><SchoolPaymentSetupSummary onOpen={() => navigateTo("payment-setup")} /><AccountantOverviewWorkspace onNavigate={(section) => navigateTo(normalizeAccountantSection(section))} /></div>;
     }
   })();
 
@@ -307,7 +310,7 @@ export function AccountantCommandCenter({
                       >
                         <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden={true} />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-black">{item.label}</span>
+                          <span className="block truncate text-sm font-black">{item.label}{item.id === "payment-setup" && Boolean(paymentSetup.data?.attention) ? ` (${paymentSetup.data!.attention} follow-up)` : ""}</span>
                           <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-white/50">
                             {item.description}
                           </span>
@@ -327,6 +330,7 @@ export function AccountantCommandCenter({
             fallbackUserLabel={userLabel?.trim() || roleLabel}
             actions={(
               <div className="flex flex-wrap gap-2 xl:justify-end">
+                <SchoolNotificationBell basePath={routeMode === "public" ? `/school/${role}` : ""} />
                 <button
                   type="button"
                   onClick={() => navigateTo("payments")}

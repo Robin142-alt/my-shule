@@ -1,5 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as renderUi, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { SchoolPaymentChannels } from "@/components/school/accountant/payment-channels-workspace";
+import { PrincipalApprovalsWorkspace } from "@/components/school/principal-dashboard/approvals-workspace";
+import { SchoolPaymentSetupSummary } from "@/components/school/accountant/payment-setup-summary";
+import { resolvePaymentSetupNotificationHref } from "@/lib/notification-link-resolver";
 import { PaymentGatewaysWorkspace } from "@/components/platform/workspaces/PaymentGatewaysWorkspace";
 import * as api from "@/lib/finance/payment-channels-client";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -10,6 +15,7 @@ jest.mock("@/lib/finance/payment-channels-client", () => ({
   decideCollectionChannel: jest.fn(),
   listPaymentIntegrations: jest.fn(),
   listIntegrationProviders: jest.fn(),
+  getPaymentIntegrationSummary: jest.fn(),
   connectPaymentIntegration: jest.fn(),
   testPaymentIntegration: jest.fn(),
   activatePaymentIntegration: jest.fn(),
@@ -17,6 +23,8 @@ jest.mock("@/lib/finance/payment-channels-client", () => ({
   getIntegrationCallbacks: jest.fn(),
   simulateIntegrationPayment: jest.fn(),
 }));
+jest.mock("@/components/school/principal-dashboard/verified-tenant-api", () => ({ useVerifiedPrincipalDashboardApi: () => jest.fn() }));
+jest.mock("@/lib/school/school-operational-store", () => ({ publishSchoolDataUpdate: jest.fn() }));
 jest.mock("@/lib/data/school-hooks", () => ({ useSchoolQuery: jest.fn() }));
 jest.mock("@/lib/data/school-tenant-scope", () => ({
   useOptionalSchoolTenantId: () => "school-a",
@@ -61,6 +69,11 @@ const revision: api.CollectionChannelRevision = {
   credentials_configured: false,
 };
 const refetch = jest.fn();
+const summary: api.PaymentSetupSummary = { total: 1, pending_approval: 1, awaiting_connection: 0, ready: 0, active: 0, sandbox: 0, attention: 0 };
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderUi(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -69,7 +82,8 @@ beforeEach(() => {
     .mockImplementation(
       (path) =>
         ({
-          data: path?.endsWith("providers") ? [provider] : [revision],
+          data: path?.endsWith("providers") ? [provider] : path?.endsWith("summary") ? summary : path === "/admin-command/principal/approvals" ? { pendingTotal: 2, urgentApprovals: 0, requests: [], categories: [], recentApprovals: [] }
+            : path === "/admin-command/principal/exams" ? { reportsPending: 0, recentResults: [] } : [revision],
           isLoading: false,
           error: null,
           refetch,
@@ -81,6 +95,50 @@ beforeEach(() => {
       { ...revision, school_name: "Amani School", status: "approved" },
     ]);
   jest.mocked(api.listIntegrationProviders).mockResolvedValue([provider]);
+  jest.mocked(api.getPaymentIntegrationSummary).mockResolvedValue({ ...summary, pending_approval: 0, awaiting_connection: 1 });
+});
+
+test("Principal Approvals includes the Accountant request and counts it once", async () => {
+  render(<PrincipalApprovalsWorkspace />);
+  expect(screen.getByText("Total Pending").parentElement).toHaveTextContent("3");
+  expect(screen.getByText("Payment setup", { exact: true }).parentElement?.parentElement?.parentElement).toHaveTextContent("Payment setup1");
+  expect(screen.queryByText("All caught up! No pending approvals.")).not.toBeInTheDocument();
+  expect(screen.getByText("Fees account")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Review request" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("School fees collection");
+  expect(useSchoolQuery).toHaveBeenCalledWith(expect.stringContaining("status=pending_approval"), expect.anything());
+});
+
+test("school overview exposes counts and a working payment setup action", () => {
+  const open = jest.fn();
+  render(<SchoolPaymentSetupSummary review onOpen={open} />);
+  expect(screen.getByText("Awaiting Principal").parentElement).toHaveTextContent("1");
+  fireEvent.click(screen.getByRole("button", { name: "Review payment setups" }));
+  expect(open).toHaveBeenCalledTimes(1);
+});
+
+test("notification links preserve Principal and Bursar portal routes and the exact revision", () => {
+  for (const role of ["principal", "accountant", "bursar"]) {
+    expect(resolvePaymentSetupNotificationHref("/payment-setup?revision=abc", `/school/${role}`)).toBe(`/school/${role}/payment-setup?revision=abc`);
+  }
+  expect(resolvePaymentSetupNotificationHref("/payment-setup?revision=abc", "")).toBe("/payment-setup?revision=abc");
+});
+
+test("Super Admin searches the full server queue and filters connection work", async () => {
+  render(<PaymentGatewaysWorkspace />);
+  await screen.findByRole("button", { name: "Connect channel" });
+  fireEvent.change(screen.getByRole("textbox", { name: "Search integrations" }), { target: { value: "Baraka" } });
+  fireEvent.click(screen.getByRole("button", { name: "Search all schools" }));
+  await waitFor(() => expect(api.listPaymentIntegrations).toHaveBeenLastCalledWith(0, "all", "Baraka"));
+  fireEvent.change(screen.getByLabelText("Queue"), { target: { value: "connection" } });
+  await waitFor(() => expect(api.listPaymentIntegrations).toHaveBeenLastCalledWith(0, "connection", "Baraka"));
+});
+
+test("sandbox active setup is never described as live fee collection", () => {
+  jest.mocked(useSchoolQuery).mockImplementation((path) => ({ data: path?.endsWith("summary") ? { ...summary, sandbox: 1 } : path?.endsWith("providers") ? [provider] : [{ ...revision, status: "active", environment: "sandbox", connection_mode: "daraja" }], refetch }) as never);
+  render(<SchoolPaymentChannels mode="review" />);
+  expect(screen.getByText("Sandbox active — no live fee credit")).toBeVisible();
+  expect(screen.queryByText("Active — automatic collection")).not.toBeInTheDocument();
 });
 
 test("accountant requests an approval using only school bank information", async () => {

@@ -11,6 +11,10 @@ jest.mock("@/lib/data/school-hooks", () => ({
   useSchoolQuery: jest.fn(),
 }));
 
+// Payment approval integration has its own end-to-end component regression suite.
+jest.mock("@/components/school/accountant/payment-channels-workspace", () => ({ SchoolPaymentChannels: () => null }));
+jest.mock("@/components/school/accountant/payment-setup-summary", () => ({ usePaymentSetupSummary: () => ({ data: { pending_approval: 0 }, isLoading: false }) }));
+
 jest.mock("@/components/providers/permission-context", () => ({
   ...jest.requireActual("@/components/providers/permission-context"),
   usePermissions: jest.fn(),

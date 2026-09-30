@@ -63,6 +63,19 @@ Before production rollout, complete each merchant's onboarding, test a real cont
 
 ## Verification
 
+### Payment setup dashboard readiness (30 September 2026)
+
+- Accountant/Bursar: overview counts and a Payment Setup action, a follow-up badge, a notification inbox, and filtered/paginated setup history. Requests use school account information only. Rejected/suspended setups remain visible with the decision/error and a correction action.
+- Principal: Payment Setup and Collection Reviews are dedicated sidebar destinations; Approvals includes pending payment destinations with the existing explicit review form. Overview and approval totals include pending payment setups. Decisions require `principal:write` plus the service's Principal role, tenant and separate-requester checks; Principals receive no general billing-write capability.
+- Super Admin: overview and sidebar expose the connection queue; live queue notifications point to payment integrations. Search and filters run on the server across schools, with connection work prioritized. Connection/activation mutations refresh the list and counts. Existing provider testing and health actions are retained.
+- New request notifications are action-required, include the exact revision link and a persisted priority, and resolve in the same transaction as the Principal decision. Existing notifications with `href` remain navigable through the canonical inbox. Path-based and school-host links retain the appropriate role route. An old notification opens the current revision state; it cannot reapprove an already decided request.
+- Counts come from all revisions, independently of list pagination, with separate live and sandbox totals. Ready-to-activate is a subset of the Super Admin queue. Follow-up excludes revisions for which a replacement has already been submitted. School queries derive scope from the authenticated request; platform summaries are owner-only. No credential fields are added to dashboard summaries.
+- Lists/counts poll every 30 seconds; school mutations also notify the existing dashboard refresh layer. Loading, failure and retry states remain visible. The existing System Monitor remains responsible for operational payment failures; setup approval and provider connection are not delegated to it. Parent/Student access to private setup data remains denied.
+
+The revision replacement lookup index is additive and uses the existing schema bootstrap. No payment records or approval decisions are migrated or rewritten. API and web changes should ship together. Local verification covers fixture-based browser workflows and disposable PostgreSQL, not an authenticated production school or a live provider connection.
+
+Dashboard verification: API and Next.js production builds pass, along with 76 API/security/notification tests, 8 disposable PostgreSQL workflow tests, 106 component/routing tests and all 8 desktop/mobile browser checks. The database checks include queues with more than 200 historical revisions, tenant isolation, notification persistence and resolution, and rejection/correction/approval count changes. Browser coverage exercises Principal approval and role-specific notification links, Accountant/Bursar access, and Super Admin connection/testing/activation at 1440px and 390px. Principal notification layering keeps mobile actions above dashboard cards.
+
 Focused tests cover approval separation, encryption/redaction boundaries, destination/amount/conversation checks, school RLS, concurrent duplicate confirmations, rollback, immutable history, suspense accounting, reversals, allocation races, queue recovery, portal linkage and credits. PostgreSQL tests require the disposable local harness, which refuses nonlocal or non-disposable databases:
 
 ```text

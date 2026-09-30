@@ -728,6 +728,8 @@ const hodWorkspaceSectionIds = new Set([
 ]);
 
 const financeRoleDedicatedSectionIds = new Set([
+  "payment-setup",
+  "collections",
   "dashboard",
   "overview",
   "finance",
@@ -743,6 +745,8 @@ const financeRoleDedicatedSectionIds = new Set([
   "reports",
 ]);
 const principalCommandCenterSectionIds = new Set([
+  "payment-setup",
+  "collections",
   "dashboard",
   "overview",
   "principal-overview",

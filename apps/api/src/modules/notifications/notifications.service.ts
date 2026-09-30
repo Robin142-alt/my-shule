@@ -502,7 +502,7 @@ export class NotificationsService {
       message: row.body,
       priority: (row.priority || 'normal').toUpperCase(),
       status,
-      actionUrl: this.optionalText(metadata.actionUrl) ?? this.optionalText(metadata.action_url),
+      actionUrl: this.optionalText(metadata.actionUrl) ?? this.optionalText(metadata.action_url) ?? this.optionalText(metadata.href),
       actionLabel: this.optionalText(metadata.actionLabel) ?? this.optionalText(metadata.action_label),
       metadataJson: metadata,
       createdAt: row.created_at,

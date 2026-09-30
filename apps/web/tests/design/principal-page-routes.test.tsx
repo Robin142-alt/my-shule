@@ -19,7 +19,7 @@ describe("Principal server page routes", () => {
     jest.mocked(readSchoolRequestContext).mockResolvedValue(session as never);
   });
 
-  it.each(["students", "timetable", "academic-intelligence", "users-invitations", "exams-reports", "sick-bay", "attendance-monitoring"])(
+  it.each(["students", "timetable", "academic-intelligence", "users-invitations", "exams-reports", "sick-bay", "attendance-monitoring", "payment-setup", "collections"])(
     "preserves authenticated Principal context for %s on public and school hosts", async (section) => {
       const publicPage = await SchoolSectionPage({ params: Promise.resolve({ role: "principal", section }) });
       expect(readPublicSchoolSession).toHaveBeenCalledWith("principal", { preserveSection: section });

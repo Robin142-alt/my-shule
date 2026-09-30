@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, AlertTriangle, Check, ExternalLink, Info, Loader2, RefreshCw, X } from "lucide-react";
 
 import { useNotifications, type DashboardNotification } from "@/hooks/useNotifications";
+import { resolvePaymentSetupNotificationHref } from "@/lib/notification-link-resolver";
 
 export function NotificationDrawer({
   basePath,
@@ -59,7 +60,7 @@ export function NotificationDrawer({
   };
 
   return (
-    <div className="absolute right-0 top-[calc(100%+8px)] z-30 flex max-h-[500px] w-[360px] flex-col rounded-xl border border-border bg-white shadow-xl">
+    <div className="fixed left-3 right-3 top-20 z-50 flex max-h-[min(500px,75dvh)] flex-col rounded-xl border border-border bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+8px)] sm:w-[360px]">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="font-semibold text-foreground">Notifications</h3>
         <div className="flex items-center gap-2">
@@ -146,7 +147,7 @@ export function NotificationDrawer({
                         const targetUrl = notification.actionUrl!.startsWith("/")
                           ? notification.actionUrl!
                           : `${basePath}/${notification.actionUrl!}`;
-                        router.push(targetUrl.replace(/\/{2,}/g, "/"));
+                        router.push(resolvePaymentSetupNotificationHref(targetUrl, basePath).replace(/\/{2,}/g, "/"));
                       }}
                       className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-100 bg-success-soft px-2.5 py-1 text-[10px] font-bold text-success transition hover:border-success-border hover:bg-emerald-100"
                     >

@@ -1,5 +1,9 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { usePermissions } from "@/components/providers/permission-context";
+import { publishSchoolDataUpdate } from "@/lib/school/school-operational-store";
+import { PaymentSetupCounts, paymentSetupFilters, paymentSetupStatus, usePaymentSetupSummary } from "./payment-setup-summary";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -12,17 +16,32 @@ import {
   type CollectionProvider,
 } from "@/lib/finance/payment-channels-client";
 
-export function SchoolPaymentChannels({
+export function SchoolPaymentChannels(props: { mode?: "request" | "review"; pendingOnly?: boolean }) {
+  return <Suspense fallback={<p role="status">Loading payment setup…</p>}><PaymentChannelsWorkspace {...props} /></Suspense>;
+}
+
+function PaymentChannelsWorkspace({
   mode,
+  pendingOnly = false,
 }: {
   mode?: "request" | "review";
+  pendingOnly?: boolean;
 }) {
   const tenant = useOptionalSchoolTenantId();
   const role = useOptionalSchoolDashboardRole()?.activeRole;
+  const { hasPermission } = usePermissions();
+  const params = useSearchParams();
+  const revision = params.get("revision");
+  const validRevision = revision && /^[0-9a-f-]{36}$/i.test(revision) ? revision : null;
+  const [status, setStatus] = useState(pendingOnly ? "pending_approval" : "all");
+  const [offset, setOffset] = useState(0);
+  const summary = usePaymentSetupSummary();
   const review = mode === "review" || (!mode && role === "principal");
-  const canRequest = mode === "request" || (!mode && role === "accountant");
+  const canRequest = (mode === "request" || (!mode && (role === "accountant" || role === "bursar"))) && hasPermission("billing:write");
+  const canReview = review && hasPermission("principal:write");
   const channels = useSchoolQuery<CollectionChannelRevision[]>(
-    "/tenant-finance/collection-channels",
+    `/tenant-finance/collection-channels?limit=50&offset=${validRevision ? 0 : offset}&status=${validRevision ? "all" : status}${validRevision ? `&revision=${encodeURIComponent(validRevision)}` : ""}`,
+    { refetchInterval: 30_000 },
   );
   const catalog = useSchoolQuery<CollectionProvider[]>(
     "/tenant-finance/collection-providers",
@@ -77,7 +96,9 @@ export function SchoolPaymentChannels({
       setNotice(
         "Sent to the Principal for approval. Your existing channels continue operating.",
       );
-      await channels.refetch();
+      setOffset(0);
+      publishSchoolDataUpdate(tenant, "finance");
+      await Promise.all([channels.refetch(), summary.refetch()]);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -89,7 +110,7 @@ export function SchoolPaymentChannels({
     }
   }
   async function decide(decision: "approve" | "reject") {
-    if (!tenant || !selected || busy) return;
+    if (!tenant || !selected || busy || !canReview) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -106,7 +127,8 @@ export function SchoolPaymentChannels({
           ? "Approved for technical connection by Super Admin."
           : "Request rejected. The Accountant can submit a corrected setup.",
       );
-      await channels.refetch();
+      publishSchoolDataUpdate(tenant, "finance");
+      await Promise.all([channels.refetch(), summary.refetch()]);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Unable to save the decision.",
@@ -141,6 +163,16 @@ export function SchoolPaymentChannels({
           </Button>
         )}
       </div>
+      {summary.error ? <p role="alert">Payment setup counts could not be loaded. <Button variant="ghost" onClick={() => void summary.refetch()}>Retry counts</Button></p>
+        : summary.data ? <PaymentSetupCounts data={summary.data} /> : <p role="status">Loading payment setup counts…</p>}
+      <div className="flex flex-wrap items-center gap-3">
+        {!validRevision && !pendingOnly && <label className="flex flex-wrap items-center gap-2">Show setups
+          <select className="input-base" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}>
+            {paymentSetupFilters.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select></label>}
+        {validRevision && <><p className="text-sm">Showing the setup linked from your notification.</p><Button variant="secondary" onClick={() => { window.history.replaceState(null, "", window.location.pathname); setOffset(0); }}>View all setups</Button></>}
+        <Button variant="secondary" onClick={() => { void channels.refetch(); void summary.refetch(); }} disabled={channels.isFetching || busy}>Refresh setups</Button>
+      </div>
       {notice && (
         <p role="status" className="rounded-lg bg-success-soft p-3 text-sm">
           {notice}
@@ -165,16 +197,15 @@ export function SchoolPaymentChannels({
       )}
       {channels.isLoading ? (
         <p role="status">Loading payment channels…</p>
-      ) : !channels.data?.length ? (
+      ) : !channels.error && !channels.data?.length ? (
         <p className="rounded-lg bg-surface-muted p-4 text-sm">
-          No payment channels yet.{" "}
-          {canRequest
+          {validRevision ? "This setup is unavailable in your school. View all setups or contact the Accountant." : pendingOnly || status !== "all" ? "No payment setups match this queue. Refresh to check for new requests." : <>No payment channels yet.{" "}{canRequest
             ? "Add a school account to begin approval."
-            : "The Accountant can submit the school’s collection account for review."}
+            : "The Accountant can submit the school’s collection account for review."}</>}
         </p>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {channels.data.map((row) => (
+          {channels.data?.map((row) => (
             <article
               key={row.id}
               className="rounded-xl border border-border p-4"
@@ -182,7 +213,7 @@ export function SchoolPaymentChannels({
               <div className="flex flex-wrap justify-between gap-2">
                 <h3 className="font-semibold">{row.display_name}</h3>
                 <span className="rounded-full bg-surface-muted px-3 py-1 text-xs">
-                  {row.status.replaceAll("_", " ")}
+                  {paymentSetupStatus(row)}
                 </span>
               </div>
               <p className="mt-2 text-sm">
@@ -190,13 +221,8 @@ export function SchoolPaymentChannels({
               </p>
               {row.paybill_number && <p>Bank Paybill: {row.paybill_number}</p>}
               <p className="font-mono text-lg">{row.account_number}</p>
-              <p className="mt-1 text-sm text-muted">
-                {row.connection_mode === "statement"
-                  ? "Statement reconciliation · Principal confirmation required"
-                  : row.status === "active"
-                    ? "Automatic collection enabled"
-                    : "Activation follows approval and connection checks"}
-              </p>
+              <p className="mt-1 text-sm text-muted">Requested {new Date(row.created_at).toLocaleString()} · {row.reason}</p>
+              {row.reviewed_at && <p className="text-sm text-muted">Reviewed {new Date(row.reviewed_at).toLocaleString()}</p>}
               {row.decision_reason && (
                 <p className="mt-2 text-sm">Decision: {row.decision_reason}</p>
               )}
@@ -205,6 +231,7 @@ export function SchoolPaymentChannels({
               )}
               {review && row.status === "pending_approval" && (
                 <Button
+                  disabled={!canReview}
                   className="mt-3"
                   onClick={() => {
                     setSelected(row);
@@ -236,6 +263,9 @@ export function SchoolPaymentChannels({
           ))}
         </div>
       )}
+      {!validRevision && <div className="flex items-center justify-end gap-3"><span className="text-sm">Page {offset / 50 + 1}</span>
+        <Button variant="secondary" disabled={!offset || channels.isFetching || busy} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous setups</Button>
+        <Button variant="secondary" disabled={(channels.data?.length ?? 0) < 50 || channels.isFetching || busy} onClick={() => setOffset(offset + 50)}>Next setups</Button></div>}
       <Modal
         open={open}
         title={selected ? "Change payment channel" : "Add payment channel"}
@@ -396,7 +426,7 @@ export function SchoolPaymentChannels({
             <div className="flex flex-wrap gap-2">
               <Button
                 disabled={
-                  busy || !confirmed || decisionReason.trim().length < 5
+                  busy || !canReview || !confirmed || decisionReason.trim().length < 5
                 }
                 onClick={() => void decide("approve")}
               >
@@ -404,7 +434,7 @@ export function SchoolPaymentChannels({
               </Button>
               <Button
                 variant="secondary"
-                disabled={busy || decisionReason.trim().length < 5}
+                disabled={busy || !canReview || decisionReason.trim().length < 5}
                 onClick={() => void decide("reject")}
               >
                 Reject request

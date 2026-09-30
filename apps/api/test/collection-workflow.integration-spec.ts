@@ -8,6 +8,8 @@ import { PaymentChannelWorkflowService } from "../src/modules/tenant-finance/pay
 import { CollectionPaymentsService } from "../src/modules/payments/collection-payments.service";
 import type { PaymentChannelRevisionView } from "../src/modules/tenant-finance/payment-channel-workflow.types";
 import { PaymentInboxRecoveryService } from "../src/modules/payments/services/payment-inbox-recovery.service";
+import { PaymentChannelQueryDto } from "../src/modules/tenant-finance/dto/payment-channel-query.dto";
+import { SchoolOperationNotificationsRepository } from "../src/modules/events/repositories/school-operation-notifications.repository";
 
 describe("Collection approval, persistence and school boundaries", () => {
   const schema = `collection_test_${randomUUID().replaceAll("-", "")}`;
@@ -25,6 +27,7 @@ describe("Collection approval, persistence and school boundaries", () => {
   let collections: CollectionPaymentsService;
   let revision: PaymentChannelRevisionView;
   let postCount = 0;
+  const notices: Array<{ tenantId: string; notification: Record<string, any> }> = [];
   let lastReceipt: {
     invoice_id?: string;
     asset_account_code?: string;
@@ -118,6 +121,9 @@ describe("Collection approval, persistence and school boundaries", () => {
       CREATE TABLE student_guardians(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE student_portal_access(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE test_effects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,kind text);
+      CREATE TABLE notifications(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,notification_key text,
+        recipient_user_id uuid,recipient_guardian_id uuid,type text,title text,body text,status text,priority text,metadata jsonb,
+        created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),UNIQUE(tenant_id,notification_key));
       CREATE TABLE callback_logs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,checkout_request_id text,callback_trust_status text,processing_status text,updated_at timestamptz);
       CREATE TABLE mpesa_verification_jobs(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,callback_log_id uuid,checkout_request_id text,c2b_payment_id uuid,mpesa_receipt_number text,transaction_status text,next_retry_at timestamptz,updated_at timestamptz);
       ${PAYMENT_CHANNEL_WORKFLOW_SCHEMA}
@@ -140,10 +146,16 @@ describe("Collection approval, persistence and school boundaries", () => {
     await pool.query(`INSERT INTO students VALUES($1,$2,'ADM-OTHER','active')`,[otherStudent,school]);
     await pool.query(`INSERT INTO invoices VALUES($1,$2,'INV-LINKED','open',10000,0,$3::jsonb),($4,$2,'INV-OTHER','open',10000,0,$5::jsonb)`,
       [referencedInvoice,school,JSON.stringify({student_id:student}),randomUUID(),JSON.stringify({student_id:otherStudent})]);
+    const notificationRepository = new SchoolOperationNotificationsRepository(db as never);
     const audit = { record: () => effect("audit") },
       events = { publish: () => effect("event") },
       notifications = {
-        upsertFromSchoolOperation: () => effect("notification"),
+        upsertFromSchoolOperation: async (input: any) => { notices.push(input); await notificationRepository.upsertFromSchoolOperation(input); return effect("notification"); },
+        resolveRequiredAction: async (tenantId: string, actionType: string, recordId: string) => {
+          await notificationRepository.resolveRequiredAction(tenantId, actionType, recordId);
+          notices.filter(item => item.tenantId === tenantId && item.notification.actionType === actionType && item.notification.relatedRecordId === recordId)
+            .forEach(item => { item.notification.status = "action_taken"; });
+        },
       };
     workflow = new PaymentChannelWorkflowService(
       context,
@@ -496,6 +508,45 @@ describe("Collection approval, persistence and school boundaries", () => {
     );
     const rows = await as("accountant", () => collections.list());
     expect(rows.find((row) => row.id === posted.id)?.status).toBe("reversed");
+  });
+
+  it("keeps payment dashboard queues complete, scoped and current across Principal decisions", async () => {
+    const before = await as("principal", () => workflow.summary());
+    await pool.query(`INSERT INTO tenant_payment_channel_revisions
+      (tenant_id,provider_code,channel_kind,display_name,account_name,account_number,status,reason,requested_by,reviewed_by,reviewed_at)
+      SELECT $1,'equity','bank_account','Historical account','School A','HISTORY-'||n,'superseded','Historical setup',$2::uuid,$3::uuid,NOW()
+      FROM generate_series(1,205) n`, [school,accountant,principal]);
+    const pending = await as("bursar", () => workflow.request({ ...request, display_name: "Dashboard request", account_number: "DASHBOARD-A" }));
+    const other = await as("accountant", () => workflow.request({ ...request, account_number: "DASHBOARD-B" }), otherSchool);
+    const query = Object.assign(new PaymentChannelQueryDto(), { status: "pending_approval" });
+    expect((await as("principal", () => workflow.list(query))).map(row => row.id)).toContain(pending.id);
+    expect((await as("principal", () => workflow.list(query))).map(row => row.id)).not.toContain(other.id);
+    expect(await as("principal", () => workflow.summary())).toMatchObject({ total: before.total + 206, pending_approval: before.pending_approval + 1 });
+    expect(await as("principal", () => workflow.list(Object.assign(new PaymentChannelQueryDto(), { revision: other.id })))).toHaveLength(0);
+    await expect(as("parent", () => workflow.summary())).rejects.toThrow();
+    await expect(as("principal", () => workflow.platformSummary())).rejects.toThrow();
+    const notice = notices.find(item => item.notification.relatedRecordId === pending.id)!;
+    expect(notice.tenantId).toBe(school);
+    expect(notice.notification.audienceRoles).toEqual(["principal"]);
+    expect(notice.notification.actionUrl).toBe(`/payment-setup?revision=${pending.id}`);
+    expect(notice.notification.status).toBe("action_required");
+    expect((await pool.query(`SELECT status,priority FROM notifications WHERE tenant_id=$1 AND metadata->>'relatedRecordId'=$2`, [school,pending.id])).rows)
+      .toEqual([{ status: "action_required", priority: "high" }]);
+    await as("principal", () => workflow.decide(pending.id, { decision: "reject", reason: "School bank account does not match" }));
+    expect(notice.notification.status).toBe("action_taken");
+    expect((await pool.query(`SELECT status FROM notifications WHERE tenant_id=$1 AND metadata->>'relatedRecordId'=$2 AND metadata->>'actionType'='payment_setup_review'`, [school,pending.id])).rows)
+      .toEqual([{ status: "action_taken" }]);
+    expect(await as("principal", () => workflow.summary())).toMatchObject({ pending_approval: before.pending_approval, attention: before.attention + 1 });
+    const corrected = await as("accountant", () => workflow.request({ ...request, account_number: "CORRECTED-A", replaces_revision_id: pending.id }));
+    expect(await as("accountant", () => workflow.summary())).toMatchObject({ attention: before.attention });
+    await as("principal", () => workflow.decide(corrected.id, { decision: "approve", reason: "Verified destination with school bank" }));
+    expect(await as("accountant", () => workflow.summary())).toMatchObject({ pending_approval: before.pending_approval, awaiting_connection: before.awaiting_connection + 1 });
+    const platform = await as("platform_owner", () => workflow.platformList(50, 0, Object.assign(new PaymentChannelQueryDto(), { status: "connection", search: corrected.account_number })));
+    expect(platform.map(row => row.id)).toEqual([corrected.id]);
+    expect(platform[0]).not.toHaveProperty("credentials_ciphertext");
+    const lastNotice = notices.filter(item => item.notification.relatedRecordId === corrected.id).at(-1)!;
+    expect(lastNotice.notification.audienceRoles).toEqual(["accountant", "bursar"]);
+    expect(lastNotice.notification.body).toContain("Awaiting Super Admin connection");
   });
 
   it("honours the selected invoice and rejects a reference owned by another student", async () => {
