@@ -247,7 +247,7 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: |
-          node --test dist/apps/api/src/modules/payments/ingress/collection-adapter.test.js
+          node --test dist/apps/api/src/modules/payments/ingress/collection-adapter.test.js dist/apps/api/src/modules/payments/queue/payments-worker-module.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/payment-ingress.integration-spec.ts apps/api/test/collection-workflow.integration-spec.ts apps/api/test/payment-allocation-safety.integration-spec.ts apps/api/test/payment-portal-balances.integration-spec.ts
 
       - name: Durable report jobs, private storage and worker isolation

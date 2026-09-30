@@ -114,6 +114,10 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
     const id=await receive(sandboxA,callback('SANDBOX','TEST-SCHOOL-A'));
     await as(()=>ingress.process(id));await deliver('SANDBOX');await as(()=>ingress.process(id));
     expect((await state(id)).state).toBe('sandbox_verified');expect((await state(id)).student_id).toBe(learner);expect((await state(id)).collection_id).toBeNull();
+    await receive(sandboxA,callback('SANDBOX','TEST-SCHOOL-A','200.00'));
+    expect((await state(id)).state).toBe('sandbox_verified');
+    expect((await state(id)).conflict_hash).toBeTruthy();
+    expect((await state(id)).amount_minor).toBe('10000');
     const crossed=await receive(sandboxB,callback('SANDBOX','TEST-SCHOOL-A'));await as(()=>ingress.process(crossed),other);await deliver('SANDBOX');await as(()=>ingress.process(crossed),other);
     expect((await state(crossed)).state).toBe('review');expect((await state(crossed)).student_id).toBeNull();expect((await pool.query('SELECT * FROM test_postings')).rows).toHaveLength(1);
   });
