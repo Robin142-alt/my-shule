@@ -10,7 +10,8 @@ async function bootstrap(): Promise<void> {
 
   try {
     const app = await NestFactory.createApplicationContext(PaymentsWorkerModule, {
-      bufferLogs: true,
+      // Standalone workers do not install the HTTP logger to flush buffered logs.
+      bufferLogs: false,
     });
 
     app.enableShutdownHooks();
