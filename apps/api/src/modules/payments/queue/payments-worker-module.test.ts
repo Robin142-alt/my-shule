@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { Test } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { DATABASE_POOL } from '../../../database/database.constants';
@@ -11,6 +12,12 @@ import { REDIS_CLIENT } from '../../../infrastructure/redis/redis.constants';
 import { PaymentIngressService } from '../ingress/payment-ingress.service';
 import { PaymentInboxRecoveryService } from '../services/payment-inbox-recovery.service';
 import { PAYMENTS_QUEUE_NAME } from '../payments.constants';
+
+test('standalone worker does not indefinitely buffer payment and startup diagnostics', () => {
+  const entrypoint = readFileSync('apps/api/src/payments-worker.ts', 'utf8');
+  assert.match(entrypoint, /bufferLogs:\s*false/);
+  assert.doesNotMatch(entrypoint, /bufferLogs:\s*true/);
+});
 
 test('standalone payments worker resolves the real ingress and accounting dependency graph', async () => {
   const env: Record<string, string> = {
