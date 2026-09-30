@@ -182,6 +182,11 @@ jobs:
         env:
           CLOUDFLARE_SMOKE_URL: https://myshule-web.ondurobinson.workers.dev
         run: node cloudflare/smoke.mjs
+      - name: Verify production domain
+        if: steps.revision.outputs.current == 'true'
+        env:
+          CLOUDFLARE_SMOKE_URL: https://www.myshule.online
+        run: node cloudflare/smoke.mjs
 
   # ──────────────────────────────────────────────────────────────
   # Build + Unit Tests

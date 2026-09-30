@@ -1,36 +1,17 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MyShule web application
 
-## Getting Started
+The Next.js application and its same-origin API gateway run on Cloudflare Workers through OpenNext. Railway continues to run the API, database, Redis and background services. Cloudflare manages authoritative DNS; Vercel remains only the registrar for `myshule.online`.
 
-First, run the development server:
+## Local development
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Use Node.js 22 and install dependencies with `npm ci` in this directory. Run `npm run dev` for the development server at `http://localhost:3000`.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Use `npm run build:cloudflare` followed by `npm run preview:cloudflare` to exercise the compiled Worker and static assets. `npm run test:cloudflare` verifies gateway and deployment contracts. Keep credentials in local ignored configuration or the production secret store, never in source control.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Production deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Pushes and merges to `main` run the GitHub CI quality, security, build and integration gates before deploying the verified Cloudflare artifact. Deployment uses the main-only `production-cloudflare` environment and verifies both the Worker hostname and `https://www.myshule.online`. Railway's existing Git integration deploys its affected backend services independently.
 
-## Learn More
+`wrangler.jsonc` declares the production Worker, static assets, private gateway binding and apex/wildcard routes. Keep the Cloudflare proxied DNS records and apex-to-www redirect in place. Domain registration and automatic renewal remain in Vercel; do not restore Vercel application builds or transfer the domain.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For architecture, validation evidence and Cloudflare rollback guidance, see [the migration record](../../docs/deployment/cloudflare-migration.md). Production rollback uses a verified Cloudflare version and its assets, preserving Railway data and queues.
