@@ -7,6 +7,10 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
   "preview_urls": false,
+  "routes": [
+    { "pattern": "myshule.online/*", "zone_id": "6826165245e342d8e09a2522bc1834c2" },
+    { "pattern": "*.myshule.online/*", "zone_id": "6826165245e342d8e09a2522bc1834c2" }
+  ],
   "minify": true,
   "secrets": { "required": ["GATEWAY_IDENTITY_SECRET"] },
   "assets": {
