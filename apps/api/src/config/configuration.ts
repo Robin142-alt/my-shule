@@ -285,6 +285,9 @@ export default () => ({
       3,
     ),
   },
+  payments: {
+    callbackBaseUrl: process.env.PAYMENT_CALLBACK_BASE_URL ?? '',
+  },
   mpesa: {
     baseUrl: process.env.MPESA_BASE_URL ?? 'https://sandbox.safaricom.co.ke',
     consumerKey: process.env.MPESA_CONSUMER_KEY ?? '',

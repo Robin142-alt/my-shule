@@ -40,6 +40,9 @@ export class TenantFinanceConfigService {
       );
     }
 
+    if (mpesaConfig.environment !== 'production')
+      throw new BadRequestException('Sandbox school payments must use the isolated payment-channel simulator; live fees cannot use sandbox credentials');
+
     const financialAccounts =
       (await this.repository.findFinancialAccountsForTenant(tenantId)) ?? {
         tenant_id: tenantId,

@@ -929,6 +929,9 @@ query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
         };
       },
     } as never,
+    undefined,
+    undefined,
+    { match: async () => ({student_id:'00000000-0000-0000-0000-000000000802',invoice_id:'00000000-0000-0000-0000-000000000801',reason:'invoice_reference'}) } as never,
   );
 
   const result = await service.processConfirmation({
@@ -1453,6 +1456,7 @@ query: async (): Promise<{ rows: unknown[] }> => ({ rows: [] }),
 });
 
 test('TenantFinanceConfigService resolves only the active tenant-owned MPESA config', async () => {
+  let environment = 'production';
   const service = new TenantFinanceConfigService(
     {
       findActiveMpesaConfigForTenant: async (tenantId: string) => ({
@@ -1465,7 +1469,7 @@ test('TenantFinanceConfigService resolves only the active tenant-owned MPESA con
         consumer_secret: 'school-consumer-secret',
         passkey: 'school-passkey',
         initiator_name: 'school-api',
-        environment: 'sandbox',
+        environment,
         callback_url: 'https://green-valley.example.com/payments/mpesa/callback',
         status: 'active',
         created_at: new Date(),
@@ -1504,6 +1508,8 @@ test('TenantFinanceConfigService resolves only the active tenant-owned MPESA con
   assert.equal(config.transaction_type, 'CustomerPayBillOnline');
   assert.equal(config.ledger_debit_account_code, '1110-MPESA-CLEARING');
   assert.equal(config.ledger_credit_account_code, '1100-AR-FEES');
+  environment = 'sandbox';
+  await assert.rejects(()=>service.resolveMpesaConfigForTenant('tenant-a'),/isolated payment-channel simulator/);
 });
 
 test('TenantFinanceSchemaService prevents duplicate active M-PESA configs per tenant environment and channel', async () => {

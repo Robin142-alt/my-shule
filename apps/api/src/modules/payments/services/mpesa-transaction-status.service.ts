@@ -22,17 +22,6 @@ interface StkPushQueryResponse {
   CheckoutRequestID?: string;
 }
 
-interface C2bTransactionStatusResponse {
-  ResponseCode?: string | number;
-  ResponseDescription?: string;
-  ResultCode?: string | number;
-  ResultDesc?: string;
-  TransID?: string;
-  TransactionID?: string;
-  TransAmount?: string | number;
-  Amount?: string | number;
-}
-
 export type MpesaProviderVerificationStatus =
   | 'provider_verified'
   | 'provider_failed'
@@ -128,68 +117,9 @@ export class MpesaTransactionStatusService {
     trans_id: string;
   }): Promise<MpesaC2bTransactionStatusResult> {
     if (this.asyncStatus) return this.asyncStatus.verify(input.tenant_id,input.trans_id);
-    const mpesaConfig = await this.tenantFinanceConfigService.resolveMpesaConfigForTenant(
-      input.tenant_id,
-    );
-    const accessToken = await this.getAccessToken(mpesaConfig);
-    const response = await fetch(
-      new URL('/mpesa/transactionstatus/v1/query', mpesaConfig.base_url).toString(),
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          Initiator: mpesaConfig.initiator_name ?? mpesaConfig.shortcode,
-          SecurityCredential:
-            this.configService.get<string>('mpesa.transactionStatusSecurityCredential') ?? '',
-          CommandID: 'TransactionStatusQuery',
-          TransactionID: input.trans_id,
-          PartyA: mpesaConfig.shortcode,
-          IdentifierType: mpesaConfig.till_number ? '2' : '4',
-          ResultURL: this.buildTransactionStatusResultUrl(mpesaConfig.callback_url),
-          QueueTimeOutURL: this.buildTransactionStatusTimeoutUrl(mpesaConfig.callback_url),
-          Remarks: 'School fee payment verification',
-          Occasion: 'fee-payment',
-        }),
-        signal: AbortSignal.timeout(
-          Number(this.configService.get<number>('mpesa.requestTimeoutMs') ?? 15000),
-        ),
-      },
-    );
-    const responseText = await response.text();
-    const responseBody = this.tryParseJson(responseText) as C2bTransactionStatusResponse | null;
-
-    if (!response.ok || !responseBody) {
-      throw new BadGatewayException(
-        `M-PESA C2B transaction status query failed: ${response.status} ${responseText}`,
-      );
-    }
-
-    const responseCode = responseBody.ResponseCode == null ? null : String(responseBody.ResponseCode);
-    const resultCode = responseBody.ResultCode == null ? null : String(responseBody.ResultCode);
-    const transId = responseBody.TransID ?? responseBody.TransactionID ?? input.trans_id;
-
-    if (resultCode != null) {
-      return {
-        provider_status: resultCode === '0' ? 'provider_verified' : 'provider_failed',
-        trans_id: transId,
-        result_code: resultCode,
-        result_desc: responseBody.ResultDesc ?? responseBody.ResponseDescription ?? null,
-        amount_minor: this.parseProviderAmountMinor(responseBody.TransAmount ?? responseBody.Amount),
-        raw_provider_response: responseBody as Record<string, unknown>,
-      };
-    }
-
-    return {
-      provider_status: responseCode === '0' ? 'provider_pending' : 'provider_failed',
-      trans_id: transId,
-      result_code: responseCode,
-      result_desc: responseBody.ResponseDescription ?? null,
-      amount_minor: this.parseProviderAmountMinor(responseBody.TransAmount ?? responseBody.Amount),
-      raw_provider_response: responseBody as Record<string, unknown>,
-    };
+    // An accepted TransactionStatusQuery is not proof of settlement. Never fall
+    // back to a global credential or a synchronous interpretation of this API.
+    throw new BadGatewayException('School-scoped asynchronous verification is unavailable');
   }
 
   private async getAccessToken(mpesaConfig: ResolvedTenantMpesaConfig): Promise<string> {
@@ -268,38 +198,6 @@ export class MpesaTransactionStatusService {
     const partsMap = new Map(parts.map((part) => [part.type, part.value]));
 
     return `${partsMap.get('year')}${partsMap.get('month')}${partsMap.get('day')}${partsMap.get('hour')}${partsMap.get('minute')}${partsMap.get('second')}`;
-  }
-
-  private buildTransactionStatusResultUrl(callbackUrl: string): string {
-    return this.buildRelatedCallbackUrl(callbackUrl, '/transaction-status/result');
-  }
-
-  private buildTransactionStatusTimeoutUrl(callbackUrl: string): string {
-    return this.buildRelatedCallbackUrl(callbackUrl, '/transaction-status/timeout');
-  }
-
-  private buildRelatedCallbackUrl(callbackUrl: string, suffix: string): string {
-    const parsedUrl = new URL(callbackUrl);
-    const basePath = parsedUrl.pathname.replace(/\/c2b\/confirmation.*$/, '');
-    parsedUrl.pathname = `${basePath.replace(/\/$/, '')}${suffix}`;
-    parsedUrl.search = '';
-
-    return parsedUrl.toString();
-  }
-
-  private parseProviderAmountMinor(value: unknown): string | null {
-    if (value == null) {
-      return null;
-    }
-
-    const normalized = String(value).trim().replace(/,/g, '');
-
-    if (!/^[0-9]+(\.[0-9]{1,2})?$/.test(normalized)) {
-      return null;
-    }
-
-    const [major, fractional = ''] = normalized.split('.');
-    return (BigInt(major) * 100n + BigInt((fractional + '00').slice(0, 2))).toString();
   }
 
   private tryParseJson(value: string): unknown {

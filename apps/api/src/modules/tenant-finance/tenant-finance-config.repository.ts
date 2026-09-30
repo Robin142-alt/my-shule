@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -119,14 +119,16 @@ export class TenantFinanceConfigRepository {
         FROM tenant_mpesa_configs
         WHERE tenant_id = $1
           AND status = 'active'
+          AND environment = 'production'
           AND EXISTS (SELECT 1 FROM tenant_payment_channels channel
             WHERE channel.tenant_id=tenant_mpesa_configs.tenant_id AND channel.mpesa_config_id=tenant_mpesa_configs.id AND channel.status='active')
         ORDER BY updated_at DESC
-        LIMIT 1
+        LIMIT 2
       `,
       [tenantId],
     );
 
+    if (result.rows.length > 1) throw new ConflictException('More than one live school Paybill is active. Suspend the obsolete channel before starting an STK payment. External C2B channels remain individually routable.');
     return result.rows[0] ? this.mapMpesaConfig(result.rows[0]) : null;
   }
 

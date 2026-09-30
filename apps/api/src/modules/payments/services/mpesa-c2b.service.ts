@@ -36,6 +36,7 @@ import {
 } from './mpesa-payload-vault.service';
 import { PaymentsJobProducerService } from './payments-job-producer.service';
 import { CollectionPaymentsService } from '../collection-payments.service';
+import { CollectionReferenceMatcher } from '../collection-reference-matcher.service';
 import type { EnqueueMpesaVerificationJobData } from '../queue/payments-queue.types';
 
 const DEFAULT_CURRENCY_CODE = 'KES';
@@ -87,6 +88,7 @@ export class MpesaC2bService {
     @Optional() private readonly mpesaVerificationJobsRepository?: MpesaVerificationJobsRepository,
     @Optional() private readonly paymentsJobProducerService?: PaymentsJobProducerService,
     @Optional() private readonly collections?: CollectionPaymentsService,
+    @Optional() private readonly referenceMatcher?: CollectionReferenceMatcher,
   ) {}
 
   parseC2bPayload(payload: MpesaC2bPayload): ParsedMpesaC2bPayment {
@@ -468,54 +470,12 @@ export class MpesaC2bService {
       };
     }
 
-    const invoice = await this.invoicesRepository.findManualFeeInvoiceTargetByReference(
-      tenantId,
-      reference,
-    );
-
-    if (invoice) {
-      return {
-        invoice_id: invoice.id,
-        student_id: this.readStudentId(invoice),
-        matching_strategy: 'invoice_reference',
-      };
-    }
-
-    const student = await this.findStudentByAdmissionNumber(tenantId, reference);
-
-    if (student) {
-      return {
-        invoice_id: null,
-        student_id: student.id,
-        matching_strategy: 'student_admission_number',
-      };
-    }
-
+    const target = await (this.referenceMatcher ?? new CollectionReferenceMatcher(this.prisma)).match(tenantId,reference);
     return {
-      invoice_id: null,
-      student_id: null,
-      matching_strategy: 'unmatched_reference',
+      invoice_id: target.invoice_id,
+      student_id: target.student_id,
+      matching_strategy: target.reason,
     };
-  }
-
-  private async findStudentByAdmissionNumber(
-    tenantId: string,
-    reference: string,
-  ): Promise<{ id: string } | null> {
-    const result = await this.executeSql<{ id: string }>(
-      `
-        SELECT id
-        FROM students
-        WHERE tenant_id = $1
-          AND admission_number = $2
-          AND status = 'active'
-        ORDER BY created_at DESC
-        LIMIT 1
-      `,
-      [tenantId, reference],
-    );
-
-    return result.rows[0] ?? null;
   }
 
   private runInTenantContext<T>(

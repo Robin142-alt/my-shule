@@ -10,6 +10,7 @@ import { TenantFinanceSchemaService } from './tenant-finance-schema.service';
 import { PaymentChannelWorkflowSchemaService } from './payment-channel-workflow-schema.service';
 import { PaymentChannelWorkflowService } from './payment-channel-workflow.service';
 import { PaymentChannelConnectionService } from './payment-channel-connection.service';
+import { PaymentIngressConfigService } from './payment-ingress-config.service';
 import { PaymentChannelWorkflowController, PlatformPaymentIntegrationsController } from './payment-channel-workflow.controller';
 
 @Module({
@@ -22,8 +23,10 @@ import { PaymentChannelWorkflowController, PlatformPaymentIntegrationsController
     PaymentChannelWorkflowSchemaService,
     PaymentChannelWorkflowService,
     PaymentChannelConnectionService,
+    PaymentIngressConfigService,
   ],
   exports: [
+    PaymentIngressConfigService,
     TenantFinanceSchemaService,
     TenantFinanceConfigRepository,
     TenantFinanceConfigService,

@@ -5,6 +5,9 @@ import { Modal } from "@/components/ui/modal";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
 import {
   getIntegrationHealth,
+  getIntegrationCallbacks,
+  simulateIntegrationPayment,
+  type IntegrationCallbacks,
   type CollectionHealth,
 } from "@/lib/finance/payment-channels-client";
 import {
@@ -31,6 +34,9 @@ export function PaymentGatewaysWorkspace() {
   const [mode, setMode] = useState("statement"),
     [environment, setEnvironment] = useState("production");
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [trustMode,setTrustMode] = useState('daraja_direct');
+  const [callbacks,setCallbacks] = useState<IntegrationCallbacks | null>(null);
+  const [simulating,setSimulating] = useState<CollectionChannelRevision | null>(null);
   const [offset, setOffset] = useState(0),
     [filter, setFilter] = useState("");
   const [suspending, setSuspending] = useState(false),
@@ -118,6 +124,7 @@ export function PaymentGatewaysWorkspace() {
     );
     setEnvironment(row.environment || "production");
     setCredentials({});
+    setTrustMode('daraja_direct');
     setError("");
   }
   return (
@@ -202,6 +209,7 @@ export function PaymentGatewaysWorkspace() {
                       ? "Daraja automatic collections"
                       : "Connection method not selected"}
                 </p>
+                <p className="text-sm">{row.environment === 'sandbox' ? 'Sandbox — verifies matching only; no live fee credit' : 'Production'}</p>
                 {row.last_test_status && (
                   <p className="text-sm">
                     Last check: {row.last_test_status.replaceAll("_", " ")} ·{" "}
@@ -258,6 +266,13 @@ export function PaymentGatewaysWorkspace() {
                   </dl>
                 )}
                 <div className="flex flex-wrap gap-2">
+                  {row.connection_mode === 'daraja' && row.credentials_configured && <Button variant="secondary" disabled={busy}
+                    onClick={async () => {setBusy(true);setError('');try {setCallbacks(await getIntegrationCallbacks(row));}
+                      catch(cause){setError(cause instanceof Error?cause.message:'Callback URLs unavailable');} finally{setBusy(false);} }}>
+                    Callback URLs
+                  </Button>}
+                  {row.status === 'active' && row.environment === 'sandbox' && <Button variant="secondary" disabled={busy}
+                    onClick={()=>{setError('');setSimulating(row);}}>Simulate sandbox payment</Button>}
                   {["approved", "connecting", "ready"].includes(row.status) && (
                     <Button disabled={busy} onClick={() => open(row)}>
                       Connect channel
@@ -343,6 +358,7 @@ export function PaymentGatewaysWorkspace() {
                   : connectPaymentIntegration(selected, {
                       connection_mode: mode,
                       environment,
+                      callback_trust_mode: trustMode,
                       credentials: mode === "statement" ? {} : credentials,
                     }),
               );
@@ -403,6 +419,14 @@ export function PaymentGatewaysWorkspace() {
                   </select>
                 </label>
                 {mode === "daraja" &&
+                  <label className="block space-y-1"><span>Callback authentication</span>
+                    <select className="input-base w-full" value={trustMode} onChange={e=>setTrustMode(e.target.value)}>
+                      <option value="daraja_direct">Direct Safaricom callbacks + transaction verification</option>
+                      <option value="edge_signed">Gateway-signed callbacks + transaction verification</option>
+                    </select>
+                  </label>}
+                {environment === 'sandbox' && <p className="text-sm">No live balance is changed. Use the built-in simulator to isolate schools sharing a sandbox shortcode. Only one school may test a shared shortcode per 15-minute window.</p>}
+                {mode === "daraja" &&
                   provider?.credential_fields.map((field) => (
                     <label key={field.key} className="block space-y-1">
                       <span>{field.label}</span>
@@ -446,6 +470,28 @@ export function PaymentGatewaysWorkspace() {
             </div>
           </form>
         )}
+      </Modal>
+      <Modal open={Boolean(callbacks)} title="Canonical provider callback URLs" onClose={()=>setCallbacks(null)}>
+        {callbacks && <div className="space-y-4">
+          <p>{callbacks.environment} · {callbacks.trust_mode}. These URLs contain secret callback tokens. Share only with Safaricom or your authenticated gateway.</p>
+          <label className="block">Confirmation URL<textarea readOnly className="input-base w-full break-all" rows={4} value={callbacks.confirmation_url}/></label>
+          <label className="block">Validation URL<textarea readOnly className="input-base w-full break-all" rows={4} value={callbacks.validation_url}/></label>
+          <p>Check connection registers these exact URLs. Safaricom must enable validation for the Paybill. URL registration alone does not prove that verification or settlement works.</p>
+        </div>}
+      </Modal>
+      <Modal open={Boolean(simulating)} title="Safaricom sandbox payment" onClose={()=>{if(!busy)setSimulating(null);}}>
+        {simulating && <form className="space-y-4" onSubmit={async e=>{
+          e.preventDefault();const form = new FormData(e.currentTarget);setBusy(true);setError('');
+          try{const result = await simulateIntegrationPayment(simulating,Object.fromEntries(form.entries()));setNotice(`${result.message} Test reference: ${result.provider_reference}`);setSimulating(null);}
+          catch(cause){setError(cause instanceof Error?cause.message:'Simulation failed');}finally{setBusy(false);}
+        }}>
+          <p>Tests {simulating.school_name || simulating.tenant_id} only. No live payment, receipt or balance is created. Safaricom must return verifiable transaction evidence; unavailable evidence stays in review.</p>
+          {error && <p role="alert" className="text-danger">{error}</p>}
+          <label className="block">Student admission / invoice reference<input required name="account_reference" maxLength={120} className="input-base w-full"/></label>
+          <label className="block">Amount (KES)<input required name="amount" type="number" min="1" max="999999" step="1" defaultValue="1" className="input-base w-full"/></label>
+          <label className="block">Daraja test MSISDN<input required name="msisdn" pattern="254[17][0-9]{8}" placeholder="2547…" className="input-base w-full"/></label>
+          <Button type="submit" disabled={busy}>{busy?'Requesting simulation…':'Send sandbox simulation'}</Button>
+        </form>}
       </Modal>
     </div>
   );

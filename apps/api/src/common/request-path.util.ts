@@ -7,8 +7,23 @@ const sensitiveQueryKeys = new Set([
   'token',
 ]);
 
+/** Only provider-owned ingress routes bypass host-derived school routing.
+ * Their controller authenticates the channel token before accessing school data. */
+export function isPaymentIngressCallback(method: string | undefined, path: string): boolean {
+  return method?.toUpperCase() === 'POST' && (
+    /^\/(?:api\/)?payments\/mpesa\/callback\/[^/]+\/[^/]+\/[^/]+$/.test(path) ||
+    /^\/(?:api\/)?payments\/ingress\/[^/]+\/(?:sandbox|production)\/[^/]+\/[^/]+\/[^/]+\/(?:confirmation|validation)$/.test(path) ||
+    /^\/(?:api\/)?payments\/ingress\/verification\/[^/]+\/[^/]+\/[^/]+\/(?:result|timeout)$/.test(path)
+  );
+}
+
 function redactPathTokens(path: string): string {
   return path.replace(
+    /(\/payments\/mpesa\/callback\/[^/]+\/[^/]+\/)[^/]+/gi, '$1[redacted]',
+  ).replace(
+    /(\/payments\/ingress\/(?:verification\/[^/]+\/[^/]+|[^/]+\/[^/]+\/[^/]+\/[^/]+)\/)[^/]+(?=\/(?:confirmation|validation|result|timeout)(?:\/|$))/gi,
+    '$1[redacted]',
+  ).replace(
     /(\/payments\/mpesa\/transaction-status\/[^/]+\/[^/]+\/)[^/]+(?=\/(?:result|timeout)(?:\/|$))/gi,
     '$1[redacted]',
   );
