@@ -102,6 +102,7 @@ test('EventsSchemaService repairs legacy notifications table for tenant-scoped d
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant_id text;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS notification_key text;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS body text;/);
+  assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS priority text DEFAULT 'normal';/);
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_module text;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_record_id text;/);
   assert.match(bootstrapSql, /ALTER TABLE notifications ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '\{\}'::jsonb;/);

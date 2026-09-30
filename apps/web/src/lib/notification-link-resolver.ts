@@ -12,6 +12,14 @@ export type NotificationType =
   | 'FEE_PAYMENT_COMPLETED'
   | string;
 
+// Payment notifications use a school-relative route. Preserve the current role
+// prefix in path-based portals; school hosts already route /payment-setup.
+export function resolvePaymentSetupNotificationHref(href: string, basePath: string) {
+  if (!/^\/payment-setup(?:\?|$)/.test(href)) return href;
+  const schoolPrefix = basePath.match(/^\/school\/(principal|accountant|bursar)(?:\/|$)/)?.[0]?.replace(/\/$/, "");
+  return schoolPrefix ? `${schoolPrefix}${href}` : href;
+}
+
 export function resolveNotificationLink(type: NotificationType, recordId: string | undefined): string {
   if (!recordId) return '#';
 

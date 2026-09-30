@@ -1,5 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { PaymentIntegrationSummary, paymentIntegrationQueryKey } from "./payment-integration-summary";
+import { paymentSetupFilters, paymentSetupStatus } from "@/components/school/accountant/payment-setup-summary";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { SuperadminPageHeader } from "@/components/platform/superadmin-pages";
@@ -18,14 +21,11 @@ import {
   suspendPaymentIntegration,
   testPaymentIntegration,
   type CollectionChannelRevision,
-  type CollectionProvider,
 } from "@/lib/finance/payment-channels-client";
 
 export function PaymentGatewaysWorkspace() {
-  const [rows, setRows] = useState<CollectionChannelRevision[]>([]);
-  const [providers, setProviders] = useState<CollectionProvider[]>([]);
-  const [loading, setLoading] = useState(true),
-    [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<CollectionChannelRevision | null>(
@@ -39,6 +39,19 @@ export function PaymentGatewaysWorkspace() {
   const [simulating,setSimulating] = useState<CollectionChannelRevision | null>(null);
   const [offset, setOffset] = useState(0),
     [filter, setFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const channels = useQuery({ queryKey: [...paymentIntegrationQueryKey, "list", offset, status, search],
+    queryFn: () => listPaymentIntegrations(offset, status, search), refetchInterval: 30_000 });
+  const catalog = useQuery({ queryKey: [...paymentIntegrationQueryKey, "providers"], queryFn: listIntegrationProviders });
+  const rows = channels.data ?? [];
+  const providers = catalog.data ?? [];
+  const loading = channels.isPending || catalog.isPending;
+  const loadError = channels.error?.message || catalog.error?.message;
+  async function load() {
+    setError("");
+    await queryClient.invalidateQueries({ queryKey: paymentIntegrationQueryKey });
+  }
   const [suspending, setSuspending] = useState(false),
     [reason, setReason] = useState("");
   const [health, setHealth] = useState<Record<string, CollectionHealth>>({});
@@ -59,29 +72,6 @@ export function PaymentGatewaysWorkspace() {
       setHealthLoading(null);
     }
   }
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [channels, catalog] = await Promise.all([
-        listPaymentIntegrations(offset),
-        listIntegrationProviders(),
-      ]);
-      setRows(channels);
-      setProviders(catalog);
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Unable to load payment integrations.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [offset]);
-  useEffect(() => {
-    void load();
-  }, [load]);
   const provider = providers.find(
     (item) => item.code === selected?.provider_code,
   );
@@ -92,17 +82,13 @@ export function PaymentGatewaysWorkspace() {
     setNotice("");
     try {
       const result = await action();
-      setRows((current) =>
-        current.map((row) =>
-          row.id === result.id ? { ...row, ...result } : row,
-        ),
-      );
       setSelected(null);
       setCredentials({});
       setNotice(
         result.last_error ||
           `Channel ${result.status.replaceAll("_", " ")}. ${result.last_test_status === "statement_review_ready" ? "Statement review is ready; no live bank connection was tested." : ""}`,
       );
+      await load();
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -133,12 +119,13 @@ export function PaymentGatewaysWorkspace() {
         title="School payment integrations"
         description="Connect Principal-approved school accounts, verify providers and manage collection health. Funds settle directly with each school."
       />
-      {error && !selected && (
+      <PaymentIntegrationSummary />
+      {(error || loadError) && !selected && (
         <div
           role="alert"
           className="rounded-lg border border-danger-border p-3"
         >
-          {error}
+          {error || loadError}
           <Button variant="secondary" onClick={() => void load()}>
             Retry
           </Button>
@@ -149,7 +136,7 @@ export function PaymentGatewaysWorkspace() {
           {notice}
         </p>
       )}
-      <div className="flex flex-wrap gap-3">
+      <form className="flex flex-wrap gap-3" onSubmit={(event) => { event.preventDefault(); setSearch(filter.trim()); setOffset(0); }}>
         <label className="flex-1">
           <span className="sr-only">Search integrations</span>
           <input
@@ -159,30 +146,31 @@ export function PaymentGatewaysWorkspace() {
             onChange={(event) => setFilter(event.target.value)}
           />
         </label>
+        <Button type="submit" variant="secondary">Search all schools</Button>
+        <label className="flex min-w-0 flex-wrap items-center gap-2"><span>Queue</span>
+          <select className="input-base max-w-full" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}>
+            {paymentSetupFilters.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
         <Button
+          type="button"
           variant="secondary"
           onClick={() => void load()}
           disabled={loading || busy}
         >
           Refresh
         </Button>
-      </div>
+      </form>
       {loading ? (
         <p role="status">Loading school integrations…</p>
-      ) : !rows.length ? (
+      ) : !loadError && !rows.length ? (
         <p className="rounded-xl border border-border p-6">
-          No payment setup requests on this page. The school Accountant submits
+          No payment setups match this queue and search. The school Accountant submits
           account details and the Principal approves them before connection.
         </p>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
-          {rows
-            .filter((row) =>
-              `${row.school_name} ${row.provider_code} ${row.account_number} ${row.display_name}`
-                .toLowerCase()
-                .includes(filter.toLowerCase()),
-            )
-            .map((row) => (
+          {rows.map((row) => (
               <article
                 key={row.id}
                 className="space-y-3 rounded-xl border border-border bg-surface p-5"
@@ -192,7 +180,7 @@ export function PaymentGatewaysWorkspace() {
                     {row.school_name || row.tenant_id}
                   </h2>
                   <span className="rounded-full bg-surface-muted px-3 py-1 text-xs">
-                    {row.status.replaceAll("_", " ")}
+                    {paymentSetupStatus(row)}
                   </span>
                 </div>
                 <p>
@@ -209,7 +197,9 @@ export function PaymentGatewaysWorkspace() {
                       ? "Daraja automatic collections"
                       : "Connection method not selected"}
                 </p>
-                <p className="text-sm">{row.environment === 'sandbox' ? 'Sandbox — verifies matching only; no live fee credit' : 'Production'}</p>
+                <p className="text-sm">{row.environment === 'sandbox' ? 'Sandbox — verifies matching only; no live fee credit' : row.environment === 'production' ? 'Production' : 'Environment not selected'}</p>
+                <p className="text-sm text-muted">Requested {new Date(row.created_at).toLocaleString()} · {row.reason}</p>
+                {row.decision_reason && <p className="text-sm">Principal decision: {row.decision_reason}</p>}
                 {row.last_test_status && (
                   <p className="text-sm">
                     Last check: {row.last_test_status.replaceAll("_", " ")} ·{" "}

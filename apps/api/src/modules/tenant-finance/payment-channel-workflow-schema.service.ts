@@ -28,7 +28,10 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
   CREATE INDEX IF NOT EXISTS ix_collection_revision_school_state
     ON tenant_payment_channel_revisions(tenant_id,status,created_at DESC);
   CREATE INDEX IF NOT EXISTS ix_collection_revision_connection_queue
-    ON tenant_payment_channel_revisions(status,created_at DESC);
+      ON tenant_payment_channel_revisions(status,created_at DESC);
+  CREATE INDEX IF NOT EXISTS ix_collection_revision_replacement
+      ON tenant_payment_channel_revisions(tenant_id,replaces_revision_id)
+      WHERE replaces_revision_id IS NOT NULL;
   DROP INDEX IF EXISTS ux_collection_active_destination;
   CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_active_production_destination
     ON tenant_payment_channel_revisions(provider_code,channel_kind,account_number)

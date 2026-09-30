@@ -26,6 +26,7 @@ const requestDashboardApiMock = jest.mocked(requestDashboardApi);
 const activeStudentId = "00000000-0000-4000-8000-000000000411";
 
 const canonicalResponses: Record<string, unknown> = {
+  "/tenant-finance/collection-channel-summary": { total: 0, pending_approval: 0, awaiting_connection: 0, ready: 0, active: 0, sandbox: 0, attention: 0 },
   "/admin-command/principal/students": {
     status: "active", totalStudents: 412, boys: 201, girls: 211,
     populationTrend: [],
@@ -348,6 +349,13 @@ describe("principal production readiness", () => {
     );
   });
 
+  it("opens payment setup directly from its dashboard route instead of the generic workspace", async () => {
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" section="payment-setup" routeMode="public" />);
+    expect(await screen.findByTestId("principal-practical-command-center")).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "School payment channels" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Payment Setup" })).toHaveAttribute("aria-current", "page");
+  });
+
   it.each([
     ["Review approvals", "approvals"],
     ["View students", "students"],
@@ -390,7 +398,7 @@ describe("principal production readiness", () => {
     expect(within(sidebar).getByRole("link", { name: "Students" })).toHaveAttribute("href", "/school/principal/students");
 
     for (const [label, toggleName, children] of [
-      ["Fees & Finance", "Fees & Finance", ["Fees"]],
+      ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
       ["Students", "Expand Students", ["Attendance", "Discipline", "Sick Bay", "Boarding"]],
       ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
       ["School Setup", "Expand School Setup", ["School Profile"]],

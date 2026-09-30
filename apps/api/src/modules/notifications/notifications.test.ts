@@ -235,6 +235,19 @@ test('NotificationsController uses catalogued personal-inbox permissions for rea
   }
 });
 
+test('legacy school-operation payment notices keep their action link in the canonical inbox', async () => {
+  const harness = createNotificationsHarness();
+  const service = new NotificationsService(harness.prisma as never);
+  const user = '00000000-0000-4000-8000-000000000103';
+  const href = '/payment-setup?revision=00000000-0000-4000-8000-000000000104';
+  await service.createNotification({ schoolId: 'tenant-a', actorUserId: user, targetRole: 'principal', module: 'finance',
+    eventType: 'school.operation.recorded', entityType: 'payment_channel_revision', entityId: 'revision-a',
+    title: 'Payment setup requested', message: 'Review the school account.', metadataJson: { href } });
+  const visible = await service.getUserNotifications('tenant-a', user, 'principal');
+  assert.equal(visible[0].actionUrl, href);
+  assert.deepEqual(await service.getUserNotifications('tenant-b', user, 'principal'), []);
+});
+
 test('NotificationsService isolates two tenants and authorizes user or active-role recipients on reads and mutations', async () => {
   const harness = createNotificationsHarness();
   const service = new NotificationsService(harness.prisma as never);

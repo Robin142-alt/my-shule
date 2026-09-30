@@ -16,6 +16,7 @@ jest.mock("@/components/school/school-pages", () => ({
   buildSchoolSectionHref: (role: string, section: string) => `/school/${role}/${section}`,
 }));
 jest.mock("@/lib/data/school-hooks", () => ({
+  ...jest.requireActual("@/lib/data/school-hooks"),
   useSchoolQuery: () => ({ data: { schoolName: "Test School" }, isLoading: false }),
 }));
 jest.mock("@/components/shared/task-queue", () => ({ TaskQueue: () => null }));
@@ -79,6 +80,7 @@ function installSession(activeRole: ActiveRole, switchResponse: () => Promise<Re
     if (String(url).startsWith("/api/auth/me")) return response(payload(activeRole));
     if (url === "/api/auth/dashboard-roles") return response({ roleContext: payload(activeRole).roleContext });
     if (url === "/api/auth/active-role") return switchResponse();
+    if (String(url).startsWith("/api/notifications/badges")) return response({ unreadCount: 0, urgentCount: 0, byModule: {} });
     throw new Error(`Unexpected request: ${url}`);
   });
 }

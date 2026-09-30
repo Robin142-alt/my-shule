@@ -1611,6 +1611,9 @@ export class AdminCommandRepository {
             FROM dashboard_approval_requests
             WHERE tenant_id = $1
               AND upper(status) = 'PENDING'
+          ) + (
+            SELECT COUNT(*)::int FROM tenant_payment_channel_revisions
+            WHERE tenant_id = $1 AND status = 'pending_approval'
           ) AS pending_approvals
       `,
       [tenantId],

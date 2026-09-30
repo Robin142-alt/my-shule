@@ -25,6 +25,7 @@ import { ChartCard } from "@/components/experience/chart-card";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { QuickActionBar } from "@/components/experience/quick-action-bar";
 import { PlatformShell } from "@/components/platform/platform-shell";
+import { PaymentIntegrationSummary, usePaymentIntegrationSummary } from "./workspaces/payment-integration-summary";
 import { PlatformSupportWorkspace } from "@/components/support/platform-support-workspace";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -747,6 +748,7 @@ function SuperadminOverview({ routeMode }: { routeMode: SuperadminRouteMode }) {
         description="Tenant health, revenue, and system infrastructure at a glance."
       />
       <MetricGrid items={liveKpis} />
+      <PaymentIntegrationSummary href={buildSuperadminHref("gateways", routeMode)} />
       <TenantProductSummaryCard summary={productSummary} />
       {schools.length > 0 ? (
         <Card className="p-5">
@@ -2011,6 +2013,7 @@ export function SuperadminPages({
   };
 
   const normalizedSection = sectionAliases[section] ?? section;
+  const paymentQueue = usePaymentIntegrationSummary();
 
   const activeHref =
     normalizedSection === "overview" || normalizedSection === "dashboard"
@@ -2023,9 +2026,13 @@ export function SuperadminPages({
         );
   const navItems = superadminNav.map((item) => ({
     ...item,
+    ...(item.id === "gateways" ? { label: `Payment integrations${paymentQueue.data?.awaiting_connection ? ` (${paymentQueue.data.awaiting_connection})` : ""}` } : {}),
     href: mapSuperadminHref(item.href, routeMode),
   }));
   const notifications: ExperienceNotificationItem[] = [
+    ...(paymentQueue.error ? [{ id: "payment-integration-unavailable", title: "Payment queue unavailable", detail: "Open payment integrations to retry.", timeLabel: "live", tone: "warning" as const, href: buildSuperadminHref("gateways", routeMode) }] : []),
+    ...(paymentQueue.data?.awaiting_connection ? [{ id: "payment-integration-queue", title: `${paymentQueue.data.awaiting_connection} approved payment setups need connection or activation`, detail: `${paymentQueue.data.ready} ready to activate. Review the connection queue.`, timeLabel: "live", tone: "warning" as const, href: buildSuperadminHref("gateways", routeMode) }] : []),
+    ...(paymentQueue.data?.attention ? [{ id: "payment-integration-follow-up", title: `${paymentQueue.data.attention} payment setups need follow-up`, detail: "Review rejected, suspended or failed connections.", timeLabel: "live", tone: "warning" as const, href: buildSuperadminHref("gateways", routeMode) }] : []),
     ...systemAlerts.map(
       (item): ExperienceNotificationItem => ({
         id: item.id,

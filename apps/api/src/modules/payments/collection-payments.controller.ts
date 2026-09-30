@@ -59,14 +59,14 @@ export class CollectionPaymentsController {
     return this.service.listReversals();
   }
   @Post("reversals/:id/decision")
-  @Permissions("billing:write")
+  @Permissions("principal:write")
   reversalDecision(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: DecidePaymentChannelDto,
   ) {
     return this.service.decideReversal(id, dto.decision, dto.reason);
   }
-  @Post(":id/decision") @Permissions("billing:write") decision(
+  @Post(":id/decision") @Permissions("principal:write") decision(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: DecidePaymentChannelDto,
   ) {

@@ -11,6 +11,8 @@ import { Modal } from "@/components/ui/modal";
 import { usePermissions } from "@/components/providers/permission-context";
 import { toast } from "sonner";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
+import { SchoolPaymentChannels } from "../accountant/payment-channels-workspace";
+import { usePaymentSetupSummary } from "../accountant/payment-setup-summary";
 
 type ApprovalRequest = {
   id: string;
@@ -53,6 +55,7 @@ type PrincipalExamsOverview = {
 };
 
 export function PrincipalApprovalsWorkspace() {
+  const paymentSetup = usePaymentSetupSummary();
   const { data, isLoading, error, refetch } = useSchoolQuery<ApprovalsOverviewData>('/admin-command/principal/approvals');
   const {
     data: examsData,
@@ -83,6 +86,11 @@ export function PrincipalApprovalsWorkspace() {
       ? examsData.recentResults.filter((series) => series.canPublish)
       : [];
   const reportCardReleaseCount = Math.max(examsData?.reportsPending ?? 0, releaseQueue.length);
+  const approvalCategories = [
+    ...approvalOverview.categories,
+    ...((paymentSetup.data?.pending_approval ?? 0) > 0 ? [{ name: "Payment setup", pending: paymentSetup.data!.pending_approval, urgent: 0 }] : []),
+    ...(reportCardReleaseCount > 0 ? [{ name: "Report-card release", pending: reportCardReleaseCount, urgent: 0 }] : []),
+  ];
   const canPublishReportCards = hasPermission("principal:write") && hasPermission("exams:publish");
 
   const openDecision = (request: ApprovalRequest, action: "approve" | "reject") => {
@@ -132,7 +140,7 @@ export function PrincipalApprovalsWorkspace() {
     }
   };
 
-  if (isLoading && examsLoading) {
+  if (isLoading && examsLoading && paymentSetup.isLoading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
@@ -148,7 +156,7 @@ export function PrincipalApprovalsWorkspace() {
       <div className="app-metric-grid grid gap-4 md:grid-cols-3">
         <Card className="border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-white/70">Total Pending</div>
-          <div className="mt-2 text-2xl font-black text-white">{approvalOverview.pendingTotal + reportCardReleaseCount}</div>
+          <div className="mt-2 text-2xl font-black text-white">{error || examsError || paymentSetup.error ? "Unavailable" : isLoading || examsLoading || paymentSetup.isLoading ? "…" : approvalOverview.pendingTotal + reportCardReleaseCount + (paymentSetup.data?.pending_approval ?? 0)}</div>
         </Card>
         <Card className="border border-rose-500/30 bg-rose-500/10 p-5">
           <div className="text-sm font-semibold text-rose-200">Urgent</div>
@@ -159,6 +167,8 @@ export function PrincipalApprovalsWorkspace() {
           <div className="mt-2 text-2xl font-black text-emerald-300">{examsLoading ? "…" : reportCardReleaseCount}</div>
         </Card>
       </div>
+
+      <SchoolPaymentChannels mode="review" pendingOnly />
 
       {error ? (
         <Card role="alert" className="border border-red-500/20 bg-red-500/10 p-4">
@@ -233,7 +243,7 @@ export function PrincipalApprovalsWorkspace() {
 
       <Card className="border border-white/10 bg-white/5 p-6">
         <div className="mb-5 border-b border-white/10 pb-4">
-          <h2 className="text-xl font-bold text-white">Requests Awaiting Your Decision</h2>
+          <h2 className="text-xl font-bold text-white">Administrative Requests Awaiting Your Decision</h2>
           <p className="mt-1 text-sm text-white/60">
             Only approvals assigned to your current Principal role are shown. Procurement decisions update the request, audit trail, event, and requester notification together.
           </p>
@@ -241,7 +251,7 @@ export function PrincipalApprovalsWorkspace() {
 
         {requests.length === 0 ? (
           <div className="rounded-lg border border-white/5 bg-white/5 px-4 py-8 text-center text-white/60">
-            No approval request is currently assigned to you.
+            No administrative approval request is currently assigned to you. Payment setup reviews are shown above.
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -291,14 +301,14 @@ export function PrincipalApprovalsWorkspace() {
             <h2 className="text-xl font-bold text-white">Pending by Category</h2>
           </div>
           
-          {approvalOverview.categories.length === 0 ? (
+          {error || examsError || paymentSetup.error ? <p role="status">Approval category counts are unavailable. Retry the affected queue above.</p> : isLoading || examsLoading || paymentSetup.isLoading ? <p role="status">Loading approval categories…</p> : approvalCategories.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
               <CheckCircle2 className="h-10 w-10 text-emerald-400/50 mb-3" />
               <p className="text-white/60">All caught up! No pending approvals.</p>
             </div>
           ) : (
             <div className="space-y-4 flex-1 overflow-y-auto pr-2">
-              {approvalOverview.categories.map((cat) => (
+              {approvalCategories.map((cat) => (
                 <div key={cat.name} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
                   <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
@@ -324,7 +334,7 @@ export function PrincipalApprovalsWorkspace() {
 
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full min-h-[300px]">
           <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
-            <h2 className="text-xl font-bold text-white">Recent Approvals</h2>
+            <h2 className="text-xl font-bold text-white">Recent Administrative Approvals</h2>
           </div>
           
           {approvalOverview.recentApprovals.length === 0 ? (

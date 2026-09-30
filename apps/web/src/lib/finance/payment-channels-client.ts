@@ -59,9 +59,21 @@ export const decideCollectionChannel = (
     `/tenant-finance/collection-channels/${id}/decision`,
     { tenantId, method: "POST", body: { decision, reason } },
   );
-export const listPaymentIntegrations = (offset = 0) =>
+export interface PaymentSetupSummary {
+  total: number;
+  pending_approval: number;
+  awaiting_connection: number;
+  ready: number;
+  active: number;
+  sandbox: number;
+  attention: number;
+}
+export const getPaymentIntegrationSummary = () =>
+  requestDashboardApi<PaymentSetupSummary>("/platform/payment-integrations/summary?audience=superadmin");
+
+export const listPaymentIntegrations = (offset = 0, status = "all", search = "") =>
   requestDashboardApi<CollectionChannelRevision[]>(
-    `/platform/payment-integrations?audience=superadmin&limit=50&offset=${offset}`,
+    `/platform/payment-integrations?audience=superadmin&limit=50&offset=${offset}&status=${encodeURIComponent(status)}&search=${encodeURIComponent(search)}`,
   );
 export const listIntegrationProviders = () =>
   requestDashboardApi<CollectionProvider[]>(

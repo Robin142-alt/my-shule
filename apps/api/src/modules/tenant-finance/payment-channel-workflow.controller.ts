@@ -1,15 +1,12 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Get,
   Header,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   Query,
-  BadRequestException,
 } from "@nestjs/common";
 import { Permissions } from "../../auth/decorators/permissions.decorator";
 import { Roles } from "../../auth/decorators/roles.decorator";
@@ -23,6 +20,7 @@ import {
   SandboxPaymentTestDto,
 } from "./dto/payment-channel-workflow.dto";
 import { PaymentChannelWorkflowService } from "./payment-channel-workflow.service";
+import { PaymentChannelQueryDto } from "./dto/payment-channel-query.dto";
 
 @Controller("tenant-finance")
 @RequiresModule("finance")
@@ -34,8 +32,11 @@ export class PaymentChannelWorkflowController {
   @Get("collection-instructions") @Permissions("auth:read") instructions() {
     return this.service.instructions();
   }
-  @Get("collection-channels") @Permissions("billing:read") list() {
-    return this.service.list();
+  @Get("collection-channel-summary") @Permissions("billing:read") summary() {
+    return this.service.summary();
+  }
+  @Get("collection-channels") @Permissions("billing:read") list(@Query() query: PaymentChannelQueryDto) {
+    return this.service.list(query);
   }
   @Post("collection-channels") @Permissions("billing:write") request(
     @Body() dto: RequestPaymentChannelDto,
@@ -43,7 +44,7 @@ export class PaymentChannelWorkflowController {
     return this.service.request(dto);
   }
   @Post("collection-channels/:id/decision")
-  @Permissions("billing:write")
+  @Permissions("principal:write")
   decide(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: DecidePaymentChannelDto,
@@ -59,13 +60,11 @@ export class PlatformPaymentIntegrationsController {
   @Get("providers") providers() {
     return this.service.providers();
   }
-  @Get() list(
-    @Query("limit", new DefaultValuePipe(50), ParseIntPipe) limit: number,
-    @Query("offset", new DefaultValuePipe(0), ParseIntPipe) offset: number,
-  ) {
-    if (limit < 1 || limit > 100 || offset < 0)
-      throw new BadRequestException("Invalid page");
-    return this.service.platformList(limit, offset);
+  @Get("summary") summary() {
+    return this.service.platformSummary();
+  }
+  @Get() list(@Query() query: PaymentChannelQueryDto) {
+    return this.service.platformList(query.limit, query.offset, query);
   }
   @Post(":tenantId/:id/connect") connect(
     @Param("tenantId") tenant: string,

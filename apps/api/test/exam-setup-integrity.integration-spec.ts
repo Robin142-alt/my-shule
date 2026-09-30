@@ -87,7 +87,7 @@ describe('Exam configuration and empty-exam deletion', () => {
         available_at timestamptz,published_at timestamptz,last_error text,actor_user_id uuid,actor_role text,source_dashboard text,
         correlation_id uuid,created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),UNIQUE(tenant_id,event_key));
       CREATE TABLE notifications(id uuid DEFAULT gen_random_uuid(),tenant_id text,notification_key text,recipient_user_id uuid,
-        recipient_guardian_id uuid,type text,title text,body text,status text,metadata jsonb,updated_at timestamptz DEFAULT NOW(),
+        recipient_guardian_id uuid,type text,title text,body text,status text,priority text,metadata jsonb,updated_at timestamptz DEFAULT NOW(),
         UNIQUE(tenant_id,notification_key));`);
     await query(EXAM_SETUP_INTEGRITY_SCHEMA);
     await query(EXAM_SETUP_INTEGRITY_SCHEMA); // repeatable upgrade
@@ -115,6 +115,7 @@ describe('Exam configuration and empty-exam deletion', () => {
     expect((await query('SELECT status FROM exam_mark_entry_windows WHERE exam_series_id=$1', [created.exam.id])).rows).toEqual(Array(4).fill({ status: 'closed' }));
     expect((await query('SELECT action FROM audit_logs WHERE resource_id=$1', [created.exam.id])).rows[0].action).toBe('exams.exam-setup.created');
     expect(events.at(-1).notifications[0].audienceRoles).toContain('teacher');
+    expect((await query('SELECT priority FROM notifications')).rows[0].priority).toBe('normal');
   });
   it('saves term/type, removes unchecked subjects and classes and reopens the exact saved selection', async () => {
     const created = await create();

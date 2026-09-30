@@ -74,13 +74,15 @@ export class SchoolOperationNotificationsRepository {
           title,
           body,
           status,
+          priority,
           metadata
         )
-        VALUES ($1, $2, NULL, NULL, $3, $4, $5, 'unread', $6::jsonb)
+        VALUES ($1, $2, NULL, NULL, $3, $4, $5, $8, $7, $6::jsonb)
         ON CONFLICT (tenant_id, notification_key)
         DO UPDATE SET
           title = EXCLUDED.title,
           body = EXCLUDED.body,
+          priority = EXCLUDED.priority,
           metadata = EXCLUDED.metadata,
           updated_at = NOW()
       `;
@@ -97,6 +99,9 @@ export class SchoolOperationNotificationsRepository {
           ? input.notification.audienceRoles
           : [],
       }),
+      ['low', 'normal', 'high', 'urgent'].includes(String(input.notification.priority).toLowerCase())
+        ? String(input.notification.priority).toLowerCase() : 'normal',
+      input.notification.status === 'action_required' ? 'action_required' : 'unread',
     ];
 
     if (tx) {
@@ -105,6 +110,12 @@ export class SchoolOperationNotificationsRepository {
     }
 
     await this.executeSql(query, params);
+  }
+
+  async resolveRequiredAction(tenantId: string, actionType: string, recordId: string): Promise<void> {
+    await this.executeSql(`UPDATE notifications SET status='action_taken',updated_at=NOW()
+      WHERE tenant_id=$1 AND metadata->>'actionType'=$2 AND metadata->>'relatedRecordId'=$3
+        AND status IN ('action_required','unread','read')`, [tenantId, actionType, recordId]);
   }
 
   async listForTenantRole(

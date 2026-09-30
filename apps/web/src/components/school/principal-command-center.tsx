@@ -29,6 +29,7 @@ import { useModalLayer } from "@/hooks/use-modal-layer";
 import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
 
 import { DashboardGreeting } from "@/components/common/dashboard-greeting";
+import { SchoolNotificationBell } from "@/components/common/notifications/notification-bell";
 import { MyShuleBrand } from "@/components/brand/myshule-brand";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { PermissionProvider } from "@/components/providers/permission-context";
@@ -49,6 +50,7 @@ import { PrincipalDisciplineWorkspace } from "./principal-dashboard/discipline-w
 import { PrincipalExamsReportsWorkspace } from "./principal-dashboard/exams-reports-workspace";
 import { PrincipalFinanceOverviewWorkspace } from "./principal-dashboard/finance-overview-workspace";
 import { SchoolPaymentChannels } from "./accountant/payment-channels-workspace";
+import { SchoolPaymentSetupSummary, usePaymentSetupSummary } from "./accountant/payment-setup-summary";
 import { CollectionsWorkspace } from "./accountant/collections-workspace";
 import {
   PrincipalAuditOversightWorkspace,
@@ -80,6 +82,8 @@ type PrincipalSection =
   | "classes-streams"
   | "subjects-departments"
   | "fees"
+  | "payment-setup"
+  | "collections"
   | "attendance"
   | "discipline"
   | "visitors"
@@ -135,7 +139,11 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
   { id: "timetable", label: "Master Timetable", icon: CalendarDays },
   {
     id: "fees-finance", label: "Fees & Finance", icon: Wallet,
-    children: [{ id: "fees", label: "Fees", icon: Wallet }],
+    children: [
+      { id: "fees", label: "Fees", icon: Wallet },
+      { id: "payment-setup", label: "Payment Setup", icon: Wallet },
+      { id: "collections", label: "Collection Reviews", icon: ClipboardCheck },
+    ],
   },
   {
     id: "students", label: "Students", icon: Users, route: "students",
@@ -228,8 +236,6 @@ function normalizePrincipalSection(section?: string | null): PrincipalSection {
       return "sick-bay";
     case "finance":
     case "finance-overview":
-    case "payment-setup":
-    case "collections":
       return "fees";
     case "exams":
     case "exams-report-cards":
@@ -343,6 +349,7 @@ export function PrincipalCommandCenter({
     { tenantId: schoolId },
   );
   const savedDefaultView = principalNavigationSettings?.dashboard?.defaultView;
+  const paymentSetup = usePaymentSetupSummary();
   const savedTheme = principalNavigationSettings?.dashboard?.theme;
   const schoolName = principalSchoolProfile?.schoolName?.trim() || fallbackSchoolName;
   const [failedSchoolLogoUrl, setFailedSchoolLogoUrl] = useState<string | null>(null);
@@ -434,13 +441,13 @@ export function PrincipalCommandCenter({
   function renderWorkspace() {
     if (activeWorkspace === "overview") {
       return (
-        <PrincipalOverviewWorkspace
+        <div className="space-y-6"><SchoolPaymentSetupSummary review onOpen={() => setActiveWorkspace("payment-setup")} /><PrincipalOverviewWorkspace
           executiveDashboard={principalDashboard}
           executiveDashboardLoading={principalDashboardLoading}
           executiveDashboardStreamDegraded={principalDashboardStreamDegraded}
           riskCenterLabel="Alerts and risk center"
           onNavigate={setActiveWorkspace}
-        />
+        /></div>
       );
     }
     if (activeWorkspace === "setup-checklist") {
@@ -450,7 +457,9 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
     if (activeWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
     if (activeWorkspace === "students") return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
-    if (activeWorkspace === "fees") return <div className="space-y-6"><SchoolPaymentChannels mode="review" /><CollectionsWorkspace mode="review" /><PrincipalFinanceOverviewWorkspace /></div>;
+    if (activeWorkspace === "fees") return <PrincipalFinanceOverviewWorkspace />;
+    if (activeWorkspace === "payment-setup") return <SchoolPaymentChannels mode="review" />;
+    if (activeWorkspace === "collections") return <CollectionsWorkspace mode="review" />;
     if (activeWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
     if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
     if (activeWorkspace === "academics") return <PrincipalAcademicsWorkspace />;
@@ -543,6 +552,8 @@ export function PrincipalCommandCenter({
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="truncate">{item.label}</span>
+        {(item.id === "payment-setup" || item.id === "approvals") && Boolean(paymentSetup.data?.pending_approval) &&
+          <span className="ml-auto rounded-full bg-warning-soft px-2 text-xs" aria-label={`${paymentSetup.data!.pending_approval} payment setups awaiting approval`}>{paymentSetup.data!.pending_approval} payment</span>}
       </button>
     );
   }
@@ -655,13 +666,14 @@ export function PrincipalCommandCenter({
             </aside>
 
             <main className="min-w-0 space-y-5">
-              <header className="app-workspace-header rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
+              <header className="app-workspace-header z-20 rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <DashboardGreeting name={principalName} context={`${schoolName} command center`} />
                     <h1 className="mt-1 text-2xl font-black">Principal Dashboard</h1>
                   </div>
                   <div className="app-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+                    <SchoolNotificationBell basePath={routeMode === "public" ? "/school/principal" : ""} />
                     <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
                     <MobileMenuTrigger
                       type="button"

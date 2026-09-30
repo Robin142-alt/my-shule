@@ -3,10 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 
-import type { NotificationBadges } from "@/hooks/useNotifications";
+import { useNotificationBadges, type NotificationBadges } from "@/hooks/useNotifications";
 import { NotificationDrawer } from "./notification-drawer";
 
 export type BadgesResponse = NotificationBadges;
+
+export function SchoolNotificationBell({ basePath }: { basePath: string }) {
+  const query = useNotificationBadges();
+  return <NotificationBell basePath={basePath} badges={query.badges} badgesError={query.error} badgesLoading={query.isLoading} onBadgesRefresh={query.refetch} />;
+}
 
 export function NotificationBell({
   basePath,

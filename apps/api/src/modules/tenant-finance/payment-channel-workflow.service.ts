@@ -26,6 +26,7 @@ import {
   collectionProvider,
 } from "./payment-provider.catalog";
 import { PaymentChannelConnectionService } from "./payment-channel-connection.service";
+import { PaymentChannelQueryDto } from "./dto/payment-channel-query.dto";
 import {
   PaymentChannelRevision,
   PaymentChannelRevisionView,
@@ -66,28 +67,68 @@ export class PaymentChannelWorkflowService {
     ).rows;
   }
 
-  async list(): Promise<PaymentChannelRevisionView[]> {
+  async list(query = new PaymentChannelQueryDto()): Promise<PaymentChannelRevisionView[]> {
     const tenantId = this.schoolActor(["accountant", "bursar", "principal"]);
-    const result = await this.db.query<PaymentChannelRevision>(
-      "SELECT * FROM tenant_payment_channel_revisions WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 200",
-      [tenantId],
-    );
-    return result.rows.map((row) => this.view(row));
+    return this.listRevisions(tenantId, query);
   }
 
   async platformList(
     limit = 50,
     offset = 0,
+    query = new PaymentChannelQueryDto(),
   ): Promise<PaymentChannelRevisionView[]> {
     this.platformActor();
+    return this.listRevisions(null, { ...query, limit, offset });
+  }
+
+  private async listRevisions(tenantId: string | null, query: PaymentChannelQueryDto) {
     const result = await this.db.query<PaymentChannelRevision>(
       `SELECT r.*, t.name AS school_name FROM tenant_payment_channel_revisions r
        JOIN tenants t ON t.tenant_id=r.tenant_id
-       ORDER BY CASE WHEN r.status IN ('approved','connecting','ready') THEN 0 ELSE 1 END,
-         r.created_at DESC, r.id LIMIT $1 OFFSET $2`,
-      [limit, offset],
+       WHERE ($1::text IS NULL OR r.tenant_id=$1)
+         AND ($2='all' OR r.status=$2
+           OR ($2='connection' AND r.status IN ('approved','connecting','ready'))
+           OR ($2='attention' AND ${this.attentionPredicate()}))
+         AND ($3='' OR strpos(lower(concat_ws(' ',t.name,r.provider_code,r.display_name,r.account_number)),lower($3))>0)
+         AND ($4::uuid IS NULL OR r.id=$4::uuid)
+       ORDER BY CASE WHEN $1::text IS NULL AND r.status IN ('approved','connecting','ready') THEN -1
+         WHEN r.status='pending_approval' THEN 0
+         WHEN r.status IN ('approved','connecting','ready') THEN 1
+         WHEN r.status='suspended' THEN 2 ELSE 3 END,
+         r.created_at DESC, r.id LIMIT $5 OFFSET $6`,
+      [tenantId, query.status, query.search?.trim() ?? "", query.revision ?? null, query.limit, query.offset],
     );
     return result.rows.map((row) => this.view(row));
+  }
+
+  async summary() {
+    return this.summarize(this.schoolActor(["accountant", "bursar", "principal"]));
+  }
+
+  async platformSummary() {
+    this.platformActor();
+    return this.summarize(null);
+  }
+
+  private attentionPredicate() {
+    return `(r.status IN ('rejected','suspended') OR (r.status IN ('connecting','ready','active') AND r.last_error IS NOT NULL))
+      AND NOT EXISTS (SELECT 1 FROM tenant_payment_channel_revisions newer
+        WHERE newer.tenant_id=r.tenant_id AND newer.replaces_revision_id=r.id)`;
+  }
+
+  private async summarize(tenantId: string | null) {
+    const result = await this.db.query(
+      `SELECT count(*)::int AS total,
+        count(*) FILTER (WHERE r.status='pending_approval')::int AS pending_approval,
+        count(*) FILTER (WHERE r.status IN ('approved','connecting','ready'))::int AS awaiting_connection,
+        count(*) FILTER (WHERE r.status='ready')::int AS ready,
+        count(*) FILTER (WHERE r.status='active' AND r.environment='production')::int AS active,
+        count(*) FILTER (WHERE r.status='active' AND r.environment='sandbox')::int AS sandbox,
+        count(*) FILTER (WHERE ${this.attentionPredicate()})::int AS attention
+       FROM tenant_payment_channel_revisions r WHERE ($1::text IS NULL OR r.tenant_id=$1)`,
+      [tenantId],
+    );
+    return result.rows[0];
   }
 
   async health(tenantId: string, id: string) {
@@ -224,6 +265,7 @@ export class PaymentChannelWorkflowService {
         dto.decision === "approve" ? "approved" : "rejected",
         ["accountant", "bursar"],
       );
+      await this.notifications.resolveRequiredAction(tenantId, "payment_setup_review", id);
       return this.view(result.rows[0]);
     });
   }
@@ -575,15 +617,31 @@ export class PaymentChannelWorkflowService {
   ) {
     const eventId = randomUUID();
     const title = `Payment setup: ${action.replaceAll("_", " ")}`;
-    const body = `${row.display_name}: ${row.status.replaceAll("_", " ")}. ${row.last_error ?? ""}`;
+    const nextStep: Record<string, string> = {
+      pending_approval: "Principal: review and approve or reject the school account.",
+      approved: "Approved. Awaiting Super Admin connection.",
+      rejected: "Accountant: review the decision and submit a corrected setup.",
+      connecting: "Super Admin is connecting and testing this account.",
+      ready: "Checks passed. Awaiting Super Admin activation.",
+      active: row.environment === "sandbox" ? "Sandbox testing only; live school fees are not enabled." : "School payment channel is active.",
+      suspended: "Collection is suspended. Contact Super Admin or request a corrected setup.",
+      superseded: "This setup has been replaced. Its history remains available.",
+    };
+    const body = `${row.display_name}: ${nextStep[row.status]} ${row.decision_reason ?? ""} ${row.last_error ?? ""}`.trim();
     const notification = {
       id: eventId,
       title,
       body,
       audienceRoles: roles,
-      href: "/payment-setup",
+      href: `/payment-setup?revision=${row.id}`,
+      actionUrl: `/payment-setup?revision=${row.id}`,
+      actionLabel: row.status === "pending_approval" ? "Review payment setup" : "View payment setup",
       sourceModule: "finance",
       relatedRecordId: row.id,
+      actionType: action === "requested" ? "payment_setup_review" : "payment_setup",
+      status: action === "requested" ? "action_required" : "unread",
+      originRole: this.context.requireStore().role,
+      priority: row.last_error || row.status === "pending_approval" ? "high" : "normal",
     };
     await this.audit.record({
       tenant_id: row.tenant_id,

@@ -59,7 +59,7 @@ export function CollectionsWorkspace({
     "/payments/collections/reversals",
   );
   const channels = useSchoolQuery<CollectionChannelRevision[]>(
-    "/tenant-finance/collection-channels",
+    "/tenant-finance/collection-channels?status=active&limit=100",
   );
   const inbox = useSchoolQuery<IngressPayment[]>('/payments/ingress');
   const [action, setAction] = useState<Action | null>(null);
