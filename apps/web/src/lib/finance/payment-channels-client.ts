@@ -11,6 +11,7 @@ export interface CollectionProvider {
     label: string;
     required: boolean;
     secret: boolean;
+    description?: string;
   }>;
 }
 export interface CollectionChannelRevision {
