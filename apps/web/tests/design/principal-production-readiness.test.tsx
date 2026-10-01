@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
@@ -434,10 +434,23 @@ describe("principal production readiness", () => {
   });
 
   it("opens Students from its sidebar destination and preserves school data on reload", async () => {
-    const { rerender } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
+    const user = userEvent.setup();
+    window.history.replaceState(null, "", "/school/principal");
+    const { unmount } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
     const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
     const href = within(sidebar).getByRole("link", { name: "Students" }).getAttribute("href")!;
-    rerender(<SchoolPages role="principal" section={href.split("/").pop()} tenantSlug="maranda-high" routeMode="public" />);
+    await user.click(within(sidebar).getByRole("link", { name: "Students" }));
+    expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
+    expect(window.location.pathname).toBe(href);
+    expect(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).toBe(sidebar);
+    await act(async () => {
+      window.history.back();
+      await new Promise<void>((resolve) => window.addEventListener("popstate", () => resolve(), { once: true }));
+    });
+    expect(window.location.pathname).toBe("/school/principal");
+    expect(within(sidebar).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    unmount();
+    renderWithProviders(<SchoolPages role="principal" section={href.split("/").pop()} tenantSlug="maranda-high" routeMode="public" />);
     expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
     expect(await screen.findByText("Amina Wanjiku")).toBeVisible();
     expect(within(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).getByRole("link", { name: "Students" })).toHaveAttribute("aria-current", "page");
