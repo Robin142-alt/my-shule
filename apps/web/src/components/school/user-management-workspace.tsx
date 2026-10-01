@@ -3,7 +3,6 @@
 import { Copy, Eye, Lock, Mail, RotateCcw, Search, ShieldCheck, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { SubjectHeadSetup } from "./subject-head-setup";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { useActionFeedback } from "@/hooks/use-action-feedback";
@@ -1377,7 +1376,6 @@ export function UserManagementWorkspace({
         </Card>
       ) : null}
 
-      <SubjectHeadSetup />
       {activeTab === "invite" ? (
         <Card className="p-4">
           <div>
