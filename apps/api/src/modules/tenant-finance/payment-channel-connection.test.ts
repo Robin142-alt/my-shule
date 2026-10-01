@@ -27,6 +27,18 @@ for(const environment of ['sandbox','production'] as const) {
   });
 }
 
+test('Daraja v2 padded zero success codes are accepted, nonzero and malformed codes fail closed',async t=>{
+  let code:unknown='00000000';
+  t.mock.method(globalThis,'fetch',async (url:string)=>Response.json(url.includes('/oauth/')?
+    {access_token:'provider-token'}:{ResponseCode:code,ResponseDescription:'Success'}));
+  for(const success of ['00000000','0',0]) {
+    code=success;assert.equal(await service.test(revision,credentials),'provider_registration_accepted');
+  }
+  for(const failure of ['00000001','',null,false,[],['00000000'],'0e0','0.0',' 0 ']) {
+    code=failure;await assert.rejects(service.test(revision,credentials),/registration failed/);
+  }
+});
+
 test('failed checks expose bounded safe provider diagnostics, never credentials or callback capabilities',async t=>{
   let response:Response;
   t.mock.method(globalThis,'fetch',async (url:string)=>url.includes('/oauth/')?Response.json({access_token:'provider-token'}):response);

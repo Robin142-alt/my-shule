@@ -110,7 +110,7 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
     const shortcode = withStk ? '247248' : '247247';
     const passkey = withStk ? 'school-stk-passkey' : undefined;
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (url) => new Response(JSON.stringify(
-      String(url).includes('/oauth/') ? { access_token: 'test-provider-token' } : { ResponseCode: '0', ResponseDescription: 'Accepted' }), { status: 200 }));
+      String(url).includes('/oauth/') ? { access_token: 'test-provider-token' } : { ResponseCode: '00000000', ResponseDescription: 'Success' }), { status: 200 }));
     const requested = await as(school, 'accountant', () => workflow.request({ provider_code: 'safaricom', channel_kind: 'mpesa_paybill',
       display_name: 'Fees Paybill', account_name: 'School fees', account_number: shortcode, reason: 'Receive school fee collections' }));
     await as(school, 'principal', () => workflow.decide(requested.id, { decision: 'approve', reason: 'Verified school destination' }));
