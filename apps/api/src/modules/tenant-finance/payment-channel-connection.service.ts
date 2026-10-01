@@ -23,7 +23,7 @@ function providerFailure(message: string, response: Response, body: Record<strin
     for (const secret of values) text = text.split(secret).join('[redacted]');
     return text.replace(/https?:\/\/[^\s<>"']+/gi, '[redacted URL]')
       .replace(/\b(?:Bearer|Basic)\s+\S+/gi, '[redacted authorization]')
-      .replace(/[a-f0-9]{64,}/gi, '[redacted token]').replace(/<[^>]*>/g, '')
+      .replace(/[a-f0-9]{64,}/gi, '[redacted token]').replace(/[<>&]/g, '')
       .replace(/[^\x20-\x7e]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, limit);
   };
   const fields = [['ResponseCode',64],['ResponseDescription',300],['errorCode',64],['errorMessage',300]] as const;

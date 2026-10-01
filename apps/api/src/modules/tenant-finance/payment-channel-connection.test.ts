@@ -37,12 +37,14 @@ test('failed checks expose bounded safe provider diagnostics, never credentials 
     [{ResponseCode:{secret:'unsafe'},ResponseDescription:{raw:'unsafe'}},502,/HTTP 502/],
     [{ResponseCode:[0],ResponseDescription:'Malformed provider response'},200,/HTTP 200/],
     [{ResponseCode:'3',ResponseDescription:'Invalid URL '.repeat(1000)},400,/ResponseCode=3/],
+    [{ResponseCode:'4',ResponseDescription:'<<script>script>alert(1)<</script>/script>&lt;iframe'},400,/ResponseCode=4/],
     [null,502,/HTTP 502/],
   ] as const) {
     response=Response.json(body,{status});
     await assert.rejects(service.test(revision,credentials),(error:Error)=>{
       assert.match(error.message,expected);
       for(const secret of [credentials._callback_token,credentials.consumer_secret,'provider-token','https://','<script>','\n'])assert(!error.message.includes(secret));
+      assert.doesNotMatch(error.message,/[<>&]/);
       assert(error.message.length<650);return true;
     });
   }
