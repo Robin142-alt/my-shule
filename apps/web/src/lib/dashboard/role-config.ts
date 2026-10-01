@@ -51,6 +51,7 @@ export const sidebarItems: SidebarItem[] = [
   
   // Exam Manager workspaces
   { id: "overview", label: "Overview", href: "overview", roles: ["exam-manager"] },
+  { id: "exam-workflow", label: "Exam Workflow", href: "exam-workflow", roles: ["exam-manager"] },
   { id: "exam-setup", label: "Exam Setup", href: "exam-setup", roles: ["exam-manager"] },
   { id: "exam-timetable", label: "Exam Timetable", href: "exam-timetable", roles: ["exam-manager"] },
   { id: "marks-entry", label: "Marks Entry Hub", href: "marks-entry", roles: ["exam-manager"] },

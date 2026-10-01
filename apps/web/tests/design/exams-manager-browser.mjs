@@ -28,7 +28,7 @@ const data = {
  '/school/identity': {schoolName:'Preview School'},
  '/admin-command/exams-manager/teacher-mark-progress': {entries},
  '/admin-command/exams-manager/overview': {metrics:{active_exams:2,pending_moderation:36,published_results:120,total_report_cards:156}, recent_exams:[{id:'exam-1',name:'Term 3 End Term',term:'14 Sep – 25 Sep 2026',status:'submitted'},{id:'exam-2',name:'Term 3 CAT',term:'1 Sep – 8 Sep 2026',status:'published'}]},
- '/exams/workflow': {series:[],metrics:{}},
+ '/exams/workflow': {series:[{id:'exam-1',name:'Term 3 End Term',term_name:'Term 3',academic_year_name:'2026',status:'submitted',stage:'dean_review',next_owner:'Dean of Academics',blockers:['36 marks await Dean review'],counts:{subjects:1,classes:1,learners:36,marks:36,expected_marks:36,ready_marks:0,submitted_marks:36,reviewed_marks:0,locked_marks:0,published_marks:0,report_cards:0,review_report_cards:0,approved_report_cards:0,published_report_cards:0}}],metrics:{active_series:1,marks_awaiting_moderation:36,report_cards_awaiting_dean:0,report_cards_awaiting_principal:0}},
 };
 fs.writeFileSync(path.join(out, 'hooks.ts'), `import {useState} from 'react';const initial=${JSON.stringify(data)};window.__qaData=initial;export function useSchoolQuery(path){const [,rerender]=useState(0);return {data:window.__qaData[path]||{},isLoading:false,isFetching:false,error:window.__progressError&&path.includes('teacher-mark-progress')?new Error('Progress service unavailable'):null,refetch:async()=>{rerender(n=>n+1);return {};}};}export function useSchoolMutation(){return {mutateAsync:async()=>({})};}`);
 fs.writeFileSync(path.join(out, 'header-hooks.ts'), `export function useDashboardTasks(){return {tasks:[],pendingIds:new Set(),refetch:async()=>{}};}export function useApprovals(){return {approvals:[],pendingIds:new Set(),refetch:async()=>{}};}export function useNotifications(){return {notifications:[],unreadCount:0,pendingIds:new Set(),refetch:async()=>{}};}`);
@@ -45,7 +45,7 @@ async function run() {
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({headless:true});
  try {
-  for(const width of [320,390,768,1440]) {
+  for(const width of [320,390,768,1024,1440]) {
    const page=await browser.newPage({viewport:{width,height:960}});
    const errors=[];page.on('pageerror',error=>{errors.push(error.message);console.error(error.message);});
    await page.goto(`http://127.0.0.1:${server.address().port}`);
@@ -84,9 +84,25 @@ async function run() {
    await page.getByRole('button',{name:'Open exam setup',exact:true}).click();
    assert.ok(page.url().endsWith('/school/exams-manager/exam-setup'));
    await page.getByRole('heading',{name:'Exam Setup',exact:true}).waitFor();
+   if (width < 1024) {
+    await page.getByRole('button',{name:'Open Exams workspace sidebar',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:/Exam Workflow/}).click();
+   } else {
+    await page.getByRole('button',{name:'Exam Workflow',exact:true}).click();
+   }
+   await page.getByRole('heading',{name:'Exam Workflow',exact:true}).waitFor();
+   assert.ok(page.url().endsWith('/school/exams-manager/exam-workflow'));
+   await page.getByText('Next: Dean of Academics',{exact:true}).waitFor();
+   await page.getByText('36 marks await Dean review',{exact:true}).waitFor();
+   assert.equal(await page.getByRole('list',{name:'Term 3 End Term progress'}).getByRole('listitem').count(),9);
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Workflow overflows at ${width}px`);
+   await page.getByRole('button',{name:'Refresh',exact:true}).click();
+   await page.screenshot({path:path.join(out,`workflow-${width}.png`),fullPage:true});
+   await page.getByRole('button',{name:'Open marks entry',exact:true}).click();
+   assert.ok(page.url().endsWith('/school/exams-manager/marks-entry'));
    assert.deepEqual(errors,[]);
    await page.close();
-   console.log(`Exams dashboard ${width}px: layout, search, details, filters, CSV export, error recovery, empty-state navigation passed`);
+   console.log(`Exams dashboard ${width}px: layout, search, details, filters, CSV export, error recovery, empty-state navigation, workflow sidebar and action passed`);
   }
  } finally {await browser.close();await new Promise(resolve=>server.close(resolve));}
 }

@@ -538,6 +538,7 @@ const teacherDashboardSectionIds = new Set([
 const examsManagerDashboardSectionIds = new Set([
   "dashboard",
   "overview",
+  "exam-workflow",
   "exams",
   "builder",
   "exam-setup",

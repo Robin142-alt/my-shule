@@ -128,6 +128,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   ],
   "exams-manager": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
+    { id: "exam-workflow", label: "Exam Workflow", href: toSchoolPath("exam-workflow"), icon: Activity },
     { id: "exam-setup", label: "Exam Setup", href: toSchoolPath("exam-setup"), icon: Settings },
     { id: "exam-timetable", label: "Exam Timetable", href: toSchoolPath("exam-timetable"), icon: CalendarDays },
     { id: "marks-entry", label: "Marks Entry", href: toSchoolPath("marks-entry"), icon: GraduationCap },
@@ -464,6 +465,7 @@ export const schoolSectionLabels: Record<string, string> = {
   "assessments": "Assessments",
   "academic-interventions": "Academic Interventions",
   "exam-setup": "Exam Setup",
+  "exam-workflow": "Exam Workflow",
   "exam-timetable": "Exam Timetable",
   "marks-entry": "Marks Entry",
   "moderation": "Moderation",
