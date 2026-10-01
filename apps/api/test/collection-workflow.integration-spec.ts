@@ -312,6 +312,48 @@ describe("Collection approval, persistence and school boundaries", () => {
     const platform = await as("platform_owner", () => workflow.platformList());
     expect(platform[0].school_name).toBe("School A");
   });
+  it("lets a school Owner review payment setups with the same school and approval boundaries as Principal", async () => {
+    const owner = randomUUID();
+    const pending = await as("accountant", () => workflow.request(request));
+    const query = Object.assign(new PaymentChannelQueryDto(), { revision: pending.id });
+    expect(await as("owner", () => workflow.list(query), school, owner))
+      .toEqual([expect.objectContaining({ id: pending.id, status: "pending_approval" })]);
+    expect(await as("owner", () => workflow.summary(), school, owner))
+      .toMatchObject({ pending_approval: 1, active: 1 });
+    expect(await as("owner", () => workflow.instructions(), school, owner))
+      .toEqual([expect.objectContaining({ id: revision.id })]);
+    expect(notices.find(item => item.notification.relatedRecordId === pending.id)?.notification.audienceRoles)
+      .toEqual(["principal", "owner"]);
+
+    expect(await as("owner", () => workflow.list(query), otherSchool, owner)).toEqual([]);
+    expect(await as("owner", () => workflow.summary(), otherSchool, owner)).toMatchObject({ total: 0 });
+    const decision = { decision: "approve" as const, reason: "Verified school bank account" };
+    await expect(as("owner", () => workflow.decide(pending.id, decision), otherSchool, owner))
+      .rejects.toThrow("not found");
+    await expect(as("owner", () => workflow.decide(pending.id, decision), school, accountant))
+      .rejects.toThrow("own payment setup");
+    await expect(as("owner", () => workflow.request(request), school, owner)).rejects.toThrow("school role");
+    await expect(as("owner", () => workflow.activate(school, pending.id), school, owner))
+      .rejects.toThrow("Only a platform Super Admin");
+
+    const before = await pool.query("SELECT count(*)::int AS count FROM test_effects");
+    expect(await as("owner", () => workflow.decide(pending.id, decision), school, owner))
+      .toMatchObject({ id: pending.id, status: "approved", reviewed_by: owner });
+    expect((await pool.query("SELECT count(*)::int AS count FROM test_effects")).rows[0].count)
+      .toBe(before.rows[0].count + 3);
+    expect((await pool.query("SELECT status, reviewed_by FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND id=$2", [school, pending.id])).rows)
+      .toEqual([{ status: "approved", reviewed_by: owner }]);
+    expect(notices.find(item => item.notification.relatedRecordId === pending.id)?.notification.status)
+      .toBe("action_taken");
+  });
+
+  it.each(["teacher", "parent", "student", "platform_owner"])("denies %s access to school payment setup reviews", async (role) => {
+    await expect(as(role, () => workflow.list())).rejects.toThrow("school role");
+    await expect(as(role, () => workflow.summary())).rejects.toThrow("school role");
+    await expect(as(role, () => workflow.decide(revision.id, { decision: "approve", reason: "Unauthorized review" })))
+      .rejects.toThrow("school role");
+  });
+
   it("does not post a statement until a different Principal confirms it", async () => {
     await pool.query(
       `INSERT INTO tenant_financial_accounts VALUES($1,'1115-SCHOOL-MPESA','1105-SCHOOL-FEES')`,
@@ -527,7 +569,7 @@ describe("Collection approval, persistence and school boundaries", () => {
     await expect(as("principal", () => workflow.platformSummary())).rejects.toThrow();
     const notice = notices.find(item => item.notification.relatedRecordId === pending.id)!;
     expect(notice.tenantId).toBe(school);
-    expect(notice.notification.audienceRoles).toEqual(["principal"]);
+    expect(notice.notification.audienceRoles).toEqual(["principal", "owner"]);
     expect(notice.notification.actionUrl).toBe(`/payment-setup?revision=${pending.id}`);
     expect(notice.notification.status).toBe("action_required");
     expect((await pool.query(`SELECT status,priority FROM notifications WHERE tenant_id=$1 AND metadata->>'relatedRecordId'=$2`, [school,pending.id])).rows)

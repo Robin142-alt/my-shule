@@ -349,6 +349,19 @@ describe("principal production readiness", () => {
     );
   });
 
+  it("keeps payment setup off Overview and opens it through Fees & Finance", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
+    expect(await screen.findByTestId("principal-live-dashboard-engine")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Payment setup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Review payment setups" })).not.toBeInTheDocument();
+    const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
+    await user.click(within(sidebar).getByRole("button", { name: "Fees & Finance" }));
+    await user.click(within(sidebar).getByRole("button", { name: "Payment Setup" }));
+    expect(await screen.findByRole("heading", { name: "School payment channels" })).toBeVisible();
+    expect(window.location.pathname).toBe("/school/principal/payment-setup");
+  });
+
   it("opens payment setup directly from its dashboard route instead of the generic workspace", async () => {
     renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" section="payment-setup" routeMode="public" />);
     expect(await screen.findByTestId("principal-practical-command-center")).toBeVisible();

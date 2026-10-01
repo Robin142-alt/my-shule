@@ -51,7 +51,7 @@ import { PrincipalDisciplineWorkspace } from "./principal-dashboard/discipline-w
 import { PrincipalExamsReportsWorkspace } from "./principal-dashboard/exams-reports-workspace";
 import { PrincipalFinanceOverviewWorkspace } from "./principal-dashboard/finance-overview-workspace";
 import { SchoolPaymentChannels } from "./accountant/payment-channels-workspace";
-import { SchoolPaymentSetupSummary, usePaymentSetupSummary } from "./accountant/payment-setup-summary";
+import { usePaymentSetupSummary } from "./accountant/payment-setup-summary";
 import { CollectionsWorkspace } from "./accountant/collections-workspace";
 import {
   PrincipalAuditOversightWorkspace,
@@ -444,13 +444,13 @@ export function PrincipalCommandCenter({
   function renderWorkspace() {
     if (activeWorkspace === "overview") {
       return (
-        <div className="space-y-6"><SchoolPaymentSetupSummary review onOpen={() => setActiveWorkspace("payment-setup")} /><PrincipalOverviewWorkspace
+        <PrincipalOverviewWorkspace
           executiveDashboard={principalDashboard}
           executiveDashboardLoading={principalDashboardLoading}
           executiveDashboardStreamDegraded={principalDashboardStreamDegraded}
           riskCenterLabel="Alerts and risk center"
           onNavigate={setActiveWorkspace}
-        /></div>
+        />
       );
     }
     if (activeWorkspace === "setup-checklist") {

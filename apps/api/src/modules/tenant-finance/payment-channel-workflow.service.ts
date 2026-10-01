@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { randomUUID, randomBytes } from "node:crypto";
-import { SUPERADMIN_ROLE_OWNER } from "../../auth/auth.constants";
+import { DEFAULT_ROLE_OWNER, DEFAULT_ROLE_PRINCIPAL, SUPERADMIN_ROLE_OWNER } from "../../auth/auth.constants";
 import { RequestContextService } from "../../common/request-context/request-context.service";
 import { PrismaService } from "../../database/prisma.service";
 import { AuditLogService } from "../observability/audit-log.service";
@@ -32,6 +32,10 @@ import {
   PaymentChannelRevisionView,
 } from "./payment-channel-workflow.types";
 
+// School Owners use the Principal dashboard and share its review duties.
+// Account submission and platform connection remain separate roles.
+const PAYMENT_SETUP_REVIEW_ROLES = [DEFAULT_ROLE_PRINCIPAL, DEFAULT_ROLE_OWNER];
+
 @Injectable()
 export class PaymentChannelWorkflowService {
   constructor(
@@ -54,7 +58,7 @@ export class PaymentChannelWorkflowService {
     const tenantId = this.schoolActor([
       "accountant",
       "bursar",
-      "principal",
+      ...PAYMENT_SETUP_REVIEW_ROLES,
       "parent",
       "student",
     ]);
@@ -68,7 +72,7 @@ export class PaymentChannelWorkflowService {
   }
 
   async list(query = new PaymentChannelQueryDto()): Promise<PaymentChannelRevisionView[]> {
-    const tenantId = this.schoolActor(["accountant", "bursar", "principal"]);
+    const tenantId = this.schoolActor(["accountant", "bursar", ...PAYMENT_SETUP_REVIEW_ROLES]);
     return this.listRevisions(tenantId, query);
   }
 
@@ -102,7 +106,7 @@ export class PaymentChannelWorkflowService {
   }
 
   async summary() {
-    return this.summarize(this.schoolActor(["accountant", "bursar", "principal"]));
+    return this.summarize(this.schoolActor(["accountant", "bursar", ...PAYMENT_SETUP_REVIEW_ROLES]));
   }
 
   async platformSummary() {
@@ -231,7 +235,7 @@ export class PaymentChannelWorkflowService {
           dto.channel_kind === "bank_paybill" ? dto.paybill_number : null,
         ],
       );
-      await this.record(rows.rows[0], "requested", ["principal"]);
+      await this.record(rows.rows[0], "requested", PAYMENT_SETUP_REVIEW_ROLES);
       return this.view(rows.rows[0]);
     });
   }
@@ -240,7 +244,7 @@ export class PaymentChannelWorkflowService {
     id: string,
     dto: DecidePaymentChannelDto,
   ): Promise<PaymentChannelRevisionView> {
-    const tenantId = this.schoolActor(["principal"]);
+    const tenantId = this.schoolActor(PAYMENT_SETUP_REVIEW_ROLES);
     return this.db.withRequestTransaction(async () => {
       const revision = await this.requireRevision(tenantId, id, true);
       if (revision.status !== "pending_approval")
@@ -328,7 +332,7 @@ export class PaymentChannelWorkflowService {
         await this.record(result.rows[0], "connection_configured", [
           "accountant",
           "bursar",
-          "principal",
+          ...PAYMENT_SETUP_REVIEW_ROLES,
         ]);
         return this.view(result.rows[0]);
       }),
@@ -376,7 +380,7 @@ export class PaymentChannelWorkflowService {
         await this.record(
           result.rows[0],
           failure ? "connection_failed" : "connection_checked",
-          ["accountant", "bursar", "principal"],
+          ["accountant", "bursar", ...PAYMENT_SETUP_REVIEW_ROLES],
         );
         return this.view(result.rows[0]);
       });
@@ -395,7 +399,7 @@ export class PaymentChannelWorkflowService {
       await this.db.withRequestTransaction(async () => {
         await this.db.query(`INSERT INTO payment_sandbox_tests(tenant_id,revision_id,provider_reference,account_reference) VALUES($1,$2::uuid,$3,$4)`,
           [tenantId,id,reference,dto.account_reference.trim()]);
-        await this.record(revision,'sandbox_test_requested',['accountant','bursar','principal']);
+        await this.record(revision,'sandbox_test_requested',['accountant','bursar',...PAYMENT_SETUP_REVIEW_ROLES]);
       });
       const credentials = this.credentials(revision);
       await this.connection.test(revision,credentials);
@@ -517,7 +521,7 @@ export class PaymentChannelWorkflowService {
         await this.record(result.rows[0], "activated", [
           "accountant",
           "bursar",
-          "principal",
+          ...PAYMENT_SETUP_REVIEW_ROLES,
         ]);
         return this.view(result.rows[0]);
       }),
@@ -545,7 +549,7 @@ export class PaymentChannelWorkflowService {
         await this.record(result.rows[0], "suspended", [
           "accountant",
           "bursar",
-          "principal",
+          ...PAYMENT_SETUP_REVIEW_ROLES,
         ]);
         return this.view(result.rows[0]);
       }),
