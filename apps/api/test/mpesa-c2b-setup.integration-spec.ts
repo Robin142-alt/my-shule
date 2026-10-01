@@ -1,6 +1,6 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
+import { PrismaService } from '../src/database/prisma.service';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { PiiEncryptionService } from '../src/modules/security/pii-encryption.service';
 import { TenantFinanceSchemaService } from '../src/modules/tenant-finance/tenant-finance-schema.service';
@@ -15,7 +15,7 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
   const schema = `c2b_setup_${randomUUID().replaceAll('-', '')}`;
   const dbRole = `${schema}_role`;
   const context = new RequestContextService();
-  const transactions = new AsyncLocalStorage<PoolClient>();
+  let db: PrismaService;
   let pool: Pool;
   let workflow: PaymentChannelWorkflowService;
   let repository: TenantFinanceConfigRepository;
@@ -24,25 +24,6 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
   const credentials = { consumer_key: 'school-key', consumer_secret: 'school-secret',
     initiator_name: 'school-initiator', security_credential: 'school-security-credential' };
 
-  async function transaction<T>(work: () => Promise<T>): Promise<T> {
-    if (transactions.getStore()) return work();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(`SET LOCAL ROLE ${dbRole}`);
-      const actor = context.requireStore();
-      await client.query(`SELECT set_config('app.tenant_id',$1,true),set_config('app.role',$2,true),set_config('app.is_authenticated','true',true)`,
-        [actor.tenant_id ?? '', actor.role]);
-      const result = await transactions.run(client, work);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally { client.release(); }
-  }
-  const db = { withRequestTransaction: transaction, query: (sql: string, params: unknown[] = []): Promise<any> =>
-    transactions.getStore() ? transactions.getStore()!.query(sql, params) : transaction(() => transactions.getStore()!.query(sql, params)) };
   function as<T>(school: string, role: string, work: () => Promise<T>) {
     return context.run({ tenant_id: school, role, user_id: randomUUID(), audience: role === 'platform_owner' ? 'superadmin' : 'school',
       is_authenticated: true } as never, work);
@@ -63,6 +44,14 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
       { onModuleInit: async () => undefined } as never).onModuleInit();
     await pool.query(PAYMENT_CHANNEL_WORKFLOW_SCHEMA);
     await pool.query(`GRANT USAGE ON SCHEMA ${schema},app TO ${dbRole}; GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${dbRole}`);
+    // Use the production driver: pg alone accepts void columns that Prisma rejects.
+    const originalUrl = process.env.DATABASE_URL;
+    url.searchParams.set('options', `-c search_path=${schema},public`);
+    try {
+      process.env.DATABASE_URL = url.toString();
+      db = new PrismaService(context, { getRuntimeRoleName: () => dbRole } as never);
+    } finally { process.env.DATABASE_URL = originalUrl; }
+    await db.onModuleInit();
     const effect = (kind: string, payload: unknown) => db.query('INSERT INTO test_effects VALUES($1,$2,$3::jsonb)',
       [context.requireStore().tenant_id, kind, JSON.stringify(payload)]);
     const audit = { record: (payload: unknown) => effect('audit', payload) };
@@ -76,6 +65,7 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
   });
 
   afterAll(async () => {
+    await db?.onModuleDestroy();
     if (pool) {
       await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE; DROP OWNED BY ${dbRole}; DROP ROLE IF EXISTS ${dbRole}`);
       await pool.end();

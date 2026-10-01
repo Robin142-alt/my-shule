@@ -344,7 +344,7 @@ export class CollectionPaymentsService {
   ) {
     const input = normalizeCollectionInput(raw);
     await this.db.query(
-      `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+      `SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`,
       [`collection:${input.provider_code}:${input.provider_transaction_id}`],
     );
     await this.db.query(

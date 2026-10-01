@@ -426,7 +426,7 @@ export class PaymentChannelWorkflowService {
       this.db.withRequestTransaction(async () => {
         // Per-school lock orders replacement/config changes without serializing other schools.
         await this.db.query(
-          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text",
           [`payment-setup:${tenantId}`],
         );
         const revision = await this.requireRevision(tenantId, id, true);
