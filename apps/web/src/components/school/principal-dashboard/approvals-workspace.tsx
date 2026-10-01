@@ -168,7 +168,20 @@ export function PrincipalApprovalsWorkspace() {
         </Card>
       </div>
 
-      <SchoolPaymentChannels mode="review" pendingOnly />
+      {paymentSetup.error ? (
+        <Card role="alert" className="border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-red-100">
+              Payment setup approvals could not be checked: {paymentSetup.error.message}
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={() => void paymentSetup.refetch()}>
+              Retry payment approvals
+            </Button>
+          </div>
+        </Card>
+      ) : paymentSetup.data?.pending_approval ? (
+        <SchoolPaymentChannels mode="review" pendingOnly />
+      ) : null}
 
       {error ? (
         <Card role="alert" className="border border-red-500/20 bg-red-500/10 p-4">

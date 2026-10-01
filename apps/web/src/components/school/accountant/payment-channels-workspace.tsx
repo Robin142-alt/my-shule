@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
+import { toast } from "sonner";
 import {
   decideCollectionChannel,
   requestCollectionChannel,
@@ -124,6 +125,13 @@ function PaymentChannelsWorkspace({
       );
       setResolvedIds((current) => new Set(current).add(selected.id));
       setSelected(null);
+      if (pendingOnly) {
+        toast.success(
+          decision === "approve"
+            ? "Payment setup approved and removed from this queue."
+            : "Payment setup rejected and removed from this queue.",
+        );
+      }
       setNotice(
         decision === "approve"
           ? "Approved for technical connection by Super Admin."
@@ -143,6 +151,17 @@ function PaymentChannelsWorkspace({
     !resolvedIds.has(row.id)
       && (!pendingOnly || row.status === "pending_approval"),
   );
+  if (
+    pendingOnly
+    && Array.isArray(channels.data)
+    && !channels.isLoading
+    && !channels.error
+    && !catalog.error
+    && !summary.error
+    && visibleChannels.length === 0
+  ) {
+    return null;
+  }
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
