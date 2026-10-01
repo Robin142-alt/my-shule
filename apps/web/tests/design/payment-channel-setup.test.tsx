@@ -109,6 +109,29 @@ test("Principal Approvals includes the Accountant request and counts it once", a
   expect(useSchoolQuery).toHaveBeenCalledWith(expect.stringContaining("status=pending_approval"), expect.anything());
 });
 
+test("Principal Approvals omits the payment setup panel when no decision is pending", () => {
+  jest.mocked(useSchoolQuery).mockImplementation((path) => ({
+    data: path?.endsWith("summary")
+      ? { ...summary, total: 1, pending_approval: 0, awaiting_connection: 1 }
+      : path?.endsWith("providers")
+        ? [provider]
+      : path?.includes("collection-channels")
+        ? []
+        : path === "/admin-command/principal/approvals"
+          ? { pendingTotal: 0, urgentApprovals: 0, requests: [], categories: [], recentApprovals: [] }
+          : path === "/admin-command/principal/exams"
+            ? { reportsPending: 0, recentResults: [] }
+            : [revision],
+    isLoading: false,
+    error: null,
+    refetch,
+  }) as unknown as ReturnType<typeof useSchoolQuery>);
+
+  render(<PrincipalApprovalsWorkspace />);
+  expect(screen.queryByRole("heading", { name: "Payment setup approvals" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Awaiting Super Admin")).not.toBeInTheDocument();
+});
+
 test("school overview exposes counts and a working payment setup action", () => {
   const open = jest.fn();
   render(<SchoolPaymentSetupSummary review onOpen={open} />);
