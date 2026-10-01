@@ -120,7 +120,10 @@ export class PaymentChannelConnectionService {
       }),
     });
     const result = await providerBody(registration);
-    if (!registration.ok || (result.ResponseCode !== "0" && result.ResponseCode !== 0)) {
+    // Live Daraja v2 returns "00000000"; documentation and older responses use "0".
+    const accepted = result.ResponseCode === 0 ||
+      (typeof result.ResponseCode === 'string' && /^0+$/.test(result.ResponseCode));
+    if (!registration.ok || !accepted) {
       throw providerFailure('Safaricom callback registration failed',registration,result,[...secrets,token.access_token]);
     }
     return "provider_registration_accepted";
