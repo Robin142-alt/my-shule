@@ -57,6 +57,7 @@ function PaymentChannelsWorkspace({
   const [notice, setNotice] = useState("");
   const [decisionReason, setDecisionReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(() => new Set());
   const providers = catalog.data ?? [];
   const chosen =
     providers.find((item) => item.code === provider) ?? providers[0];
@@ -121,6 +122,7 @@ function PaymentChannelsWorkspace({
         decision,
         decisionReason,
       );
+      setResolvedIds((current) => new Set(current).add(selected.id));
       setSelected(null);
       setNotice(
         decision === "approve"
@@ -137,14 +139,20 @@ function PaymentChannelsWorkspace({
       setBusy(false);
     }
   }
+  const visibleChannels = (channels.data ?? []).filter((row) =>
+    !resolvedIds.has(row.id)
+      && (!pendingOnly || row.status === "pending_approval"),
+  );
   return (
     <section className="space-y-4 rounded-2xl border border-border bg-surface p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">School payment channels</h2>
+          <h2 className="text-xl font-semibold">{pendingOnly ? "Payment setup approvals" : "School payment channels"}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted">
             Fees go directly to your school&apos;s Paybill or bank account.{" "}
-            {review
+            {pendingOnly
+              ? "Only payment setups awaiting your decision appear here."
+              : review
               ? "Review the exact account details before approving a connection."
               : "Add your school payment details, then send them to the Principal for approval."}
           </p>
@@ -163,8 +171,13 @@ function PaymentChannelsWorkspace({
           </Button>
         )}
       </div>
-      {summary.error ? <p role="alert">Payment setup counts could not be loaded. <Button variant="ghost" onClick={() => void summary.refetch()}>Retry counts</Button></p>
-        : summary.data ? <PaymentSetupCounts data={summary.data} /> : <p role="status">Loading payment setup counts…</p>}
+      {!pendingOnly && (
+        summary.error
+          ? <p role="alert">Payment setup counts could not be loaded. <Button variant="ghost" onClick={() => void summary.refetch()}>Retry counts</Button></p>
+          : summary.data
+            ? <PaymentSetupCounts data={summary.data} />
+            : <p role="status">Loading payment setup counts…</p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         {!validRevision && !pendingOnly && <label className="flex flex-wrap items-center gap-2">Show setups
           <select className="input-base" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}>
@@ -197,15 +210,15 @@ function PaymentChannelsWorkspace({
       )}
       {channels.isLoading ? (
         <p role="status">Loading payment channels…</p>
-      ) : !channels.error && !channels.data?.length ? (
+      ) : !channels.error && !visibleChannels.length ? (
         <p className="rounded-lg bg-surface-muted p-4 text-sm">
-          {validRevision ? "This setup is unavailable in your school. View all setups or contact the Accountant." : pendingOnly || status !== "all" ? "No payment setups match this queue. Refresh to check for new requests." : <>No payment channels yet.{" "}{canRequest
+          {validRevision ? "This setup is unavailable in your school. View all setups or contact the Accountant." : pendingOnly ? "No payment setup requests are awaiting your decision." : status !== "all" ? "No payment setups match this queue. Refresh to check for new requests." : <>No payment channels yet.{" "}{canRequest
             ? "Add a school account to begin approval."
             : "The Accountant can submit the school’s collection account for review."}</>}
         </p>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {channels.data?.map((row) => (
+          {visibleChannels.map((row) => (
             <article
               key={row.id}
               className="rounded-xl border border-border p-4"
