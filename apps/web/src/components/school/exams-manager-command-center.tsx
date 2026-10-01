@@ -11,6 +11,7 @@ import {
   GraduationCap,
   LockKeyhole,
   PenLine,
+  Route,
   Search,
   Upload,
   type LucideIcon,
@@ -28,6 +29,7 @@ import { downloadCsvFile } from "@/lib/dashboard/export";
 import { AnalysisWorkspace } from "./exams-manager/analysis-workspace";
 import { ExamSetupWorkspace } from "./exams-manager/exam-setup-workspace";
 import { ExamTimetableWorkspace } from "./exams-manager/exam-timetable-workspace";
+import { ExamWorkflowWorkspace } from "./exams-manager/exam-workflow-workspace";
 import { MarksEntryWorkspace } from "./exams-manager/marks-entry-workspace";
 import { ModerationWorkspace } from "./exams-manager/moderation-workspace";
 import { OverviewWorkspace } from "./exams-manager/overview-workspace";
@@ -40,6 +42,7 @@ type ExamsManagerRouteMode = "hosted" | "public";
 
 type ExamsManagerCanonicalView =
   | "overview"
+  | "exam-workflow"
   | "exam-setup"
   | "exam-timetable"
   | "marks-entry"
@@ -88,6 +91,7 @@ type MarksEntryExportResponse = {
 const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   dashboard: "overview",
   overview: "overview",
+  "exam-workflow": "exam-workflow",
   exams: "exam-setup",
   builder: "exam-setup",
   "exam-setup": "exam-setup",
@@ -124,6 +128,13 @@ const navItems: NavItem[] = [
     summary: "Exam cycles, outstanding teachers, and progress toward results.",
     icon: GraduationCap,
     aliases: ["dashboard", "overview"],
+  },
+  {
+    id: "exam-workflow",
+    label: "Exam Workflow",
+    summary: "Follow each exam from setup to release, with the next responsible role and outstanding work.",
+    icon: Route,
+    aliases: ["exam-workflow"],
   },
   {
     id: "exam-setup",
@@ -225,6 +236,8 @@ function Workspace({
   onNavigate: (view: ExamsManagerCanonicalView) => void;
 }) {
   switch (view) {
+    case "exam-workflow":
+      return <ExamWorkflowWorkspace onNavigate={onNavigate} />;
     case "exam-setup":
       return <ExamSetupWorkspace />;
     case "exam-timetable":
@@ -475,7 +488,7 @@ export function ExamsManagerCommandCenter({
                 items={navItems.map((item) => ({
                   ...item,
                   description: item.summary,
-                  group: ["overview", "exam-setup", "exam-timetable"].includes(item.id)
+                  group: ["overview", "exam-workflow", "exam-setup", "exam-timetable"].includes(item.id)
                     ? "Setup"
                     : ["marks-entry", "moderation", "analysis"].includes(item.id)
                       ? "Marks & analysis"

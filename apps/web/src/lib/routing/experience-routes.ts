@@ -84,6 +84,7 @@ export const SCHOOL_SECTIONS = [
   "assessments",
   "academic-interventions",
   "exam-setup",
+  "exam-workflow",
   "exam-timetable",
   "marks-entry",
   "moderation",

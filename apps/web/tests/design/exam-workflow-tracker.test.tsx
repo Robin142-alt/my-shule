@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { toast } from "sonner";
 
 import { ExamWorkflowTracker, type ExamWorkflowData } from "@/components/school/exam-workflow-tracker";
+import { ExamWorkflowWorkspace } from "@/components/school/exams-manager/exam-workflow-workspace";
 import { PrincipalExamsReportsWorkspace } from "@/components/school/principal-dashboard/exams-reports-workspace";
 import { DeputyExamsMarksWorkspace } from "@/components/school/deputy-principal/exams-marks-workspace";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -68,6 +69,27 @@ function renderWorkspace(element: ReactElement) {
 }
 
 beforeEach(() => jest.clearAllMocks());
+
+it("loads the manager workflow for the current school and recovers after a failed read", async () => {
+  const user = userEvent.setup();
+  const data = workflow([exam("dean_review", "Current school exam")]);
+  data.scope.role = "exams_manager";
+  mockRequest.mockRejectedValueOnce(new Error("Workflow unavailable")).mockResolvedValue(data);
+  const { client } = renderWorkspace(<ExamWorkflowWorkspace onNavigate={jest.fn()} />);
+  const otherSchoolKey = buildSchoolQueryKey("school-b", "session-user", "session-role", "/exams/workflow");
+  client.setQueryData(otherSchoolKey, workflow([exam("principal_release", "Other school exam")]));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Workflow unavailable");
+  expect(screen.queryByText("No exam cycle is configured yet.")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(await screen.findByRole("heading", { name: "Current school exam" })).toBeVisible();
+  expect(screen.queryByText("Other school exam")).not.toBeInTheDocument();
+  expect(mockRequest).toHaveBeenCalledTimes(2);
+  expect(mockRequest.mock.calls.every(([path, options]) =>
+    path === "/exams/workflow" && options?.tenantId === "school-a" && !options.method,
+  )).toBe(true);
+  expect(client.getQueryState(otherSchoolKey)?.isInvalidated).toBe(false);
+});
 
 it.each([false, true])("hides released workflows and retains partially released cycles (compact: %s)", async (compact) => {
   const partial = exam("principal_release", "Partially released exam");

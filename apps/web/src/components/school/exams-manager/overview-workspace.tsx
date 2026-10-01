@@ -2,7 +2,6 @@
 
 import { ArrowRight, Plus, RefreshCw } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { ExamWorkflowTracker } from "../exam-workflow-tracker";
 import { StatusChip } from "./shared";
 import { TeacherMarksProgress } from "./teacher-marks-progress";
 
@@ -12,7 +11,7 @@ type OverviewData = {
 };
 
 export function OverviewWorkspace({ onNavigate }: {
-  onNavigate: (view: "exam-setup" | "moderation" | "report-cards") => void;
+  onNavigate: (view: "exam-setup" | "exam-workflow" | "moderation" | "report-cards") => void;
 }) {
   const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<OverviewData>("/admin-command/exams-manager/overview");
   const metrics = data?.metrics;
@@ -37,7 +36,7 @@ export function OverviewWorkspace({ onNavigate }: {
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 sm:px-5"><h2 className="text-base font-semibold text-slate-900">Recent exam cycles</h2><button onClick={() => onNavigate?.("exam-setup")} className="min-h-10 text-sm font-medium text-info">Manage exams</button></div>
         {isLoading ? <p className="p-5 text-sm text-slate-500">Loading exam cycles…</p> : error ? <p className="p-5 text-sm text-danger">Exam cycles are unavailable. Retry the summary above.</p> : !data?.recent_exams?.length ? <p className="p-5 text-sm text-slate-500">No exams yet. Select Set up exam to create your first cycle.</p> : <ul className="divide-y divide-slate-100">{data.recent_exams.slice(0, 5).map(exam => <li key={exam.id} className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5"><div><p className="text-sm font-medium text-slate-900">{exam.name}</p><p className="mt-1 text-xs text-slate-500">{exam.term}</p></div><StatusChip label={exam.status.replaceAll("_", " ")} tone={exam.status === "published" ? "success" : "neutral"} /></li>)}</ul>}
       </section>
-      <details className="rounded-xl border border-slate-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium text-slate-700">Exam approval workflow</summary><div className="mt-4"><ExamWorkflowTracker heading="Exam operations workflow" /></div></details>
+      <button type="button" onClick={() => onNavigate("exam-workflow")} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left text-sm font-medium text-info hover:bg-info-soft">View exam workflow<ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /></button>
     </div>
   );
 }
