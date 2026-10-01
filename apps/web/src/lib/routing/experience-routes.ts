@@ -38,6 +38,11 @@ export const SUPERADMIN_SECTIONS = [
 ] as const;
 
 export const SCHOOL_SECTIONS = [
+  "comparisons",
+  "trends",
+  "at-risk",
+  "exam-analysis",
+  "advanced-analysis",
   "academic-intelligence",
   "exams-reports",
   "sick-bay",
