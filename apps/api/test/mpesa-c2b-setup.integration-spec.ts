@@ -81,6 +81,27 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
       await pool.end();
     }
   });
+  afterEach(() => jest.restoreAllMocks());
+
+  test('failed registration persists safe diagnostics for dashboard follow-up and prevents activation', async () => {
+    const school='school-failed-registration';
+    const requested=await as(school,'accountant',()=>workflow.request({provider_code:'safaricom',channel_kind:'mpesa_paybill',
+      display_name:'Fees Paybill',account_name:'School fees',account_number:'600991',reason:'Receive school fee collections'}));
+    await as(school,'principal',()=>workflow.decide(requested.id,{decision:'approve',reason:'Verified school destination'}));
+    await as(school,'platform_owner',()=>workflow.connect(school,requested.id,{environment:'sandbox',connection_mode:'daraja',credentials}));
+    jest.spyOn(global,'fetch').mockImplementation(async url=>Response.json(String(url).includes('/oauth/')?{access_token:'provider-secret'}:
+      {ResponseCode:'1',ResponseDescription:`Invalid Confirmation URL ${credentials.consumer_secret} provider-secret`}));
+    const checked=await as(school,'platform_owner',()=>workflow.test(school,requested.id));
+    expect(checked.status).toBe('connecting');expect(checked.last_test_status).toBe('failed');
+    expect(checked.last_error).toContain('ResponseCode=1; ResponseDescription=Invalid Confirmation URL');
+    await expect(as(school,'platform_owner',()=>workflow.activate(school,requested.id))).rejects.toThrow();
+    const stored=(await pool.query('SELECT last_error FROM tenant_payment_channel_revisions WHERE tenant_id=$1',[school])).rows[0];
+    expect(stored.last_error).toBe(checked.last_error);
+    const effects=(await pool.query('SELECT kind,payload FROM test_effects WHERE tenant_id=$1',[school])).rows;
+    for(const kind of ['audit','event','notification'])expect(effects.some(row=>row.kind===kind)).toBe(true);
+    expect(JSON.stringify([checked,effects])).not.toContain(credentials.consumer_secret);
+    expect(JSON.stringify([checked,effects])).not.toContain('provider-secret');
+  });
 
   test.each([
     ['sandbox', false], ['sandbox', true], ['production', false], ['production', true],
@@ -102,7 +123,7 @@ describe('M-PESA C2B setup with an optional Express passkey', () => {
     expect(checked.status).toBe('ready');
     expect(fetchMock.mock.calls.map(call => String(call[0]))).toEqual([
       `https://${environment === 'production' ? 'api' : 'sandbox'}.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials`,
-      `https://${environment === 'production' ? 'api' : 'sandbox'}.safaricom.co.ke/mpesa/c2b/v1/registerurl`,
+      `https://${environment === 'production' ? 'api' : 'sandbox'}.safaricom.co.ke/mpesa/c2b/v2/registerurl`,
     ]);
     const activated = await as(school, 'platform_owner', () => workflow.activate(school, requested.id));
     expect(activated.status).toBe('active');

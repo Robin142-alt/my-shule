@@ -7,6 +7,30 @@ import { ConfigService } from "@nestjs/config";
 import type { PaymentChannelRevision } from "./payment-channel-workflow.types";
 import { PaymentIngressConfigService } from './payment-ingress-config.service';
 
+async function providerBody(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const body: unknown = await response.json();
+    return body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+  } catch { return {}; }
+}
+
+/** Only allowlisted diagnostic fields may reach persisted errors, audits or notifications. */
+function providerFailure(message: string, response: Response, body: Record<string, unknown>, secrets: string[]) {
+  const values = secrets.filter(Boolean).flatMap(value => [value, encodeURIComponent(value)]).sort((a,b)=>b.length-a.length);
+  const safe = (value: unknown, limit: number) => {
+    if (typeof value !== 'string' && typeof value !== 'number') return '';
+    let text = String(value);
+    for (const secret of values) text = text.split(secret).join('[redacted]');
+    return text.replace(/https?:\/\/[^\s<>"']+/gi, '[redacted URL]')
+      .replace(/\b(?:Bearer|Basic)\s+\S+/gi, '[redacted authorization]')
+      .replace(/[a-f0-9]{64,}/gi, '[redacted token]').replace(/<[^>]*>/g, '')
+      .replace(/[^\x20-\x7e]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, limit);
+  };
+  const fields = [['ResponseCode',64],['ResponseDescription',300],['errorCode',64],['errorMessage',300]] as const;
+  const details = fields.map(([key,limit]) => {const value=safe(body[key],limit);return value ? `${key}=${value}` : '';}).filter(Boolean).join('; ').slice(0,480);
+  return new BadGatewayException(`${message} (HTTP ${response.status})${details ? `: ${details}` : ''}`);
+}
+
 @Injectable()
 export class PaymentChannelConnectionService {
   constructor(private readonly config: ConfigService, private readonly ingress: PaymentIngressConfigService) {}
@@ -53,6 +77,10 @@ export class PaymentChannelConnectionService {
       throw new BadRequestException(
         "Automatic integration is not available for this provider",
       );
+    const urls = this.callbackUrls(revision,credentials);
+    if (credentials._callback_trust_mode === 'edge_signed' && !this.config.get<string>('mpesa.callbackSecret')) {
+      throw new BadRequestException('Configure the authenticated payment callback gateway before connecting automatic collections');
+    }
     // Fixed provider hosts: no admin-supplied URLs or redirects can receive secrets.
     const base =
       revision.environment === "production"
@@ -68,24 +96,15 @@ export class PaymentChannelConnectionService {
         redirect: "error",
       },
     );
+    const token = await providerBody(tokenResponse);
+    const secrets = [...Object.values(credentials), Buffer.from(`${credentials.consumer_key}:${credentials.consumer_secret}`).toString('base64')];
     if (!tokenResponse.ok)
-      throw new BadGatewayException(
-        "Safaricom did not accept these credentials. Check the application and environment.",
-      );
-    const token = (await tokenResponse.json()) as { access_token?: unknown };
+      throw providerFailure('Safaricom authentication failed',tokenResponse,token,secrets);
     if (typeof token.access_token !== "string" || !token.access_token)
       throw new BadGatewayException("Safaricom did not return an access token");
     // Registration changes the provider callback destination; run only on this
     // explicit Super Admin action after the Principal has approved the destination.
-    const urls = this.callbackUrls(revision,credentials);
-    if (
-      credentials._callback_trust_mode === 'edge_signed' && !this.config.get<string>("mpesa.callbackSecret")
-    ) {
-      throw new BadRequestException(
-        "Configure the authenticated payment callback gateway before connecting automatic collections",
-      );
-    }
-    const registration = await fetch(`${base}/mpesa/c2b/v1/registerurl`, {
+    const registration = await fetch(`${base}/mpesa/c2b/v2/registerurl`, {
       method: "POST",
       redirect: "error",
       signal: AbortSignal.timeout(15000),
@@ -100,11 +119,9 @@ export class PaymentChannelConnectionService {
         ValidationURL: urls.validation_url,
       }),
     });
-    const result = (await registration.json()) as { ResponseCode?: unknown };
-    if (!registration.ok || String(result.ResponseCode) !== "0") {
-      throw new BadGatewayException(
-        "Safaricom has not accepted callback registration. Confirm the Paybill and registration with Safaricom.",
-      );
+    const result = await providerBody(registration);
+    if (!registration.ok || (result.ResponseCode !== "0" && result.ResponseCode !== 0)) {
+      throw providerFailure('Safaricom callback registration failed',registration,result,[...secrets,token.access_token]);
     }
     return "provider_registration_accepted";
   }
