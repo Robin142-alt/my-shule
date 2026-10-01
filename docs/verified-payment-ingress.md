@@ -41,6 +41,10 @@ Safaricom requirements remain external: C2B and status API entitlement, correct 
 
 ## First sandbox test
 
+For Daraja automatic C2B collections in either sandbox or production, Super Admin supplies the consumer key, consumer secret, transaction-status initiator and security credential. **Lipa na M-PESA passkey is optional for C2B.** Supply it when the school uses M-PESA Express (STK prompts); STK initiation and status queries require it. Existing STK configurations keep their passkey and password generation behavior. Saving without a passkey does not bypass Principal approval, connection testing, callback registration or provider transaction verification.
+
+An absent passkey is stored as an empty value in the existing finance configuration column; supplied passkeys remain encrypted. No schema migration is required. Blank optional passkeys are omitted from the encrypted revision credentials, and configuration reads and credential rotation support C2B-only setups.
+
 1. Accountant requests a **separate sandbox Paybill setup**, Principal approves, Super Admin connects it with the Daraja sandbox credentials and `daraja_direct`.
 2. Check connection, inspect the exact Callback URLs, then activate the sandbox channel. Do not replace a production revision with a sandbox revision.
 3. Choose **Simulate sandbox payment**, enter an existing school invoice/admission reference, KES 1 and the Daraja test MSISDN assigned to the application.

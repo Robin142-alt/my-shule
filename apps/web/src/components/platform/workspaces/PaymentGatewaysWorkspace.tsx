@@ -419,12 +419,13 @@ export function PaymentGatewaysWorkspace() {
                 {mode === "daraja" &&
                   provider?.credential_fields.map((field) => (
                     <label key={field.key} className="block space-y-1">
-                      <span>{field.label}</span>
+                      <span>{field.label}{!field.required && " (optional)"}</span>
                       <input
                         className="input-base w-full"
                         type={field.secret ? "password" : "text"}
                         autoComplete="off"
                         required={field.required}
+                        aria-describedby={field.description ? `credential-${field.key}-help` : undefined}
                         maxLength={8192}
                         value={credentials[field.key] || ""}
                         onChange={(event) =>
@@ -434,6 +435,7 @@ export function PaymentGatewaysWorkspace() {
                           })
                         }
                       />
+                      {field.description && <p id={`credential-${field.key}-help`} className="text-sm text-muted">{field.description}</p>}
                     </label>
                   ))}
               </>

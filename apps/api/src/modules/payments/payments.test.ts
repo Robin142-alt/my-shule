@@ -2353,6 +2353,8 @@ test('MpesaService sends STK push with the resolved school shortcode and credent
     assert.equal(stkCall?.body?.PartyB, '247247');
     assert.equal(stkCall?.body?.CallBackURL, 'https://green-valley.example.com/payments/mpesa/callback');
     assert.equal(stkCall?.body?.TransactionType, 'CustomerPayBillOnline');
+    assert.equal(Buffer.from(String(stkCall?.body?.Password), 'base64').toString(),
+      `247247school-passkey${stkCall?.body?.Timestamp}`);
   } finally {
     global.fetch = previousFetch;
   }
@@ -2442,6 +2444,8 @@ test('MpesaTransactionStatusService verifies STK callback status through Daraja 
     assert.equal(queryCall?.body?.BusinessShortCode, '247247');
     assert.equal(queryCall?.body?.CheckoutRequestID, 'checkout-1');
     assert.match(String(queryCall?.body?.Password), /^[A-Za-z0-9+/]+=*$/);
+    assert.equal(Buffer.from(String(queryCall?.body?.Password), 'base64').toString(),
+      `247247school-passkey${queryCall?.body?.Timestamp}`);
   } finally {
     global.fetch = previousFetch;
   }

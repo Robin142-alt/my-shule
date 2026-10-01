@@ -98,6 +98,9 @@ export class MpesaService {
         ? await this.resolveSchoolPaymentStudent(tenantId, dto)
         : null;
       const mpesaConfig = await this.resolveMpesaConfig(tenantId, paymentOwner);
+      if (!mpesaConfig.passkey?.trim()) {
+        throw new BadRequestException('M-PESA Express (STK) requires a Lipa na M-PESA passkey. Contact the school to enable STK or pay directly to its Paybill.');
+      }
       const idempotencyRecord = await this.paymentIntentIdempotencyRepository.lockRequest({
         tenant_id: tenantId,
         user_id:

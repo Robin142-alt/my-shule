@@ -38,7 +38,8 @@ export const COLLECTION_PROVIDERS = [
       {
         key: "passkey",
         label: "Lipa na M-PESA passkey",
-        required: true,
+        required: false,
+        description: "Required only for M-PESA Express (STK prompts). Leave blank for C2B Paybill automatic collections.",
         secret: true,
       },
       {
