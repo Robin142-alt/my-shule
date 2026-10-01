@@ -21,7 +21,8 @@ const { evidence } = require(path.join(repo, 'apps/api/src/modules/exams/analyti
 const source = value => JSON.stringify(value.replaceAll('\\', '/'));
 fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(out, 'header.tsx'), `export const IntegratedSchoolCommandHeader=({roleTitle})=><h1 className="text-2xl font-bold">{roleTitle}</h1>;export const SchoolCommandSidebarIdentity=()=> <p className="mb-4 font-bold">QA School · sample data</p>;`);
-fs.writeFileSync(path.join(out, 'routes.ts'), `export const buildSchoolSectionHref=(_role,section)=>'/?view='+section;`);
+fs.writeFileSync(path.join(out, 'routes.ts'), `export const buildSchoolSectionHref=(_role,section)=>'/school/hos/'+section;`);
+fs.writeFileSync(path.join(out, 'notifications.tsx'), `export const NotificationBell=()=> <button aria-label="Notifications" className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm">Notifications</button>;`);
 fs.writeFileSync(path.join(out, 'link.tsx'), `export default function Link(props){return <a {...props}/>;}`);
 fs.writeFileSync(path.join(out, 'hooks.ts'), `
 import {useState} from 'react';
@@ -30,17 +31,18 @@ import {evidence} from ${source(path.join(repo, 'apps/api/src/modules/exams/anal
 export function useSchoolQuery(url:string){
   const scenario=new URLSearchParams(location.search).get('scenario');
   const params=Object.fromEntries(new URLSearchParams(url.split('?')[1]??''));
-  const data=url==='/academics/my-subject-appointments' ? (scenario==='empty'?[]:[{id:'qa-ap',subject_name:'Mathematics',status:'active',appointment_type:'acting',effective_from:'2026-01-01',effective_to:'2026-12-31',academic_year_name:'2026'}]) : {...buildAcademicIntelligence([evidence({average:45}),evidence({student_id:'learner-2',student_name:'Brian Otieno',average:85})],{level:'subject',role:'head_of_subject',actor_user_id:'hos'},{page:1,page_size:25,...params},['subject','assignment']),capabilities:{can_start_intervention:true}};
+  window.__query=url;
+  const data=url==='/academics/my-subject-appointments' ? (scenario==='empty'?[]:[{id:'qa-ap',subject_id:'math',subject_name:'Mathematics',status:'active',appointment_type:'acting',effective_from:'2026-01-01',effective_to:'2026-12-31',academic_year_name:'2026'}]) : {...buildAcademicIntelligence(scenario==='empty'?[]:[evidence({average:25}),evidence({student_id:'learner-2',student_name:'Sample Learner B',average:85})],{level:'subject',role:'head_of_subject',actor_user_id:'hos'},{page:1,page_size:25,...params},['subject','assignment']),capabilities:{can_start_intervention:true}};
   return {data,isLoading:scenario==='loading',error:scenario==='error'?new Error('Test service unavailable'):null,refetch:()=>{},isFetching:false};
 }
 export function useSchoolMutation(endpoint:string){const [isPending,setPending]=useState(false);return {isPending,mutateAsync:async(body)=>{window.__endpoint=endpoint;setPending(true);try{const response=await fetch('/qa-report',{method:'POST',body:JSON.stringify(body)});if(!response.ok)throw new Error('QA report failed');return response.json();}finally{setPending(false);}}};}
 `);
-fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {HosCommandCenter} from ${source(path.join(web, 'src/components/school/hos-command-center'))};createRoot(document.getElementById('root')!).render(<HosCommandCenter routeMode="public" activeSection={new URLSearchParams(location.search).get('view')??undefined}/>);`);
+fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {HosCommandCenter} from ${source(path.join(web, 'src/components/school/hos-command-center'))};createRoot(document.getElementById('root')!).render(<HosCommandCenter routeMode="public" activeSection={new URLSearchParams(location.search).get('view')??location.pathname.split('/').filter(Boolean).at(-1)}/>);`);
 
 async function run() {
   await new Promise((resolve, reject) => webpack({ mode: 'development', entry: path.join(out, 'entry.tsx'), devtool: false,
     output: { path: out, filename: 'bundle.js' }, resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(web, 'node_modules'), 'node_modules'],
-      alias: { '@/lib/data/school-hooks': path.join(out, 'hooks.ts'), 'next/link': path.join(out, 'link.tsx'), '@': path.join(web, 'src') } },
+      alias: { '@/lib/data/school-hooks': path.join(out, 'hooks.ts'), '@/components/shared/notification-bell': path.join(out, 'notifications.tsx'), 'next/link': path.join(out, 'link.tsx'), '@': path.join(web, 'src') } },
     plugins: [{ apply(compiler) { compiler.hooks.normalModuleFactory.tap('SubjectQaFixtures', factory => {
       factory.hooks.beforeResolve.tap('SubjectQaFixtures', resource => {
         if (resource?.request.endsWith('integrated-school-command-header')) resource.request = path.join(out, 'header.tsx');
@@ -49,9 +51,9 @@ async function run() {
     }); } }],
     module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: [path.join(out, 'loader.cjs')] }] }, optimization: { minimize: false },
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
-  const cssRoot = path.join(web, '.next/static');
-  const css = fs.readdirSync(cssRoot, { recursive: true }).filter(f => String(f).endsWith('.css')).map(f => fs.readFileSync(path.join(cssRoot, String(f)), 'utf8')).join('\n');
-  assert.ok(css, 'Build the web app first to verify the actual styles.');
+  const cssFile = path.join(web, 'src/app/globals.css');
+  const css = (await require('postcss')([require('@tailwindcss/postcss')({ base: web })]).process(fs.readFileSync(cssFile, 'utf8'), { from: cssFile })).css;
+  assert.ok(css, 'Compile current application styles for browser verification.');
   const server = http.createServer(async (req, res) => {
     if (req.url === '/qa-report') {
       try {
@@ -67,12 +69,12 @@ async function run() {
     else if (req.url === '/style.css') { res.setHeader('Content-Type', 'text/css'); res.end(css); }
     else { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body style="margin:0"><div id="root"></div><script src="/bundle.js"></script></body></html>'); }
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise(resolve => server.listen(process.env.HOS_QA_SERVE ? 4318 : 0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ headless: true });
   const base = `http://127.0.0.1:${server.address().port}`;
   const results = [];
   try {
-    for (const width of [390, 1440]) {
+    for (const width of [320, 390, 768, 1024, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 900 } }); const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(base);
@@ -80,6 +82,20 @@ async function run() {
       assert.equal(await page.getByLabel('Responsibility').locator('option').count(), 1);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `analytics-${width}.png`), fullPage: true });
+      async function navigate(label) {
+        if (width < 1024) {
+          await page.getByRole('button', { name: 'Open Head of Subject workspace sidebar' }).click();
+          await page.getByRole('dialog').getByRole('button', { name: new RegExp(label) }).click();
+        } else await page.getByRole('navigation', { name: 'Head of Subject workspaces' }).getByRole('link', { name: label, exact: true }).click();
+      }
+      for (const [label, heading] of [['Subject Performance','Performance evidence'],['Compare Results','Exam comparison'],['Performance Trends','Exam-to-exam trends'],['Learner Performance','Learner performance'],['Learners at Risk','Learners requiring attention'],['Interventions','Intervention follow-up'],['Exam Analysis','Question analysis'],['Results Readiness','Exam operations'],['Result Insights','More analytics'],['Subject Reports','Subject Reports']]) {
+        await navigate(label);
+        await page.getByRole('heading', { name: heading, exact: true }).waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, label+' overflow at '+width);
+        if (label==='Learners at Risk') assert.match(await page.evaluate(() => window.__query), /risk_level=At\+Risk/);
+      }
+      await page.screenshot({ path: path.join(out, `reports-${width}.png`), fullPage: true });
+      await navigate('Subject Overview');
       await page.getByRole('button', { name: 'Print / PDF', exact: true }).click();
       await page.getByRole('button', { name: 'Prepare preview', exact: true }).click();
       await page.getByRole('link', { name: 'Download PDF', exact: true }).waitFor();
@@ -92,19 +108,34 @@ async function run() {
       await page.getByRole('button', { name: 'Print report', exact: true }).click();
       assert.equal(await preview.evaluate(() => window.__printed), true);
       await page.keyboard.press('Escape');
-      await page.getByRole('link', { name: 'My Subject Appointments', exact: true }).click();
+      await navigate('My Subject Appointments');
       await page.getByRole('heading', { name: 'My Subject Appointments', exact: true }).waitFor();
       await page.getByRole('heading', { name: 'Mathematics', exact: true }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `appointments-${width}.png`), fullPage: true });
+      await page.getByRole('button', { name: 'View subject results' }).click();
+      await page.getByRole('heading', { name: 'Subject Academic Intelligence' }).waitFor();
+      await page.waitForFunction(() => window.__query.includes('subject_id=math'));
+      await page.goBack();
+      await page.getByRole('heading', { name: 'My Subject Appointments', exact: true }).waitFor();
       for (const scenario of ['empty', 'error', 'loading']) {
         await page.goto(base + `/?view=subjects&scenario=${scenario}`);
         await (scenario === 'empty' ? page.getByRole('heading', { name: 'No subject appointment yet' }) : scenario === 'error' ? page.getByRole('alert') : page.getByRole('status')).waitFor();
       }
-      assert.deepEqual(errors, []); results.push({ width, passed: true, verified: ['subject scope', 'preview', 'PDF download', 'print handler', 'appointments', 'empty/error/loading', 'no page overflow'] });
+      for (const scenario of ['empty', 'error', 'loading']) {
+        await page.goto(base + `/school/hos/academic-intelligence?scenario=${scenario}`);
+        await (scenario === 'empty' ? page.getByRole('heading', { name: 'No published exam results yet' }) : scenario === 'error' ? page.getByRole('alert') : page.getByLabel('Loading academic intelligence')).waitFor();
+      }
+      if (width < 1024) {
+        await page.getByRole('button', { name: 'Open Head of Subject workspace sidebar' }).click();
+        await page.screenshot({ path: path.join(out, `menu-${width}.png`), fullPage: true });
+        await page.keyboard.press('Escape');
+        assert.equal(await page.getByRole('dialog').count(), 0);
+      }
+      assert.deepEqual(errors, []); results.push({ width, passed: true, verified: ['all 12 workspaces', 'mobile menu and Escape', 'subject scope and risk query', 'preview', 'PDF download', 'print handler', 'appointments to filtered analytics', 'browser Back', 'empty/error/loading', 'no page overflow'] });
       await page.close();
     }
     fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify(results, null, 2)); console.log(JSON.stringify(results));
-  } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+  } finally { await browser.close(); if (!process.env.HOS_QA_SERVE) await new Promise(resolve => server.close(resolve)); else console.log('HOS fixture preview: '+base); }
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });

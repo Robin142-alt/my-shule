@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { WorkspaceLoading } from "@/components/shared/workspace-loading";
+import { isHosSection } from "@/lib/school/hos-workspaces";
 import { useRouter } from "next/navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
 import { StudentStatusBadge } from "@/components/modules/students/lifecycle/StudentStatusBadge";
@@ -960,7 +961,7 @@ function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, sectio
   }
 
   if (role === "hos") {
-    return ["dashboard", "overview", "subjects", "academic-intelligence", "exams"].includes(section);
+    return isHosSection(section);
   }
 
   if (role === "hod") {

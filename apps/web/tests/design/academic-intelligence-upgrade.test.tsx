@@ -32,7 +32,7 @@ it('rejects malformed nested learner data with a retry action instead of crashin
 it.each([['subject','hos','Subject Academic Intelligence'],['grade','grade-master','Grade/Form Academic Intelligence']] as const)('renders the %s experience and eight overview cards', (scope,audience,title)=>{
   load(scope);renderWithProviders(<AcademicIntelligenceWorkspace audience={audience}/>);
   expect(screen.getByRole('heading',{name:title})).toBeVisible();expect(screen.getByLabelText('Responsibility')).toHaveValue(scope);
-  expect(screen.getByRole('button',{name:'Target No target configured'})).toBeVisible();
+  expect(screen.getByRole('button',{name:audience==='hos'?'Open interventions 0':'Target No target configured'})).toBeVisible();
   expect(screen.queryByLabelText('Department')).not.toBeInTheDocument();
 });
 it('renders risk reasons, opens a learner and posts an authorized intervention to the existing workflow',async()=>{
@@ -71,4 +71,42 @@ it('uses the restricted subject analytics endpoint for Head of Subject',()=>{
   expect(mockQuery).toHaveBeenCalledWith('/exams/analytics/subject',expect.anything());
   expect(screen.getByLabelText('Responsibility').querySelectorAll('option')).toHaveLength(1);
   expect(screen.getByLabelText('Responsibility')).toHaveValue('subject');
+});
+
+it('opens the at-risk route with server filtering and keeps subject selection between workspaces',()=>{
+  load('subject');const onViewChange=jest.fn();
+  const {rerender}=renderWithProviders(<AcademicIntelligenceWorkspace audience="hos" activeView="At Risk" hideNavigation onViewChange={onViewChange}/>);
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('risk_level=At+Risk');
+  expect(screen.queryByRole('navigation',{name:'Academic analytics sections'})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Subject'),{target:{value:'math'}});
+  rerender(<AcademicIntelligenceWorkspace audience="hos" activeView="Comparisons" hideNavigation onViewChange={onViewChange}/>);
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('subject_id=math');
+  expect(mockQuery.mock.calls.at(-1)?.[0]).not.toContain('risk_level');
+  fireEvent.click(screen.getAllByRole('button',{name:'View learners'})[0]);
+  expect(onViewChange).toHaveBeenCalledWith('Learners');
+});
+
+it('provides subject report previews without granting report publishing actions',()=>{
+  load('subject');renderWithProviders(<AcademicIntelligenceWorkspace audience="hos" activeView="Reports" hideNavigation/>);
+  expect(screen.getByRole('heading',{name:'Subject Reports'})).toBeVisible();
+  expect(screen.getAllByRole('button',{name:/^Preview /})).toHaveLength(5);
+  fireEvent.click(screen.getByRole('button',{name:'Preview performance trends'}));
+  expect(screen.getByRole('dialog')).toBeVisible();
+  expect(screen.getByLabelText('Report content')).toHaveValue('trends');
+  expect(screen.queryByRole('button',{name:/publish/i})).not.toBeInTheDocument();
+});
+
+it('resets learner pagination when the HOS menu changes the academic population',()=>{
+  const data=load('subject');data.learners.total=100;
+  const {rerender}=renderWithProviders(<AcademicIntelligenceWorkspace audience="hos" activeView="Learners" initialSubjectId="math" hideNavigation/>);
+  fireEvent.click(screen.getByRole('button',{name:'Next page'}));
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('page=2');
+  rerender(<AcademicIntelligenceWorkspace audience="hos" activeView="At Risk" hideNavigation/>);
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('page=1');
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('subject_id=math');
+});
+
+it('keeps printing available in other roles report views',()=>{
+  load();renderWithProviders(<AcademicIntelligenceWorkspace audience="principal" activeView="Reports" onOpenReportCards={jest.fn()}/>);
+  expect(screen.getByRole('button',{name:'Print / PDF'})).toBeVisible();
 });

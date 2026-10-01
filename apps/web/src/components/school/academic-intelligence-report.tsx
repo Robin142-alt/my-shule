@@ -8,7 +8,7 @@ import { academicReportHtml, isAnalyticsReportResponse, type AnalyticsReportResp
 
 const button='inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50';
 const primaryButton='inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50';
-export function AcademicIntelligenceReport({filters,view,disabled,subjectOnly=false}:{filters:Record<string,string>;view:string;disabled:boolean;subjectOnly?:boolean}) {
+export function AcademicIntelligenceReport({filters,view,disabled,subjectOnly=false,buttonLabel="Print / PDF"}:{filters:Record<string,string>;view:string;disabled:boolean;subjectOnly?:boolean;buttonLabel?:string}) {
   const [open,setOpen]=useState(false);
   const [section,setSection]=useState<AnalyticsReportSection>('summary');
   const [result,setResult]=useState<AnalyticsReportResponse|null>(null);
@@ -39,7 +39,7 @@ export function AcademicIntelligenceReport({filters,view,disabled,subjectOnly=fa
   return <>
     <button className={primaryButton} disabled={disabled} onClick={()=>{
       clearPreview();setSection(view==='Learners'||view==='At Risk'?'learners':view==='Comparisons'?'subjects':view==='Trends'?'trends':view==='Exam Operations'?'operations':'summary');setOpen(true);
-    }}><Printer size={16} aria-hidden="true"/>Print / PDF</button>
+    }}><Printer size={16} aria-hidden="true"/>{buttonLabel}</button>
     <Modal open={open} title="Print or download analytics" description="Prepare a school-branded report from your current selection." size="xl" mobileFullScreen onClose={()=>{if(!mutation.isPending){setOpen(false);clearPreview();}}}>
       <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">

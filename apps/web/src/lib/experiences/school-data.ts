@@ -14,6 +14,7 @@ import { filterProductionReadyNavItems } from "@/lib/features/module-readiness";
 export type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { toSchoolPath } from "@/lib/routing/experience-routes";
 import { supportSidebarItems } from "@/lib/support/support-data";
+import { hosWorkspaces } from "@/lib/school/hos-workspaces";
 
 export interface SchoolSubscriptionReminder {
   id: string;
@@ -364,8 +365,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     ...supportSidebarItems,
   ],
   hos: [
-    { id: "academic-intelligence", label: "Subject Analytics", href: toSchoolPath("academic-intelligence"), icon: BarChart3 },
-    { id: "subjects", label: "My Subject Appointments", href: toSchoolPath("subjects"), icon: BookOpen },
+    ...hosWorkspaces.map(({ id, label, icon }) => ({ id, label, icon, href: toSchoolPath(id) })),
     ...supportSidebarItems,
   ],
   "grade-master": [],

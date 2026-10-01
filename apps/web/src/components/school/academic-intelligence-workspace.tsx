@@ -7,10 +7,15 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import type { LiveExamsAnalyticsResponse } from "@/lib/modules/exams-client";
 import { isAcademicIntelligence, scopeNames, displayNumber, displayChange } from "@/lib/modules/academic-intelligence";
 import { AcademicIntelligencePanels } from "./academic-intelligence-panels";
+import { SubjectReportsWorkspace } from "./subject-reports-workspace";
 
 export type AcademicIntelligenceAudience = "principal" | "deputy" | "dean" | "exams-manager" | "hod" | "hos" | "grade-master" | "teacher" | "class-teacher";
 export interface AcademicIntelligenceWorkspaceProps {
   audience: AcademicIntelligenceAudience;
+  activeView?: string;
+  onViewChange?: (view: string) => void;
+  hideNavigation?: boolean;
+  initialSubjectId?: string;
   onOpenMarks?: () => void;
   onOpenInterventions?: () => void;
   onOpenReportCards?: () => void;
@@ -29,8 +34,13 @@ export function isLiveExamsAnalyticsResponse(value: unknown): value is LiveExams
 }
 export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspaceProps) {
   const publishedOnly = props.audience === "hod" || props.audience === "hos";
-  const [filters,setFilters]=useState<Record<string,string>>({});
-  const [view,setView]=useState("Overview");
+  const [savedFilters,setFilters]=useState<Record<string,string>>(():Record<string,string> => props.initialSubjectId ? {subject_id:props.initialSubjectId} : {});
+  const [localView,setLocalView]=useState("Overview");
+  const view=props.activeView??localView;
+  const [previousView,setPreviousView]=useState(view);
+  if(previousView!==view){setPreviousView(view);if(savedFilters.page&&savedFilters.page!=='1')setFilters(previous=>({...previous,page:'1'}));}
+  const setView=(next:string)=>{setLocalView(next);props.onViewChange?.(next);};
+  const filters:Record<string,string>=view==='At Risk'&&!savedFilters.risk_level?{...savedFilters,risk_level:'At Risk'}:savedFilters;
   const query=new URLSearchParams(filters).toString();
   const {data,isLoading,isFetching,error,refetch}=useSchoolQuery<LiveExamsAnalyticsResponse>((props.audience === "hos" ? "/exams/analytics/subject" : "/exams/analytics")+(query?"?"+query:""),{staleTime:30000});
   const legacy=isLiveExamsAnalyticsResponse(data)?data:undefined;
@@ -39,8 +49,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
   const changeFilters=(changes:Record<string,string>)=>setFilters(previous=>Object.fromEntries(Object.entries({...previous,...changes,page:"1"}).filter(([,v])=>v!=="")));
   const drill=(changes:Record<string,string>,nextView="Learners")=>{changeFilters(changes);setView(nextView);};
   const openView=(nextView:string)=>{
-    if(nextView==='At Risk'&&!filters.risk_level)changeFilters({risk_level:'At Risk'});
-    else if(nextView==='Learners'&&filters.risk_level==='At Risk')changeFilters({risk_level:''});
+    if(nextView==='Learners'&&filters.risk_level==='At Risk')changeFilters({risk_level:''});
     setView(nextView);
   };
   const tabs=["Overview","Performance","Comparisons","Learners","At Risk","Trends"];
@@ -61,7 +70,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
     ["Mean grade",analytics.performance.mean_grade??"No common grading policy","Performance"],
     ["Pass rate",displayNumber(analytics.performance.pass_rate,"%"),"Performance"],
     ["Change from previous exam",displayChange(analytics.change),"Comparisons"],
-    ["Target","No target configured","Targets"],
+    props.audience==='hos'?["Open interventions",String(analytics.interventions.open),"Interventions"]:["Target","No target configured","Targets"],
     ["At-Risk Learners",String(analytics.risk.at_risk_count),"At Risk"],
     [props.audience==="principal"?"High performers":"Most improved",String(props.audience==="principal"?analytics.risk.high_performers:analytics.risk.most_improved_count),"Learners"],
     ["Marks completion",displayNumber(analytics.operations.completion_rate,"%"),"Exam Operations"],
@@ -70,21 +79,22 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
     <header className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5">
       <div><p className="text-sm font-semibold text-info">{scopeTitle}</p><h2 id="academic-intelligence-title" className="mt-1 text-2xl font-bold">{title}</h2><p className="mt-2 max-w-2xl text-sm text-slate-600">{publishedOnly ? "Review published exam results within your academic responsibility and plan learner support." : "See what changed, find learners who need support, and take the next step."}</p></div>
       <div className="flex flex-wrap gap-2"><button className={button} disabled={isFetching} onClick={()=>void refetch()}><RefreshCw aria-hidden="true" className={"mr-2 inline h-4 w-4"+(isFetching?" animate-spin":"")}/>Refresh</button>
-        {analytics&&!error&&!malformed&&<AcademicIntelligenceReport subjectOnly={props.audience === "hos"} key={query} filters={{...filters,scope:analytics.scope.level,...(analytics.filters.exam_series_id?{exam_series_id:analytics.filters.exam_series_id}:{})}} view={view} disabled={isFetching}/>}
+        {analytics&&!error&&!malformed&&(props.audience!=="hos"||view!=="Reports")&&<AcademicIntelligenceReport subjectOnly={props.audience === "hos"} key={query} filters={{...filters,scope:analytics.scope.level,...(analytics.filters.exam_series_id?{exam_series_id:analytics.filters.exam_series_id}:{})}} view={view} disabled={isFetching}/>}
       </div>
     </header>
     {(error||malformed)&&<div role="alert" className="rounded-xl border border-red-300 bg-danger-soft p-5"><h3 className="font-bold">Academic intelligence could not be loaded</h3><p>{error?.message??"The live exams service returned an incomplete analytics response. No values were displayed as real school data."}</p><button className={button+" mt-3"} onClick={()=>void refetch()}>Retry live data</button></div>}
     {isLoading?<div aria-label="Loading academic intelligence" className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({length:8},(_,i)=><div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100"/>)}</div>:legacy&&!error&&!malformed?<>
       {analytics&&options&&<div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {props.audience==='hos'&&select("Subject","subject_id",options.subjects,"All appointed subjects")}
           {select("Academic Year","academic_year_id",[...new Map(options.exams.map(e=>[e.academic_year_id,{id:e.academic_year_id,name:e.year_name}])).values()])}
           {select("Term","academic_term_id",[...new Map(options.exams.filter(e=>!filters.academic_year_id||e.academic_year_id===filters.academic_year_id).map(e=>[e.academic_term_id,{id:e.academic_term_id,name:e.term_name}])).values()])}
           {select("Exam","exam_series_id",examOptions,"Latest exam")}
-          <label className="space-y-1 text-sm font-semibold text-slate-700">Responsibility<select aria-label="Responsibility" className={field} value={filters.scope??analytics.scope.level} onChange={e=>{setFilters({scope:e.target.value});setView("Overview");}}>{analytics.scope.available_scopes.filter(scope=>props.audience!=="hos"||scope==="subject").map(scope=><option key={scope} value={scope}>{scopeNames[scope]}</option>)}</select></label>
+          <label className={props.audience==='hos'?"sr-only":"space-y-1 text-sm font-semibold text-slate-700"}>Responsibility<select aria-label="Responsibility" disabled={props.audience==='hos'} className={field} value={filters.scope??analytics.scope.level} onChange={e=>{setFilters({scope:e.target.value});setView("Overview");}}>{analytics.scope.available_scopes.filter(scope=>props.audience!=="hos"||scope==="subject").map(scope=><option key={scope} value={scope}>{scopeNames[scope]}</option>)}</select></label>
         </div>
         <details><summary className="cursor-pointer py-2 text-sm font-semibold text-slate-700"><SlidersHorizontal aria-hidden="true" className="mr-2 inline h-4 w-4"/>More Filters{activeFilters.length>0?` (${activeFilters.length} active)`:""}</summary><div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {select("Department","department_id",options.departments,"All authorized departments",selectedScope==="school")}
-          {select("Subject","subject_id",options.subjects,"All authorized subjects")}
+          {select("Subject","subject_id",options.subjects,"All authorized subjects",props.audience!=='hos')}
           {select("Grade/Form","grade_level",options.grades.map(id=>({id,name:id})),"All authorized grades",selectedScope!=="class")}
           {select("Stream","stream_id",options.streams,"All authorized streams")}
           {select("Class","class_section_id",options.classes,"All authorized classes")}
@@ -96,7 +106,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
           {select("Marks Status","marks_status",(publishedOnly ? ["published"] : ["missing","draft","submitted","reviewed","locked","published"]).map(id=>({id,name:id})))}
           {select("Publication Status","publication_status",(publishedOnly ? ["published"] : ["draft_requested","draft_generated","under_review","approved","published"]).map(id=>({id,name:id.replaceAll("_"," ")})))}
         </div></details>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"><p className="text-sm text-slate-600"><strong className="text-slate-800">{options.exams.find(e=>e.id===analytics.filters.exam_series_id)?.name??"No exam evidence in this scope"}</strong> · {analytics.performance.learners_examined} {analytics.performance.learners_examined===1?'learner':'learners'} with {publishedOnly ? "published" : "approved"} results <span role="status">{isFetching?" · Updating…":""}</span></p>{Object.keys(filters).length>0&&<button className="min-h-11 px-2 text-sm font-semibold text-info hover:underline" onClick={()=>setFilters({...(filters.scope?{scope:filters.scope}:{}),...(view==='At Risk'?{risk_level:'At Risk'}:{})})}>Clear filters</button>}</div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"><p className="text-sm text-slate-600"><strong className="text-slate-800">{options.exams.find(e=>e.id===analytics.filters.exam_series_id)?.name??"No exam evidence in this scope"}</strong> · {analytics.performance.learners_examined} {analytics.performance.learners_examined===1?'learner':'learners'} with {publishedOnly ? "published" : "approved"} results <span role="status">{isFetching?" · Updating…":""}</span></p>{Object.keys(filters).length>0&&<button className="min-h-11 px-2 text-sm font-semibold text-info hover:underline" onClick={()=>setFilters({...(filters.scope?{scope:filters.scope}:{})})}>Clear filters</button>}</div>
         {activeFilters.length>0&&<div aria-label="Active filters" className="flex flex-wrap gap-2">{activeFilters.map(([key,value])=>{
           const groups:Record<string,{id:string;name:string}[]>={subject_id:options.subjects,department_id:options.departments,class_section_id:options.classes,stream_id:options.streams,teacher_user_id:options.teachers};
           const label:Record<string,string>={subject_id:'Subject',department_id:'Department',class_section_id:'Class',stream_id:'Stream',teacher_user_id:'Teacher',risk_level:'Risk',learner_query:'Search',learner_group:'Recognition',grade_level:'Grade/Form',grade:'Achievement',marks_status:'Marks',publication_status:'Publication'};
@@ -108,11 +118,11 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
       {legacy.data_quality.final_mark_count===0&&<div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6"><h3 className="text-lg font-bold">{publishedOnly ? "No published exam results yet" : "No approved academic results yet"}</h3><p className="mt-2 text-sm">{publishedOnly ? "Analytics appear after the Principal publishes the exam results. Refresh after publication to review your assigned subjects and learners." : "Analytics will appear after marks are completed and approved. Missing marks are never treated as zero."}</p><div className="mt-4 flex flex-wrap gap-3">{props.onOpenMarks&&<button className={button} onClick={props.onOpenMarks}>Open marks workflow</button>}{props.onOpenReportCards&&<button className={button} onClick={props.onOpenReportCards}>Open report cards</button>}</div></div>}
       {analytics&&<>
         <div className="space-y-4">
-          <div className="flex min-w-0 flex-col gap-2 border-b border-slate-200 pb-2 lg:flex-row lg:items-center">
+          {!props.hideNavigation&&<div className="flex min-w-0 flex-col gap-2 border-b border-slate-200 pb-2 lg:flex-row lg:items-center">
             <nav aria-label="Academic analytics sections" className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-1">{tabs.map(tab=><button key={tab} type="button" aria-current={view===tab?"page":undefined} onClick={()=>openView(tab)} className={"min-h-11 shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-blue-600 "+(view===tab?"bg-blue-700 text-white":"text-slate-600 hover:bg-slate-100")}>{tab}</button>)}</nav>
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">More views<select aria-label="More views" value={moreViews.includes(view)?view:''} onChange={event=>{if(event.target.value)openView(event.target.value);}} className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 lg:w-44"><option value="">Choose a view</option>{moreViews.map(tab=><option key={tab} value={tab}>{tab}</option>)}</select></label>
-          </div>
-          <div><h3 className="text-lg font-bold">{view}</h3><p className="mt-1 text-sm text-slate-500">{descriptions[view]}</p></div>
+          </div>}
+          <div><h3 className="text-lg font-bold">{view==='Reports'&&props.audience==='hos'?'Subject Reports':view}</h3><p className="mt-1 text-sm text-slate-500">{view==='Reports'&&props.audience==='hos'?'Prepare a report from your selected subject, exam and filters.':descriptions[view]}</p></div>
         </div>
         {(view==='Learners'||view==='At Risk')&&<form role="search" className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-4" onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);changeFilters({learner_query:String(form.get('learner_query')??'').trim()});}}>
           <label className="min-w-48 flex-1 space-y-1 text-sm font-semibold text-slate-700">Find a learner<input aria-label="Learner search" name="learner_query" type="search" maxLength={160} placeholder="Name or admission number" className={field} defaultValue={filters.learner_query??''} key={filters.learner_query??''}/></label>
@@ -120,7 +130,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
           <p className="w-full text-xs text-slate-500">Search applies to the learner list. Summary figures keep the full academic selection.</p>
         </form>}
         {view==="Overview"&&<div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{metrics.map(([label,value,next],index)=><button key={label} aria-label={`${label} ${value}`} onClick={()=>label==='High performers'||label==='Most improved'?drill({learner_group:label==='High performers'?'high_performers':'most_improved'}):openView(next)} className={"group min-h-28 rounded-xl border p-4 text-left transition-colors hover:border-blue-400 focus-visible:outline-2 focus-visible:outline-blue-600 "+(index<4?'border-slate-200 bg-white':'border-slate-200 bg-slate-50')}><span className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">{label}<ArrowRight aria-hidden="true" size={14} className="shrink-0 text-slate-400 group-hover:text-blue-600"/></span><strong className={"mt-3 block tabular-nums "+(value.length>18?'text-sm leading-6 text-slate-600':index<4?'text-2xl tracking-tight':'text-xl')}>{value}</strong><span aria-hidden="true" className="mt-2 block text-xs text-slate-500">{next==='Comparisons'?'Compared with previous results':next==='Targets'?'Intervention goals remain available':`View ${next.toLowerCase()}`}</span></button>)}</div>}
-        <AcademicIntelligencePanels data={analytics} view={view} onView={openView} onDrill={drill} onPage={page=>setFilters(f=>({...f,page:String(page)}))} onCompare={id=>changeFilters({comparison_exam_id:id})} onRefresh={()=>void refetch()} {...props}/>
+        {view==='Reports'&&props.audience==='hos'?<SubjectReportsWorkspace key={query} filters={{...filters,scope:'subject',...(analytics.filters.exam_series_id?{exam_series_id:analytics.filters.exam_series_id}:{})}} disabled={isFetching}/>:<AcademicIntelligencePanels data={analytics} view={view} onView={openView} onDrill={drill} onPage={page=>setFilters(f=>({...f,page:String(page)}))} onCompare={id=>changeFilters({comparison_exam_id:id})} onRefresh={()=>void refetch()} {...props}/>}
       </>}
     </>:null}
   </section>;
