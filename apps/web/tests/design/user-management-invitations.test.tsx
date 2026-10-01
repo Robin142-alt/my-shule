@@ -10,6 +10,15 @@ import {
 
 import { renderWithProviders } from "./test-utils";
 
+jest.mock("@/components/school/subject-head-setup", () => ({
+  SubjectHeadSetup: () => (
+    <div>
+      <h3>Head of Subject access</h3>
+      <button type="button">Manage subject appointments</button>
+    </div>
+  ),
+}));
+
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return {
     status: init?.status ?? 200,
@@ -67,6 +76,25 @@ describe("school-scoped user management and invitations", () => {
     expect(within(commandCenter).getByRole("button", { name: /Roles & Permissions/i })).toBeVisible();
     expect(within(commandCenter).getByRole("button", { name: /Suspended \/ Deactivated/i })).toBeVisible();
     expect(within(commandCenter).getAllByRole("button", { name: /Audit Log/i }).length).toBeGreaterThan(0);
+  }, 30000);
+
+  it("does not place the Head of Subject appointment controls in Users & Invitations", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith("/api/auth/invitations") && (init?.method ?? "GET") === "GET") {
+        return Promise.resolve(jsonResponse({ users: [] }));
+      }
+      return Promise.resolve(jsonResponse({}));
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="homabay-high" />);
+    const commandCenter = await screen.findByTestId("role-operational-command-center");
+    await user.click(within(commandCenter).getByRole("button", { name: /Users & Invitations/i }));
+
+    await waitFor(() => expect(within(commandCenter).getByText("0 active staff")).toBeVisible());
+    expect(within(commandCenter).queryByRole("heading", { name: "Head of Subject access" })).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByRole("button", { name: "Manage subject appointments" })).not.toBeInTheDocument();
   }, 30000);
 
   it("keeps a fresh school user workspace clean when the live access API has no users", async () => {
