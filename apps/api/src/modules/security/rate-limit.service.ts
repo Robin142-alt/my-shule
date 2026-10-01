@@ -285,9 +285,11 @@ export class RateLimitService {
     }
 
     const path = (request.path || request.originalUrl || request.url).toLowerCase();
+    const method = (request.method ?? this.requestContext.getStore()?.method ?? '').toUpperCase();
+    const isRead = method === 'GET' || method === 'HEAD';
 
     if (
-      path.startsWith('/admin-command')
+      (path.startsWith('/admin-command') && !isRead)
       || path.startsWith('/internal')
       || path.startsWith('/platform')
       || path.startsWith('/superadmin')
@@ -295,9 +297,9 @@ export class RateLimitService {
       return 'admin';
     }
 
-    const method = (request.method ?? this.requestContext.getStore()?.method ?? '').toUpperCase();
-
-    if (method === 'GET' || method === 'HEAD') {
+    // School workspace reads share the normal read budget; admin mutations
+    // and platform administration retain their stricter, separate budget.
+    if (isRead) {
       if (path.startsWith('/support/public') || path.startsWith('/health') || path.startsWith('/status')) {
         return 'public_read';
       }

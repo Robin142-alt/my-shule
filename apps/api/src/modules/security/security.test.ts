@@ -500,6 +500,39 @@ test('RateLimitService assigns isolated Implementation 90 rate-limit classes', a
   assert.equal(decisions.admin.limit, 20);
 });
 
+test('school sidebar reads have a bounded read budget independent of admin mutations and other tenants', async () => {
+  const context = new RequestContextService();
+  const service = new RateLimitService(
+    { get: () => undefined } as never,
+    context,
+    buildFakeRedisService(new FakeRedisClient()) as never,
+  );
+  const read = (path: string, method = 'GET', tenant = 'school-a', user = 'principal-a') => context.run({
+    request_id: 'sidebar-read', tenant_id: tenant, user_id: user, role: 'principal',
+    is_authenticated: true, permissions: ['*:*'], client_ip: '127.0.0.1', session_id: 'sidebar-session', user_agent: 'test-suite',
+    method, path, started_at: new Date().toISOString(),
+  }, () => service.evaluateRequest({ method, path, originalUrl: path, url: path } as never));
+
+  const paths = ['/admin-command/principal/students', '/admin-command/principal/settings', '/admin-command/librarian/overview'];
+  for (let i = 0; i < 300; i++) {
+    const decision = await read(paths[i % paths.length], i % 2 ? 'HEAD' : 'GET');
+    assert.equal(decision.rate_limit_class, 'authenticated_read');
+    assert.equal(decision.allowed, true, `Sidebar read ${i + 1} should be allowed`);
+  }
+  assert.equal((await read(paths[0])).allowed, false, 'Reads remain rate limited');
+  assert.equal((await read(paths[0], 'GET', 'school-b')).allowed, true);
+  assert.equal((await read(paths[0], 'GET', 'school-a', 'principal-b')).allowed, true);
+  for (let i = 0; i < 20; i++) {
+    const decision = await read('/admin-command/principal/settings/preferences', 'PATCH');
+    assert.equal(decision.rate_limit_class, 'admin');
+    assert.equal(decision.allowed, true);
+  }
+  assert.equal((await read('/admin-command/principal/settings/preferences', 'PATCH')).allowed, false);
+  for (const path of ['/internal/status', '/platform/schools', '/superadmin/schools']) {
+    assert.equal((await read(path)).rate_limit_class, 'admin');
+  }
+});
+
 test('FraudDetectionService emits a high-value audit alert', async () => {
   const redisClient = new FakeRedisClient();
   let capturedAuditEvent: Record<string, unknown> | null = null;

@@ -1,6 +1,7 @@
 type Options = {
   url: string;
   eventType: string;
+  errorEventType?: string;
   // Only a valid, tenant-checked snapshot confirms successful recovery.
   onMessage: (event: Event) => boolean;
   onDegraded: (degraded: boolean) => void;
@@ -13,11 +14,12 @@ export function connectDashboardEventSource(options: Options) {
   let failures = 0;
   let disposed = false;
   let cursor = "";
+  const errorEventType = options.errorEventType ?? `${options.eventType}.error`;
 
   const closeSource = () => {
     source?.removeEventListener(options.eventType, handleMessage);
     source?.removeEventListener("error", handleError);
-    source?.removeEventListener(`${options.eventType}.error`, handleError);
+    source?.removeEventListener(errorEventType, handleError);
     source?.close();
     source = undefined;
   };
@@ -38,7 +40,7 @@ export function connectDashboardEventSource(options: Options) {
     source = new EventSource(cursor ? url.toString() : options.url, { withCredentials: true });
     source.addEventListener(options.eventType, handleMessage);
     source.addEventListener("error", handleError);
-    source.addEventListener(`${options.eventType}.error`, handleError);
+    source.addEventListener(errorEventType, handleError);
   };
   const handleError = () => {
     if (disposed || retryTimer !== undefined) return;

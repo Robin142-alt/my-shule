@@ -111,6 +111,7 @@ describe("Principal executive insight stream", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    jest.useRealTimers();
   });
 
   afterAll(() => {
@@ -121,7 +122,7 @@ describe("Principal executive insight stream", () => {
     });
   });
 
-  it("applies tenant-scoped snapshots, reports reconnecting truthfully, and recovers without closing the stream", async () => {
+  it("applies snapshots and closes failed streams before retrying with backoff", async () => {
     const view = renderWithProviders(
       <SchoolPages role="principal" tenantSlug="maranda-high" userLabel="Principal Wanjiku" />,
     );
@@ -146,14 +147,25 @@ describe("Principal executive insight stream", () => {
     expect(await screen.findByText("Attendance risk")).toBeVisible();
     expect(screen.getByText("1 modules enabled")).toBeVisible();
 
-    act(() => {
-      stream.onerror?.(new Event("error"));
-    });
+    jest.useFakeTimers();
+    act(() => stream.emit("principal.error", { message: "Temporarily unavailable" }));
     expect(await screen.findByText("Live updates reconnecting")).toBeVisible();
-    expect(stream.close).not.toHaveBeenCalled();
+    expect(stream.close).toHaveBeenCalledTimes(1);
+    const streamCount = EventSourceMock.instances.length;
+    act(() => jest.advanceTimersByTime(4_999));
+    expect(EventSourceMock.instances).toHaveLength(streamCount);
+    act(() => jest.advanceTimersByTime(1));
+    const retry = EventSourceMock.instances.at(-1)!;
+    expect(retry).not.toBe(stream);
+    act(() => retry.emit("error", {}));
+    expect(retry.close).toHaveBeenCalledTimes(1);
+    act(() => jest.advanceTimersByTime(9_999));
+    expect(EventSourceMock.instances).toHaveLength(streamCount + 1);
+    act(() => jest.advanceTimersByTime(1));
+    const recovered = EventSourceMock.instances.at(-1)!;
 
     act(() => {
-      stream.emit(
+      recovered.emit(
         "principal.dashboard",
         principalDashboard("Recovered live risk", ["attendance", "finance"]),
       );
@@ -164,5 +176,16 @@ describe("Principal executive insight stream", () => {
 
     view.unmount();
     expect(stream.close).toHaveBeenCalledTimes(1);
+    expect(recovered.close).toHaveBeenCalledTimes(1);
+    act(() => jest.advanceTimersByTime(60_000));
+    expect(EventSourceMock.instances).toHaveLength(streamCount + 2);
+  });
+
+  it("does not load executive insights in a different workspace", async () => {
+    renderWithProviders(<SchoolPages role="principal" section="school-profile" tenantSlug="maranda-high" />);
+    expect(await screen.findByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
+    expect(requestDashboardApiMock).toHaveBeenCalledWith("/admin-command/principal/school-profile", expect.anything());
+    expect(requestDashboardApiMock).not.toHaveBeenCalledWith("/admin-command/principal/dashboard", expect.anything());
+    expect(EventSourceMock.instances.some((stream) => stream.url.includes("/principal/dashboard/stream"))).toBe(false);
   });
 });

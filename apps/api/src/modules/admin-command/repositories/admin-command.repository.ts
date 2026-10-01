@@ -246,8 +246,8 @@ export class AdminCommandRepository {
           `
             SELECT
               (SELECT COUNT(*)::int FROM clinic_visits WHERE tenant_id = $1 AND visit_date::date = CURRENT_DATE) AS clinic_visits_today,
-              (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND quantity_available <= minimum_stock_threshold AND status = 'active') AS medicine_low_stock,
-              (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND expiry_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days' AND status = 'active') AS medicine_expiring_soon,
+              (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND quantity_available <= NULLIF(minimum_stock_threshold::text, '')::numeric AND status = 'active') AS medicine_low_stock,
+              (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND NULLIF(expiry_date::text, '')::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '90 days' AND status = 'active') AS medicine_expiring_soon,
               (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND quantity_available <= 0 AND status = 'active') AS out_of_stock_medicines,
               (SELECT COUNT(*)::int FROM clinic_medicine_batches WHERE tenant_id = $1 AND quantity_available <= 0 AND is_emergency_supply = TRUE) AS critical_medicine_shortages,
               COALESCE((
@@ -313,7 +313,7 @@ export class AdminCommandRepository {
             SELECT
               (SELECT COUNT(*)::int FROM inventory_requests WHERE tenant_id = $1 AND status = 'pending') AS pending_procurement_requests,
               (SELECT COUNT(*)::int FROM inventory_purchase_orders WHERE tenant_id = $1 AND status IN ('draft', 'approved')) AS open_purchase_orders,
-              (SELECT COUNT(*)::int FROM inventory_purchase_orders WHERE tenant_id = $1 AND expected_delivery_date < CURRENT_DATE AND received_at IS NULL) AS overdue_purchase_orders
+              (SELECT COUNT(*)::int FROM inventory_purchase_orders WHERE tenant_id = $1 AND NULLIF(expected_delivery_date::text, '')::date < CURRENT_DATE AND status IN ('draft', 'approved')) AS overdue_purchase_orders
           `,
           [tenantId],
         );
@@ -326,8 +326,8 @@ export class AdminCommandRepository {
                 FROM lab_attendance
                 WHERE tenant_id = $1
               ), 0)::numeric AS lab_attendance_compliance_rate,
-              (SELECT COUNT(*)::int FROM lab_sessions WHERE tenant_id = $1 AND status = 'scheduled' AND session_date < CURRENT_DATE) AS missed_practical_sessions,
-              (SELECT COUNT(*)::int FROM chemical_items WHERE tenant_id = $1 AND expiry_date <= CURRENT_DATE + INTERVAL '90 days' AND status IN ('active', 'near_expiry')) AS chemical_expiry_alerts,
+              (SELECT COUNT(*)::int FROM lab_sessions WHERE tenant_id = $1 AND status = 'scheduled' AND session_date::date < CURRENT_DATE) AS missed_practical_sessions,
+              (SELECT COUNT(*)::int FROM chemical_items WHERE tenant_id = $1 AND expiry_date::date <= CURRENT_DATE + INTERVAL '90 days' AND status IN ('active', 'near_expiry')) AS chemical_expiry_alerts,
               (SELECT COUNT(*)::int FROM lab_equipment WHERE tenant_id = $1 AND condition_status <> 'serviceable') AS lab_equipment_maintenance_alerts
           `,
           [tenantId],
@@ -378,8 +378,8 @@ export class AdminCommandRepository {
                   WHERE tenant_id = $1
                     AND status = 'active'
                     AND (
-                      quantity_available <= minimum_stock_threshold
-                      OR expiry_date <= CURRENT_DATE + INTERVAL '30 days'
+                      quantity_available <= NULLIF(minimum_stock_threshold::text, '')::numeric
+                      OR NULLIF(expiry_date::text, '')::date <= CURRENT_DATE + INTERVAL '30 days'
                     )
                 ) AS medicine_shortage_predictions,
                 (
@@ -397,7 +397,7 @@ export class AdminCommandRepository {
                     AND total_amount > 0
                     AND (
                       expected_delivery_date IS NULL
-                      OR expected_delivery_date <= CURRENT_DATE + INTERVAL '14 days'
+                      OR NULLIF(expected_delivery_date::text, '')::date <= CURRENT_DATE + INTERVAL '14 days'
                     )
                 ) AS budget_overrun_alerts,
                 (

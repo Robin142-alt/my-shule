@@ -58,17 +58,18 @@ async function main() {
     const failures: any[] = [], passed: string[] = [], unavailable: Array<{route: string, message: string}> = [];
     let route = '';
     const query = async (sql: string, params: any[] = []) => {
-      const client = await pool.connect();
       try {
-        await client.query('BEGIN READ ONLY');
-        await client.query('SET LOCAL search_path TO public');
-        await client.query('SET LOCAL row_security TO on');
-        await client.query("SELECT set_config('app.tenant_id',$1,true), set_config('app.user_id',$2,true)", [context.tenant_id, context.user_id]);
-        return await client.query(sql, params);
+        return await orm.$transaction(async tx => {
+          await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
+          await tx.$executeRawUnsafe('SET LOCAL ROLE sidebar_read_test');
+          await tx.$queryRawUnsafe("SELECT set_config('app.tenant_id',$1,true), set_config('app.user_id',$2,true)", context.tenant_id, context.user_id);
+          const rows = await tx.$queryRawUnsafe<any[]>(sql, ...params);
+          return { rows, rowCount: rows.length };
+        });
       } catch (error: any) {
         failures.push({ route, code: error.code, message: error.message, position: error.position, sql, params });
         throw error;
-      } finally { await client.query('ROLLBACK'); client.release(); }
+      }
     };
     const raw = async (sql: string, ...params: any[]) => (await query(sql, params)).rows;
     const db: any = { query, $queryRawUnsafe: raw, executeWithTenant: async (_tenant: string, _user: string, cb: any) => cb(db), withTenant: async (_tenant: string, cb: any) => cb(db) };
@@ -83,6 +84,8 @@ async function main() {
       ['PrismaService', db], ['DatabaseService', db],
       ['RequestContextService', { getStore: () => context, requireStore: () => context }],
       ['ConfigService', { get: (_key: string, fallback: any) => fallback }],
+      // SQL coverage runs without an external Redis server or reconnect timers.
+      ['RedisService', { isDegraded: () => true }],
       ['PrincipalInsightsService', undefined],
     ]);
     const resolving = new Set();
@@ -95,6 +98,17 @@ async function main() {
       instances.set(Type.name, value); resolving.delete(Type.name); return value;
     };
     const directory = path.resolve('apps/api/src/modules/admin-command');
+    const { AdminCommandRepository } = require('../src/modules/admin-command/repositories/admin-command.repository');
+    const { PRINCIPAL_INSIGHT_PROVIDERS } = require('../src/modules/admin-command/principal-insights.providers');
+    const principalRepository = resolve(AdminCommandRepository);
+    const metricsPassed: string[] = [];
+    route = 'principal/dashboard/snapshot';
+    await principalRepository.getPrincipalOverviewSnapshot(fixture.tenantId);
+    for (const provider of PRINCIPAL_INSIGHT_PROVIDERS) {
+      route = `principal/dashboard/metrics/${provider.module_code}`;
+      try { await principalRepository.getPrincipalModuleMetrics(fixture.tenantId, provider.module_code); metricsPassed.push(route); }
+      catch (error: any) { unavailable.push({ route, message: error.message }); }
+    }
     for (const file of readdirSync(directory).filter(f => f.endsWith('.controller.ts'))) {
       for (const Type of Object.values(require(path.join(directory, file))) as any[]) {
         if (typeof Type !== 'function') continue;
@@ -124,11 +138,12 @@ async function main() {
     }
     assert.deepEqual(schemaFailures, [], 'All owning schema initializers must succeed');
     assert.deepEqual(failures, [], 'Dashboard GET SQL must execute against the deployed schema');
+    assert.equal(metricsPassed.length, PRINCIPAL_INSIGHT_PROVIDERS.length, 'Every enabled Principal insight provider must load');
     assert.ok(passed.length >= 282, 'Do not silently reduce the GET audit coverage');
     for (const failure of unavailable) {
       assert.match(failure.message, /not an active member|has not uploaded|has not been uploaded|active class-teacher appointment/, JSON.stringify(failure));
     }
-    console.log('PASSED', passed.length, 'SQL FAILURES', failures.length);
+    console.log('PASSED', passed.length, 'INSIGHT PROVIDERS', metricsPassed.length, 'SQL FAILURES', failures.length);
   } finally { await orm.$disconnect(); await pool.end(); }
 }
 test('dashboard GET contracts, legacy records, and tenant isolation', { timeout: 120_000 }, main);

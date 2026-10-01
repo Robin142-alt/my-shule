@@ -36,6 +36,7 @@ import { PermissionProvider } from "@/components/providers/permission-context";
 import { UserManagementWorkspace } from "@/components/school/user-management-workspace";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { DashboardCommunicationBoundary } from "@/lib/dashboard-communication/dashboard-communication-provider";
+import { connectDashboardEventSource } from "@/lib/dashboard-communication/reconnecting-event-source";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { OverviewWorkspace as BoardingOverviewWorkspace } from "./boarding-master/overview-workspace";
@@ -338,7 +339,7 @@ export function PrincipalCommandCenter({
     error: principalDashboardError,
   } = useSchoolQuery<PrincipalExecutiveDashboardSummary>(
     "/admin-command/principal/dashboard",
-    { tenantId: schoolId },
+    { tenantId: schoolId, enabled: activeWorkspace === "overview" },
   );
   const { data: principalSchoolProfile } = useSchoolQuery<PrincipalSchoolProfileSummary>(
     "/admin-command/principal/school-profile",
@@ -366,6 +367,21 @@ export function PrincipalCommandCenter({
   }, [activeSection]);
 
   useEffect(() => {
+    const restoreWorkspace = () => {
+      const pathname = window.location.pathname;
+      const prefix = routeMode === "public" ? "/school/principal" : "";
+      if (prefix && pathname !== prefix && !pathname.startsWith(`${prefix}/`)) return;
+      const section = pathname.slice(prefix.length).replace(/^\//, "") || "dashboard";
+      if (section.includes("/")) return;
+      defaultViewApplied.current = true;
+      setActiveWorkspaceState(normalizePrincipalSection(section));
+      setMobileSidebarOpen(false);
+    };
+    window.addEventListener("popstate", restoreWorkspace);
+    return () => window.removeEventListener("popstate", restoreWorkspace);
+  }, [routeMode]);
+
+  useEffect(() => {
     const shouldUseSavedDefault = activeSection === undefined || activeSection === "" || activeSection === "dashboard";
     if (!shouldUseSavedDefault || defaultViewApplied.current || !savedDefaultView) return;
     defaultViewApplied.current = true;
@@ -387,37 +403,24 @@ export function PrincipalCommandCenter({
   }, [savedTheme]);
 
   useEffect(() => {
-    if (typeof EventSource === "undefined") return undefined;
+    if (typeof EventSource === "undefined" || activeWorkspace !== "overview") return undefined;
 
-    const stream = new EventSource(
-      `/api/admin-command/principal/dashboard/stream?tenantSlug=${encodeURIComponent(schoolId)}`,
-      { withCredentials: true },
-    );
-    const applyPrincipalDashboardEvent = (event: Event) => {
-      const dashboard = parsePrincipalDashboardEvent(event);
-      if (!dashboard) {
-        setPrincipalDashboardStreamState({ schoolId, degraded: true });
-        return;
-      }
-
-      setStreamedPrincipalDashboard({ schoolId, dashboard });
-      setPrincipalDashboardStreamState({ schoolId, degraded: false });
-    };
-    const markPrincipalDashboardStreamDegraded = () => {
-      setPrincipalDashboardStreamState({ schoolId, degraded: true });
-    };
-
-    stream.addEventListener("principal.dashboard", applyPrincipalDashboardEvent);
-    stream.addEventListener("principal.error", markPrincipalDashboardStreamDegraded);
-    stream.onerror = markPrincipalDashboardStreamDegraded;
-
-    return () => {
-      stream.removeEventListener("principal.dashboard", applyPrincipalDashboardEvent);
-      stream.removeEventListener("principal.error", markPrincipalDashboardStreamDegraded);
-      stream.onerror = null;
-      stream.close();
-    };
-  }, [schoolId]);
+    return connectDashboardEventSource({
+      url: `/api/admin-command/principal/dashboard/stream?tenantSlug=${encodeURIComponent(schoolId)}`,
+      eventType: "principal.dashboard",
+      errorEventType: "principal.error",
+      onMessage: (event) => {
+        const dashboard = parsePrincipalDashboardEvent(event);
+        if (!dashboard) {
+          setPrincipalDashboardStreamState({ schoolId, degraded: true });
+          return false;
+        }
+        setStreamedPrincipalDashboard({ schoolId, dashboard });
+        return true;
+      },
+      onDegraded: (degraded) => setPrincipalDashboardStreamState({ schoolId, degraded }),
+    });
+  }, [schoolId, activeWorkspace]);
 
   const principalDashboard = streamedPrincipalDashboard?.schoolId === schoolId
     ? streamedPrincipalDashboard.dashboard
@@ -427,11 +430,11 @@ export function PrincipalCommandCenter({
     && principalDashboardStreamState.degraded
   ) || Boolean(principalDashboardError && !principalDashboard);
 
-  function setActiveWorkspace(section: PrincipalSection) {
+  function setActiveWorkspace(section: PrincipalSection, historyMode: "replaceState" | "pushState" = "replaceState") {
     defaultViewApplied.current = true;
     setActiveWorkspaceState(section);
     setMobileSidebarOpen(false);
-    window.history.replaceState(
+    window.history[historyMode](
       null,
       "",
       buildSchoolSectionHref("principal", sectionRoute(section), routeMode ?? "hosted"),
@@ -629,8 +632,13 @@ export function PrincipalCommandCenter({
                         {item.route ? (
                           <Link
                             href={buildSchoolSectionHref("principal", item.route, routeMode ?? "hosted")}
+                            prefetch={false}
                             aria-current={item.route === activeWorkspace ? "page" : undefined}
-                            onClick={() => setMobileSidebarOpen(false)}
+                            onClick={(event) => {
+                              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                              event.preventDefault();
+                              setActiveWorkspace(item.route!, "pushState");
+                            }}
                             className={principalNavItemClass(selected)}
                           >
                             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

@@ -119,6 +119,8 @@ export class LabsSchemaService implements OnModuleInit {
         CONSTRAINT ck_lab_sessions_time CHECK (end_time > start_time)
       );
 
+      ALTER TABLE lab_sessions ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'scheduled';
+
       CREATE TABLE IF NOT EXISTS lab_attendance (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
