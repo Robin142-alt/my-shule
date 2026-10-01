@@ -180,7 +180,7 @@ test("principal reviews the exact destination and an explicit reason before appr
   jest
     .mocked(api.decideCollectionChannel)
     .mockResolvedValue({ ...revision, status: "approved" });
-  render(<SchoolPaymentChannels mode="review" />);
+  render(<SchoolPaymentChannels mode="review" pendingOnly />);
   fireEvent.click(screen.getByRole("button", { name: "Review request" }));
   expect(screen.getAllByText("01234567")).toHaveLength(2);
   expect(
@@ -199,6 +199,29 @@ test("principal reviews the exact destination and an explicit reason before appr
       "Verified against school bank records",
     ),
   );
+  await waitFor(() => expect(screen.queryByText("Fees account")).not.toBeInTheDocument());
+  expect(screen.queryByText("Awaiting Super Admin")).not.toBeInTheDocument();
+});
+
+test("principal rejection removes the request from the approval queue", async () => {
+  jest
+    .mocked(api.decideCollectionChannel)
+    .mockResolvedValue({ ...revision, status: "rejected" });
+  render(<SchoolPaymentChannels mode="review" pendingOnly />);
+  fireEvent.click(screen.getByRole("button", { name: "Review request" }));
+  fireEvent.change(screen.getByLabelText("Decision reason"), {
+    target: { value: "Account details need correction" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Reject request" }));
+  await waitFor(() =>
+    expect(api.decideCollectionChannel).toHaveBeenCalledWith(
+      "school-a",
+      "revision-a",
+      "reject",
+      "Account details need correction",
+    ),
+  );
+  await waitFor(() => expect(screen.queryByText("Fees account")).not.toBeInTheDocument());
 });
 
 test("failed requests remain visible and never show a successful approval", async () => {
