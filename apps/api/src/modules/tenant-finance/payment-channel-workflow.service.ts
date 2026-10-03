@@ -297,13 +297,15 @@ export class PaymentChannelWorkflowService {
         if (dto.connection_mode === "daraja") {
           for (const field of provider.credential_fields) {
             const value = dto.credentials[field.key];
+            if (value === undefined && !field.required) continue;
             if (
               typeof value !== "string" ||
-              !value.trim() ||
               value.length > 8192 ||
-              value.startsWith("enc:")
+              value.trim().startsWith("enc:") ||
+              (field.required && !value.trim())
             )
               throw new BadRequestException(`Provide ${field.label}`);
+            if (!value.trim()) continue;
             credentials[field.key] = value.trim();
           }
           credentials._callback_token = randomBytes(32).toString('hex');
@@ -424,7 +426,7 @@ export class PaymentChannelWorkflowService {
       this.db.withRequestTransaction(async () => {
         // Per-school lock orders replacement/config changes without serializing other schools.
         await this.db.query(
-          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text",
           [`payment-setup:${tenantId}`],
         );
         const revision = await this.requireRevision(tenantId, id, true);

@@ -278,6 +278,46 @@ test("statement setup asks no credentials and cannot activate an untested channe
   ).not.toBeInTheDocument();
 });
 
+test.each(['sandbox', 'production'])("Super Admin saves %s C2B automatic collections without an STK passkey", async (environment) => {
+  const safaricom: api.CollectionProvider = {
+    ...provider, code: 'safaricom', name: 'Safaricom M-PESA', channel_kinds: ['mpesa_paybill'], connection_modes: ['daraja'],
+    credential_fields: [
+      { key: 'consumer_key', label: 'Daraja consumer key', required: true, secret: true },
+      { key: 'consumer_secret', label: 'Daraja consumer secret', required: true, secret: true },
+      { key: 'passkey', label: 'Lipa na M-PESA passkey', required: false, secret: true,
+        description: 'Required only for M-PESA Express (STK prompts). Leave blank for C2B Paybill automatic collections.' },
+      { key: 'initiator_name', label: 'Transaction status initiator', required: true, secret: false },
+      { key: 'security_credential', label: 'Transaction status security credential', required: true, secret: true },
+    ],
+  };
+  const channel = { ...revision, provider_code: 'safaricom', channel_kind: 'mpesa_paybill', status: 'approved' };
+  jest.mocked(api.listIntegrationProviders).mockResolvedValue([safaricom]);
+  jest.mocked(api.listPaymentIntegrations).mockResolvedValue([channel]);
+  jest.mocked(api.connectPaymentIntegration).mockResolvedValue({ ...channel, status: 'connecting' });
+  render(<PaymentGatewaysWorkspace />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Connect channel' }));
+  fireEvent.change(screen.getByLabelText('Environment'), { target: { value: environment } });
+  const passkey = screen.getByLabelText(/Lipa na M-PESA passkey/);
+  expect(passkey).not.toBeRequired();
+  expect(passkey).toHaveAttribute('type', 'password');
+  expect(passkey).toHaveAccessibleDescription(/Required only for M-PESA Express/);
+  for (const field of safaricom.credential_fields.filter(field => field.required)) {
+    const input = screen.getByLabelText(field.label);
+    expect(input).toBeRequired();
+    fireEvent.change(input, { target: { value: `school-${field.key}` } });
+  }
+  const form = passkey.closest('form')!;
+  expect(form.checkValidity()).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Save connection' }));
+  await waitFor(() => expect(api.connectPaymentIntegration).toHaveBeenCalledWith(channel, expect.objectContaining({
+    connection_mode: 'daraja', environment, credentials: {
+      consumer_key: 'school-consumer_key', consumer_secret: 'school-consumer_secret',
+      initiator_name: 'school-initiator_name', security_credential: 'school-security_credential',
+    },
+  })));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
 test('sandbox channel reveals canonical callbacks only on request and exposes the isolated simulator',async()=>{
   jest.mocked(api.listPaymentIntegrations).mockResolvedValue([{...revision,provider_code:'safaricom',connection_mode:'daraja',environment:'sandbox',status:'active',credentials_configured:true}]);
   jest.mocked(api.getIntegrationCallbacks).mockResolvedValue({confirmation_url:'https://example.org/payments/ingress/secret/confirmation',validation_url:'https://example.org/payments/ingress/secret/validation',environment:'sandbox',trust_mode:'daraja_direct'});

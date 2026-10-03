@@ -453,10 +453,12 @@ export class TenantFinanceConfigRepository {
           input.consumer_secret,
           this.mpesaSecretAad(input.tenant_id, input.shortcode, 'consumer_secret'),
         ),
-        this.piiEncryptionService.encrypt(
+        // An absent STK secret is an empty value in the existing NOT NULL
+        // column. Never encrypt it as an empty (unreadable) ciphertext.
+        input.passkey ? this.piiEncryptionService.encrypt(
           input.passkey,
           this.mpesaSecretAad(input.tenant_id, input.shortcode, 'passkey'),
-        ),
+        ) : '',
         input.initiator_name,
         input.environment,
         input.callback_url,
@@ -557,10 +559,10 @@ export class TenantFinanceConfigRepository {
           input.consumer_secret,
           this.mpesaSecretAad(input.tenant_id, input.shortcode, 'consumer_secret'),
         ),
-        this.piiEncryptionService.encrypt(
+        input.passkey ? this.piiEncryptionService.encrypt(
           input.passkey,
           this.mpesaSecretAad(input.tenant_id, input.shortcode, 'passkey'),
-        ),
+        ) : '',
         input.callback_secret_hash,
         input.initiator_name,
       ],

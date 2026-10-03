@@ -9,10 +9,26 @@ import { sanitizeRequestPath, isPaymentIngressCallback } from '../../../common/r
 test('canonical callbacks preserve exact public prefix and reject unsafe configuration',()=>{
   const config=new PaymentIngressConfigService({get:()=> 'https://pay.myshule.online/api/payments/ingress'} as never);
   const result=config.urls({id:'revision',tenant_id:'school-a',provider_code:'safaricom',environment:'sandbox'},'a'.repeat(64));
-  assert.equal(result.confirmation_url,`https://pay.myshule.online/api/payments/ingress/safaricom/sandbox/school-a/revision/${'a'.repeat(64)}/confirmation`);
+  assert.equal(result.confirmation_url,`https://pay.myshule.online/api/payments/ingress/c2b/sandbox/7363686f6f6c2d61/revision/${'a'.repeat(64)}/confirmation`);
   for(const value of ['http://pay.myshule.online/payments/ingress','https://127.0.0.1/payments/ingress','https://pay.myshule.online/payments/ingress?x=1','https://pay.myshule.online/callback']) assert.throws(()=>canonicalPaymentBase(value));
   assert(!sanitizeRequestPath(result.confirmation_url).includes('a'.repeat(64)));
   assert(isPaymentIngressCallback('POST',new URL(result.confirmation_url).pathname));assert(!isPaymentIngressCallback('GET','/payments/ingress'));
+});
+test('Daraja URLs encode school names and reject blocked host/path terms and URL testers',()=>{
+  const revision={id:'12345678-1234-4123-8123-123456789abc',tenant_id:'mpesa-safaricom-school',provider_code:'safaricom',environment:'sandbox'} as const;
+  const config=new PaymentIngressConfigService({get:()=> 'https://pay.myshule.online/payments/ingress'} as never);
+  const urls={...config.urls(revision,'a'.repeat(64)),result:config.resultUrl(revision.tenant_id,revision.id,'b'.repeat(64),'result')};
+  for(const url of Object.values(urls)) {
+    assert.doesNotMatch(url,/safaricom|m[-_]?pesa|exec?|cmd|sql|query/i);
+    assert(isPaymentIngressCallback('POST',new URL(url).pathname));
+    assert(!sanitizeRequestPath(url).includes('a'.repeat(64)));
+    assert(!sanitizeRequestPath(url).includes('b'.repeat(64)));
+  }
+  for(const base of ['https://mpesa.example.com','https://safaricom.example.com','https://pay.example.com/SQL','https://pay.example.com/exec','https://pay.ngrok-free.app','https://mockbin.org','https://requestbin.com']) {
+    const invalid=new PaymentIngressConfigService({get:()=> `${base}/payments/ingress`} as never);
+    assert.throws(()=>invalid.urls(revision,'a'.repeat(64)),/callback.*address|callback.*URL/i);
+  }
+  assert.equal(config.stkUrl(revision as never,'a'.repeat(64)),`https://pay.myshule.online/payments/mpesa/callback/mpesa-safaricom-school/${revision.id}/${'a'.repeat(64)}`);
 });
 test('direct channel works without invented provider HMAC; gateway channel requires valid HMAC',()=>{
   const signature=new MpesaSignatureService({get:(key:string)=>key==='mpesa.callbackSecret'?'test-secret':300} as never);

@@ -65,7 +65,7 @@ export class PaymentIngressService {
       if (validation) return accepted;
       const hash = createHash('sha256').update(JSON.stringify(payment)).digest('hex');
       await this.db.withRequestTransaction(async () => {
-        await this.db.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+        await this.db.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`,
           [`ingress:${route.environment}:${route.provider}:${payment.destination_account}:${payment.provider_transaction_id}`]);
         const inserted = await this.db.query<IngressPayment>(
           `INSERT INTO payment_ingress(tenant_id,revision_id,provider_code,environment,provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,payload_hash)

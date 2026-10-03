@@ -312,14 +312,18 @@ export class TenantFinanceConfigService {
       this.repository.findActivePaymentChannelForMpesaConfig(tenantId, mpesaConfig.id),
     ]);
     const channelMetadata = paymentChannel?.metadata ?? {};
+    // Older STK setups have a passkey without a capability flag. C2B-only
+    // channels need no passkey unless STK has explicitly been enabled.
+    const stkEnabled = channelMetadata.stk_enabled === true ||
+      (channelMetadata.stk_enabled !== false && this.hasText(mpesaConfig.passkey));
     const checks = [
       this.goLiveCheck(
         'credentials_present',
         'Credentials present',
         this.hasText(mpesaConfig.consumer_key) &&
           this.hasText(mpesaConfig.consumer_secret) &&
-          this.hasText(mpesaConfig.passkey),
-        'Consumer key, consumer secret, and passkey must be present before go-live.',
+          (!stkEnabled || this.hasText(mpesaConfig.passkey)),
+        'Consumer key and consumer secret are required. A passkey is also required for M-PESA Express (STK).',
       ),
       this.goLiveCheck(
         'shortcode_approved',
@@ -330,9 +334,9 @@ export class TenantFinanceConfigService {
       ),
       this.goLiveCheck(
         'stk_enabled',
-        'STK enabled where required',
-        channelMetadata.stk_enabled !== false,
-        'STK must be enabled where the school accepts STK payments.',
+        stkEnabled ? 'M-PESA Express (STK) passkey configured' : 'C2B collections — STK passkey not required',
+        !stkEnabled || this.hasText(mpesaConfig.passkey),
+        'A Lipa na M-PESA passkey is required when M-PESA Express (STK) is enabled.',
       ),
       this.goLiveCheck(
         'callback_https',
@@ -342,7 +346,7 @@ export class TenantFinanceConfigService {
       ),
       this.goLiveCheck(
         'callback_registered',
-        'C2B and STK callbacks registered',
+        'C2B callbacks registered',
         channelMetadata.c2b_confirmation_url_registered === true &&
           channelMetadata.c2b_validation_url_registered === true,
         'Safaricom C2B validation and confirmation URLs must be registered.',
@@ -396,7 +400,7 @@ export class TenantFinanceConfigService {
       till_number?: string | null;
       consumer_key: string;
       consumer_secret: string;
-      passkey: string;
+      passkey?: string;
       initiator_name?: string | null;
       environment: 'sandbox' | 'production';
       callback_url: string;
@@ -416,7 +420,7 @@ export class TenantFinanceConfigService {
       till_number: input.till_number ?? null,
       consumer_key: input.consumer_key,
       consumer_secret: input.consumer_secret,
-      passkey: input.passkey,
+      passkey: input.passkey?.trim() || '',
       initiator_name: input.initiator_name ?? null,
       environment: input.environment,
       callback_url: input.callback_url,

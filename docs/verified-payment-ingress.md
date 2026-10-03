@@ -17,11 +17,17 @@ PAYMENT_CALLBACK_BASE_URL=https://my-shule-api-production.up.railway.app/payment
 The base is explicit; a proxy prefix is preserved exactly. Never derive it from a browser origin or remove `/api` heuristically. For each approved revision the application generates a random encrypted 256-bit callback token. Super Admin → School payment integrations → **Callback URLs** displays the exact values; **Check connection** registers those same values. Do not guess a shared global URL or put a real token in documentation/logs.
 
 ```text
-POST {base}/safaricom/{sandbox|production}/{school}/{revision}/{token}/confirmation
-POST {base}/safaricom/{sandbox|production}/{school}/{revision}/{token}/validation
-POST {base}/verification/{school}/{request-id}/{one-time-token}/result
-POST {base}/verification/{school}/{request-id}/{one-time-token}/timeout
+POST {base}/c2b/{sandbox|production}/{school-hex}/{revision}/{token}/confirmation
+POST {base}/c2b/{sandbox|production}/{school-hex}/{revision}/{token}/validation
+POST {base}/check/{school-hex}/{request-id}/{one-time-token}/result
+POST {base}/check/{school-hex}/{request-id}/{one-time-token}/timeout
 ```
+
+Audited against [Daraja C2B documentation](https://developer.safaricom.co.ke/apis/CustomerToBusiness) on 2026-10-01: registration uses `/mpesa/c2b/v2/registerurl` on the fixed sandbox or production host. Callback URLs use HTTPS, a public domain, and no credentials, query or fragment. Safaricom rejects URLs containing terms such as `safaricom`, `mpesa`, `exe`, `exec`, `cmd`, `sql` or `query`, including variants, and public URL testers. Generation validates the entire URL before contacting Daraja. The school slug is UTF-8 hex, decoded only at the callback boundary; stored school, environment, revision and constant-time capability checks remain unchanged. Previously registered `/safaricom/...` and `/verification/...` routes remain supported. STK callback routes are unchanged.
+
+Failed checks retain bounded `ResponseCode`/`ResponseDescription` (or Daraja `errorCode`/`errorMessage`) and HTTP status in the existing dashboard follow-up workflow. Credentials, authorization values and callback URLs/tokens are redacted before persistence, audit or notification. Sandbox registrations may be overwritten by an explicit check. Production URLs already registered may require the school's authorized operator to remove them through Daraja Self Services URL Management before re-registering; MyShule never deletes them automatically.
+
+Live sandbox registration on 2026-10-01 returned HTTP 200 with `ResponseCode=00000000` and `ResponseDescription=Success`. Registration accepts this zero-padded success code as well as `0`; nonzero codes, malformed values and non-success HTTP responses still fail closed.
 
 The channel requires Consumer Key, Consumer Secret, school Paybill, status Initiator and environment-specific encrypted SecurityCredential. The existing STK channel also requires its Lipa na M-PESA passkey. Obtain all from the school's authorized Daraja application; do not substitute global platform credentials. Global `MPESA_*` settings remain for explicitly platform-owned billing/historical gateway callbacks, not new school C2B registrations. Existing legacy mutation endpoints remain denied.
 
@@ -41,6 +47,10 @@ Safaricom requirements remain external: C2B and status API entitlement, correct 
 
 ## First sandbox test
 
+For Daraja automatic C2B collections in either sandbox or production, Super Admin supplies the consumer key, consumer secret, transaction-status initiator and security credential. **Lipa na M-PESA passkey is optional for C2B.** Supply it when the school uses M-PESA Express (STK prompts); STK initiation and status queries require it. Existing STK configurations keep their passkey and password generation behavior. Saving without a passkey does not bypass Principal approval, connection testing, callback registration or provider transaction verification.
+
+An absent passkey is stored as an empty value in the existing finance configuration column; supplied passkeys remain encrypted. No schema migration is required. Blank optional passkeys are omitted from the encrypted revision credentials, and configuration reads and credential rotation support C2B-only setups.
+
 1. Accountant requests a **separate sandbox Paybill setup**, Principal approves, Super Admin connects it with the Daraja sandbox credentials and `daraja_direct`.
 2. Check connection, inspect the exact Callback URLs, then activate the sandbox channel. Do not replace a production revision with a sandbox revision.
 3. Choose **Simulate sandbox payment**, enter an existing school invoice/admission reference, KES 1 and the Daraja test MSISDN assigned to the application.
@@ -49,6 +59,8 @@ Safaricom requirements remain external: C2B and status API entitlement, correct 
 6. Repeat delivery of the same receipt in a disposable integration test and verify one inbox record. Use the disposable PostgreSQL regression suite for full accounting/portal balance and duplicate-credit tests. A real production canary requires an approved school's own production credentials and an explicitly authorized small payment; confirm one receipt and the corresponding fee balance change, then replay only the callback and confirm no second credit.
 
 ## Deployment and recovery
+
+Activation, callback intake and collection posting retain their transaction-scoped advisory locks and cast the unused lock result to text for Prisma compatibility. Setup and ingress regressions run through the production Prisma adapter with restricted database roles. Prisma connections use UTC sessions so the adapter preserves payment instants even when PostgreSQL defaults to Africa/Nairobi; the school UI still displays local time. This avoids the adapter's documented [non-UTC timestamptz issue](https://github.com/prisma/prisma/issues/26786).
 
 Deploy the same release to API, payments worker (`node dist/apps/api/src/payments-worker.js`) and web. The worker needs the same database, Redis and encryption configuration as the API; secrets should use Railway service-variable references. The existing schema bootstrap adds inbox/verification/test tables with forced RLS and replaces active-destination uniqueness with separate production and tenant-scoped sandbox indexes. It does not change existing accounting table history.
 

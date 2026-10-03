@@ -66,6 +66,9 @@ export class MpesaTransactionStatusService {
     const mpesaConfig = intent?.payment_owner === 'platform'
       ? this.tenantFinanceConfigService.resolvePlatformMpesaConfig(input.tenant_id)
       : await this.tenantFinanceConfigService.resolveMpesaConfigForTenant(input.tenant_id,intent?.mpesa_config_id ?? undefined);
+    if (!mpesaConfig.passkey?.trim()) {
+      throw new BadRequestException('M-PESA Express (STK) status verification requires a Lipa na M-PESA passkey.');
+    }
     const accessToken = await this.getAccessToken(mpesaConfig);
     const timestamp = this.buildNairobiTimestamp();
     const response = await fetch(
