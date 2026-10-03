@@ -452,7 +452,7 @@ describe("principal production readiness", () => {
     const { unmount } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
     const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
     const href = "/school/principal/students";
-    const toggle = within(sidebar).getByRole("button", { name: "Students", exact: true });
+    const toggle = within(sidebar).getByRole("button", { name: "Students" });
     toggle.focus();
     await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -513,7 +513,7 @@ describe("principal production readiness", () => {
     expect(window.location.pathname).toBe("/school/principal/students");
     expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
     const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
-    expect(within(sidebar).getByRole("button", { name: "Students", exact: true })).toHaveAttribute("aria-expanded", "true");
+    expect(within(sidebar).getByRole("button", { name: "Students" })).toHaveAttribute("aria-expanded", "true");
     await user.click(within(sidebar).getByRole("button", { name: "Attendance" }));
     expect(window.location.pathname).toBe("/school/principal/attendance-monitoring");
     expect(await screen.findByRole("heading", { name: "Weekly Attendance Rate" })).toBeVisible();
@@ -529,8 +529,8 @@ describe("principal production readiness", () => {
     const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
     await user.click(screen.getByRole("button", { name: "Open principal navigation" }));
     for (const label of ["Students", "School Setup"]) {
-      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Expand ${label}`, exact: true }));
-      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Collapse ${label}`, exact: true }));
+      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Expand ${label}` }));
+      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Collapse ${label}` }));
       expect(window.location.pathname).toBe("/school/principal");
       expect(screen.getByRole("button", { name: "Close principal navigation overlay" })).toBeInTheDocument();
     }
