@@ -1,3 +1,4 @@
+import { STAFF_APPOINTMENT_CATALOG, MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from "../../../api/src/auth/staff-appointment-catalog";
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AcademicFoundationWorkspace } from '@/components/school/academic-foundation-workspace';
@@ -12,7 +13,7 @@ const foundation = {
   years: [], terms: [], calendarPeriods: [], classes: [], streams: [], departments: [], teachers: [],
   subjects: [{ id: 'math', name: 'Mathematics', status: 'active' }],
   hosStaff: [{ user_id: 'librarian', label: 'Alex', role_code: 'librarian' }],
-  classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [],
+  classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], appointmentRoles: STAFF_APPOINTMENT_CATALOG.map(role => ({ ...role, multipleHolders: MULTI_HOLDER_STAFF_APPOINTMENT_CODES.includes(role.code) })),
   curriculumConfigurations: [], gradingSystems: [], attendanceSettings: [], reportCardSettings: [],
 };
 const refetch = jest.fn().mockResolvedValue({ data: foundation });
@@ -22,24 +23,24 @@ beforeEach(() => {
 });
 const renderSetup = () => render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Test School" tenantId="school-a" initialTab="subjects" />);
 
-it('offers existing academic dashboards, omits obsolete coordinators and appoints existing non-teaching staff', async () => {
+it('offers all existing school staff dashboards, omits obsolete coordinators and appoints existing non-teaching staff', async () => {
   const user = userEvent.setup();
   (requestDashboardApi as jest.Mock).mockResolvedValue({ appointment: { id: 'saved' } });
   render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Test School" tenantId="school-a" initialTab="roles-curriculum" />);
   const role = screen.getByRole('combobox', { name: 'Role' });
-  for (const label of ['Class Teacher', 'Assistant Class Teacher', 'Head of Department (HOD)', 'Dean of Academics', 'Exams Manager', 'Timetable Coordinator']) {
-    expect(within(role).getByRole('option', { name: label })).toBeInTheDocument();
-  }
+  expect(within(role).getAllByRole('option').map(option => option.textContent).slice(1))
+    .toEqual(STAFF_APPOINTMENT_CATALOG.map(role => role.label));
   for (const label of ['Subject Coordinator', 'Curriculum Coordinator', 'Academic Year Coordinator']) {
     expect(within(role).queryByRole('option', { name: label })).not.toBeInTheDocument();
   }
-  await user.selectOptions(role, 'timetable_coordinator');
+  await user.selectOptions(role, 'librarian');
+  expect(screen.getByText(/Other holders keep their access/)).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText('Staff member'), 'librarian');
   await user.type(screen.getByLabelText('Reason', { exact: true }), 'Coordinate this term');
   expect(screen.getByLabelText('Department scope')).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Save role appointment' }));
   await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith('/academics/academic-roles', {
-    method: 'POST', tenantId: 'school-a', body: expect.objectContaining({ role_type: 'timetable_coordinator', teacher_user_id: 'librarian' }),
+    method: 'POST', tenantId: 'school-a', body: expect.objectContaining({ role_type: 'librarian', teacher_user_id: 'librarian' }),
   }));
   await waitFor(() => expect(toast.success).toHaveBeenCalled());
 });
@@ -100,4 +101,16 @@ it('uses keyboard arrows for area navigation and offers retry without reporting 
   await user.keyboard('{ArrowDown}');
   expect(screen.getByRole('tab', { name: 'Teacher Allocations' })).toHaveFocus();
   expect(screen.getByRole('tabpanel', { name: 'Teacher Allocations' })).toBeInTheDocument();
+});
+
+it('shows protected roles with a clear permission reason and prevents submitting them', async () => {
+  const user = userEvent.setup();
+  (useSchoolQuery as jest.Mock).mockReturnValue({ data: { ...foundation, appointmentRoles: [
+    { code: 'principal', label: 'Principal', unavailableReason: 'A Principal or school administrator must manage this leadership appointment.' },
+  ] }, isLoading: false, error: null, refetch });
+  render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Test School" tenantId="school-a" initialTab="roles-curriculum" />);
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Role' }), 'principal');
+  expect(screen.getByRole('alert')).toHaveTextContent('A Principal or school administrator');
+  expect(screen.getByRole('button', { name: 'Save role appointment' })).toBeDisabled();
+  expect(requestDashboardApi).not.toHaveBeenCalled();
 });

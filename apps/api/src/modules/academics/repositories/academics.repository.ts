@@ -1,3 +1,4 @@
+import { MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from '../../../auth/staff-appointment-catalog';
 import { updateStudentCohortPosition, updateStudentCohortSubjects } from '../cohort-enrollment';
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -2322,9 +2323,10 @@ export class AcademicsRepository {
         input.stream_id ?? null,
         input.subject_id ?? null,
       ];
+      const perStaffMember = MULTI_HOLDER_STAFF_APPOINTMENT_CODES.includes(String(input.role_type));
       // Serialize initial assignment as well as replacement, including when no row exists yet.
       await this.executeSqlTx(tx, 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text',
-        [JSON.stringify(['academic-role', tenantId, input.role_type, ...scopeValues])]);
+        [JSON.stringify(['academic-role', tenantId, input.role_type, ...scopeValues, perStaffMember ? input.teacher_user_id : null])]);
       const finish = async (result: { previous: any; appointment: any; changed_holder: boolean }) => {
         if (governance) await governance(tx, result);
         return result;
@@ -2337,8 +2339,9 @@ export class AcademicsRepository {
           AND class_section_id IS NOT DISTINCT FROM $5::text
           AND stream_id IS NOT DISTINCT FROM $6::text
           AND subject_id IS NOT DISTINCT FROM $7::text
+          AND ($8::uuid IS NULL OR teacher_user_id = $8::uuid)
         FOR UPDATE
-      `, [tenantId, input.role_type, ...scopeValues]);
+      `, [tenantId, input.role_type, ...scopeValues, perStaffMember ? input.teacher_user_id : null]);
       const previous = existing.rows[0] ?? null;
 
       if (previous && String(previous.teacher_user_id) === String(input.teacher_user_id)) {

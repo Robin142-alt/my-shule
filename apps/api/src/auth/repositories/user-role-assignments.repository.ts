@@ -1,3 +1,4 @@
+import { STAFF_APPOINTMENT_CODES } from '../staff-appointment-catalog';
 import { Injectable } from '@nestjs/common';
 
 import { DatabaseService } from '../../database/database.service';
@@ -80,6 +81,7 @@ export class UserRoleAssignmentsRepository {
           WHEN appointment.role_type IN ('head_of_department', 'hod') THEN 'hod'
           WHEN appointment.role_type = 'exams_manager' THEN 'exams_manager'
           WHEN appointment.role_type = 'timetable_coordinator' THEN 'teacher'
+          WHEN appointment.role_type = ANY($3::text[]) THEN appointment.role_type
         END
         INNER JOIN tenant_memberships membership
           ON membership.tenant_id = appointment.tenant_id AND membership.user_id = appointment.teacher_user_id
@@ -117,7 +119,7 @@ export class UserRoleAssignmentsRepository {
           AND department.is_active = TRUE AND department.status = 'active' AND department.archived_at IS NULL` : ''}
         ORDER BY role_code, assignment_id
       `,
-      [tenantId, userId],
+      [tenantId, userId, STAFF_APPOINTMENT_CODES],
     );
 
     return [...result.rows, ...appointments.rows];

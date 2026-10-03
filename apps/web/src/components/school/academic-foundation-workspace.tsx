@@ -115,6 +115,7 @@ type AcademicFoundationResponse = {
   gradingSystems: PolicySetting[];
   attendanceSettings: PolicySetting[];
   reportCardSettings: PolicySetting[];
+  appointmentRoles?: Array<{ code: string; label: string; multipleHolders?: boolean; unavailableReason?: string | null }>;
   roleAppointments: AcademicRoleAppointment[];
   curriculumConfigurations: CurriculumConfiguration[];
 };
@@ -352,6 +353,8 @@ export function AcademicFoundationWorkspace({
   const attendanceSettings = foundationQuery.data?.attendanceSettings ?? [];
   const reportCardSettings = foundationQuery.data?.reportCardSettings ?? [];
   const roleAppointments = foundationQuery.data?.roleAppointments ?? [];
+  const appointmentRoles = foundationQuery.data?.appointmentRoles ?? [];
+  const selectedAppointmentRole = appointmentRoles.find(role => role.code === appointmentRole);
   const curriculumConfigurations = foundationQuery.data?.curriculumConfigurations ?? [];
   const activeYears = years.filter(isActive);
   const activeTerms = terms.filter(isActive);
@@ -666,7 +669,7 @@ export function AcademicFoundationWorkspace({
       stream_id: value(data, "stream_id") || undefined,
       appointment_type: value(data, "appointment_type") || "permanent",
       reason: value(data, "reason"),
-    }, "Academic role assigned with appointment history preserved.", form);
+    }, "Staff role assigned with appointment history preserved.", form);
   };
 
   const handleCreateCurriculumConfiguration = (event: FormEvent<HTMLFormElement>) => {
@@ -704,7 +707,7 @@ export function AcademicFoundationWorkspace({
     classes: ["Create class, form, or grade", "Create stream", "Configured classes and streams"],
     subjects: ["Create department", "Create subject or learning area", "Assign or change HOD", "Assign or change HOS", "Assign subjects to cohort", "Departments", "Subjects and learning areas", "Cohort subject offerings"],
     allocations: ["Assign class teacher", "Assign subject teacher", "Class teachers", "Subject teachers"],
-    "roles-curriculum": ["Assign academic leadership role", "Create curriculum configuration", "Academic role appointments", "Curriculum configurations"],
+    "roles-curriculum": ["Assign school staff role", "Create curriculum configuration", "School staff appointments", "Curriculum configurations"],
     policies: [],
   };
 
@@ -1115,9 +1118,12 @@ export function AcademicFoundationWorkspace({
       {!isLoading && activeTab === "roles-curriculum" ? (
         <div role="tabpanel" id={`foundation-panel-${activeTab}`} aria-label={currentArea.label} className="min-w-0 space-y-4">
           <div className="grid items-start gap-4 2xl:grid-cols-2">
-            <SetupForm title="Assign academic leadership role" description="Appoint existing staff to an additional responsibility. Their dashboard switcher and access update automatically, while Teacher access is retained. Timetable Coordinator opens Timetable & Relief within Teacher. Reassignment preserves history.">
+            <SetupForm title="Assign school staff role" description="Appoint existing staff to an additional responsibility. Their dashboard switcher and access update automatically, while Teacher access is retained. Timetable Coordinator opens Timetable & Relief within Teacher. Several staff members can hold the same staff role. Scoped academic posts retain their reassignment history.">
               <form onSubmit={handleAssignAcademicRole} className="grid gap-3 sm:grid-cols-2">
-                <label className="sm:col-span-2 text-sm font-bold">Role<select name="role_type" required value={appointmentRole} onChange={(event) => setAppointmentRole(event.target.value)} className={fieldClass}><option value="">Select academic role</option><option value="class_teacher">Class Teacher</option><option value="head_of_department">Head of Department (HOD)</option><option value="assistant_class_teacher">Assistant Class Teacher</option><option value="grade_master">Grade Master</option><option value="form_master">Form Master</option><option value="dean_of_academics">Dean of Academics</option><option value="exams_manager">Exams Manager</option><option value="head_of_subject">Head of Subject (HOS)</option><option value="timetable_coordinator">Timetable Coordinator</option></select></label>
+                <label className="sm:col-span-2 text-sm font-bold">Role<select name="role_type" required value={appointmentRole} onChange={(event) => setAppointmentRole(event.target.value)} className={fieldClass}><option value="">Select school staff role</option>{appointmentRoles.map(role => <option key={role.code} value={role.code}>{role.label}</option>)}</select></label>
+                {!appointmentRoles.length && !foundationQuery.isLoading ? <p role="alert" className="sm:col-span-2 text-sm text-amber-200">Staff roles could not be loaded. Refresh the workspace to try again.</p> : null}
+                {selectedAppointmentRole?.unavailableReason ? <p role="alert" className="sm:col-span-2 text-sm text-amber-200">{selectedAppointmentRole.unavailableReason}</p> : null}
+                {selectedAppointmentRole ? <p className="sm:col-span-2 text-sm text-white/60">{selectedAppointmentRole.multipleHolders ? "This adds the responsibility to the selected staff member. Other holders keep their access." : "Assigning another holder to this academic scope ends the previous appointment and preserves its history."}</p> : null}
                 <label className="sm:col-span-2 text-sm font-bold">Staff member<select name="teacher_user_id" required defaultValue="" className={fieldClass}><option value="">Select active staff member</option>{hosStaff.map((teacher) => <option key={teacher.value} value={teacher.value}>{teacher.label}</option>)}</select></label>
                 <label className="text-sm font-bold">Subject scope (required for HOS)<select name="subject_id" defaultValue="" disabled={!["head_of_subject"].includes(appointmentRole)} required={["head_of_subject"].includes(appointmentRole)} className={fieldClass}><option value="">Select subject</option>{activeSubjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 <label className="text-sm font-bold">Department scope<select name="department_id" defaultValue="" disabled={!["head_of_department"].includes(appointmentRole)} required={["head_of_department"].includes(appointmentRole)} className={fieldClass}><option value="">Whole school / not applicable</option>{activeDepartments.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -1127,7 +1133,7 @@ export function AcademicFoundationWorkspace({
                 <label className="text-sm font-bold">Appointment type<select name="appointment_type" defaultValue="permanent" className={fieldClass}><option value="permanent">Permanent</option><option value="acting">Acting</option><option value="temporary">Temporary</option></select></label>
 
                 <label className="text-sm font-bold">Reason<input name="reason" required minLength={3} className={fieldClass} placeholder="Appointment or transfer reason" /></label>
-                <button className={`${primaryButtonClass} sm:col-span-2`} disabled={busyAction !== null || !canAssignHos || hosStaff.length === 0}>{busyAction === "academic-role" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save role appointment</button>
+                <button className={`${primaryButtonClass} sm:col-span-2`} disabled={busyAction !== null || !canAssignHos || hosStaff.length === 0 || !selectedAppointmentRole || Boolean(selectedAppointmentRole.unavailableReason)}>{busyAction === "academic-role" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save role appointment</button>
               </form>
             </SetupForm>
             <SetupForm title="Create curriculum configuration" description="Choose the school curriculum, levels, pathways, assessment approach, and promotion defaults without technical configuration fields.">
@@ -1144,8 +1150,8 @@ export function AcademicFoundationWorkspace({
             </SetupForm>
           </div>
           <div className="grid items-start gap-4 2xl:grid-cols-2">
-            <SetupForm title="Academic role appointments" description="Active appointments and retained appointment history.">
-              {(showArchived ? roleAppointments : activeRoleAppointments).length === 0 ? <EmptyState>No matching academic role appointments. Assign the first role above.</EmptyState> : <div className="space-y-2">{(showArchived ? roleAppointments : activeRoleAppointments).map((appointment) => <div key={appointment.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black capitalize">{appointment.role_type.replaceAll("_", " ")} - {appointment.teacher_name || labels.teachers.get(appointment.teacher_user_id) || "Staff member"}</p><p className="text-xs font-semibold text-white/55">{appointment.subject_id ? subjects.find(subject => subject.id === appointment.subject_id)?.name || "Assigned subject" : appointment.department_id ? labels.departments.get(appointment.department_id) : appointment.class_section_id ? labels.classes.get(appointment.class_section_id) : appointment.stream_id ? labels.streams.get(appointment.stream_id) : "Whole-school scope"} - {appointment.appointment_type || "permanent"} - {statusLabel(appointment)}</p><p className="text-xs font-semibold text-white/45">{appointment.reason}</p></div>{isActive(appointment) ? <AcademicAssignmentEndButton assignmentType="academic-role" assignmentId={appointment.id} label="academic role appointment" onUpdated={refreshAll} /> : null}</div>)}</div>}
+            <SetupForm title="School staff appointments" description="Active appointments and retained appointment history.">
+              {(showArchived ? roleAppointments : activeRoleAppointments).length === 0 ? <EmptyState>No matching school staff appointments. Assign the first role above.</EmptyState> : <div className="space-y-2">{(showArchived ? roleAppointments : activeRoleAppointments).map((appointment) => <div key={appointment.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black capitalize">{appointmentRoles.find(role => role.code === appointment.role_type)?.label ?? appointment.role_type.replaceAll("_", " ")} - {appointment.teacher_name || labels.teachers.get(appointment.teacher_user_id) || "Staff member"}</p><p className="text-xs font-semibold text-white/55">{appointment.subject_id ? subjects.find(subject => subject.id === appointment.subject_id)?.name || "Assigned subject" : appointment.department_id ? labels.departments.get(appointment.department_id) : appointment.class_section_id ? labels.classes.get(appointment.class_section_id) : appointment.stream_id ? labels.streams.get(appointment.stream_id) : "Whole-school scope"} - {appointment.appointment_type || "permanent"} - {statusLabel(appointment)}</p><p className="text-xs font-semibold text-white/45">{appointment.reason}</p></div>{isActive(appointment) ? <AcademicAssignmentEndButton assignmentType="academic-role" assignmentId={appointment.id} label="staff role appointment" onUpdated={refreshAll} /> : null}</div>)}</div>}
             </SetupForm>
             <SetupForm title="Curriculum configurations" description="Current, draft, and historical curriculum structures.">
               {visible(curriculumConfigurations).length === 0 ? <EmptyState>No matching curriculum configurations. Create the first version above.</EmptyState> : <div className="space-y-2">{visible(curriculumConfigurations).map((configuration) => <div key={configuration.id} className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/5 p-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{configuration.name} <span className="text-cyan-200">({configuration.curriculum_model})</span></p><p className="text-xs font-semibold text-white/55">{statusLabel(configuration)}{configuration.based_on_id ? " - versioned from an earlier configuration" : ""}</p></div><AcademicRecordManager entityType="curriculum-configuration" record={configuration} title={configuration.name} fields={[{ name: "name", label: "Configuration name" }, { name: "configuration", label: "Curriculum structure", type: "curriculum-configuration" }]} onUpdated={refreshAll} /></div>)}</div>}
