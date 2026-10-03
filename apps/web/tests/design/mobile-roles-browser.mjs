@@ -99,7 +99,9 @@ if(roleFilter)cases=cases.filter(([role])=>roleFilter.includes(role));
 const viewports=process.argv.includes('--all-workspaces')?[[320,740],[1440,1000]]:[[320,740],[390,844],[768,1024],[1024,768],[1440,1000]];
 try{
  for(const [width,height] of viewports){
-  const page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce'});
+  const page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce',timezoneId:'Africa/Nairobi'});
+  // Greeting length must not depend on the runner's timezone or execution hour.
+  await page.clock.setFixedTime(new Date('2026-10-03T14:00:00Z'));
   await page.addInitScript(()=>{window.EventSource=undefined;});
   await page.route('**/*',route=>route.request().url().startsWith('http://127.0.0.1:')?route.continue():route.abort());
   for(const [role,section] of cases){
@@ -140,7 +142,7 @@ try{
     const intro=page.locator('[data-testid="integrated-school-command-header"]');
     if(await intro.count()){
      metrics.introHeight=await intro.evaluate(el=>el.getBoundingClientRect().height);
-     if(role==='teacher')assert.ok(metrics.introHeight<=140,`Teacher intro too tall: ${metrics.introHeight}`);
+     if(role==='teacher'&&metrics.introHeight>140)errors.push(`Teacher intro too tall: ${metrics.introHeight}`);
     }
     if(role==='teacher'){
      metrics.topbarHeight=await page.locator('.app-command-topbar').evaluate(el=>el.getBoundingClientRect().height);
