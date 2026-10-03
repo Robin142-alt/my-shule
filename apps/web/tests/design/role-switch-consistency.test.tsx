@@ -61,9 +61,9 @@ describe("role switch consistency", () => {
   test.each(["public", "hosted"] as const)("%s switches once and keeps late role reads from restoring the previous dashboard", async (routeMode) => {
     const oldRoles = deferred<Response>();
     const switched = deferred<Response>();
+    let sessionReads = 0;
     jest.mocked(fetch).mockImplementation(async (url) => {
-      if (String(url).startsWith("/api/auth/me")) return response(payload("principal"));
-      if (url === "/api/auth/dashboard-roles") return oldRoles.promise;
+      if (String(url).startsWith("/api/auth/me")) return ++sessionReads === 1 ? response(payload("principal")) : oldRoles.promise;
       if (url === "/api/auth/active-role") return switched.promise;
       throw new Error(`Unexpected request ${url}`);
     });
@@ -95,7 +95,7 @@ describe("role switch consistency", () => {
     expect(roleState.isSwitching).toBe(true);
     expect(invalidate).not.toHaveBeenCalled();
     await act(async () => {
-      oldRoles.resolve(response({ roleContext: context("principal") }));
+      oldRoles.resolve(response(payload("principal")));
       await reloading;
     });
     expect(screen.getByTestId("active-role")).toHaveTextContent("teacher");

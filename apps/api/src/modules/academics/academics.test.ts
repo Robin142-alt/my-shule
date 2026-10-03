@@ -1398,10 +1398,11 @@ test('AcademicsRepository preserves HOD appointment history in the tenant transa
     reason: 'Acting appointment',
   });
 
-  assert.equal(calls.length, 3);
-  assert.match(calls[0]!.sql, /status = 'ended'/);
-  assert.match(calls[1]!.sql, /ON CONFLICT \(tenant_id, department_id\) WHERE status = 'active'/);
-  assert.match(calls[2]!.sql, /WHERE tenant_id = \$1 AND id::text = \$2/);
+  assert.equal(calls.length, 4);
+  assert.match(calls[0]!.sql, /WHERE tenant_id = \$1 AND id::text = \$2 FOR UPDATE/);
+  assert.match(calls[1]!.sql, /status = 'ended'/);
+  assert.match(calls[2]!.sql, /ON CONFLICT \(tenant_id, department_id\) WHERE status = 'active'/);
+  assert.match(calls[3]!.sql, /WHERE tenant_id = \$1 AND id::text = \$2/);
   assert.equal(result.appointment.id, 'hod-2');
   assert.equal(result.department.head_of_department_user_id, 'teacher-2');
 });
