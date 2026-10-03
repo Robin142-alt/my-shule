@@ -22,6 +22,28 @@ beforeEach(() => {
 });
 const renderSetup = () => render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Test School" tenantId="school-a" initialTab="subjects" />);
 
+it('offers existing academic dashboards, omits obsolete coordinators and appoints existing non-teaching staff', async () => {
+  const user = userEvent.setup();
+  (requestDashboardApi as jest.Mock).mockResolvedValue({ appointment: { id: 'saved' } });
+  render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Test School" tenantId="school-a" initialTab="roles-curriculum" />);
+  const role = screen.getByRole('combobox', { name: 'Role' });
+  for (const label of ['Class Teacher', 'Assistant Class Teacher', 'Head of Department (HOD)', 'Dean of Academics', 'Exams Manager', 'Timetable Coordinator']) {
+    expect(within(role).getByRole('option', { name: label })).toBeInTheDocument();
+  }
+  for (const label of ['Subject Coordinator', 'Curriculum Coordinator', 'Academic Year Coordinator']) {
+    expect(within(role).queryByRole('option', { name: label })).not.toBeInTheDocument();
+  }
+  await user.selectOptions(role, 'timetable_coordinator');
+  await user.selectOptions(screen.getByLabelText('Staff member'), 'librarian');
+  await user.type(screen.getByLabelText('Reason', { exact: true }), 'Coordinate this term');
+  expect(screen.getByLabelText('Department scope')).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Save role appointment' }));
+  await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith('/academics/academic-roles', {
+    method: 'POST', tenantId: 'school-a', body: expect.objectContaining({ role_type: 'timetable_coordinator', teacher_user_id: 'librarian' }),
+  }));
+  await waitFor(() => expect(toast.success).toHaveBeenCalled());
+});
+
 it('keeps HOD and provides a separate two-field school-wide HOS assignment for non-teaching staff', async () => {
   const user = userEvent.setup();
   (requestDashboardApi as jest.Mock).mockResolvedValue({ appointment: { id: 'saved' } });

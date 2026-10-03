@@ -107,6 +107,9 @@ export function DashboardCommunicationProvider({
 
           if (system.eventBus.emit(event)) {
             acceptedEvents += 1;
+            if (event.type === "USER_ROLE_CHANGED" || event.sourceModule === "academics") {
+              void queryClient.invalidateQueries({ queryKey: ["experience-session", "school"] });
+            }
             if (event.notification) {
               system.notificationChannel.publish(event.notification);
             }

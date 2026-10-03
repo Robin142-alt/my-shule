@@ -325,8 +325,8 @@ export function SchoolDashboardRoleProvider({
     try {
       // A failed initial authentication read leaves the workspace without its
       // identity and tenant. Recovery must restore that session as well as roles.
-      const recoveredSession = !auth.session ? await auth.reloadSession() : null;
-      const nextContext = recoveredSession?.session.roleContext ?? await auth.loadDashboardRoles();
+      const recoveredSession = await auth.reloadSession();
+      const nextContext = recoveredSession.session.roleContext ?? await auth.loadDashboardRoles();
       if (requestVersion !== roleRequestVersion.current) return;
       setRoleContext(nextContext);
     } catch (error) {

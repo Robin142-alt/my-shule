@@ -2684,3 +2684,23 @@ test('timetable permissions let Dean and Deputy co-manage while other staff reta
     assert.equal(role('dean_academics').includes(permission), false, `Dean must not gain unrelated ${permission}`);
   }
 });
+
+
+test('active sessions use current appointment permissions for every API request', async () => {
+  const session = { user_id: 'teacher', tenant_id: 'school-a', role: 'teacher', audience: 'school', session_id: 'session-a',
+    permissions: ['auth:read', 'timetable:write'], email_verified_at: '2026-01-01T00:00:00Z', mfa_assured_at: '2026-01-01T00:00:00Z' };
+  let appointmentPermissions: string[] = [];
+  const service = new AuthService(new RequestContextService(), {} as never, {} as never,
+    { getPermissionsByRoleId: async () => ['auth:read', 'teacher:read'] } as never, {} as never,
+    { verifyAccessToken: async () => ({ ...session, type: 'access' }) } as never,
+    { getSession: async () => session, toPrincipal: () => ({ ...session, is_authenticated: true }) } as never,
+    { get: () => undefined } as never, undefined, undefined, undefined,
+    { authorizeRole: async () => ({ role_id: 'teacher-role', role_code: 'teacher' }),
+      getAppointmentPermissions: async () => appointmentPermissions } as never);
+  const current = () => service.authenticateAccessToken('token', 'school-a', 'school');
+  assert.deepEqual((await current()).permissions, ['auth:read', 'teacher:read']);
+  appointmentPermissions = ['timetable:read', 'timetable:write', 'academics:read'];
+  assert.equal((await current()).permissions.includes('timetable:write'), true);
+  appointmentPermissions = [];
+  assert.equal((await current()).permissions.includes('timetable:write'), false);
+});

@@ -1,3 +1,4 @@
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
 import { randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 
@@ -2115,7 +2116,7 @@ export class TimetableWorkflowRepository {
          LIMIT 1
        ), managed_classes AS (
          SELECT class_teacher.class_section_id::text AS class_section_id
-         FROM academics_class_teachers class_teacher
+         FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} class_teacher
          JOIN requested_year year
            ON class_teacher.academic_year_id::text = year.id
          JOIN class_sections section

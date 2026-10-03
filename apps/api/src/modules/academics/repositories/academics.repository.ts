@@ -518,6 +518,24 @@ export class AcademicsRepository {
                     FROM academics_role_appointments appointment
                     LEFT JOIN staff_profiles staff ON staff.tenant_id = appointment.tenant_id
                       AND staff.user_id = appointment.teacher_user_id
+                    WHERE appointment.tenant_id = $1
+                    UNION ALL
+                    SELECT 'class-teacher:' || appointment.id::text, 'class_teacher', NULL::text,
+                      appointment.teacher_user_id::text, COALESCE(staff.display_name, staff.staff_number),
+                      NULL::text, appointment.academic_year_id::text, appointment.class_section_id::text, NULL::text,
+                      appointment.assignment_type, appointment.effective_from, appointment.effective_to,
+                      appointment.status, appointment.reason, appointment.version, appointment.created_at
+                    FROM academics_class_teachers appointment
+                    LEFT JOIN staff_profiles staff ON staff.tenant_id = appointment.tenant_id AND staff.user_id = appointment.teacher_user_id
+                    WHERE appointment.tenant_id = $1
+                    UNION ALL
+                    SELECT 'department-head:' || appointment.id::text, 'head_of_department', NULL::text,
+                      appointment.teacher_user_id::text, COALESCE(staff.display_name, staff.staff_number),
+                      appointment.department_id::text, NULL::text, NULL::text, NULL::text,
+                      appointment.appointment_type, appointment.effective_from, appointment.effective_to,
+                      appointment.status, appointment.reason, appointment.version, appointment.created_at
+                    FROM academics_department_hod_appointments appointment
+                    LEFT JOIN staff_profiles staff ON staff.tenant_id = appointment.tenant_id AND staff.user_id = appointment.teacher_user_id
                     WHERE appointment.tenant_id = $1) item), '[]'::jsonb) AS role_appointments
             ,COALESCE((SELECT jsonb_agg(to_jsonb(item) ORDER BY item.effective_from DESC)
               FROM (SELECT id::text, name, curriculum_model, configuration,
@@ -1945,8 +1963,14 @@ export class AcademicsRepository {
     classSectionId: string,
     teacherUserId: string,
     options: Record<string, unknown> = {},
+    governance?: (tx: any, assignment: any, previous: any) => Promise<void>,
   ) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      await this.executeSqlTx(tx, 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text',
+        [JSON.stringify(['class-teacher', tenantId, academicYearId, classSectionId])]);
+      const previous = await this.executeSqlTx(tx, `SELECT * FROM academics_class_teachers
+        WHERE tenant_id = $1 AND academic_year_id::text = $2 AND class_section_id::text = $3 AND is_active = true FOR UPDATE`,
+      [tenantId, academicYearId, classSectionId]);
       await this.executeSqlTx(tx, `
         UPDATE academics_class_teachers
         SET is_active = false, status = 'ended',
@@ -1979,26 +2003,31 @@ export class AcademicsRepository {
       `, [tenantId, academicYearId, classSectionId, teacherUserId,
         options.assignment_type ?? 'permanent', options.effective_from ?? null,
         options.effective_to ?? null, options.reason ?? null, options.actor_user_id ?? null]);
+      if (governance) await governance(tx, result.rows[0], previous.rows[0] ?? null);
       return result.rows[0];
     });
   }
 
-  async archiveClassTeacher(tenantId: string, id: string, options: Record<string, unknown> = {}) {
-    const result = await this.executeSql(
-      tenantId,
-      `UPDATE academics_class_teachers
-       SET is_active = false,
-           status = 'ended',
-           effective_to = COALESCE($3::date, CURRENT_DATE),
-           ended_by_user_id = $4::uuid,
-           reason = COALESCE($5, reason),
-           version = version + 1,
-           updated_at = NOW()
-       WHERE tenant_id = $1 AND id = $2::text AND is_active = true
-       RETURNING *`,
-      [tenantId, id, options.effective_to ?? null, options.actor_user_id ?? null, options.reason ?? null],
-    );
-    return result.rows[0] ?? null;
+  async archiveClassTeacher(tenantId: string, id: string, options: Record<string, unknown> = {},
+    governance?: (tx: any, assignment: any) => Promise<void>) {
+    return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const result = await this.executeSqlTx(
+        tx,
+        `UPDATE academics_class_teachers
+         SET is_active = false,
+             status = 'ended',
+             effective_to = COALESCE($3::date, CURRENT_DATE),
+             ended_by_user_id = $4::uuid,
+             reason = COALESCE($5, reason),
+             version = version + 1,
+             updated_at = NOW()
+         WHERE tenant_id = $1 AND id = $2::text AND is_active = true
+         RETURNING *`,
+        [tenantId, id, options.effective_to ?? null, options.actor_user_id ?? null, options.reason ?? null],
+      );
+      if (governance) await governance(tx, result.rows[0] ?? null);
+      return result.rows[0] ?? null;
+    });
   }
 
   async listGradingSystems(tenantId: string) {
@@ -2352,16 +2381,20 @@ export class AcademicsRepository {
     });
   }
 
-  async endAcademicRole(tenantId: string, id: string, input: Record<string, unknown>) {
-    const result = await this.executeSql(tenantId, `
-      UPDATE academics_role_appointments
-      SET status = 'ended', effective_to = COALESCE($3::date, CURRENT_DATE),
-          ended_by_user_id = $4::uuid, reason = COALESCE($5, reason),
-          version = version + 1, updated_at = NOW()
-      WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'
-      RETURNING *
-    `, [tenantId, id, input.effective_to ?? null, input.actor_user_id ?? null, input.reason ?? null]);
-    return result.rows[0] ?? null;
+  async endAcademicRole(tenantId: string, id: string, input: Record<string, unknown>, governance?: (tx: any, record: any) => Promise<void>) {
+    return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const result = await this.executeSqlTx(tx, `
+        UPDATE academics_role_appointments
+        SET status = 'ended', effective_to = COALESCE($3::date, CURRENT_DATE),
+            ended_by_user_id = $4::uuid, reason = COALESCE($5, reason),
+            version = version + 1, updated_at = NOW()
+        WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'
+        RETURNING *
+      `, [tenantId, id, input.effective_to ?? null, input.actor_user_id ?? null, input.reason ?? null]);
+      const record = result.rows[0] ?? null;
+      if (governance) await governance(tx, record);
+      return record;
+    });
   }
 
   async createCurriculumConfiguration(tenantId: string, input: Record<string, unknown>) {
@@ -2647,8 +2680,11 @@ export class AcademicsRepository {
     });
   }
 
-  async assignDepartmentHead(tenantId: string, departmentId: string, teacherUserId: string | null, input: Record<string, unknown>) {
+  async assignDepartmentHead(tenantId: string, departmentId: string, teacherUserId: string | null, input: Record<string, unknown>,
+    governance?: (tx: any, result: any, previous: any) => Promise<void>) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      const previous = await this.executeSqlTx(tx, `SELECT * FROM academics_departments
+        WHERE tenant_id = $1 AND id::text = $2 FOR UPDATE`, [tenantId, departmentId]);
       await this.executeSqlTx(tx, `
         UPDATE academics_department_hod_appointments
         SET status = 'ended', effective_to = COALESCE($4::date, CURRENT_DATE),
@@ -2699,7 +2735,9 @@ export class AcademicsRepository {
         (conflict as Error & { code?: string }).code = 'ACADEMIC_DEPARTMENT_VERSION_CONFLICT';
         throw conflict;
       }
-      return { department: department.rows[0], appointment };
+      const result = { department: department.rows[0], appointment };
+      if (governance) await governance(tx, result, previous.rows[0] ?? null);
+      return result;
     });
   }
 

@@ -1,3 +1,4 @@
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 
 import { ANALYTICS_SCOPES, type AnalyticsFilters, type ExamAnalyticsScopeLevel } from './analytics-contract';
@@ -45,7 +46,7 @@ export function analyticsScopeSql(alias: string, level: ExamAnalyticsScopeLevel)
       AND ap.class_section_id::text = ${alias}.class_section_id::text AND ap.subject_id::text = ${alias}.subject_id::text
       AND (ap.academic_term_id IS NULL OR ap.academic_term_id::text = ${alias}.academic_term_id::text)
       AND (ap.stream_id IS NULL OR ap.stream_id::text = ${alias}.stream_id::text))`;
-  if (level === 'class') return `EXISTS (SELECT 1 FROM academics_class_teachers ap
+  if (level === 'class') return `EXISTS (SELECT 1 FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} ap
     WHERE ${identity('ap')} AND ${active('ap')} AND ap.is_active = TRUE
       AND ap.class_section_id::text = ${alias}.class_section_id::text
       AND ap.academic_year_id::text = ${alias}.academic_year_id::text)`;
@@ -62,7 +63,7 @@ export function analyticsScopeSql(alias: string, level: ExamAnalyticsScopeLevel)
 export const ANALYTICS_APPOINTMENTS_SQL = `SELECT level FROM (
   SELECT 'assignment' AS level FROM teacher_subject_assignments ap WHERE ap.tenant_id = $1 AND ap.teacher_user_id::text = $2::text
     AND ap.status = 'active' AND (ap.effective_from IS NULL OR ap.effective_from <= CURRENT_DATE) AND (ap.effective_to IS NULL OR ap.effective_to >= CURRENT_DATE)
-  UNION SELECT 'class' FROM academics_class_teachers ap WHERE ap.tenant_id = $1 AND ap.teacher_user_id::text = $2::text
+  UNION SELECT 'class' FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} ap WHERE ap.tenant_id = $1 AND ap.teacher_user_id::text = $2::text
     AND ap.is_active = TRUE AND ap.status = 'active' AND (ap.effective_from IS NULL OR ap.effective_from <= CURRENT_DATE) AND (ap.effective_to IS NULL OR ap.effective_to >= CURRENT_DATE)
   UNION SELECT 'department' FROM academics_department_hod_appointments ap WHERE ap.tenant_id = $1 AND ap.teacher_user_id::text = $2::text
     AND ap.status = 'active' AND (ap.effective_from IS NULL OR ap.effective_from <= CURRENT_DATE) AND (ap.effective_to IS NULL OR ap.effective_to >= CURRENT_DATE)

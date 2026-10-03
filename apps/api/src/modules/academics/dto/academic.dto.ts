@@ -488,8 +488,8 @@ export class UpdateDepartmentDto {
   head_of_department_user_id?: string;
 
   @IsOptional()
-  @IsIn(['permanent', 'acting'])
-  appointment_type?: 'permanent' | 'acting';
+  @IsIn(['permanent', 'acting', 'temporary'])
+  appointment_type?: 'permanent' | 'acting' | 'temporary';
 
   @IsOptional()
   @IsDateString()
@@ -521,8 +521,8 @@ export class AssignClassTeacherDto {
   teacher_user_id!: string;
 
   @IsOptional()
-  @IsIn(['permanent', 'temporary'])
-  assignment_type?: 'permanent' | 'temporary';
+  @IsIn(['permanent', 'temporary', 'acting'])
+  assignment_type?: 'permanent' | 'temporary' | 'acting';
 
   @IsOptional()
   @IsDateString()
@@ -555,7 +555,7 @@ export class CreateDepartmentDto {
   @IsOptional() @IsString() code?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsString() head_of_department_user_id?: string;
-  @IsOptional() @IsIn(['permanent', 'acting']) appointment_type?: 'permanent' | 'acting';
+  @IsOptional() @IsIn(['permanent', 'acting', 'temporary']) appointment_type?: 'permanent' | 'acting' | 'temporary';
   @IsOptional() @IsDateString() effective_from?: string;
   @IsOptional() @IsDateString() effective_to?: string;
   @IsOptional() @IsString() @MaxLength(500) reason?: string;
@@ -678,9 +678,8 @@ export class AssignHeadOfSubjectDto {
 
 export class AcademicRoleAppointmentDto {
   @IsIn([
-    'assistant_class_teacher', 'grade_master', 'form_master', 'dean_of_academics',
-    'exams_manager', 'head_of_subject', 'subject_coordinator', 'curriculum_coordinator',
-    'academic_year_coordinator', 'timetable_coordinator',
+    'class_teacher', 'assistant_class_teacher', 'head_of_department', 'grade_master', 'form_master', 'dean_of_academics',
+    'exams_manager', 'head_of_subject', 'timetable_coordinator',
   ])
   role_type!: string;
 
@@ -693,7 +692,7 @@ export class AcademicRoleAppointmentDto {
   @IsOptional() @IsString() academic_year_id?: string;
   @IsOptional() @IsString() class_section_id?: string;
   @IsOptional() @IsString() stream_id?: string;
-  @IsOptional() @IsIn(['permanent', 'acting', 'temporary']) appointment_type?: string;
+  @IsOptional() @IsIn(['permanent', 'acting', 'temporary']) appointment_type?: 'permanent' | 'acting' | 'temporary';
   @IsOptional() @IsDateString() effective_from?: string;
   @IsOptional() @IsDateString() effective_to?: string;
   @IsOptional() @IsString() @MaxLength(500) reason?: string;

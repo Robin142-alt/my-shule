@@ -1,3 +1,4 @@
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../academics/class-teacher-appointment-scope';
 import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -45,7 +46,7 @@ export class ClassTeacherCommandService {
     const scope = this.requireScope();
     const result = await this.executeSql<{ id: string }>(
       `SELECT appointment.id::text
-       FROM academics_class_teachers appointment
+       FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
        WHERE appointment.tenant_id = $1
          AND appointment.teacher_user_id = $2::uuid
          AND appointment.is_active = TRUE
@@ -71,7 +72,7 @@ export class ClassTeacherCommandService {
       this.executeSql(`
         WITH assigned_classes AS (
           SELECT DISTINCT appointment.class_section_id::text AS class_section_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           WHERE appointment.tenant_id::text = $1::text
             AND appointment.teacher_user_id = $2::uuid
             AND appointment.is_active = TRUE
@@ -122,7 +123,7 @@ export class ClassTeacherCommandService {
       this.executeSql(`
         WITH assigned_students AS (
           SELECT DISTINCT student.id::text AS student_id, CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment
             ON assignment.tenant_id = appointment.tenant_id
            AND assignment.class_section_id::text = appointment.class_section_id::text
@@ -187,7 +188,7 @@ export class ClassTeacherCommandService {
             section.name AS stream,
             INITCAP(student.status) AS status,
             student.tenant_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN class_sections section
             ON section.tenant_id::text = appointment.tenant_id::text
            AND section.id::text = appointment.class_section_id::text
@@ -241,7 +242,7 @@ export class ClassTeacherCommandService {
       `
         WITH assigned_students AS (
           SELECT DISTINCT student.*
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment
             ON assignment.tenant_id::text = appointment.tenant_id::text
            AND assignment.class_section_id::text = appointment.class_section_id::text
@@ -334,7 +335,7 @@ export class ClassTeacherCommandService {
       `
         WITH assigned_classes AS (
           SELECT DISTINCT appointment.class_section_id::text AS class_section_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           WHERE appointment.tenant_id = $1
             AND appointment.teacher_user_id = $2::uuid
             AND appointment.is_active = TRUE
@@ -406,7 +407,7 @@ export class ClassTeacherCommandService {
         WITH assigned_students AS (
           SELECT DISTINCT student.id::text, student.admission_number,
                  CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment
             ON assignment.tenant_id::text = appointment.tenant_id::text
            AND assignment.class_section_id::text = appointment.class_section_id::text
@@ -487,7 +488,7 @@ export class ClassTeacherCommandService {
         WITH assigned_students AS (
           SELECT DISTINCT student.id::text, student.admission_number,
                  CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment
             ON assignment.tenant_id = appointment.tenant_id
            AND assignment.class_section_id::text = appointment.class_section_id::text
@@ -535,7 +536,7 @@ export class ClassTeacherCommandService {
         WITH assigned_students AS (
           SELECT DISTINCT student.id::text, student.admission_number,
                  CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -603,7 +604,7 @@ export class ClassTeacherCommandService {
         WITH assigned_students AS (
           SELECT DISTINCT student.id::text, student.admission_number,
                  CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -666,7 +667,7 @@ export class ClassTeacherCommandService {
             student.admission_number,
             CONCAT_WS(' ', student.first_name, student.last_name) AS student_name,
             assignment.class_section_id::text
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment
             ON assignment.tenant_id = appointment.tenant_id
            AND assignment.class_section_id::text = appointment.class_section_id::text
@@ -746,7 +747,7 @@ export class ClassTeacherCommandService {
         ),
         class_students AS (
           SELECT student.id, assignment.class_section_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment
             ON assignment.tenant_id = appointment.tenant_id
            AND assignment.class_section_id::text = appointment.class_section_id::text
@@ -791,7 +792,7 @@ export class ClassTeacherCommandService {
           ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC NULLS LAST, created_at DESC LIMIT 1
         ), assigned_students AS (
           SELECT student.id::text AS student_id, assignment.class_section_id::text
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -842,7 +843,7 @@ export class ClassTeacherCommandService {
             ON assignment.tenant_id = student.tenant_id
            AND assignment.student_id = student.id
            AND assignment.status = 'active'
-          JOIN academics_class_teachers appointment
+          JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
             ON appointment.tenant_id = assignment.tenant_id
            AND appointment.class_section_id::text = assignment.class_section_id::text
           WHERE student.tenant_id = $1
@@ -996,7 +997,7 @@ export class ClassTeacherCommandService {
       `
         WITH target_student AS (
           SELECT DISTINCT student.id::text AS student_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -1082,7 +1083,7 @@ export class ClassTeacherCommandService {
       `
         WITH target_student AS (
           SELECT DISTINCT student.id::text AS student_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -1196,7 +1197,7 @@ export class ClassTeacherCommandService {
           FROM welfare_record record
           JOIN student_class_assignments assignment ON assignment.tenant_id = $1
             AND assignment.student_id::text = record.student_id AND assignment.status = 'active'
-          JOIN academics_class_teachers appointment ON appointment.tenant_id = assignment.tenant_id
+          JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment ON appointment.tenant_id = assignment.tenant_id
             AND appointment.class_section_id::text = assignment.class_section_id::text
           WHERE appointment.teacher_user_id = $2::uuid AND appointment.is_active = TRUE
             AND LOWER(COALESCE(appointment.status, 'active')) = 'active'
@@ -1276,7 +1277,7 @@ export class ClassTeacherCommandService {
           FROM student_guardians guardian
           JOIN student_class_assignments assignment ON assignment.tenant_id = guardian.tenant_id
             AND assignment.student_id::text = guardian.student_id::text AND assignment.status = 'active'
-          JOIN academics_class_teachers appointment ON appointment.tenant_id = assignment.tenant_id
+          JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment ON appointment.tenant_id = assignment.tenant_id
             AND appointment.class_section_id::text = assignment.class_section_id::text
           WHERE guardian.tenant_id = $1 AND guardian.id = $3::uuid
             AND guardian.status = 'active' AND guardian.user_id IS NOT NULL
@@ -1409,7 +1410,7 @@ export class ClassTeacherCommandService {
       `
         WITH assigned_students AS (
           SELECT DISTINCT student.id::text AS student_id, assignment.class_section_id::text
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -1572,7 +1573,7 @@ export class ClassTeacherCommandService {
       `
         WITH target_student AS (
           SELECT DISTINCT student.id::text AS student_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -1623,7 +1624,7 @@ export class ClassTeacherCommandService {
           SELECT guardian.id, guardian.user_id, guardian.display_name,
                  assignment.class_section_id::text AS class_section_id,
                  student.id::text AS student_id, CONCAT_WS(' ', student.first_name, student.last_name) AS student_name
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -1723,7 +1724,7 @@ export class ClassTeacherCommandService {
       `
         WITH target_guardians AS (
           SELECT DISTINCT guardian.id, guardian.user_id, guardian.phone, student.id::text AS student_id
-          FROM academics_class_teachers appointment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
           JOIN student_class_assignments assignment ON assignment.tenant_id = appointment.tenant_id
             AND assignment.class_section_id::text = appointment.class_section_id::text AND assignment.status = 'active'
           JOIN students student ON student.tenant_id = assignment.tenant_id AND student.id::text = assignment.student_id::text
@@ -1887,7 +1888,7 @@ export class ClassTeacherCommandService {
        FROM discipline_incidents incident
        JOIN student_class_assignments assignment ON assignment.tenant_id = incident.tenant_id
          AND assignment.student_id::text = incident.student_id::text AND assignment.status = 'active'
-       JOIN academics_class_teachers appointment ON appointment.tenant_id = assignment.tenant_id
+       JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment ON appointment.tenant_id = assignment.tenant_id
          AND appointment.class_section_id::text = assignment.class_section_id::text
        WHERE incident.tenant_id = $1 AND incident.id = $3::uuid
          AND appointment.teacher_user_id = $2::uuid AND appointment.is_active = TRUE

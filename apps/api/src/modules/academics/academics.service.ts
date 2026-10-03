@@ -731,7 +731,7 @@ export class AcademicsService {
   }
 
   private async requireActiveStaffUserInTenant(tenantId: string, userId: string) {
-    const teacher = await this.repository.findTeacherOptionByUserId(tenantId, userId);
+    const teacher = await this.repository.findTeacherOptionByUserId(tenantId, userId, true);
 
     if (!teacher) {
       throw new BadRequestException('Selected staff member must be an active staff member in this school');
@@ -1032,7 +1032,8 @@ export class AcademicsService {
     if (dto.name) await this.requireUniqueName(tenantId, 'academics_departments', dto.name, id);
     if (dto.code) await this.requireUniqueCode(tenantId, 'academics_departments', dto.code, id);
     const hodChanged = hodWasProvided
-      && String(previous.head_of_department_user_id ?? '') !== String(hodUserId ?? '');
+      && (String(previous.head_of_department_user_id ?? '') !== String(hodUserId ?? '')
+        || Boolean(hodUserId && (dto.appointment_type !== undefined || dto.effective_from !== undefined || dto.effective_to !== undefined)));
     let result: any;
     if (hodChanged) {
       try {
@@ -1042,6 +1043,16 @@ export class AcademicsService {
           reason: dto.reason ?? null,
           name: dto.name?.trim() || null, code: dto.code?.trim() || null,
           description: dto.description?.trim() || null, expected_version: dto.expected_version ?? null,
+        }, async (tx, saved, prior) => {
+          const department = saved.department;
+          await this.recordAcademicChange('academic.hod.reassigned', 'academic_department', department,
+            'hod_reassigned', prior, dto.reason, {}, tx);
+          if (hodUserId) await this.notifyAcademicAssignee(tenantId, hodUserId, `hod-assignment:${id}:${department.version}`,
+            'Head of Department appointment', `You have been appointed to lead ${department.name}.`, id, tx);
+          if (prior?.head_of_department_user_id && prior.head_of_department_user_id !== hodUserId) {
+            await this.notifyAcademicAssignee(tenantId, prior.head_of_department_user_id, `hod-ended:${id}:${department.version}`,
+              'Head of Department appointment ended', `Your appointment to lead ${department.name} has ended.`, id, tx);
+          }
         });
         result = reassigned.department;
       } catch (error) {
@@ -1049,10 +1060,6 @@ export class AcademicsService {
           throw new ConflictException('This department changed while you were editing it. Refresh and retry.');
         }
         throw error;
-      }
-      if (hodUserId) {
-        await this.notifyAcademicAssignee(tenantId, hodUserId, `hod-assignment:${id}:${result.version ?? 1}`,
-          'Head of Department appointment', `You have been appointed to lead ${result.name}.`, id);
       }
     } else {
       result = await this.repository.updateDepartment(
@@ -1067,10 +1074,8 @@ export class AcademicsService {
         throw new ConflictException('This department was not found or changed while you were editing it. Refresh and retry.');
       }
     }
-    await this.recordAcademicChange(
-      hodChanged ? 'academic.hod.reassigned' : 'academic.department.updated',
-      'academic_department', result, hodChanged ? 'hod_reassigned' : 'updated', previous, dto.reason,
-    );
+    if (!hodChanged) await this.recordAcademicChange('academic.department.updated',
+      'academic_department', result, 'updated', previous, dto.reason);
     return result;
   }
 
@@ -1101,27 +1106,19 @@ export class AcademicsService {
       throw new BadRequestException('Select a class and academic year that belong to this school.');
     }
 
-    const assignment = await this.repository.assignClassTeacher(
-      tenantId,
-      academicYearId,
-      classSectionId,
-      teacherUserId,
-      {
-        actor_user_id: this.currentUserId(), assignment_type: dto.assignment_type ?? 'permanent',
-        effective_from: dto.effective_from ?? null, effective_to: dto.effective_to ?? null,
-        reason: dto.reason ?? null,
-      },
-    );
-    await this.auditMutation(tenantId, 'class_teacher_assignment', assignment?.id, 'academics.class_teacher_assigned', {
-      academic_year_id: dto.academic_year_id,
-      class_section_id: dto.class_section_id,
-      teacher_user_id: teacherUserId,
-    }, null, assignment, dto.reason);
-    await this.publishAcademicChange('academic.teacher_assignment.changed', 'class_teacher_assignment', assignment,
-      'assigned', null, dto.reason);
-    await this.notifyAcademicAssignee(tenantId, teacherUserId, `class-teacher:${assignment.id}:${assignment.version ?? 1}`,
-      'Class teacher assignment updated', 'Your class teacher assignment has been updated.', assignment.id);
-    return assignment;
+    return this.repository.assignClassTeacher(tenantId, academicYearId, classSectionId, teacherUserId, {
+      actor_user_id: this.currentUserId(), assignment_type: dto.assignment_type ?? 'permanent',
+      effective_from: dto.effective_from ?? null, effective_to: dto.effective_to ?? null, reason: dto.reason ?? null,
+    }, async (tx, assignment, previous) => {
+      await this.recordAcademicChange('academic.teacher_assignment.changed', 'class_teacher_assignment', assignment,
+        'assigned', previous, dto.reason, {}, tx);
+      await this.notifyAcademicAssignee(tenantId, teacherUserId, `class-teacher:${assignment.id}:${assignment.version}`,
+        'Class teacher assignment updated', 'Your class teacher assignment has been updated.', assignment.id, tx);
+      if (previous?.teacher_user_id && previous.teacher_user_id !== teacherUserId) {
+        await this.notifyAcademicAssignee(tenantId, previous.teacher_user_id, `class-teacher-ended:${previous.id}:${assignment.id}`,
+          'Class teacher assignment ended', 'Your previous class teacher responsibility has ended.', previous.id, tx);
+      }
+    });
   }
 
   async archiveClassTeacher(id: string, dto?: EndAssignmentDto) {
@@ -1131,12 +1128,13 @@ export class AcademicsService {
       effective_to: dto?.effective_to,
       reason: dto?.reason?.trim() || null,
       actor_user_id: this.currentUserId(),
+    }, async (tx, assignment) => {
+      if (!assignment) throw new BadRequestException('Class teacher assignment was not found in this school.');
+      await this.recordAcademicChange('academic.teacher_assignment.changed', 'class_teacher_assignment', assignment,
+        'ended', previous, dto?.reason ?? 'Assignment ended', {}, tx);
+      await this.notifyAcademicAssignee(tenantId, String(assignment.teacher_user_id), `class-teacher-ended:${id}:${assignment.version}`,
+        'Class teacher assignment ended', 'Your class teacher responsibility has ended.', id, tx);
     });
-    if (!result) throw new BadRequestException('Class teacher assignment was not found in this school.');
-    await this.auditMutation(tenantId, 'class_teacher_assignment', result.id, 'academics.class_teacher_assignment_ended', {},
-      previous, result, dto?.reason ?? 'Assignment ended');
-    await this.publishAcademicChange('academic.teacher_assignment.changed', 'class_teacher_assignment', result,
-      'ended', previous, dto?.reason ?? 'Assignment ended');
     return result;
   }
 
@@ -1298,14 +1296,31 @@ export class AcademicsService {
   }
 
   async assignAcademicRole(dto: AcademicRoleAppointmentDto) {
-    dto = { ...dto, effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
+    dto = { ...dto, reason: this.requireText(dto.reason, 'Appointment reason'),
+      effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
     const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
-    if (dto.role_type === 'head_of_subject') {
-      const staff = await this.repository.findTeacherOptionByUserId(tenantId, teacherUserId, true);
-      if (!staff) throw new BadRequestException('Selected staff member must be an active staff member in this school');
-    } else {
-      await this.requireActiveStaffUserInTenant(tenantId, teacherUserId);
+    const staff = await this.repository.findTeacherOptionByUserId(tenantId, teacherUserId, true);
+    if (!staff) throw new BadRequestException('Selected staff member must be an active staff member in this school');
+    if (!['class_teacher', 'assistant_class_teacher', 'head_of_department', 'grade_master', 'form_master',
+      'dean_of_academics', 'exams_manager', 'head_of_subject', 'timetable_coordinator'].includes(dto.role_type)) {
+      throw new BadRequestException('Select an available academic responsibility.');
+    }
+    if (['class_teacher', 'assistant_class_teacher'].includes(dto.role_type) && (!dto.class_section_id || !dto.academic_year_id)) {
+      throw new BadRequestException('Select the academic year and class for this class teacher appointment.');
+    }
+    if (['class_teacher', 'assistant_class_teacher'].includes(dto.role_type) && dto.stream_id) {
+      throw new BadRequestException('Class teacher responsibilities cover the selected class. Leave the stream scope empty.');
+    }
+    if (['dean_of_academics', 'exams_manager', 'timetable_coordinator'].includes(dto.role_type)
+      && (dto.subject_id || dto.department_id || dto.academic_year_id || dto.class_section_id || dto.stream_id)) {
+      throw new BadRequestException('This responsibility covers the whole school. Leave the scope fields empty.');
+    }
+    if (['grade_master', 'form_master'].includes(dto.role_type) && !dto.class_section_id && !dto.stream_id) {
+      throw new BadRequestException('Select a class or stream for this grade or form appointment.');
+    }
+    if (dto.role_type === 'head_of_department' && !dto.department_id) {
+      throw new BadRequestException('Select a department for the Head of Department appointment.');
     }
     if (dto.role_type === 'head_of_subject' && !dto.subject_id) {
       throw new BadRequestException('Head of Subject requires a subject appointment.');
@@ -1320,10 +1335,32 @@ export class AcademicsService {
       }
     }
     if (dto.effective_from && dto.effective_to) this.requireDateRange(dto.effective_from, dto.effective_to, 'Academic role appointment');
-    if (dto.department_id) await this.requireSetupRecord(tenantId, 'department', dto.department_id);
-    if (dto.academic_year_id) await this.requireSetupRecord(tenantId, 'academic-year', dto.academic_year_id);
-    if (dto.class_section_id) await this.requireSetupRecord(tenantId, 'class-section', dto.class_section_id);
-    if (dto.stream_id) await this.requireSetupRecord(tenantId, 'class-stream', dto.stream_id);
+    for (const [type, id] of [['department', dto.department_id], ['academic-year', dto.academic_year_id],
+      ['class-section', dto.class_section_id], ['class-stream', dto.stream_id]]) {
+      if (!id) continue;
+      const scope = await this.requireSetupRecord(tenantId, type!, id);
+      if (['archived', 'inactive', 'closed'].includes(scope.status) || scope.archived_at || scope.is_active === false) {
+        throw new BadRequestException('Select an active scope for this appointment.');
+      }
+    }
+    if (dto.class_section_id) {
+      const section = await this.requireSetupRecord(tenantId, 'class-section', dto.class_section_id);
+      if (dto.academic_year_id && String(section.academic_year_id) !== dto.academic_year_id) {
+        throw new BadRequestException('The class must belong to the selected academic year.');
+      }
+    }
+    if (dto.stream_id && dto.class_section_id) {
+      const stream = await this.requireSetupRecord(tenantId, 'class-stream', dto.stream_id);
+      if (String(stream.class_section_id) !== dto.class_section_id) throw new BadRequestException('The stream must belong to the selected class.');
+    }
+    if (dto.role_type === 'class_teacher') {
+      return this.assignClassTeacher({ ...dto, academic_year_id: dto.academic_year_id!, class_section_id: dto.class_section_id!,
+        assignment_type: dto.appointment_type });
+    }
+    if (dto.role_type === 'head_of_department') {
+      return this.updateDepartment(dto.department_id!, { head_of_department_user_id: teacherUserId,
+        appointment_type: dto.appointment_type, effective_from: dto.effective_from, effective_to: dto.effective_to, reason: dto.reason });
+    }
     return this.repository.assignAcademicRole(tenantId, {
       ...dto,
       actor_user_id: this.currentUserId(),
@@ -1353,15 +1390,35 @@ export class AcademicsService {
 
   async endAcademicRole(id: string, dto: EndAssignmentDto) {
     const tenantId = this.requireTenantId();
+    dto = { ...dto, reason: this.requireText(dto.reason, 'End reason') };
+    if (id.startsWith('class-teacher:')) return this.archiveClassTeacher(id.slice('class-teacher:'.length), dto);
+    if (id.startsWith('department-head:')) {
+      const result = await this.repository.executeSql(tenantId, `SELECT department_id, teacher_user_id
+        FROM academics_department_hod_appointments WHERE tenant_id = $1 AND id::text = $2 AND status = 'active'`,
+      [tenantId, id.slice('department-head:'.length)]);
+      if (!result.rows[0]) throw new BadRequestException('The department appointment has already ended.');
+      const department = await this.requireSetupRecord(tenantId, 'department', String(result.rows[0].department_id));
+      if (String(department.head_of_department_user_id) !== String(result.rows[0].teacher_user_id)) {
+        throw new ConflictException('The department holder changed. Refresh before ending this appointment.');
+      }
+      return this.updateDepartment(String(result.rows[0].department_id), {
+        head_of_department_user_id: '', reason: this.requireText(dto.reason, 'End reason'),
+        expected_version: Number(department.version),
+      });
+    }
     const previous = await this.requireSetupRecord(tenantId, 'academic-role', id);
     const ended = await this.repository.endAcademicRole(tenantId, id, {
       effective_to: dto.effective_to ?? null,
       reason: this.requireText(dto.reason, 'End reason'),
       actor_user_id: this.currentUserId(),
+    }, async (tx, record) => {
+      this.requireUpdatedRecord(record, 'Academic role appointment');
+      await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', record,
+        'ended', previous, dto.reason, undefined, tx);
+      await this.notifyAcademicAssignee(tenantId, String(previous.teacher_user_id),
+        `academic-role-ended:${id}:${record.version}`, 'Academic responsibility ended',
+        `Your ${String(previous.role_type).replace(/_/g, ' ')} appointment has ended.`, id, tx);
     });
-    this.requireUpdatedRecord(ended, 'Academic role appointment');
-    await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', ended,
-      'ended', previous, dto.reason);
     return ended;
   }
 

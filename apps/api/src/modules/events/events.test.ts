@@ -2220,3 +2220,22 @@ test('SchoolOperationalEventsController exposes authenticated operation and noti
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, listDescriptor.value), ['events:read']);
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, markReadDescriptor.value), ['events:write']);
 });
+
+
+test('academic appointments refresh exact recipients on non-academic dashboards without exposing academic records', () => {
+  const service = new DashboardRealtimeService({} as never, {} as never, {} as never);
+  const event = { id: 'appointment-event', tenant_id: 'school-a', event_name: 'academic.role_assignment.changed',
+    aggregate_id: 'appointment', created_at: '2026-10-03T10:00:00Z', payload: {
+      previous_values: { teacher_user_id: 'previous-holder' }, new_values: { teacher_user_id: 'new-holder' },
+      reason: 'Private appointment reason',
+    } } as unknown as DomainEvent;
+  for (const userId of ['previous-holder', 'new-holder']) {
+    const result = service.toDashboardEvent(event, { enabledModules: ['academics'], permissions: ['auth:read'], role: 'librarian', userId });
+    assert.equal(result?.sourceModule, 'academics');
+    assert.deepEqual(result?.payload, { access_changed: true });
+  }
+  assert.equal(service.toDashboardEvent(event, { enabledModules: ['academics'], permissions: ['auth:read'],
+    role: 'librarian', userId: 'other-staff' }), null);
+  assert.equal(service.toDashboardEvent(event, { enabledModules: [], permissions: ['auth:read'],
+    role: 'librarian', userId: 'new-holder' }), null);
+});

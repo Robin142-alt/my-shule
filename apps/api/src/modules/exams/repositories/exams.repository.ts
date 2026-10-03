@@ -1,3 +1,4 @@
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 import { reportPdfIdentity } from '../services/report-artifact-identity';
 import { buildScopeSqlClause, parseReportCardScope, reportCardIneligibilitySql, reportCardPreviewToken,
@@ -5917,7 +5918,7 @@ export class ExamsRepository {
             AND ($4::text IS NULL OR assignment.subject_id::text = $4)
           UNION ALL
           SELECT 1
-          FROM academics_class_teachers assignment
+          FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} assignment
           WHERE assignment.tenant_id = $1
             AND assignment.teacher_user_id::text = $2
             AND assignment.is_active = TRUE

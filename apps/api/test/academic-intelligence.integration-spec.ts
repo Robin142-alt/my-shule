@@ -77,6 +77,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query("INSERT INTO teacher_subject_assignments VALUES ('school-a',$1,$2,$3,$4,$5,'active',NULL,NULL)",[ids.teacher,ids.class,ids.math,ids.term,ids.blue]);
       await c.query("INSERT INTO staff_profiles VALUES ('school-a',$1,'Teacher One')",[ids.teacher]);
       await c.query("INSERT INTO academics_class_teachers VALUES ('school-a',$1,$2,$3,true,'active',NULL,NULL)",[ids.class_teacher,ids.class,ids.year]);
+      await c.query("ALTER TABLE academics_class_teachers ADD COLUMN id text DEFAULT gen_random_uuid()::text");
       await c.query("INSERT INTO academics_department_hod_appointments VALUES ('school-a',$1,$2,'active',NULL,NULL)",[ids.hod,ids.department]);
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'head_of_subject',$2,NULL,NULL,NULL,'active',NULL,NULL)",[ids.hos,ids.math]);
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'grade_master',NULL,$2,$3,$4,'active',NULL,NULL)",[ids.grade,ids.class,ids.red,ids.year]);
