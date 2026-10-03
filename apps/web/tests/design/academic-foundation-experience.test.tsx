@@ -26,9 +26,9 @@ it('offers existing academic dashboards, omits obsolete coordinators and appoint
   const user = userEvent.setup();
   (requestDashboardApi as jest.Mock).mockResolvedValue({ appointment: { id: 'saved' } });
   render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="Test School" tenantId="school-a" initialTab="roles-curriculum" />);
-  const role = screen.getByRole('combobox', { name: 'Role', exact: true });
+  const role = screen.getByRole('combobox', { name: 'Role' });
   for (const label of ['Class Teacher', 'Assistant Class Teacher', 'Head of Department (HOD)', 'Dean of Academics', 'Exams Manager', 'Timetable Coordinator']) {
-    expect(within(role).getByRole('option', { name: label, exact: true })).toBeInTheDocument();
+    expect(within(role).getByRole('option', { name: label })).toBeInTheDocument();
   }
   for (const label of ['Subject Coordinator', 'Curriculum Coordinator', 'Academic Year Coordinator']) {
     expect(within(role).queryByRole('option', { name: label })).not.toBeInTheDocument();
