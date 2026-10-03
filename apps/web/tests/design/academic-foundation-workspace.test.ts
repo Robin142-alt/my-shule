@@ -56,7 +56,7 @@ describe("principal and deputy academic foundation workspace", () => {
     expect(workspaceSource).toContain("Save HOD");
     expect(workspaceSource).toContain("Assign Class Teacher");
     expect(workspaceSource).toContain("Assign Subject Teacher");
-    expect(workspaceSource).toContain("Assign academic leadership role");
+    expect(workspaceSource).toContain("Assign school staff role");
     expect(workspaceSource).toContain("Create curriculum version");
     expect(workspaceSource).toContain("Grade bands and assessment rules");
   });

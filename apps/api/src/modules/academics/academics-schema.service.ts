@@ -1,3 +1,4 @@
+import { MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from '../../auth/staff-appointment-catalog';
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -883,12 +884,15 @@ export class AcademicsSchemaService implements OnModuleInit, OnApplicationBootst
       );
       ALTER TABLE academics_role_appointments ADD COLUMN IF NOT EXISTS subject_id text;
       DROP INDEX IF EXISTS ux_academics_role_appointments_active;
-      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_subject_active
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_staff_scope_active
         ON academics_role_appointments (
           tenant_id, role_type,
           COALESCE(department_id::text, ''), COALESCE(academic_year_id, ''),
-          COALESCE(class_section_id, ''), COALESCE(stream_id, ''), COALESCE(subject_id, '')
+          COALESCE(class_section_id, ''), COALESCE(stream_id, ''), COALESCE(subject_id, ''),
+          (CASE WHEN role_type IN (${MULTI_HOLDER_STAFF_APPOINTMENT_CODES.map(code => `'${code}'`).join(', ')})
+            THEN teacher_user_id::text ELSE '' END)
         ) WHERE status = 'active';
+      DROP INDEX IF EXISTS ux_academics_role_appointments_subject_active;
       CREATE INDEX IF NOT EXISTS ix_academics_role_appointments_history
         ON academics_role_appointments (tenant_id, role_type, teacher_user_id, effective_from DESC);
 

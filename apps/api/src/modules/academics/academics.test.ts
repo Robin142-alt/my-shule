@@ -83,7 +83,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_department_hod_active/);
   assert.match(schemaSql, /ALTER TABLE academics_role_appointments ADD COLUMN IF NOT EXISTS subject_id text/);
   assert.match(schemaSql, /DROP INDEX IF EXISTS ux_academics_role_appointments_active/);
-  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_subject_active/);
+  assert.match(schemaSql, /CREATE UNIQUE INDEX IF NOT EXISTS ux_academics_role_appointments_staff_scope_active/);
   assert.match(schemaSql, /uq_academics_curriculum_name_start/);
   assert.match(schemaSql, /NULLIF\(current_setting\('app\.role', true\), ''\) = 'system'/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
@@ -1621,4 +1621,36 @@ test('AcademicsService returns truthful partial success for teacher responsibili
   assert.equal(result.status, 'partial_success');
   assert.deepEqual(result.transferred, { timetable_slots: 4 });
   assert.deepEqual(calls, ['audit', 'notification']);
+});
+
+test('staff appointments enforce staff-management authority for both assignment and removal', async () => {
+  let role = 'dean_academics';
+  let permissions = ['academics:assign-teachers'];
+  let appointmentRole = 'nurse';
+  let mutations = 0;
+  const service = new AcademicsService({ getStore: () => ({ tenant_id: 'school-a', user_id: 'actor', role, permissions }) } as never, {
+    findTeacherOptionByUserId: async () => ({ user_id: 'staff-a', role_code: 'teacher' }),
+    getSetupRecord: async () => ({ id: 'appointment', teacher_user_id: 'staff-a', role_type: appointmentRole }),
+    assignAcademicRole: async () => { mutations += 1; return {}; },
+    endAcademicRole: async () => { mutations += 1; return {}; },
+  } as never, {} as never);
+  const assign = () => service.assignAcademicRole({ role_type: appointmentRole, teacher_user_id: 'staff-a', reason: 'Additional duty' });
+  const end = () => service.endAcademicRole('appointment', { reason: 'Duty ended' });
+  await assert.rejects(assign, /staff management permission/);
+  await assert.rejects(end, /staff management permission/);
+  role = 'deputy_principal'; permissions = ['academics:assign-teachers', 'users:write'];
+  await assign(); await end();
+  for (appointmentRole of ['principal', 'deputy_principal', 'owner', 'admin']) {
+    await assert.rejects(assign, /Principal or school administrator/);
+    await assert.rejects(end, /Principal or school administrator/);
+  }
+  assert.equal(mutations, 2);
+  role = 'principal'; appointmentRole = 'deputy_principal';
+  await assign(); await end();
+  appointmentRole = 'admin';
+  await assert.rejects(assign, /role administration permission/);
+  await assert.rejects(end, /role administration permission/);
+  appointmentRole = 'nurse';
+  await assert.rejects(() => service.assignAcademicRole({ role_type: appointmentRole, teacher_user_id: 'staff-a', subject_id: 'math', reason: 'Additional duty' }), /whole school/);
+  assert.equal(mutations, 4);
 });

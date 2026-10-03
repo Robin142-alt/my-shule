@@ -1,3 +1,4 @@
+import { STAFF_APPOINTMENT_CODES } from '../../../auth/staff-appointment-catalog';
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 
@@ -677,10 +678,7 @@ export class AssignHeadOfSubjectDto {
 }
 
 export class AcademicRoleAppointmentDto {
-  @IsIn([
-    'class_teacher', 'assistant_class_teacher', 'head_of_department', 'grade_master', 'form_master', 'dean_of_academics',
-    'exams_manager', 'head_of_subject', 'timetable_coordinator',
-  ])
+  @IsIn(STAFF_APPOINTMENT_CODES)
   role_type!: string;
 
   @IsOptional() @IsString() subject_id?: string;

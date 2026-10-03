@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException, Inject, forwardRef, Optional } from '@nestjs/common';
+import { STAFF_APPOINTMENT_CATALOG, STAFF_APPOINTMENT_CODES, MULTI_HOLDER_STAFF_APPOINTMENT_CODES, staffAppointmentRestriction } from '../../auth/staff-appointment-catalog';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, UnauthorizedException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -588,7 +589,12 @@ export class AcademicsService {
       this.repository.getAcademicFoundation(tenantId),
       this.repository.listTeacherOptions(tenantId, true),
     ]);
-    return { ...foundation, hosStaff };
+    const context = this.requestContext.getStore();
+    const appointmentRoles = STAFF_APPOINTMENT_CATALOG.map(role => ({ ...role,
+      multipleHolders: MULTI_HOLDER_STAFF_APPOINTMENT_CODES.includes(role.code),
+      unavailableReason: staffAppointmentRestriction(role.code, context?.role ?? null, context?.permissions ?? []),
+    }));
+    return { ...foundation, hosStaff, appointmentRoles };
   }
 
   getCommunications() {
@@ -1299,20 +1305,20 @@ export class AcademicsService {
     dto = { ...dto, reason: this.requireText(dto.reason, 'Appointment reason'),
       effective_from: dto.effective_from ?? new Date().toISOString().slice(0, 10) };
     const tenantId = this.requireTenantId();
-    const teacherUserId = this.requireText(dto.teacher_user_id, 'Academic role holder');
+    const teacherUserId = this.requireText(dto.teacher_user_id, 'Staff role holder');
     const staff = await this.repository.findTeacherOptionByUserId(tenantId, teacherUserId, true);
     if (!staff) throw new BadRequestException('Selected staff member must be an active staff member in this school');
-    if (!['class_teacher', 'assistant_class_teacher', 'head_of_department', 'grade_master', 'form_master',
-      'dean_of_academics', 'exams_manager', 'head_of_subject', 'timetable_coordinator'].includes(dto.role_type)) {
-      throw new BadRequestException('Select an available academic responsibility.');
+    if (!STAFF_APPOINTMENT_CODES.includes(dto.role_type)) {
+      throw new BadRequestException('Select an available school staff responsibility.');
     }
+    this.requireStaffAppointmentPermission(dto.role_type);
     if (['class_teacher', 'assistant_class_teacher'].includes(dto.role_type) && (!dto.class_section_id || !dto.academic_year_id)) {
       throw new BadRequestException('Select the academic year and class for this class teacher appointment.');
     }
     if (['class_teacher', 'assistant_class_teacher'].includes(dto.role_type) && dto.stream_id) {
       throw new BadRequestException('Class teacher responsibilities cover the selected class. Leave the stream scope empty.');
     }
-    if (['dean_of_academics', 'exams_manager', 'timetable_coordinator'].includes(dto.role_type)
+    if (!['class_teacher', 'assistant_class_teacher', 'head_of_department', 'head_of_subject', 'grade_master', 'form_master'].includes(dto.role_type)
       && (dto.subject_id || dto.department_id || dto.academic_year_id || dto.class_section_id || dto.stream_id)) {
       throw new BadRequestException('This responsibility covers the whole school. Leave the scope fields empty.');
     }
@@ -1375,17 +1381,23 @@ export class AcademicsService {
         }, tx);
       await this.notifyAcademicAssignee(tenantId, teacherUserId,
         `academic-role:${appointment.id}:${appointment.version ?? 1}`,
-        'Academic responsibility updated',
+        'Staff responsibility updated',
         `You have been assigned as ${dto.role_type.replace(/_/g, ' ')} effective ${dto.effective_from}.`,
         String(appointment.id), tx);
       if (result.previous?.teacher_user_id && String(result.previous.teacher_user_id) !== teacherUserId) {
         await this.notifyAcademicAssignee(tenantId, String(result.previous.teacher_user_id),
           `academic-role-ended:${result.previous.id}:${appointment.id}`,
-          'Academic responsibility transferred',
+          'Staff responsibility transferred',
           `Your ${dto.role_type.replace(/_/g, ' ')} appointment ended effective ${dto.effective_from}.`,
           String(result.previous.id), tx);
       }
     });
+  }
+
+  private requireStaffAppointmentPermission(role: string) {
+    const context = this.requestContext.getStore();
+    const restriction = staffAppointmentRestriction(role, context?.role ?? null, context?.permissions ?? []);
+    if (restriction) throw new ForbiddenException(restriction);
   }
 
   async endAcademicRole(id: string, dto: EndAssignmentDto) {
@@ -1407,6 +1419,7 @@ export class AcademicsService {
       });
     }
     const previous = await this.requireSetupRecord(tenantId, 'academic-role', id);
+    this.requireStaffAppointmentPermission(String(previous.role_type));
     const ended = await this.repository.endAcademicRole(tenantId, id, {
       effective_to: dto.effective_to ?? null,
       reason: this.requireText(dto.reason, 'End reason'),
@@ -1416,7 +1429,7 @@ export class AcademicsService {
       await this.recordAcademicChange('academic.role_assignment.changed', 'academic_role_appointment', record,
         'ended', previous, dto.reason, undefined, tx);
       await this.notifyAcademicAssignee(tenantId, String(previous.teacher_user_id),
-        `academic-role-ended:${id}:${record.version}`, 'Academic responsibility ended',
+        `academic-role-ended:${id}:${record.version}`, 'Staff responsibility ended',
         `Your ${String(previous.role_type).replace(/_/g, ' ')} appointment has ended.`, id, tx);
     });
     return ended;

@@ -1,3 +1,4 @@
+import { STAFF_APPOINTMENT_CATALOG, MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from '../src/auth/staff-appointment-catalog';
 import { randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
 import { AcademicsRepository } from '../src/modules/academics/repositories/academics.repository';
@@ -58,15 +59,16 @@ describe('School-wide HOS appointments and derived dashboard access', () => {
           role_type text, teacher_user_id uuid, department_id uuid, academic_year_id text, class_section_id text, stream_id text, subject_id text,
           appointment_type text, effective_from date, effective_to date, reason text, appointed_by_user_id uuid, approved_by_user_id uuid,
           ended_by_user_id uuid, status text DEFAULT 'active', version int DEFAULT 1, updated_at timestamptz DEFAULT NOW());
-        CREATE UNIQUE INDEX active_subject_head ON academics_role_appointments(tenant_id, role_type, subject_id,
-          COALESCE(department_id::text,''), COALESCE(academic_year_id,''), COALESCE(class_section_id,''), COALESCE(stream_id,'')) WHERE status='active';
+        CREATE UNIQUE INDEX active_subject_head ON academics_role_appointments(tenant_id, role_type, COALESCE(subject_id,''),
+          COALESCE(department_id::text,''), COALESCE(academic_year_id,''), COALESCE(class_section_id,''), COALESCE(stream_id,''),
+          (CASE WHEN role_type IN (${MULTI_HOLDER_STAFF_APPOINTMENT_CODES.map(code => `'${code}'`).join(', ')}) THEN teacher_user_id::text ELSE '' END)) WHERE status='active';
         CREATE TABLE evidence(tenant_id text, kind text, appointment_id uuid);
       `);
       for (const tenant of ['school-a', 'school-b']) {
         await client.query("INSERT INTO roles VALUES ($1,$2,'librarian','Librarian'),($3,$2,'head_of_subject','Head of Subject')", [ids.primary, tenant, ids.hos]);
         await client.query("INSERT INTO tenant_memberships VALUES ($1,$2,$4,'active'),($1,$3,$4,'active')", [tenant, ids.first, ids.second, ids.primary]);
         await client.query('INSERT INTO subjects(id,tenant_id) VALUES ($1,$3),($2,$3)', [ids.math, ids.science, tenant]);
-        for (const code of ['teacher', 'class_teacher', 'hod', 'dean_academics', 'exams_manager', 'grade_master']) {
+        for (const code of [...new Set(STAFF_APPOINTMENT_CATALOG.map(role => role.dashboardRole))].filter(code => !['librarian', 'head_of_subject'].includes(code))) {
           await client.query('INSERT INTO roles VALUES ($1,$2,$3,$3)', [randomUUID(), tenant, code]);
         }
       }
@@ -156,11 +158,28 @@ describe('School-wide HOS appointments and derived dashboard access', () => {
     expect((await context()).assigned_roles.sort()).toEqual(['teacher', 'grade_master'].sort());
   });
 
+  it('adds every existing staff dashboard, supports several holders, and independently ends appointments', async () => {
+    for (const role_type of MULTI_HOLDER_STAFF_APPOINTMENT_CODES) {
+      const input = { role_type, teacher_user_id: ids.first, effective_from: '2020-01-01', reason: 'Additional staff duty', actor_user_id: ids.actor };
+      const first = await academics.assignAcademicRole('school-a', input);
+      const renewed = await academics.assignAcademicRole('school-a', input);
+      expect(renewed.appointment.id).toBe(first.appointment.id);
+      await academics.assignAcademicRole('school-a', { ...input, teacher_user_id: ids.second });
+      for (const user of [ids.first, ids.second]) {
+        expect((await roles('school-a').findActiveRolesForUser(user, 'school-a')).map(role => role.role_code)).toContain(role_type);
+      }
+      expect(await roles('school-a').findActiveRolesForUser(ids.first, 'school-b')).toEqual([]);
+      await academics.endAcademicRole('school-a', String(first.appointment.id), { actor_user_id: ids.actor, reason: 'Duty ended' });
+      expect((await roles('school-a').findActiveRolesForUser(ids.first, 'school-a')).map(role => role.role_code)).not.toContain(role_type);
+      expect((await roles('school-a').findActiveRolesForUser(ids.second, 'school-a')).map(role => role.role_code)).toContain(role_type);
+    }
+  });
+
   it('rejects removed coordinator types and accepts existing academic dashboard appointments', async () => {
-    for (const role_type of ['subject_coordinator', 'curriculum_coordinator', 'academic_year_coordinator']) {
+    for (const role_type of ['subject_coordinator', 'curriculum_coordinator', 'academic_year_coordinator', 'super_admin', 'platform_owner', 'support_agent', 'parent', 'student']) {
       expect((await validate(Object.assign(new AcademicRoleAppointmentDto(), { role_type, teacher_user_id: ids.first }))).length).toBeGreaterThan(0);
     }
-    for (const role_type of ['class_teacher', 'head_of_department', 'dean_of_academics', 'exams_manager', 'timetable_coordinator']) {
+    for (const role_type of STAFF_APPOINTMENT_CATALOG.map(role => role.code)) {
       expect(await validate(Object.assign(new AcademicRoleAppointmentDto(), { role_type, teacher_user_id: ids.first }))).toEqual([]);
     }
   });

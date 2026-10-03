@@ -1,9 +1,10 @@
+import { STAFF_APPOINTMENT_CATALOG } from "../../../api/src/auth/staff-appointment-catalog";
 import { expect, test } from "@playwright/test";
 import { normalizeDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import { SCHOOL_SESSION_COOKIE, serializeExperienceSession } from "@/lib/auth/experience-routing";
 
 for (const width of [1440, 390]) {
-  test(`academic appointments update the existing switcher at ${width}px`, async ({ page }) => {
+  test(`staff appointments update the existing switcher at ${width}px`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width, height: 900 });
     page.setDefaultTimeout(15_000);
@@ -13,10 +14,10 @@ for (const width of [1440, 390]) {
     let activeRole = "deputy_principal";
     const tenantSlug = "appointment-test-school";
     const session = () => {
-      const roles = ["deputy_principal", "teacher", ...(appointed ? ["dean_academics"] : [])];
+      const roles = ["deputy_principal", "teacher", ...(appointed ? ["librarian"] : [])];
       const roleContext = normalizeDashboardRoleContext({ primary_role: "deputy_principal", active_role: activeRole,
         assigned_roles: roles, teacher_dashboard_eligible: true, available_roles: roles.map(role_code => ({ role_code,
-          role_name: ({ deputy_principal: "Deputy Principal", teacher: "Teacher", dean_academics: "Dean of Academics" } as Record<string, string>)[role_code],
+          role_name: ({ deputy_principal: "Deputy Principal", teacher: "Teacher", librarian: "Librarian" } as Record<string, string>)[role_code],
           is_primary: role_code === "deputy_principal", is_teacher_mode: role_code === "teacher",
           sources: ["primary_membership"] })) }, "deputy-principal");
       const user = { user_id: "staff-a", tenant_id: tenantSlug, role: activeRole, display_name: "Test Staff",
@@ -46,11 +47,11 @@ for (const width of [1440, 390]) {
       if (path === "/api/academics/foundation") return route.fulfill({ json: {
         years: [], terms: [], calendarPeriods: [], classes: [], streams: [], subjects: [], departments: [], teachers: [],
         hosStaff: [{ user_id: "staff-a", label: "Test Staff", display_name: "Test Staff", role_code: "deputy_principal" }],
-        classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], curriculumConfigurations: [],
+        classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], appointmentRoles: STAFF_APPOINTMENT_CATALOG, curriculumConfigurations: [],
         gradingSystems: [], attendanceSettings: [], reportCardSettings: [],
       } });
       if (path === "/api/academics/academic-roles" && route.request().method() === "POST") {
-        expect(route.request().postDataJSON()).toMatchObject({ role_type: "dean_of_academics", teacher_user_id: "staff-a" });
+        expect(route.request().postDataJSON()).toMatchObject({ role_type: "librarian", teacher_user_id: "staff-a" });
         appointed = true;
         saves += 1;
         return route.fulfill({ json: { appointment: { id: "test-appointment" } } });
@@ -66,20 +67,24 @@ for (const width of [1440, 390]) {
       await expect(role.getByRole("option", { name: excluded, exact: true })).toHaveCount(0);
     }
     await expect(role.getByRole("option", { name: "Timetable Coordinator", exact: true })).toHaveCount(1);
-    await role.selectOption("dean_of_academics");
+    for (const staffRole of STAFF_APPOINTMENT_CATALOG) {
+      await expect(role.getByRole("option", { name: staffRole.label, exact: true })).toHaveCount(1);
+    }
+    await role.selectOption("librarian");
     await page.getByRole("combobox", { name: "Staff member", exact: true }).selectOption("staff-a");
     await page.getByRole("textbox", { name: "Reason", exact: true }).fill("Academic leadership appointment");
+    await page.screenshot({ path: `../../tmp/staff-appointment-form-${width}.png`, fullPage: true });
     await page.getByRole("button", { name: "Save role appointment", exact: true }).click();
     await expect.poll(() => saves).toBe(1);
     const switcher = page.getByRole("button", { name: /switch dashboard.*deputy principal/i });
     await switcher.click();
-    await expect(page.getByRole("radio", { name: /Dean of Academics/i })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Librarian/i })).toBeVisible();
     await expect(page.getByRole("radio", { name: /^Teacher\b/ })).toBeVisible();
     appointed = false;
     await page.clock.runFor(30_100);
-    await expect(page.getByRole("radio", { name: /Dean of Academics/i })).toHaveCount(0);
+    await expect(page.getByRole("radio", { name: /Librarian/i })).toHaveCount(0);
     await page.getByRole("radio", { name: /^Teacher\b/ }).click();
-    await expect(page).toHaveURL(/\/school\/teacher$/);
+    await expect(page).toHaveURL(/\/school\/teacher$/, { timeout: 15_000 });
     await expect(page.getByTestId("teacher-command-center")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `../../tmp/academic-appointment-access-${width}.png`, fullPage: true });
