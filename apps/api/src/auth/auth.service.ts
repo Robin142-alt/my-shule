@@ -131,14 +131,17 @@ export class AuthService {
 
     this.assertCurrentDashboardRole(payload.role, session.role);
 
+    let currentPermissions = session.permissions;
     if (session.tenant_id && session.audience === 'school' && this.dashboardRoleService) {
       try {
-        await this.dashboardRoleService.authorizeRole({
+        const selectedRole = await this.dashboardRoleService.authorizeRole({
           user_id: session.user_id,
           tenant_id: session.tenant_id,
           active_role: session.role,
           requested_role: session.role,
         });
+        currentPermissions = await this.getSchoolRolePermissions(session.tenant_id, selectedRole.role_id, session.user_id);
+        this.assertMfaAssuranceForRole(session, selectedRole.role_code, currentPermissions);
       } catch (error) {
         if (error instanceof ForbiddenException || error instanceof UnauthorizedException) {
           throw new UnauthorizedException('The active dashboard role is no longer available');
@@ -148,9 +151,9 @@ export class AuthService {
       }
     }
 
-    await this.assertEmailVerifiedForSensitiveSession(session);
+    await this.assertEmailVerifiedForSensitiveSession({ ...session, permissions: currentPermissions });
 
-    return this.sessionService.toPrincipal(session);
+    return { ...this.sessionService.toPrincipal(session), permissions: currentPermissions };
   }
 
   async register(dto: RegisterDto, metadata: AuthRequestMetadata): Promise<AuthResponseDto> {
@@ -184,9 +187,10 @@ export class AuthService {
     const roleAuthorizationSet = audience === 'school'
       ? await this.resolveLoginRoleAuthorizationSet(user.id, membership)
       : this.buildPrimaryRoleAuthorizationSet(membership);
-    const primaryRolePermissions = await this.authorizationRepository.getPermissionsByRoleId(
+    const primaryRolePermissions = await this.getSchoolRolePermissions(
       tenantId,
       membership.role_id,
+      audience === 'school' ? user.id : undefined,
     );
     const permissions = this.resolveEmailVerificationPermissions(user, primaryRolePermissions);
     const assurancePermissions = await this.resolveLoginAssurancePermissions(
@@ -285,9 +289,10 @@ export class AuthService {
           primary_role_id: membership.role_id,
         })
       : this.buildPrimaryAuthorizedRole(membership);
-    const selectedRolePermissions = await this.authorizationRepository.getPermissionsByRoleId(
+    const selectedRolePermissions = await this.getSchoolRolePermissions(
       tenantId,
       selectedRole.role_id,
+      audience === 'school' ? user.id : undefined,
     );
     this.assertMfaAssuranceForRole(session, selectedRole.role_code, selectedRolePermissions);
     const permissions = this.resolveEmailVerificationPermissions(user, selectedRolePermissions);
@@ -463,7 +468,7 @@ export class AuthService {
       : this.buildPrimaryAuthorizedRole(membership);
     const permissions = this.resolveEmailVerificationPermissions(
       user,
-      await this.authorizationRepository.getPermissionsByRoleId(tenantId, selectedRole.role_id),
+      await this.getSchoolRolePermissions(tenantId, selectedRole.role_id, requestContext.audience === 'school' ? user.id : undefined),
     );
 
     return {
@@ -543,9 +548,10 @@ export class AuthService {
       active_role: dto.role_code,
       requested_role: dto.role_code,
     });
-    const selectedRolePermissions = await this.authorizationRepository.getPermissionsByRoleId(
+    const selectedRolePermissions = await this.getSchoolRolePermissions(
       tenantId,
       selectedRole.role_id,
+      user.id,
     );
     this.assertMfaAssuranceForRole(session, selectedRole.role_code, selectedRolePermissions);
     const permissions = this.resolveEmailVerificationPermissions(user, selectedRolePermissions);
@@ -1159,6 +1165,13 @@ export class AuthService {
     }
 
     return this.auditService;
+  }
+
+  private async getSchoolRolePermissions(tenantId: string, roleId: string, userId?: string): Promise<string[]> {
+    const base = await this.authorizationRepository.getPermissionsByRoleId(tenantId, roleId);
+    const appointments = userId && this.dashboardRoleService?.getAppointmentPermissions
+      ? await this.dashboardRoleService.getAppointmentPermissions(userId, tenantId) : [];
+    return [...new Set([...base, ...appointments])];
   }
 
   private resolveEmailVerificationPermissions(

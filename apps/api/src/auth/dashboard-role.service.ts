@@ -62,6 +62,10 @@ export class DashboardRoleService {
     return this.buildRoleContext(resolved.membership, resolved.assignments, activeRole);
   }
 
+  async getAppointmentPermissions(userId: string, tenantId: string): Promise<string[]> {
+    return this.userRoleAssignmentsRepository.findAppointmentPermissions(userId, tenantId);
+  }
+
   async authorizeRole(
     input: ResolveDashboardRolesInput & { requested_role: string },
   ): Promise<AuthorizedDashboardRole> {

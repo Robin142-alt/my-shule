@@ -42,6 +42,10 @@ interface DashboardSnapshotOptions {
   limit?: number;
 }
 
+const appointmentEvents = new Set([
+  'academic.role_assignment.changed', 'academic.hod.reassigned', 'academic.teacher_assignment.changed',
+]);
+
 const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfig>> = {
   'student.created': schoolDataChangedConfig(
     'Student record created',
@@ -507,7 +511,7 @@ export class DashboardRealtimeService {
     if (
       !this.hasPermission(filter.permissions, requiredPermission)
       && !(
-        event.event_name === 'school.operation.recorded'
+        (event.event_name === 'school.operation.recorded' || appointmentEvents.has(event.event_name))
         && isExactUserTarget
         && this.hasPermission(filter.permissions, 'auth:read')
       )
@@ -525,7 +529,12 @@ export class DashboardRealtimeService {
       ...roleChannels,
     ];
 
-    const eventPayload = payloadRecord(event);
+    // A newly appointed user may still be viewing a non-academic dashboard. Send
+    // only the refresh signal until their current role permits academic data.
+    const eventPayload = appointmentEvents.has(event.event_name)
+      && !this.hasPermission(filter.permissions, requiredPermission)
+      ? { access_changed: true }
+      : payloadRecord(event);
 
     return {
       id: event.id,
@@ -820,11 +829,23 @@ function academicDataChangedConfig(
   title: string,
   tone: DashboardRealtimeNotification['tone'] = 'info',
 ) {
-  return schoolDataChangedConfig(
+  const config = schoolDataChangedConfig(
     title,
     'academics',
     'academics:read',
     ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'teacher', 'class-teacher', 'grade-master', 'admissions-officer'],
     tone,
   );
+  return {
+    ...config,
+    roleChannels: (event: DomainEvent) => {
+      const channels = config.roleChannels as string[];
+      if (!appointmentEvents.has(event.event_name)) return channels;
+      const payload = payloadRecord(event);
+      const records = [payload.previous_values, payload.new_values] as Array<Record<string, unknown> | null>;
+      const recipients = records.flatMap((record) => [record?.teacher_user_id, record?.head_of_department_user_id])
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      return [...channels, ...new Set(recipients.map((id) => `user:${id}`))];
+    },
+  };
 }

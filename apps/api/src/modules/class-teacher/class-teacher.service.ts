@@ -1,3 +1,4 @@
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../academics/class-teacher-appointment-scope';
 import {
   BadRequestException,
   ForbiddenException,
@@ -187,7 +188,7 @@ export class ClassTeacherService {
   ) {
     const { rows } = await this.executeSql(
       `SELECT id
-       FROM academics_class_teachers
+       FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} class_appointments
        WHERE tenant_id::text = $1::text
          AND teacher_user_id::text = $2
          AND class_section_id = $3
@@ -229,7 +230,7 @@ export class ClassTeacherService {
 
     const { rows } = await this.executeSql(
       `SELECT appointment.id
-       FROM academics_class_teachers appointment
+       FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
        JOIN student_class_assignments student_assignment
          ON student_assignment.tenant_id::text = appointment.tenant_id::text
         AND student_assignment.class_section_id::text = appointment.class_section_id::text
@@ -431,7 +432,7 @@ export class ClassTeacherService {
         COALESCE(attendance_stats.present_count, 0)::int AS attendance_present_count,
         COALESCE(attendance_stats.total_count, 0)::int AS attendance_total_count,
         '--'::text AS cat_average
-      FROM academics_class_teachers appointment
+      FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
       JOIN class_sections cs
         ON cs.id::text = appointment.class_section_id::text
        AND cs.tenant_id::text = appointment.tenant_id::text
@@ -865,7 +866,7 @@ export class ClassTeacherService {
             AND m.score_status = 'entered' AND m.status IN ('submitted', 'reviewed', 'locked', 'published')
         ) as avg_marks
       FROM class_sections cs
-      JOIN academics_class_teachers appointment
+      JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
         ON appointment.tenant_id::text = cs.tenant_id::text
        AND appointment.class_section_id = cs.id::text
       JOIN student_class_assignments sca ON sca.class_section_id::text = cs.id::text AND sca.tenant_id::text = cs.tenant_id::text
@@ -928,7 +929,7 @@ export class ClassTeacherService {
       JOIN students s ON s.id::text = di.student_id::text AND s.tenant_id::text = di.tenant_id::text
       JOIN student_class_assignments sca ON sca.student_id::text = s.id::text AND sca.tenant_id::text = s.tenant_id::text AND sca.status = 'active'
       JOIN class_sections cs ON cs.id::text = sca.class_section_id::text AND cs.tenant_id::text = sca.tenant_id::text
-      JOIN academics_class_teachers appointment
+      JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
         ON appointment.tenant_id::text = sca.tenant_id::text
        AND appointment.class_section_id::text = sca.class_section_id::text
       WHERE di.tenant_id::text = $1::text
@@ -991,7 +992,7 @@ export class ClassTeacherService {
         rcc.final_comment,
         rcc.comment_status
       FROM class_sections cs
-      JOIN academics_class_teachers appointment
+      JOIN ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
         ON appointment.tenant_id::text = cs.tenant_id::text
        AND appointment.class_section_id = cs.id::text
       JOIN student_class_assignments sca ON sca.class_section_id::text = cs.id::text AND sca.tenant_id::text = cs.tenant_id::text
@@ -1885,7 +1886,7 @@ export class ClassTeacherService {
     const query = `
       WITH active_class_scope AS (
         SELECT DISTINCT appointment.class_section_id::text AS class_section_id
-        FROM academics_class_teachers appointment
+        FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
         WHERE appointment.tenant_id::text = $1::text
           AND appointment.teacher_user_id = $2::uuid
           AND appointment.is_active = TRUE

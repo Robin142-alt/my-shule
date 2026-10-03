@@ -64,3 +64,29 @@ test('HOS mutation requires assignment permission, rejects foreign records and a
   await service.assignHeadOfSubject({ subject_id: 'math', teacher_user_id: 'librarian' });
   assert.deepEqual(evidence, ['audit', 'event', 'notification'].map(kind => ({ kind, tenant: 'school-a', tx })));
 });
+
+
+test('renewing the same HOD updates appointment terms and commits governance with the appointment', async () => {
+  const evidence: unknown[] = [];
+  const tx = { transaction: true };
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'school-a', user_id: 'principal', role: 'principal' }) } as never,
+    {
+      getSetupRecord: async () => ({ id: 'department', name: 'Science', head_of_department_user_id: 'staff-a' }),
+      findTeacherOptionByUserId: async () => ({ user_id: 'staff-a' }),
+      assignDepartmentHead: async (_tenant: string, id: string, holder: string, input: any, governance: any) => {
+        assert.equal(input.appointment_type, 'temporary');
+        assert.equal(input.effective_to, '2026-12-31');
+        const result = { department: { id, name: 'Science', head_of_department_user_id: holder, version: 2 } };
+        await governance(tx, result, { head_of_department_user_id: holder });
+        return result;
+      },
+      appendAuditLog: async (_input: unknown, transaction: unknown) => { evidence.push(transaction); },
+    } as never, {} as never,
+    { publish: async (_input: unknown, transaction: unknown) => { evidence.push(transaction); } } as never,
+    { createNotification: async (_input: unknown, transaction: unknown) => { evidence.push(transaction); } } as never,
+  );
+  await service.updateDepartment('department', { head_of_department_user_id: 'staff-a', appointment_type: 'temporary',
+    effective_from: '2026-10-03', effective_to: '2026-12-31', reason: 'Renewed appointment' });
+  assert.deepEqual(evidence, [tx, tx, tx]);
+});

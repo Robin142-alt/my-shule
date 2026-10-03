@@ -1151,7 +1151,7 @@ export class TimetableService {
     const role = this.normalizedRole();
     const userId = this.requireActorUserId();
     const leadership = new Set(['principal', 'deputy_principal', 'dean_academics', 'dean_of_academics']);
-    if (leadership.has(role)) return {};
+    if (leadership.has(role) || this.canManageTimetable()) return {};
     if (['class_teacher'].includes(role)) {
       const ids = await this.workflowRepository.resolveManagedClassSectionIds({
         tenant_id: tenantId,

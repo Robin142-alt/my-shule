@@ -23,7 +23,7 @@ import { ClassesWorkspace } from "./teacher-dashboard/classes-workspace";
 import { ExamsMarksWorkspace } from "./teacher-dashboard/exams-marks-workspace";
 import { LessonLogWorkspace } from "./teacher-dashboard/lesson-log-workspace";
 import { ParentCommunicationWorkspace } from "./teacher-dashboard/parent-communication-workspace";
-import { TimetableWorkspace } from "./teacher-dashboard/timetable-workspace";
+import { AppointedTimetableWorkspace, useCanManageSchoolTimetable } from "./teacher-dashboard/appointed-timetable-workspace";
 import { SyllabusCoverageWorkspace } from "./teacher-dashboard/syllabus-coverage-workspace";
 import { LearnerProgressWorkspace } from "./teacher-dashboard/learner-progress-workspace";
 import { TeachingResourcesWorkspace } from "./teacher-dashboard/teaching-resources-workspace";
@@ -117,7 +117,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
             />
           )}
           {activeView === "parent-communication" && <ParentCommunicationWorkspace onStartAction={handleStartAction} />}
-          {activeView === "timetable" && <TimetableWorkspace />}
+          {activeView === "timetable" && <AppointedTimetableWorkspace />}
           {activeView === "syllabus-coverage" && <SyllabusCoverageWorkspace />}
           {activeView === "learner-progress" && <LearnerProgressWorkspace />}
           {activeView === "teaching-resources" && <TeachingResourcesWorkspace />}
@@ -148,7 +148,13 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
   );
 }
 
+function useTeacherNavigation() {
+  const canManage = useCanManageSchoolTimetable();
+  return navItems.map((item) => item.id === "timetable" && canManage ? { ...item, label: "Timetable & Relief" } : item);
+}
+
 function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
+  const navItems = useTeacherNavigation();
   return (
     <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Teacher command" title="Teacher Dashboard" subtitle="Personal teaching workspace" />
@@ -176,6 +182,7 @@ function Sidebar({ activeView, onViewChange }: { activeView: TeacherView; onView
 }
 
 function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewChange: (v: TeacherView) => void; }) {
+  const navItems = useTeacherNavigation();
   const [search, setSearch] = useState("");
   const searchResults = search.trim()
     ? navItems.filter((item) => `${item.label} ${item.group}`.toLowerCase().includes(search.trim().toLowerCase()))

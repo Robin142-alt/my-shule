@@ -137,6 +137,9 @@ export function useExperienceSession(
     retry: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    // Keep long-lived school sessions current even while no workspace is clicked.
+    // Realtime appointment events invalidate the same query for immediate updates.
+    refetchInterval: audience === "school" ? 30_000 : false,
   });
   const session = sessionQuery.data?.session ?? null;
   const user = sessionQuery.data?.user ?? null;

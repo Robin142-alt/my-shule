@@ -1175,9 +1175,11 @@ test('AcademicsService validates and audits HOD reassignment in the active schoo
         calls.push(`teacher:${tenantId}:${userId}`);
         return { user_id: userId };
       },
-      assignDepartmentHead: async (tenantId: string, id: string, hodUserId: string | null) => {
+      assignDepartmentHead: async (tenantId: string, id: string, hodUserId: string | null, _input: unknown, governance: any) => {
         calls.push(`department:${tenantId}:${id}:${hodUserId}`);
-        return { department: { id, name: 'Science', head_of_department_user_id: hodUserId, version: 2 } };
+        const result = { department: { id, name: 'Science', head_of_department_user_id: hodUserId, version: 2 } };
+        await governance({}, result, { id, head_of_department_user_id: null });
+        return result;
       },
       appendAuditLog: async (input: Record<string, unknown>) => {
         calls.push(`audit:${input.action}`);

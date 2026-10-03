@@ -35,6 +35,7 @@ jest.mock("@/components/school/admissions-dashboard/overview-workspace", () => (
   AdmissionsOverviewWorkspace: () => <p>Admissions overview</p>,
 }));
 jest.mock("@/components/providers/permission-context", () => ({
+  ...jest.requireActual("@/components/providers/permission-context"),
   PermissionProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock("@/lib/dashboard-communication/dashboard-communication-provider", () => ({
