@@ -8,6 +8,13 @@ import { isSchoolSection } from "@/lib/routing/experience-routes";
 
 import { renderWithProviders } from "./test-utils";
 
+// Render lazy workspace imports in jsdom without Next's browser chunk runtime.
+jest.mock("next/dynamic", () => (loader: () => Promise<unknown>) => {
+  const React = jest.requireActual("react");
+  const Component = React.lazy(async () => { const loaded: any = await loader(); return { default: loaded.default ?? loaded }; });
+  return function LazyWorkspace(props: unknown) { return React.createElement(React.Suspense, { fallback: null }, React.createElement(Component, props)); };
+});
+
 function admissionFoundation(classes = [
   {
     id: "class-grade-7",
@@ -55,7 +62,7 @@ describe("admissions dashboard routing", () => {
     window.history.pushState({}, "", "/");
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ metrics: {}, items: [], recentActivity: [] }),
+      json: async () => ({ ...admissionFoundation(), metrics: {}, items: [], recentActivity: [] }),
     }) as unknown as typeof fetch;
   });
 
@@ -69,42 +76,24 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
     expect(within(dashboard).getByRole("heading", { name: /Admissions Officer Dashboard/i })).toBeVisible();
     expect(within(dashboard).getByRole("link", { name: /Overview/i })).toBeVisible();
-    expect(within(dashboard).getByRole("link", { name: /Fee Clearance/i })).toHaveAttribute(
-      "href",
-      "/school/admissions/fee-clearance",
-    );
-    expect(within(dashboard).getByRole("link", { name: /Enrolment/i })).toHaveAttribute(
+    expect(within(dashboard).getAllByRole("link", { name: /Admission Records/i })[0]).toHaveAttribute(
       "href",
       "/school/admissions/enrolment",
+    );
+    expect(within(dashboard).getAllByRole("link", { name: /Bulk Admission/i })[0]).toHaveAttribute(
+      "href",
+      "/school/admissions/imports",
     );
     expect(within(dashboard).queryByText(/registrar command/i)).not.toBeInTheDocument();
   });
 
   it("routes admissions officer sidebar items to unique production-ready workspaces", () => {
     const workspace = getSchoolWorkspace("admissions");
-    const expectedSections = [
-      "enquiries",
-      "applications",
-      "applicant-profiles",
-      "documents",
-      "interviews",
-      "appointments",
-      "selection",
-      "fee-clearance",
-      "placement",
-      "enrolment",
-      "parents",
-      "transfers",
-      "imports",
-      "templates",
-      "tasks",
-      "communication",
-      "reports",
-    ];
+    const expectedSections = ["overview", "applications", "enrolment", "parents", "transfers", "imports", "communication", "reports"];
     const navIds = workspace.navItems.map((item) => item.id);
 
     for (const section of expectedSections) {
@@ -112,6 +101,7 @@ describe("admissions dashboard routing", () => {
       expect(isSchoolSection(section)).toBe(true);
     }
 
+    expect(navIds).not.toEqual(expect.arrayContaining(["interviews", "applicant-profiles", "documents", "tasks", "templates"]));
     expect(navIds).not.toContain("class-placement");
     expect(navIds).not.toContain("parent-linking");
   });
@@ -127,13 +117,13 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
-    expect(within(dashboard).getAllByRole("heading", { name: /Fee Clearance/i }).length).toBeGreaterThan(0);
+    expect((await within(dashboard).findAllByRole("heading", { name: /Fee Clearance/i })).length).toBeGreaterThan(0);
     expect(within(dashboard).getByText(/Manage admission fee clearance/i)).toBeVisible();
-    expect(within(dashboard).getByRole("link", { name: /Fee Clearance/i })).toHaveAttribute(
+    expect(within(dashboard).getAllByRole("link", { name: /Admission Records/i })[0]).toHaveAttribute(
       "href",
-      "/school/admissions/fee-clearance",
+      "/school/admissions/enrolment",
     );
   });
 
@@ -148,10 +138,10 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
-    expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
-    expect(within(dashboard).getByRole("button", { name: /start student admission/i })).toBeVisible();
+    expect(within(dashboard).getAllByRole("heading", { name: /new student admission/i }).length).toBeGreaterThan(0);
+    expect(await within(dashboard).findByLabelText(/^First name/i)).toBeVisible();
     expect(within(dashboard).queryByText(/final admission-number generation/i)).not.toBeInTheDocument();
   });
 
@@ -166,10 +156,10 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
-    expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
-    expect(within(dashboard).getByRole("button", { name: /start student admission/i })).toBeVisible();
+    expect(within(dashboard).getAllByRole("heading", { name: /new student admission/i }).length).toBeGreaterThan(0);
+    expect(await within(dashboard).findByLabelText(/^First name/i)).toBeVisible();
     expect(within(dashboard).queryByText(/Admissions Module/i)).not.toBeInTheDocument();
   });
 
@@ -196,9 +186,9 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
-    expect(within(dashboard).getAllByRole("heading", { name: /^Applications$/i }).length).toBeGreaterThan(0);
+    expect(within(dashboard).getAllByRole("heading", { name: /new student admission/i }).length).toBeGreaterThan(0);
     expect(await within(dashboard).findByRole("heading", { name: /new student admission/i })).toBeVisible();
     expect(await within(dashboard).findByLabelText(/^Admission number(?! mode)/i)).toBeVisible();
     expect(within(dashboard).getByLabelText(/^Date of birth/i)).toHaveAttribute("placeholder", "DD/MM/YYYY");
@@ -228,17 +218,17 @@ describe("admissions dashboard routing", () => {
     renderWithProviders(
       createElement(SchoolPages, {
         role: "admissions",
-        section: "applications",
+        section: "enrolment",
         tenantSlug: "homabay-high",
         routeMode: "public",
         liveDataEnabled: false,
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
     expect(await within(dashboard).findByText("Achieng Otieno")).toBeVisible();
-    expect(within(dashboard).getByRole("button", { name: /start review for Achieng Otieno/i })).toBeVisible();
+    expect(within(dashboard).getByRole("button", { name: /approve Achieng Otieno/i })).toBeVisible();
     expect(within(dashboard).queryByText(/No records found/i)).not.toBeInTheDocument();
   });
 
@@ -265,22 +255,19 @@ describe("admissions dashboard routing", () => {
     renderWithProviders(
       createElement(SchoolPages, {
         role: "admissions",
-        section: "applications",
+        section: "enrolment",
         tenantSlug: "homabay-high",
         routeMode: "public",
         liveDataEnabled: false,
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
     expect(await within(dashboard).findByText("Faith Anyango")).toBeVisible();
-    const row = within(dashboard).getByRole("row", { name: /Faith Anyango.*Approved/i });
+    const row = (await within(dashboard).findByText("Faith Anyango")).closest("li")!;
     expect(within(row).queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
-    expect(within(row).getByRole("link", { name: /open enrolment for Faith Anyango/i })).toHaveAttribute(
-      "href",
-      "/school/admissions/enrolment",
-    );
+    expect(within(row).getByRole("button", { name: /complete admission for Faith Anyango/i })).toBeVisible();
   });
 
   it("lets admissions officers start the canonical guided admission from an empty workspace", async () => {
@@ -303,15 +290,12 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
-    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
     expect(await within(dashboard).findByLabelText(/^First name/i)).toBeVisible();
-    expect(within(dashboard).getByText("Student Details")).toBeVisible();
-    expect(within(dashboard).getByText("Class & Stream")).toBeVisible();
-    expect(within(dashboard).getByText("Subjects")).toBeVisible();
-    expect(within(dashboard).getAllByText("Guardian").length).toBeGreaterThan(0);
-    expect(within(dashboard).getByText("Review & Admit")).toBeVisible();
+    expect(within(dashboard).getByText("Student details")).toBeVisible();
+    expect(within(dashboard).getByText("Class & guardian")).toBeVisible();
+    expect(within(dashboard).getByText("Review & admit")).toBeVisible();
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/foundation"), expect.anything());
   }, 15000);
 
@@ -339,23 +323,20 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
-    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
     await user.type(await within(dashboard).findByLabelText(/^First name/i), "Linet");
     await user.type(within(dashboard).getByLabelText(/^Last name/i), "Wanjala");
     await user.selectOptions(within(dashboard).getByLabelText(/^Gender/i), "female");
     await user.type(within(dashboard).getByLabelText(/^Date of birth/i), "14/02/2013");
     await user.click(within(dashboard).getByRole("button", { name: /continue/i }));
-    await user.selectOptions(within(dashboard).getByLabelText(/^Academic year/i), "year-2026");
-    await user.selectOptions(within(dashboard).getByLabelText(/^Curriculum/i), "CBC");
     const classSelect = within(dashboard).getByLabelText(/^Class \/ form \/ grade/i);
     await user.selectOptions(classSelect, "class-11");
 
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/admissions/foundation"), expect.anything());
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/academics/class-sections"), expect.anything());
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/admin-command/deputy/classes"), expect.anything());
-    expect(within(classSelect).getByRole("option", { name: "Form 2 West (1/45 learners)" })).toBeVisible();
+    expect(within(classSelect).getByRole("option", { name: /Form 2 West.*1\/45 learners/ })).toBeVisible();
     expect(within(classSelect).queryByRole("option", { name: "Archived Form 4" })).not.toBeInTheDocument();
   }, 15000);
 
@@ -392,8 +373,7 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
-    await user.click(within(dashboard).getByRole("button", { name: /start student admission/i }));
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
     expect(await within(dashboard).findByText(/academic foundation could not be loaded/i, {}, { timeout: 8_000 })).toBeVisible();
     expect(within(dashboard).queryByText(/no academic year is configured/i)).not.toBeInTheDocument();
 
@@ -421,13 +401,13 @@ describe("admissions dashboard routing", () => {
         ok: true,
         json: async () => ({
           metrics: { total_applicants: 1, admitted: 0, pending: 0, rejected: 0 },
-          admissionsList: [
+          applicationsList: [
             {
               id: "application-3",
               student_name: "Faith Anyango",
-              application_date: "2026-07-13",
-              class_applied: "Grade 9",
-              parent_name: "Rose Anyango",
+              submitted_at: "2026-07-13",
+              grade_applied: "Grade 9",
+              guardian_name: "Rose Anyango",
               phone: "0700000000",
               status: "Approved",
             },
@@ -447,10 +427,10 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center");
+    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
 
     expect(await within(dashboard).findByText("Faith Anyango")).toBeVisible();
-    await user.click(within(dashboard).getByRole("button", { name: /enrol Faith Anyango/i }));
+    await user.click(within(dashboard).getByRole("button", { name: /complete admission for Faith Anyango/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

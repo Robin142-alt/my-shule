@@ -907,6 +907,7 @@ const DEFAULT_ROLE_CATALOG_BASE = [
       'students:write',
       'documents:read',
       'documents:write',
+      'school_sms:read',
       'school_sms:send',
       'reports:read',
       'support:view',

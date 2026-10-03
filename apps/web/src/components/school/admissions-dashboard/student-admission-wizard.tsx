@@ -121,6 +121,7 @@ type AdmissionPayload = {
   class_section_id: string;
   stream_id: string;
   subject_ids: string[];
+  subjects_customized?: boolean;
   guardian_name: string;
   guardian_relationship: string;
   guardian_phone: string;
@@ -156,7 +157,7 @@ type AdmissionResult = {
   };
 };
 
-const steps = ["Student Details", "Class & Stream", "Subjects", "Guardian", "Review & Admit"];
+const steps = ["Student details", "Class & guardian", "Review & admit"];
 const today = new Date().toISOString().slice(0, 10);
 
 const emptyForm: AdmissionPayload = {
@@ -249,12 +250,10 @@ export function StudentAdmissionWizard({
   const subjectSummaryId = `${feedbackId}-subjects`;
   const foundationQuery = useSchoolQuery<AdmissionFoundation>("/admissions/foundation", {
     retry: 1,
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchInterval: 15_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
-  const draftQuery = useSchoolQuery<AdmissionDraft | null>("/admissions/drafts/current", { retry: 1 });
+  const draftQuery = useSchoolQuery<AdmissionDraft | null>("/admissions/drafts/current", { retry: 1, staleTime: 0, refetchOnMount: "always" });
   const admitStudent = useSchoolMutation<AdmissionResult, AdmissionPayload>("/admissions/manual", "POST", {
     invalidateSchoolQueries: false,
     queueNetworkFailures: false,
@@ -280,17 +279,7 @@ export function StudentAdmissionWizard({
 
   const foundation = foundationQuery.data;
   const years = foundation?.academic_years ?? [];
-  const yearClasses = useMemo(
-    () => (foundation?.classes ?? []).filter((item) => item.academic_year_id === form.academic_year_id),
-    [foundation?.classes, form.academic_year_id],
-  );
-  const curricula = useMemo(
-    () => [...new Set(yearClasses.map((item) => item.curriculum).filter(Boolean))],
-    [yearClasses],
-  );
-  const classes = yearClasses.filter(
-    (item) => item.curriculum === form.curriculum,
-  );
+  const classes = foundation?.classes ?? [];
   const streams = (foundation?.streams ?? []).filter(
     (item) => item.class_section_id === form.class_section_id,
   );
@@ -331,21 +320,24 @@ export function StudentAdmissionWizard({
     return [...new Set([
       ...form.subject_ids.filter((subjectId) => availableSubjectIds.has(subjectId)),
       ...compulsorySubjectIds,
+      ...(!form.subjects_customized ? subjects.map((subject) => subject.id) : []),
     ])];
-  }, [compulsorySubjectIds, form.subject_ids, subjects]);
+  }, [compulsorySubjectIds, form.subject_ids, form.subjects_customized, subjects]);
   const canonicalForm = useMemo(
     () => ({
       ...form,
       grade_level: selectedClass?.name ?? form.grade_level,
+      academic_year_id: selectedClass?.academic_year_id ?? form.academic_year_id,
+      curriculum: selectedClass?.curriculum ?? form.curriculum,
       subject_ids: canonicalSubjectIds,
     }),
-    [canonicalSubjectIds, form, selectedClass?.name],
+    [canonicalSubjectIds, form, selectedClass],
   );
   const selectedStream = (foundation?.streams ?? []).find((item) => item.id === form.stream_id);
   const selectedYear = years.find((item) => item.id === form.academic_year_id);
   const selectedSubjects = subjects.filter((item) => canonicalSubjectIds.includes(item.id));
   const admissionSettings = foundation?.admission_settings;
-  const actionPending = closingDraft || discardingDraft || discardDraft.isPending || admitStudent.isPending || preflightAdmission.isPending;
+  const actionPending = draftQuery.isFetching || draftQuery.isError || closingDraft || discardingDraft || discardDraft.isPending || admitStudent.isPending || preflightAdmission.isPending;
   const excessSubjects = Math.max(0, canonicalSubjectIds.length - (admissionSettings?.maximum_subjects ?? canonicalSubjectIds.length));
   const subjectLimitExceeded = excessSubjects > 0;
   const draftMessage = draftStatus === "loading" ? "Checking saved draft..."
@@ -368,7 +360,8 @@ export function StudentAdmissionWizard({
   }, [step, result]);
 
   useEffect(() => {
-    if (draftHydrated.current || foundationQuery.isLoading || draftQuery.isLoading) return;
+    if (draftHydrated.current || foundationQuery.isLoading || draftQuery.isLoading || draftQuery.isFetching) return;
+    if (draftQuery.isError) { setDraftStatus("failed"); return; }
     draftHydrated.current = true;
     const saved = draftQuery.data?.payload;
     if (saved && Object.keys(saved).length > 1) {
@@ -377,8 +370,10 @@ export function StudentAdmissionWizard({
         ...emptyForm,
         ...savedForm,
         subject_ids: Array.isArray(savedForm.subject_ids) ? savedForm.subject_ids : [],
+        subjects_customized: savedForm.subjects_customized ?? Boolean(savedForm.subject_ids?.length),
       });
-      setStep(Math.max(0, Math.min(Number(savedStep ?? 0), steps.length - 1)));
+      // Older five-step drafts resume at the combined placement/guardian step.
+      setStep(Number(savedStep ?? 0) > 0 ? 1 : 0);
       setDraftStatus("saved");
       return;
     }
@@ -388,13 +383,8 @@ export function StudentAdmissionWizard({
         admission_number: current.admission_number || admissionSettings.suggested_admission_number,
       }));
     }
-    if (draftQuery.isError) {
-      setDraftStatus("failed");
-      toast.warning("The saved admission draft could not be loaded. Your entered details remain on this screen.", { id: draftFeedbackId, duration: Infinity });
-    } else {
-      setDraftStatus("ready");
-    }
-  }, [admissionSettings?.suggested_admission_number, draftFeedbackId, draftQuery.data, draftQuery.isError, draftQuery.isLoading, foundationQuery.isLoading]);
+    setDraftStatus("ready");
+  }, [admissionSettings?.suggested_admission_number, draftFeedbackId, draftQuery.data, draftQuery.isError, draftQuery.isLoading, draftQuery.isFetching, foundationQuery.isLoading]);
 
   useEffect(() => {
     if (
@@ -534,7 +524,7 @@ export function StudentAdmissionWizard({
   }
 
   function update<Key extends keyof AdmissionPayload>(key: Key, value: AdmissionPayload[Key]) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({ ...current, [key]: value, ...(key === "subject_ids" ? { subjects_customized: true } : key === "stream_id" ? { subject_ids: [], subjects_customized: false } : {}) }));
     clearFormError();
     setPreflight(null);
   }
@@ -553,11 +543,11 @@ export function StudentAdmissionWizard({
     }
     if (currentStep === 1) {
       if (!form.academic_year_id || !form.curriculum || !form.class_section_id) {
-        return "Academic year, curriculum, and class/form/grade are required.";
+        return "Select a class, form, or grade.";
       }
       if (streams.length > 0 && !form.stream_id) return "Select a stream for this class.";
     }
-    if (currentStep === 2) {
+    if (currentStep === 1) {
       if (subjects.length === 0) return "This class has no configured subjects. Ask the Deputy Principal to assign subjects first.";
       const missingCompulsory = subjects.some(
         (subject) => subject.is_compulsory && !canonicalSubjectIds.includes(subject.id),
@@ -571,16 +561,18 @@ export function StudentAdmissionWizard({
         return `Select no more than ${admissionSettings.maximum_subjects} subjects for this learner.`;
       }
     }
-    if (currentStep === 3) {
-      if (!form.guardian_name.trim() || !form.guardian_relationship.trim() || !form.guardian_phone.trim()) {
-        return "Guardian name, relationship, and Kenyan mobile number are required.";
+    if (currentStep === 1) {
+      if (!form.guardian_name.trim() || !form.guardian_relationship.trim()) {
+        return "Guardian name and relationship are required.";
       }
     }
     return null;
   }
 
   async function runPreflight() {
-    const review = await preflightAdmission.mutateAsync(canonicalForm);
+    const payload = { ...canonicalForm };
+    delete payload.subjects_customized;
+    const review = await preflightAdmission.mutateAsync(payload);
     setPreflight(review);
     const blocking = review.warnings.filter((warning) => warning.blocking);
     if (blocking.length) {
@@ -597,9 +589,6 @@ export function StudentAdmissionWizard({
       return;
     }
     if (step === 1) {
-      setForm((current) => ({ ...current, subject_ids: compulsorySubjectIds }));
-    }
-    if (step === 3) {
       try {
         if (!(await runPreflight())) return;
       } catch (error) {
@@ -613,16 +602,21 @@ export function StudentAdmissionWizard({
   }
 
   async function submit() {
-    const issue = validateStep(3);
+    if (actionPending || draftWritesBlocked.current) return;
+    const issue = validateStep(0) ?? validateStep(1);
     if (issue) {
       reportFormError(issue);
       return;
     }
     clearFormError();
     try {
-      if (!(await runPreflight())) return;
+      if (!preflight && !(await runPreflight())) return;
+      stopScheduledDraftSave();
+      await pendingDraftSave.current?.catch(() => undefined);
+      const payload = { ...canonicalForm };
+      delete payload.subjects_customized;
       const admission = await admitStudent.mutateAsync({
-        ...canonicalForm,
+        ...payload,
         admission_number: canonicalForm.admission_number.trim(),
         first_name: canonicalForm.first_name.trim(),
         middle_name: canonicalForm.middle_name.trim(),
@@ -641,6 +635,7 @@ export function StudentAdmissionWizard({
           toast.warning("The learner was admitted. The admissions list will refresh automatically when the connection recovers.");
         });
     } catch (error) {
+      draftWritesBlocked.current = false;
       reportFormError(errorMessage(error));
     }
   }
@@ -661,6 +656,7 @@ export function StudentAdmissionWizard({
           }
         : {};
       draftSaveSequence.current += 1;
+      draftWritesBlocked.current = false;
       setPreflight(null);
       clearFormError();
       setForm({
@@ -711,7 +707,7 @@ export function StudentAdmissionWizard({
           <div className="rounded-xl border border-success-border bg-white p-3">
             <dt className="text-xs font-bold uppercase text-muted">Parent access</dt>
             <dd className="mt-1 font-black text-foreground">
-              {result.guardian.portal_access === "otp_ready" ? "OTP ready" : "Needs role setup"}
+              {result.guardian.portal_access === "otp_ready" ? "OTP ready" : result.guardian.portal_access === "pending_contact" ? "Add guardian phone later" : "Needs role setup"}
             </dd>
           </div>
           <div className="rounded-xl border border-success-border bg-white p-3">
@@ -774,7 +770,7 @@ export function StudentAdmissionWizard({
         <div>
           <h3 className="text-lg font-black text-foreground">New student admission</h3>
           <p className="mt-1 text-sm font-semibold text-muted">
-            Complete each stage. The final action creates the learner, placement, subjects, guardian access, fees, and downstream records together.
+            Enter the learner, select their class, and add a guardian. School settings are applied automatically.
           </p>
         </div>
         <button
@@ -789,7 +785,11 @@ export function StudentAdmissionWizard({
       {admissionSettings ? (
         <details className="mb-4 rounded-xl border border-border bg-white p-3">
           <summary className="cursor-pointer text-sm font-black text-foreground">Admission numbering and safeguards</summary>
-          <form onSubmit={(event) => void saveAdmissionSettings(event)}>
+          {draftQuery.isError ? <div role="alert" className="my-3 rounded-xl border border-danger bg-danger-soft p-3 text-sm">
+        Your saved draft could not be loaded. Retry to protect any details already saved.
+        <button type="button" className="ml-2 min-h-11 underline" onClick={() => void draftQuery.refetch()}>Retry saved draft</button>
+      </div> : null}
+      <form onSubmit={(event) => void saveAdmissionSettings(event)}>
           <fieldset disabled={closingDraft || discardingDraft} className="mt-4 grid min-w-0 gap-3 md:grid-cols-3 xl:grid-cols-4">
             <Field label="Admission number mode">
               <select name="admission_number_mode" defaultValue={admissionSettings.admission_number_mode}>
@@ -820,7 +820,7 @@ export function StudentAdmissionWizard({
         </details>
       ) : null}
 
-      <ol className="mb-5 grid gap-2 sm:grid-cols-5">
+      <ol className="mb-5 grid gap-2 grid-cols-3">
         {steps.map((label, index) => (
           <li
             key={label}
@@ -859,7 +859,7 @@ export function StudentAdmissionWizard({
       ) : (
         <>
           <div ref={stepContent} role="group" aria-label={steps[step]} tabIndex={-1} className="scroll-mt-24 outline-none" onChange={() => { clearFormError(); setPreflight(null); }}>
-          <fieldset disabled={closingDraft || discardingDraft} className="min-w-0">
+          <fieldset disabled={actionPending} className="min-w-0">
           {step === 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Admission number" hint={admissionSettings?.admission_number_mode === "automatic" ? "Generated from the school sequence. Refresh if another admission uses it first." : "School suggestion can be edited before admission."}><input autoFocus readOnly={admissionSettings?.admission_number_mode === "automatic"} value={form.admission_number} onChange={(event) => update("admission_number", event.target.value)} /></Field>
@@ -883,23 +883,14 @@ export function StudentAdmissionWizard({
 
           {step === 1 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Field label="Academic year">
-                <select value={form.academic_year_id} onChange={(event) => setForm((current) => ({ ...current, academic_year_id: event.target.value, curriculum: "", grade_level: "", class_section_id: "", stream_id: "", subject_ids: [] }))}>
-                  <option value="">Select academic year</option>{years.map((year) => <option key={year.id} value={year.id}>{year.name}{year.is_current ? " (current)" : ""}</option>)}
-                </select>
-              </Field>
-              <Field label="Curriculum">
-                <select disabled={!form.academic_year_id} value={form.curriculum} onChange={(event) => setForm((current) => ({ ...current, curriculum: event.target.value, grade_level: "", class_section_id: "", stream_id: "", subject_ids: [] }))}>
-                  <option value="">Select curriculum</option>{curricula.map((curriculum) => <option key={curriculum} value={curriculum}>{curriculum}</option>)}
-                </select>
-              </Field>
               <Field label="Class / form / grade">
-                <select disabled={!form.curriculum} value={form.class_section_id} onChange={(event) => {
+                <select value={form.class_section_id} onChange={(event) => {
                   const classSectionId = event.target.value;
                   const classSection = classes.find((item) => item.id === classSectionId);
-                  setForm((current) => ({ ...current, grade_level: classSection?.name ?? "", class_section_id: classSectionId, stream_id: "", subject_ids: [] }));
+                  const classStreams = (foundation?.streams ?? []).filter((item) => item.class_section_id === classSectionId);
+                  setForm((current) => ({ ...current, academic_year_id: classSection?.academic_year_id ?? "", curriculum: classSection?.curriculum ?? "", grade_level: classSection?.name ?? "", class_section_id: classSectionId, stream_id: classStreams.length === 1 ? classStreams[0].id : "", subject_ids: [], subjects_customized: false }));
                 }}>
-                  <option value="">Select class, form, or grade</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name} ({capacityLabel(item.capacity, item.student_count)}){!item.enrolment_open ? " - closed" : ""}</option>)}
+                  <option value="">Select class, form, or grade</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name} · {years.find((year) => year.id === item.academic_year_id)?.name} ({capacityLabel(item.capacity, item.student_count)}){!item.enrolment_open ? " - closed" : ""}</option>)}
                 </select>
               </Field>
               <Field label="Stream" hint={streams.length === 0 && form.class_section_id ? "This class does not use streams." : undefined}>
@@ -910,37 +901,39 @@ export function StudentAdmissionWizard({
             </div>
           ) : null}
 
-          {step === 2 ? (
-            <div>
-              <p className="mb-3 text-sm font-semibold text-muted">Compulsory subjects are selected automatically. Choose the learner&apos;s optional subjects.</p>
+          {step === 1 && selectedClass ? (
+            <details className="my-4 rounded-xl border border-border bg-white p-3">
+              <summary className="min-h-11 cursor-pointer font-bold">{selectedClass.curriculum} · {selectedYear?.name} · {canonicalSubjectIds.length} subjects assigned</summary>
+              <p className="mb-3 text-sm text-muted">Configured fees, timetable and academic setup follow this class automatically. Review optional subjects below if needed.</p>
+              <p className="mb-3 text-sm font-semibold text-muted">Configured subjects are assigned automatically. You can adjust optional subjects when needed.</p>
               {subjects.length === 0 ? (
                 <div className="rounded-xl border border-warning-border bg-warning-soft p-4 text-sm font-bold text-warning">No subjects are assigned to this class and academic year.</div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {subjects.map((subject) => {
                     const compulsory = subject.is_compulsory;
-                    const checked = compulsory || form.subject_ids.includes(subject.id);
+                    const checked = canonicalSubjectIds.includes(subject.id);
                     return (
                       <label key={subject.id} className={`flex min-w-0 items-start gap-3 rounded-xl border p-3 ${checked ? "border-cyan-300 bg-cyan-50" : "border-border bg-white"}`}>
-                        <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={checked} disabled={compulsory} aria-describedby={subjectSummaryId} onChange={(event) => update("subject_ids", event.target.checked ? [...form.subject_ids, subject.id] : form.subject_ids.filter((id) => id !== subject.id))} />
+                        <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={checked} disabled={compulsory} aria-describedby={subjectSummaryId} onChange={(event) => update("subject_ids", event.target.checked ? [...canonicalSubjectIds, subject.id] : canonicalSubjectIds.filter((id) => id !== subject.id))} />
                         <span className="min-w-0 break-words"><span className="block font-black text-foreground">{subject.name}</span><span className="text-xs font-semibold text-muted">{subject.code} - {compulsory ? "Compulsory" : "Optional"}</span></span>
                       </label>
                     );
                   })}
                 </div>
               )}
-            </div>
+            </details>
           ) : null}
 
-          {step === 3 ? (
+          {step === 1 ? (
             <div className="grid gap-4 md:grid-cols-3">
               <Field label="Primary guardian name"><input value={form.guardian_name} onChange={(event) => update("guardian_name", event.target.value)} /></Field>
-              <Field label="Relationship"><input placeholder="Mother, father, guardian..." value={form.guardian_relationship} onChange={(event) => update("guardian_relationship", event.target.value)} /></Field>
-              <Field label="Kenyan mobile number" hint="Used to reuse sibling guardian records and for parent OTP access."><input inputMode="tel" placeholder="0712345678" value={form.guardian_phone} onChange={(event) => update("guardian_phone", event.target.value)} /></Field>
+              <Field label="Relationship"><select value={form.guardian_relationship.toLowerCase()} onChange={(event) => update("guardian_relationship", event.target.value)}><option value="">Select relationship</option><option value="mother">Mother</option><option value="father">Father</option><option value="guardian">Guardian</option></select></Field>
+              <Field label="Guardian phone (optional)" hint="Add later in Parents & guardians. Portal access needs a phone number."><input type="tel" inputMode="tel" placeholder="0712345678" value={form.guardian_phone} onChange={(event) => update("guardian_phone", event.target.value)} /></Field>
             </div>
           ) : null}
 
-          {step === 4 ? (
+          {step === 2 ? (
             <div className="grid gap-4">
               {preflight?.warnings.length ? (
                 <section className="rounded-xl border border-warning-border bg-warning-soft p-4">
@@ -961,7 +954,7 @@ export function StudentAdmissionWizard({
                 <Review title="Student" rows={[["Admission number", form.admission_number], ["Name", [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ")], ["Gender", form.gender], ["Date of birth", form.date_of_birth || "Not provided"], ["Admission date", form.admission_date], ["Age on admission", preflight ? (preflight.age_at_admission == null ? "Not available" : String(preflight.age_at_admission)) : "Checking"]]} />
                 <Review title="Placement" rows={[["Academic year", selectedYear?.name ?? ""], ["Curriculum", form.curriculum], ["Class / form / grade", selectedClass?.name ?? ""], ["Stream", selectedStream?.name ?? "Not used"], ["Capacity", selectedStream ? capacityLabel(selectedStream.capacity, selectedStream.student_count) : selectedClass ? capacityLabel(selectedClass.capacity, selectedClass.student_count) : "Not set"]]} />
                 <Review title="Subjects" rows={selectedSubjects.map((subject) => [subject.is_compulsory ? `${subject.code} (compulsory)` : subject.code, subject.name])} />
-                <Review title="Guardian" rows={[["Name", form.guardian_name], ["Relationship", form.guardian_relationship], ["Phone", preflight?.guardian?.masked_phone ?? form.guardian_phone]]} />
+                <Review title="Guardian" rows={[["Name", form.guardian_name], ["Relationship", form.guardian_relationship], ["Phone", preflight?.guardian?.masked_phone ?? (form.guardian_phone || "Add later")]]} />
               </div>
             </div>
           ) : null}
@@ -969,7 +962,7 @@ export function StudentAdmissionWizard({
           </div>
 
           <div role="group" aria-label="Admission actions" aria-busy={actionPending} className="mt-5 grid min-w-0 gap-3">
-            {step === 2 ? (
+            {step === 1 ? (
               <p id={subjectSummaryId} role="status" className={`rounded-xl border px-3 py-2 text-sm font-bold ${subjectLimitExceeded ? "border-amber-300 bg-warning-soft text-amber-900" : "border-cyan-200 bg-white text-foreground"}`}>
                 {canonicalSubjectIds.length} {canonicalSubjectIds.length === 1 ? "subject" : "subjects"} selected.
                 {admissionSettings?.minimum_subjects != null ? ` Minimum: ${admissionSettings.minimum_subjects}.` : ""}
@@ -986,7 +979,7 @@ export function StudentAdmissionWizard({
             ) : null}
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
               {step < steps.length - 1 ? (
-                <button type="button" onClick={() => void next()} disabled={actionPending} aria-describedby={formError ? feedbackId : step === 2 ? subjectSummaryId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Checking...</> : <>Continue <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></>}</button>
+                <button type="button" onClick={() => void next()} disabled={actionPending} aria-describedby={formError ? feedbackId : step === 1 ? subjectSummaryId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Checking...</> : <>Continue <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /></>}</button>
               ) : (
                 <button type="button" onClick={() => void submit()} disabled={actionPending || preflight?.warnings.some((warning) => warning.blocking)} aria-describedby={formError ? feedbackId : undefined} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#FF6B1A] px-5 py-2.5 text-sm font-black text-white disabled:opacity-60 sm:col-start-2">{admitStudent.isPending || preflightAdmission.isPending ? <><Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" /> Verifying and admitting...</> : "Admit student"}</button>
               )}

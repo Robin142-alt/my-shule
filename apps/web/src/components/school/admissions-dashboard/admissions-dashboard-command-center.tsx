@@ -1,123 +1,47 @@
 "use client";
 
-import {
-  BarChart3,
-  CalendarCheck,
-  CheckCircle2,
-  ClipboardList,
-  FileCheck,
-  FileInput,
-  FileText,
-  HelpCircle,
-  Import,
-  Mail,
-  MessageSquareText,
-  Send,
-  UserCheck,
-  Users,
-} from "lucide-react";
+import { BarChart3, FileInput, FileText, Import, MessageSquareText, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ComponentType } from "react";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
-import { ApplicantProfilesWorkspace } from "./applicant-profiles-workspace";
-import { ApplicationsWorkspace } from "./applications-workspace";
-import { AppointmentsWorkspace } from "./appointments-workspace";
-import { CommunicationWorkspace } from "./communication-workspace";
-import { EnquiriesWorkspace } from "./enquiries-workspace";
-import { AdmissionsEnrolmentWorkspace } from "./enrolment-workspace";
-import { FeeClearanceWorkspace } from "./fee-clearance-workspace";
-import { ImportsWorkspace } from "./imports-workspace";
+import { AdmitStudentWorkspace, AdmissionRecordsWorkspace, AdmissionsCommunicationWorkspace, BulkAdmissionsWorkspace } from "./consolidated-workspaces";
 import { AdmissionsOverviewWorkspace } from "./overview-workspace";
-import { SelectionWorkspace } from "./selection-workspace";
-import { TasksWorkspace } from "./tasks-workspace";
-import { TemplatesWorkspace } from "./templates-workspace";
 import { TransfersWorkspace } from "./transfers-workspace";
-import { ClassPlacementWorkspace } from "../admissions/class-placement-workspace";
-import { DocumentsWorkspace } from "../admissions/documents-workspace";
-import { InterviewsWorkspace } from "../admissions/interviews-workspace";
 import { ParentLinkingWorkspace } from "../admissions/parent-linking-workspace";
 import { ReportsWorkspace } from "../admissions/reports-workspace";
 
 type AdmissionsRouteMode = "hosted" | "nested" | "public";
 
-type AdmissionsWorkspaceId =
-  | "overview"
-  | "enquiries"
-  | "applications"
-  | "applicant-profiles"
-  | "documents"
-  | "interviews"
-  | "appointments"
-  | "selection"
-  | "fee-clearance"
-  | "placement"
-  | "enrolment"
-  | "parents"
-  | "transfers"
-  | "imports"
-  | "templates"
-  | "tasks"
-  | "communication"
-  | "reports";
-
-type AdmissionsNavItem = {
-  id: AdmissionsWorkspaceId;
-  label: string;
-  group: string;
-  icon: typeof Users;
-};
-
+type AdmissionsWorkspaceId = "overview" | "applications" | "enrolment" | "parents" | "transfers" | "imports" | "communication" | "reports";
+type AdmissionsNavItem = { id: AdmissionsWorkspaceId; label: string; group: string; icon: typeof Users };
 const admissionsNavItems: AdmissionsNavItem[] = [
-  { id: "overview", label: "Overview", group: "Command", icon: BarChart3 },
-  { id: "enquiries", label: "Enquiries", group: "Pipeline", icon: HelpCircle },
-  { id: "applications", label: "Applications", group: "Pipeline", icon: FileInput },
-  { id: "applicant-profiles", label: "Applicant Profiles", group: "Pipeline", icon: Users },
-  { id: "documents", label: "Documents", group: "Verification", icon: FileCheck },
-  { id: "interviews", label: "Interviews", group: "Verification", icon: CalendarCheck },
-  { id: "appointments", label: "Appointments", group: "Verification", icon: ClipboardList },
-  { id: "selection", label: "Selection & Offers", group: "Decision", icon: Send },
-  { id: "fee-clearance", label: "Fee Clearance", group: "Decision", icon: CheckCircle2 },
-  { id: "placement", label: "Class Placement", group: "Onboarding", icon: UserCheck },
-  { id: "enrolment", label: "Enrolment", group: "Onboarding", icon: FileText },
-  { id: "parents", label: "Parents", group: "Onboarding", icon: Users },
-  { id: "transfers", label: "Transfers", group: "Records", icon: Import },
-  { id: "imports", label: "Imports", group: "Records", icon: Import },
-  { id: "templates", label: "Templates", group: "Records", icon: Mail },
-  { id: "tasks", label: "Tasks", group: "Follow-up", icon: ClipboardList },
-  { id: "communication", label: "Communication", group: "Follow-up", icon: MessageSquareText },
-  { id: "reports", label: "Reports", group: "Follow-up", icon: BarChart3 },
+  { id: "overview", label: "Overview", group: "Admissions", icon: BarChart3 },
+  { id: "applications", label: "Admit Student", group: "Admissions", icon: FileInput },
+  { id: "enrolment", label: "Admission Records", group: "Admissions", icon: FileText },
+  { id: "parents", label: "Parents & Guardians", group: "Admissions", icon: Users },
+  { id: "transfers", label: "Transfers", group: "Admissions", icon: Import },
+  { id: "imports", label: "Bulk Admission", group: "Admissions", icon: Import },
+  { id: "communication", label: "Communication", group: "Admissions", icon: MessageSquareText },
+  { id: "reports", label: "Reports", group: "Admissions", icon: BarChart3 },
 ];
-
-const workspaceComponents: Record<AdmissionsWorkspaceId, ComponentType> = {
+const workspaceComponents: Record<AdmissionsWorkspaceId, ComponentType<{ initialSection?: string }>> = {
   overview: AdmissionsOverviewWorkspace,
-  enquiries: EnquiriesWorkspace,
-  applications: ApplicationsWorkspace,
-  "applicant-profiles": ApplicantProfilesWorkspace,
-  documents: DocumentsWorkspace,
-  interviews: InterviewsWorkspace,
-  appointments: AppointmentsWorkspace,
-  selection: SelectionWorkspace,
-  "fee-clearance": FeeClearanceWorkspace,
-  placement: ClassPlacementWorkspace,
-  enrolment: AdmissionsEnrolmentWorkspace,
+  applications: AdmitStudentWorkspace,
+  enrolment: AdmissionRecordsWorkspace,
   parents: ParentLinkingWorkspace,
   transfers: TransfersWorkspace,
-  imports: ImportsWorkspace,
-  templates: TemplatesWorkspace,
-  tasks: TasksWorkspace,
-  communication: CommunicationWorkspace,
+  imports: BulkAdmissionsWorkspace,
+  communication: AdmissionsCommunicationWorkspace,
   reports: ReportsWorkspace,
 };
-
 const legacyRouteAliases: Record<string, AdmissionsWorkspaceId> = {
-  dashboard: "overview",
-  admissions: "applications",
-  "new-registration": "applications",
-  "class-placement": "placement",
-  "parent-linking": "parents",
+  dashboard: "overview", admissions: "applications", "new-registration": "applications",
+  "applicant-profiles": "enrolment", documents: "enrolment", interviews: "enrolment",
+  selection: "enrolment", "fee-clearance": "enrolment", placement: "enrolment", "class-placement": "enrolment",
+  "parent-linking": "parents", enquiries: "communication", appointments: "communication", templates: "communication", tasks: "communication",
 };
 
 function normalizeAdmissionsSection(section?: string): AdmissionsWorkspaceId {
@@ -163,13 +87,13 @@ export function AdmissionsDashboardCommandCenter({
   return (
     <main
       data-testid="admissions-dashboard-command-center"
-      className="authenticated-app app-padded min-h-dvh bg-surface-strong p-4 text-foreground md:p-6"
+      className="authenticated-app app-padded min-h-dvh bg-surface-strong p-2 text-foreground sm:p-4"
     >
-      <div className="grid min-h-[calc(100dvh-3rem)] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="grid min-h-[calc(100dvh-3rem)] gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="hidden rounded-3xl bg-primary p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)] lg:sticky lg:top-6 lg:block lg:self-start">
-          <SchoolCommandSidebarIdentity eyebrow="Admissions command" title="Admissions Officer" subtitle="Enquiries, applications, placement, enrolment, and parent handoff" />
+          <SchoolCommandSidebarIdentity eyebrow="Admissions command" title="Admissions Officer" subtitle="Admit learners and manage school records" />
 
-          <nav className="mt-5 max-h-[calc(100dvh-15rem)] space-y-5 overflow-y-auto pr-1">
+          <nav aria-label="Admissions" className="mt-4 space-y-3">
             {Object.entries(groupedNav).map(([group, items]) => (
               <div key={group}>
                 <p className="px-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/40">
@@ -184,7 +108,9 @@ export function AdmissionsDashboardCommandCenter({
                       <Link
                         key={item.id}
                         href={admissionsHref(item.id, routeMode)}
-                        className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-black transition ${
+                        prefetch={false}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-black transition ${
                           isActive
                             ? "bg-cyan-300 text-foreground"
                             : "text-white/75 hover:bg-white/10 hover:text-white"
@@ -204,6 +130,7 @@ export function AdmissionsDashboardCommandCenter({
         <section className="min-w-0 space-y-5">
           <div className="rounded-2xl border border-border-strong bg-white p-3 shadow-sm lg:hidden">
             <MobileWorkspaceNavigation
+              mobilePlacement="inline"
               label="Admissions workspace"
               items={admissionsNavItems}
               value={workspaceId}
@@ -214,11 +141,11 @@ export function AdmissionsDashboardCommandCenter({
           <IntegratedSchoolCommandHeader
             roleTitle="Admissions Officer Dashboard"
             fallbackUserLabel="Admissions Officer"
-            actions={<span className="inline-flex w-fit items-center rounded-full border border-success-border bg-success-soft px-3 py-1 text-xs font-black text-success">{activeItem.label} - live school scoped</span>}
+            actions={<span className="text-sm font-semibold text-muted">{activeItem.label}</span>}
           />
 
-          <div className="app-dark-workspace rounded-3xl bg-primary p-4 shadow-[0_24px_60px_rgba(7,29,73,0.14)] md:p-5">
-            <Workspace />
+          <div className="admissions-workspace min-w-0 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11">
+            <Workspace key={`${workspaceId}:${activeSection ?? ""}`} initialSection={activeSection} />
           </div>
         </section>
       </div>

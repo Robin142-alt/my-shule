@@ -51,12 +51,14 @@ export class CreateManualAdmissionDto {
   admission_date!: string;
 
   @Transform(trim)
+  @IsOptional()
   @IsString()
-  academic_year_id!: string;
+  academic_year_id?: string;
 
   @Transform(trim)
+  @IsOptional()
   @IsString()
-  curriculum!: string;
+  curriculum?: string;
 
   @Transform(trim)
   @IsOptional()
@@ -72,10 +74,11 @@ export class CreateManualAdmissionDto {
   @IsString()
   stream_id?: string;
 
+  @IsOptional()
   @IsArray()
   @ArrayUnique()
   @IsString({ each: true })
-  subject_ids!: string[];
+  subject_ids?: string[];
 
   @Transform(trim)
   @IsString()
@@ -90,8 +93,9 @@ export class CreateManualAdmissionDto {
   guardian_relationship!: string;
 
   @Transform(trim)
+  @IsOptional()
   @IsString()
-  guardian_phone!: string;
+  guardian_phone?: string;
 
   @Transform(trim)
   @IsOptional()

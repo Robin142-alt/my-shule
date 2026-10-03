@@ -67,6 +67,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence academic-foundation academic-setup-simplification academic-policy-builders academic-curriculum-builder head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
+      - name: Admissions workflows, drafts and consolidated navigation
+        run: npm --prefix apps/web run test:design -- admissions-dashboard-routing admissions-consolidated-workflows admissions-empty-state-workflows student-admission-wizard student-bulk-admission-feedback admissions-live-api admissions-workspace
+
       - name: Authenticated mobile navigation and action contracts
         run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
 
@@ -246,6 +249,14 @@ jobs:
 
       - name: Academic analytics print authorization and pagination
         run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/auth/head-of-subject.test.js dist/apps/api/src/modules/academics/academic-hos-assignment.test.js dist/apps/api/src/modules/academics/academic-setup-simplification.test.js
+
+      - name: Admissions contacts, pagination and tenant-safe transfers
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/admissions/admissions.test.js dist/apps/api/src/modules/admissions/admissions.repository.test.js dist/apps/api/src/modules/admissions/admission-input.test.js dist/apps/api/src/modules/admin-command/admissions-command.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/admissions-simplification.integration-spec.ts
 
       - name: Report-card scopes, exports and workflow isolation
         env:

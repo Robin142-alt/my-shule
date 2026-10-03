@@ -129,11 +129,9 @@ describe("guided student admission", () => {
     await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
     await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
-    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
     await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-7");
     await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-north");
-    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByText(/subjects assigned/i));
   }
 
   it("shows subject limits and repeated validation beside Continue and in persistent viewport feedback", async () => {
@@ -144,7 +142,6 @@ describe("guided student admission", () => {
     const user = userEvent.setup();
     renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
     await reachSubjects(user);
-    await user.click(screen.getByRole("checkbox", { name: /Integrated Science/i }));
     const actions = screen.getByRole("group", { name: "Admission actions" });
     expect(within(actions).getByText(/2 subjects selected. Minimum: 1. Maximum: 1. Remove 1 optional subject to continue./)).toBeVisible();
     const proceed = within(actions).getByRole("button", { name: /continue/i });
@@ -162,7 +159,7 @@ describe("guided student admission", () => {
     expect(within(actions).queryByRole("alert")).not.toBeInTheDocument();
     expect(toast.dismiss).toHaveBeenCalledWith(error.id);
     await user.click(proceed);
-    expect(screen.getByRole("group", { name: "Guardian" })).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent("Guardian name and relationship are required.");
   });
 
   it("keeps a blocking server preflight visible at the action and permits retry without admitting", async () => {
@@ -170,10 +167,9 @@ describe("guided student admission", () => {
     preflightAdmission.mockResolvedValue({ valid: false, warnings: [{ code: "capacity", message: "This stream is full. Choose another stream.", blocking: true }], possible_duplicates: [], guardian: null, age_at_admission: null });
     renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
     await reachSubjects(user);
-    await user.click(screen.getByRole("button", { name: /continue/i }));
     await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
-    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
-    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
+    await user.type(screen.getByLabelText(/^Guardian phone/i), "0712345678");
     await user.click(screen.getByRole("button", { name: /continue/i }));
     expect(within(screen.getByRole("group", { name: "Admission actions" })).getByRole("alert")).toHaveTextContent("This stream is full. Choose another stream.");
     expect(toast.error).toHaveBeenLastCalledWith("This stream is full. Choose another stream.", expect.objectContaining({ duration: Infinity }));
@@ -187,15 +183,14 @@ describe("guided student admission", () => {
     preflightAdmission.mockRejectedValueOnce(new Error("Connection lost. Retry the check."));
     renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
     await reachSubjects(user);
-    await user.click(screen.getByRole("button", { name: /continue/i }));
     await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
-    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
-    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
+    await user.type(screen.getByLabelText(/^Guardian phone/i), "0712345678");
     await user.click(screen.getByRole("button", { name: /continue/i }));
     expect(within(screen.getByRole("group", { name: "Admission actions" })).getByRole("alert")).toHaveTextContent("Connection lost. Retry the check.");
     expect(toast.error).toHaveBeenLastCalledWith("Connection lost. Retry the check.", expect.objectContaining({ duration: Infinity }));
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    expect(screen.getByRole("group", { name: "Review & Admit" })).toHaveFocus();
+    expect(screen.getByRole("group", { name: "Review & admit" })).toHaveFocus();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -286,7 +281,7 @@ describe("guided student admission", () => {
     expect(saveDraft).toHaveBeenCalledTimes(1);
   });
 
-  it("always reloads Deputy setup and lets a class offering override a compulsory catalogue default", async () => {
+  it("refreshes Deputy setup on demand and lets a class offering override a compulsory catalogue default", async () => {
     const user = userEvent.setup();
     const refreshedFoundation = {
       ...foundation,
@@ -329,10 +324,8 @@ describe("guided student admission", () => {
     expect(mockUseSchoolQuery).toHaveBeenCalledWith(
       "/admissions/foundation",
       expect.objectContaining({
-        staleTime: 0,
-        refetchOnMount: "always",
-        refetchOnWindowFocus: true,
-        refetchInterval: 15_000,
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
       }),
     );
     await waitFor(() => expect(screen.getByLabelText(/^Admission number(?! mode)/i)).toHaveValue("MS-2026-0001"));
@@ -340,8 +333,6 @@ describe("guided student admission", () => {
     await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
     await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
-    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
 
     expect(screen.queryByRole("option", { name: /Grade 8/i })).not.toBeInTheDocument();
     const refreshSetup = screen.getByRole("button", { name: /refresh classes, streams & subjects/i });
@@ -353,17 +344,16 @@ describe("guided student admission", () => {
     await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-8");
     expect(screen.getByRole("option", { name: /East/i })).toBeVisible();
     await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-east");
-    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByText(/subjects assigned/i));
 
     const mathematics = screen.getByRole("checkbox", { name: /Mathematics/i });
     expect(mathematics).toBeEnabled();
-    expect(mathematics).not.toBeChecked();
+    expect(mathematics).toBeChecked();
     expect(screen.getByText("MAT - Optional")).toBeVisible();
-    await user.click(mathematics);
-    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("checkbox", { name: /Integrated Science/i }));
     await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
-    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
-    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
+    await user.type(screen.getByLabelText(/^Guardian phone/i), "0712345678");
     await user.click(screen.getByRole("button", { name: /continue/i }));
     await user.click(screen.getByRole("button", { name: /admit student/i }));
 
@@ -374,16 +364,14 @@ describe("guided student admission", () => {
     })));
   });
 
-  it("completes the five-step school-scoped flow without legacy identity or invitation fields", async () => {
+  it("completes the three-step school-scoped flow without legacy identity or invitation fields", async () => {
     const user = userEvent.setup();
     const onAdmitted = jest.fn();
     renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={onAdmitted} />);
 
-    expect(screen.getByText("Student Details")).toBeVisible();
-    expect(screen.getByText("Class & Stream")).toBeVisible();
-    expect(screen.getByText("Subjects")).toBeVisible();
-    expect(screen.getByText("Guardian")).toBeVisible();
-    expect(screen.getByText("Review & Admit")).toBeVisible();
+    expect(screen.getByText("Student details")).toBeVisible();
+    expect(screen.getByText("Class & guardian")).toBeVisible();
+    expect(screen.getByText("Review & admit")).toBeVisible();
     expect(screen.queryByText(/birth certificate/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/NEMIS/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/passport photo|student invitation|parent invitation/i)).not.toBeInTheDocument();
@@ -395,19 +383,17 @@ describe("guided student admission", () => {
     expect(screen.getByLabelText(/^Date of birth \(optional\)/i)).toHaveValue("");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
-    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
-    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
     await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-7");
     await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-north");
-    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByText(/subjects assigned/i));
 
     expect(screen.getByRole("checkbox", { name: /Mathematics/i })).toBeChecked();
-    await user.click(screen.getByRole("checkbox", { name: /Integrated Science/i }));
+    expect(screen.getByRole("checkbox", { name: /Integrated Science/i })).toBeChecked();
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
-    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
-    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
+    await user.type(screen.getByLabelText(/^Guardian phone/i), "0712345678");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     expect(await screen.findByText("MS-2026-0001")).toBeVisible();
@@ -451,15 +437,12 @@ describe("guided student admission", () => {
     await user.type(screen.getByLabelText(/^Last name/i), "Njeri");
     await user.selectOptions(screen.getByLabelText(/^Gender/i), "female");
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    await user.selectOptions(screen.getByLabelText(/^Academic year/i), "year-2026");
-    await user.selectOptions(screen.getByLabelText(/^Curriculum/i), "CBC");
     await user.selectOptions(screen.getByLabelText(/^Class \/ form \/ grade/i), "class-grade-7");
     await user.selectOptions(screen.getByLabelText(/^Stream/i), "stream-north");
-    await user.click(screen.getByRole("button", { name: /continue/i }));
-    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByText(/subjects assigned/i));
     await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
-    await user.type(screen.getByLabelText(/^Relationship/i), "Mother");
-    await user.type(screen.getByLabelText(/^Kenyan mobile number/i), "0712345678");
+    await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
+    await user.type(screen.getByLabelText(/^Guardian phone/i), "0712345678");
     await user.click(screen.getByRole("button", { name: /continue/i }));
     await user.click(screen.getByRole("button", { name: /admit student/i }));
 
@@ -480,4 +463,75 @@ describe("guided student admission", () => {
       }),
     }), { timeout: 3_000 });
   });
+  it("admits without a phone, derives class settings, and checks preflight only once", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    await reachSubjects(user);
+    expect(screen.queryByLabelText(/^Academic year/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Curriculum/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Stream/i)).toHaveValue("stream-north");
+    await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
+    await user.selectOptions(screen.getByLabelText(/^Relationship/i), "guardian");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("button", { name: /admit student/i }));
+    await waitFor(() => expect(admitStudent).toHaveBeenCalledWith(expect.objectContaining({
+      curriculum: "CBC", academic_year_id: "year-2026", guardian_phone: "", guardian_relationship: "guardian", subject_ids: ["subject-mat", "subject-sci"],
+    })));
+    expect(preflightAdmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the current draft instead of hydrating an older cached response", async () => {
+    let draftRead = { data: null as unknown, isLoading: false, isFetching: true, isError: false, refetch: jest.fn() };
+    mockUseSchoolQuery.mockImplementation((path: string) => path === "/admissions/foundation"
+      ? { data: foundation, isLoading: false, isFetching: false, isError: false, refetch: refetchFoundation }
+      : draftRead);
+    const props = { onCancel: jest.fn(), onAdmitted: jest.fn() };
+    const view = renderWithProviders(<StudentAdmissionWizard {...props} />);
+    expect(screen.getByLabelText(/^First name/i)).toBeDisabled();
+    expect(saveDraft).not.toHaveBeenCalled();
+    expect(mockUseSchoolQuery).toHaveBeenCalledWith("/admissions/drafts/current", expect.objectContaining({ staleTime: 0, refetchOnMount: "always" }));
+    draftRead = { ...draftRead, isFetching: false, data: { payload: { admission_number: "ADM-SAVED", first_name: "Saved learner", step: 0 } } };
+    view.rerender(<StudentAdmissionWizard {...props} />);
+    await waitFor(() => expect(screen.getByLabelText(/^First name/i)).toHaveValue("Saved learner"));
+  });
+
+  it("protects saved details when the draft service fails", async () => {
+    const retry = jest.fn();
+    mockUseSchoolQuery.mockImplementation((path: string) => path === "/admissions/foundation"
+      ? { data: foundation, isLoading: false, isFetching: false, isError: false, refetch: refetchFoundation }
+      : { data: null, isLoading: false, isFetching: false, isError: true, refetch: retry });
+    const user = userEvent.setup();
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    expect(screen.getByLabelText(/^First name/i)).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Retry saved draft" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("submits only once while an in-flight draft save finishes", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    await reachSubjects(user);
+    let finishSave!: () => void;
+    const pendingSave = new Promise<void>(resolve => { finishSave = resolve; });
+    saveDraft.mockImplementation(async ({ payload }) => {
+      await pendingSave;
+      return { payload, updated_at: "2026-10-03T10:00:00.000Z" };
+    });
+    try {
+      await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
+      await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
+      await user.click(screen.getByRole("button", { name: /continue/i }));
+      await waitFor(() => expect(saveDraft).toHaveBeenCalledWith({ payload: expect.objectContaining({ step: 2 }) }), { timeout: 3_000 });
+      await user.dblClick(screen.getByRole("button", { name: /admit student/i }));
+      expect(admitStudent).not.toHaveBeenCalled();
+      await act(async () => finishSave());
+      await waitFor(() => expect(admitStudent).toHaveBeenCalledTimes(1));
+      expect(await screen.findByRole("heading", { name: /student admitted/i })).toBeVisible();
+    } finally {
+      finishSave();
+      saveDraft.mockImplementation(async ({ payload }) => ({ payload, updated_at: "2026-10-03T10:00:00.000Z" }));
+    }
+  });
+
 });

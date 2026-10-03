@@ -133,7 +133,7 @@ const ADMISSIONS_IMPORT_HEADERS = [
 ] as const;
 
 const ADMISSIONS_IMPORT_REQUIRED_HEADERS = ADMISSIONS_IMPORT_HEADERS.filter(
-  (header) => header !== 'middle_name' && header !== 'stream' && header !== 'date_of_birth',
+  (header) => !['middle_name', 'stream', 'date_of_birth', 'guardian_phone', 'academic_year', 'curriculum'].includes(header),
 );
 
 const ADMISSIONS_IMPORT_HEADER_ALIASES: Record<string, string> = {
@@ -155,6 +155,7 @@ const ADMISSIONS_IMPORT_HEADER_ALIASES: Record<string, string> = {
 };
 
 type AdmissionFoundationYear = {
+  is_current?: boolean;
   id: string;
   name: string;
   starts_on?: string;
@@ -181,6 +182,7 @@ type AdmissionFoundationStream = {
 };
 
 type AdmissionFoundationSubjectAssignment = {
+  stream_id?: string | null;
   academic_year_id: string;
   class_section_id: string;
   subject_id: string;
@@ -209,6 +211,16 @@ function formatReportValue(value: ReportCsvValue) {
     .join(' ');
 }
 
+async function admissionReportRows<T>(load: (offset: number) => Promise<T[]>): Promise<T[]> {
+  const rows: T[] = [];
+  while (rows.length < ADMISSIONS_REPORT_EXPORT_LIMIT) {
+    const page = await load(rows.length);
+    rows.push(...page);
+    if (page.length < 50) break;
+  }
+  return rows;
+}
+
 const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefinition>([
   [
     'applications',
@@ -218,10 +230,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-applications.csv',
       headers: ['Applicant', 'Application No', 'Class', 'Parent Phone', 'Status'],
       rows: async (repository, tenantId) =>
-        (await repository.listApplications(tenantId, {
-          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
-          offset: 0,
-        })).map((application) => [
+        (await admissionReportRows(offset => repository.listApplications(tenantId, {
+          limit: 50,
+          offset,
+        }))).map((application) => [
           application.full_name,
           application.application_number,
           application.class_applying,
@@ -238,10 +250,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-documents.csv',
       headers: ['Learner', 'Document', 'File', 'Uploaded On', 'Verification'],
       rows: async (repository, tenantId) =>
-        (await repository.listDocuments(tenantId, {
-          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
-          offset: 0,
-        })).map((document) => [
+        (await admissionReportRows(offset => repository.listDocuments(tenantId, {
+          limit: 50,
+          offset,
+        }))).map((document) => [
           document.student_name ?? document.applicant_name ?? 'Unassigned learner',
           document.document_type,
           document.original_file_name,
@@ -258,10 +270,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-allocations.csv',
       headers: ['Student', 'Class', 'Stream', 'Dormitory', 'Route', 'Status'],
       rows: async (repository, tenantId) =>
-        (await repository.listAllocations(tenantId, {
-          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
-          offset: 0,
-        })).map((allocation) => [
+        (await admissionReportRows(offset => repository.listAllocations(tenantId, {
+          limit: 50,
+          offset,
+        }))).map((allocation) => [
           [allocation.first_name, allocation.last_name].filter(Boolean).join(' '),
           allocation.class_name,
           allocation.stream_name,
@@ -279,10 +291,10 @@ const ADMISSIONS_REPORT_EXPORTS = new Map<string, AdmissionsReportExportDefiniti
       filename: 'admissions-transfers.csv',
       headers: ['Learner Ref', 'Application Ref', 'Direction', 'School', 'Date', 'Status'],
       rows: async (repository, tenantId) =>
-        (await repository.listTransfers(tenantId, {
-          limit: ADMISSIONS_REPORT_EXPORT_LIMIT,
-          offset: 0,
-        })).map((transfer) => [
+        (await admissionReportRows(offset => repository.listTransfers(tenantId, {
+          limit: 50,
+          offset,
+        }))).map((transfer) => [
           transfer.student_id ?? 'No student linked',
           transfer.application_id ?? 'No application linked',
           formatReportValue(transfer.transfer_type),
@@ -411,7 +423,7 @@ export class AdmissionsService {
       'admission_number', 'first_name', 'middle_name', 'last_name', 'gender',
       'date_of_birth', 'admission_date', 'academic_year_id', 'curriculum',
       'grade_level', 'class_section_id', 'stream_id', 'subject_ids',
-      'guardian_name', 'guardian_relationship', 'guardian_phone', 'step',
+      'guardian_name', 'guardian_relationship', 'guardian_phone', 'subjects_customized', 'step',
     ]);
     const payload = Object.fromEntries(
       Object.entries(dto.payload)
@@ -439,7 +451,7 @@ export class AdmissionsService {
     if (dateOfBirth && dateOfBirth > new Date().toISOString().slice(0, 10)) {
       throw new BadRequestException('Date of birth cannot be in the future');
     }
-    const guardianPhone = normalizeKenyanPhone(dto.guardian_phone);
+    const guardianPhone = dto.guardian_phone?.trim() ? normalizeKenyanPhone(dto.guardian_phone) : null;
     const fullName = [dto.first_name, dto.middle_name, dto.last_name]
       .filter(Boolean)
       .map((value) => normalizePersonName(String(value), 'Student name'))
@@ -530,7 +542,7 @@ export class AdmissionsService {
         ? {
             guardian_profile_id: preflight.guardian.guardian_profile_id,
             display_name: preflight.guardian.display_name,
-            masked_phone: `+254******${guardianPhone.slice(-3)}`,
+            masked_phone: `+254******${guardianPhone?.slice(-3) ?? ""}`,
             children: preflight.guardian.children,
           }
         : null,
@@ -950,17 +962,17 @@ export class AdmissionsService {
       throw new BadRequestException('Date of birth cannot be in the future');
     }
 
-    const guardianPhone = normalizeKenyanPhone(dto.guardian_phone);
+    const guardianPhone = dto.guardian_phone?.trim() ? normalizeKenyanPhone(dto.guardian_phone) : null;
     const securityPepper = process.env.SECURITY_PII_ENCRYPTION_KEY ?? '';
     if (!securityPepper && process.env.NODE_ENV === 'production') {
       throw new BadRequestException('Parent portal security key is not configured');
     }
     const effectivePepper = securityPepper || 'myshule-test-parent-portal-pepper';
-    const phoneHash = createHash('sha256')
+    const phoneHash = guardianPhone ? createHash('sha256')
       .update(`${guardianPhone.replace(/\D/g, '')}:${effectivePepper}`)
-      .digest('hex');
+      .digest('hex') : null;
     const internalIdentityHash = createHash('sha256')
-      .update(`${tenantId}:${guardianPhone}`)
+      .update(`${tenantId}:${guardianPhone ?? randomUUID()}`)
       .digest('hex')
       .slice(0, 32);
     const configuredSaltRounds = Number(process.env.BCRYPT_SALT_ROUNDS ?? 12);
@@ -985,11 +997,11 @@ export class AdmissionsService {
           gender: dto.gender,
           date_of_birth: dateOfBirth,
           admission_date: admissionDate,
-          academic_year_id: dto.academic_year_id.trim(),
-          curriculum: dto.curriculum.trim(),
+          academic_year_id: dto.academic_year_id?.trim() || "",
+          curriculum: dto.curriculum?.trim() || "",
           class_section_id: dto.class_section_id.trim(),
           stream_id: dto.stream_id?.trim() || null,
-          subject_ids: dto.subject_ids.map((subjectId) => subjectId.trim()).filter(Boolean),
+          subject_ids: dto.subject_ids?.map((subjectId) => subjectId.trim()).filter(Boolean),
           guardian_name: normalizePersonName(dto.guardian_name, 'Guardian name'),
           guardian_relationship: normalizePersonName(
             dto.guardian_relationship,
@@ -997,7 +1009,7 @@ export class AdmissionsService {
           ),
           guardian_phone: guardianPhone,
           guardian_phone_hash: phoneHash,
-          guardian_phone_last4: guardianPhone.slice(-4),
+          guardian_phone_last4: guardianPhone?.slice(-4) ?? null,
           guardian_internal_email: `guardian-${internalIdentityHash}@access.myshule.internal`,
           guardian_password_hash: initialPortalPasswordHash,
           student_password_hash: initialPortalPasswordHash,
@@ -1036,7 +1048,7 @@ export class AdmissionsService {
     tenantId: string;
     actorUserId: string | null;
     actorRole: string;
-    guardianPhone: string;
+    guardianPhone: string | null;
     admitted: any;
     tx: any;
   }) {
@@ -1160,7 +1172,7 @@ export class AdmissionsService {
         student_id: student.id,
         username: admitted.student_portal.username,
         force_password_change: true,
-        recovery_phone_last4: guardianPhone.slice(-4),
+        recovery_phone_last4: guardianPhone?.slice(-4) ?? "",
       },
     }, tx);
 
@@ -1592,17 +1604,25 @@ export class AdmissionsService {
   }
 
   async createTransfer(dto: CreateTransferRecordDto) {
-    return this.admissionsRepository.createTransferRecord({
-      school_id: this.requireTenantId(),
+    const tenantId = this.requireTenantId();
+    const actor = this.requestContext.requireStore();
+    if (!dto.student_id?.trim() && !dto.application_id?.trim()) throw new BadRequestException('Select a learner or application');
+    if (!['incoming', 'outgoing', 'readmission'].includes(dto.transfer_type)) throw new BadRequestException('Choose an incoming, outgoing, or readmission transfer');
+    if (!dto.school_name.trim() || !dto.reason.trim()) throw new BadRequestException('School and transfer reason are required');
+    const command = () => this.admissionsRepository.createTransferRecord({
+      school_id: tenantId, actor_user_id: actor.user_id ?? null,
       student_id: dto.student_id?.trim() || null,
       application_id: dto.application_id?.trim() || null,
-      transfer_type: dto.transfer_type.trim(),
-      school_name: dto.school_name.trim(),
-      reason: dto.reason.trim(),
-      requested_on: dto.requested_on ?? new Date().toISOString().slice(0, 10),
-      status: 'pending',
-      notes: dto.notes?.trim() || null,
-    });
+      transfer_type: dto.transfer_type, school_name: dto.school_name.trim(), reason: dto.reason.trim(),
+      requested_on: parseAdmissionDate(dto.requested_on ?? new Date().toISOString().slice(0, 10), 'Transfer date'),
+      status: 'pending', notes: dto.notes?.trim() || null,
+    }, this.eventPublisher ? async (tx, record) => {
+      await this.eventPublisher!.publish({ tenant_id: tenantId, event_key: `admissions.transfer.requested:${record.id}`,
+        event_name: 'school.operation.recorded', aggregate_type: 'student_transfer', aggregate_id: record.id,
+        payload: { tenant_id: tenantId, school_id: tenantId, operation_id: record.id, operation_type: 'admissions.transfer.requested', module: 'admissions', actor_role: actor.role ?? 'admissions', title: 'Transfer requested', body: 'A learner transfer is awaiting school review.', entity_id: record.id, severity: 'info', target_roles: ['principal', 'secretary', 'admissions_officer'], notifications: [], sms: [], occurred_at: new Date().toISOString(), payload: { actor_user_id: actor.user_id, student_id: dto.student_id, transfer_type: dto.transfer_type, status: 'pending' } },
+      }, tx);
+    } : undefined);
+    return this.agp ? this.agp.execute({ actionName: 'ADMISSIONS_TRANSFER_REQUESTED', requiredCapability: 'admissions:write', aggregateType: 'student_transfer', aggregateId: dto.student_id ?? dto.application_id!, governanceRecordedInHandler: true, retrySafe: false, handler: command }) : command();
   }
 
   async getReports() {
@@ -1610,7 +1630,8 @@ export class AdmissionsService {
   }
 
   async generateReport(tenantId: string, type: string) {
-    return { success: true, message: `Report ${type} generated successfully` };
+    if (tenantId !== this.requireTenantId()) throw new UnauthorizedException('School context does not match');
+    return this.exportReportCsv(type);
   }
 
   getImportTemplate() {
@@ -1618,7 +1639,7 @@ export class AdmissionsService {
       reportId: 'admissions-import-template',
       title: 'Student admission import template',
       filename: 'myshule-student-admission-template.csv',
-      headers: [...ADMISSIONS_IMPORT_HEADERS],
+      headers: ADMISSIONS_IMPORT_HEADERS.filter(header => header !== 'academic_year' && header !== 'curriculum'),
       rows: [],
     });
   }
@@ -1674,15 +1695,19 @@ export class AdmissionsService {
       throw new BadRequestException(`Unknown admissions report export "${reportId}"`);
     }
 
-    const rows = await definition.rows(this.admissionsRepository, this.requireTenantId());
-
-    return createCsvReportArtifact({
+    const tenantId = this.requireTenantId();
+    const rows = await definition.rows(this.admissionsRepository, tenantId);
+    const artifact = createCsvReportArtifact({
       reportId: definition.id,
       title: definition.title,
       filename: definition.filename,
       headers: definition.headers,
       rows,
     });
+    await this.publishAdmissionEvent('admissions.report.generated', tenantId, randomUUID(), {
+      report_id: artifact.report_id, row_count: artifact.row_count, checksum_sha256: artifact.checksum_sha256,
+    });
+    return artifact;
   }
 
   private requireTenantId() {
@@ -2524,20 +2549,23 @@ export class AdmissionsService {
       errors.push('Admission number already exists in this school');
     }
 
-    const academicYear = foundation.academic_years.find(
-      (year) => this.sameImportValue(year.name, values.academic_year),
+    let academicYear = foundation.academic_years.find(
+      (year) => values.academic_year ? this.sameImportValue(year.name, values.academic_year) : year.is_current,
     );
     if (values.academic_year && !academicYear) {
       errors.push(`Academic year "${values.academic_year}" is not configured in this school`);
     }
 
-    const classSection = foundation.classes.find(
+    const matchingClasses = foundation.classes.filter(
       (item) =>
         (!academicYear || String(item.academic_year_id) === String(academicYear.id))
         && this.sameImportValue(item.name, classFormGradeName)
-        && this.sameImportValue(item.curriculum, values.curriculum),
+        && (!values.curriculum || this.sameImportValue(item.curriculum, values.curriculum)),
     );
-    if (classFormGradeName && values.curriculum && !classSection) {
+    const classSection = matchingClasses.length === 1 ? matchingClasses[0] : undefined;
+    if (matchingClasses.length > 1) errors.push("Class name is ambiguous. Supply academic_year and curriculum columns to identify it.");
+    if (classSection) academicYear = foundation.academic_years.find(year => String(year.id) === String(classSection.academic_year_id));
+    if (classFormGradeName && !classSection) {
       errors.push(
         `Class/form/grade "${classFormGradeName}" does not match the selected academic year and curriculum`,
       );
@@ -2552,13 +2580,15 @@ export class AdmissionsService {
       errors.push(`Class "${classSection.name}" has reached its configured capacity`);
     }
 
+    const classStreams = foundation.streams.filter(item => String(item.class_section_id) === String(classSection?.id));
     const stream = values.stream
       ? foundation.streams.find(
           (item) =>
             String(item.class_section_id) === String(classSection?.id)
             && this.sameImportValue(item.name, values.stream),
         )
-      : undefined;
+      : classStreams.length === 1 ? classStreams[0] : undefined;
+    if (classStreams.length > 1 && !stream) errors.push("Select a stream for this class");
     if (values.stream && !stream) {
       errors.push(`Stream "${values.stream}" does not belong to class/form/grade "${classFormGradeName}"`);
     }
@@ -2572,7 +2602,8 @@ export class AdmissionsService {
             .filter(
               (assignment) =>
                 String(assignment.class_section_id) === String(classSection.id)
-                && String(assignment.academic_year_id) === String(academicYear.id),
+                && String(assignment.academic_year_id) === String(academicYear.id)
+                && (!assignment.stream_id || String(assignment.stream_id) === String(stream?.id)),
             )
             .map((assignment) => String(assignment.subject_id)),
         )]

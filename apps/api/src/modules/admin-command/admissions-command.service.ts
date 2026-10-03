@@ -1,4 +1,7 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { CommunicationSmsService } from '../communication/communication-sms.service';
+import { TenantInvitationsService } from '../../auth/tenant-invitations.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { AdmissionsCommandRepository } from './repositories/admissions-command.repository';
@@ -10,7 +13,9 @@ export class AdmissionsCommandService {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly operations: AdminCommandOperationsService,
-    private readonly admissionsRepository: AdmissionsCommandRepository
+    private readonly admissionsRepository: AdmissionsCommandRepository,
+    @Optional() private readonly sms?: CommunicationSmsService,
+    @Optional() private readonly invitations?: TenantInvitationsService,
   ) {}
 
   private requireTenantId(): string {
@@ -23,7 +28,7 @@ export class AdmissionsCommandService {
 
   async getOverview() { return this.admissionsRepository.getOverview(this.requireTenantId()); }
   async getEnquiries() { return this.admissionsRepository.getEnquiries(this.requireTenantId()); }
-  async getApplications() { return this.admissionsRepository.getApplications(this.requireTenantId()); }
+  async getApplications(query: { search?: string; status?: string; limit?: number; offset?: number } = {}) { return this.admissionsRepository.getApplications(this.requireTenantId(), query); }
   async getApplicantProfiles() { return this.admissionsRepository.getApplicantProfiles(this.requireTenantId()); }
   async getDocuments() { return this.admissionsRepository.getDocuments(this.requireTenantId()); }
   async getInterviews() { return this.admissionsRepository.getInterviews(this.requireTenantId()); }
@@ -31,7 +36,7 @@ export class AdmissionsCommandService {
   async getFeeClearance() { return this.admissionsRepository.getFeeClearance(this.requireTenantId()); }
   async getEnrolment() { return this.admissionsRepository.getEnrolment(this.requireTenantId()); }
   async getClassPlacement() { return this.admissionsRepository.getClassPlacement(this.requireTenantId()); }
-  async getParents() { return this.admissionsRepository.getParents(this.requireTenantId()); }
+  async getParents(query: { search?: string; limit?: number; offset?: number } = {}) { return this.admissionsRepository.getParents(this.requireTenantId(), query); }
   async getTransfers() { return this.admissionsRepository.getTransfers(this.requireTenantId()); }
   async getCommunication() { return this.admissionsRepository.getCommunication(this.requireTenantId()); }
   async getAppointments() { return this.admissionsRepository.getAppointments(this.requireTenantId()); }
@@ -156,6 +161,8 @@ export class AdmissionsCommandService {
 
   async linkParent(body: any) {
     const tenantId = this.requireTenantId();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.parent_email ?? '').trim())) throw new BadRequestException('Enter a valid parent email for this link');
+    if (!['mother', 'father', 'guardian'].includes(String(body.relationship ?? '').toLowerCase())) throw new BadRequestException('Choose Mother, Father, or Guardian');
     const link = await this.admissionsRepository.linkParent(tenantId, body);
     if (!link) {
       throw new NotFoundException('Student was not found for this school');
@@ -170,15 +177,26 @@ export class AdmissionsCommandService {
 
   async sendParentInvitation(id: string) {
     const tenantId = this.requireTenantId();
-    const link = await this.admissionsRepository.sendParentInvitation(tenantId, id);
-    if (!link) {
-      throw new NotFoundException('Parent link was not found for this school');
+    const link = await this.admissionsRepository.findParentLink(tenantId, id);
+    if (!link) throw new NotFoundException('Parent link was not found for this school');
+    if (link.guardian_profile_id && link.phone) {
+      if (!this.sms) throw new BadRequestException('SMS delivery is unavailable. Try again later.');
+      const userId = this.getUserIdOrNull();
+      if (!userId) throw new UnauthorizedException('User context is required');
+      const contactKey = createHash('sha256').update(link.phone).digest('hex').slice(0, 16);
+      const result = await this.sms.sendSms({ tenantId, userId, recipientPhone: link.phone,
+        idempotencyKey: `parent-portal-instructions:${id}:${contactKey}`,
+        message: 'Your learner is linked to your MyShule parent account. Open https://myshule.online/parent/login and sign in using this guardian phone number.',
+      });
+      return { status: result.status, message: 'Portal instructions queued. Check Communication for delivery status.' };
     }
-    await this.operations.recordAudit(tenantId, 'admissions.parent.invited', 'student_guardian', id, {
-      student_id: link.student_id,
-      email: link.email,
-    }, this.getUserIdOrNull());
-    return link;
+    if (!link.email || !this.invitations) throw new BadRequestException('Add a guardian phone or email before sending an invitation.');
+    const invitation = await this.invitations.inviteTenantUser({ email: link.email, display_name: link.display_name, role_code: 'parent' });
+    if (!invitation.id) throw new BadRequestException('The invitation was not created. Try again.');
+    await this.admissionsRepository.bindParentInvitation(tenantId, id, invitation.id);
+    await this.operations.recordAudit(tenantId, 'admissions.parent.invited', 'student_guardian', id,
+      { student_id: link.student_id, invitation_id: invitation.id, status: invitation.status }, this.getUserIdOrNull());
+    return { status: invitation.status, message: invitation.invitation_message };
   }
 
   async generateReport(body: any) {

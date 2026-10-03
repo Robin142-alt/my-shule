@@ -1,6 +1,7 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
-import { FileText, CheckCircle, AlertCircle, Send } from "lucide-react";
+import { FileText, CheckCircle, Send } from "lucide-react";
 import Link from "next/link";
 import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -23,7 +24,7 @@ type DocumentsData = {
 };
 
 export function DocumentsWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<DocumentsData>('/admin-command/admissions/documents');
+  const { data, isLoading, isError, refetch } = useSchoolQuery<DocumentsData>('/admin-command/admissions/documents');
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [requestingId, setRequestingId] = useState<string | null>(null);
 
@@ -71,6 +72,7 @@ export function DocumentsWorkspace() {
 
   return (
     <Panel title="Documents" description="Track and verify admission documents for all applicants." icon={FileText}>
+      {isError && <p role="alert" className="mb-4 rounded-xl bg-danger-soft p-3 text-sm text-danger">Documents could not be loaded. <button type="button" onClick={() => void refetch()} className="min-h-11 font-bold underline">Retry</button></p>}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">Total Documents</div>
@@ -91,7 +93,7 @@ export function DocumentsWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-border">Student</th>
@@ -106,6 +108,8 @@ export function DocumentsWorkspace() {
           <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Loading documents...</td></tr>
+            ) : isError && documents.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted">Retry loading to view admission documents.</td></tr>
             ) : documents.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted">
@@ -130,10 +134,10 @@ export function DocumentsWorkspace() {
                     <div className="flex items-center justify-end gap-2">
                       {doc.status?.toLowerCase() === "pending" && (
                         <button disabled={verifyingId === doc.id} onClick={() => handleVerify(doc.id)}
-                          className="text-emerald-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><CheckCircle className="w-3 h-3" /> Verify</button>
+                          className="min-h-11 px-2 text-emerald-600 hover:underline text-sm font-semibold inline-flex items-center gap-1 disabled:opacity-50"><CheckCircle className="w-4 h-4" /> Verify</button>
                       )}
                       {doc.status?.toLowerCase() === "missing" && (
-                        <button type="button" disabled={requestingId === doc.id} onClick={() => handleRequestDocument(doc)} className="text-blue-600 hover:underline text-xs font-semibold inline-flex items-center gap-1 disabled:opacity-50"><Send className="w-3 h-3" /> Request</button>
+                        <button type="button" disabled={requestingId === doc.id} onClick={() => handleRequestDocument(doc)} className="min-h-11 px-2 text-blue-600 hover:underline text-sm font-semibold inline-flex items-center gap-1 disabled:opacity-50"><Send className="w-4 h-4" /> Request</button>
                       )}
                     </div>
                   </td>
@@ -141,7 +145,7 @@ export function DocumentsWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

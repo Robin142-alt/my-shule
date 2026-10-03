@@ -620,7 +620,7 @@ test('AdmissionsService exports applications as a server-side CSV artifact with 
   );
 
   assert.equal(tenantUsed, 'tenant-a');
-  assert.deepEqual(listOptions, { limit: 500, offset: 0 });
+  assert.deepEqual(listOptions, { limit: 50, offset: 0 });
   assert.equal(artifact.report_id, 'applications');
   assert.equal(artifact.filename, 'admissions-applications.csv');
   assert.equal(artifact.content_type, 'text/csv; charset=utf-8');
@@ -2834,4 +2834,27 @@ test('AdmissionsService updates document verification status', async () => {
 
   assert.equal(response.verification_status, 'verified');
   assert.equal(response.document_type, 'passport_photo');
+});
+
+
+test('manual admission keeps phone-less guardians separate and does not create a blank phone credential', async () => {
+  const inputs: any[] = [];
+  const context = { tenant_id: 'school-a', user_id: 'officer', role: 'admissions' };
+  const service = new AdmissionsService(
+    { requireStore: () => context, getStore: () => context } as any,
+    {} as any,
+    { admitCanonicalStudent: async (input: any) => { inputs.push(input); return { student: { id: 'student' } }; } } as any,
+    {} as any, {} as any,
+  );
+  const dto = { admission_number: 'ADM001', first_name: 'Learner', last_name: 'One', gender: 'female',
+    admission_date: '2026-01-06', class_section_id: 'class-a', guardian_name: 'A Guardian', guardian_relationship: 'guardian' } as const;
+  await service.createManualAdmission(dto);
+  await service.createManualAdmission({ ...dto, admission_number: 'ADM002', guardian_phone: '' });
+  assert.equal(inputs[0].guardian_phone, null);
+  assert.equal(inputs[0].guardian_phone_hash, null);
+  assert.equal(inputs[0].guardian_phone_last4, null);
+  assert.notEqual(inputs[0].guardian_internal_email, inputs[1].guardian_internal_email);
+  assert.equal(inputs[0].academic_year_id, '');
+  assert.equal(inputs[0].subject_ids, undefined);
+  await assert.rejects(service.createManualAdmission({ ...dto, guardian_phone: 'bad' }), /valid Kenyan/);
 });

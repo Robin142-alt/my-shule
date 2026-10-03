@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { GraduationCap, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +23,7 @@ type ClassPlacementData = {
 };
 
 export function ClassPlacementWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<ClassPlacementData>('/admin-command/admissions/class-placement');
+  const { data, isLoading, isError, refetch } = useSchoolQuery<ClassPlacementData>('/admin-command/admissions/class-placement');
   const [placingId, setPlacingId] = useState<string | null>(null);
 
   const placements = data?.placementsList || [];
@@ -50,6 +51,7 @@ export function ClassPlacementWorkspace() {
 
   return (
     <Panel title="Class Placement" description="Assign admitted students to classes and streams." icon={GraduationCap}>
+      {isError ? <p role="alert" className="mb-3 rounded-xl bg-danger-soft p-3">Placements could not be loaded. <button className="underline" onClick={() => void refetch()}>Retry</button></p> : null}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">To Place</div>
@@ -66,7 +68,7 @@ export function ClassPlacementWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold border-b border-border">Student</th>
@@ -84,7 +86,7 @@ export function ClassPlacementWorkspace() {
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
-                    <p>No students pending placement. Start student admission first, approve the application, then assign the learner to a class here.</p>
+                    <p>No students pending placement. Select a class when admitting the learner; placement is applied automatically.</p>
                     <Link href="/school/admissions/applications?action=start-admission" className="rounded-lg bg-primary px-4 py-2 text-xs font-black text-white">
                       Start student admission
                     </Link>
@@ -109,7 +111,7 @@ export function ClassPlacementWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </Panel>
   );

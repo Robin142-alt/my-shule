@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Param } from '@nestjs/common';
+import { ListAdmissionsQueryDto } from "../admissions/dto/list-admissions-query.dto";
+import { Body, Controller, Get, Post, Param, Query } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { AdmissionsCommandService } from './admissions-command.service';
 
@@ -16,7 +17,7 @@ export class AdmissionsCommandController {
 
   @Get('applications')
   @Permissions('admissions:read')
-  getApplications() { return this.admissionsService.getApplications(); }
+  getApplications(@Query() query: ListAdmissionsQueryDto) { return this.admissionsService.getApplications(query); }
 
   @Get('applicant-profiles')
   @Permissions('admissions:read')
@@ -56,7 +57,7 @@ export class AdmissionsCommandController {
 
   @Get('parent-linking')
   @Permissions('admissions:read')
-  getParentLinking() { return this.admissionsService.getParents(); }
+  getParentLinking(@Query() query: ListAdmissionsQueryDto) { return this.admissionsService.getParents(query); }
 
   @Post('parent-linking')
   @Permissions('admissions:write')

@@ -1,78 +1,38 @@
 "use client";
-import { ArrowRightLeft } from "lucide-react";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
-
-type TransfersData = {
-  metrics: Record<string, number>;
-  items: any[];
-};
-
+import { useEffect, useState } from "react";
+import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+type Student = { id: string; first_name: string; last_name: string; admission_number: string };
+type Transfer = { id: string; student_id: string; transfer_type: string; school_name: string; reason: string; requested_on: string; status: string };
 export function TransfersWorkspace() {
-  const { data, isLoading } = useSchoolQuery<TransfersData>("/admin-command/admissions/transfers");
-  const items = data?.items || [];
-
-  return (
-    <section className="rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
-      <div className="mb-4 flex min-w-0 gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
-          <ArrowRightLeft className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">Transfers</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">Process student transfers in and out.</p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-border bg-surface-muted p-4">
-          <div className="text-sm font-semibold text-muted">Incoming</div>
-          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.incoming ?? 0}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-surface-muted p-4">
-          <div className="text-sm font-semibold text-muted">Outgoing</div>
-          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.outgoing ?? 0}</div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-surface-muted text-foreground">
-            <tr>
-              <th className="px-4 py-3 font-bold">Student</th>
-              <th className="px-4 py-3 font-bold">From/To</th>
-              <th className="px-4 py-3 font-bold">Class</th>
-              <th className="px-4 py-3 font-bold">Type</th>
-              <th className="px-4 py-3 font-bold">Date</th>
-              <th className="px-4 py-3 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
-            ) : items.length === 0 ? (
-              <AdmissionsEmptyStateCell
-                colSpan={6}
-                title="No transfer requests yet"
-                body="Open applications to start with an applicant record before creating a transfer case."
-                actionHref={APPLICATIONS_HREF}
-                actionLabel="Open applications"
-              />
-            ) : (
-              items.map((row: any, i: number) => (
-                <tr key={row.id || i} className="border-t border-border hover:bg-surface-muted">
-                  <td className="px-4 py-3 text-muted">{row.student_name}</td>
-                  <td className="px-4 py-3 text-muted">{row.school}</td>
-                  <td className="px-4 py-3 text-muted">{row.class_name}</td>
-                  <td className="px-4 py-3 text-muted">{row.transfer_type}</td>
-                  <td className="px-4 py-3 text-muted">{row.date}</td>
-                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("");
+  useEffect(() => { const timer = setTimeout(() => setFilter(search.trim()), 300); return () => clearTimeout(timer); }, [search]);
+  const [page, setPage] = useState(0);
+  const [studentId, setStudentId] = useState("");
+  const [type, setType] = useState("outgoing");
+  const [school, setSchool] = useState("");
+  const [reason, setReason] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const students = useSchoolQuery<Student[]>(`/admissions/students?limit=50&search=${encodeURIComponent(filter)}`, { enabled: filter.length >= 2, retry: 1 });
+  const transfers = useSchoolQuery<Transfer[]>(`/admissions/transfers?limit=50&offset=${page * 50}`);
+  const create = useSchoolMutation<Transfer, { student_id: string; transfer_type: string; school_name: string; reason: string }>("/admissions/transfers", "POST", { queueNetworkFailures: false });
+  return <section className="rounded-2xl border border-border bg-white p-4">
+    <h2 className="text-xl font-black">Transfers</h2><p className="mt-1 text-sm text-muted">Record incoming, outgoing, and returning learners. Requests remain pending until the school completes its transfer process.</p>
+    <details className="my-4 rounded-xl border p-3"><summary className="min-h-11 cursor-pointer font-bold">New transfer request</summary>
+      <form className="grid gap-3" onSubmit={async e => { e.preventDefault(); setFeedback(""); try { await create.mutateAsync({ student_id: studentId, transfer_type: type, school_name: school, reason }); setFeedback("Transfer request saved as pending."); setReason(""); } catch { /* Keep form available for retry. */ } }}>
+        <label className="grid gap-1 text-sm">Find learner<input value={search} onChange={e => { setSearch(e.target.value); setStudentId(""); }} placeholder="At least 2 letters or admission number" className="min-h-11 rounded-lg border p-2" /></label>
+        {students.isLoading ? <p role="status">Finding learners…</p> : null}{students.isError ? <p role="alert">Learners could not be loaded. <button type="button" onClick={() => void students.refetch()}>Retry</button></p> : null}
+        <label className="grid gap-1 text-sm">Learner<select required value={studentId} onChange={e => setStudentId(e.target.value)} className="min-h-11 rounded-lg border p-2"><option value="">Select learner</option>{students.data?.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name} · {s.admission_number}</option>)}</select></label>
+        <label className="grid gap-1 text-sm">Transfer type<select value={type} onChange={e => setType(e.target.value)} className="min-h-11 rounded-lg border p-2"><option value="outgoing">Outgoing</option><option value="incoming">Incoming</option><option value="readmission">Readmission</option></select></label>
+        <label className="grid gap-1 text-sm">Other school<input required value={school} onChange={e => setSchool(e.target.value)} className="min-h-11 rounded-lg border p-2" /></label>
+        <label className="grid gap-1 text-sm">Reason<textarea required value={reason} onChange={e => setReason(e.target.value)} className="rounded-lg border p-2" /></label>
+        <button disabled={create.isPending} className="min-h-11 rounded-xl bg-primary px-4 font-bold text-white">{create.isPending ? "Saving…" : "Save transfer request"}</button>
+      </form>
+    </details>
+    {feedback ? <p role="status" className="my-3 rounded-xl bg-success-soft p-3">{feedback}</p> : null}
+    {create.isError ? <p role="alert">{create.error.message}</p> : null}
+    {transfers.isError ? <p role="alert">Transfers could not be loaded. <button onClick={() => void transfers.refetch()}>Retry</button></p> : transfers.isLoading ? <p role="status">Loading transfers…</p> : !transfers.data?.length ? <p>No transfer requests yet. Start a request above after adding the learner.</p> : null}
+    <ul className="divide-y divide-border">{transfers.data?.map(row => <li key={row.id} className="py-3"><p className="font-bold">{row.school_name} · {row.transfer_type}</p><p className="text-sm text-muted">{row.reason} · {row.requested_on.slice(0,10)} · {row.status}</p></li>)}</ul>
+    <div className="mt-3 flex gap-2"><button className="min-h-11 rounded-lg border px-3" disabled={!page || transfers.isFetching} onClick={() => setPage(p => p - 1)}>Previous</button><button className="min-h-11 rounded-lg border px-3" disabled={(transfers.data?.length ?? 0) < 50 || transfers.isFetching} onClick={() => setPage(p => p + 1)}>Next</button></div>
+  </section>;
 }
