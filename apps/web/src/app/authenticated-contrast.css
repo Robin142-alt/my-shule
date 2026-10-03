@@ -67,4 +67,8 @@
   .authenticated-app :is(.app-metric-grid, .app-metric-card) :where(.text-slate-400, .text-slate-500, .text-gray-400, .text-gray-500) {
     color: var(--muted);
   }
+  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card:not([class*="bg-"]), .app-metric-card) :where([class*="text-amber-"], [class*="text-yellow-"], [class*="text-orange-"]) { color: var(--warning); }
+  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card:not([class*="bg-"]), .app-metric-card) :where([class*="text-green-"], [class*="text-emerald-"], [class*="text-teal-"]) { color: var(--success); }
+  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card:not([class*="bg-"]), .app-metric-card) :where([class*="text-red-"], [class*="text-rose-"]) { color: var(--danger); }
+  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card:not([class*="bg-"]), .app-metric-card) :where([class*="text-blue-"], [class*="text-cyan-"]) { color: var(--info); }
 }
