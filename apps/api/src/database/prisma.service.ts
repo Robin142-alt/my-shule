@@ -55,8 +55,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     private readonly requestContext: RequestContextService,
     private readonly databaseSecurityService: DatabaseSecurityService,
   ) {
+    // Prisma's pg adapter reads timestamptz as UTC; preserve instants even when
+    // the database/server defaults to Africa/Nairobi or another local zone.
+    const databaseUrl = new URL(process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL);
+    databaseUrl.searchParams.set('options', `${databaseUrl.searchParams.get('options') ?? ''} -c timezone=UTC`.trim());
     const connectionPool = new Pool({
-      connectionString: process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+      connectionString: databaseUrl.toString(),
       application_name: 'my-shule-prisma',
       max: Number(process.env.APP_RUNTIME?.includes('worker')
         ? process.env.DATABASE_WORKER_MAX_CONNECTIONS ?? 5

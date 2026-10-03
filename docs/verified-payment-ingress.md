@@ -60,6 +60,8 @@ An absent passkey is stored as an empty value in the existing finance configurat
 
 ## Deployment and recovery
 
+Activation, callback intake and collection posting retain their transaction-scoped advisory locks and cast the unused lock result to text for Prisma compatibility. Setup and ingress regressions run through the production Prisma adapter with restricted database roles. Prisma connections use UTC sessions so the adapter preserves payment instants even when PostgreSQL defaults to Africa/Nairobi; the school UI still displays local time. This avoids the adapter's documented [non-UTC timestamptz issue](https://github.com/prisma/prisma/issues/26786).
+
 Deploy the same release to API, payments worker (`node dist/apps/api/src/payments-worker.js`) and web. The worker needs the same database, Redis and encryption configuration as the API; secrets should use Railway service-variable references. The existing schema bootstrap adds inbox/verification/test tables with forced RLS and replaces active-destination uniqueness with separate production and tenant-scoped sandbox indexes. It does not change existing accounting table history.
 
 Run `scripts/payment-ingress-status.cjs` using a server-side database environment for read-only table/channel diagnostics. Do not print environment variables or callback tokens. Public invalid-token callbacks must fail; authenticated bank channels remain statement-only. Watch delayed verification/provider-exception counts in payment integration health, worker failures and accountant review queues.
