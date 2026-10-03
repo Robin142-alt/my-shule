@@ -57,7 +57,7 @@ for (const width of [1440, 390]) {
     });
     await page.goto("/school/deputy-principal/academics");
     await expect(page.getByLabel("Academic foundation setup")).toBeVisible();
-    if (width < 768) await page.getByLabel("Setup area").selectOption("roles-curriculum");
+    if (width < 768) await page.getByRole("combobox", { name: /^Setup area/ }).selectOption("roles-curriculum");
     else await page.getByRole("tab", { name: /Roles & Curriculum/ }).click();
     const role = page.getByRole("combobox", { name: "Role", exact: true });
     for (const excluded of ["Subject Coordinator", "Curriculum Coordinator", "Academic Year Coordinator"]) {
@@ -65,8 +65,8 @@ for (const width of [1440, 390]) {
     }
     await expect(role.getByRole("option", { name: "Timetable Coordinator", exact: true })).toHaveCount(1);
     await role.selectOption("dean_of_academics");
-    await page.getByLabel("Staff member", { exact: true }).selectOption("staff-a");
-    await page.getByLabel("Reason", { exact: true }).fill("Academic leadership appointment");
+    await page.getByRole("combobox", { name: "Staff member", exact: true }).selectOption("staff-a");
+    await page.getByRole("textbox", { name: "Reason", exact: true }).fill("Academic leadership appointment");
     await page.getByRole("button", { name: "Save role appointment", exact: true }).click();
     await expect.poll(() => saves).toBe(1);
     const switcher = page.getByRole("button", { name: /switch dashboard.*deputy principal/i });
