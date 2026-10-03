@@ -41,7 +41,12 @@ for (const width of [1440, 390]) {
     });
     for (let i = 0; i < 3; i += 1) {
       if (width < 1280) await page.getByRole("button", { name: "Open principal navigation", exact: true }).click();
-      await page.getByRole("navigation", { name: "Principal dashboard sidebar" }).getByRole("link", { name: "Students", exact: true }).click();
+      const navigation = page.getByRole("navigation", { name: "Principal dashboard sidebar" });
+      const students = navigation.getByRole("button", { name: "Students", exact: true });
+      if (await students.getAttribute("aria-expanded") === "false") await students.click();
+      await expect(page).toHaveURL(/\/school\/principal$/);
+      await expect(navigation.getByRole("group", { name: "Students", exact: true })).toBeVisible();
+      await navigation.getByRole("button", { name: "Student Directory", exact: true }).click();
       await expect(page).toHaveURL(/\/school\/principal\/students$/);
       await expect(shell).toBeVisible();
       await expect(page.locator(".auth-shell")).toHaveCount(0);

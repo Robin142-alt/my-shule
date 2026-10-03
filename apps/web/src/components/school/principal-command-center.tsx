@@ -23,7 +23,6 @@ import {
   UsersRound,
   Wallet,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useModalLayer } from "@/hooks/use-modal-layer";
 import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
@@ -116,7 +115,6 @@ type PrincipalNavGroup = {
   icon: typeof Home;
   children: PrincipalNavItem[];
   section?: PrincipalSection;
-  route?: "students";
 };
 
 type PrincipalSchoolProfileSummary = {
@@ -147,8 +145,9 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
     ],
   },
   {
-    id: "students", label: "Students", icon: Users, route: "students",
+    id: "students", label: "Students", icon: Users,
     children: [
+      { id: "students", label: "Student Directory", icon: Users },
       { id: "attendance", label: "Attendance", icon: Activity },
       { id: "discipline", label: "Discipline", icon: ShieldAlert },
       { id: "sick-bay", label: "Sick Bay", icon: HeartPulse },
@@ -550,7 +549,7 @@ export function PrincipalCommandCenter({
         key={item.id}
         type="button"
         aria-current={activeWorkspace === item.id ? "page" : undefined}
-        onClick={() => setActiveWorkspace(item.id)}
+        onClick={() => setActiveWorkspace(item.id, item.id === "students" ? "pushState" : "replaceState")}
         className={principalNavItemClass(activeWorkspace === item.id)}
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -623,28 +622,13 @@ export function PrincipalCommandCenter({
                   if (!("children" in item)) return renderNavItem(item);
                   const Icon = item.icon;
                   const expanded = Boolean(expandedNavGroups[item.id]);
-                  const selected = item.section === activeWorkspace || item.route === activeWorkspace || item.children.some((child) => child.id === activeWorkspace);
+                  const selected = item.section === activeWorkspace || item.children.some((child) => child.id === activeWorkspace);
                   const childrenId = `principal-nav-${item.id}`;
-                  const hasPage = Boolean(item.section || item.route);
+                  const hasPage = Boolean(item.section);
                   return (
                     <div key={item.id}>
                       <div className="flex items-center gap-1">
-                        {item.route ? (
-                          <Link
-                            href={buildSchoolSectionHref("principal", item.route, routeMode ?? "hosted")}
-                            prefetch={false}
-                            aria-current={item.route === activeWorkspace ? "page" : undefined}
-                            onClick={(event) => {
-                              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                              event.preventDefault();
-                              setActiveWorkspace(item.route!, "pushState");
-                            }}
-                            className={principalNavItemClass(selected)}
-                          >
-                            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                            <span className="truncate">{item.label}</span>
-                          </Link>
-                        ) : item.section ? renderNavItem({ id: item.section, label: item.label, icon: item.icon }) : null}
+                        {item.section ? renderNavItem({ id: item.section, label: item.label, icon: item.icon }) : null}
                         <button
                           type="button"
                           aria-label={hasPage ? `${expanded ? "Collapse" : "Expand"} ${item.label}` : undefined}

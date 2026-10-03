@@ -408,11 +408,11 @@ describe("principal production readiness", () => {
       "Master Timetable", "Fees & Finance", "Students", "Academics", "Staff", "Parents & Visitors",
       "Transport", "Library", "Users & Invitations", "Reports", "Audit Logs", "School Setup", "Settings",
     ]);
-    expect(within(sidebar).getByRole("link", { name: "Students" })).toHaveAttribute("href", "/school/principal/students");
+    expect(within(sidebar).queryByRole("link", { name: "Students" })).not.toBeInTheDocument();
 
     for (const [label, toggleName, children] of [
       ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
-      ["Students", "Expand Students", ["Attendance", "Discipline", "Sick Bay", "Boarding"]],
+      ["Students", "Students", ["Student Directory", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
       ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
       ["School Setup", "Expand School Setup", ["School Profile"]],
     ] as const) {
@@ -446,13 +446,19 @@ describe("principal production readiness", () => {
     expect(screen.queryByRole("heading", { name: "Learner register" })).not.toBeInTheDocument();
   });
 
-  it("opens Students from its sidebar destination and preserves school data on reload", async () => {
+  it("expands Students without navigating, then opens its directory and preserves school data on reload", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "/school/principal");
     const { unmount } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
     const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
-    const href = within(sidebar).getByRole("link", { name: "Students" }).getAttribute("href")!;
-    await user.click(within(sidebar).getByRole("link", { name: "Students" }));
+    const href = "/school/principal/students";
+    const toggle = within(sidebar).getByRole("button", { name: "Students" });
+    toggle.focus();
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(window.location.pathname).toBe("/school/principal");
+    expect(screen.queryByRole("heading", { name: "Students Directory" })).not.toBeInTheDocument();
+    await user.click(within(sidebar).getByRole("button", { name: "Student Directory" }));
     expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
     expect(window.location.pathname).toBe(href);
     expect(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).toBe(sidebar);
@@ -466,8 +472,18 @@ describe("principal production readiness", () => {
     renderWithProviders(<SchoolPages role="principal" section={href.split("/").pop()} tenantSlug="maranda-high" routeMode="public" />);
     expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
     expect(await screen.findByText("Amina Wanjiku")).toBeVisible();
-    expect(within(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).getByRole("link", { name: "Students" })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).getByRole("button", { name: "Student Directory" })).toHaveAttribute("aria-current", "page");
     expect(requestDashboardApiMock).toHaveBeenCalledWith("/admin-command/principal/students", expect.objectContaining({ tenantId: "maranda-high" }));
+  });
+
+  it.each([
+    ["communication", /No broadcasts recorded for this period/],
+    ["attendance-monitoring", /No attendance recorded for this period/],
+    ["discipline", /No incidents recorded for this period/],
+    ["finance", /No collections recorded for this period/],
+  ])("explains missing trend data in %s instead of showing an empty chart", async (section, message) => {
+    renderWithProviders(<SchoolPages role="principal" section={section as string} tenantSlug="maranda-high" routeMode="public" />);
+    expect(await screen.findByText(message)).toBeVisible();
   });
 
   it("keeps the master timetable in the Principal dashboard after reloading its URL", async () => {
@@ -497,7 +513,7 @@ describe("principal production readiness", () => {
     expect(window.location.pathname).toBe("/school/principal/students");
     expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
     const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
-    await user.click(within(sidebar).getByRole("button", { name: "Expand Students" }));
+    expect(within(sidebar).getByRole("button", { name: "Students" })).toHaveAttribute("aria-expanded", "true");
     await user.click(within(sidebar).getByRole("button", { name: "Attendance" }));
     expect(window.location.pathname).toBe("/school/principal/attendance-monitoring");
     expect(await screen.findByRole("heading", { name: "Weekly Attendance Rate" })).toBeVisible();
@@ -513,8 +529,8 @@ describe("principal production readiness", () => {
     const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
     await user.click(screen.getByRole("button", { name: "Open principal navigation" }));
     for (const label of ["Students", "School Setup"]) {
-      await user.click(within(sidebar).getByRole("button", { name: `Expand ${label}` }));
-      await user.click(within(sidebar).getByRole("button", { name: `Collapse ${label}` }));
+      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Expand ${label}` }));
+      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Collapse ${label}` }));
       expect(window.location.pathname).toBe("/school/principal");
       expect(screen.getByRole("button", { name: "Close principal navigation overlay" })).toBeInTheDocument();
     }

@@ -70,6 +70,22 @@ jobs:
       - name: Authenticated mobile navigation and action contracts
         run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
 
+      - name: Dashboard text contrast on light and dark surfaces
+        run: |
+          npm --prefix apps/web run test:design -- colour-consistency
+          cd apps/web
+          npx playwright install --with-deps chromium
+          node tests/design/colour-system-browser.mjs
+          node tests/design/mobile-roles-browser.mjs --all-workspaces --contrast
+
+      - name: Keep dashboard visual diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-visual-diagnostics
+          path: output/mobile-roles
+          retention-days: 7
+
       - name: Report-card class generation and recovery interface
         run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-regeneration-job report-card-api-contract report-card-signatures report-card-reference-layout exams-manager-entry-controls exams-manager-command-center academic-office-production-readiness
 

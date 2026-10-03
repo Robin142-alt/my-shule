@@ -1,5 +1,7 @@
 "use client";
 
+import { TrendEmptyState } from "./trend-empty-state";
+
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
 
 import { Card } from "@/components/ui/card";
@@ -104,6 +106,7 @@ export function PrincipalDisciplineWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <h2 className="text-xl font-bold text-white mb-6">Incident Trend</h2>
           <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
+            {!data.incidentTrend?.length && <TrendEmptyState message="No incidents recorded for this period. Use Report Incident when a case needs attention; recorded cases will appear here." />}
             {data.incidentTrend?.map((item) => {
               const maxVal = Math.max(...(data.incidentTrend?.map(i => i.value) || [1]), 1);
               return (

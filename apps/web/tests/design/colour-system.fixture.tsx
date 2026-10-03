@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const nav = [
@@ -35,7 +36,21 @@ function Fixture() {
     <section className="dashboard-card flex flex-wrap items-center gap-3 p-4" aria-label="Shared colours">
       <Button>Primary action</Button><Button variant="danger">Delete draft</Button><Badge variant="success">Approved</Badge><Badge variant="warning">Pending</Badge><Badge variant="destructive">Failed</Badge><Input aria-label="Workspace input" placeholder="Search records" />
     </section>
-    <Modal open={modal} title="Edit details" onClose={() => setModal(false)} footer={<Button onClick={() => setModal(false)}>Save details</Button>}>
+    <section className="app-principal-workspace space-y-4 p-4" aria-label="Inverse workspace">
+      <div className="app-metric-grid grid grid-cols-2 gap-3">
+        <Card className="bg-white/5 p-4 text-white"><p className="text-sm text-white/70">Total Pending</p><p className="text-2xl font-bold">12</p></Card>
+        <Card className="bg-emerald-500/10 p-4"><p className="text-sm text-emerald-200">Ready to release</p><p className="text-2xl font-bold text-emerald-400">8</p></Card>
+      </div>
+      <Card className="bg-white/5 p-4 text-white">
+        <p className="text-white/50">No recent absences reported</p>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline">Dark outline</Button><Button variant="ghost">Dark ghost</Button>
+          <Button variant="outline" className="text-red-400">Dark archive</Button><Button variant="outline" disabled>Unavailable action</Button>
+        </div>
+      </Card>
+      <Card className="bg-white p-4 text-foreground"><Button variant="outline">Nested light outline</Button><Button variant="ghost">Nested light ghost</Button><Button variant="outline" className="text-red-400">Light archive</Button></Card>
+    </section>
+    <Modal open={modal} title="Edit details" onClose={() => setModal(false)} footer={<><Button variant="outline" onClick={() => setModal(false)}>Cancel changes</Button><Button onClick={() => setModal(false)}>Save details</Button></>}>
       <label className="text-sm text-foreground">Name<Input aria-label="Dialog input" placeholder="Enter a name" /></label>
       <Badge variant="warning">Pending</Badge>
     </Modal>
