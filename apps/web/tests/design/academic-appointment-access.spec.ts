@@ -6,6 +6,7 @@ for (const width of [1440, 390]) {
   test(`academic appointments update the existing switcher at ${width}px`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width, height: 900 });
+    page.setDefaultTimeout(15_000);
     await page.clock.install();
     let appointed = false;
     let saves = 0;
@@ -15,7 +16,8 @@ for (const width of [1440, 390]) {
       const roles = ["deputy_principal", "teacher", ...(appointed ? ["dean_academics"] : [])];
       const roleContext = normalizeDashboardRoleContext({ primary_role: "deputy_principal", active_role: activeRole,
         assigned_roles: roles, teacher_dashboard_eligible: true, available_roles: roles.map(role_code => ({ role_code,
-          role_name: role_code, is_primary: role_code === "deputy_principal", is_teacher_mode: role_code === "teacher",
+          role_name: ({ deputy_principal: "Deputy Principal", teacher: "Teacher", dean_academics: "Dean of Academics" } as Record<string, string>)[role_code],
+          is_primary: role_code === "deputy_principal", is_teacher_mode: role_code === "teacher",
           sources: ["primary_membership"] })) }, "deputy-principal");
       const user = { user_id: "staff-a", tenant_id: tenantSlug, role: activeRole, display_name: "Test Staff",
         email: "staff@example.test", session_id: "test-session", permissions: ["*:*"] };
