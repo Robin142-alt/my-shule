@@ -11,13 +11,14 @@ function fixture(link: Record<string, unknown> | null, delivery: Record<string, 
   } as never, {
     findParentLink: async (...args: unknown[]) => { calls.push({ action: 'read', args }); return link; },
     bindParentInvitation: async (...args: unknown[]) => calls.push({ action: 'bind', args }),
+    linkParent: async (...args: unknown[]) => { calls.push({ action: 'link', args }); return link; },
   } as never, {
     sendSms: async (...args: unknown[]) => { calls.push({ action: 'sms', args }); return { success: true, status: 'Pending', messageId: 'queue-id' }; },
   } as never, {
     inviteTenantUser: async (...args: unknown[]) => { calls.push({ action: 'email', args }); return { id: 'invitation-id', status: 'email_failed', invitation_message: 'Provider unavailable', ...delivery }; },
   } as never);
   const run = () => context.run({ tenant_id: 'school-a', user_id: 'officer', role: 'admissions_officer' } as never, () => service.sendParentInvitation('link-id'));
-  return { run, calls, service };
+  return { run, calls, service, context };
 }
 
 test('phone-linked guardians receive real queued portal instructions with a retry-safe key', async () => {
@@ -54,4 +55,19 @@ test('a phone-less guardian remains linked without a false invitation success', 
   const { run, calls } = fixture({ guardian_profile_id: 'profile', phone: null, email: null });
   await assert.rejects(run(), /Add a guardian phone or email/);
   assert.equal(calls.some(call => ['sms', 'email'].includes(call.action)), false);
+});
+
+test('guardian links reject malformed and oversized email before persistence', async () => {
+  const { context, service, calls } = fixture({ id: 'link', student_id: 'student' });
+  for (const email of ['not-an-email', 'parent@@example.test', '!@!.' + '!.'.repeat(100_000)]) {
+    await context.run({ tenant_id: 'school-a', user_id: 'officer' } as never, () =>
+      assert.rejects(service.linkParent({ parent_email: email, relationship: 'mother' }), /valid parent email/));
+  }
+  assert.equal(calls.length, 0);
+  await context.run({ tenant_id: 'school-a', user_id: 'officer' } as never, () =>
+    service.linkParent({ id: 'student', parent_email: ' parent@example.test ', relationship: 'mother' }));
+  assert.deepEqual(calls.find(call => call.action === 'link')?.args, ['school-a', {
+    id: 'student', parent_email: 'parent@example.test', relationship: 'mother',
+  }]);
+  assert.ok(calls.some(call => call.action === 'audit'));
 });

@@ -21,7 +21,7 @@ export class AdmissionsCommandRepository {
         (SELECT COUNT(*)::int FROM admission_applications WHERE tenant_id=$1 AND status IN ('pending','reviewing','interview')) AS "applicationsPending",
         (SELECT COUNT(*)::int FROM admission_applications WHERE tenant_id=$1 AND status IN ('registered','admitted')) AS admitted,
         (SELECT COUNT(*)::int FROM admission_documents WHERE tenant_id=$1 AND verification_status='pending') AS "documentsMissing",
-        (SELECT COUNT(*)::int FROM admission_interviews WHERE tenant_id=$1 AND lower(status::text)='scheduled') AS "interviewsScheduled",
+        (SELECT COUNT(*)::int FROM admission_interviews WHERE tenant_id=$1 AND lower(status::text) = 'scheduled') AS "interviewsScheduled",
         (SELECT COUNT(*)::int FROM admission_offers WHERE tenant_id=$1 AND offer_status='pending') AS "admissionLettersPending",
         COALESCE((SELECT jsonb_agg(recent) FROM (
           SELECT id::text, CASE WHEN status IN ('registered','admitted') THEN 'Admitted' ELSE 'Application received' END AS action,

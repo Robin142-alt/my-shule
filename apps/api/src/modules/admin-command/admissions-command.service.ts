@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import { isEmail } from 'class-validator';
 import { CommunicationSmsService } from '../communication/communication-sms.service';
 import { TenantInvitationsService } from '../../auth/tenant-invitations.service';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -161,9 +162,10 @@ export class AdmissionsCommandService {
 
   async linkParent(body: any) {
     const tenantId = this.requireTenantId();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(body.parent_email ?? '').trim())) throw new BadRequestException('Enter a valid parent email for this link');
+    const email = typeof body.parent_email === 'string' ? body.parent_email.trim() : '';
+    if (email.length > 254 || !isEmail(email)) throw new BadRequestException('Enter a valid parent email for this link');
     if (!['mother', 'father', 'guardian'].includes(String(body.relationship ?? '').toLowerCase())) throw new BadRequestException('Choose Mother, Father, or Guardian');
-    const link = await this.admissionsRepository.linkParent(tenantId, body);
+    const link = await this.admissionsRepository.linkParent(tenantId, { ...body, parent_email: email });
     if (!link) {
       throw new NotFoundException('Student was not found for this school');
     }
