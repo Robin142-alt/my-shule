@@ -1,4 +1,4 @@
-import { STAFF_APPOINTMENT_CATALOG } from "../../../api/src/auth/staff-appointment-catalog";
+import { STAFF_APPOINTMENT_CATALOG, MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from "../../../api/src/auth/staff-appointment-catalog";
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AcademicFoundationWorkspace } from '@/components/school/academic-foundation-workspace';
@@ -13,7 +13,7 @@ const foundation = {
   years: [], terms: [], calendarPeriods: [], classes: [], streams: [], departments: [], teachers: [],
   subjects: [{ id: 'math', name: 'Mathematics', status: 'active' }],
   hosStaff: [{ user_id: 'librarian', label: 'Alex', role_code: 'librarian' }],
-  classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], appointmentRoles: STAFF_APPOINTMENT_CATALOG,
+  classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], appointmentRoles: STAFF_APPOINTMENT_CATALOG.map(role => ({ ...role, multipleHolders: MULTI_HOLDER_STAFF_APPOINTMENT_CODES.includes(role.code) })),
   curriculumConfigurations: [], gradingSystems: [], attendanceSettings: [], reportCardSettings: [],
 };
 const refetch = jest.fn().mockResolvedValue({ data: foundation });
@@ -34,6 +34,7 @@ it('offers all existing school staff dashboards, omits obsolete coordinators and
     expect(within(role).queryByRole('option', { name: label })).not.toBeInTheDocument();
   }
   await user.selectOptions(role, 'librarian');
+  expect(screen.getByText(/Other holders keep their access/)).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText('Staff member'), 'librarian');
   await user.type(screen.getByLabelText('Reason', { exact: true }), 'Coordinate this term');
   expect(screen.getByLabelText('Department scope')).toBeDisabled();

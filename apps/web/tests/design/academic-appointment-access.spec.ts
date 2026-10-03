@@ -1,4 +1,4 @@
-import { STAFF_APPOINTMENT_CATALOG } from "../../../api/src/auth/staff-appointment-catalog";
+import { STAFF_APPOINTMENT_CATALOG, MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from "../../../api/src/auth/staff-appointment-catalog";
 import { expect, test } from "@playwright/test";
 import { normalizeDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import { SCHOOL_SESSION_COOKIE, serializeExperienceSession } from "@/lib/auth/experience-routing";
@@ -47,7 +47,7 @@ for (const width of [1440, 390]) {
       if (path === "/api/academics/foundation") return route.fulfill({ json: {
         years: [], terms: [], calendarPeriods: [], classes: [], streams: [], subjects: [], departments: [], teachers: [],
         hosStaff: [{ user_id: "staff-a", label: "Test Staff", display_name: "Test Staff", role_code: "deputy_principal" }],
-        classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], appointmentRoles: STAFF_APPOINTMENT_CATALOG, curriculumConfigurations: [],
+        classSubjectAssignments: [], classTeachers: [], teacherAssignments: [], roleAppointments: [], appointmentRoles: STAFF_APPOINTMENT_CATALOG.map(role => ({ ...role, multipleHolders: MULTI_HOLDER_STAFF_APPOINTMENT_CODES.includes(role.code) })), curriculumConfigurations: [],
         gradingSystems: [], attendanceSettings: [], reportCardSettings: [],
       } });
       if (path === "/api/academics/academic-roles" && route.request().method() === "POST") {
@@ -71,6 +71,7 @@ for (const width of [1440, 390]) {
       await expect(role.getByRole("option", { name: staffRole.label, exact: true })).toHaveCount(1);
     }
     await role.selectOption("librarian");
+    await expect(page.getByText(/Other holders keep their access/)).toBeVisible();
     await page.getByRole("combobox", { name: "Staff member", exact: true }).selectOption("staff-a");
     await page.getByRole("textbox", { name: "Reason", exact: true }).fill("Academic leadership appointment");
     await page.screenshot({ path: `../../tmp/staff-appointment-form-${width}.png`, fullPage: true });
