@@ -1,5 +1,7 @@
 "use client";
 
+import { TrendEmptyState } from "./trend-empty-state";
+
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
 
 import { Card } from "@/components/ui/card";
@@ -105,6 +107,7 @@ export function PrincipalAttendanceWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <h2 className="text-xl font-bold text-white mb-6">Weekly Attendance Rate</h2>
           <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
+            {!data.attendanceTrend?.length && <TrendEmptyState message="No attendance recorded for this period. Class teachers can submit registers, or use Log Absence to record an absence." />}
             {data.attendanceTrend?.map((item) => (
               <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
                 <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
 import bundledWebpack from 'next/dist/compiled/webpack/webpack.js';
+import { auditWorkspaceContrast } from './contrast-audit.mjs';
 const require = createRequire(import.meta.url);
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const out = path.resolve(web, '../../output/colour-system');
@@ -48,6 +49,12 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByText('Mathematics', { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
+    assert.deepEqual((await auditWorkspaceContrast(page)).failures, [], 'Metric copy and shared actions must meet WCAG AA');
+    for (const name of ['Dark outline', 'Dark ghost', 'Dark archive', 'Nested light outline', 'Nested light ghost', 'Light archive']) {
+      await page.getByRole('button', { name, exact: true }).hover();
+      await page.getByRole('button', { name, exact: true }).evaluate(el => Promise.all(el.getAnimations().map(animation => animation.finished)));
+      assert.deepEqual((await auditWorkspaceContrast(page)).failures, [], `${name} must retain contrast on hover`);
+    }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow at ${width}px`);
     const fill = locator => locator.evaluate(el => getComputedStyle(el).backgroundColor);
     assert.notEqual(await fill(page.locator('[data-tone="success"]')), await fill(page.locator('[data-tone="warning"]')), 'On Track and Behind need distinct semantic fills');
@@ -59,6 +66,7 @@ try {
     const workspacePrimary = await fill(page.getByRole('button', { name: 'Primary action', exact: true }));
     await page.getByRole('button', { name: 'Open form', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Edit details' });
+    assert.deepEqual((await auditWorkspaceContrast(page)).failures, [], 'Portalled actions retain their light surface palette');
     assert.equal(await fill(dialog.getByRole('button', { name: 'Save details' })), workspacePrimary, 'Portals must share the workspace action colour');
     const field = dialog.getByLabel('Dialog input');
     await field.focus();

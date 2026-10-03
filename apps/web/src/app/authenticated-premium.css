@@ -184,7 +184,9 @@
     border-top: 3px solid var(--metric-accent);
     padding: 20px;
   }
-  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card, .app-metric-card) {
+  /* Only recolour cards that own a light surface. Dark/translucent domain
+     cards also own inverse text, so their background must stay paired with it. */
+  .authenticated-app :is(.app-metric-grid > .bg-white, .app-metric-grid > .dashboard-card:not([class*="bg-"]), .app-metric-card) {
     background: var(--metric-surface);
   }
   .authenticated-app .app-metric-card[data-tone="success"] { --metric-accent: var(--success); --metric-surface: var(--success-soft); }

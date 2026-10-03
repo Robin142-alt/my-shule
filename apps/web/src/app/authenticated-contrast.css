@@ -1,0 +1,70 @@
+/* Surface-local action colours preserve nested light panels inside dark role
+   workspaces. Portalled forms use the light defaults, independently of the
+   workspace that opened them. School documents keep their print styling. */
+@media screen {
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) {
+    --action-text: var(--foreground);
+    --action-muted: var(--muted-strong);
+    --action-border: var(--border-control);
+    --action-hover: var(--surface-strong);
+    --action-danger: var(--danger);
+    --action-focus: var(--focus);
+  }
+
+  .authenticated-app :where(.bg-primary, .bg-sidebar, .enterprise-sidebar,
+    .enterprise-analytics-panel, .app-principal-workspace, .app-dark-workspace,
+    .app-workspace-surface, .app-overview-banner, .app-overview-widgets) {
+    --action-text: var(--sidebar-foreground);
+    --action-muted: var(--sidebar-muted);
+    --action-border: #8FA5BE;
+    --action-hover: #294A6E;
+    --action-danger: #FFB4BB;
+    --action-focus: var(--inverse-accent);
+  }
+
+  /* A nested panel starts its own palette; it never inherits inverse actions. */
+  .authenticated-app :where(.bg-white, .bg-surface, .bg-surface-muted,
+    .bg-surface-strong, .bg-primary-soft, .bg-success-soft, .bg-warning-soft,
+    .bg-danger-soft, .bg-info-soft, .app-metric-card, .app-workspace-panel,
+    .app-empty-state, .app-overview-canvas, .app-finance-canvas,
+    .dashboard-card:not([class*="bg-"]), .enterprise-card) {
+    --action-text: var(--foreground);
+    --action-muted: var(--muted-strong);
+    --action-border: var(--border-control);
+    --action-hover: var(--surface-strong);
+    --action-danger: var(--danger);
+    --action-focus: var(--focus);
+  }
+
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) .app-button-outline {
+    color: var(--action-text);
+    border-color: var(--action-border);
+  }
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) .app-button-ghost {
+    color: var(--action-muted);
+  }
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) :is(.app-button-outline, .app-button-ghost):hover:not(:disabled) {
+    background: var(--action-hover);
+    color: var(--action-text);
+  }
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) .app-button-outline:is([class*="text-red-"], [class*="text-rose-"]) {
+    color: var(--action-danger);
+  }
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) .app-button:focus-visible {
+    outline-color: var(--action-focus);
+  }
+  :is(.authenticated-app, .app-modal-panel, .app-popover-sheet) :is(.app-button-outline, .app-button-ghost):disabled {
+    color: var(--action-muted);
+    opacity: .8;
+  }
+
+  /* Legacy inverse captions used opacity levels that disappeared on panels. */
+  .authenticated-app :where([class~="text-white/30"], [class~="text-white/35"],
+    [class~="text-white/40"], [class~="text-white/45"], [class~="text-white/50"],
+    [class~="text-white/55"], [class~="text-white/60"]) {
+    color: var(--sidebar-muted);
+  }
+  .authenticated-app :is(.app-metric-grid, .app-metric-card) :where(.text-slate-400, .text-slate-500, .text-gray-400, .text-gray-500) {
+    color: var(--muted);
+  }
+}

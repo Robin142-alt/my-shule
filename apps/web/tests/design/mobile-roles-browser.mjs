@@ -8,6 +8,7 @@ import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {chromium} from '@playwright/test';
 import bundledWebpack from 'next/dist/compiled/webpack/webpack.js';
+import {auditWorkspaceContrast} from './contrast-audit.mjs';
 const require=createRequire(import.meta.url);
 const {webpack}=bundledWebpack;
 const web=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
@@ -39,6 +40,7 @@ export function useSchoolMutation(){return {isPending:false,mutateAsync:async()=
 export function useDashboardTasks(){return {...state,tasks:[],completeTask:async()=>{throw new Error('Read-only fixture');}};}
 export function useApprovals(){return {...state,approvals:[],approve:async()=>{},reject:async()=>{}};}
 export function useNotifications(){return {...state,notifications:[],unreadCount:0,markAsRead:async()=>{}};}
+export function useNotificationBadges(){return {...state,badges:{unreadCount:0,urgentCount:0,byModule:{}}};}
 export function useOptionalSchoolDashboardRole(){const role=location.pathname.split('/')[2];const name=role.split('-').map(word=>word[0].toUpperCase()+word.slice(1)).join(' ');return {userId:'qa-only',liveDataEnabled:!['parent','student'].includes(role),userLabel:'QA user',availableRoles:[{roleCode:role,authorizationRoleCode:role,roleName:name,isPrimary:true},{roleCode:role==='teacher'?'principal':'teacher',authorizationRoleCode:role==='teacher'?'principal':'teacher',roleName:role==='teacher'?'Principal':'Teacher',isTeacherMode:role!=='teacher'}],activeAuthorizationRoleCode:role,switchDashboardRole:async()=>{}};}
 `);
 const imports=[['PrincipalCommandCenter','principal-command-center'],['DeputyPrincipalCommandCenter','deputy-principal-command-center'],['AccountantCommandCenter','accountant-command-center'],['AdmissionsDashboardCommandCenter','admissions-dashboard/admissions-dashboard-command-center'],['LiveRoleCommandCenter','live-role-command-center'],['TeacherCommandCenter','teacher-command-center'],['ClassTeacherCommandCenter','class-teacher-command-center'],['GradeMasterCommandCenter','grade-master-command-center'],['HodCommandCenter','hod-command-center'],['DeanAcademicsCommandCenter','dean-academics-command-center'],['ExamsManagerCommandCenter','exams-manager-command-center']];
@@ -64,7 +66,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','public, max-age=3600');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
  else if(req.url==='/fonts/InterVariable.woff2'){res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
  else if(req.url?.startsWith('/_next/image?')||req.url?.startsWith('/brand/')){res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
- else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:[]}));}
+ else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:process.argv.includes('--contrast')&&req.url.startsWith('/api/permissions/me')?['*:*']:[]}));}
  else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });
 await new Promise(resolve=>server.listen(process.argv.includes('--preview')?3016:0,'127.0.0.1',resolve));
@@ -108,6 +110,7 @@ try{
    await page.evaluate(()=>new Promise(requestAnimationFrame));
    const edgeTab=page.locator('.app-side-menu-tab');
    if(width<1024){
+    await edgeTab.waitFor({state:'visible',timeout:10000}).catch(()=>{throw new Error(`${role}/${section}: mobile navigation unavailable: ${errors.join('; ')}`);});
     assert.equal(await edgeTab.count(),1,`${role}: exactly one primary mobile MENU tab`);
     const tabBox=await edgeTab.boundingBox();
     assert.ok(tabBox&&Math.abs(tabBox.x)<1&&tabBox.width<=56&&tabBox.height>=44,`${role}: narrow left-edge touch target`);
@@ -194,6 +197,10 @@ try{
      if(width===390)await page.screenshot({path:path.join(out,`principal-${section}-drawer-${width}.png`)});
      await page.keyboard.press('Escape');
     }
+   }
+   if(process.argv.includes('--contrast')){
+    metrics.contrast=await auditWorkspaceContrast(page);
+    if(metrics.contrast.failures.length)errors.push('Metric or action text fails WCAG AA contrast');
    }
    const passed=metrics.hasShell&&metrics.pageWidth<=width&&errors.length===0;
    results.push({role,section,width,height,passed,...metrics,errors});

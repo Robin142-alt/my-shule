@@ -1,5 +1,7 @@
 "use client";
 
+import { TrendEmptyState } from "./trend-empty-state";
+
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
 
 import { useState } from "react";
@@ -197,6 +199,7 @@ export function PrincipalFinanceOverviewWorkspace() {
         <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
           <h2 className="text-xl font-bold text-white mb-6">Collection Trend</h2>
           <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
+            {!data.collectionData?.length && <TrendEmptyState message="No collections recorded for this period. Payments recorded by the finance office will appear here." />}
             {data.collectionData?.map((item) => (
               <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
                 <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
