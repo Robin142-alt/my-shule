@@ -58,7 +58,8 @@ for (const width of [1440, 390]) {
       }
       return route.fulfill({ status: 503, json: { message: "Local workflow test: other services unavailable" } });
     });
-    await page.goto("/school/deputy-principal/academics");
+    // The reusable local development server may compile this route on its first request.
+    await page.goto("/school/deputy-principal/academics", { timeout: 60_000 });
     await expect(page.getByLabel("Academic foundation setup")).toBeVisible();
     if (width < 768) await page.getByRole("combobox", { name: /^Setup area/ }).selectOption("roles-curriculum");
     else await page.getByRole("tab", { name: /Roles & Curriculum/ }).click();
@@ -86,7 +87,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("radio", { name: /Librarian/i })).toHaveCount(0);
     await page.getByRole("radio", { name: /^Teacher\b/ }).click();
     await expect(page).toHaveURL(/\/school\/teacher$/, { timeout: 15_000 });
-    await expect(page.getByTestId("teacher-command-center")).toBeVisible();
+    await expect(page.getByTestId("teacher-command-center")).toBeVisible({ timeout: 15_000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `../../tmp/academic-appointment-access-${width}.png`, fullPage: true });
   });
