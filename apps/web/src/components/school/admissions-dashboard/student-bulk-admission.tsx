@@ -84,9 +84,9 @@ function csvCell(value: unknown) {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promise<void> | void }) {
+export function StudentBulkAdmission({ onCompleted, initiallyExpanded = false }: { onCompleted: () => Promise<void> | void; initiallyExpanded?: boolean }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [result, setResult] = useState<ImportCommitResult | null>(null);
@@ -209,7 +209,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
           </span>
           <div>
             <h3 className="font-black text-foreground">Bulk student admission</h3>
-            <p className="mt-1 text-sm text-[#52637A]">Download template, upload, validate, preview, correct, confirm, then review results.</p>
+            <p className="mt-1 text-sm text-[#52637A]">Upload a class list, review the preview, then admit. Class setup is automatic; guardian phone is optional.</p>
           </div>
         </div>
         <button type="button" disabled={busy !== null} onClick={() => { clearFeedback(); setExpanded((value) => !value); }} className="rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 text-sm font-black text-foreground disabled:opacity-60">
@@ -270,7 +270,7 @@ export function StudentBulkAdmission({ onCompleted }: { onCompleted: () => Promi
                         <td className="px-3 py-2 font-bold text-foreground">{row.admission_number || "Missing"}</td>
                         <td className="px-3 py-2">{row.learner_name || "Missing"}</td>
                         <td className="px-3 py-2">{[row.class_name, row.stream_name].filter(Boolean).join(" / ") || "Missing"}</td>
-                        <td className="px-3 py-2">{row.guardian_phone || "Missing"}</td>
+                        <td className="px-3 py-2">{row.guardian_phone || "Add later"}</td>
                         <td className={`px-3 py-2 font-bold ${row.status === "valid" ? "text-success" : "text-danger"}`}>
                           {row.status === "valid" ? "Ready" : row.errors.join("; ")}
                         </td>

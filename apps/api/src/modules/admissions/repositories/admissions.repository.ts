@@ -72,12 +72,12 @@ export interface CanonicalAdmissionInput {
   curriculum: string;
   class_section_id: string;
   stream_id: string | null;
-  subject_ids: string[];
+  subject_ids?: string[];
   guardian_name: string;
   guardian_relationship: string;
-  guardian_phone: string;
-  guardian_phone_hash: string;
-  guardian_phone_last4: string;
+  guardian_phone: string | null;
+  guardian_phone_hash: string | null;
+  guardian_phone_last4: string | null;
   guardian_internal_email: string;
   guardian_password_hash: string;
   student_password_hash: string;
@@ -496,7 +496,7 @@ export class AdmissionsRepository {
       admission_number: string;
       full_name: string;
       date_of_birth: string | null;
-      guardian_phone: string;
+      guardian_phone: string | null;
       class_section_id: string;
       stream_id: string | null;
     },
@@ -643,12 +643,12 @@ export class AdmissionsRepository {
          AND lower(COALESCE(stream.status, 'active')) = 'active'
         WHERE section.tenant_id = $1
           AND section.id = $2
-          AND year.id = $3
+          AND ($3::text IS NULL OR year.id = $3)
           AND section.is_active = TRUE
           AND lower(COALESCE(section.status, 'active')) = 'active'
           AND section.archived_at IS NULL
         FOR UPDATE OF section
-      `, [input.tenant_id, input.class_section_id, input.academic_year_id, input.stream_id]);
+      `, [input.tenant_id, input.class_section_id, input.academic_year_id || null, input.stream_id]);
       const placement = placementRows[0];
       if (!placement) throw new Error('ADMISSION_PLACEMENT_NOT_FOUND');
       if (!placement.enrolment_open) throw new Error('ADMISSION_CLASS_CLOSED');
@@ -659,9 +659,11 @@ export class AdmissionsRepository {
       ) {
         throw new Error('ADMISSION_DATE_OUTSIDE_YEAR');
       }
-      if (String(placement.curriculum_model ?? '').toLowerCase() !== input.curriculum.toLowerCase()) {
+      if (input.curriculum && String(placement.curriculum_model ?? '').toLowerCase() !== input.curriculum.toLowerCase()) {
         throw new Error('ADMISSION_CURRICULUM_MISMATCH');
       }
+      // Persist the class configuration, never an independently selected curriculum/year.
+      input = { ...input, academic_year_id: placement.academic_year_id ?? input.academic_year_id, curriculum: String(placement.curriculum_model) };
       const classFormGradeName = String(placement.name);
       let academicLevelId = placement.academic_level_id
         ? String(placement.academic_level_id)
@@ -795,8 +797,6 @@ export class AdmissionsRepository {
       }
       if (settings.strict_age_rules && ageOutsideRule) throw new Error('ADMISSION_AGE_RULE_FAILED');
 
-      await lockCohortSchool(tx,input.tenant_id);
-      await ensureCohortMigration(tx,input.tenant_id);
       const admissionContexts=await ensureCohortContexts(tx,input.tenant_id,input.class_section_id,input.stream_id);
       const admissionContext=admissionContexts.find(context=>context.stream_id===(input.stream_id??null));
       if(!admissionContext)throw new Error('ADMISSION_STREAM_INVALID');
@@ -812,7 +812,7 @@ export class AdmissionsRepository {
         ORDER BY subject.id`,[input.tenant_id,admissionContext.id]);
       if (availableSubjects.length === 0) throw new Error('ADMISSION_SUBJECTS_NOT_CONFIGURED');
 
-      const selected = new Set(input.subject_ids);
+      const selected = new Set(input.subject_ids ?? availableSubjects.map((subject) => String(subject.id)));
       const availableIds = new Set(availableSubjects.map((subject) => String(subject.id)));
       if ([...selected].some((subjectId) => !availableIds.has(subjectId))) {
         throw new Error('ADMISSION_SUBJECT_INVALID');
@@ -1153,7 +1153,7 @@ export class AdmissionsRepository {
           relationship, is_primary, status, accepted_at, updated_at
         ) VALUES (
           $1, $1, $2, $3, $4::"GuardianRelationship",
-          TRUE, TRUE, TRUE, FALSE,
+          TRUE, ($8::text IS NOT NULL), ($8::text IS NOT NULL), FALSE,
           $5::uuid, $6::uuid, $7, NULL, $8, $8,
           $9, TRUE, 'active', NOW(), NOW()
         )
@@ -1292,12 +1292,12 @@ export class AdmissionsRepository {
         guardian: {
           profile_id: guardian.id,
           existing_sibling_guardian: existingSiblingGuardian,
-          portal_access: parentRoleId ? 'otp_ready' : 'parent_role_not_configured',
+          portal_access: input.guardian_phone ? (parentRoleId ? 'otp_ready' : 'parent_role_not_configured') : 'pending_contact',
           phone: input.guardian_phone,
         },
         student_portal: {
           username: input.admission_number,
-          status: 'otp_ready',
+          status: input.guardian_phone ? 'otp_ready' : 'pending_contact',
           force_password_change: true,
         },
         fees: feeStatus,
@@ -1565,8 +1565,17 @@ export class AdmissionsRepository {
           UPDATE student_guardians
           SET phone = $3,
               normalized_phone = $3,
+              can_receive_sms = TRUE,
+              can_access_parent_portal = TRUE,
               updated_at = NOW()
           WHERE tenant_id = $1 AND guardian_profile_id = $2::uuid
+        `, [input.tenant_id, guardian.guardian_profile_id, input.guardian_phone]);
+        await query(`
+          UPDATE parent_guardians parent
+          SET phone = $3, updated_at = NOW()
+          FROM student_guardians link
+          WHERE link.tenant_id = $1 AND link.guardian_profile_id = $2::uuid
+            AND parent.school_id = link.tenant_id AND parent.id = link.guardian_id
         `, [input.tenant_id, guardian.guardian_profile_id, input.guardian_phone]);
         if (affectedStudentIds.length > 0) {
           await query(`
@@ -3585,44 +3594,29 @@ export class AdmissionsRepository {
   }
 
   async createTransferRecord(input: {
-    school_id: string;
-    student_id?: string | null;
-    application_id?: string | null;
-    transfer_type: string;
-    school_name: string;
-    reason: string;
-    requested_on: string;
-    status: string;
-    notes?: string | null;
-  }) {
-    const result = await this.executeSql(input.school_id, `
-        INSERT INTO student_transfer_records (
-          tenant_id,
-          student_id,
-          application_id,
-          transfer_type,
-          school_name,
-          reason,
-          requested_on,
-          status,
-          notes
-        )
-        VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7::date, $8, $9)
-        RETURNING id, transfer_type, school_name, status
-      `, [
-        input.school_id,
-        input.student_id ?? null,
-        input.application_id ?? null,
-        input.transfer_type,
-        input.school_name,
-        input.reason,
-        input.requested_on,
-        input.status,
-        input.notes ?? null,
-      ],
-    );
-
-    return result[0];
+    school_id: string; actor_user_id?: string | null; student_id?: string | null; application_id?: string | null;
+    transfer_type: string; school_name: string; reason: string; requested_on: string; status: string; notes?: string | null;
+  }, persistEvent?: (tx: any, record: any) => Promise<void>) {
+    return this.prisma.executeWithTenant(input.school_id, input.actor_user_id ?? null, async (tx: any) => {
+      if (input.student_id) {
+        const rows = await tx.$queryRawUnsafe('SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2', input.school_id, input.student_id);
+        if (!rows.length) throw new BadRequestException('Student was not found in this school');
+      }
+      if (input.application_id) {
+        const rows = await tx.$queryRawUnsafe('SELECT id FROM admission_applications WHERE tenant_id=$1 AND id::text=$2', input.school_id, input.application_id);
+        if (!rows.length) throw new BadRequestException('Application was not found in this school');
+      }
+      const records = await tx.$queryRawUnsafe(`
+        INSERT INTO student_transfer_records (tenant_id,student_id,application_id,transfer_type,school_name,reason,requested_on,status,notes)
+        VALUES ($1,$2,$3,$4,$5,$6,$7::date,$8,$9) RETURNING id,transfer_type,school_name,status
+      `, input.school_id,input.student_id ?? null,input.application_id ?? null,input.transfer_type,input.school_name,input.reason,input.requested_on,input.status,input.notes ?? null);
+      const record = records[0];
+      await tx.$executeRawUnsafe(`INSERT INTO audit_logs (tenant_id,actor_user_id,action,module,entity_type,entity_id,resource_type,resource_id,aggregate_id,metadata)
+        VALUES ($1,$2::uuid,'ADMISSIONS_TRANSFER_REQUESTED','admissions','student_transfer',$3::text,'student_transfer',$3::uuid,$3::uuid,$4::jsonb)`,
+        input.school_id,input.actor_user_id ?? null,record.id,JSON.stringify({ student_id: input.student_id, status: 'pending', reason: input.reason }));
+      await persistEvent?.(tx,record);
+      return record;
+    });
   }
 
   async listTransfers(

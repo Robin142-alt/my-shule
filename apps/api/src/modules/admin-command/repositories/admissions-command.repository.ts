@@ -15,90 +15,60 @@ export class AdmissionsCommandRepository {
   }
 
   async getOverview(tenantId: string) {
-    const enquiries = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_enquiries WHERE tenant_id = $1`, [tenantId]);
-    const applicationsPending = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'pending'`, [tenantId]);
-    const documentsMissing = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_documents WHERE tenant_id = $1 AND verification_status = 'pending'`, [tenantId]);
-    const interviewsScheduled = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_interviews WHERE tenant_id = $1 AND lower(status::text) = 'scheduled'`, [tenantId]);
-    const admissionLettersPending = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_offers WHERE tenant_id = $1 AND offer_status = 'pending'`, [tenantId]);
-
-    const recentActivity = await this.executeSql(tenantId, `
-      (SELECT id::text, 'Application Submitted' as action, full_name as applicant, created_at as time FROM admission_applications WHERE tenant_id = $1)
-      UNION ALL
-      (SELECT id::text, 'Interview Scheduled' as action, '' as applicant, created_at as time FROM admission_interviews WHERE tenant_id = $1)
-      ORDER BY time DESC LIMIT 5
+    const result = await this.executeSql<any>(tenantId, `
+      SELECT
+        (SELECT COUNT(*)::int FROM admission_enquiries WHERE tenant_id=$1) AS enquiries,
+        (SELECT COUNT(*)::int FROM admission_applications WHERE tenant_id=$1 AND status IN ('pending','reviewing','interview')) AS "applicationsPending",
+        (SELECT COUNT(*)::int FROM admission_applications WHERE tenant_id=$1 AND status IN ('registered','admitted')) AS admitted,
+        (SELECT COUNT(*)::int FROM admission_documents WHERE tenant_id=$1 AND verification_status='pending') AS "documentsMissing",
+        (SELECT COUNT(*)::int FROM admission_interviews WHERE tenant_id=$1 AND lower(status::text) = 'scheduled') AS "interviewsScheduled",
+        (SELECT COUNT(*)::int FROM admission_offers WHERE tenant_id=$1 AND offer_status='pending') AS "admissionLettersPending",
+        COALESCE((SELECT jsonb_agg(recent) FROM (
+          SELECT id::text, CASE WHEN status IN ('registered','admitted') THEN 'Admitted' ELSE 'Application received' END AS action,
+            full_name AS applicant, created_at AS time
+          FROM admission_applications WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 5
+        ) recent), '[]'::jsonb) AS "recentActivity"
     `, [tenantId]);
-
-    return {
-      enquiries: Number(enquiries.rows[0]?.count || 0),
-      applicationsPending: Number(applicationsPending.rows[0]?.count || 0),
-      documentsMissing: Number(documentsMissing.rows[0]?.count || 0),
-      interviewsScheduled: Number(interviewsScheduled.rows[0]?.count || 0),
-      admissionLettersPending: Number(admissionLettersPending.rows[0]?.count || 0),
-      recentActivity: recentActivity.rows,
-    };
+    return result.rows[0];
   }
 
   async getEnquiries(tenantId: string) {
-    const total = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_enquiries WHERE tenant_id = $1`, [tenantId]);
-    const walkIns = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_enquiries WHERE tenant_id = $1 AND enquiry_source = 'Walk-in'`, [tenantId]);
-    const website = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_enquiries WHERE tenant_id = $1 AND enquiry_source = 'Website'`, [tenantId]);
-    const phone = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_enquiries WHERE tenant_id = $1 AND enquiry_source = 'Phone'`, [tenantId]);
-    
-    const recent = await this.executeSql(tenantId, `
-      SELECT id::text, CONCAT(student_first_name, ' ', student_last_name) as name, enquiry_source as source, status, created_at as date 
-      FROM admission_enquiries 
-      WHERE tenant_id = $1 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `, [tenantId]);
-
-    return {
-      total: Number(total.rows[0]?.count || 0),
-      walkIns: Number(walkIns.rows[0]?.count || 0),
-      website: Number(website.rows[0]?.count || 0),
-      phone: Number(phone.rows[0]?.count || 0),
-      recent: recent.rows,
-    };
+    const result = await this.executeSql(tenantId, `SELECT id, parent_name, parent_phone AS phone, class_applying AS class_interested,
+        created_at::date::text AS date, enquiry_source AS source, status FROM admission_enquiries WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 100`, [tenantId]);
+    const rows = result.rows;
+    const metrics = { new: rows.filter((r: any) => ['open','new'].includes(r.status)).length, responded: rows.filter((r: any) => !['open','new'].includes(r.status)).length };
+    return { ...metrics, metrics, items: rows };
   }
 
-  async getApplications(tenantId: string) {
-    const total = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1`, [tenantId]);
-    const pendingReview = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'pending'`, [tenantId]);
-    const underReview = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'reviewing'`, [tenantId]);
-    const approved = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'approved'`, [tenantId]);
-    const rejected = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_applications WHERE tenant_id = $1 AND status = 'rejected'`, [tenantId]);
-
-    const recent = await this.executeSql(tenantId, `
-      SELECT id::text, full_name as name, class_applying as class, parent_name, parent_phone, previous_school, status, created_at as date 
-      FROM admission_applications 
-      WHERE tenant_id = $1 
-      ORDER BY created_at DESC 
-      LIMIT 10
-    `, [tenantId]);
-
+  async getApplications(tenantId: string, options: { search?: string; status?: string; limit?: number; offset?: number } = {}) {
+    const result = await this.executeSql<any>(tenantId, `
+      WITH scoped AS (
+        SELECT application.id::text, application.admitted_student_id::text AS student_id,
+          student.admission_number, application.full_name AS student_name,
+          application.class_applying AS grade_applied, application.parent_name AS guardian_name,
+          application.parent_phone AS phone, application.status, application.created_at
+        FROM admission_applications application
+        LEFT JOIN students student ON student.tenant_id=application.tenant_id
+          AND student.id::text=application.admitted_student_id::text
+        WHERE application.tenant_id = $1
+          AND ($2 = '' OR application.full_name ILIKE '%' || $2 || '%' OR application.application_number ILIKE '%' || $2 || '%'
+            OR student.admission_number ILIKE '%' || $2 || '%' OR application.parent_name ILIKE '%' || $2 || '%' OR application.parent_phone ILIKE '%' || $2 || '%')
+          AND ($3 = '' OR lower(application.status::text) = $3 OR ($3 = 'registered' AND lower(application.status::text) = 'admitted'))
+      )
+      SELECT COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status IN ('pending', 'reviewing', 'interview'))::int AS pending,
+        COUNT(*) FILTER (WHERE status = 'approved')::int AS approved,
+        COUNT(*) FILTER (WHERE status IN ('registered', 'admitted'))::int AS admitted,
+        COUNT(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+        COALESCE((SELECT jsonb_agg(page ORDER BY page.created_at DESC, page.id) FROM (
+          SELECT * FROM scoped ORDER BY created_at DESC, id LIMIT $4 OFFSET $5
+        ) page), '[]'::jsonb) AS items
+      FROM scoped
+    `, [tenantId, options.search?.trim() ?? '', options.status?.trim().toLowerCase() ?? '', Math.min(options.limit ?? 30, 50), options.offset ?? 0]);
+    const row = result.rows[0] ?? {};
     return {
-      total: Number(total.rows[0]?.count || 0),
-      pendingReview: Number(pendingReview.rows[0]?.count || 0),
-      underReview: Number(underReview.rows[0]?.count || 0),
-      approved: Number(approved.rows[0]?.count || 0),
-      rejected: Number(rejected.rows[0]?.count || 0),
-      metrics: {
-        total: Number(total.rows[0]?.count || 0),
-        pending: Number(pendingReview.rows[0]?.count || 0),
-        approved: Number(approved.rows[0]?.count || 0),
-        rejected: Number(rejected.rows[0]?.count || 0),
-      },
-      applicationsList: recent.rows.map((row: any) => ({
-        id: row.id,
-        student_name: row.name,
-        guardian_name: row.parent_name ?? '',
-        phone: row.parent_phone ?? '',
-        grade_applied: row.class ?? '',
-        previous_school: row.previous_school ?? '',
-        status: this.formatStatus(row.status),
-        submitted_at: this.formatDate(row.date),
-      })),
-      recent: recent.rows,
+      metrics: { total: Number(row.total ?? 0), pending: Number(row.pending ?? 0), approved: Number(row.approved ?? 0), admitted: Number(row.admitted ?? 0), rejected: Number(row.rejected ?? 0) },
+      applicationsList: (row.items ?? []).map((item: any) => ({ ...item, status: this.formatStatus(item.status), submitted_at: this.formatDate(item.created_at) })),
     };
   }
 
@@ -171,17 +141,15 @@ export class AdmissionsCommandRepository {
   }
 
   async getFeeClearance(tenantId: string) {
-    const cleared = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_offers WHERE tenant_id = $1 AND finance_cleared = TRUE`, [tenantId]);
-    const pending = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_offers WHERE tenant_id = $1 AND finance_cleared = FALSE`, [tenantId]);
-    
-    const deposits = await this.executeSql(tenantId, `SELECT SUM(required_deposit) as expected, SUM(deposit_paid) as collected FROM admission_offers WHERE tenant_id = $1`, [tenantId]);
-
-    return {
-      cleared: Number(cleared.rows[0]?.count || 0),
-      pending: Number(pending.rows[0]?.count || 0),
-      totalExpected: Number(deposits.rows[0]?.expected || 0),
-      collected: Number(deposits.rows[0]?.collected || 0),
-    };
+    const result = await this.executeSql(tenantId, `SELECT offer.id, application.full_name AS student_name, offer.required_deposit::float8 AS amount_due,
+        offer.deposit_paid::float8 AS paid, (COALESCE(offer.required_deposit,0)-COALESCE(offer.deposit_paid,0))::float8 AS balance,
+        CASE WHEN offer.finance_cleared THEN 'Cleared' ELSE 'Pending' END AS status
+        FROM admission_offers offer JOIN admission_applications application
+          ON application.tenant_id=offer.tenant_id AND application.id=offer.application_id
+        WHERE offer.tenant_id=$1 ORDER BY offer.created_at DESC LIMIT 100`, [tenantId]);
+    const rows = result.rows;
+    const metrics = { cleared: rows.filter((r: any) => r.status === 'Cleared').length, pending: rows.filter((r: any) => r.status === 'Pending').length };
+    return { ...metrics, metrics, items: rows };
   }
 
   async getEnrolment(tenantId: string) {
@@ -213,23 +181,15 @@ export class AdmissionsCommandRepository {
     };
   }
 
-  async getParents(tenantId: string) {
-    const onboarded = await this.executeSql(tenantId, `SELECT COUNT(DISTINCT primary_guardian_phone) as count FROM students WHERE tenant_id = $1 AND primary_guardian_phone IS NOT NULL`, [tenantId]);
-    const missingContact = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM students WHERE tenant_id = $1 AND primary_guardian_phone IS NULL`, [tenantId]);
-    const portalInvitesSent = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM student_guardians WHERE tenant_id = $1 AND status = 'invited'`, [tenantId]);
-
-    return {
-      onboarded: Number(onboarded.rows[0]?.count || 0),
-      missingContact: Number(missingContact.rows[0]?.count || 0),
-      portalInvitesSent: Number(portalInvitesSent.rows[0]?.count || 0),
-      metrics: {
-        total_students: Number(onboarded.rows[0]?.count || 0) + Number(missingContact.rows[0]?.count || 0),
-        linked: Number(onboarded.rows[0]?.count || 0),
-        unlinked: Number(missingContact.rows[0]?.count || 0),
-        invitations_sent: Number(portalInvitesSent.rows[0]?.count || 0),
-      },
-      parentLinksList: await this.listParentLinks(tenantId),
-    };
+  async getParents(tenantId: string, options: { search?: string; limit?: number; offset?: number } = {}) {
+    const result = await this.executeSql<any>(tenantId, `SELECT COUNT(*)::int AS total_students,
+      COUNT(*) FILTER (WHERE primary_guardian_phone IS NOT NULL)::int AS linked,
+      COUNT(*) FILTER (WHERE primary_guardian_phone IS NULL)::int AS unlinked,
+      (SELECT COUNT(*)::int FROM student_guardians WHERE tenant_id=$1 AND invitation_id IS NOT NULL) AS invitations_sent
+      FROM students WHERE tenant_id=$1`, [tenantId]);
+    const metrics = result.rows[0];
+    return { onboarded: metrics.linked, missingContact: metrics.unlinked, portalInvitesSent: metrics.invitations_sent,
+      metrics, parentLinksList: await this.listParentLinks(tenantId, options) };
   }
 
   async getTransfers(tenantId: string) {
@@ -253,17 +213,14 @@ export class AdmissionsCommandRepository {
   }
 
   async getAppointments(tenantId: string) {
-    const today = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_appointments WHERE tenant_id = $1 AND appointment_date = CURRENT_DATE`, [tenantId]);
-    const upcoming = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_appointments WHERE tenant_id = $1 AND appointment_date > CURRENT_DATE`, [tenantId]);
-    const completed = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_appointments WHERE tenant_id = $1 AND status = 'completed'`, [tenantId]);
-    const cancelled = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_appointments WHERE tenant_id = $1 AND status = 'cancelled'`, [tenantId]);
-
-    return {
-      today: Number(today.rows[0]?.count || 0),
-      upcoming: Number(upcoming.rows[0]?.count || 0),
-      completed: Number(completed.rows[0]?.count || 0),
-      cancelled: Number(cancelled.rows[0]?.count || 0),
-    };
+    const result = await this.executeSql(tenantId, `SELECT appointment.id, appointment.visitor_name AS parent_name, application.full_name AS student_name,
+        appointment.appointment_date::text AS date, appointment.start_time AS time, appointment.purpose AS type, appointment.status
+        FROM admission_appointments appointment LEFT JOIN admission_applications application
+          ON application.tenant_id=appointment.tenant_id AND application.id=appointment.application_id
+        WHERE appointment.tenant_id=$1 ORDER BY appointment.appointment_date DESC LIMIT 100`, [tenantId]);
+    const rows = result.rows;
+    const metrics = { today: rows.filter((r: any) => r.date === new Date().toISOString().slice(0,10)).length, upcoming: rows.filter((r: any) => r.date > new Date().toISOString().slice(0,10)).length };
+    return { ...metrics, metrics, items: rows };
   }
 
   async getImports(tenantId: string) {
@@ -296,26 +253,21 @@ export class AdmissionsCommandRepository {
   }
 
   async getTasks(tenantId: string) {
-    const dueToday = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_tasks WHERE tenant_id = $1 AND due_date = CURRENT_DATE AND status != 'completed'`, [tenantId]);
-    const overdue = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_tasks WHERE tenant_id = $1 AND due_date < CURRENT_DATE AND status != 'completed'`, [tenantId]);
-    const completed = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_tasks WHERE tenant_id = $1 AND status = 'completed'`, [tenantId]);
-
-    return {
-      dueToday: Number(dueToday.rows[0]?.count || 0),
-      overdue: Number(overdue.rows[0]?.count || 0),
-      completed: Number(completed.rows[0]?.count || 0),
-    };
+    const result = await this.executeSql(tenantId, `SELECT task.id, task.task_title AS task, COALESCE(actor.display_name, actor.full_name, 'Unassigned') AS assigned_to,
+        task.due_date::text, task.priority, task.status FROM admission_tasks task
+        LEFT JOIN users actor ON actor.tenant_id=task.tenant_id AND actor.id=task.assigned_user_id
+        WHERE task.tenant_id=$1 ORDER BY task.created_at DESC LIMIT 100`, [tenantId]);
+    const rows = result.rows;
+    const metrics = { pending: rows.filter((r: any) => r.status !== 'completed').length, overdue: rows.filter((r: any) => r.due_date && r.due_date < new Date().toISOString().slice(0,10) && r.status !== 'completed').length };
+    return { ...metrics, metrics, items: rows };
   }
 
   async getTemplates(tenantId: string) {
-    const active = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_templates WHERE tenant_id = $1 AND is_active = TRUE`, [tenantId]);
-    const drafts = await this.executeSql(tenantId, `SELECT COUNT(*) as count FROM admission_templates WHERE tenant_id = $1 AND is_active = FALSE`, [tenantId]);
-
-    return {
-      active: Number(active.rows[0]?.count || 0),
-      drafts: Number(drafts.rows[0]?.count || 0),
-      recentUpdates: 0,
-    };
+    const result = await this.executeSql(tenantId, `SELECT id, template_name AS name, template_type AS type, content, updated_at::date::text AS updated_at,
+        CASE WHEN is_active THEN 'Active' ELSE 'Draft' END AS status FROM admission_templates WHERE tenant_id=$1 ORDER BY updated_at DESC LIMIT 100`, [tenantId]);
+    const rows = result.rows;
+    const metrics = { total: rows.length, active: rows.filter((r: any) => r.status === 'Active').length };
+    return { ...metrics, metrics, items: rows };
   }
 
   async getAdmissionsList(tenantId: string) {
@@ -556,16 +508,14 @@ export class AdmissionsCommandRepository {
     return result.rows[0] ?? null;
   }
 
-  async sendParentInvitation(tenantId: string, linkId: string) {
-    const result = await this.executeSql(tenantId, `
-      UPDATE student_guardians
-      SET status = CASE WHEN user_id IS NULL THEN 'invited' ELSE 'active' END,
-          updated_at = NOW()
-      WHERE tenant_id = $1
-        AND id = $2::uuid
-      RETURNING *
-    `, [tenantId, linkId]);
+  async findParentLink(tenantId: string, linkId: string) {
+    const result = await this.executeSql(tenantId, `SELECT * FROM student_guardians WHERE tenant_id=$1 AND id=$2::uuid`, [tenantId, linkId]);
     return result.rows[0] ?? null;
+  }
+
+  async bindParentInvitation(tenantId: string, linkId: string, invitationId: string) {
+    await this.executeSql(tenantId, `UPDATE student_guardians SET invitation_id=$3::uuid, updated_at=NOW()
+      WHERE tenant_id=$1 AND id=$2::uuid RETURNING id`, [tenantId, linkId, invitationId]);
   }
 
   private async listAdmissionDocuments(tenantId: string) {
@@ -674,7 +624,7 @@ export class AdmissionsCommandRepository {
     }));
   }
 
-  private async listParentLinks(tenantId: string) {
+  private async listParentLinks(tenantId: string, options: { search?: string; limit?: number; offset?: number } = {}) {
     const result = await this.executeSql(tenantId, `
       SELECT COALESCE(link.id::text, student.id::text) AS id,
              student.id::text AS student_id,
@@ -685,14 +635,17 @@ export class AdmissionsCommandRepository {
              COALESCE(link.email, student.metadata #>> '{admissions,guardian,parent_email}', '') AS parent_email,
              COALESCE(link.relationship, student.metadata #>> '{admissions,guardian,relationship}', '') AS relationship,
              COALESCE(link.status, 'unlinked') AS link_status,
-             link.id IS NOT NULL AND link.status IN ('invited', 'active') AS invitation_sent
+             link.invitation_id IS NOT NULL AS invitation_sent
       FROM students student
       LEFT JOIN student_guardians link ON link.tenant_id = student.tenant_id AND link.student_id = student.id AND link.is_primary = TRUE
       LEFT JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id AND allocation.student_id = student.id AND allocation.is_current = TRUE
       WHERE student.tenant_id = $1
-      ORDER BY student.created_at DESC
-      LIMIT 100
-    `, [tenantId]);
+        AND ($2 = '' OR CONCAT(student.first_name, ' ', student.last_name) ILIKE '%' || $2 || '%'
+          OR COALESCE(link.display_name, student.primary_guardian_name) ILIKE '%' || $2 || '%'
+          OR COALESCE(link.phone, student.primary_guardian_phone) ILIKE '%' || $2 || '%')
+      ORDER BY student.created_at DESC, student.id
+      LIMIT $3 OFFSET $4
+    `, [tenantId, options.search?.trim() ?? '', Math.max(1, Math.min(options.limit ?? 30, 50)), Math.max(0, options.offset ?? 0)]);
     return result.rows.map((row: any) => ({
       ...row,
       link_status: this.formatStatus(row.link_status),

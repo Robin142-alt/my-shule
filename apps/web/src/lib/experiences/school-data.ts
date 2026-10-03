@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, LayoutGrid, Settings, Building2, GraduationCap, BookOpenCheck, Users, CalendarDays, FileSpreadsheet, CircleDollarSign, ShieldAlert, MessageSquareText, ClipboardList, Stethoscope, BusFront, Activity, Boxes, Library, FlaskConical } from "lucide-react";
+import { LayoutGrid, Settings, Building2, GraduationCap, BookOpenCheck, Users, CalendarDays, FileSpreadsheet, CircleDollarSign, ShieldAlert, MessageSquareText, ClipboardList, Stethoscope, BusFront, Activity, Boxes, Library, FlaskConical } from "lucide-react";
 
 import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 import { buildDashboardSnapshot } from "@/lib/dashboard/empty-data";
@@ -208,21 +208,11 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   ],
   "admissions": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
-    { id: "enquiries", label: "Enquiries", href: toSchoolPath("enquiries"), icon: MessageSquareText },
-    { id: "applications", label: "Applications", href: toSchoolPath("applications"), icon: Users },
-    { id: "applicant-profiles", label: "Applicant Profiles", href: toSchoolPath("applicant-profiles"), icon: Users },
-    { id: "documents", label: "Documents", href: toSchoolPath("documents"), icon: FileSpreadsheet },
-    { id: "interviews", label: "Interviews", href: toSchoolPath("interviews"), icon: CalendarDays },
-    { id: "appointments", label: "Appointments", href: toSchoolPath("appointments"), icon: CalendarDays },
-    { id: "selection", label: "Selection & Offers", href: toSchoolPath("selection"), icon: ClipboardList },
-    { id: "fee-clearance", label: "Fee Clearance", href: toSchoolPath("fee-clearance"), icon: CircleDollarSign },
-    { id: "placement", label: "Class Placement", href: toSchoolPath("placement"), icon: Building2 },
-    { id: "enrolment", label: "Enrolment", href: toSchoolPath("enrolment"), icon: Users },
-    { id: "parents", label: "Parents", href: toSchoolPath("parents"), icon: Users },
+    { id: "applications", label: "Admit Student", href: toSchoolPath("applications"), icon: Users },
+    { id: "enrolment", label: "Admission Records", href: toSchoolPath("enrolment"), icon: ClipboardList },
+    { id: "parents", label: "Parents & Guardians", href: toSchoolPath("parents"), icon: Users },
     { id: "transfers", label: "Transfers", href: toSchoolPath("transfers"), icon: ClipboardList },
-    { id: "imports", label: "Imports", href: toSchoolPath("imports"), icon: ClipboardList },
-    { id: "templates", label: "Templates", href: toSchoolPath("templates"), icon: FileSpreadsheet },
-    { id: "tasks", label: "Tasks", href: toSchoolPath("tasks"), icon: ClipboardList },
+    { id: "imports", label: "Bulk Admission", href: toSchoolPath("imports"), icon: FileSpreadsheet },
     { id: "communication", label: "Communication", href: toSchoolPath("communication"), icon: MessageSquareText },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,

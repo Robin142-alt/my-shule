@@ -236,13 +236,13 @@ export class AdmissionsController {
   }
 
   @Get('transfers')
-  @Permissions('transfers:read')
+  @Permissions('admissions:read')
   listTransfers(@Query() query: ListAdmissionsQueryDto) {
     return this.admissionsService.listTransfers(query);
   }
 
   @Post('transfers')
-  @Permissions('transfers:write')
+  @Permissions('admissions:write')
   createTransfer(@Body() dto: CreateTransferRecordDto) {
     return this.admissionsService.createTransfer(dto);
   }

@@ -111,7 +111,13 @@ try{
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
    const edgeTab=page.locator('.app-side-menu-tab');
-   if(width<1024){
+   if(width<1024&&role==='admissions'){
+    const inlineMenu=page.getByRole('button',{name:'Open Admissions workspace sidebar'});
+    await inlineMenu.waitFor({state:'visible'});
+    const menuBox=await inlineMenu.boundingBox();
+    assert.ok(menuBox&&menuBox.y<150&&menuBox.width>44&&menuBox.height>=44,'Admissions menu stays above the workspace with a full touch target');
+    assert.equal(await edgeTab.count(),0,'Admissions uses one inline menu without an overlapping edge tab');
+   }else if(width<1024){
     await edgeTab.waitFor({state:'visible',timeout:10000}).catch(()=>{throw new Error(`${role}/${section}: mobile navigation unavailable: ${errors.join('; ')}`);});
     assert.equal(await edgeTab.count(),1,`${role}: exactly one primary mobile MENU tab`);
     const tabBox=await edgeTab.boundingBox();
@@ -156,7 +162,7 @@ try{
      await page.keyboard.press('Escape');
      assert.ok(await switcher.evaluate(el=>el===document.activeElement),'Role picker restores focus');
     }
-    const trigger=page.locator('.app-side-menu-tab[aria-haspopup="dialog"]').first();
+    const trigger=role==='admissions'?page.getByRole('button',{name:'Open Admissions workspace sidebar'}):page.locator('.app-side-menu-tab[aria-haspopup="dialog"]').first();
     if(await trigger.count()){
      await trigger.click();
      const drawer=page.locator('.app-navigation-sheet');

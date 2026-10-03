@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 export const START_ADMISSION_HREF = "/school/admissions/applications?action=start-admission";
-export const APPLICATIONS_HREF = "/school/admissions/applications";
+export const APPLICATIONS_HREF = "/school/admissions/enrolment";
 
 type AdmissionsEmptyStateCellProps = {
   colSpan: number;

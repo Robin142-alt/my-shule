@@ -23,12 +23,12 @@ describe("admissions dependent workspace empty states", () => {
 
     expect(applications).toMatch(/\/school\/admissions\/applications\?action=start-admission/);
     expect(applications).toMatch(/Start student admission/);
-    expect(dashboardApplications).toMatch(/StudentAdmissionWizard/);
+    expect(readDashboard("consolidated-workspaces.tsx")).toMatch(/StudentAdmissionWizard/);
     expect(dashboardApplications).not.toMatch(/\/academics\/class-sections/);
     expect(readDashboard("student-admission-wizard.tsx")).toMatch(/\/admissions\/foundation/);
     expect(readDashboard("student-admission-wizard.tsx")).toMatch(/Academic foundation could not be loaded/);
     expect(applications).not.toMatch(/No applications found/);
-    expect(reports).toMatch(/No admissions reports yet/);
+    expect(reports).toMatch(/Preview report/);
     expect(reports).not.toMatch(/No school-scoped records are loaded for this workspace yet/);
   });
 
@@ -41,7 +41,6 @@ describe("admissions dependent workspace empty states", () => {
     ];
     const reviewApplicationWorkspaces = [
       "appointments-workspace.tsx",
-      "communication-workspace.tsx",
       "enrolment-workspace.tsx",
       "fee-clearance-workspace.tsx",
       "interviews-workspace.tsx",
@@ -51,7 +50,6 @@ describe("admissions dependent workspace empty states", () => {
       "selection-workspace.tsx",
       "tasks-workspace.tsx",
       "templates-workspace.tsx",
-      "transfers-workspace.tsx",
     ];
 
     for (const fileName of startAdmissionWorkspaces) {

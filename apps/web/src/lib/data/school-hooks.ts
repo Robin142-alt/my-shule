@@ -86,6 +86,10 @@ export function useSchoolQuery<T, TData = T>(path: string | null, options?: Scho
         throw err;
       }
     },
+    // Admissions routes share cached school data; navigation must not restart polling.
+    ...(path?.startsWith("/admissions/") || path?.startsWith("/admin-command/admissions/")
+      ? { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false }
+      : {}),
     ...options,
     enabled: Boolean(path && activeTenantId) && queryEnabled,
   });

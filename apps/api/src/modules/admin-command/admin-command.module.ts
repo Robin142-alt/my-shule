@@ -56,10 +56,11 @@ import { AccountantCommandService } from './accountant-command.service';
 import { ExamsModule } from '../exams/exams.module';
 import { EventsModule } from '../events/events.module';
 import { WorkflowModule } from '../workflow/workflow.module';
+import { CommunicationModule } from '../communication/communication.module';
 import { AcademicsModule } from '../academics/academics.module';
 
 @Module({
-  imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule],
+  imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule, CommunicationModule],
   controllers: [
     AdminCommandController,
     DeputyCommandController,

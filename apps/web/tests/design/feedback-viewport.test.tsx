@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 
 import { AppProviders } from "@/components/providers/app-providers";
 import { FeedbackViewport } from "@/components/shared/feedback-viewport";
+import { useActionFeedback } from "@/hooks/use-action-feedback";
 
 afterEach(() => {
   act(() => { toast.dismiss(); });
@@ -65,4 +66,25 @@ test("two simultaneous errors stay expanded when an earlier action reports again
     expect(earlier).toHaveAttribute("data-visible", "true");
     expect(screen.getByText("Draft could not be saved")).toBeVisible();
   });
+});
+
+test("clearing an earlier notice cannot dismiss a fast result from the next action", async () => {
+  jest.useFakeTimers();
+  try {
+    render(<FeedbackViewport />);
+    const { result } = renderHook(() => useActionFeedback());
+    act(() => result.current.showFeedback("Earlier result", "success"));
+    await act(async () => { await jest.advanceTimersByTimeAsync(100); });
+    act(() => {
+      result.current.clearFeedback();
+      result.current.showFeedback("Checking new import", "loading");
+      result.current.showFeedback("New import needs correction", "danger");
+    });
+    // Flush the old notice's deferred dismissal and exit animation.
+    await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+    await waitFor(() => expect(screen.queryByText("Earlier result")).not.toBeInTheDocument());
+    expect(screen.getByText("New import needs correction")).toBeVisible();
+  } finally {
+    jest.useRealTimers();
+  }
 });

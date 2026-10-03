@@ -1,76 +1,28 @@
 "use client";
-import { Mail } from "lucide-react";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
-
-type CommunicationData = {
-  metrics: Record<string, number>;
-  items: any[];
-};
-
+import { useState } from "react";
+import { useSchoolMutation, useSchoolQuery } from "@/lib/data/school-hooks";
+type Message = { id: string; recipient_phone: string; message_preview: string; status: string; created_at: string };
 export function CommunicationWorkspace() {
-  const { data, isLoading } = useSchoolQuery<CommunicationData>("/admin-command/admissions/communication");
-  const items = data?.items || [];
-
-  return (
-    <section className="rounded-2xl border border-border bg-white p-5 shadow-[0_18px_50px_rgba(7,29,73,0.08)]">
-      <div className="mb-4 flex min-w-0 gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
-          <Mail className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-xl font-black tracking-[-0.01em] text-foreground">Communication</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">Communicate with prospective parents.</p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-border bg-surface-muted p-4">
-          <div className="text-sm font-semibold text-muted">Sent</div>
-          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.sent ?? 0}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-surface-muted p-4">
-          <div className="text-sm font-semibold text-muted">Pending</div>
-          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.pending ?? 0}</div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-surface-muted text-foreground">
-            <tr>
-              <th className="px-4 py-3 font-bold">To</th>
-              <th className="px-4 py-3 font-bold">Subject</th>
-              <th className="px-4 py-3 font-bold">Date</th>
-              <th className="px-4 py-3 font-bold">Channel</th>
-              <th className="px-4 py-3 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
-            ) : items.length === 0 ? (
-              <AdmissionsEmptyStateCell
-                colSpan={5}
-                title="No admission messages yet"
-                body="Open applications to capture or review applicants before sending school-scoped admission updates."
-                actionHref={APPLICATIONS_HREF}
-                actionLabel="Open applications"
-              />
-            ) : (
-              items.map((row: any, i: number) => (
-                <tr key={row.id || i} className="border-t border-border hover:bg-surface-muted">
-                  <td className="px-4 py-3 text-muted">{row.recipient}</td>
-                  <td className="px-4 py-3 text-muted">{row.subject}</td>
-                  <td className="px-4 py-3 text-muted">{row.date}</td>
-                  <td className="px-4 py-3 text-muted">{row.channel}</td>
-                  <td className="px-4 py-3"><span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold whitespace-nowrap">{row.status}</span></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+  const query = useSchoolQuery<Message[]>("/communication/sms?limit=50", { staleTime: 30_000, retry: 1 });
+  const send = useSchoolMutation<{ status: string }, { recipientPhone: string; message: string }>("/communication/sms", "POST", { queueNetworkFailures: false });
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState("");
+  return <section className="rounded-2xl border border-border bg-white p-4">
+    <h2 className="text-xl font-black">Communication</h2><p className="mt-1 text-sm text-muted">Send an admission update and check its delivery status.</p>
+    <form className="my-4 grid gap-3" onSubmit={async e => {
+      e.preventDefault(); setFeedback("");
+      try { const result = await send.mutateAsync({ recipientPhone: phone, message }); setFeedback(`Message status: ${result.status}. Check the delivery list below.`); setMessage(""); }
+      catch { /* Keep entered text and the request error for retry. */ }
+    }}>
+      <label className="grid gap-1 text-sm font-semibold">Recipient phone<input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712345678" className="min-h-11 rounded-xl border p-3" /></label>
+      <label className="grid gap-1 text-sm font-semibold">Admission message<textarea required maxLength={1000} value={message} onChange={e => setMessage(e.target.value)} rows={3} className="rounded-xl border p-3" /></label>
+      <button disabled={send.isPending} className="min-h-11 rounded-xl bg-primary px-4 font-bold text-white sm:justify-self-start">{send.isPending ? "Queueing…" : "Send SMS"}</button>
+    </form>
+    {feedback ? <p role="status" className="my-3 rounded-xl bg-success-soft p-3">{feedback}</p> : null}
+    {send.isError ? <p role="alert" className="my-3 rounded-xl bg-danger-soft p-3 text-danger">{send.error.message}</p> : null}
+    {query.isError ? <p role="alert">Delivery records could not be loaded. {query.error.message} <button className="underline" onClick={() => void query.refetch()}>Retry</button></p> : query.isLoading ? <p role="status">Loading message history…</p> : null}
+    {!query.isLoading && !query.isError && !query.data?.length ? <p>No admission messages yet. Send an update using the form above.</p> : null}
+    <ul className="divide-y divide-border">{query.data?.map(row => <li key={row.id} className="py-3"><p className="text-sm font-bold">{row.recipient_phone} · {row.status} · {new Date(row.created_at).toLocaleDateString()}</p><p className="break-words text-sm text-muted">{row.message_preview}</p></li>)}</ul>
+  </section>;
 }

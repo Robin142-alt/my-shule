@@ -45,7 +45,7 @@ test("a post-import refresh failure preserves the real admission result", async 
   await user.click(screen.getByRole("button", { name: /validate and preview/i }));
   await user.click(await screen.findByRole("button", { name: /confirm 1 admission/i }));
   const feedback = within(screen.getByRole("region", { name: /action feedback/i }));
-  expect(await feedback.findByText(/Import completed: 1 admitted, 0 failed. The student list could not refresh/)).toBeVisible();
+  await waitFor(() => expect(feedback.getByText(/Import completed: 1 admitted, 0 failed. The student list could not refresh/)).toBeVisible());
   expect(screen.getByRole("status")).toHaveTextContent("Import results: 1 admitted, 0 failed");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   await waitFor(() => expect(completed).toHaveBeenCalledTimes(1));

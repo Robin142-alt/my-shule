@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { FileText } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
@@ -9,7 +10,7 @@ type TemplatesData = {
 };
 
 export function TemplatesWorkspace() {
-  const { data, isLoading } = useSchoolQuery<TemplatesData>("/admin-command/admissions/templates");
+  const { data, isLoading, isError, refetch } = useSchoolQuery<TemplatesData>("/admin-command/admissions/templates");
   const items = data?.items || [];
 
   return (
@@ -24,6 +25,7 @@ export function TemplatesWorkspace() {
         </div>
       </div>
 
+      {isError ? <p role="alert" className="mb-4 rounded-xl bg-danger-soft p-3 text-danger">Records could not be loaded. <button className="underline" onClick={() => void refetch()}>Retry</button></p> : null}
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">Total Templates</div>
@@ -36,7 +38,7 @@ export function TemplatesWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Template Name</th>
@@ -48,7 +50,7 @@ export function TemplatesWorkspace() {
           <tbody>
             {isLoading ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
-            ) : items.length === 0 ? (
+            ) : isError ? <tr><td colSpan={8} className="p-4 text-danger">Retry to load records.</td></tr> : items.length === 0 ? (
               <AdmissionsEmptyStateCell
                 colSpan={4}
                 title="No admission templates yet"
@@ -67,7 +69,7 @@ export function TemplatesWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </section>
   );

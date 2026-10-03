@@ -4,7 +4,7 @@ import test from 'node:test';
 import { AdmissionsSchemaService } from './admissions-schema.service';
 import { AdmissionsRepository } from './repositories/admissions.repository';
 
-test('admission enrols shared subjects using the selected class curriculum', async () => {
+for (const deriveFromClass of [false, true]) test(`admission enrols configured subjects with ${deriveFromClass ? 'derived' : 'supplied'} academic setup`, async () => {
   let enrollment: unknown[] = [];
   const stop = new Error('Enrollment captured; stop this transaction fixture');
   const repository = new AdmissionsRepository({
@@ -23,7 +23,7 @@ test('admission enrols shared subjects using the selected class curriculum', asy
         }
         if (sql.includes('FOR UPDATE OF section')) return [{
           id: 'class', name: 'Form 1', curriculum_model: '8-4-4', enrolment_open: true,
-          academic_level_id: 'level', academic_year_name: '2026',
+          academic_level_id: 'level', academic_year_id: 'year', academic_year_name: '2026',
           academic_year_starts_on: '2026-01-01', academic_year_ends_on: '2026-12-31',
         }];
         if (sql.includes('FROM admission_settings')) return [{
@@ -47,9 +47,9 @@ test('admission enrols shared subjects using the selected class curriculum', asy
     },
   } as never);
   await assert.rejects(repository.admitCanonicalStudent({
-    tenant_id: 'school-a', actor_user_id: 'actor', class_section_id: 'class', academic_year_id: 'year',
-    curriculum: '8-4-4', admission_date: '2026-09-01', admission_number: 'ADM-99',
-    first_name: 'Learner', last_name: 'One', subject_ids: ['math'],
+    tenant_id: 'school-a', actor_user_id: 'actor', class_section_id: 'class', academic_year_id: deriveFromClass ? '' : 'year',
+    curriculum: deriveFromClass ? '' : '8-4-4', admission_date: '2026-09-01', admission_number: 'ADM-99',
+    first_name: 'Learner', last_name: 'One', subject_ids: deriveFromClass ? undefined : ['math'],
   } as never), (error) => error === stop);
   assert.equal(enrollment[0], 'school-a');
   assert.equal(enrollment[7], 'class');

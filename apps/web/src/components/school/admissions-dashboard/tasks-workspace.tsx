@@ -1,4 +1,5 @@
 "use client";
+import { RecordTable } from "@/components/ui/record-table";
 import { ListTodo } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { AdmissionsEmptyStateCell, APPLICATIONS_HREF } from "./empty-state-cell";
@@ -9,7 +10,7 @@ type TasksData = {
 };
 
 export function TasksWorkspace() {
-  const { data, isLoading } = useSchoolQuery<TasksData>("/admin-command/admissions/tasks");
+  const { data, isLoading, isError, refetch } = useSchoolQuery<TasksData>("/admin-command/admissions/tasks");
   const items = data?.items || [];
 
   return (
@@ -24,6 +25,7 @@ export function TasksWorkspace() {
         </div>
       </div>
 
+      {isError ? <p role="alert" className="mb-4 rounded-xl bg-danger-soft p-3 text-danger">Records could not be loaded. <button className="underline" onClick={() => void refetch()}>Retry</button></p> : null}
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">Pending</div>
@@ -36,7 +38,7 @@ export function TasksWorkspace() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
+        <RecordTable className="w-full text-sm text-left whitespace-nowrap">
           <thead className="bg-surface-muted text-foreground">
             <tr>
               <th className="px-4 py-3 font-bold">Task</th>
@@ -49,7 +51,7 @@ export function TasksWorkspace() {
           <tbody>
             {isLoading ? (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
-            ) : items.length === 0 ? (
+            ) : isError ? <tr><td colSpan={8} className="p-4 text-danger">Retry to load records.</td></tr> : items.length === 0 ? (
               <AdmissionsEmptyStateCell
                 colSpan={5}
                 title="No admission tasks yet"
@@ -69,7 +71,7 @@ export function TasksWorkspace() {
               ))
             )}
           </tbody>
-        </table>
+        </RecordTable>
       </div>
     </section>
   );

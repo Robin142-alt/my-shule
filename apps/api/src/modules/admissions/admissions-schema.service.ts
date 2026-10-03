@@ -228,6 +228,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       UPDATE admission_applications SET parent_name = guardian_name WHERE (parent_name IS NULL OR btrim(parent_name) = '') AND guardian_name IS NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_phone text;
       UPDATE admission_applications SET parent_phone = guardian_phone WHERE (parent_phone IS NULL OR btrim(parent_phone) = '') AND guardian_phone IS NOT NULL;
+      ALTER TABLE admission_applications ALTER COLUMN parent_phone DROP NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_email text;
       UPDATE admission_applications SET parent_email = guardian_email WHERE (parent_email IS NULL OR btrim(parent_email) = '') AND guardian_email IS NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_occupation text;

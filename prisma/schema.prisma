@@ -1531,7 +1531,7 @@ model ParentGuardian {
   school                School                 @relation(fields: [schoolId], references: [id])
   fullName              String                 @map("full_name")
   relationshipType      GuardianRelationship   @map("relationship_type")
-  phone                 String
+  phone                 String?
   email                 String?
   idNumber              String?                @map("id_number")
   occupation            String?

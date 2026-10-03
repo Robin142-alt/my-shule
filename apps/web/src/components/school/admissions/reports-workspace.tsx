@@ -1,105 +1,38 @@
 "use client";
 import { useState } from "react";
-import { FileText } from "lucide-react";
-import { Panel, StatusChip, Tone } from "./shared";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { toast } from "sonner";
-import { generateAdmissionsReport } from "./api-client";
+import { useSchoolCommandIdentity } from "../integrated-school-command-header";
 
-type ReportsRecord = {
-  id: string;
-  title: string;
-  generated_at: string;
-  type: string;
-  status: string;
-};
-
-type ReportsData = {
-  metrics: {
-    reports_generated: number;
-  };
-  reportsList: ReportsRecord[];
-};
-
+type Export = { report_id: string; title: string; filename: string; generated_at: string; row_count: number; checksum_sha256: string; csv: string };
+const reports = [{ id: "applications", label: "Admission register" }, { id: "allocations", label: "Class & stream allocations" }, { id: "documents", label: "Supporting documents" }, { id: "transfers", label: "Transfer history" }];
 export function ReportsWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<ReportsData>('/admin-command/admissions/reports');
-  const [generating, setGenerating] = useState(false);
-  const items = data?.reportsList || [];
-
-  const getStatusTone = (st: string): Tone => {
-    if (st === "Active" || st === "Available" || st === "Approved" || st === "Completed" || st === "Resolved" || st === "Present" || st === "Functional" || st === "On Track" || st === "Cleared" || st === "Published" || st === "Admitted" || st === "Generated") return "success";
-    if (st === "Pending" || st === "In Progress" || st === "Pending Approval" || st === "Scheduled" || st === "Draft" || st === "Behind" || st === "Warning" || st === "Pending Review" || st === "Not Started") return "warning";
-    if (st === "Overdue" || st === "Critical" || st === "Rejected" || st === "Escalated" || st === "Expired" || st === "Damaged" || st === "Flagged" || st === "Absent" || st === "Suspended") return "danger";
-    if (st === "Issued" || st === "Submitted" || st === "On Leave" || st === "Graduated" || st === "Downloaded") return "info";
-    return "neutral";
-  };
-
-  const handleGenerateReport = async () => {
-    setGenerating(true);
-    try {
-      await generateAdmissionsReport({
-        reportId: "admissions-readiness",
-        title: "Admissions readiness report",
-        format: "pdf",
-      });
-      toast.success("Admissions report compiled from live records.");
-      refetch();
-    } catch {
-      toast.error("Failed to compile admissions report.");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  return (
-    <Panel title="Admissions Reports" description="Generate and download admissions reports." icon={FileText} actions={
-      <button
-        type="button"
-        disabled={generating}
-        onClick={handleGenerateReport}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm disabled:opacity-50"
-      >
-        {generating ? "Compiling..." : "Generate Report"}
-      </button>
-    }>
-      <div className="grid gap-4 md:grid-cols-1 mb-6">
-        <div className="rounded-xl border border-border bg-surface-muted p-4">
-          <div className="text-sm font-semibold text-muted">Reports Generated</div>
-          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.reports_generated ?? 0}</div>
-        </div>
-      </div>
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="bg-surface-muted text-foreground">
-            <tr>
-              <th className="px-4 py-3 font-bold">Title</th>
-              <th className="px-4 py-3 font-bold">Generated At</th>
-              <th className="px-4 py-3 font-bold">Type</th>
-              <th className="px-4 py-3 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-muted">Loading...</td></tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-muted">
-                  No admissions reports yet. Generate Report compiles the current applications, document checks, interview outcomes, placement, and enrolment records into a downloadable admissions report.
-                </td>
-              </tr>
-            ) : (
-              items.map(row => (
-                <tr key={row.id} className="border-t border-border hover:bg-surface-muted">
-                  <td className="px-4 py-3 text-muted">{row.title}</td>
-                  <td className="px-4 py-3 text-muted">{row.generated_at}</td>
-                  <td className="px-4 py-3 text-muted">{row.type}</td>
-                  <td className="px-4 py-3"><StatusChip label={row.status} tone={getStatusTone(row.status)} /></td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Panel>
-  );
+  const [selected, setSelected] = useState("applications");
+  const [requested, setRequested] = useState<string | null>(null);
+  const { schoolName, userLabel } = useSchoolCommandIdentity();
+  const report = useSchoolQuery<Export>(requested ? `/admissions/reports/${requested}/export` : null, { staleTime: 0 });
+  const artifact = report.data;
+  function download() {
+    if (!artifact) return;
+    const url = URL.createObjectURL(new Blob([artifact.csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = artifact.filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  return <section className="rounded-2xl border border-border bg-white p-4">
+    <h2 className="text-xl font-black">Admissions Reports</h2>
+    <p className="mt-1 text-sm text-muted">Preview and download the school register, placements, documents, and transfers.</p>
+    <div className="my-4 flex flex-wrap gap-3">
+      <select aria-label="Admissions report" value={selected} onChange={e => { setSelected(e.target.value); setRequested(null); }} className="min-h-11 max-w-full rounded-xl border px-3">{reports.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+      <button disabled={report.isFetching} className="min-h-11 rounded-xl bg-primary px-4 font-bold text-white" onClick={() => { if (requested === selected) void report.refetch(); else setRequested(selected); }}>{report.isFetching ? "Preparing…" : "Preview report"}</button>
+    </div>
+    {report.isError ? <p role="alert" className="rounded-xl bg-danger-soft p-3 text-danger">{report.error?.message || "Report could not be prepared. Retry Preview report."}</p> : null}
+    {artifact ? <><div className="my-3 flex flex-wrap gap-3"><button onClick={download} className="min-h-11 rounded-xl border px-4 font-bold">Download CSV</button><button onClick={() => window.print()} className="min-h-11 rounded-xl border px-4 font-bold">Print preview</button></div>
+      <article className="admissions-report-preview rounded-xl border p-3">
+        <h3 className="font-bold">{schoolName} · {artifact.title}</h3>
+        <p className="text-sm">Document {artifact.report_id}-{artifact.checksum_sha256.slice(0, 12)} · {new Date(artifact.generated_at).toLocaleString()} · {userLabel}</p>
+        <p className="my-2 text-sm">{artifact.row_count} records{artifact.row_count === 500 ? " (first 500 records)" : ""}</p>
+        {artifact.row_count === 0 ? <p>No admissions reports yet for this register. Add school records, then preview again.</p> : <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6">{artifact.csv}</pre>}
+      </article>
+      <style>{`@media print { body * { visibility: hidden; } .admissions-report-preview, .admissions-report-preview * { visibility: visible; } .admissions-report-preview { position: absolute; left: 0; top: 0; width: 100%; border: 0; } }`}</style>
+    </> : null}
+  </section>;
 }

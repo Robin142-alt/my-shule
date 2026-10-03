@@ -3,6 +3,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AuthSchemaService } from '../../auth/auth-schema.service';
 import { PrismaService } from '../../database/prisma.service';
 
+// NULL means contact details can be supplied after admission, without sharing an identity.
+export const OPTIONAL_GUARDIAN_CONTACT_SQL = `
+  ALTER TABLE guardian_profiles ALTER COLUMN normalized_phone DROP NOT NULL;
+  ALTER TABLE parent_guardians ALTER COLUMN phone DROP NOT NULL;
+  ALTER TABLE student_portal_access ALTER COLUMN guardian_phone_hash DROP NOT NULL;
+`;
+
 @Injectable()
 export class StudentsSchemaService implements OnModuleInit {
 
@@ -540,6 +547,7 @@ export class StudentsSchemaService implements OnModuleInit {
           REFERENCES users (id)
           ON DELETE CASCADE
       );
+      ${OPTIONAL_GUARDIAN_CONTACT_SQL}
       CREATE INDEX IF NOT EXISTS ix_guardian_profiles_user
         ON guardian_profiles (tenant_id, user_id)
         WHERE user_id IS NOT NULL;
