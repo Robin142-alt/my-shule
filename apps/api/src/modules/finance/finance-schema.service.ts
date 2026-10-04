@@ -226,6 +226,12 @@ export class FinanceSchemaService implements OnModuleInit {
         END IF;
       END $$;
 
+      -- CREATE TABLE IF NOT EXISTS does not upgrade Prisma-created tables.
+      ALTER TABLE finance_fee_categories
+        ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT TRUE;
+      ALTER TABLE finance_fee_categories ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE finance_fee_categories ALTER COLUMN description DROP NOT NULL;
+
       CREATE TABLE IF NOT EXISTS accounts (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,

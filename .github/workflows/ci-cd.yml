@@ -250,6 +250,12 @@ jobs:
       - name: Academic analytics print authorization and pagination
         run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/auth/head-of-subject.test.js dist/apps/api/src/modules/academics/academic-hos-assignment.test.js dist/apps/api/src/modules/academics/academic-setup-simplification.test.js
 
+      - name: Existing-school dashboard reads and Principal operations
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:sidebar-workspaces
+
       - name: Admissions contacts, pagination and tenant-safe transfers
         env:
           DATABASE_URL: ""

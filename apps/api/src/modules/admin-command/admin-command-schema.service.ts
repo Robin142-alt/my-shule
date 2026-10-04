@@ -305,6 +305,21 @@ export class AdminCommandSchemaService implements OnModuleInit {
         ON boarding_exeats (tenant_id, status, from_date DESC, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_boarding_exeats_guardian
         ON boarding_exeats (tenant_id, guardian_id, created_at DESC);
+      ALTER TABLE principal_dashboard_snapshots ALTER COLUMN updated_at SET DEFAULT NOW();
+      -- Snapshots are rebuildable cache entries. Retain the latest if an older
+      -- schema allowed duplicate cache keys, then enforce the upsert contract.
+      DELETE FROM principal_dashboard_snapshots
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id, row_number() OVER (
+            PARTITION BY tenant_id, enabled_module_hash, filter_hash
+            ORDER BY generated_at DESC, updated_at DESC, id DESC
+          ) AS duplicate_position
+          FROM principal_dashboard_snapshots
+        ) snapshots WHERE duplicate_position > 1
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_principal_dashboard_snapshot_key
+        ON principal_dashboard_snapshots (tenant_id, enabled_module_hash, filter_hash);
       CREATE INDEX IF NOT EXISTS ix_principal_dashboard_snapshots_expiry
         ON principal_dashboard_snapshots (tenant_id, enabled_module_hash, filter_hash, expires_at DESC);
       CREATE INDEX IF NOT EXISTS ix_principal_alerts_status

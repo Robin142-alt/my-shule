@@ -2,7 +2,6 @@
 
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
 
-import { DashboardEngine } from "@/components/dashboard/dashboard-engine";
 import { Card } from "@/components/ui/card";
 import { isSchoolQueryForPath, useSchoolQuery } from "@/lib/data/school-hooks";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
@@ -224,10 +223,6 @@ export function PrincipalOverviewWorkspace({
           <div><p className="text-sm font-medium text-foreground">{item.label}</p><p className="mt-1 text-xs text-muted">{item.time}</p></div>
         </li>)}</ol> : <p className="mt-5 rounded-xl bg-slate-50 p-4 text-xs leading-6 text-muted">No recent activity has been recorded. Admissions and other school updates will appear here as your team works.</p>}
       </Card>
-      </div>
-      <div className="app-overview-widgets rounded-2xl p-5 sm:p-6">
-        <h2 className="text-xl font-bold text-white mb-6">Operational Dashboard</h2>
-        <DashboardEngine role="principal" />
       </div>
     </div>
   );

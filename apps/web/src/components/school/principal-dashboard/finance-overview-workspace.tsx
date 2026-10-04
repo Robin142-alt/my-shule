@@ -47,7 +47,7 @@ function getStudentClassName(student: FinanceStudentOption) {
 
 export function PrincipalFinanceOverviewWorkspace() {
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalWorkspaceData>('/admin-command/principal/finance-overview');
-  const { data: feeCategoriesData } = useSchoolQuery<any[]>('/finance/fee-categories');
+  const { data: feeCategoriesData, error: feeCategoriesError, isLoading: feeCategoriesLoading, refetch: refetchFeeCategories } = useSchoolQuery<any[]>('/finance/fee-categories');
   const { data: studentsData, isLoading: studentsLoading } = useSchoolQuery<FinanceStudentOption[]>('/students?status=active&limit=200');
   const { hasPermission, isLoading: permissionsLoading } = usePermissions();
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
@@ -82,6 +82,8 @@ export function PrincipalFinanceOverviewWorkspace() {
         }
       });
       setIsFeeCategoryModalOpen(false);
+      toast.success("Fee category created.");
+      await refetchFeeCategories();
       refetch();
     } catch (err: any) {
       setFormError(err.message || "Failed to create fee category");
@@ -131,6 +133,8 @@ export function PrincipalFinanceOverviewWorkspace() {
     if (!confirm("Are you sure you want to archive this fee category?")) return;
     try {
       await requestPrincipalApi(`/finance/fee-categories/${id}`, { method: "DELETE" });
+      toast.success("Fee category archived.");
+      await refetchFeeCategories();
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Failed to archive fee category");
@@ -280,7 +284,12 @@ export function PrincipalFinanceOverviewWorkspace() {
               </Button>
             ) : null}
           </div>
-          {!feeCategoriesData || feeCategoriesData.length === 0 ? (
+          {feeCategoriesError ? (
+            <div role="alert" className="space-y-3 text-sm text-red-300">
+              <p>Fee categories could not be loaded. Please retry.</p>
+              <WorkspaceRetry onRetry={() => refetchFeeCategories()} />
+            </div>
+          ) : feeCategoriesLoading ? <p role="status" className="text-sm text-white/70">Loading fee categories…</p> : !feeCategoriesData || feeCategoriesData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <p className="text-white/60 text-sm mb-4">No fee categories configured yet.</p>
               {hasPermission('finance:write') ? (

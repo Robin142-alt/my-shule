@@ -26,6 +26,12 @@ const requestDashboardApiMock = jest.mocked(requestDashboardApi);
 const activeStudentId = "00000000-0000-4000-8000-000000000411";
 
 const canonicalResponses: Record<string, unknown> = {
+  "/admissions/foundation": {
+    academic_years: [{ id: "year-2026", name: "2026", status: "active", is_current: true }],
+    classes: [{ id: "class-grade-7", academic_year_id: "year-2026", name: "Grade 7", grade_level: "Grade 7", curriculum: "CBC", capacity: 45, enrolment_open: true, student_count: 0 }],
+    streams: [], subjects: [], class_subject_assignments: [],
+  },
+  "/admissions/drafts/current": null,
   "/tenant-finance/collection-channel-summary": { total: 0, pending_approval: 0, awaiting_connection: 0, ready: 0, active: 0, sandbox: 0, attention: 0 },
   "/admin-command/principal/students": {
     status: "active", totalStudents: 412, boys: 201, girls: 211,
@@ -342,7 +348,8 @@ describe("principal production readiness", () => {
     expect(staffMetric).toHaveTextContent("38");
     expect(within(commandCenter).getByText("Pending Approvals").parentElement).toHaveTextContent("3");
     expect(within(commandCenter).queryByText(/Kisumu Boys|KSh 248,500/i)).not.toBeInTheDocument();
-    expect(within(commandCenter).getByTestId("principal-live-dashboard-engine")).toBeVisible();
+    expect(within(commandCenter).queryByText("Operational Dashboard")).not.toBeInTheDocument();
+    expect(within(commandCenter).queryByTestId("principal-live-dashboard-engine")).not.toBeInTheDocument();
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
       "/admin-command/principal/overview",
       expect.objectContaining({ tenantId: "maranda-high" }),
@@ -352,7 +359,7 @@ describe("principal production readiness", () => {
   it("keeps payment setup off Overview and opens it through Fees & Finance", async () => {
     const user = userEvent.setup();
     renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByTestId("principal-live-dashboard-engine")).toBeVisible();
+    expect(await screen.findByText("Total Students")).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Payment setup" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Review payment setups" })).not.toBeInTheDocument();
     const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
@@ -360,6 +367,17 @@ describe("principal production readiness", () => {
     await user.click(within(sidebar).getByRole("button", { name: "Payment Setup" }));
     expect(await screen.findByRole("heading", { name: "School payment channels" })).toBeVisible();
     expect(window.location.pathname).toBe("/school/principal/payment-setup");
+  });
+
+  it("keeps admitting a student inside the Principal dashboard", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" section="admissions" routeMode="public" />);
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    expect(screen.queryByTestId("admissions-dashboard-command-center")).not.toBeInTheDocument();
+    expect(await within(commandCenter).findByText("New student admission")).toBeVisible();
+    await user.click(within(commandCenter).getByRole("button", { name: "Close and keep draft" }));
+    expect(window.location.pathname).toBe("/school/principal/students");
+    expect(screen.queryByTestId("admissions-dashboard-command-center")).not.toBeInTheDocument();
   });
 
   it("opens payment setup directly from its dashboard route instead of the generic workspace", async () => {
@@ -412,7 +430,7 @@ describe("principal production readiness", () => {
 
     for (const [label, toggleName, children] of [
       ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
-      ["Students", "Students", ["Student Directory", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
+      ["Students", "Students", ["Student Directory", "Admit Student", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
       ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
       ["School Setup", "Expand School Setup", ["School Profile"]],
     ] as const) {
@@ -736,7 +754,9 @@ describe("principal production readiness", () => {
     await user.type(screen.getByLabelText("Name"), "Tuition Fee");
     await user.type(screen.getByLabelText("Description"), "Term tuition");
     await user.type(screen.getByLabelText("Amount (KES)"), "12500.50");
+    responseOverrides.set("/finance/fee-categories", [{ id: "created-fee-category", name: "Tuition Fee", amount_minor: "1250050", description: "Term tuition" }]);
     await user.click(screen.getByRole("button", { name: "Create Category" }));
+    expect(await within(commandCenter).findByText("Tuition Fee")).toBeVisible();
 
     await waitFor(() => {
       expect(requestDashboardApiMock).toHaveBeenCalledWith(

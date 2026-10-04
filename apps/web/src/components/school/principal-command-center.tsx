@@ -24,6 +24,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useModalLayer } from "@/hooks/use-modal-layer";
 import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
 
@@ -68,6 +69,7 @@ import { PrincipalSettingsWorkspace } from "./principal-dashboard/settings-works
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
 import { PrincipalStaffRolesWorkspace } from "./principal-dashboard/staff-roles-workspace";
 import { PrincipalStudentsWorkspace } from "./principal-dashboard/students-workspace";
+import { StudentAdmissionWizard } from "./admissions-dashboard/student-admission-wizard";
 import { PrincipalSubjectsDepartmentsWorkspace } from "./principal-dashboard/subjects-departments-workspace";
 import { buildSchoolSectionHref } from "./school-pages";
 import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
@@ -76,6 +78,7 @@ import { OverviewWorkspace as TransportOverviewWorkspace } from "./transport-man
 type PrincipalSection =
   | "overview"
   | "students"
+  | "admissions"
   | "setup-checklist"
   | "school-profile"
   | "academic-setup"
@@ -148,6 +151,7 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
     id: "students", label: "Students", icon: Users,
     children: [
       { id: "students", label: "Student Directory", icon: Users },
+      { id: "admissions", label: "Admit Student", icon: UsersRound },
       { id: "attendance", label: "Attendance", icon: Activity },
       { id: "discipline", label: "Discipline", icon: ShieldAlert },
       { id: "sick-bay", label: "Sick Bay", icon: HeartPulse },
@@ -311,6 +315,7 @@ export function PrincipalCommandCenter({
   const schoolId = getPrincipalSchoolId(tenantSlug);
   const fallbackSchoolName = getPrincipalSchoolName(schoolId);
   const principalName = userLabel?.trim() || "Principal";
+  const queryClient = useQueryClient();
   const [activeWorkspace, setActiveWorkspaceState] = useState<PrincipalSection>(() =>
     normalizePrincipalSection(activeSection),
   );
@@ -441,6 +446,12 @@ export function PrincipalCommandCenter({
   }
 
   function renderWorkspace() {
+    if (activeWorkspace === "admissions") {
+      return <StudentAdmissionWizard
+        onCancel={() => setActiveWorkspace("students", "pushState")}
+        onAdmitted={() => queryClient.invalidateQueries({ queryKey: ["school"] })}
+      />;
+    }
     if (activeWorkspace === "overview") {
       return (
         <PrincipalOverviewWorkspace

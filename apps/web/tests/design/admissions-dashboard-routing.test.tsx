@@ -145,7 +145,7 @@ describe("admissions dashboard routing", () => {
     expect(within(dashboard).queryByText(/final admission-number generation/i)).not.toBeInTheDocument();
   });
 
-  it("opens the new admissions command center when another school role enters the admissions module", async () => {
+  it("opens the admission form inside the Principal command center", async () => {
     renderWithProviders(
       createElement(SchoolPages, {
         role: "principal",
@@ -156,7 +156,8 @@ describe("admissions dashboard routing", () => {
       }),
     );
 
-    const dashboard = await screen.findByTestId("admissions-dashboard-command-center", {}, { timeout: 10000 });
+    const dashboard = await screen.findByTestId("principal-practical-command-center", {}, { timeout: 10000 });
+    expect(screen.queryByTestId("admissions-dashboard-command-center")).not.toBeInTheDocument();
 
     expect(within(dashboard).getAllByRole("heading", { name: /new student admission/i }).length).toBeGreaterThan(0);
     expect(await within(dashboard).findByLabelText(/^First name/i)).toBeVisible();

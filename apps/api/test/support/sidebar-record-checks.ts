@@ -81,6 +81,9 @@ export async function verifySidebarRecords(pool: Pool, migration: string) {
     client.release();
   }
   const tenantId = 'sidebar-record-school-a';
+  await pool.query("UPDATE users SET status='active' WHERE id=$1", [actor]);
+  const principalRole = await pool.query("INSERT INTO roles (tenant_id,code,name,updated_at) VALUES ($1,'principal','Principal',NOW()) RETURNING id", [tenantId]);
+  await pool.query("INSERT INTO tenant_memberships (tenant_id,user_id,role_id) VALUES ($1,$2,$3)", [tenantId, actor, principalRole.rows[0].id]);
   const classId = randomUUID();
   await pool.query(`INSERT INTO academic_years
     (id,tenant_id,name,start_date,end_date,starts_on,ends_on,status)
