@@ -67,7 +67,8 @@ test('StudentsSchemaService adds a full-text index for active student directory 
   assert.match(schemaSql, /ALTER TABLE parent_guardians FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /CREATE POLICY parent_guardians_rls_policy/);
   assert.match(schemaSql, /UPDATE student_guardians[\s\S]*SET relationship/);
-  assert.match(schemaSql, /ALTER TABLE student_guardians ALTER COLUMN relationship SET NOT NULL/);
+  assert.match(schemaSql, /ALTER TABLE student_guardians ALTER COLUMN relationship DROP NOT NULL/);
+  assert.doesNotMatch(schemaSql, /ALTER TABLE student_guardians ALTER COLUMN relationship SET NOT NULL/);
   assert.match(schemaSql, /CREATE TABLE IF NOT EXISTS attendance_records/);
   assert.match(schemaSql, /source_device_id/);
   assert.match(schemaSql, /sync_version/);

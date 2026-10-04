@@ -443,10 +443,13 @@ export class StudentsSchemaService implements OnModuleInit {
         END IF;
       END $$;
       ALTER TABLE student_guardians ALTER COLUMN updated_at SET DEFAULT NOW();
+      ALTER TABLE parent_guardians ALTER COLUMN relationship_type DROP NOT NULL;
+      ALTER TABLE student_guardians ALTER COLUMN relationship_type DROP NOT NULL;
       UPDATE student_guardians
       SET
         school_id = COALESCE(NULLIF(school_id, ''), tenant_id),
         relationship_type = CASE
+          WHEN NULLIF(btrim(relationship), '') IS NULL THEN relationship_type
           WHEN upper(COALESCE(NULLIF(relationship, ''), 'GUARDIAN')) IN (
             'FATHER', 'MOTHER', 'GUARDIAN', 'SPONSOR', 'OTHER'
           )
@@ -483,10 +486,10 @@ export class StudentsSchemaService implements OnModuleInit {
             AND guardian.phone = link.phone
           )
         );
+      ALTER TABLE student_guardians ALTER COLUMN relationship DROP NOT NULL;
       UPDATE student_guardians
-      SET relationship = COALESCE(NULLIF(btrim(relationship), ''), 'Guardian')
-      WHERE relationship IS NULL OR btrim(relationship) = '';
-      ALTER TABLE student_guardians ALTER COLUMN relationship SET NOT NULL;
+      SET relationship = NULLIF(btrim(relationship), '')
+      WHERE btrim(relationship) = '';
       DO $$
       BEGIN
         IF NOT EXISTS (

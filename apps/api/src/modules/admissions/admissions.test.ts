@@ -1044,12 +1044,13 @@ test('AdmissionsService previews canonical school-scoped admission imports', asy
         'admission_number,first_name,middle_name,last_name,gender,date_of_birth,admission_date,academic_year,curriculum,class,stream,guardian_name,guardian_relationship,guardian_phone',
         'G4-001,Achieng,,Otieno,Female,12/09/2016,05/01/2026,2026 Academic Year,CBC,Grade 4,,Janet Otieno,Mother,0700000001',
         'G4-002,Missing,,,,,,,,,,,,',
+        'G4-003,Grace,,Otieno,Female,,05/01/2026,2026 Academic Year,CBC,Grade 4,,,,',
       ].join('\n')),
     }),
   );
 
-  assert.equal(preview.total_rows, 2);
-  assert.equal(preview.valid_rows, 1);
+  assert.equal(preview.total_rows, 3);
+  assert.equal(preview.valid_rows, 2);
   assert.equal(preview.invalid_rows, 1);
   assert.equal(preview.rows[0].learner_name, 'Achieng Otieno');
   assert.equal(preview.rows[0].record?.class_section_id, 'class-grade-4');
@@ -1057,6 +1058,31 @@ test('AdmissionsService previews canonical school-scoped admission imports', asy
   assert.ok(!preview.rows.some((row) => row.learner_name === 'Joy Kemboi'));
   assert.ok(preview.rows[1].errors.includes('gender is required'));
   assert.ok(!preview.rows[1].errors.includes('date_of_birth is required'));
+  assert.equal(preview.rows[2].record?.guardian_name, '');
+  assert.equal(preview.rows[2].record?.guardian_relationship, '');
+});
+
+test('AdmissionsService accepts bulk admission files without any guardian columns', async () => {
+  const service = new AdmissionsService(
+    { requireStore: () => ({ tenant_id: 'school-a' }), getStore: () => ({ tenant_id: 'school-a' }) } as any, {} as any,
+    {
+      getAdmissionFoundation: async () => ({
+        academic_years: [{ id: 'year', name: '2026', starts_on: '2026-01-01', ends_on: '2026-12-31' }],
+        classes: [{ id: 'class', academic_year_id: 'year', name: 'Grade 4', grade_level: 'Grade 4', curriculum: 'CBC' }],
+        streams: [], subjects: [{ id: 'math', name: 'Mathematics' }],
+        class_subject_assignments: [{ academic_year_id: 'year', class_section_id: 'class', subject_id: 'math' }],
+      }),
+      findExistingAdmissionNumbers: async () => [],
+    } as any, {} as any, {} as any,
+  );
+  const preview = await service.previewApplicationImport({
+    originalname: 'learners.csv', mimetype: 'text/csv', size: 140,
+    buffer: Buffer.from('admission_number,first_name,last_name,gender,admission_date,class\nADM-01,Amina,Otieno,female,2026-10-04,Grade 4'),
+  });
+  assert.equal(preview.valid_rows, 1);
+  assert.deepEqual(preview.rows[0].errors, []);
+  assert.equal(preview.rows[0].record?.guardian_name, '');
+  assert.equal(preview.rows[0].record?.guardian_relationship, '');
 });
 
 test('AdmissionsService bulk commit persists valid rows and reports failed rows truthfully', async () => {

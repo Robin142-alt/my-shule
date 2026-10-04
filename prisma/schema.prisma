@@ -1530,7 +1530,7 @@ model ParentGuardian {
   schoolId              String                 @map("school_id")
   school                School                 @relation(fields: [schoolId], references: [id])
   fullName              String                 @map("full_name")
-  relationshipType      GuardianRelationship   @map("relationship_type")
+  relationshipType      GuardianRelationship?  @map("relationship_type")
   phone                 String?
   email                 String?
   idNumber              String?                @map("id_number")
@@ -1556,7 +1556,7 @@ model StudentGuardian {
   student               Student              @relation(fields: [studentId], references: [id])
   guardianId            String               @map("guardian_id")
   guardian              ParentGuardian       @relation(fields: [guardianId], references: [id])
-  relationshipType      GuardianRelationship @map("relationship_type")
+  relationshipType      GuardianRelationship? @map("relationship_type")
   isPrimaryContact      Boolean              @default(false) @map("is_primary_contact")
   canReceiveSms         Boolean              @default(true) @map("can_receive_sms")
   canAccessParentPortal Boolean              @default(false) @map("can_access_parent_portal")
@@ -1613,7 +1613,7 @@ model AdmissionApplication {
   dateOfBirth            DateTime?            @map("date_of_birth") @db.Date
   applyingForClassId     String               @map("applying_for_class_id")
   applyingForClass       Class                @relation(fields: [applyingForClassId], references: [id])
-  guardianName           String               @map("guardian_name")
+  guardianName           String?              @map("guardian_name")
   guardianPhone          String?              @map("guardian_phone")
   guardianEmail          String?              @map("guardian_email")
   guardianOccupation     String?              @map("guardian_occupation")

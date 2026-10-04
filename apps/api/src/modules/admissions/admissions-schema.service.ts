@@ -225,6 +225,8 @@ export class AdmissionsSchemaService implements OnModuleInit {
       SET full_name = btrim(CONCAT_WS(' ', first_name, middle_name, last_name))
       WHERE full_name IS NULL OR btrim(full_name) = '';
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_name text;
+      ALTER TABLE admission_applications ALTER COLUMN parent_name DROP NOT NULL;
+      ALTER TABLE admission_applications ALTER COLUMN guardian_name DROP NOT NULL;
       UPDATE admission_applications SET parent_name = guardian_name WHERE (parent_name IS NULL OR btrim(parent_name) = '') AND guardian_name IS NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_phone text;
       UPDATE admission_applications SET parent_phone = guardian_phone WHERE (parent_phone IS NULL OR btrim(parent_phone) = '') AND guardian_phone IS NOT NULL;
@@ -235,9 +237,10 @@ export class AdmissionsSchemaService implements OnModuleInit {
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_occupation text;
       UPDATE admission_applications SET parent_occupation = guardian_occupation WHERE (parent_occupation IS NULL OR btrim(parent_occupation) = '') AND guardian_occupation IS NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS relationship text;
-      UPDATE admission_applications SET relationship = COALESCE(NULLIF(guardian_relationship, ''), 'Guardian') WHERE relationship IS NULL OR btrim(relationship) = '';
-      ALTER TABLE admission_applications ALTER COLUMN relationship SET DEFAULT 'Guardian';
-      ALTER TABLE admission_applications ALTER COLUMN relationship SET NOT NULL;
+      ALTER TABLE admission_applications ALTER COLUMN relationship DROP NOT NULL;
+      ALTER TABLE admission_applications ALTER COLUMN relationship DROP DEFAULT;
+      ALTER TABLE admission_applications ALTER COLUMN guardian_relationship DROP NOT NULL;
+      UPDATE admission_applications SET relationship = NULLIF(guardian_relationship, '') WHERE (relationship IS NULL OR btrim(relationship) = '') AND guardian_relationship IS NOT NULL;
       ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS class_applying text;
       UPDATE admission_applications SET class_applying = COALESCE(NULLIF(applying_for_class_id, ''), 'Unassigned') WHERE class_applying IS NULL OR btrim(class_applying) = '';
       ALTER TABLE admission_applications ALTER COLUMN class_applying SET DEFAULT 'Unassigned';
