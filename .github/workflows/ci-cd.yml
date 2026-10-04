@@ -58,6 +58,9 @@ jobs:
       - name: Payment channel approval and isolated sandbox interface
         run: npm --prefix apps/web run test:design -- payment-channel-setup
 
+      - name: Accountant daily finance, receipts and verified payment review
+        run: npm --prefix apps/web run test:design -- accountant-daily-workflows accountant-mpesa-review accountant-command-center-contract finance-amount-precision finance-export-safety front-office-finance-production-readiness
+
       - name: Conservative web build skipping
         run: node --test apps/web/scripts/ignore-build.test.mjs
 
@@ -283,6 +286,14 @@ jobs:
         run: |
           node --test dist/apps/api/src/modules/payments/ingress/collection-adapter.test.js dist/apps/api/src/modules/payments/queue/payments-worker-module.test.js dist/apps/api/src/modules/tenant-finance/payment-channel-connection.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/payment-ingress.integration-spec.ts apps/api/test/collection-workflow.integration-spec.ts apps/api/test/mpesa-c2b-setup.integration-spec.ts apps/api/test/payment-allocation-safety.integration-spec.ts apps/api/test/payment-portal-balances.integration-spec.ts
+
+      - name: Accountant balances, approvals, idempotency and tenant isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/billing/billing.test.js dist/apps/api/src/modules/billing/finance-workflow-controls.test.js dist/apps/api/src/modules/admin-command/admin-command.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/accountant-overview.integration-spec.ts apps/api/test/accountant-controls.integration-spec.ts
 
       - name: Durable report jobs, private storage and worker isolation
         env:
