@@ -27,7 +27,9 @@ The updated source service successfully reads Kibabi overview and expenses again
 
 The preflight found older STK write constraints: integer account references/account codes, mandatory fields that the canonical pending-intent contract treats as optional, UUID provider request IDs, JSON scalar metadata and legacy required M-Pesa transaction fields. `LEGACY_STK_WRITE_SCHEMA` expands these to the current repository contracts, retains historical columns and records, keeps tenant ownership mandatory, and adds missing duplicate protection and composite tenant foreign keys. Invalid timestamps, non-scalar legacy metadata or duplicate identities abort the transaction for review.
 
-Five disposable PostgreSQL tests use the real intent, callback and transaction repositories against the old types. They verify the original failure, transactional schema rollback, repeated application, historical value preservation, alphanumeric references, optional fields, failed callbacks with no invented money, replay uniqueness, RLS and cross-school FK rejection. API TypeScript passes. Production application of this compatibility expansion is pending a fresh backup and transaction rehearsal. On application rollback, retain the expanded schema and financial records; do not narrow text references back to integers or restore older constraints over new valid records.
+Five disposable PostgreSQL tests use the real intent, callback and transaction repositories against the old types. They verify the original failure, transactional schema rollback, repeated application, historical value preservation, alphanumeric references, optional fields, failed callbacks with no invented money, replay uniqueness, RLS and cross-school FK rejection. API TypeScript passes.
+
+The compatibility expansion was applied at 20:21:28 UTC on 4 October after a fresh private backup and a successful transaction/rollback rehearsal. The archive has 4,702 entries and SHA-256 `5bedf53cdc2488d164f031ba1f9dbedf106292b65c4ecceddcd204ff71d9206f`. Applied SQL SHA-256: `1cd3cebaf7e593c0ae036333ee7c9197fc0815ee9792ebb27ee25ce02a2933d5`. Forced RLS and three duplicate-protection indexes were verified. Read-only EXPLAIN checks of all three real repository insert queries passed under Kibabi's runtime role; no writes or provider callbacks were executed. Overview, expenses, register, reconciliation and an existing learner's statement-payment query also passed afterward. On application rollback, retain the expanded schema and financial records; do not narrow text references back to integers or restore older constraints over new valid records.
 
 ## Controlled live verification
 
@@ -39,7 +41,7 @@ The installed bank providers support statement entry and separate Principal conf
 | --- | --- |
 | Production schema | Additive updates applied; read-only source-service rehearsal passed |
 | Production application code | Pending deployment verification |
-| Legacy STK write schema | Compatibility migration tested locally; production application pending |
+| Legacy STK write schema | Compatibility expansion applied; real repository tests and production EXPLAIN passed; live settlement pending |
 | Kibabi production provider onboarding | Not configured at preflight |
 | Existing student with active fee balance | No eligible invoice found at preflight |
 | KES 10 provider-confirmed collection | Not attempted |
