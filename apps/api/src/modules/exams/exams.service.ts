@@ -602,7 +602,7 @@ export class ExamsService {
     };
   }
 
-  async getAnalytics(query: Record<string, string | undefined> = {}) {
+  async getAnalytics(query: Record<string, string | undefined> = {}, forReport = false) {
     const tenantId = this.requireTenantId();
     const role = this.currentRole();
     const hasSchoolWideScope = this.isExamWorkflowAdmin()
@@ -624,7 +624,7 @@ export class ExamsService {
       level,
       actor_user_id: this.requireUserId(),
       role,
-    }, filters, hasSchoolWideScope);
+    }, filters, hasSchoolWideScope, forReport);
     let canStartIntervention = false;
     try { this.assertAcademicInterventionCreateAllowed(true); canStartIntervention = true; } catch { /* Read-only academic experience. */ }
     return { ...result, capabilities: { can_start_intervention: canStartIntervention } };

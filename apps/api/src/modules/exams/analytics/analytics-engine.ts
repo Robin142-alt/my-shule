@@ -136,7 +136,7 @@ function historicalRisk(subjects: SubjectEvidence[], history: SubjectEvidence[])
     baseline_change:delta(average,averages.length>=ANALYTICS_RULES.minimum_history?mean(averages):null)});
 }
 
-export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnalyticsScope, filters: AnalyticsFilters, availableScopes: ExamAnalyticsScopeLevel[], today = new Date().toISOString().slice(0,10)) {
+export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnalyticsScope, filters: AnalyticsFilters, availableScopes: ExamAnalyticsScopeLevel[], today = new Date().toISOString().slice(0,10), forReport = false) {
   const rows = input.map(row => ({...row, average:numeric(row.average), boundaries:Array.isArray(row.boundaries)?row.boundaries:[], teachers:row.teachers??[], interventions:row.interventions??[]}));
   const exams = [...group(rows,r=>r.exam_series_id).values()].map(rs=>({ id:rs[0].exam_series_id,name:rs[0].exam_name,date:rs[0].exam_date,
     academic_term_id:rs[0].academic_term_id,academic_year_id:rs[0].academic_year_id,term_name:rs[0].term_name,year_name:rs[0].year_name })).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
@@ -152,7 +152,8 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
   const allByStudent = group(rows,r=>r.student_id);
   const priorByStudent = group(previous,r=>r.student_id);
   const currentPositions=positionIndex(current), priorPositions=positionIndex(previous);
-  const learnerRows = [...group(current,r=>r.student_id).values()].map(subjects=>{
+  const currentByStudent=group(current,r=>r.student_id);
+  const learnerRows = [...currentByStudent.values()].map(subjects=>{
     const first=subjects[0]; const ownHistory = historyByStudent.get(first.student_id)??[];
     const ownPrevious=priorByStudent.get(first.student_id)??[];
     const history = [...group(ownHistory,r=>r.exam_series_id).values()].map(rs=>({exam_series_id:rs[0].exam_series_id,exam_name:rs[0].exam_name,date:rs[0].exam_date,average:summarize(rs).mean})).sort((a,b)=>a.date.localeCompare(b.date));
@@ -204,6 +205,42 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
   const distributions=distribution(current).map(b=>({...b,previous_count:priorDistribution.find(p=>p.id===b.id)?.count??(comparison?0:null)}));
   const movement={up:0,down:0,stable:0,comparable:0};
   const previousSubjects=new Map(previous.map(r=>[r.student_id+'|'+r.subject_id,r]));
+  const scores=learnerRows.map(l=>l.average).filter((n):n is number=>n!==null).sort((a,b)=>a-b);
+  const percentile=(fraction:number)=>{
+    if(!scores.length)return null;
+    const index=(scores.length-1)*fraction,lower=Math.floor(index);
+    return round(scores[lower]+(scores[Math.ceil(index)]-scores[lower])*(index-lower));
+  };
+  const lower=percentile(0.25),upper=percentile(0.75);
+  const matched=current.flatMap(row=>{
+    const old=previousSubjects.get(row.student_id+'|'+row.subject_id);
+    if(row.average===null||!old||numeric(old.average)===null||!row.policy_id||row.policy_id!==old.policy_id)return [];
+    return [{student_id:row.student_id,current:row.average,previous:Number(old.average),change:round(row.average-Number(old.average))}];
+  });
+  const matchedMeans=[...group(matched,r=>r.student_id).values()].map(rs=>({current:mean(rs.map(r=>r.current))!,previous:mean(rs.map(r=>r.previous))!}));
+  const matchedCurrent=mean(matchedMeans.map(r=>r.current)),matchedPrevious=mean(matchedMeans.map(r=>r.previous));
+  const complete=[...currentByStudent.values()].filter(rs=>rs.every(r=>r.average!==null&&r.expected>0&&r.numeric_count===r.expected)).length;
+  const analysis={
+    quartiles:{lower,upper,interquartile_range:delta(upper,lower)},
+    score_bands:[0,20,40,60,80].map(min=>{
+      const count=scores.filter(n=>n>=min&&(min===80?n<=100:n<min+20)).length;
+      return {label:min===80?'80–100':`${min}–<${min+20}`,count,percentage:rate(count,scores.length)};
+    }),
+    coverage:{complete,partial:scores.length-complete,without_results:learnerRows.length-scores.length,
+      approved_assessments:sum(current.map(r=>r.numeric_count)),expected_assessments:sum(current.map(r=>r.expected)),
+      approval_rate:rate(sum(current.map(r=>r.numeric_count)),sum(current.map(r=>r.expected)))},
+    matched_progress:{matched_results:matched.length,matched_learners:matchedMeans.length,current_mean:matchedCurrent,previous_mean:matchedPrevious,
+      change:delta(matchedCurrent,matchedPrevious),improved:matchedMeans.filter(r=>r.current-r.previous>2).length,
+      stable:matchedMeans.filter(r=>Math.abs(r.current-r.previous)<=2).length,declined:matchedMeans.filter(r=>r.current-r.previous< -2).length,
+      excluded_current_results:current.filter(r=>r.average!==null).length-matched.length},
+    subject_support:[...group(current,r=>r.subject_id)].map(([subject_id,rs])=>({subject_id,subject_name:rs[0].subject_name,
+      ...summarize(rs),missing:sum(rs.map(r=>r.missing)),absent:sum(rs.map(r=>r.absent)),
+      near_pass:rs.filter(r=>{
+        if(r.average===null||gradeFor(r.average,r.boundaries)?.is_pass!==false)return false;
+        return r.boundaries.some(b=>b.is_pass&&b.min>r.average!&&b.min-r.average!<=5);
+      }).length,
+    })),
+  };
   for(const row of current) {const old=previousSubjects.get(row.student_id+'|'+row.subject_id);if(!old||old.policy_id!==row.policy_id)continue;
     const b=gradeFor(numeric(row.average),row.boundaries),p=gradeFor(numeric(old.average),old.boundaries);if(!b||!p)continue;
     movement.comparable++;if(b.min>p.min)movement.up++;else if(b.min<p.min)movement.down++;else movement.stable++;
@@ -242,7 +279,6 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
   if(highPerformerCount)insightRows.push({category:'Positive',text:`${highPerformerCount} ${highPerformerCount===1?'learner':'learners'} achieved the highest configured band in every assessed subject.`,view:'Learners'});
   const improved=[...comparisons.filter(c=>c.dimension==='class'&&c.change!==null)].sort((a,b)=>b.change!-a.change!)[0];
   if(improved && improved.change!>0)insightRows.push({category:'Positive',text:`${improved.label} improved by ${improved.change} points.`,view:'Learners',filters:improved.drill_down});
-  const currentByStudent=group(current,r=>r.student_id);
   const filteredLearners=learnerRows.filter(l=>(!filters.student_id||l.student_id===filters.student_id)
     &&(!filters.learner_query||`${l.student_name} ${l.admission_number}`.toLowerCase().includes(filters.learner_query.toLowerCase()))
     &&(!filters.risk_level||(filters.risk_level==='At Risk'?l.risk.level!=='Low':l.risk.level===filters.risk_level))
@@ -266,7 +302,7 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
     kpis:{school_average:performance.mean,pending_reviews:operations.submitted,missing_marks_alerts:operations.missing,
       active_exams:new Set(rows.filter(r=>['draft','submitted','reviewed'].includes(r.exam_status??'')&&r.exam_date<=today
         && (r.ends_on instanceof Date?r.ends_on.toISOString().slice(0,10):String(r.ends_on??''))>=today).map(r=>r.exam_series_id)).size},
-    performance,change,previous:prior,summary:insightRows,comparisons,distribution:distributions,band_movement:movement,gaps,
+    performance,change,previous:prior,summary:insightRows,comparisons,distribution:distributions,band_movement:movement,gaps,analysis,
     trends:trendRows.map(r=>({...r,exam_series_id:r.id,exam_series_name:r.name,starts_on:r.date,average_score:r.mean})),
     period_trends:{terms:termTrends,years:yearTrends},
     period_comparisons:[comparePeriod('Current term vs previous term',currentTerm,throughSelected.filter(r=>r.academic_term_id===termTrends.filter(t=>t.id!==selected?.academic_term_id).at(-1)?.id)),
@@ -275,12 +311,12 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
     benchmarks:[benchmark('Previous exam',previous),benchmark('Historical average',historical),benchmark('Same exam previous year',rows.filter(r=>r.exam_series_id===sameYearExam?.id)),
       benchmark('Previous term',rows.filter(r=>earlier.some(e=>e.id===r.exam_series_id&&e.academic_term_id===earlier.filter(e=>e.academic_term_id!==selected?.academic_term_id).at(-1)?.academic_term_id))),
       benchmark('Previous year',rows.filter(r=>Number(r.year_name)===priorYear))],
-    learners:{items:filteredLearners.slice((filters.page-1)*filters.page_size,filters.page*filters.page_size),total:filteredLearners.length,page:filters.page,page_size:filters.page_size},
+    learners:{items:forReport?filteredLearners:filteredLearners.slice((filters.page-1)*filters.page_size,filters.page*filters.page_size),total:filteredLearners.length,page:filters.page,page_size:filters.page_size,coverage:forReport?'all' as const:'page' as const},
     risk:{distribution:risks,movement:riskMovement,at_risk_count:riskCount,high_performers:learnerRows.filter(l=>l.high_performer).length,most_improved_count:learnerRows.filter(l=>(l.change??0)>0).length,rules:ANALYTICS_RULES},
     targets:{available:false,reason:'No academic target has been configured for this scope.'},
     operations:{...operations,completion_rate:rate(Math.max(0,operations.expected-operations.missing-operations.invalid),operations.expected),report_cards:reportCounts,
       incomplete_report_cards:reportCards.filter(s=>!s||!['approved','published'].includes(s)).length},
-    interventions:{items:interventionResults.slice(0,100),total:interventions.length,open:interventions.filter(i=>['planned','active','monitoring'].includes(i.status)).length,
+    interventions:{items:forReport?interventionResults:interventionResults.slice(0,100),total:interventions.length,open:interventions.filter(i=>['planned','active','monitoring'].includes(i.status)).length,
       overdue:interventions.filter(i=>i.due_on&&i.due_on<today&&['planned','active','monitoring'].includes(i.status)).length,
       completed:interventions.filter(i=>i.status==='completed').length,measured_outcomes:measured.length,success_rate:rate(measured.filter(i=>i.change!>0).length,measured.length)},
     cohorts:[...group(rows.filter(r=>r.cohort_id),r=>r.cohort_id!).entries()].map(([id,cohortRows])=>({id,

@@ -16,6 +16,18 @@ function load(level:'school'|'subject'|'grade'|'assignment'='school') {
   return response;
 }
 beforeEach(()=>{mockQuery.mockReset();mockMutation.mockReset();});
+it('shows score analysis, approved coverage and matched progress with subject drill-down',()=>{
+  load();renderWithProviders(<AcademicIntelligenceWorkspace audience="principal"/>);
+  fireEvent.click(screen.getByRole('button',{name:'Performance'}));
+  expect(screen.getByRole('heading',{name:'Learner score profile'})).toBeVisible();
+  expect(screen.getByRole('heading',{name:'Approved result coverage'})).toBeVisible();
+  expect(screen.getByRole('heading',{name:'Subject support priorities'})).toBeVisible();
+  fireEvent.click(screen.getAllByRole('button',{name:'Review subject learners'})[0]);
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('subject_id=math');
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('risk_level=At+Risk');
+  fireEvent.click(screen.getByRole('button',{name:'Comparisons'}));
+  expect(screen.getByRole('heading',{name:'Matched learner progress'})).toBeVisible();
+});
 it('keeps at-risk filtering on the server after clearing filters',()=>{
   load();renderWithProviders(<AcademicIntelligenceWorkspace audience="principal"/>);
   fireEvent.click(screen.getByRole('button',{name:'At Risk'}));
@@ -28,6 +40,11 @@ it('rejects malformed nested learner data with a retry action instead of crashin
   renderWithProviders(<AcademicIntelligenceWorkspace audience="principal"/>);
   expect(screen.getByRole('alert')).toHaveTextContent('Academic intelligence could not be loaded');
   expect(screen.getByRole('button',{name:'Retry live data'})).toBeVisible();
+});
+it('rejects incomplete score analysis with a visible retry state',()=>{
+  const data=load();mockQuery.mockReturnValue({data:{...data,analysis:{quartiles:{}}},isLoading:false,isFetching:false,error:null,refetch:jest.fn()});
+  renderWithProviders(<AcademicIntelligenceWorkspace audience="principal" activeView="Performance"/>);
+  expect(screen.getByRole('alert')).toHaveTextContent('Academic intelligence could not be loaded');
 });
 it.each([['subject','hos','Subject Academic Intelligence'],['grade','grade-master','Grade/Form Academic Intelligence']] as const)('renders the %s experience and eight overview cards', (scope,audience,title)=>{
   load(scope);renderWithProviders(<AcademicIntelligenceWorkspace audience={audience}/>);
@@ -89,7 +106,7 @@ it('opens the at-risk route with server filtering and keeps subject selection be
 it('provides subject report previews without granting report publishing actions',()=>{
   load('subject');renderWithProviders(<AcademicIntelligenceWorkspace audience="hos" activeView="Reports" hideNavigation/>);
   expect(screen.getByRole('heading',{name:'Subject Reports'})).toBeVisible();
-  expect(screen.getAllByRole('button',{name:/^Preview /})).toHaveLength(5);
+  expect(screen.getAllByRole('button',{name:/^Preview /})).toHaveLength(8);
   fireEvent.click(screen.getByRole('button',{name:'Preview performance trends'}));
   expect(screen.getByRole('dialog')).toBeVisible();
   expect(screen.getByLabelText('Report content')).toHaveValue('trends');

@@ -1,5 +1,6 @@
 import type { AnalyticsPrintReport, AnalyticsReportResponse } from '../../../../api/src/modules/exams/analytics/analytics-report-contract';
 export type { AnalyticsPrintReport, AnalyticsReportResponse, AnalyticsReportSection } from '../../../../api/src/modules/exams/analytics/analytics-report-contract';
+export { ANALYTICS_REPORT_SECTIONS, ANALYTICS_REPORT_LABELS, ANALYTICS_VIEW_REPORT } from '../../../../api/src/modules/exams/analytics/analytics-report-contract';
 
 export function isAnalyticsReportResponse(value:unknown):value is AnalyticsReportResponse {
   if(!value||typeof value!=='object')return false;
