@@ -87,7 +87,7 @@ export function ExpensesWorkspace({ review = false }: { review?: boolean }) {
     refetch,
   } = useSchoolQuery<ExpensesData>(`/admin-command/accountant/expenses?limit=50&offset=${page * 50}${statusFilter === "all" ? "" : `&status=${statusFilter}`}`);
 
-  const items = useMemo(() => Array.isArray(data?.items) ? data.items : [], [data?.items]);
+  const items = useMemo(() => Array.isArray(data?.items) ? data.items : [], [data]);
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
