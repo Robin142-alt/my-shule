@@ -962,34 +962,31 @@ export class AdmissionsRepository {
       await query(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5
         WHERE tenant_id=$1 AND id=$2 RETURNING id`,[input.tenant_id,academicEnrollmentId,admissionContext.cohort_id,admissionContext.id,input.stream_id??null]);
 
-      for (const subject of availableSubjects.filter((item) => selected.has(String(item.id)))) {
-        await query(`
+      const selectedSubjects = availableSubjects.filter((item) => selected.has(String(item.id)));
+      await query(`
           INSERT INTO student_subject_enrollments (
             tenant_id, student_id, academic_enrollment_id, subject_offering_id,
             subject_code, subject_name, academic_year_id, academic_term_id,
             class_section_id, stream_id, subject_id, curriculum_model, subject_type,
             is_compulsory, selected_by_user_id, effective_from, status
-          ) VALUES (
-            $1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid, $15::date, 'active'
+          ) SELECT
+            $1, $2, $3, NULL, subject.code, subject.name, $5, subject.academic_term_id,
+            $6, $7, subject.id, $8, subject.subject_type, subject.is_compulsory, $9::uuid, $10::date, 'active'
+          FROM jsonb_to_recordset($4::jsonb) AS subject(
+            id text, code text, name text, academic_term_id text, subject_type text, is_compulsory boolean
           )
         `, [
           input.tenant_id,
           student.id,
           academicEnrollmentId,
-          subject.code,
-          subject.name,
+          JSON.stringify(selectedSubjects),
           input.academic_year_id,
-          subject.academic_term_id,
           input.class_section_id,
           input.stream_id,
-          subject.id,
           placement.curriculum_model,
-          subject.subject_type,
-          subject.is_compulsory,
           input.actor_user_id,
           input.admission_date,
         ]);
-      }
 
       const parentRoleRows = await query<any>(`
         SELECT id FROM roles
