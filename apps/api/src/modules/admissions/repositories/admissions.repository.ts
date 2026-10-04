@@ -73,8 +73,8 @@ export interface CanonicalAdmissionInput {
   class_section_id: string;
   stream_id: string | null;
   subject_ids?: string[];
-  guardian_name: string;
-  guardian_relationship: string;
+  guardian_name: string | null;
+  guardian_relationship: string | null;
   guardian_phone: string | null;
   guardian_phone_hash: string | null;
   guardian_phone_last4: string | null;
@@ -988,16 +988,16 @@ export class AdmissionsRepository {
           input.admission_date,
         ]);
 
-      const parentRoleRows = await query<any>(`
-        SELECT id FROM roles
-        WHERE tenant_id = $1 AND lower(code) = 'parent'
-        ORDER BY is_system DESC
-        LIMIT 1
-      `, [input.tenant_id]);
-      const parentRoleId = parentRoleRows[0]?.id ?? null;
-      if (!parentRoleId) throw new Error('PARENT_ROLE_NOT_CONFIGURED');
       let parentUserId: string | null = null;
-      if (parentRoleId) {
+      if (input.guardian_name) {
+        const parentRoleRows = await query<any>(`
+          SELECT id FROM roles
+          WHERE tenant_id = $1 AND lower(code) = 'parent'
+          ORDER BY is_system DESC
+          LIMIT 1
+        `, [input.tenant_id]);
+        const parentRoleId = parentRoleRows[0]?.id ?? null;
+        if (!parentRoleId) throw new Error('PARENT_ROLE_NOT_CONFIGURED');
         const parentRows = await query<any>(`
           INSERT INTO users (
             tenant_id, email, password_hash, full_name, display_name, user_type,
@@ -1087,100 +1087,105 @@ export class AdmissionsRepository {
         input.guardian_phone_hash,
       ]);
 
-      const existingGuardianRows = await query<any>(`
-        SELECT
-          profile.id::text,
-          EXISTS (
-            SELECT 1
-            FROM student_guardians link
-            WHERE link.tenant_id = profile.tenant_id
-              AND link.guardian_profile_id = profile.id
-              AND link.status = 'active'
-          ) AS has_linked_student
-        FROM guardian_profiles profile
-        WHERE profile.tenant_id = $1
-          AND profile.normalized_phone = $2
-        LIMIT 1
-      `, [input.tenant_id, input.guardian_phone]);
-      const existingSiblingGuardian = Boolean(existingGuardianRows[0]?.has_linked_student);
+      let guardian: { id: string; user_id: string | null } | null = null;
+      let existingSiblingGuardian = false;
+      // Keep partial contact details on the admission until a guardian is named.
+      if (input.guardian_name) {
+        const existingGuardianRows = await query<any>(`
+          SELECT
+            profile.id::text,
+            EXISTS (
+              SELECT 1
+              FROM student_guardians link
+              WHERE link.tenant_id = profile.tenant_id
+                AND link.guardian_profile_id = profile.id
+                AND link.status = 'active'
+            ) AS has_linked_student
+          FROM guardian_profiles profile
+          WHERE profile.tenant_id = $1
+            AND profile.normalized_phone = $2
+          LIMIT 1
+        `, [input.tenant_id, input.guardian_phone]);
+        existingSiblingGuardian = Boolean(existingGuardianRows[0]?.has_linked_student);
 
-      const guardianRows = await query<any>(`
-        INSERT INTO guardian_profiles (
-          tenant_id, display_name, normalized_phone, user_id, status
-        ) VALUES ($1, $2, $3, $4::uuid, 'active')
-        ON CONFLICT (tenant_id, normalized_phone) DO UPDATE SET
-          display_name = EXCLUDED.display_name,
-          user_id = COALESCE(guardian_profiles.user_id, EXCLUDED.user_id),
-          status = 'active',
-          updated_at = NOW()
-        RETURNING id::text, user_id::text
-      `, [input.tenant_id, input.guardian_name, input.guardian_phone, parentUserId]);
-      const guardian = guardianRows[0];
-      const normalizedRelationship = input.guardian_relationship.trim().toUpperCase();
-      const guardianRelationship = ['FATHER', 'MOTHER', 'GUARDIAN', 'SPONSOR', 'OTHER']
-        .includes(normalizedRelationship)
-        ? normalizedRelationship
-        : 'OTHER';
+        const guardianRows = await query<any>(`
+          INSERT INTO guardian_profiles (
+            tenant_id, display_name, normalized_phone, user_id, status
+          ) VALUES ($1, $2, $3, $4::uuid, 'active')
+          ON CONFLICT (tenant_id, normalized_phone) DO UPDATE SET
+            display_name = EXCLUDED.display_name,
+            user_id = COALESCE(guardian_profiles.user_id, EXCLUDED.user_id),
+            status = 'active',
+            updated_at = NOW()
+          RETURNING id::text, user_id::text
+        `, [input.tenant_id, input.guardian_name, input.guardian_phone, parentUserId]);
+        guardian = guardianRows[0];
+        const normalizedRelationship = input.guardian_relationship?.trim().toUpperCase() ?? null;
+        const guardianRelationship = normalizedRelationship === null ? null : ['FATHER', 'MOTHER', 'GUARDIAN', 'SPONSOR', 'OTHER']
+          .includes(normalizedRelationship)
+          ? normalizedRelationship
+          : 'OTHER';
 
-      const canonicalGuardianRows = await query<any>(`
-        INSERT INTO parent_guardians (
-          id, school_id, full_name, relationship_type, phone, status, updated_at
-        ) VALUES (
-          gen_random_uuid()::text, $1, $2, $3::"GuardianRelationship", $4, 'ACTIVE', NOW()
-        )
-        ON CONFLICT (school_id, phone) DO UPDATE SET
-          full_name = EXCLUDED.full_name,
-          relationship_type = EXCLUDED.relationship_type,
-          status = 'ACTIVE',
-          updated_at = NOW()
-        RETURNING id::text
-      `, [
-        input.tenant_id,
-        input.guardian_name,
-        guardianRelationship,
-        input.guardian_phone,
-      ]);
-      const canonicalGuardianId = String(canonicalGuardianRows[0].id);
+        const canonicalGuardianRows = await query<any>(`
+          INSERT INTO parent_guardians (
+            id, school_id, full_name, relationship_type, phone, status, updated_at
+          ) VALUES (
+            gen_random_uuid()::text, $1, $2, $3::"GuardianRelationship", $4, 'ACTIVE', NOW()
+          )
+          ON CONFLICT (school_id, phone) DO UPDATE SET
+            full_name = EXCLUDED.full_name,
+            relationship_type = COALESCE(EXCLUDED.relationship_type, parent_guardians.relationship_type),
+            status = 'ACTIVE',
+            updated_at = NOW()
+          RETURNING id::text
+        `, [
+          input.tenant_id,
+          input.guardian_name,
+          guardianRelationship,
+          input.guardian_phone,
+        ]);
+        const canonicalGuardianId = String(canonicalGuardianRows[0].id);
 
-      await query(`
-        INSERT INTO student_guardians (
-          tenant_id, school_id, student_id, guardian_id, relationship_type,
-          is_primary_contact, can_receive_sms, can_access_parent_portal, can_pick_student,
-          user_id, guardian_profile_id, display_name, email, phone, normalized_phone,
-          relationship, is_primary, status, accepted_at, updated_at
-        ) VALUES (
-          $1, $1, $2, $3, $4::"GuardianRelationship",
-          TRUE, ($8::text IS NOT NULL), ($8::text IS NOT NULL), FALSE,
-          $5::uuid, $6::uuid, $7, NULL, $8, $8,
-          $9, TRUE, 'active', NOW(), NOW()
-        )
-        ON CONFLICT (tenant_id, student_id, normalized_phone) WHERE normalized_phone IS NOT NULL
-        DO UPDATE SET
-          school_id = EXCLUDED.school_id,
-          guardian_id = EXCLUDED.guardian_id,
-          relationship_type = EXCLUDED.relationship_type,
-          is_primary_contact = TRUE,
-          can_receive_sms = TRUE,
-          can_access_parent_portal = TRUE,
-          user_id = EXCLUDED.user_id,
-          guardian_profile_id = EXCLUDED.guardian_profile_id,
-          display_name = EXCLUDED.display_name,
-          relationship = EXCLUDED.relationship,
-          is_primary = TRUE,
-          status = 'active',
-          accepted_at = NOW(),
-          updated_at = NOW()
-      `, [
-        input.tenant_id,
-        student.id,
-        canonicalGuardianId,
-        guardianRelationship,
-        guardian.user_id ?? parentUserId,
-        guardian.id,
-        input.guardian_name,
-        input.guardian_phone,
-        input.guardian_relationship,
-      ]);
+        await query(`
+          INSERT INTO student_guardians (
+            tenant_id, school_id, student_id, guardian_id, relationship_type,
+            is_primary_contact, can_receive_sms, can_access_parent_portal, can_pick_student,
+            user_id, guardian_profile_id, display_name, email, phone, normalized_phone,
+            relationship, is_primary, status, accepted_at, updated_at
+          ) VALUES (
+            $1, $1, $2, $3, $4::"GuardianRelationship",
+            TRUE, ($8::text IS NOT NULL), ($8::text IS NOT NULL), FALSE,
+            $5::uuid, $6::uuid, $7, NULL, $8, $8,
+            $9, TRUE, 'active', NOW(), NOW()
+          )
+          ON CONFLICT (tenant_id, student_id, normalized_phone) WHERE normalized_phone IS NOT NULL
+          DO UPDATE SET
+            school_id = EXCLUDED.school_id,
+            guardian_id = EXCLUDED.guardian_id,
+            relationship_type = EXCLUDED.relationship_type,
+            is_primary_contact = TRUE,
+            can_receive_sms = TRUE,
+            can_access_parent_portal = TRUE,
+            user_id = EXCLUDED.user_id,
+            guardian_profile_id = EXCLUDED.guardian_profile_id,
+            display_name = EXCLUDED.display_name,
+            relationship = EXCLUDED.relationship,
+            is_primary = TRUE,
+            status = 'active',
+            accepted_at = NOW(),
+            updated_at = NOW()
+        `, [
+          input.tenant_id,
+          student.id,
+          canonicalGuardianId,
+          guardianRelationship,
+          guardian!.user_id ?? parentUserId,
+          guardian!.id,
+          input.guardian_name,
+          input.guardian_phone,
+          input.guardian_relationship,
+        ]);
+      }
 
       const feeRows = await query<any>(`
         SELECT
@@ -1287,9 +1292,9 @@ export class AdmissionsRepository {
           .filter((subject) => selected.has(String(subject.id)))
           .map((subject) => ({ id: subject.id, code: subject.code, name: subject.name })),
         guardian: {
-          profile_id: guardian.id,
+          profile_id: guardian?.id ?? null,
           existing_sibling_guardian: existingSiblingGuardian,
-          portal_access: input.guardian_phone ? (parentRoleId ? 'otp_ready' : 'parent_role_not_configured') : 'pending_contact',
+          portal_access: !guardian ? 'pending_details' : input.guardian_phone ? 'otp_ready' : 'pending_contact',
           phone: input.guardian_phone,
         },
         student_portal: {

@@ -23,6 +23,7 @@ describe('Complete admission on the upgraded legacy database', () => {
   let pool: Pool;
   let service: AdmissionsService;
   let publisher: EventPublisherService;
+  let schema: AdmissionsSchemaService;
   const school = 'admission-regression-school';
   const actor = randomUUID();
   const classId = randomUUID();
@@ -57,7 +58,8 @@ describe('Complete admission on the upgraded legacy database', () => {
       } };
     const auth = new AuthSchemaService(db);
     const students = new StudentsSchemaService(db, auth);
-    await new AdmissionsSchemaService(db, students).onModuleInit();
+    schema = new AdmissionsSchemaService(db, students);
+    await schema.onModuleInit();
     await new AcademicsSchemaService(db).onModuleInit();
     await new EventsSchemaService(db, auth).onModuleInit();
     const authorization = new AuthorizationRepository(db);
@@ -124,6 +126,38 @@ describe('Complete admission on the upgraded legacy database', () => {
       .toEqual(Array(3).fill({ guardian_phone: null, parent_phone: null }));
   });
 
+  test('admits with no guardian details without creating a fake parent or guardian event', async () => {
+    const result = await service.createManualAdmission({ ...dto('NO-GUARDIAN'), guardian_name: undefined, guardian_relationship: undefined });
+    expect(result.guardian).toMatchObject({ profile_id: null, portal_access: 'pending_details' });
+    expect(result.subjects).toHaveLength(10);
+    expect((await pool.query('SELECT guardian_name,parent_name,guardian_relationship,relationship FROM admission_applications WHERE tenant_id=$1 AND id=$2',
+      [school, result.application_id])).rows[0]).toEqual({ guardian_name: null, parent_name: null, guardian_relationship: null, relationship: null });
+    expect((await pool.query('SELECT * FROM student_guardians WHERE tenant_id=$1 AND student_id=$2', [school, result.student.id])).rowCount).toBe(0);
+    expect((await pool.query("SELECT * FROM outbox_events WHERE tenant_id=$1 AND event_name='student.guardian.linked' AND payload->>'student_id'=$2",
+      [school, result.student.id])).rowCount).toBe(0);
+    expect((await pool.query("SELECT * FROM audit_logs WHERE tenant_id=$1 AND entity_id=$2 AND action='STUDENT_ADMITTED'",
+      [school, result.student.id])).rowCount).toBe(1);
+    expect((await pool.query('SELECT * FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2', [school, result.student.id])).rowCount).toBe(1);
+  });
+
+  test('keeps an omitted relationship null for a named guardian', async () => {
+    const result = await service.createManualAdmission({ ...dto('NAME-ONLY'), guardian_relationship: '' });
+    expect(result.guardian.profile_id).toBeTruthy();
+    const links = await pool.query(`SELECT link.relationship,link.relationship_type,parent.relationship_type AS parent_relationship
+      FROM student_guardians link JOIN parent_guardians parent ON parent.id=link.guardian_id AND parent.school_id=link.tenant_id
+      WHERE link.tenant_id=$1 AND link.student_id=$2`, [school, result.student.id]);
+    expect(links.rows).toEqual([{ relationship: null, relationship_type: null, parent_relationship: null }]);
+  });
+
+  test('preserves a phone and relationship without inventing a guardian name', async () => {
+    const input = { ...dto('PHONE-ONLY', '0712345678'), guardian_name: '' };
+    await expect(service.preflightManualAdmission(input)).resolves.toHaveProperty('valid', true);
+    const result = await service.createManualAdmission(input);
+    expect(result.guardian.profile_id).toBeNull();
+    expect((await pool.query('SELECT guardian_name,guardian_phone,guardian_relationship FROM admission_applications WHERE tenant_id=$1 AND id=$2',
+      [school, result.application_id])).rows[0]).toEqual({ guardian_name: null, guardian_phone: '+254712345678', guardian_relationship: 'Father' });
+  });
+
   test('rejects a repeated admission without partially creating another learner', async () => {
     await expect(service.createManualAdmission(dto('TEST-001'))).rejects.toThrow(/already/i);
     expect((await pool.query('SELECT * FROM students WHERE tenant_id=$1 AND admission_number=$2', [school, 'TEST-001'])).rowCount).toBe(1);
@@ -134,6 +168,9 @@ describe('Complete admission on the upgraded legacy database', () => {
     const second = await service.createManualAdmission(dto('CONTACT-002', '0712345678'));
     expect(first.guardian.profile_id).toBe(second.guardian.profile_id);
     expect(second.guardian.existing_sibling_guardian).toBe(true);
+    const preview = await service.preflightManualAdmission({ ...dto('CONTACT-003', '0712345678'), guardian_name: undefined });
+    expect(preview.guardian).toBeTruthy();
+    expect(preview.warnings.some(warning => warning.code === 'GUARDIAN_NAME_MISMATCH')).toBe(false);
     await expect(service.createManualAdmission({ ...dto('FOREIGN'), class_section_id: foreignClassId })).rejects.toThrow();
     expect((await pool.query("SELECT * FROM students WHERE admission_number='FOREIGN'")).rowCount).toBe(0);
   });
@@ -146,5 +183,15 @@ describe('Complete admission on the upgraded legacy database', () => {
     const failures = await pool.query("SELECT aggregate_id FROM outbox_events WHERE tenant_id=$1 AND event_name='system.repair.triggered'", [school]);
     expect(failures.rowCount).toBeGreaterThan(0);
     expect(failures.rows.every(row => /^[0-9a-f-]{36}$/.test(row.aggregate_id))).toBe(true);
+  });
+
+  test('schema startup preserves deliberately omitted relationships', async () => {
+    await schema.onModuleInit();
+    expect((await pool.query("SELECT relationship,guardian_relationship FROM admission_applications WHERE tenant_id=$1 AND application_number='DIRECT-NO-GUARDIAN'",
+      [school])).rows).toEqual([{ relationship: null, guardian_relationship: null }]);
+    expect((await pool.query(`SELECT link.relationship,link.relationship_type FROM student_guardians link
+      JOIN students student ON student.id=link.student_id AND student.tenant_id=link.tenant_id
+      WHERE link.tenant_id=$1 AND student.admission_number='NAME-ONLY'`, [school])).rows)
+      .toEqual([{ relationship: null, relationship_type: null }]);
   });
 });

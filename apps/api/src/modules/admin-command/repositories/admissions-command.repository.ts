@@ -1047,28 +1047,30 @@ export class AdmissionsCommandRepository {
         },
       });
 
-      const guardian = await tx.parentGuardian.create({
-        data: {
-          schoolId: tenantId,
-          fullName: application.guardianName,
-          relationshipType: (application.guardianRelationship?.toUpperCase() || 'GUARDIAN') as any,
-          phone: application.guardianPhone,
-          email: application.guardianEmail,
-          occupation: application.guardianOccupation,
-          status: 'ACTIVE',
-        },
-      });
+      if (application.guardianName) {
+        const guardian = await tx.parentGuardian.create({
+          data: {
+            schoolId: tenantId,
+            fullName: application.guardianName,
+            relationshipType: (application.guardianRelationship?.toUpperCase() || null) as any,
+            phone: application.guardianPhone,
+            email: application.guardianEmail,
+            occupation: application.guardianOccupation,
+            status: 'ACTIVE',
+          },
+        });
 
-      await tx.studentGuardian.create({
-        data: {
-          schoolId: tenantId,
-          studentId: student.id,
-          guardianId: guardian.id,
-          relationshipType: (application.guardianRelationship?.toUpperCase() || 'GUARDIAN') as any,
-          isPrimaryContact: true,
-          canPickStudent: true,
-        },
-      });
+        await tx.studentGuardian.create({
+          data: {
+            schoolId: tenantId,
+            studentId: student.id,
+            guardianId: guardian.id,
+            relationshipType: (application.guardianRelationship?.toUpperCase() || null) as any,
+            isPrimaryContact: true,
+            canPickStudent: true,
+          },
+        });
+      }
 
       await tx.admissionApplication.update({
         where: { id: applicationId },

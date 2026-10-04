@@ -561,11 +561,6 @@ export function StudentAdmissionWizard({
         return `Select no more than ${admissionSettings.maximum_subjects} subjects for this learner.`;
       }
     }
-    if (currentStep === 1) {
-      if (!form.guardian_name.trim() || !form.guardian_relationship.trim()) {
-        return "Guardian name and relationship are required.";
-      }
-    }
     return null;
   }
 
@@ -707,7 +702,7 @@ export function StudentAdmissionWizard({
           <div className="rounded-xl border border-success-border bg-white p-3">
             <dt className="text-xs font-bold uppercase text-muted">Parent access</dt>
             <dd className="mt-1 font-black text-foreground">
-              {result.guardian.portal_access === "otp_ready" ? "OTP ready" : result.guardian.portal_access === "pending_contact" ? "Add guardian phone later" : "Needs role setup"}
+              {result.guardian.portal_access === "otp_ready" ? "OTP ready" : result.guardian.portal_access === "pending_details" ? "Add guardian details later" : result.guardian.portal_access === "pending_contact" ? "Add guardian phone later" : "Needs role setup"}
             </dd>
           </div>
           <div className="rounded-xl border border-success-border bg-white p-3">
@@ -770,7 +765,7 @@ export function StudentAdmissionWizard({
         <div>
           <h3 className="text-lg font-black text-foreground">New student admission</h3>
           <p className="mt-1 text-sm font-semibold text-muted">
-            Enter the learner, select their class, and add a guardian. School settings are applied automatically.
+            Enter the learner and select their class. Guardian details can be added later. School settings are applied automatically.
           </p>
         </div>
         <button
@@ -927,8 +922,8 @@ export function StudentAdmissionWizard({
 
           {step === 1 ? (
             <div className="grid gap-4 md:grid-cols-3">
-              <Field label="Primary guardian name"><input value={form.guardian_name} onChange={(event) => update("guardian_name", event.target.value)} /></Field>
-              <Field label="Relationship"><select value={form.guardian_relationship.toLowerCase()} onChange={(event) => update("guardian_relationship", event.target.value)}><option value="">Select relationship</option><option value="mother">Mother</option><option value="father">Father</option><option value="guardian">Guardian</option></select></Field>
+              <Field label="Primary guardian name (optional)" hint="You can add guardian details later in Parents & guardians."><input value={form.guardian_name} onChange={(event) => update("guardian_name", event.target.value)} /></Field>
+              <Field label="Relationship (optional)"><select value={form.guardian_relationship.toLowerCase()} onChange={(event) => update("guardian_relationship", event.target.value)}><option value="">Add later</option><option value="mother">Mother</option><option value="father">Father</option><option value="guardian">Guardian</option></select></Field>
               <Field label="Guardian phone (optional)" hint="Add later in Parents & guardians. Portal access needs a phone number."><input type="tel" inputMode="tel" placeholder="0712345678" value={form.guardian_phone} onChange={(event) => update("guardian_phone", event.target.value)} /></Field>
             </div>
           ) : null}
@@ -946,7 +941,7 @@ export function StudentAdmissionWizard({
               {preflight?.guardian ? (
                 <section className="rounded-xl border border-cyan-200 bg-cyan-50 p-4">
                   <h4 className="font-black text-foreground">Existing guardian found</h4>
-                  <p className="mt-1 text-sm font-semibold text-muted-strong">{preflight.guardian.display_name} ({preflight.guardian.masked_phone}) will be reused. No duplicate parent account will be created.</p>
+                  <p className="mt-1 text-sm font-semibold text-muted-strong">{preflight.guardian.display_name} ({preflight.guardian.masked_phone}) {form.guardian_name.trim() ? "will be reused. No duplicate parent account will be created." : "matches this phone. Add the guardian name to link this account, or complete the details later."}</p>
                   {preflight.guardian.children.length ? <p className="mt-2 text-sm font-bold text-foreground">Linked learners: {preflight.guardian.children.map((child) => `${child.full_name} (${child.admission_number})`).join(", ")}</p> : null}
                 </section>
               ) : null}
@@ -954,7 +949,7 @@ export function StudentAdmissionWizard({
                 <Review title="Student" rows={[["Admission number", form.admission_number], ["Name", [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ")], ["Gender", form.gender], ["Date of birth", form.date_of_birth || "Not provided"], ["Admission date", form.admission_date], ["Age on admission", preflight ? (preflight.age_at_admission == null ? "Not available" : String(preflight.age_at_admission)) : "Checking"]]} />
                 <Review title="Placement" rows={[["Academic year", selectedYear?.name ?? ""], ["Curriculum", form.curriculum], ["Class / form / grade", selectedClass?.name ?? ""], ["Stream", selectedStream?.name ?? "Not used"], ["Capacity", selectedStream ? capacityLabel(selectedStream.capacity, selectedStream.student_count) : selectedClass ? capacityLabel(selectedClass.capacity, selectedClass.student_count) : "Not set"]]} />
                 <Review title="Subjects" rows={selectedSubjects.map((subject) => [subject.is_compulsory ? `${subject.code} (compulsory)` : subject.code, subject.name])} />
-                <Review title="Guardian" rows={[["Name", form.guardian_name], ["Relationship", form.guardian_relationship], ["Phone", preflight?.guardian?.masked_phone ?? (form.guardian_phone || "Add later")]]} />
+                <Review title="Guardian" rows={[["Name", form.guardian_name.trim() || "Add later"], ["Relationship", form.guardian_relationship || "Add later"], ["Phone", preflight?.guardian?.masked_phone ?? (form.guardian_phone || "Add later")]]} />
               </div>
             </div>
           ) : null}

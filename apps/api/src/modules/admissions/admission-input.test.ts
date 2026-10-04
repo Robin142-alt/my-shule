@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { CreateManualAdmissionDto } from './dto/create-manual-admission.dto';
 
 import {
   normalizeAdmissionNumber,
@@ -44,4 +47,15 @@ test('ordinary admission normalizes supported Kenyan guardian phone formats', ()
 test('ordinary admission trims and validates required person names', () => {
   assert.equal(normalizePersonName('  Akinyi   Wanjiku ', 'Guardian name'), 'Akinyi Wanjiku');
   assert.throws(() => normalizePersonName(' ', 'Guardian name'), /required/);
+});
+
+test('manual and bulk admission accept omitted or blank guardian details but validate supplied values', async () => {
+  const valid = { admission_number: 'ADM-001', first_name: 'Amina', last_name: 'Otieno', gender: 'female',
+    admission_date: '2026-10-04', class_section_id: 'class-1' };
+  for (const contact of [{}, { guardian_name: '', guardian_relationship: '  ' }, { guardian_name: null, guardian_relationship: null },
+    { guardian_name: 'A Guardian' }, { guardian_relationship: 'Mother' }]) {
+    assert.equal((await validate(plainToInstance(CreateManualAdmissionDto, { ...valid, ...contact }))).length, 0);
+  }
+  assert.ok((await validate(plainToInstance(CreateManualAdmissionDto, { ...valid, guardian_name: 123 }))).length);
+  assert.ok((await validate(plainToInstance(CreateManualAdmissionDto, { ...valid, guardian_relationship: ['Mother'] }))).length);
 });

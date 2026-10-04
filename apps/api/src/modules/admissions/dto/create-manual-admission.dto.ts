@@ -11,6 +11,8 @@ import {
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+const optionalTrim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() || undefined : value;
 
 export class CreateManualAdmissionDto {
   @Transform(trim)
@@ -80,17 +82,19 @@ export class CreateManualAdmissionDto {
   @IsString({ each: true })
   subject_ids?: string[];
 
-  @Transform(trim)
+  @Transform(optionalTrim)
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(200)
-  guardian_name!: string;
+  guardian_name?: string;
 
-  @Transform(trim)
+  @Transform(optionalTrim)
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(80)
-  guardian_relationship!: string;
+  guardian_relationship?: string;
 
   @Transform(trim)
   @IsOptional()

@@ -209,7 +209,7 @@ export function StudentBulkAdmission({ onCompleted, initiallyExpanded = false }:
           </span>
           <div>
             <h3 className="font-black text-foreground">Bulk student admission</h3>
-            <p className="mt-1 text-sm text-[#52637A]">Upload a class list, review the preview, then admit. Class setup is automatic; guardian phone is optional.</p>
+            <p className="mt-1 text-sm text-[#52637A]">Upload a class list, review the preview, then admit. Class setup is automatic; guardian name, relationship and phone are optional.</p>
           </div>
         </div>
         <button type="button" disabled={busy !== null} onClick={() => { clearFeedback(); setExpanded((value) => !value); }} className="rounded-lg border border-[#9DB8D1] bg-white px-4 py-2 text-sm font-black text-foreground disabled:opacity-60">

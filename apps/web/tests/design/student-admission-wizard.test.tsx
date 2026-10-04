@@ -159,7 +159,8 @@ describe("guided student admission", () => {
     expect(within(actions).queryByRole("alert")).not.toBeInTheDocument();
     expect(toast.dismiss).toHaveBeenCalledWith(error.id);
     await user.click(proceed);
-    expect(screen.getByRole("alert")).toHaveTextContent("Guardian name and relationship are required.");
+    expect(screen.getByRole("group", { name: "Review & admit" })).toHaveFocus();
+    expect(preflightAdmission).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a blocking server preflight visible at the action and permits retry without admitting", async () => {
@@ -389,7 +390,6 @@ describe("guided student admission", () => {
 
     expect(screen.getByRole("checkbox", { name: /Mathematics/i })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /Integrated Science/i })).toBeChecked();
-    await user.click(screen.getByRole("button", { name: /continue/i }));
 
     await user.type(screen.getByLabelText(/^Primary guardian name/i), "Grace Njeri");
     await user.selectOptions(screen.getByLabelText(/^Relationship/i), "mother");
@@ -477,6 +477,26 @@ describe("guided student admission", () => {
     await waitFor(() => expect(admitStudent).toHaveBeenCalledWith(expect.objectContaining({
       curriculum: "CBC", academic_year_id: "year-2026", guardian_phone: "", guardian_relationship: "guardian", subject_ids: ["subject-mat", "subject-sci"],
     })));
+    expect(preflightAdmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("admits without any guardian details and shows that they can be added later", async () => {
+    const user = userEvent.setup();
+    admitStudent.mockResolvedValueOnce({
+      ...await admitStudent.getMockImplementation()!(),
+      guardian: { profile_id: null, portal_access: "pending_details", phone: null, existing_sibling_guardian: false },
+    });
+    renderWithProviders(<StudentAdmissionWizard onCancel={jest.fn()} onAdmitted={jest.fn()} />);
+    await reachSubjects(user);
+    expect(screen.getByLabelText(/^Primary guardian name \(optional\)/i)).not.toBeRequired();
+    expect(screen.getByLabelText("Relationship (optional)")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(screen.getAllByText("Add later")).toHaveLength(3);
+    await user.click(screen.getByRole("button", { name: /admit student/i }));
+    await waitFor(() => expect(admitStudent).toHaveBeenCalledWith(expect.objectContaining({
+      guardian_name: "", guardian_relationship: "", guardian_phone: "",
+    })));
+    expect(await screen.findByText("Add guardian details later")).toBeVisible();
     expect(preflightAdmission).toHaveBeenCalledTimes(1);
   });
 

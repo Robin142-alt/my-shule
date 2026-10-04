@@ -133,7 +133,7 @@ const ADMISSIONS_IMPORT_HEADERS = [
 ] as const;
 
 const ADMISSIONS_IMPORT_REQUIRED_HEADERS = ADMISSIONS_IMPORT_HEADERS.filter(
-  (header) => !['middle_name', 'stream', 'date_of_birth', 'guardian_phone', 'academic_year', 'curriculum'].includes(header),
+  (header) => !['middle_name', 'stream', 'date_of_birth', 'guardian_name', 'guardian_relationship', 'guardian_phone', 'academic_year', 'curriculum'].includes(header),
 );
 
 const ADMISSIONS_IMPORT_HEADER_ALIASES: Record<string, string> = {
@@ -525,6 +525,7 @@ export class AdmissionsService {
 
     if (
       preflight.guardian &&
+      dto.guardian_name?.trim() &&
       String(preflight.guardian.display_name).toLowerCase() !== dto.guardian_name.trim().toLowerCase()
     ) {
       warnings.push({
@@ -1002,11 +1003,11 @@ export class AdmissionsService {
           class_section_id: dto.class_section_id.trim(),
           stream_id: dto.stream_id?.trim() || null,
           subject_ids: dto.subject_ids?.map((subjectId) => subjectId.trim()).filter(Boolean),
-          guardian_name: normalizePersonName(dto.guardian_name, 'Guardian name'),
-          guardian_relationship: normalizePersonName(
+          guardian_name: dto.guardian_name?.trim() ? normalizePersonName(dto.guardian_name, 'Guardian name') : null,
+          guardian_relationship: dto.guardian_relationship?.trim() ? normalizePersonName(
             dto.guardian_relationship,
             'Guardian relationship',
-          ),
+          ) : null,
           guardian_phone: guardianPhone,
           guardian_phone_hash: phoneHash,
           guardian_phone_last4: guardianPhone?.slice(-4) ?? null,
@@ -1156,7 +1157,7 @@ export class AdmissionsService {
         subject_ids: admitted.subjects.map((subject: any) => subject.id),
       },
     }, tx);
-    await this.eventPublisher.publish({
+    if (admitted.guardian.profile_id) await this.eventPublisher.publish({
       tenant_id: tenantId,
       event_key: `student.guardian.linked:${student.id}:${admitted.guardian.profile_id}`,
       event_name: 'student.guardian.linked',
