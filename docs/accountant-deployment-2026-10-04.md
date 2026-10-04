@@ -25,7 +25,9 @@ The updated source service successfully reads Kibabi overview and expenses again
 
 ### Additional STK migration finding
 
-The production database still has older STK write constraints: integer account references/account codes, mandatory fields that the canonical pending-intent contract treats as optional, and legacy required M-Pesa transaction fields. These pre-existing mismatches require a separately verified compatibility migration before STK production certification. Adding receipt-query columns does not establish STK write readiness. Preserve old records and tenant constraints; do not fabricate defaults for school ownership, amounts or provider verification to satisfy those columns.
+The preflight found older STK write constraints: integer account references/account codes, mandatory fields that the canonical pending-intent contract treats as optional, UUID provider request IDs, JSON scalar metadata and legacy required M-Pesa transaction fields. `LEGACY_STK_WRITE_SCHEMA` expands these to the current repository contracts, retains historical columns and records, keeps tenant ownership mandatory, and adds missing duplicate protection and composite tenant foreign keys. Invalid timestamps, non-scalar legacy metadata or duplicate identities abort the transaction for review.
+
+Five disposable PostgreSQL tests use the real intent, callback and transaction repositories against the old types. They verify the original failure, transactional schema rollback, repeated application, historical value preservation, alphanumeric references, optional fields, failed callbacks with no invented money, replay uniqueness, RLS and cross-school FK rejection. API TypeScript passes. Production application of this compatibility expansion is pending a fresh backup and transaction rehearsal. On application rollback, retain the expanded schema and financial records; do not narrow text references back to integers or restore older constraints over new valid records.
 
 ## Controlled live verification
 
@@ -37,7 +39,7 @@ The installed bank providers support statement entry and separate Principal conf
 | --- | --- |
 | Production schema | Additive updates applied; read-only source-service rehearsal passed |
 | Production application code | Pending deployment verification |
-| Legacy STK write schema | Compatibility migration required; not certified |
+| Legacy STK write schema | Compatibility migration tested locally; production application pending |
 | Kibabi production provider onboarding | Not configured at preflight |
 | Existing student with active fee balance | No eligible invoice found at preflight |
 | KES 10 provider-confirmed collection | Not attempted |

@@ -4,6 +4,7 @@ import { AuthSchemaService } from '../../auth/auth-schema.service';
 import { PrismaService } from '../../database/prisma.service';
 import { FinanceSchemaService } from '../finance/finance-schema.service';
 import { TenantFinanceSchemaService } from '../tenant-finance/tenant-finance-schema.service';
+import { LEGACY_STK_WRITE_SCHEMA } from './legacy-stk-write-schema';
 
 @Injectable()
 export class PaymentsSchemaService implements OnModuleInit {
@@ -952,6 +953,8 @@ export class PaymentsSchemaService implements OnModuleInit {
         END IF;
       END;
       $$;
+
+      ${LEGACY_STK_WRITE_SCHEMA}
 
       CREATE INDEX IF NOT EXISTS ix_payment_intents_status_created_at
         ON payment_intents (tenant_id, status, created_at DESC);

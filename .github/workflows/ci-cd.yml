@@ -293,7 +293,7 @@ jobs:
           NODE_ENV: test
         run: |
           node --test dist/apps/api/src/modules/billing/billing.test.js dist/apps/api/src/modules/billing/finance-workflow-controls.test.js dist/apps/api/src/modules/admin-command/admin-command.test.js
-          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/accountant-overview.integration-spec.ts apps/api/test/accountant-controls.integration-spec.ts
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/accountant-overview.integration-spec.ts apps/api/test/accountant-controls.integration-spec.ts apps/api/test/stk-legacy-schema.integration-spec.ts
 
       - name: Durable report jobs, private storage and worker isolation
         env:
