@@ -40,6 +40,16 @@ Parent portal instructions use the actual SMS outbox for phone-based accounts an
 
 Deploy the API and web changes together. The schema bootstrap relaxes only guardian-contact nullability, preserving uniqueness for supplied phones. No school data backfill or demo seeding is required. Existing admissions roles need the added `school_sms:read` grant for delivery history.
 
+## Admission repair, 4 October 2026
+
+The legacy `admission_applications.guardian_phone` column also needs to allow NULL. The original consolidation relaxed its `parent_phone` alias but missed the legacy column, causing admissions without a phone to roll back with HTTP 500. The bootstrap and Prisma contract now agree. Failure governance uses a UUID for the admission attempt; successful events and audits continue to reference the actual student.
+
+Ordinary admission no longer rewrites the complete role/permission catalog. If a portal role is missing, the failed transaction rolls back, the existing setup repair runs once, and admission retries. Selected subjects are inserted together. In the ten-subject PostgreSQL fixture, steady-state database calls fell from 54 to 45 (plus three catalog writes removed from the original path). Local timings were 388–462 ms before subject batching and 374–399 ms after; these are local fixture measurements, not a production latency guarantee.
+
+Admissions and Head of Subject now use the same fixed left-edge mobile MENU tab as Teacher and the other role dashboards. Embedded module navigation remains inside its workspace so it does not create a second floating menu.
+
+`admission-canonical.integration-spec.ts` upgrades the checked-in legacy schema and runs the complete admission service, repository, fee creation, guardian linking, subject enrolment, real event outbox and audit path. It covers missing phone, siblings, duplicate admission, foreign class rejection, event-failure rollback, and a bounded database request count. CI runs it against a disposable PostgreSQL database.
+
 ## Verification
 
 Relevant tests include:

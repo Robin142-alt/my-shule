@@ -97,7 +97,7 @@ export function HosCommandCenter({ activeSection, routeMode = "hosted" }: { acti
       <main id="hos-main" className="app-command-main min-w-0 flex-1 lg:flex lg:h-full lg:flex-col">
         <header className="app-command-topbar sticky top-0 z-20 border-b border-border bg-white/95 px-4 py-3 backdrop-blur">
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <div className="min-w-0 flex-1 lg:hidden"><MobileWorkspaceNavigation label="Head of Subject workspace" items={hosWorkspaces} value={section} onValueChange={value => openSection(normalizeHosSection(value))} testId="hos-mobile-workspace-nav" mobilePlacement="inline" /></div>
+            <div className="min-w-0 flex-1 lg:hidden"><MobileWorkspaceNavigation label="Head of Subject workspace" items={hosWorkspaces} value={section} onValueChange={value => openSection(normalizeHosSection(value))} testId="hos-mobile-workspace-nav" /></div>
             <p className="hidden text-sm font-semibold text-muted lg:block">Head of Subject <span className="mx-2 text-border-strong">/</span><span className="text-foreground">{current.label}</span></p>
             <NotificationBell />
           </div>
