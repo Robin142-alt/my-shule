@@ -19,6 +19,14 @@ Deploy the locally verified Accountant changes through the existing GitHub, Rail
 
 Existing transactional startup bootstrap adds requester, idempotency and decision fields to `school_expenses`, its tenant-aware unique key, and `manual_fee_reversal_requests` with approval separation, tenant foreign key, pending uniqueness and forced RLS. Verify these in the deployed database before considering the new UI operational. No financial history is rewritten by this release.
 
+Applied and verified on 4 October: five expense columns, three indexes, the reversal table, forced RLS and runtime SELECT/INSERT/UPDATE privileges. A further read-only rehearsal found five missing legacy `mpesa_transactions` columns; the additive upgrade now supplies these without deriving amounts or ledger links from old records. Both upgrades ran transactionally with a verified backup and a five-second lock timeout. The source receipt projection also normalizes legacy text and UUID identifiers so the existing database can use it without altering stored identifiers.
+
+The updated source service successfully reads Kibabi overview and expenses against production using the restricted runtime role and tenant context. It reports zero collections/invoices and one active fee structure. This is a read-only database/service rehearsal, not authenticated browser or provider evidence.
+
+### Additional STK migration finding
+
+The production database still has older STK write constraints: integer account references/account codes, mandatory fields that the canonical pending-intent contract treats as optional, and legacy required M-Pesa transaction fields. These pre-existing mismatches require a separately verified compatibility migration before STK production certification. Adding receipt-query columns does not establish STK write readiness. Preserve old records and tenant constraints; do not fabricate defaults for school ownership, amounts or provider verification to satisfy those columns.
+
 ## Controlled live verification
 
 The corrected Kibabi lookup uses tenant key `kibabi-high`, not the separate tenant-record UUID. It found 57 students, zero active learner invoices, one active Safaricom sandbox revision, and no production or bank revisions. An earlier diagnostic used the wrong tenant identifier and incorrectly reported no students; that conclusion is withdrawn. These diagnostics did not change records.
@@ -27,7 +35,9 @@ The installed bank providers support statement entry and separate Principal conf
 
 | Check | Status |
 | --- | --- |
-| Production code and schema | Pending deployment verification |
+| Production schema | Additive updates applied; read-only source-service rehearsal passed |
+| Production application code | Pending deployment verification |
+| Legacy STK write schema | Compatibility migration required; not certified |
 | Kibabi production provider onboarding | Not configured at preflight |
 | Existing student with active fee balance | No eligible invoice found at preflight |
 | KES 10 provider-confirmed collection | Not attempted |
@@ -37,4 +47,4 @@ The installed bank providers support statement entry and separate Principal conf
 | Parent/student authenticated statement | Live evidence pending |
 | Bank collection | Statement-review flow supported; live evidence pending |
 
-Certification remains **not live-ready** until the real-provider checks have evidence. Never fabricate provider callbacks, invent students/invoices, activate sandbox as production, or bypass approval to complete this checklist.
+The owner confirmed that only sandbox accounts are available. Certification remains **not live-ready** until the compatibility and real-provider checks have evidence. Never fabricate provider callbacks, invent students/invoices, activate sandbox as production, or bypass approval to complete this checklist.

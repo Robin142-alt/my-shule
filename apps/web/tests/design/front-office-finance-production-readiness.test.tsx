@@ -40,11 +40,11 @@ describe("front office and finance production readiness", () => {
       within(dashboard).getByRole("heading", { name: /Admissions Officer Dashboard/i }),
     ).toBeVisible();
     const navigation = within(dashboard).getByRole("navigation", { name: "Admissions" });
-    expect(within(navigation).getByRole("link", { name: "Admit Student", exact: true })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: "Admit Student" })).toHaveAttribute(
       "href",
       "/school/admissions/applications",
     );
-    expect(within(navigation).getByRole("link", { name: "Admission Records", exact: true })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: "Admission Records" })).toHaveAttribute(
       "href",
       "/school/admissions/enrolment",
     );

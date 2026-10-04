@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Pool } from 'pg';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { AccountantCommandService } from '../src/modules/admin-command/accountant-command.service';
@@ -45,13 +47,14 @@ describe('Accountant daily figures agree with posted school accounts', () => {
         ADD COLUMN deposited_at timestamptz, ADD COLUMN cleared_at timestamptz, ADD COLUMN bounced_at timestamptz,
         ADD COLUMN reversed_at timestamptz, ADD COLUMN cheque_number text, ADD COLUMN drawer_bank text,
         ADD COLUMN deposit_reference text, ADD COLUMN external_reference text, ADD COLUMN asset_account_code text,
-        ADD COLUMN fee_control_account_code text, ADD COLUMN ledger_transaction_id uuid, ADD COLUMN reversal_ledger_transaction_id uuid,
-        ADD COLUMN notes text, ADD COLUMN metadata jsonb DEFAULT '{}', ADD COLUMN created_by_user_id uuid,
+        ADD COLUMN fee_control_account_code text, ADD COLUMN ledger_transaction_id text, ADD COLUMN reversal_ledger_transaction_id text,
+        ADD COLUMN notes text, ADD COLUMN metadata jsonb DEFAULT '{}', ADD COLUMN created_by_user_id text,
         ADD COLUMN created_at timestamptz DEFAULT now(), ADD COLUMN updated_at timestamptz DEFAULT now();
       CREATE TABLE payment_intents(id uuid,tenant_id text,student_id uuid,payment_owner text,status text,amount_minor bigint,
         currency_code text DEFAULT 'KES',external_reference text,completed_at timestamptz,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),ledger_transaction_id uuid,user_id uuid);
       CREATE TABLE student_fee_payment_allocations(tenant_id text,payment_intent_id uuid,invoice_id uuid,amount_minor bigint);
-      CREATE TABLE mpesa_transactions(tenant_id text,payment_intent_id uuid,ledger_transaction_id uuid,mpesa_receipt_number text,created_at timestamptz DEFAULT now());
+      CREATE TABLE mpesa_transactions(tenant_id text,payment_intent_id uuid,mpesa_receipt_number text,created_at timestamptz DEFAULT now());
+      INSERT INTO mpesa_transactions(tenant_id,mpesa_receipt_number) VALUES('legacy-school','LEGACY-RECEIPT');
       ALTER TABLE manual_fee_payment_allocations ADD COLUMN invoice_id uuid;
       ALTER TABLE student_fee_credits ADD COLUMN payment_intent_id uuid;
       CREATE TABLE mpesa_c2b_payments(tenant_id text,status text);
@@ -86,6 +89,18 @@ describe('Accountant daily figures agree with posted school accounts', () => {
       INSERT INTO school_expenses VALUES ('school-a','pending');
       INSERT INTO tenant_pending_waivers VALUES ('school-a','PENDING');
     `);
+    // Upgrade the pre-existing table with the actual startup DDL, without guessing
+    // a verified ledger link or deriving money from legacy floating-point values.
+    const source = readFileSync(join(__dirname, '../src/modules/payments/payments-schema.service.ts'), 'utf8');
+    const upgrade = source.match(/ALTER TABLE mpesa_transactions\s+ADD COLUMN IF NOT EXISTS [\s\S]*?;/g);
+    expect(upgrade?.length).toBeGreaterThan(0);
+    await pool.query(upgrade!.join('\n'));
+    await pool.query(upgrade!.join('\n'));
+  });
+  it('upgrades legacy provider rows idempotently without inventing verification or financial amounts', async () => {
+    const result = await pool.query(`SELECT mpesa_receipt_number,amount_minor,ledger_transaction_id,transaction_occurred_at,processed_at,metadata
+      FROM mpesa_transactions WHERE tenant_id='legacy-school'`);
+    expect(result.rows).toEqual([{mpesa_receipt_number:'LEGACY-RECEIPT',amount_minor:null,ledger_transaction_id:null,transaction_occurred_at:null,processed_at:null,metadata:{}}]);
   });
   it('counts completed school STK receipts once and excludes platform or unposted intents', async () => {
     const id=randomUUID(), ledger=randomUUID(), learner=randomUUID();

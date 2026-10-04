@@ -46,6 +46,9 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
   const submission = useRef<{ key: string; body?: Record<string, unknown> }>({ key: "" });
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState("");
+  const previewInFlight = useRef(false);
   const [cheque, setCheque] = useState<ChequeAction | null>(null);
   const [reversal, setReversal] = useState<Receipt | null>(null);
   const rows = (Array.isArray(query.data) ? query.data : []).filter(row => [row.receipt_number, row.student_name, row.admission_number, row.payer_name, row.external_reference]
@@ -109,7 +112,11 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "The reversal request failed. Retry."); }
     finally { inFlight.current = false; setBusy(false); }
   }
-  function preview(row: Receipt) {
+  async function preview(row: Receipt) {
+    if (!tenantId || previewInFlight.current) return;
+    previewInFlight.current = true;
+    setPreviewingId(row.id); setPreviewError("");
+    try {
     openPrintDocument({
       eyebrow: identity.schoolName, logoUrl: identity.logoUrl, title: `Receipt ${row.receipt_number}`,
       subtitle: row.status === "cleared" ? "Cleared school fee payment" : `Payment acknowledgement · ${row.status}`,
@@ -127,12 +134,24 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
       ],
       footer: row.status === "cleared" ? "Generated from the school’s persisted fee receipt." : "This acknowledgement does not confirm cleared funds. Refer to the current student statement for the balance.",
     });
+    await requestDashboardApi("/admin-command/accountant/actions", {
+      tenantId, method: "POST", body: {
+        action: "receipt_previewed", title: "Receipt preview generated",
+        message: `Receipt ${row.receipt_number} preview generated from the school fee register.`,
+        entity_type: "finance_receipt", entity_id: row.id,
+        source_dashboard: "accountant-receipts-workspace",
+        payload: { receipt_number: row.receipt_number, status: row.status },
+      },
+    });
+    } catch (cause) {
+      setPreviewError(`Receipt preview or its audit record could not be completed. Retry Preview / print. ${cause instanceof Error ? cause.message : "The service is unavailable."}`);
+    } finally { previewInFlight.current = false; setPreviewingId(null); }
   }
   return <div className="space-y-4">
     <section className="rounded-xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h3 className="text-lg font-semibold">{receiptsOnly ? "Receipt register" : "Payments & cheque clearing"}</h3>
-          <p className="mt-1 max-w-2xl text-sm text-muted">Verified M-Pesa and bank collections appear automatically. Record cash received at school and track cheques until cleared.</p></div>
+          <p className="mt-1 max-w-2xl text-sm text-muted">Provider-verified collections and approved bank entries appear here. Record cash received at school and track cheques until cleared.</p></div>
         <Button disabled={!canWrite} onClick={record}>Record {receiptsOnly ? "manual receipt" : "cash or cheque"}</Button>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -145,6 +164,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
       </div>
     </section>
     {notice && <p role="status" className="rounded-lg bg-success-soft p-3 text-sm">{notice}</p>}
+    {previewError && <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{previewError}</p>}
     {query.error && <p role="alert" className="rounded-lg bg-danger-soft p-3">{query.error.message} Use Refresh receipts to retry.</p>}
     <div className="flex flex-col gap-3 sm:flex-row">
       <label className="flex-1 text-sm">Search this page<input className="input-base mt-1 w-full" type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Learner, admission number or receipt" /></label>
@@ -160,7 +180,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
         { id: "method", header: "Method", render: row => methodNames[row.payment_method] ?? row.payment_method },
         { id: "status", header: "Status", render: row => <span className="capitalize">{row.status}</span> },
         { id: "date", header: "Received", render: row => formatActivityDate(row.received_at) },
-        { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => preview(row)}>Preview / print</Button>
+        { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={previewingId !== null} onClick={() => void preview(row)}>{previewingId === row.id ? "Opening…" : "Preview / print"}</Button>
           {canWrite && row.status === "cleared" && row.metadata?.source !== "stk_payment" && <Button size="sm" variant="ghost" onClick={() => { setError(""); if (row.metadata?.source === "collection_payment" && onNavigate) onNavigate("collections"); else setReversal(row); }}>Request reversal</Button>}
           {row.metadata?.source === "stk_payment" && <span className="text-xs text-muted">Legacy STK receipt. Contact the school finance administrator for reversal review.</span>}
           {!receiptsOnly && canWrite && row.payment_method === "cheque" && ["received", "deposited"].includes(row.status) && (row.status === "received" ? ["deposit", "clear", "bounce"] as const : ["clear", "bounce"] as const).map(action =>

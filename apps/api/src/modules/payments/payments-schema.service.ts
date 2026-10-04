@@ -726,6 +726,16 @@ export class PaymentsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS raw_payload_encrypted_ref text;
       ALTER TABLE mpesa_transactions
       ADD COLUMN IF NOT EXISTS payload_sha256 char(64);
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS amount_minor bigint;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS transaction_occurred_at timestamptz;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS ledger_transaction_id uuid;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS processed_at timestamptz;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 
       ALTER TABLE mpesa_c2b_payments
       ADD COLUMN IF NOT EXISTS invoice_number text;

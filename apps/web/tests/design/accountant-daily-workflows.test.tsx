@@ -22,7 +22,7 @@ jest.mock('@/lib/data/school-hooks',()=>({useSchoolQuery:(path:string)=>({
   error:mockQueryError,isLoading:false,isFetching:false,refetch:mockRefetch,
 })}));
 const request=requestDashboardApi as jest.Mock;
-beforeEach(()=>{jest.clearAllMocks();mockQueryError=null;});
+beforeEach(()=>{jest.clearAllMocks();request.mockReset();mockQueryError=null;});
 
 it('single invoice keeps failed form open, retries the same key and sends the active school',async()=>{
   request.mockRejectedValueOnce(new Error('Connection interrupted')).mockResolvedValueOnce({invoice_number:'INV-001'});
@@ -55,12 +55,29 @@ it('bulk billing loads eligible learners, sends only accepted fields and preserv
   expect(request.mock.calls[0][1].body.target_students).toEqual([{student_id:learner.id,student_name:learner.name}]);
 });
 
-it('pending cheque preview truthfully distinguishes acknowledgement from cleared funds',()=>{
+it('pending cheque preview truthfully distinguishes acknowledgement from cleared funds and audits the active school',async()=>{
+  request.mockResolvedValueOnce({});
   render(<PaymentRegister tenantSlug="isolated-school" />);
   fireEvent.click(screen.getAllByRole('button',{name:'Preview / print'})[0]);
   expect(openPrintDocument).toHaveBeenCalledWith(expect.objectContaining({title:'Receipt RCT-001',subtitle:'Payment acknowledgement · received',footer:expect.stringContaining('does not confirm cleared funds')}));
   expect(screen.getAllByRole('button',{name:'Confirm cleared'})[0]).toBeVisible();
   expect(screen.queryByRole('button',{name:'Request reversal'})).not.toBeInTheDocument();
+  await waitFor(()=>expect(request).toHaveBeenCalledWith('/admin-command/accountant/actions',expect.objectContaining({
+    tenantId:'isolated-school',method:'POST',body:expect.objectContaining({action:'receipt_previewed',entity_id:'receipt-one'}),
+  })));
+  await waitFor(()=>expect(screen.getAllByRole('button',{name:'Preview / print'})[0]).toBeEnabled());
+});
+
+it('surfaces receipt audit failure and permits retry without recording a new payment',async()=>{
+  request.mockRejectedValueOnce(new Error('Audit service unavailable')).mockResolvedValueOnce({});
+  render(<PaymentRegister tenantSlug="isolated-school" />);
+  fireEvent.click(screen.getAllByRole('button',{name:'Preview / print'})[0]);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Audit service unavailable');
+  fireEvent.click(screen.getAllByRole('button',{name:'Preview / print'})[0]);
+  await waitFor(()=>expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request.mock.calls.every(([endpoint])=>endpoint==='/admin-command/accountant/actions')).toBe(true);
+  await waitFor(()=>expect(screen.getAllByRole('button',{name:'Preview / print'})[0]).toBeEnabled());
 });
 
 it('failed registers surface errors with a working refresh instead of a fake empty success',async()=>{
