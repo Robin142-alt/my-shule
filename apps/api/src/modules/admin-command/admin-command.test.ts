@@ -1239,8 +1239,9 @@ test('AccountantCommandService reads the expense register inside the authenticat
   assert.equal(response.items[0].description, 'Electricity tokens');
   assert.equal(response.items[0].amount_minor, '1250000');
   assert.equal(queries.length, 2);
+  assert.deepEqual(queries[0].params, ['tenant-a']);
+  assert.deepEqual(queries[1].params, ['tenant-a', 50, 0, null]);
   for (const query of queries) {
-    assert.deepEqual(query.params, ['tenant-a']);
     assert.match(query.sql, /FROM school_expenses/);
     assert.match(query.sql, /WHERE tenant_id = \$1/);
   }
@@ -1259,6 +1260,7 @@ test('AccountantCommandService persists an expense before emitting its approval 
       }),
     } as never,
     {
+      withRequestTransaction: async (work: () => Promise<unknown>) => work(),
       executeWithTenant: async (
         tenantId: string,
         userId: string | null | undefined,
@@ -1307,10 +1309,12 @@ test('AccountantCommandService persists an expense before emitting its approval 
     'utilities',
     'Electricity tokens',
     '1250000',
+    '11111111-1111-4111-8111-111111111111',
+    null,
   ]);
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].eventType, 'accountant.expense_submitted');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['accountant', 'principal']);
+  assert.deepEqual(workflowCalls[0].targetRoles, ['accountant', 'bursar', 'principal']);
   assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
   assert.equal(notificationCalls.length, 1);
   assert.equal(notificationCalls[0].tenantId, 'tenant-a');

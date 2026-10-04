@@ -14,6 +14,7 @@ import {
 } from '../../common/reports/report-csv-artifact';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import {
   BILLING_DEFAULT_CURRENCY_CODE,
   BILLING_INVOICE_NUMBER_PREFIX,
@@ -100,7 +101,7 @@ type StudentBalanceAccumulator = {
 
 type StudentStatementWorkingEntry = {
   id: string;
-  kind: 'invoice' | 'receipt';
+  kind: 'invoice' | 'receipt' | 'adjustment';
   source_id: string;
   invoice_id: string | null;
   reference: string;
@@ -227,6 +228,7 @@ export class BillingService {
     @Optional() private readonly studentFeePaymentAllocation?: StudentFeePaymentAllocationService,
     @Optional() private readonly manualFeePaymentsRepository?: ManualFeePaymentsRepository,
     @Optional() private readonly feeStructuresRepository?: FeeStructuresRepository,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   async createSubscription(dto: CreateSubscriptionDto): Promise<SubscriptionResponseDto> {
@@ -316,7 +318,39 @@ export class BillingService {
   async createInvoice(dto: CreateInvoiceDto): Promise<InvoiceResponseDto> {
     const invoice = await this.prisma.withRequestTransaction(async () => {
       const tenantId = this.requireTenantId();
+      if (dto.idempotency_key) await this.subscriptionsRepository.acquireTenantMutationLock(tenantId);
       const subscription = await this.requireBillableSubscription(tenantId);
+      if (BigInt(dto.total_amount_minor) <= 0n || BigInt(dto.total_amount_minor) > 9_223_372_036_854_775_807n) {
+        throw new BadRequestException('Invoice amount exceeds the supported financial limit');
+      }
+      const metadata = { ...(dto.metadata ?? {}) };
+      delete metadata.submission_key;
+      const studentId = this.readStringMetadata(metadata, 'student_id');
+      if ('student_id' in metadata && !studentId) throw new BadRequestException('A valid learner reference is required');
+      if (studentId) {
+        const student = (await this.prisma.query<{ student_name: string; admission_number: string }>(
+          `SELECT trim(concat_ws(' ', first_name,middle_name,last_name)) AS student_name, admission_number
+           FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`, [tenantId, studentId],
+        )).rows[0];
+        if (!student) throw new NotFoundException('Learner was not found in this school');
+        Object.assign(metadata, student);
+      }
+      if (dto.idempotency_key) {
+        const previous = (await this.prisma.query<{ id: string }>(
+          `SELECT id::text FROM invoices WHERE tenant_id=$1 AND metadata->>'submission_key'=$2 LIMIT 1`,
+          [tenantId, dto.idempotency_key],
+        )).rows[0];
+        if (previous) {
+          const saved = await this.invoicesRepository.findById(tenantId, previous.id);
+          if (!saved || saved.total_amount_minor !== dto.total_amount_minor || saved.description !== dto.description.trim()
+            || this.readStringMetadata(saved.metadata, 'student_id') !== studentId
+            || (dto.due_at && saved.due_at.toISOString() !== this.resolveTimestamp(dto.due_at))) {
+            throw new ConflictException('This submission already created a different invoice. Check the invoice register.');
+          }
+          return this.mapInvoice(saved);
+        }
+        metadata.submission_key = dto.idempotency_key;
+      }
       const dueAt = dto.due_at
         ? this.resolveTimestamp(dto.due_at)
         : addDays(new Date(), 7).toISOString();
@@ -334,15 +368,27 @@ export class BillingService {
           dto.billing_phone_number?.trim() || subscription.billing_phone_number,
         issued_at: new Date().toISOString(),
         due_at: dueAt,
-        metadata: dto.metadata ?? {},
+        metadata,
       });
 
-      await this.subscriptionsRepository.markInvoiceIssued(tenantId, subscription.id, null);
+      if (studentId) await this.recordLearnerInvoice(invoice);
+      else await this.subscriptionsRepository.markInvoiceIssued(tenantId, subscription.id, null);
       return this.mapInvoice(invoice);
     });
 
     await this.billingAccessService.invalidateTenant(invoice.tenant_id);
     return invoice;
+  }
+
+  private async recordLearnerInvoice(invoice: InvoiceEntity) {
+    if (!this.schoolEvents) throw new ConflictException('Invoice event service is unavailable; retry when finance services recover');
+    await this.schoolEvents.recordSchoolOperation({
+      schoolId: invoice.tenant_id,
+      event: { id: `invoice-created:${invoice.id}`, type: 'invoice.created', module: 'finance',
+        entityId: invoice.id, title: 'Fee invoice created', body: `${invoice.invoice_number} has been issued.`,
+        payload: { invoice_id: invoice.id, student_id: invoice.metadata.student_id,
+          total_amount_minor: invoice.total_amount_minor, source_dashboard: 'accountant-invoices' } },
+    });
   }
 
   async createFeeStructure(
@@ -465,7 +511,15 @@ export class BillingService {
         );
       }
 
-      const students = this.normalizeBulkFeeStudents(dto.target_students);
+      const selected = this.normalizeBulkFeeStudents(dto.target_students);
+      const roster = await feeStructuresRepository.listBillableStudentsForFeeStructure(tenantId, {
+        grade_level: feeStructure.grade_level, class_name: feeStructure.class_name,
+      });
+      const students = selected.map(student => {
+        const enrolled = roster.find(row => row.student_id === student.student_id);
+        if (!enrolled) throw new BadRequestException('Every selected learner must belong to this school and fee structure roster');
+        return enrolled;
+      });
       const existingInvoices = await this.invoicesRepository.listInvoices(tenantId);
       const activeInvoiceByStudent = new Map<string, InvoiceEntity>();
 
@@ -537,7 +591,7 @@ export class BillingService {
           },
         });
 
-        await this.subscriptionsRepository.markInvoiceIssued(tenantId, subscription.id, null);
+        await this.recordLearnerInvoice(invoice);
         activeInvoiceByStudent.set(student.student_id, invoice);
         invoices.push(this.mapInvoice(invoice));
       }
@@ -618,6 +672,7 @@ export class BillingService {
       {
         limit: query.limit ?? 25,
         offset: query.offset ?? 0,
+        studentOnly: query.student_only === 'true',
       },
     );
     return invoices.map((invoice) => this.mapInvoice(invoice));
@@ -974,6 +1029,7 @@ export class BillingService {
     const balances = new Map<string, StudentBalanceAccumulator>();
 
     for (const invoice of invoices) {
+      if (['draft', 'void', 'uncollectible'].includes(invoice.status)) continue;
       const studentId = this.readStringMetadata(invoice.metadata, 'student_id');
 
       if (!studentId) {
@@ -1304,6 +1360,7 @@ export class BillingService {
     }
 
     for (const invoice of invoices) {
+      if (invoice.status === 'draft') continue;
       entries.push({
         id: `invoice:${invoice.id}`,
         kind: 'invoice',
@@ -1320,6 +1377,19 @@ export class BillingService {
       });
 
       const paidMinor = this.toMinorBigInt(invoice.amount_paid_minor);
+      // Retain the original charge and show why its remaining balance is no
+      // longer collectible. These are read-model entries, not new ledger writes.
+      const outstanding = this.toMinorBigInt(invoice.total_amount_minor) - paidMinor;
+      if (['void', 'uncollectible'].includes(invoice.status) && outstanding > 0n) {
+        entries.push({
+          id: `adjustment:${invoice.id}`, kind: 'adjustment', source_id: invoice.id,
+          invoice_id: invoice.id, reference: invoice.invoice_number,
+          description: invoice.status === 'void' ? 'Invoice cancelled' : 'Outstanding balance written off',
+          status: invoice.status, method: 'invoice_adjustment',
+          debit_amount_minor: 0n, credit_amount_minor: outstanding,
+          occurred_at: invoice.voided_at ?? invoice.updated_at, ledger_transaction_id: null,
+        });
+      }
       const receiptCredits = clearedReceiptCreditsByInvoice.get(invoice.id) ?? 0n;
       const unrepresentedCredit = paidMinor - receiptCredits;
 

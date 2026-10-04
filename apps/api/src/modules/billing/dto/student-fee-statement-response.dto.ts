@@ -1,6 +1,6 @@
 import { StudentFeeBalanceResponseDto } from './student-fee-balance-response.dto';
 
-export type StudentFeeStatementEntryKind = 'invoice' | 'receipt';
+export type StudentFeeStatementEntryKind = 'invoice' | 'receipt' | 'adjustment';
 
 export class StudentFeeStatementEntryResponseDto {
   id!: string;

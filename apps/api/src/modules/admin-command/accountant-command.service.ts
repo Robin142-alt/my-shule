@@ -1,12 +1,15 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { CreateAccountantExpenseDto } from './dto/create-accountant-expense.dto';
 import { CreateFeeFollowUpDto } from './dto/create-fee-follow-up.dto';
+import { FEE_RECEIPTS_READ_SQL } from '../billing/fee-receipts-read-sql';
+import { FEE_CREDIT_READ_SQL } from '../billing/fee-credit-read-sql';
 
 const ACCOUNTANT_WORKFLOW_TARGET_ROLES: ReadonlySet<string> = new Set([
   'accountant',
+  'bursar',
   'principal',
   'deputy_principal',
   'secretary',
@@ -27,6 +30,8 @@ type AccountantOverviewMetricRow = {
   open_invoice_count: unknown;
   mpesa_review_count: unknown;
   active_fee_structure_count: unknown;
+  collection_methods?: Array<{ method: string; amount_minor: string; count: number }>;
+  pending_actions?: Record<string, number>;
 };
 
 type AccountantOverviewActivityRow = {
@@ -78,16 +83,16 @@ export class AccountantCommandService {
     return this.prisma.executeWithTenant(tenantId, actorUserId, async (tx) => {
       const metricRows = await tx.$queryRawUnsafe<AccountantOverviewMetricRow[]>(
         `
-        WITH payment_metrics AS (
+        WITH receipts AS (SELECT source.*, COALESCE(cleared_at,received_at) AS collected_at FROM (${FEE_RECEIPTS_READ_SQL}) source), payment_metrics AS (
           SELECT
             COALESCE(
               SUM(amount_minor) FILTER (
-                WHERE status NOT IN ('bounced', 'reversed')
-                  AND received_at >= (
+                WHERE status = 'cleared'
+                  AND collected_at >= (
                     date_trunc('day', timezone('Africa/Nairobi', NOW()))
                     AT TIME ZONE 'Africa/Nairobi'
                   )
-                  AND received_at < (
+                  AND collected_at < (
                     (date_trunc('day', timezone('Africa/Nairobi', NOW())) + INTERVAL '1 day')
                     AT TIME ZONE 'Africa/Nairobi'
                   )
@@ -95,28 +100,40 @@ export class AccountantCommandService {
               0
             )::text AS collected_today_minor,
             COUNT(*) FILTER (
-              WHERE status NOT IN ('bounced', 'reversed')
-                AND received_at >= (
+              WHERE status = 'cleared'
+                AND collected_at >= (
                   date_trunc('day', timezone('Africa/Nairobi', NOW()))
                   AT TIME ZONE 'Africa/Nairobi'
                 )
-                AND received_at < (
+                AND collected_at < (
                   (date_trunc('day', timezone('Africa/Nairobi', NOW())) + INTERVAL '1 day')
                   AT TIME ZONE 'Africa/Nairobi'
                 )
             )::text AS receipts_today_count
-          FROM manual_fee_payments
+          FROM receipts
           WHERE tenant_id = $1
         ),
-        student_balances AS (
+        invoice_balances AS (
           SELECT
             metadata ->> 'student_id' AS student_id,
             SUM(GREATEST(total_amount_minor - amount_paid_minor, 0)) AS balance_minor
           FROM invoices
           WHERE tenant_id = $1
             AND NULLIF(metadata ->> 'student_id', '') IS NOT NULL
-            AND status NOT IN ('paid', 'void')
+            AND status NOT IN ('draft', 'paid', 'void', 'uncollectible')
           GROUP BY metadata ->> 'student_id'
+        ),
+        credits AS (
+          SELECT student_id, SUM(amount_minor) AS credit_minor
+          FROM (${FEE_CREDIT_READ_SQL}) credit
+          WHERE tenant_id = $1
+          GROUP BY student_id
+        ),
+        student_balances AS (
+          SELECT invoice.student_id,
+            GREATEST(invoice.balance_minor - COALESCE(credits.credit_minor, 0), 0) AS balance_minor
+          FROM invoice_balances invoice
+          LEFT JOIN credits ON credits.student_id = invoice.student_id
         ),
         invoice_metrics AS (
           SELECT
@@ -129,7 +146,7 @@ export class AccountantCommandService {
           FROM invoices
           WHERE tenant_id = $1
             AND NULLIF(metadata ->> 'student_id', '') IS NOT NULL
-            AND status NOT IN ('paid', 'void')
+            AND status NOT IN ('draft', 'paid', 'void', 'uncollectible')
         ),
         mpesa_metrics AS (
           SELECT COUNT(*)::text AS mpesa_review_count
@@ -157,7 +174,26 @@ export class AccountantCommandService {
           invoice_metrics.balances_above_threshold_count,
           open_invoices.open_invoice_count,
           mpesa_metrics.mpesa_review_count,
-          fee_structure_metrics.active_fee_structure_count
+          fee_structure_metrics.active_fee_structure_count,
+          (SELECT COALESCE(jsonb_agg(methods ORDER BY methods.amount_minor::bigint DESC), '[]'::jsonb)
+            FROM (
+              SELECT payment_method AS method, SUM(amount_minor)::text AS amount_minor, COUNT(*)::int AS count
+              FROM receipts WHERE tenant_id = $1 AND status = 'cleared'
+                AND collected_at >= date_trunc('day', timezone('Africa/Nairobi', NOW())) AT TIME ZONE 'Africa/Nairobi'
+                AND collected_at < (date_trunc('day', timezone('Africa/Nairobi', NOW())) + INTERVAL '1 day') AT TIME ZONE 'Africa/Nairobi'
+              GROUP BY payment_method
+            ) methods) AS collection_methods,
+          jsonb_build_object(
+            'unmatched_collections', (SELECT COUNT(*) FROM collection_payments WHERE tenant_id = $1 AND status = 'unmatched'),
+            'statement_reviews', (SELECT COUNT(*) FROM collection_payments WHERE tenant_id = $1 AND status = 'pending_review'),
+            'provider_exceptions', (SELECT COUNT(*) FROM payment_ingress WHERE tenant_id = $1 AND environment = 'production'
+              AND (state = 'review' OR conflict_hash IS NOT NULL OR
+                (state IN ('received', 'verifying', 'verified') AND created_at < NOW() - INTERVAL '15 minutes'))),
+            'pending_cheques', (SELECT COUNT(*) FROM manual_fee_payments WHERE tenant_id = $1 AND payment_method = 'cheque' AND status IN ('received', 'deposited')),
+            'reversal_approvals', ((SELECT COUNT(*) FROM collection_reversal_requests WHERE tenant_id = $1 AND status = 'pending') + (SELECT COUNT(*) FROM manual_fee_reversal_requests WHERE tenant_id = $1 AND status = 'pending')),
+            'expense_approvals', (SELECT COUNT(*) FROM school_expenses WHERE tenant_id = $1 AND lower(status) IN ('pending', 'pending_approval')),
+            'waiver_approvals', (SELECT COUNT(*) FROM tenant_pending_waivers WHERE tenant_id::text = $1 AND lower(status) = 'pending')
+          ) AS pending_actions
         FROM payment_metrics
         CROSS JOIN invoice_metrics
         CROSS JOIN open_invoices
@@ -177,8 +213,8 @@ export class AccountantCommandService {
             COALESCE(NULLIF(payer_name, ''), 'Fee payment') AS description,
             amount_minor::text,
             status,
-            received_at AS occurred_at
-          FROM manual_fee_payments
+            COALESCE(cleared_at, received_at) AS occurred_at
+          FROM (${FEE_RECEIPTS_READ_SQL}) receipts
           WHERE tenant_id = $1
 
           UNION ALL
@@ -222,6 +258,8 @@ export class AccountantCommandService {
 
       return {
         generated_at: new Date().toISOString(),
+        collection_methods: metrics.collection_methods ?? [],
+        pending_actions: metrics.pending_actions ?? {},
         metrics: {
           collected_today_minor: String(metrics.collected_today_minor ?? '0'),
           receipts_today_count: Number(metrics.receipts_today_count ?? 0),
@@ -246,7 +284,11 @@ export class AccountantCommandService {
     });
   }
 
-  async getExpenses() {
+  async getExpenses(limit = 50, offset = 0, status?: string) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0
+      || (status && !['pending', 'approved', 'rejected'].includes(status))) {
+      throw new BadRequestException('Invalid expense page or status');
+    }
     const tenantId = this.requireTenantId();
     const actorUserId = this.requestContext.getStore()?.user_id;
 
@@ -281,10 +323,12 @@ export class AccountantCommandService {
             status
           FROM school_expenses
           WHERE tenant_id = $1
-          ORDER BY created_at DESC
-          LIMIT 100
+            AND ($4::text IS NULL OR lower(status) = $4 OR ($4 = 'pending' AND lower(status) = 'pending_approval'))
+          ORDER BY CASE WHEN lower(status) IN ('pending','pending_approval') THEN 0 ELSE 1 END, created_at DESC, id DESC
+          LIMIT $2::integer OFFSET $3::integer
           `,
           tenantId,
+          limit, offset, status || null,
         ),
       ]);
       const metrics = metricRows[0] ?? {
@@ -314,14 +358,16 @@ export class AccountantCommandService {
   }
 
   async createExpense(dto: CreateAccountantExpenseDto) {
+    return this.prisma.withRequestTransaction(async () => {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requestContext.getStore()?.user_id;
     const amountMinor = BigInt(dto.amount_minor);
 
-    if (amountMinor > 9_223_372_036_854_775_807n) {
+    if (amountMinor <= 0n || amountMinor > 9_223_372_036_854_775_807n) {
       throw new BadRequestException('Expense amount exceeds the supported financial limit');
     }
 
+    let replay = false;
     const expense = await this.prisma.executeWithTenant(
       tenantId,
       actorUserId,
@@ -333,9 +379,12 @@ export class AccountantCommandService {
             category,
             description,
             amount_minor,
-            status
+            status,
+            requested_by,
+            idempotency_key
           )
-          VALUES ($1, $2, $3, $4::bigint, 'pending')
+          VALUES ($1, $2, $3, $4::bigint, 'pending', $5::uuid, $6)
+          ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
           RETURNING
             id::text,
             created_at AS date,
@@ -348,9 +397,21 @@ export class AccountantCommandService {
           dto.category,
           dto.description,
           dto.amount_minor,
+          actorUserId,
+          dto.idempotency_key ?? null,
         );
 
-        return rows[0];
+        if (rows[0]) return rows[0];
+        const existing = (await tx.$queryRawUnsafe<Array<AccountantExpenseRow & { requested_by: string }>>(
+          `SELECT id::text, created_at AS date, category, description, amount_minor::text, status, requested_by::text
+           FROM school_expenses WHERE tenant_id=$1 AND idempotency_key=$2`, tenantId, dto.idempotency_key,
+        ))[0];
+        if (!existing || existing.requested_by !== actorUserId || existing.category !== dto.category
+          || existing.description !== dto.description || String(existing.amount_minor) !== dto.amount_minor) {
+          throw new ConflictException('This submission key was already used for a different expense. Check the expense register.');
+        }
+        replay = true;
+        return existing;
       },
     );
 
@@ -358,14 +419,14 @@ export class AccountantCommandService {
       throw new Error('Expense request could not be persisted');
     }
 
-    await this.recordAction({
+    if (!replay) await this.recordAction({
       action: 'expense_submitted',
       title: 'Expense submitted for approval',
       message: `${dto.description} was submitted for principal approval.`,
       entity_type: 'school_expense',
       entity_id: expense.id,
       source_dashboard: 'accountant-expenses-workspace',
-      target_roles: ['accountant', 'principal'],
+      target_roles: ['accountant', 'bursar', 'principal'],
       priority: 'high',
       payload: {
         category: dto.category,
@@ -383,6 +444,39 @@ export class AccountantCommandService {
         amount_minor: String(expense.amount_minor),
       },
     };
+    });
+  }
+
+  async decideExpense(id: string, decision: 'approve' | 'reject', reason: string) {
+    const tenantId = this.requireTenantId();
+    const actor = this.requestContext.requireStore();
+    if (actor.role !== 'principal' || !actor.user_id) throw new ForbiddenException('Only the Principal can decide expenses');
+    if (!['approve', 'reject'].includes(decision) || reason.trim().length < 5) {
+      throw new BadRequestException('Choose a decision and provide at least five characters of decision notes');
+    }
+    return this.prisma.withRequestTransaction(async () => {
+      const expense = (await this.prisma.query<{ id: string; status: string; requested_by: string | null }>(
+        `SELECT expense.id::text, expense.status,
+          COALESCE(expense.requested_by, (SELECT event.source_user_id FROM workflow_events event
+            WHERE event.tenant_id=expense.tenant_id AND event.entity_id=expense.id::text
+              AND event.event_type='accountant.expense_submitted' ORDER BY event.created_at LIMIT 1))::text AS requested_by
+         FROM school_expenses expense WHERE expense.tenant_id=$1 AND expense.id=$2::uuid FOR UPDATE OF expense`,
+        [tenantId, id],
+      )).rows[0];
+      if (!expense) throw new NotFoundException('Expense was not found in this school');
+      if (!['pending', 'pending_approval'].includes(expense.status.toLowerCase())) throw new ConflictException('This expense has already been decided');
+      if (!expense.requested_by || expense.requested_by === actor.user_id) throw new ForbiddenException('A different, identified requester is required before approval');
+      const status = decision === 'approve' ? 'approved' : 'rejected';
+      await this.prisma.query(`UPDATE school_expenses SET status=$3, reviewed_by=$4::uuid,
+        reviewed_at=now(), decision_notes=$5, updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid`,
+      [tenantId, id, status, actor.user_id, reason.trim()]);
+      await this.recordAction({
+        action: `expense_${status}`, title: `Expense ${status}`, message: reason.trim(),
+        entity_type: 'school_expense', entity_id: id, source_dashboard: 'principal-finance',
+        target_roles: ['accountant', 'bursar', 'principal'], payload: { status, decision_notes: reason.trim() },
+      });
+      return { success: true, message: `Expense ${status}. This decision does not record a cash disbursement.`, status };
+    });
   }
 
   async recordAction(dto: any) {
@@ -481,17 +575,15 @@ export class AccountantCommandService {
           FROM invoices invoice
           WHERE invoice.tenant_id = $1
             AND NULLIF(invoice.metadata->>'student_id', '') IS NOT NULL
+            AND invoice.status NOT IN ('draft', 'void', 'uncollectible')
           GROUP BY invoice.metadata->>'student_id'
         ), unapplied_credits AS (
           SELECT
-            payment.student_id::text AS student_id,
-            COALESCE(SUM(payment.amount_minor), 0)::bigint AS credit_minor
-          FROM manual_fee_payments payment
-          WHERE payment.tenant_id = $1
-            AND payment.status = 'cleared'
-            AND payment.student_id IS NOT NULL
-            AND payment.invoice_id IS NULL
-          GROUP BY payment.student_id
+            credit.student_id,
+            COALESCE(SUM(credit.amount_minor), 0)::bigint AS credit_minor
+          FROM (${FEE_CREDIT_READ_SQL}) credit
+          WHERE credit.tenant_id = $1
+          GROUP BY credit.student_id
         ), candidate_students AS (
           SELECT
             student.id AS student_id,

@@ -44,6 +44,12 @@ export const SIDEBAR_WORKSPACE_SCHEMA_SQL = `
     status text NOT NULL DEFAULT 'pending', created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW()
   );
+  ALTER TABLE school_expenses ADD COLUMN IF NOT EXISTS requested_by uuid;
+  ALTER TABLE school_expenses ADD COLUMN IF NOT EXISTS idempotency_key text;
+  ALTER TABLE school_expenses ADD COLUMN IF NOT EXISTS reviewed_by uuid;
+  ALTER TABLE school_expenses ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
+  ALTER TABLE school_expenses ADD COLUMN IF NOT EXISTS decision_notes text;
+  CREATE UNIQUE INDEX IF NOT EXISTS school_expenses_command_key ON school_expenses(tenant_id,idempotency_key);
   CREATE TABLE IF NOT EXISTS academics_lesson_plans (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
     teacher_id uuid NOT NULL, subject_id text NOT NULL, class_id text NOT NULL,

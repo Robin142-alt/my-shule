@@ -5,12 +5,20 @@ import {
   IsString,
   Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
 export class CreateInvoiceDto {
+  @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  idempotency_key?: string;
+
   @Transform(trim)
   @IsString()
   @MaxLength(160)

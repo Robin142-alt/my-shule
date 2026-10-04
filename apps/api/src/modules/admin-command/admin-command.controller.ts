@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Sse, StreamableFile, UploadedFile, UseInterceptors, Param, Patch, Delete, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Sse, StreamableFile, UploadedFile, UseInterceptors, Param, Patch, Delete, Query, Optional, ParseUUIDPipe, ServiceUnavailableException } from '@nestjs/common';
 import { SkipResponseEnvelope } from '../../common/decorators/skip-response-envelope.decorator';
 import { StreamingUploadInterceptor } from '../../common/uploads/streaming-upload.interceptor';
 import { UploadFileMetadata } from '../../common/uploads/upload-policy';
@@ -14,11 +14,13 @@ import {
 } from './dto/admin-command.dto';
 import { UpdatePrincipalSchoolProfileDto } from './dto/update-principal-school-profile.dto';
 import { AdminCommandService } from './admin-command.service';
+import { AccountantCommandService } from './accountant-command.service';
 
 @Controller('admin-command')
 @RequiresModule('admin_command_centers')
 export class AdminCommandController {
-  constructor(private readonly adminCommandService: AdminCommandService) {}
+  constructor(private readonly adminCommandService: AdminCommandService,
+    @Optional() private readonly accountantCommandService?: AccountantCommandService) {}
 
   @Get('principal/dashboard')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
@@ -468,17 +470,9 @@ export class AdminCommandController {
   @Post('principal/finance-overview/:expenseId/approve')
   @RequiresModule('admin_command_centers', 'principal_dashboard')
   @Permissions('principal:write', 'finance:write')
-  approvePrincipalExpense(@Param('expenseId') expenseId: string) {
-    return this.adminCommandService.recordPrincipalWorkflowAction({
-      action: 'principal.expense_approved',
-      entityType: 'expense',
-      entityId: expenseId,
-      title: 'Expense approved',
-      message: `Principal approved expense ${expenseId}.`,
-      payload: { expenseId },
-      targetRoles: ['accountant', 'principal'],
-      status: 'approved',
-    });
+  approvePrincipalExpense(@Param('expenseId', ParseUUIDPipe) expenseId: string, @Body() dto: { reason?: string } = {}) {
+    if (!this.accountantCommandService) throw new ServiceUnavailableException('Expense approval service unavailable');
+    return this.accountantCommandService.decideExpense(expenseId, 'approve', dto.reason ?? '');
   }
 
   @Post('principal/approvals/:approvalId/action')
