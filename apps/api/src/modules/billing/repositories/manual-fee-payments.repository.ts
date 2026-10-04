@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { FEE_RECEIPTS_READ_SQL } from '../fee-receipts-read-sql';
 import { FEE_BALANCE_STUDENT_PAGE_SQL, FEE_CREDIT_READ_SQL } from '../fee-credit-read-sql';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -162,6 +163,13 @@ export class ManualFeePaymentsRepository {
         )
         ON CONFLICT (tenant_id, idempotency_key)
         DO UPDATE SET updated_at = manual_fee_payments.updated_at
+        WHERE manual_fee_payments.payment_method = EXCLUDED.payment_method
+          AND manual_fee_payments.amount_minor = EXCLUDED.amount_minor
+          AND manual_fee_payments.student_id IS NOT DISTINCT FROM EXCLUDED.student_id
+          AND manual_fee_payments.invoice_id IS NOT DISTINCT FROM EXCLUDED.invoice_id
+          AND manual_fee_payments.cheque_number IS NOT DISTINCT FROM EXCLUDED.cheque_number
+          AND manual_fee_payments.drawer_bank IS NOT DISTINCT FROM EXCLUDED.drawer_bank
+          AND manual_fee_payments.external_reference IS NOT DISTINCT FROM EXCLUDED.external_reference
         RETURNING
           id,
           tenant_id,
@@ -217,6 +225,7 @@ export class ManualFeePaymentsRepository {
       ],
     );
 
+    if (!result.rows[0]) throw new ConflictException('This submission key already belongs to a different payment. Check the receipt register.');
     return this.mapPayment(result.rows[0]);
   }
 
@@ -265,7 +274,7 @@ export class ManualFeePaymentsRepository {
           created_by_user_id,
           created_at,
           updated_at
-        FROM manual_fee_payments
+        FROM (${FEE_RECEIPTS_READ_SQL}) receipts
         WHERE tenant_id = $1
           AND ($2::text IS NULL OR status = $2::text)
         ORDER BY received_at DESC, created_at DESC
@@ -340,25 +349,25 @@ export class ManualFeePaymentsRepository {
           ledger_transaction_id,
           reversal_ledger_transaction_id,
           notes,
-          metadata || jsonb_build_object(
+          CASE WHEN metadata->>'source'='stk_payment' THEN metadata ELSE metadata || jsonb_build_object(
             'invoice_allocations', COALESCE((SELECT jsonb_agg(jsonb_build_object('invoice_id',allocation.invoice_id,'amount_minor',allocation.amount_minor::text))
               FROM manual_fee_payment_allocations allocation WHERE allocation.tenant_id=payment.tenant_id
-                AND allocation.manual_payment_id=payment.id AND allocation.allocation_type='invoice'),'[]'::jsonb),
+                AND allocation.manual_payment_id::text=payment.id::text AND allocation.allocation_type='invoice'),'[]'::jsonb),
             'credit_amount_minor', COALESCE((SELECT SUM(allocation.amount_minor)
               FROM manual_fee_payment_allocations allocation WHERE allocation.tenant_id=payment.tenant_id
-                AND allocation.manual_payment_id=payment.id AND allocation.allocation_type='credit'),
+                AND allocation.manual_payment_id::text=payment.id::text AND allocation.allocation_type='credit'),
               CASE WHEN payment.invoice_id IS NULL AND NOT EXISTS(SELECT 1 FROM manual_fee_payment_allocations allocation
-                WHERE allocation.tenant_id=payment.tenant_id AND allocation.manual_payment_id=payment.id)
+                WHERE allocation.tenant_id=payment.tenant_id AND allocation.manual_payment_id::text=payment.id::text)
                 THEN payment.amount_minor ELSE 0 END)::text
-          ) AS metadata,
+          ) END AS metadata,
           created_by_user_id,
           created_at,
           updated_at
-        FROM manual_fee_payments payment
+        FROM (${FEE_RECEIPTS_READ_SQL}) payment
         WHERE tenant_id = $1
           AND (
             student_id::text = $2
-            OR invoice_id = ANY($3::uuid[])
+            OR invoice_id::text = ANY($3::text[])
           )
         ORDER BY COALESCE(cleared_at, deposited_at, received_at) ASC, created_at ASC
       `,
@@ -414,7 +423,7 @@ export class ManualFeePaymentsRepository {
               WHEN status = 'deposited' THEN COALESCE(deposited_at, received_at)
               ELSE received_at
             END AS reconciliation_at
-          FROM manual_fee_payments
+          FROM (${FEE_RECEIPTS_READ_SQL}) receipts
           WHERE tenant_id = $1
             AND ($4::text IS NULL OR payment_method = $4::text)
             AND (

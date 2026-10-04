@@ -1,355 +1,143 @@
 "use client";
 
-import {
-  AlertTriangle,
-  ArrowRight,
-  Banknote,
-  CircleDollarSign,
-  FileText,
-  Layers3,
-  ReceiptText,
-  RefreshCw,
-  Smartphone,
-} from "lucide-react";
-
+import { ArrowRight, Banknote, CheckCircle2, Clock3, RefreshCw, WalletCards } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { formatMinorKes } from "@/lib/billing/billing-utils";
 
-type AccountantOverviewResponse = {
+export type AccountantOverviewResponse = {
   generated_at: string;
   metrics: {
-    collected_today_minor: string;
-    receipts_today_count: number;
-    outstanding_balance_minor: string;
-    balances_above_threshold_count: number;
-    open_invoice_count: number;
-    mpesa_review_count: number;
-    active_fee_structure_count: number;
+    collected_today_minor: string; receipts_today_count: number;
+    outstanding_balance_minor: string; balances_above_threshold_count: number;
+    open_invoice_count: number; mpesa_review_count: number; active_fee_structure_count: number;
   };
+  collection_methods?: Array<{ method: string; amount_minor: string; count: number }>;
+  pending_actions?: Record<string, number>;
   recent_activity: Array<{
-    id: string;
-    entity_type: "payment" | "invoice";
-    reference: string;
-    description: string;
-    amount_minor: string;
-    status: string;
-    occurred_at: string;
+    id: string; entity_type: "payment" | "invoice"; reference: string; description: string;
+    amount_minor: string; status: string; occurred_at: string;
   }>;
 };
 
-function isAccountantOverviewResponse(value: unknown): value is AccountantOverviewResponse {
-  if (!value || typeof value !== "object") return false;
+const methodNames: Record<string, string> = {
+  cash: "Cash", cheque: "Cleared cheques", bank_deposit: "Bank", eft: "Bank transfer",
+  mpesa_c2b: "M-Pesa",
+};
+const queueDefinitions = [
+  ["unmatched_collections", "Match a learner", "Confirmed collections with an unknown learner reference.", "collections"],
+  ["provider_exceptions", "Check payment verification", "Conflicting evidence, failed checks or verification taking over 15 minutes.", "collections"],
+  ["statement_reviews", "Statement entries awaiting approval", "The Principal must confirm these before they affect fees.", "collections"],
+  ["pending_cheques", "Follow up cheques", "Record deposit, clearing or a bounced cheque.", "payments"],
+  ["reversal_approvals", "Reversals awaiting approval", "The Principal must approve before balances change.", "collections"],
+  ["expense_approvals", "Expenses awaiting approval", "Submitted spending requests waiting for a decision.", "expenses"],
+  ["waiver_approvals", "Fee waivers awaiting approval", "Track requested adjustments and decisions.", "waivers-discounts"],
+] as const;
 
-  const candidate = value as Partial<AccountantOverviewResponse>;
-  const metrics = candidate.metrics as Partial<AccountantOverviewResponse["metrics"]> | undefined;
-
-  return Boolean(
-    metrics
-      && typeof candidate.generated_at === "string"
-      && typeof metrics.collected_today_minor === "string"
-      && typeof metrics.receipts_today_count === "number"
-      && typeof metrics.outstanding_balance_minor === "string"
-      && typeof metrics.balances_above_threshold_count === "number"
-      && typeof metrics.open_invoice_count === "number"
-      && typeof metrics.mpesa_review_count === "number"
-      && typeof metrics.active_fee_structure_count === "number"
-      && Array.isArray(candidate.recent_activity),
-  );
-}
-
-function formatMinorKes(value: string) {
-  try {
-    const amountMinor = BigInt(value || "0");
-    const hundred = BigInt(100);
-    const whole = amountMinor / hundred;
-    const cents = amountMinor % hundred;
-    const decimal = cents === BigInt(0) ? "" : `.${cents.toString().padStart(2, "0")}`;
-    return `KES ${whole.toLocaleString("en-KE")}${decimal}`;
-  } catch {
-    return "KES 0";
-  }
-}
-
-function formatActivityTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Recorded recently";
-  return date.toLocaleString("en-KE", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+function activityTime(value: string) {
+  return new Date(value).toLocaleString("en-KE", {
+    timeZone: "Africa/Nairobi", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
 }
 
-function statusClasses(status: string) {
-  if (/paid|cleared|matched/i.test(status)) {
-    return "border-success-border bg-success-soft text-success";
-  }
-  if (/failed|bounced|reversed|void/i.test(status)) {
-    return "border-danger-border bg-danger-soft text-danger";
-  }
-  return "border-warning-border bg-warning-soft text-warning";
-}
-
-export function AccountantOverviewWorkspace({
-  onNavigate,
-}: {
-  onNavigate: (workspace: string) => void;
-}) {
-  const {
-    data,
-    error,
-    isError,
-    isFetching,
-    isLoading,
-    refetch,
-  } = useSchoolQuery<AccountantOverviewResponse>("/admin-command/accountant/overview", {
-    refetchInterval: 60_000,
+export function AccountantOverviewWorkspace({ onNavigate }: { onNavigate: (workspace: string) => void }) {
+  const query = useSchoolQuery<AccountantOverviewResponse>("/admin-command/accountant/overview", {
+    refetchInterval: 30_000,
   });
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading finance overview">
-        <div className="app-metric-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="h-36 animate-pulse rounded-xl border border-slate-200 bg-slate-200/60" />
-          ))}
-        </div>
-        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-slate-200/60" />
-      </div>
-    );
-  }
-
-  if (isError || !isAccountantOverviewResponse(data)) {
-    return (
-      <section className="rounded-xl border border-danger-border bg-danger-soft p-5 text-rose-900" role="alert">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" aria-hidden="true" />
-          <div className="min-w-0">
-            <h2 className="text-lg font-black">Finance overview could not be loaded</h2>
-            <p className="mt-1 text-sm text-danger">
-              {error?.message || "The live school finance read model is unavailable."}
-            </p>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-danger-border bg-white px-4 text-sm font-semibold text-rose-900 hover:bg-rose-100"
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Retry live finance data
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  const metrics = data.metrics;
-  const isFreshFinanceWorkspace =
-    metrics.receipts_today_count === 0
-    && metrics.open_invoice_count === 0
-    && metrics.mpesa_review_count === 0
-    && metrics.active_fee_structure_count === 0
-    && data.recent_activity.length === 0;
-  const cards = [
-    {
-      label: "Collected today",
-      value: formatMinorKes(metrics.collected_today_minor),
-      helper: `${metrics.receipts_today_count} receipt${metrics.receipts_today_count === 1 ? "" : "s"} recorded today`,
-      icon: Banknote,
-      target: "payments",
-    },
-    {
-      label: "Outstanding student fees",
-      value: formatMinorKes(metrics.outstanding_balance_minor),
-      helper: `${metrics.open_invoice_count} open invoice${metrics.open_invoice_count === 1 ? "" : "s"}`,
-      icon: CircleDollarSign,
-      target: "arrears",
-    },
-    {
-      label: "M-Pesa needs review",
-      value: String(metrics.mpesa_review_count),
-      helper: "Unmatched or exception payments",
-      icon: Smartphone,
-      target: "m-pesa-reconciliation",
-    },
-    {
-      label: "Active fee structures",
-      value: String(metrics.active_fee_structure_count),
-      helper: "School-owned billing configurations",
-      icon: Layers3,
-      target: "fee-structures",
-    },
-  ] as const;
-
-  return (
-    <div className="space-y-5">
-      <section className="app-metric-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Live finance metrics">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <button
-              key={card.label}
-              type="button"
-              onClick={() => onNavigate(card.target)}
-              className="group rounded-xl border border-white/12 bg-white p-4 text-left text-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-lg"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#EAF3FF] text-info">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <ArrowRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-info" aria-hidden="true" />
-              </div>
-              <p className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-muted">{card.label}</p>
-              <p className="mt-1 text-2xl font-black">{card.value}</p>
-              <p className="mt-2 text-xs font-semibold text-muted">{card.helper}</p>
-            </button>
-          );
-        })}
-      </section>
-
-      <section className="rounded-xl border border-white/12 bg-white p-5 text-foreground shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-info">Finance operations</p>
-            <h2 className="mt-1 text-xl font-black">Today&apos;s finance desk</h2>
-            <p className="mt-1 text-sm font-semibold text-muted">
-              Live records from this school only. No demo balances or synthetic collection totals are used.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigate("payments")}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
-            >
-              <ReceiptText className="h-4 w-4" aria-hidden="true" />
-              Record payment
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate("fee-structures")}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-strong bg-white px-4 text-sm font-black text-foreground hover:bg-surface-muted"
-            >
-              <Layers3 className="h-4 w-4" aria-hidden="true" />
-              Set fee structure
-            </button>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              disabled={isFetching}
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-strong bg-white px-4 text-sm font-black text-foreground hover:bg-surface-muted disabled:cursor-wait disabled:opacity-60"
-            >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <button
-            type="button"
-            onClick={() => onNavigate("arrears")}
-            className="rounded-lg border border-border bg-surface-muted p-4 text-left hover:border-[#93C5FD]"
-          >
-            <p className="text-sm font-black">Arrears follow-up</p>
-            <p className="mt-1 text-sm font-semibold text-muted">
-              {metrics.balances_above_threshold_count} learner{metrics.balances_above_threshold_count === 1 ? "" : "s"} above KES 10,000
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate("invoices")}
-            className="rounded-lg border border-border bg-surface-muted p-4 text-left hover:border-[#93C5FD]"
-          >
-            <p className="text-sm font-black">Student invoices</p>
-            <p className="mt-1 text-sm font-semibold text-muted">
-              {metrics.open_invoice_count} invoice{metrics.open_invoice_count === 1 ? "" : "s"} awaiting full payment
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate("reports")}
-            className="rounded-lg border border-border bg-surface-muted p-4 text-left hover:border-[#93C5FD]"
-          >
-            <p className="text-sm font-black">Finance reports</p>
-            <p className="mt-1 text-sm font-semibold text-muted">Preview, download, and print school-scoped records</p>
-          </button>
-        </div>
-      </section>
-
-      {isFreshFinanceWorkspace ? (
-        <section className="rounded-xl border border-info-border bg-info-soft p-5 text-foreground">
-          <h2 className="text-xl font-black">No school finance records yet</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Create the first fee structure, generate student invoices after learners are admitted, then record or reconcile payments. This school starts at zero by design.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigate("fee-structures")}
-              className="min-h-10 rounded-lg bg-cyan-300 px-4 text-sm font-black text-foreground hover:bg-cyan-200"
-            >
-              Create first fee structure
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate("invoices")}
-              className="min-h-10 rounded-lg border border-info-border bg-white px-4 text-sm font-semibold text-foreground hover:bg-blue-100"
-            >
-              Open student invoicing
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="overflow-hidden rounded-xl border border-white/12 bg-white text-foreground shadow-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-info">Tenant activity</p>
-            <h2 className="mt-1 text-xl font-black">Recent finance records</h2>
-          </div>
-          <FileText className="h-5 w-5 text-muted" aria-hidden="true" />
-        </div>
-        {data.recent_activity.length === 0 ? (
-          <div className="p-8 text-center">
-            <ReceiptText className="mx-auto h-8 w-8 text-muted" aria-hidden="true" />
-            <p className="mt-3 font-black">No payments or student invoices have been recorded.</p>
-            <p className="mt-1 text-sm font-semibold text-muted">The first real finance transaction will appear here.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-surface-muted text-xs font-black uppercase tracking-[0.1em] text-muted">
-                <tr>
-                  <th className="px-5 py-3">Reference</th>
-                  <th className="px-5 py-3">Record</th>
-                  <th className="px-5 py-3">Amount</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {data.recent_activity.map((activity) => (
-                  <tr key={`${activity.entity_type}:${activity.id}`} className="hover:bg-surface-muted">
-                    <td className="px-5 py-4 font-black">{activity.reference}</td>
-                    <td className="px-5 py-4">
-                      <p className="font-bold capitalize">{activity.entity_type}</p>
-                      <p className="mt-0.5 max-w-[280px] truncate text-xs font-semibold text-muted">{activity.description}</p>
-                    </td>
-                    <td className="px-5 py-4 font-black">{formatMinorKes(activity.amount_minor)}</td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black capitalize ${statusClasses(activity.status)}`}>
-                        {activity.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-4 font-semibold text-muted">{formatActivityTime(activity.occurred_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+  const { data } = query;
+  if (query.isLoading) return <div aria-busy="true" aria-label="Loading finance overview" className="space-y-4">
+    <div className="grid gap-4 sm:grid-cols-3">{[0, 1, 2].map(i => <div key={i} className="h-32 animate-pulse rounded-xl bg-surface-muted" />)}</div>
+    <div className="h-64 animate-pulse rounded-xl bg-surface-muted" />
+  </div>;
+  if (query.isError || !data?.metrics || !Array.isArray(data.recent_activity)) return (
+    <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-5">
+      <h3 className="font-semibold">Finance overview could not be loaded</h3>
+      <p className="my-2 text-sm">{query.error?.message || "Live finance figures are unavailable."}</p>
+      <Button variant="secondary" onClick={() => void query.refetch()}>Retry live finance data</Button>
     </div>
   );
+  const { metrics } = data;
+  const queues: Array<{ key: string; label: string; hint: string; target: string; count: number }> = queueDefinitions.map(([key, label, hint, target]) => ({
+    key, label, hint, target, count: data.pending_actions?.[key] ?? 0,
+  }));
+  if (metrics.mpesa_review_count > 0) queues.push({
+    key: "legacy_mpesa", label: "M-Pesa reconciliation", hint: "Review exceptions from existing M-Pesa connections.",
+    target: "m-pesa-reconciliation", count: metrics.mpesa_review_count,
+  });
+  const pending = queues.reduce((total, queue) => total + queue.count, 0);
+  const empty = !metrics.active_fee_structure_count && !metrics.open_invoice_count && !data.recent_activity.length && !pending;
+  const cards = [
+    { label: "Collected today", value: formatMinorKes(metrics.collected_today_minor), detail: `${metrics.receipts_today_count} cleared receipts · Nairobi time`, target: "receipts", icon: Banknote },
+    { label: "Outstanding fees", value: formatMinorKes(metrics.outstanding_balance_minor), detail: `${metrics.open_invoice_count} open invoices · credits included`, target: "arrears", icon: WalletCards },
+    { label: "Pending actions", value: String(pending), detail: pending ? "Payment exceptions and approvals" : "No pending finance actions", target: "#actions", icon: Clock3 },
+  ];
+  return <div className="space-y-5 text-foreground">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 className="text-lg font-semibold">Today’s finance desk</h3>
+        <p className="text-sm text-muted">Updated {activityTime(data.generated_at)} · refreshes automatically</p>
+      </div>
+      <Button variant="secondary" disabled={query.isFetching} onClick={() => void query.refetch()}>
+        <RefreshCw className={`mr-2 h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`} aria-hidden="true" />Refresh
+      </Button>
+    </div>
+    <section className="grid gap-3 sm:grid-cols-3" aria-label="Live finance metrics">
+      {cards.map(({ label, value, detail, target, icon: Icon }) => <button key={label} type="button"
+        onClick={() => target === "#actions" ? document.getElementById("finance-actions")?.focus() : onNavigate(target)}
+        className="group rounded-xl border border-border bg-surface p-5 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary">
+        <div className="flex items-center justify-between text-muted"><span className="text-sm font-medium">{label}</span><Icon className="h-4 w-4" aria-hidden="true" /></div>
+        <p className="mt-3 break-words text-2xl font-semibold tracking-tight tabular-nums lg:text-3xl">{value}</p>
+        <p className="mt-2 text-xs text-muted">{detail}</p>
+      </button>)}
+    </section>
+    {empty && <section className="rounded-xl border border-info-border bg-info-soft p-5">
+      <h3 className="font-semibold">No school finance records yet</h3>
+      <p className="mt-2 text-sm">Set up school payment accounts and fee structures, then generate invoices for admitted learners.</p>
+      <div className="mt-4 flex flex-wrap gap-2"><Button onClick={() => onNavigate("payment-setup")}>Set up collections</Button>
+        <Button variant="secondary" onClick={() => onNavigate("fee-structures")}>Create first fee structure</Button>
+        <Button variant="ghost" onClick={() => onNavigate("invoices")}>Open student invoicing</Button></div>
+    </section>}
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      <section id="finance-actions" tabIndex={-1} className="overflow-hidden rounded-xl border border-border bg-surface focus-visible:outline-2 focus-visible:outline-primary">
+        <div className="border-b border-border px-5 py-4"><h3 className="font-semibold">Needs attention</h3><p className="mt-1 text-sm text-muted">Start here. Each item opens the workspace that can resolve it.</p></div>
+        {pending === 0 ? <div className="flex gap-3 p-5"><CheckCircle2 className="h-5 w-5 shrink-0 text-success" aria-hidden="true" /><div><p className="font-medium">You’re up to date</p><p className="mt-1 text-sm text-muted">Verified, matched payments update student fees and receipts automatically.</p></div></div>
+          : <ul className="divide-y divide-border">{queues.filter(q => q.count > 0).map(q => <li key={q.key}>
+            <button type="button" onClick={() => onNavigate(q.target)} className="flex min-h-16 w-full items-center gap-3 px-5 py-4 text-left hover:bg-surface-muted">
+              <span className="min-w-8 rounded-md bg-warning-soft px-2 py-1 text-center text-sm font-semibold text-warning">{q.count}</span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{q.label}</span><span className="mt-1 block text-xs text-muted">{q.hint}</span></span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
+            </button>
+          </li>)}</ul>}
+      </section>
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <h3 className="font-semibold">Today’s collection breakdown</h3>
+        <p className="mt-1 text-sm text-muted">Cleared receipts only. Pending cheques and reversed payments are excluded.</p>
+        <dl className="mt-4 divide-y divide-border">
+          {(data.collection_methods ?? []).map(row => <div key={row.method} className="flex items-center justify-between gap-3 py-3">
+            <dt className="text-sm">{methodNames[row.method] ?? row.method}<span className="ml-2 text-xs text-muted">({row.count})</span></dt>
+            <dd className="font-semibold tabular-nums">{formatMinorKes(row.amount_minor)}</dd>
+          </div>)}
+        </dl>
+        {!data.collection_methods?.length && <p className="my-5 text-sm text-muted">No cleared collections today. New confirmed receipts will appear here.</p>}
+        <Button variant="secondary" className="mt-3 w-full" onClick={() => onNavigate("reports")}>Open collection reports <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Button>
+      </section>
+    </div>
+    <div className="flex flex-wrap gap-2" aria-label="Daily finance shortcuts">
+      <Button variant="secondary" onClick={() => onNavigate("payments")}>Record cash or cheque</Button>
+      <Button variant="secondary" onClick={() => onNavigate("invoices")}>Student invoices & statements</Button>
+      <Button variant="secondary" onClick={() => onNavigate("arrears")}>Follow up arrears</Button>
+      <Button variant="secondary" onClick={() => onNavigate("expenses")}>Submit an expense</Button>
+    </div>
+    <DataTable title="Recent finance records" subtitle="Open a record’s workspace to view its details."
+      rows={data.recent_activity} getRowKey={row => `${row.entity_type}:${row.id}`}
+      emptyMessage="No payments or invoices yet. Create a fee structure and invoice admitted learners to get started."
+      columns={[
+        { id: "reference", header: "Reference", render: row => <button type="button" className="min-h-11 font-semibold text-primary underline-offset-4 hover:underline" onClick={() => onNavigate(row.entity_type === "payment" ? "receipts" : "invoices")}>{row.reference}</button> },
+        { id: "description", header: "Details", render: row => row.description },
+        { id: "amount", header: "Amount", className: "tabular-nums font-semibold", render: row => formatMinorKes(row.amount_minor) },
+        { id: "status", header: "Status", render: row => <span className="capitalize">{row.status.replaceAll("_", " ")}</span> },
+        { id: "time", header: "Recorded", render: row => activityTime(row.occurred_at) },
+      ]} />
+  </div>;
 }

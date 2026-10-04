@@ -4,6 +4,7 @@ import { AuthSchemaService } from '../../auth/auth-schema.service';
 import { PrismaService } from '../../database/prisma.service';
 import { FinanceSchemaService } from '../finance/finance-schema.service';
 import { TenantFinanceSchemaService } from '../tenant-finance/tenant-finance-schema.service';
+import { LEGACY_STK_WRITE_SCHEMA } from './legacy-stk-write-schema';
 
 @Injectable()
 export class PaymentsSchemaService implements OnModuleInit {
@@ -726,6 +727,16 @@ export class PaymentsSchemaService implements OnModuleInit {
       ADD COLUMN IF NOT EXISTS raw_payload_encrypted_ref text;
       ALTER TABLE mpesa_transactions
       ADD COLUMN IF NOT EXISTS payload_sha256 char(64);
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS amount_minor bigint;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS transaction_occurred_at timestamptz;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS ledger_transaction_id uuid;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS processed_at timestamptz;
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
 
       ALTER TABLE mpesa_c2b_payments
       ADD COLUMN IF NOT EXISTS invoice_number text;
@@ -942,6 +953,8 @@ export class PaymentsSchemaService implements OnModuleInit {
         END IF;
       END;
       $$;
+
+      ${LEGACY_STK_WRITE_SCHEMA}
 
       CREATE INDEX IF NOT EXISTS ix_payment_intents_status_created_at
         ON payment_intents (tenant_id, status, created_at DESC);

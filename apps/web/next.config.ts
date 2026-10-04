@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: __dirname,
+    // OpenNext supplies its standalone package root for the webpack build.
+    // Other builds need the repository root for shared browser-safe contracts.
+    root: process.env.NEXT_PRIVATE_OUTPUT_TRACE_ROOT || path.resolve(__dirname, "../.."),
   },
   async headers() {
     return [

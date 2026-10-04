@@ -5,6 +5,10 @@ const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
 export class ListInvoicesQueryDto {
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  student_only?: string;
+
   @Transform(trim)
   @IsOptional()
   @IsString()

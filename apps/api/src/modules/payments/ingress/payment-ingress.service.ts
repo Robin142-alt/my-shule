@@ -206,13 +206,21 @@ export class PaymentIngressService {
     return { accepted: true };
   }
 
-  async list() {
+  async list(limit = 100, offset = 0) {
     const actor = this.context.requireStore();
     if (!actor.is_authenticated || !['accountant','bursar','principal'].includes(actor.role ?? '')) throw new UnauthorizedException();
-    return (await this.db.query(`SELECT id,revision_id,provider_code,environment,provider_transaction_id,destination_account,
-      amount_minor::text,account_reference,occurred_at,state,review_reason,collection_id,student_id,invoice_id,verified_at,created_at,
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0) throw new BadRequestException('Invalid verification page');
+    return (await this.db.query(`WITH inbox AS (
+      SELECT i.*, CASE WHEN c.status IN ('posted','reversed') THEN c.status ELSE i.state END AS effective_state
+      FROM payment_ingress i LEFT JOIN collection_payments c ON c.tenant_id=i.tenant_id AND c.id=i.collection_id
+      WHERE i.tenant_id=$1
+    ) SELECT id,revision_id,provider_code,environment,provider_transaction_id,destination_account,
+      amount_minor::text,account_reference,occurred_at,effective_state AS state,review_reason,collection_id,student_id,invoice_id,verified_at,created_at,
       (conflict_hash IS NOT NULL) AS has_conflict
-      FROM payment_ingress WHERE tenant_id=$1 ORDER BY created_at DESC,id LIMIT 100`,[actor.tenant_id])).rows;
+      FROM inbox
+      ORDER BY CASE WHEN environment='production' AND (effective_state='review' OR conflict_hash IS NOT NULL) THEN 0
+        WHEN environment='production' AND effective_state IN ('received','verifying','verified','unmatched') THEN 1 ELSE 2 END,
+        created_at DESC,id LIMIT $2 OFFSET $3`,[actor.tenant_id,limit,offset])).rows;
   }
 
   private async channel(id: string): Promise<CollectionAdapterChannel> {

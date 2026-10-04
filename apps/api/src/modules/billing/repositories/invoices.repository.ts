@@ -177,7 +177,7 @@ export class InvoicesRepository {
   async listInvoices(
     tenantId: string,
     status?: string,
-    options: { limit?: number; offset?: number } = {},
+    options: { limit?: number; offset?: number; studentOnly?: boolean } = {},
   ): Promise<InvoiceEntity[]> {
     const values: unknown[] = [tenantId, status ?? null];
     const paginationSql = options.limit === undefined
@@ -212,6 +212,7 @@ export class InvoicesRepository {
         FROM invoices
         WHERE tenant_id = $1
           AND ($2::text IS NULL OR status = $2::text)
+          ${options.studentOnly ? "AND NULLIF(metadata->>'student_id', '') IS NOT NULL" : ''}
         ORDER BY issued_at DESC, created_at DESC
         ${paginationSql}
       `,

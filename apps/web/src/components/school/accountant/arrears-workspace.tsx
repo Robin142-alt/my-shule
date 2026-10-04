@@ -49,6 +49,7 @@ export function ArrearsWorkspace({
   routeMode?: SchoolRouteMode;
   activeSection?: string;
 }) {
+  const [offset, setOffset] = useState(0);
   const [balances, setBalances] = useState<StudentFeeBalanceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +66,7 @@ export function ArrearsWorkspace({
     setError(null);
     try {
       const response = await fetch(
-        buildBillingApiPath("/api/billing/student-balances?limit=50", tenantSlug),
+        buildBillingApiPath(`/api/billing/student-balances?limit=50&offset=${offset}`, tenantSlug),
         { cache: "no-store" },
       );
       const data = (await response.json().catch(() => null)) as
@@ -81,7 +82,7 @@ export function ArrearsWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, offset]);
 
   useEffect(() => {
     void loadArrears();
@@ -244,9 +245,9 @@ export function ArrearsWorkspace({
 
       <section className="grid gap-3 md:grid-cols-3" aria-label="Arrears summary">
         {[
-          ["Outstanding fees", formatMinorKes(totalArrearsMinor), "Across learners with open balances"],
-          ["Learners in arrears", String(arrears.length), "Student accounts needing follow-up"],
-          ["Above KES 10,000", String(aboveThresholdCount), "Higher-priority collection cases"],
+          ["Outstanding fees", formatMinorKes(totalArrearsMinor), "Learners on this page with open balances"],
+          ["Learners in arrears", String(arrears.length), "Accounts on this page needing follow-up"],
+          ["Above KES 10,000", String(aboveThresholdCount), "Higher-priority cases on this page"],
         ].map(([label, value, helper]) => (
           <div key={label} className="rounded-xl border border-white/12 bg-white p-4 shadow-sm">
             <CircleDollarSign className="h-5 w-5 text-info" aria-hidden="true" />
@@ -334,6 +335,7 @@ export function ArrearsWorkspace({
         )}
       </section>
 
+      <div className="flex flex-wrap justify-end gap-3"><Button variant="secondary" disabled={!offset || loading} onClick={() => setOffset(offset - 50)}>Previous page</Button><span className="self-center text-sm">Page {offset / 50 + 1}</span><Button variant="secondary" disabled={balances.length < 50 || loading} onClick={() => setOffset(offset + 50)}>Next page</Button></div>
       <Modal
         open={statementLoading || Boolean(statement) || Boolean(statementError)}
         onClose={() => { setStatement(null); setStatementError(null); setStatementLoading(false); }}

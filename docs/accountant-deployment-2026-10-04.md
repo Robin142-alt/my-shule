@@ -1,0 +1,54 @@
+# Accountant release — 4 October 2026
+
+## Release intent
+
+Deploy the locally verified Accountant changes through the existing GitHub, Railway and Cloudflare integrations. Software deployment is separate from live-provider certification. The owner selected Kibabi and KES 10, with the owner making the payment. No payment instructions should be issued until a production channel and valid existing fee balance are confirmed.
+
+## Preflight and rollback
+
+- Repository baseline: production `2a3071007553d308cef6ed1f6abb9138a4c54e28`; local baseline has the same tree.
+- Railway project `striking-energy`, production environment `fd0e5b42-1ae9-41db-88ab-78183e02a5ce`.
+- Previous API deployment: `7ca3616b-6151-4e06-96b8-f26d38ae8e19`.
+- Previous payments worker deployment: `0bcb2af7-13bc-471c-b26c-f838e4ee1e8f`.
+- Cloudflare serves the production website through the gated GitHub deployment job. The last successful production workflow was `37194951861`.
+- API and worker use the same database, Redis and encryption key. Callback base is configured. Existing event consumption remains on the API; payment processing has a dedicated worker.
+- A private logical backup of the actual application database `myshule_final` completed before rollout at 16:02:59 UTC. Archive inspection succeeded: 3,379,428 bytes, 4,692 entries, SHA-256 `aacf9f744d9dafa6d931d8a608175ee29f437baccfed9355f550e8c0813bba28`. Stored under the operator's private local application-data deployment-backups directory; never commit the database archive.
+- Roll back the matching API/worker/web release if health fails or new financial integrity errors appear. Preserve additive schema and all financial/audit records; do not restore the database over newer school activity. Use exact previous deployment images rather than triggering an unknown Git revision. Capture the new deployment IDs and health evidence below.
+
+## Additive schema
+
+Existing transactional startup bootstrap adds requester, idempotency and decision fields to `school_expenses`, its tenant-aware unique key, and `manual_fee_reversal_requests` with approval separation, tenant foreign key, pending uniqueness and forced RLS. Verify these in the deployed database before considering the new UI operational. No financial history is rewritten by this release.
+
+Applied and verified on 4 October: five expense columns, three indexes, the reversal table, forced RLS and runtime SELECT/INSERT/UPDATE privileges. A further read-only rehearsal found five missing legacy `mpesa_transactions` columns; the additive upgrade now supplies these without deriving amounts or ledger links from old records. Both upgrades ran transactionally with a verified backup and a five-second lock timeout. The source receipt projection also normalizes legacy text and UUID identifiers so the existing database can use it without altering stored identifiers.
+
+The updated source service successfully reads Kibabi overview and expenses against production using the restricted runtime role and tenant context. It reports zero collections/invoices and one active fee structure. This is a read-only database/service rehearsal, not authenticated browser or provider evidence.
+
+### Additional STK migration finding
+
+The preflight found older STK write constraints: integer account references/account codes, mandatory fields that the canonical pending-intent contract treats as optional, UUID provider request IDs, JSON scalar metadata and legacy required M-Pesa transaction fields. `LEGACY_STK_WRITE_SCHEMA` expands these to the current repository contracts, retains historical columns and records, keeps tenant ownership mandatory, and adds missing duplicate protection and composite tenant foreign keys. Invalid timestamps, non-scalar legacy metadata or duplicate identities abort the transaction for review.
+
+Five disposable PostgreSQL tests use the real intent, callback and transaction repositories against the old types. They verify the original failure, transactional schema rollback, repeated application, historical value preservation, alphanumeric references, optional fields, failed callbacks with no invented money, replay uniqueness, RLS and cross-school FK rejection. API TypeScript passes.
+
+The compatibility expansion was applied at 20:21:28 UTC on 4 October after a fresh private backup and a successful transaction/rollback rehearsal. The archive has 4,702 entries and SHA-256 `5bedf53cdc2488d164f031ba1f9dbedf106292b65c4ecceddcd204ff71d9206f`. Applied SQL SHA-256: `1cd3cebaf7e593c0ae036333ee7c9197fc0815ee9792ebb27ee25ce02a2933d5`. Forced RLS and three duplicate-protection indexes were verified. Read-only EXPLAIN checks of all three real repository insert queries passed under Kibabi's runtime role; no writes or provider callbacks were executed. Overview, expenses, register, reconciliation and an existing learner's statement-payment query also passed afterward. On application rollback, retain the expanded schema and financial records; do not narrow text references back to integers or restore older constraints over new valid records.
+
+## Controlled live verification
+
+The corrected Kibabi lookup uses tenant key `kibabi-high`, not the separate tenant-record UUID. It found 57 students, zero active learner invoices, one active Safaricom sandbox revision, and no production or bank revisions. An earlier diagnostic used the wrong tenant identifier and incorrectly reported no students; that conclusion is withdrawn. These diagnostics did not change records.
+
+The installed bank providers support statement entry and separate Principal confirmation. Automatic bank collection requires an actual bank adapter/onboarding; the current implementation cannot certify an automatic bank callback flow.
+
+| Check | Status |
+| --- | --- |
+| Production schema | Additive updates applied; read-only source-service rehearsal passed |
+| Production application code | Pending deployment verification |
+| Legacy STK write schema | Compatibility expansion applied; real repository tests and production EXPLAIN passed; live settlement pending |
+| Kibabi production provider onboarding | Not configured at preflight |
+| Existing student with active fee balance | No eligible invoice found at preflight |
+| KES 10 provider-confirmed collection | Not attempted |
+| Correct student allocation, receipt, statement, balance and daily collection | Locally verified; live evidence pending |
+| Duplicate callback replay without second credit | Locally verified; real callback pending |
+| Unmatched/conflicting provider evidence routed to review | Locally verified; live evidence pending |
+| Parent/student authenticated statement | Live evidence pending |
+| Bank collection | Statement-review flow supported; live evidence pending |
+
+The owner confirmed that only sandbox accounts are available. Certification remains **not live-ready** until the compatibility and real-provider checks have evidence. Never fabricate provider callbacks, invent students/invoices, activate sandbox as production, or bypass approval to complete this checklist.

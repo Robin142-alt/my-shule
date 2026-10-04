@@ -19,8 +19,8 @@ describe("front office and finance production readiness", () => {
     const commandCenter = await screen.findByTestId("accountant-command-center");
 
     expect(within(commandCenter).getByText(/Accountant Dashboard/i)).toBeVisible();
-    expect(within(commandCenter).getAllByText(/Finance Overview/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByRole("button", { name: /Record payment/i })).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Today/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getByRole("button", { name: /Record cash \/ cheque/i })).toBeVisible();
     expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     expect(commandCenter.textContent).not.toMatch(/248,500|M-Pesa Confirmed|Balances Above KSh 10k|Receipts Printed/i);
   });
@@ -39,15 +39,16 @@ describe("front office and finance production readiness", () => {
     expect(
       within(dashboard).getByRole("heading", { name: /Admissions Officer Dashboard/i }),
     ).toBeVisible();
-    expect(within(dashboard).getByRole("link", { name: /Enquiries/i })).toHaveAttribute(
+    const navigation = within(dashboard).getByRole("navigation", { name: "Admissions" });
+    expect(within(navigation).getByRole("link", { name: "Admit Student" })).toHaveAttribute(
       "href",
-      "/school/admissions/enquiries",
+      "/school/admissions/applications",
     );
-    expect(within(dashboard).getByRole("link", { name: /Fee Clearance/i })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: "Admission Records" })).toHaveAttribute(
       "href",
-      "/school/admissions/fee-clearance",
+      "/school/admissions/enrolment",
     );
-    expect(within(dashboard).getByRole("link", { name: /Reports/i })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: /Reports/i })).toHaveAttribute(
       "href",
       "/school/admissions/reports",
     );

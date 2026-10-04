@@ -45,10 +45,13 @@ export class CollectionPaymentsController {
   @Get() @Permissions("billing:read") list(
     @Query("limit", new DefaultValuePipe(50), ParseIntPipe) limit: number,
     @Query("offset", new DefaultValuePipe(0), ParseIntPipe) offset: number,
+    @Query("status") status?: string,
   ) {
     if (limit < 1 || limit > 100 || offset < 0)
       throw new BadRequestException("Invalid page");
-    return this.service.list(limit, offset);
+    if (status && !['pending_review','verified','unmatched','posted','rejected','reversed'].includes(status))
+      throw new BadRequestException("Invalid collection status");
+    return this.service.list(limit, offset, status);
   }
   @Post("statement") @Permissions("billing:write") statement(
     @Body() dto: StatementEntryDto,

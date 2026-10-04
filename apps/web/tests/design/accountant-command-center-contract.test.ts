@@ -104,9 +104,9 @@ describe("accountant command center contract", () => {
     const workspace = readWeb("src/components/school/accountant/waivers-discounts-workspace.tsx");
     const controller = readRepo("apps/api/src/modules/finance/finance.controller.ts");
 
-    expect(workspace).toContain("Learner fee account");
+    expect(workspace).toContain("LearnerPicker");
     expect(workspace).toContain('/api/finance/waivers');
-    expect(workspace).toContain('/api/billing/student-balances?limit=50');
+    expect(workspace).toContain('Learner name or admission number');
     expect(workspace).not.toContain("Student ID / Name");
     expect(controller).toContain("async listWaivers()");
     expect(controller).toContain("FROM tenant_pending_waivers");

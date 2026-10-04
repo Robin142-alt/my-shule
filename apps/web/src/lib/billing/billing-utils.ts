@@ -1,36 +1,21 @@
-function parsePositiveAmount(value: string) {
-  const normalized = value.replace(/,/g, "").trim();
-  const parsed = Number(normalized);
-
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-
-  return parsed;
-}
-
 export function formatKesAmount(amount: number) {
   return `KES ${amount.toLocaleString("en-KE")}`;
 }
 
 export function formatMinorKes(amountMinor: string) {
-  const value = Number(amountMinor);
-
-  if (!Number.isFinite(value)) {
-    return "KES 0";
-  }
-
-  return formatKesAmount(value / 100);
+  if (!/^-?\d+$/.test(amountMinor)) return "Amount unavailable";
+  const amount = BigInt(amountMinor);
+  const absolute = amount < BigInt(0) ? -amount : amount;
+  const cents = absolute % BigInt(100);
+  return `KES ${amount < BigInt(0) ? "-" : ""}${(absolute / BigInt(100)).toLocaleString("en-KE")}${cents ? `.${cents.toString().padStart(2, "0")}` : ""}`;
 }
 
 export function toMinorUnits(amount: string) {
-  const parsed = parsePositiveAmount(amount);
-
-  if (parsed === null) {
-    return null;
-  }
-
-  return String(Math.round(parsed * 100));
+  const normalized = amount.trim();
+  if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const [whole, fraction = ""] = normalized.replaceAll(",", "").split(".");
+  const minor = BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+  return minor > BigInt(0) && minor <= BigInt("9223372036854775807") ? minor.toString() : null;
 }
 
 export function formatActivityDate(value: string) {
@@ -41,6 +26,7 @@ export function formatActivityDate(value: string) {
   }
 
   return parsed.toLocaleDateString("en-KE", {
+    timeZone: "Africa/Nairobi",
     day: "2-digit",
     month: "short",
     year: "numeric",

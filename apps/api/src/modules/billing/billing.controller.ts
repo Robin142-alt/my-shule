@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   Param,
@@ -47,6 +48,7 @@ import { BillingService } from './billing.service';
 import { ManualFeePaymentService } from './manual-fee-payment.service';
 import { UsageMeterService } from './usage-meter.service';
 import { ManualFeePaymentStatus } from './entities/manual-fee-payment.entity';
+import { DecidePaymentChannelDto } from '../tenant-finance/dto/payment-channel-workflow.dto';
 
 @Controller('billing')
 @RequiresModule('finance')
@@ -245,6 +247,9 @@ export class BillingController {
   async createManualFeePayment(
     @Body() dto: CreateManualFeePaymentDto,
   ): Promise<ManualFeePaymentResponseDto> {
+    if (!['cash', 'cheque'].includes(dto.payment_method)) {
+      throw new BadRequestException('Use verified collections or a bank statement entry with Principal approval for electronic payments');
+    }
     return this.manualFeePaymentService.createManualFeePayment(dto);
   }
 
@@ -252,8 +257,13 @@ export class BillingController {
   @Permissions('billing:read')
   async listManualFeePayments(
     @Query('status') status?: ManualFeePaymentStatus,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ): Promise<ManualFeePaymentResponseDto[]> {
-    return this.manualFeePaymentService.listManualFeePayments({ status });
+    return this.manualFeePaymentService.listManualFeePayments({
+      status, ...(limit !== undefined ? { limit: Number(limit) } : {}),
+      ...(offset !== undefined ? { offset: Number(offset) } : {}),
+    });
   }
 
   @Get('manual-fee-payments/:paymentId')
@@ -289,6 +299,22 @@ export class BillingController {
     @Body() dto: UpdateManualFeePaymentStatusDto,
   ): Promise<ManualFeePaymentResponseDto> {
     return this.manualFeePaymentService.bounceManualFeePayment(paymentId, dto);
+  }
+
+  @Post('manual-fee-payments/:paymentId/reversal-requests')
+  @Permissions('billing:write')
+  requestManualReversal(@Param('paymentId', new ParseUUIDPipe()) paymentId: string, @Body() dto: UpdateManualFeePaymentStatusDto) {
+    return this.manualFeePaymentService.requestReversal(paymentId, dto.notes ?? '');
+  }
+
+  @Get('manual-fee-reversal-requests')
+  @Permissions('billing:read')
+  listManualReversals() { return this.manualFeePaymentService.listReversalRequests(); }
+
+  @Post('manual-fee-reversal-requests/:id/decision')
+  @Permissions('principal:write')
+  decideManualReversal(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: DecidePaymentChannelDto) {
+    return this.manualFeePaymentService.decideReversal(id, dto.decision, dto.reason);
   }
 
   @Post('manual-fee-payments/:paymentId/reverse')

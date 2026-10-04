@@ -61,14 +61,15 @@ export class CollectionPaymentsService {
     @Optional() private readonly referenceMatcher?: CollectionReferenceMatcher,
   ) {}
 
-  async list(limit = 50, offset = 0) {
+  async list(limit = 50, offset = 0, status?: string) {
     const tenant = this.actor(["accountant", "bursar", "principal"]);
     return (
       await this.db.query<CollectionPayment>(
         `SELECT p.*,r.display_name AS channel_name FROM collection_payments p
       LEFT JOIN tenant_payment_channel_revisions r ON r.tenant_id=p.tenant_id AND r.id=p.revision_id
-      WHERE p.tenant_id=$1 ORDER BY p.created_at DESC,p.id LIMIT $2 OFFSET $3`,
-        [tenant, limit, offset],
+      WHERE p.tenant_id=$1 AND ($4::text IS NULL OR p.status=$4)
+      ORDER BY p.created_at DESC,p.id LIMIT $2 OFFSET $3`,
+        [tenant, limit, offset, status || null],
       )
     ).rows;
   }

@@ -615,7 +615,7 @@ test('ManualFeePaymentService keeps cheque receipts pending until the accountant
 
   const service = new ManualFeePaymentService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
+    { query: async () => ({rows: [{id: "student-in-this-school"}]}), withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
     {
       create: async (input: Record<string, unknown>) =>
         makeManualFeePayment({
@@ -661,6 +661,7 @@ test('ManualFeePaymentService keeps cheque receipts pending until the accountant
         return { transaction_id: 'ledger-1' };
       },
     } as never,
+    { recordSchoolOperation: async () => undefined } as never,
   );
 
   const response = await requestContext.run(
@@ -787,6 +788,7 @@ test('ManualFeePaymentService clears a cheque once, posts the ledger, and alloca
         return { transaction_id: '00000000-0000-0000-0000-000000000920' };
       },
     } as never,
+    { recordSchoolOperation: async () => undefined } as never,
   );
 
   const response = await requestContext.run(
@@ -847,7 +849,7 @@ test('ManualFeePaymentService reverses a cleared cheque and restores the invoice
 
   const service = new ManualFeePaymentService(
     requestContext,
-    { withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
+    { query: async (sql: string) => ({rows: sql.includes('FROM collection_payments') ? [] : [{approved: true}]}), withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
     {
       create: async () => clearedPayment,
       list: async () => [],
@@ -898,6 +900,7 @@ test('ManualFeePaymentService reverses a cleared cheque and restores the invoice
         return { transaction_id: '00000000-0000-0000-0000-000000000934' };
       },
     } as never,
+    { recordSchoolOperation: async () => undefined } as never,
   );
 
   const response = await requestContext.run(
@@ -905,7 +908,7 @@ test('ManualFeePaymentService reverses a cleared cheque and restores the invoice
       request_id: 'req-manual-cheque-reverse',
       tenant_id: 'tenant-a',
       user_id: '00000000-0000-0000-0000-000000000010',
-      role: 'bursar',
+      role: 'principal',
       session_id: 'session-manual-reverse',
       permissions: ['billing:*'],
       is_authenticated: true,
@@ -1351,7 +1354,12 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
     undefined,
     {
       findById: async () => feeStructure,
+      listBillableStudentsForFeeStructure: async () => [
+        { student_id: studentA, student_name: 'Alice Learner', admission_number: 'ADM-001', class_name: 'Unity', guardian_phone: null },
+        { student_id: studentB, student_name: 'Brian Learner', admission_number: 'ADM-002', class_name: 'Unity', guardian_phone: null },
+      ],
     } as never,
+    { recordSchoolOperation: async (input: any) => { assert.equal(input.event.type, 'invoice.created'); } } as never,
   );
 
   const response = await requestContext.run(
@@ -1390,7 +1398,7 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
   );
 
   assert.equal(lockCount, 1);
-  assert.equal(markedInvoiceIssued, 1);
+  assert.equal(markedInvoiceIssued, 0);
   assert.equal(invalidatedTenant, 'tenant-a');
   assert.equal(response.generated_count, 1);
   assert.equal(response.skipped_count, 1);
@@ -3016,4 +3024,17 @@ test('BillingLifecycleService honors a manual active state without date-based ex
   assert.equal(overview.lifecycle_state, 'ACTIVE');
   assert.equal(overview.access_mode, 'full');
   assert.equal(overview.renewal_required, false);
+});
+
+
+test('student statements exclude draft charges and preserve cancelled/write-off adjustments without arrears', async () => {
+  const context=new RequestContextService(), studentId='00000000-0000-0000-0000-000000000802';
+  const invoices=['draft','void','uncollectible'].map((status,i)=>makeInvoice({id:'invoice-'+i,status:status as any,total_amount_minor:'10000',amount_paid_minor:'0',metadata:{student_id:studentId},issued_at:new Date('2026-01-01'),updated_at:new Date('2026-01-02')}));
+  const service=new BillingService(context,{} as never,{} as never,{} as never,{} as never,{} as never,{listStudentInvoices:async()=>invoices} as never,undefined,{listStudentStatementPayments:async()=>[]} as never);
+  const result=await context.run({tenant_id:'tenant-a'} as never,()=>service.getStudentStatement(studentId));
+  assert.equal(result.summary.balance_amount_minor,'0');
+  assert.equal(result.entries.length,4);
+  assert.equal(result.entries.filter(row=>row.kind==='adjustment').length,2);
+  assert.equal(result.entries.at(-1)?.balance_after_minor,'0');
+  assert.ok(result.entries.every(row=>row.status!=='draft'));
 });

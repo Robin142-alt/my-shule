@@ -4,12 +4,15 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { AUTH_ANONYMOUS_USER_ID } from '../../auth/auth.constants';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { AccountsRepository } from '../finance/repositories/accounts.repository';
 import { TransactionService } from '../finance/transaction.service';
 import { CreateManualFeePaymentDto } from './dto/create-manual-fee-payment.dto';
@@ -67,6 +70,7 @@ export class ManualFeePaymentService {
     private readonly invoicesRepository: InvoicesRepository,
     private readonly accountsRepository: AccountsRepository,
     private readonly transactionService: TransactionService,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
   ) {}
 
   async createManualFeePayment(
@@ -77,6 +81,16 @@ export class ManualFeePaymentService {
     const payment = await this.prisma.withRequestTransaction(async () => {
       this.assertHasAllocationTarget(dto.student_id ?? null, dto.invoice_id ?? null);
       this.assertMethodRequirements(dto);
+      if (dto.student_id) {
+        const student = await this.prisma.query(`SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`, [tenantId, dto.student_id]);
+        if (!student.rows.length) throw new NotFoundException('Learner was not found in this school');
+      }
+      if (dto.invoice_id) {
+        const invoice = await this.invoicesRepository.findById(tenantId, dto.invoice_id);
+        if (!invoice || (dto.student_id && this.readStudentId(invoice) !== dto.student_id)) {
+          throw new NotFoundException('Invoice was not found for this learner in this school');
+        }
+      }
 
       const createdPayment = await this.manualFeePaymentsRepository.create({
         tenant_id: tenantId,
@@ -110,6 +124,7 @@ export class ManualFeePaymentService {
       }
 
       if (createdPayment.payment_method === 'cheque') {
+        if (createdPayment.status === 'received') await this.recordReceiptState(createdPayment);
         return createdPayment;
       }
 
@@ -126,13 +141,33 @@ export class ManualFeePaymentService {
 
   async listManualFeePayments(input: {
     status?: ManualFeePaymentStatus | null;
+    limit?: number;
+    offset?: number;
   } = {}): Promise<ManualFeePaymentResponseDto[]> {
+    if (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)
+      || input.offset !== undefined && (!Number.isInteger(input.offset) || input.offset < 0)) {
+      throw new BadRequestException('Invalid receipt page');
+    }
+    if (input.status && !['received', 'deposited', 'cleared', 'bounced', 'reversed'].includes(input.status)) {
+      throw new BadRequestException('Invalid receipt status');
+    }
     const payments = await this.manualFeePaymentsRepository.list({
       tenant_id: this.requireTenantId(),
       status: input.status ?? null,
+      ...(input.limit !== undefined ? { limit: input.limit, offset: input.offset ?? 0 } : {}),
     });
-
-    return payments.map((payment) => this.toResponse(payment));
+    const ids = [...new Set(payments.map(payment => payment.student_id).filter(Boolean))];
+    const learners = ids.length ? await this.prisma.query<{ id: string; name: string; admission_number: string }>(
+      `SELECT id::text, trim(concat_ws(' ',first_name,middle_name,last_name)) AS name, admission_number
+       FROM students WHERE tenant_id=$1 AND id::text=ANY($2::text[])`,
+      [this.requireTenantId(), ids],
+    ) : { rows: [] };
+    const names = new Map(learners.rows.map(row => [row.id, row]));
+    return payments.map(payment => ({
+      ...this.toResponse(payment),
+      student_name: names.get(payment.student_id ?? '')?.name ?? null,
+      admission_number: names.get(payment.student_id ?? '')?.admission_number ?? null,
+    }));
   }
 
   async getManualFeePayment(paymentId: string): Promise<ManualFeePaymentResponseDto> {
@@ -166,7 +201,7 @@ export class ManualFeePaymentService {
         );
       }
 
-      return this.manualFeePaymentsRepository.markDeposited({
+      const deposited = await this.manualFeePaymentsRepository.markDeposited({
         tenant_id: tenantId,
         payment_id: paymentId,
         deposited_at: this.resolveTimestamp(dto.occurred_at),
@@ -174,6 +209,8 @@ export class ManualFeePaymentService {
         notes: dto.notes?.trim() || null,
         metadata: dto.metadata,
       });
+      await this.recordReceiptState(deposited);
+      return deposited;
     });
 
     return this.toResponse(payment);
@@ -211,13 +248,15 @@ export class ManualFeePaymentService {
         );
       }
 
-      return this.manualFeePaymentsRepository.markBounced({
+      const bounced = await this.manualFeePaymentsRepository.markBounced({
         tenant_id: tenantId,
         payment_id: paymentId,
         bounced_at: this.resolveTimestamp(dto.occurred_at),
         notes: dto.notes?.trim() || null,
         metadata: dto.metadata,
       });
+      await this.recordReceiptState(bounced);
+      return bounced;
     });
 
     return this.toResponse(payment);
@@ -233,7 +272,7 @@ export class ManualFeePaymentService {
 
       // Collection reversals are approved in the same transaction by the
       // Principal workflow. The legacy manual endpoint cannot bypass it.
-      const collection = lockedPayment.metadata?.source === 'collection_payment' ? await this.prisma.query<{ approved: boolean }>(
+      const collection = await this.prisma.query<{ approved: boolean }>(
         `SELECT EXISTS (
            SELECT 1 FROM collection_reversal_requests r
            WHERE r.tenant_id=p.tenant_id AND r.payment_id=p.id
@@ -241,9 +280,14 @@ export class ManualFeePaymentService {
          ) AS approved
          FROM collection_payments p WHERE p.tenant_id=$1 AND p.manual_fee_payment_id=$2::uuid`,
         [tenantId, paymentId, this.requestContext.requireStore().user_id],
-      ) : { rows: [] };
-      if (collection.rows.length && !collection.rows[0].approved) {
-        throw new ConflictException('Request a collection reversal for Principal approval before reversing this payment');
+      );
+      const manualApproval = collection.rows.length ? collection : await this.prisma.query<{ approved: boolean }>(
+        `SELECT EXISTS(SELECT 1 FROM manual_fee_reversal_requests WHERE tenant_id=$1 AND payment_id=$2::uuid
+          AND status='approved' AND reviewed_by=$3::uuid AND requested_by<>reviewed_by) AS approved`,
+        [tenantId, paymentId, this.requestContext.requireStore().user_id],
+      );
+      if (this.requestContext.requireStore().role !== 'principal' || !manualApproval.rows[0]?.approved) {
+        throw new ConflictException('Request a reversal for a different Principal to approve before reversing this payment');
       }
 
       if (lockedPayment.status !== 'cleared') {
@@ -282,6 +326,61 @@ export class ManualFeePaymentService {
     return this.toResponse(payment);
   }
 
+  async requestReversal(paymentId: string, reason: string) {
+    const tenantId = this.requireTenantId();
+    const actor = this.requestContext.requireStore();
+    if (!actor.user_id || !['accountant','bursar','principal'].includes(actor.role ?? '')) throw new ForbiddenException();
+    if (typeof reason !== 'string' || reason.trim().length < 5) throw new BadRequestException('Provide at least five characters explaining the reversal');
+    return this.prisma.withRequestTransaction(async () => {
+      const payment = await this.requireLockedPayment(tenantId, paymentId);
+      if (payment.status !== 'cleared') throw new ConflictException('Only cleared payments can be reversed');
+      if ((await this.prisma.query(`SELECT id FROM collection_payments WHERE tenant_id=$1 AND manual_fee_payment_id=$2::uuid`, [tenantId,paymentId])).rows.length) {
+        throw new ConflictException('Request this reversal in Collections so the provider transaction remains linked');
+      }
+      const request = (await this.prisma.query<{ id: string }>(`INSERT INTO manual_fee_reversal_requests(tenant_id,payment_id,reason,requested_by)
+        VALUES($1,$2::uuid,$3,$4::uuid) ON CONFLICT(tenant_id,payment_id) WHERE status='pending' DO NOTHING RETURNING id`,
+        [tenantId,paymentId,reason.trim(),actor.user_id])).rows[0];
+      if (!request) throw new ConflictException('A reversal is already awaiting Principal review');
+      await this.recordReversal(request.id,paymentId,'requested',reason.trim());
+      return { id: request.id, status: 'pending', message: 'Reversal sent for Principal review. No balance has changed.' };
+    });
+  }
+
+  async listReversalRequests() {
+    return (await this.prisma.query(`SELECT r.id,r.payment_id,r.reason,r.requested_by::text,r.created_at,p.receipt_number,p.amount_minor::text
+      FROM manual_fee_reversal_requests r JOIN manual_fee_payments p ON p.tenant_id=r.tenant_id AND p.id=r.payment_id
+      WHERE r.tenant_id=$1 AND r.status='pending' ORDER BY r.created_at,r.id`, [this.requireTenantId()])).rows;
+  }
+
+  async decideReversal(id: string, decision: 'approve' | 'reject', reason: string) {
+    const tenantId = this.requireTenantId();
+    const actor = this.requestContext.requireStore();
+    if (actor.role !== 'principal' || !actor.user_id) throw new ForbiddenException('Only the Principal can decide reversals');
+    if (!['approve','reject'].includes(decision) || typeof reason !== 'string' || reason.trim().length < 5) throw new BadRequestException('Provide a decision and at least five characters of notes');
+    return this.prisma.withRequestTransaction(async () => {
+      const request = (await this.prisma.query<{ payment_id: string; status: string; requested_by: string }>(
+        'SELECT * FROM manual_fee_reversal_requests WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE', [tenantId,id])).rows[0];
+      if (!request) throw new NotFoundException('Reversal was not found in this school');
+      if (request.status !== 'pending') throw new ConflictException('This reversal has already been decided');
+      if (request.requested_by === actor.user_id) throw new ForbiddenException('The requester cannot approve their own reversal');
+      const status = decision === 'approve' ? 'approved' : 'rejected';
+      await this.prisma.query(`UPDATE manual_fee_reversal_requests SET status=$3,reviewed_by=$4::uuid,reviewed_at=now(),decision_reason=$5 WHERE tenant_id=$1 AND id=$2::uuid`, [tenantId,id,status,actor.user_id,reason.trim()]);
+      if (decision === 'approve') await this.reverseManualFeePayment(request.payment_id,{notes: `Approved reversal ${id}: ${reason.trim()}`});
+      await this.recordReversal(id,request.payment_id,status,reason.trim());
+      return { status, message: decision === 'approve' ? 'Payment reversed and learner balance restored.' : 'Reversal rejected. No balance has changed.' };
+    });
+  }
+
+  private async recordReversal(id: string, paymentId: string, status: string, reason: string) {
+    if (!this.schoolEvents) throw new ConflictException('Finance event service is unavailable. Retry when it recovers.');
+    await this.schoolEvents.recordSchoolOperation({ schoolId: this.requireTenantId(),
+      event: { id: `manual-reversal:${id}:${status}`, type: `payment.reversal_${status}`, module: 'finance',
+        entityId: paymentId, title: `Payment reversal ${status}`, body: reason, payload: { reversal_id: id, payment_id: paymentId } },
+      notifications: [{ id: `manual-reversal:${id}:${status}`, title: `Payment reversal ${status}`, body: reason,
+        audienceRoles: ['accountant','bursar','principal'], href: '/finance-overview' }],
+    });
+  }
+
   private async clearLockedPayment(
     payment: ManualFeePaymentEntity,
     dto: UpdateManualFeePaymentStatusDto,
@@ -303,7 +402,7 @@ export class ManualFeePaymentService {
     const ledgerTransaction = await this.postReceiptTransaction(payment, dto);
     const allocations = await this.allocateClearedPayment(payment);
 
-    return this.manualFeePaymentsRepository.markCleared(payment.tenant_id, payment.id, {
+    const cleared = await this.manualFeePaymentsRepository.markCleared(payment.tenant_id, payment.id, {
       ledger_transaction_id: ledgerTransaction.transaction_id,
       cleared_at: this.resolveTimestamp(dto.occurred_at),
       deposit_reference: dto.deposit_reference?.trim() || null,
@@ -314,6 +413,21 @@ export class ManualFeePaymentService {
         credit_amount_minor: allocations.filter(allocation => allocation.allocation_type === 'credit')
           .reduce((sum, allocation) => sum + BigInt(allocation.amount_minor), 0n).toString(),
       },
+    });
+    await this.recordReceiptState(cleared);
+    return cleared;
+  }
+
+  private async recordReceiptState(payment: ManualFeePaymentEntity) {
+    if (!this.schoolEvents) throw new ConflictException('Finance event service is unavailable. Retry when it recovers.');
+    await this.schoolEvents.recordSchoolOperation({ schoolId: payment.tenant_id,
+      event: { id: `fee-receipt:${payment.id}:${payment.status}`, type: `receipt.${payment.status}`, module: 'finance',
+        entityId: payment.id, title: `Receipt ${payment.status}`, body: `${payment.receipt_number}: ${payment.payment_method} receipt ${payment.status}.`,
+        payload: { payment_id: payment.id, student_id: payment.student_id, amount_minor: payment.amount_minor,
+          status: payment.status, ledger_transaction_id: payment.ledger_transaction_id } },
+      notifications: payment.status === 'bounced' ? [{ id: `fee-receipt:${payment.id}:bounced`,
+        title: 'Cheque returned unpaid', body: `${payment.receipt_number} requires follow-up. No fees were credited.`,
+        audienceRoles: ['accountant', 'bursar'], href: '/payments' }] : [],
     });
   }
 
@@ -592,7 +706,7 @@ export class ManualFeePaymentService {
   private normalizeMinorAmount(value: string): string {
     const normalizedValue = value.trim();
 
-    if (!/^[1-9][0-9]*$/.test(normalizedValue)) {
+    if (!/^[1-9][0-9]*$/.test(normalizedValue) || BigInt(normalizedValue) > 9_223_372_036_854_775_807n) {
       throw new BadRequestException('Manual fee amount must be a positive integer in minor units');
     }
 

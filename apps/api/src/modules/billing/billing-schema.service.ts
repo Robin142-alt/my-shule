@@ -1177,6 +1177,23 @@ export class BillingSchemaService implements OnModuleInit {
       USING (tenant_id = current_setting('app.tenant_id', true))
       WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
 
+      CREATE TABLE IF NOT EXISTS manual_fee_reversal_requests (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
+        payment_id uuid NOT NULL, reason text NOT NULL,
+        requested_by uuid NOT NULL, status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+        reviewed_by uuid, reviewed_at timestamptz, decision_reason text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CHECK(reviewed_by IS NULL OR reviewed_by <> requested_by),
+        FOREIGN KEY(tenant_id,payment_id) REFERENCES manual_fee_payments(tenant_id,id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS manual_fee_reversal_pending ON manual_fee_reversal_requests(tenant_id,payment_id) WHERE status='pending';
+      CREATE INDEX IF NOT EXISTS manual_fee_reversal_queue ON manual_fee_reversal_requests(tenant_id,status,created_at);
+      ALTER TABLE manual_fee_reversal_requests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE manual_fee_reversal_requests FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS manual_fee_reversal_school ON manual_fee_reversal_requests;
+      CREATE POLICY manual_fee_reversal_school ON manual_fee_reversal_requests FOR ALL
+        USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
+
       DROP TRIGGER IF EXISTS trg_subscriptions_set_updated_at ON subscriptions;
       CREATE TRIGGER trg_subscriptions_set_updated_at
       BEFORE UPDATE ON subscriptions

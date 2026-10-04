@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SchoolExperienceRole } from "@/lib/experiences/school-data";
-import type { StudentFeeBalanceResponse } from "@/components/school/school-pages";
 import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { buildBillingApiPath, formatActivityDate, formatMinorKes, toMinorUnits } from "@/lib/billing/billing-utils";
 import { StatusPill } from "@/components/ui/status-pill";
+import { LearnerPicker } from "@/components/common/learner-picker";
+import type { LearnerLookupItem } from "@/lib/students/student-lookup";
+import { usePermissions } from "@/components/providers/permission-context";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 
 type SchoolRouteMode = "hosted" | "public";
@@ -26,7 +29,6 @@ type WaiverRow = {
 };
 
 export function WaiversDiscountsWorkspace({
-  role,
   tenantSlug,
 }: {
   role: SchoolExperienceRole;
@@ -35,7 +37,9 @@ export function WaiversDiscountsWorkspace({
   activeSection?: string;
 }) {
   const [waivers, setWaivers] = useState<WaiverRow[]>([]);
-  const [students, setStudents] = useState<StudentFeeBalanceResponse[]>([]);
+  const [learner, setLearner] = useState<LearnerLookupItem | null>(null);
+  const tenantId = useOptionalSchoolTenantId();
+  const { hasPermission } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,36 +49,32 @@ export function WaiversDiscountsWorkspace({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function loadWaivers() {
+  const loadWaivers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [waiverResponse, studentResponse] = await Promise.all([
-        fetch(buildBillingApiPath("/api/finance/waivers", tenantSlug), { cache: "no-store" }),
-        fetch(buildBillingApiPath("/api/billing/student-balances?limit=50", tenantSlug), { cache: "no-store" }),
-      ]);
+      const waiverResponse = await fetch(buildBillingApiPath("/api/finance/waivers", tenantSlug), { cache: "no-store" });
 
       if (!waiverResponse.ok) {
         throw new Error("Unable to load fee waivers for this school.");
       }
 
       const data = await waiverResponse.json();
-      const studentData = studentResponse.ok ? await studentResponse.json() : [];
       setWaivers(Array.isArray(data) ? data : data?.items ?? data?.waivers ?? []);
-      setStudents(Array.isArray(studentData) ? studentData : []);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "An error occurred");
     } finally {
       setLoading(false);
     }
-  }
+  }, [tenantSlug]);
 
   useEffect(() => {
     loadWaivers();
-  }, [tenantSlug]);
+  }, [loadWaivers]);
 
   async function handleApplyWaiver(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (submitting || !tenantId || !hasPermission("finance:write")) return;
     if (!formDraft.studentId || !formDraft.amount || !formDraft.reason) {
       setSubmitError("Please fill out all fields.");
       return;
@@ -88,16 +88,16 @@ export function WaiversDiscountsWorkspace({
     setSubmitting(true);
 
     try {
-      const selectedStudent = students.find((student) => student.student_id === formDraft.studentId);
+      const selectedStudent = learner;
       if (!selectedStudent) {
         setSubmitError("Select a learner from this school's live fee accounts.");
         return;
       }
-      const response = await requestDashboardApi<{ message?: string; waiver?: any; request?: any }>("/finance/waivers", {
-        method: "POST",
+      const response = await requestDashboardApi<{ message?: string }>("/finance/waivers", {
+        tenantId, method: "POST",
         body: {
           student_id: formDraft.studentId.trim(),
-          student_name: selectedStudent.student_name || "Student",
+          student_name: selectedStudent.name,
           amount_minor: amountMinor,
           reason: formDraft.reason.trim(),
           source_dashboard: "accountant-waivers-discounts-workspace",
@@ -122,7 +122,7 @@ export function WaiversDiscountsWorkspace({
         title="Waivers & Discounts"
         description="Manage fee waivers, discounts, and bursary allocations."
         actions={
-          <Button onClick={() => setShowModal(true)} disabled={loading}>
+          <Button onClick={() => setShowModal(true)} disabled={loading || !hasPermission("finance:write")}>
             Apply Waiver
           </Button>
         }
@@ -141,7 +141,7 @@ export function WaiversDiscountsWorkspace({
         ) : (
           <DataTable
             rows={waivers}
-            getRowKey={(row: any) => row.id || `${row.created_at}-${row.student_name}-${row.amount}`}
+            getRowKey={(row: WaiverRow) => row.id}
             columns={[
               { id: "created_at", header: "Date", render: (row: WaiverRow) => formatActivityDate(row.created_at) },
               { id: "student_name", header: "Student", render: (row: WaiverRow) => row.student_name },
@@ -163,7 +163,7 @@ export function WaiversDiscountsWorkspace({
         )}
       </div>
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Apply Fee Waiver">
+      <Modal open={showModal} onClose={() => { if (!submitting) setShowModal(false); }} title="Apply Fee Waiver">
         <form onSubmit={handleApplyWaiver} className="space-y-4 py-4">
           {submitError && (
             <div className="rounded bg-danger-soft p-3 text-sm text-red-600">
@@ -171,26 +171,8 @@ export function WaiversDiscountsWorkspace({
             </div>
           )}
           
-          <div className="space-y-1">
-            <label htmlFor="waiver-student" className="text-sm font-medium">Learner fee account</label>
-            <select
-              id="waiver-student"
-              className="w-full rounded border border-slate-300 p-2 text-sm"
-              value={formDraft.studentId}
-              onChange={(e) => setFormDraft({ ...formDraft, studentId: e.target.value })}
-            >
-              <option value="">Select learner</option>
-              {students.map((student) => (
-                <option key={student.student_id} value={student.student_id}>
-                  {student.student_name || "Unnamed student"} · Balance {formatMinorKes(student.balance_amount_minor)}
-                </option>
-              ))}
-            </select>
-            {students.length === 0 ? (
-              <p className="mt-1 text-xs text-warning">No invoiced learner accounts are available. Generate student invoices before requesting a waiver.</p>
-            ) : null}
-          </div>
-          
+          <LearnerPicker label="Learner name or admission number" tenantSlug={tenantSlug || ""} value={learner} onChange={value => { setLearner(value); setFormDraft(current => ({ ...current, studentId: value?.id || "" })); }} />
+          <p className="text-sm text-muted">The Principal reviews the request against this learner’s outstanding fee balance.</p>
           <div className="space-y-1">
             <label className="text-sm font-medium">Amount (KES)</label>
             <input
@@ -214,10 +196,10 @@ export function WaiversDiscountsWorkspace({
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setShowModal(false)}>
+            <Button type="button" variant="outline" disabled={submitting} onClick={() => setShowModal(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || students.length === 0}>
+            <Button type="submit" disabled={submitting || !learner}>
               {submitting ? "Applying..." : "Apply Waiver"}
             </Button>
           </div>

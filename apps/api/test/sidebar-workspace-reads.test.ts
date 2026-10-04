@@ -125,8 +125,11 @@ async function main() {
         try { controller = resolve(Type); } catch (error: any) { console.log('CONSTRUCTION', Type.name, error.message); continue; }
         for (const method of Object.getOwnPropertyNames(Type.prototype)) {
           const fn = Type.prototype[method];
-          if (typeof fn !== 'function' || Reflect.getMetadata('method', fn) !== 0 || fn.length > 0 || Reflect.getMetadata('__sse__', fn)) continue;
+          if (typeof fn !== 'function' || Reflect.getMetadata('method', fn) !== 0 || Reflect.getMetadata('__sse__', fn)) continue;
           route = `${Reflect.getMetadata('path', Type)}/${Reflect.getMetadata('path', fn)}`;
+          // Expenses now accepts optional pagination/filter query parameters.
+          // Keep exercising its default GET instead of dropping it from coverage.
+          if (fn.length > 0 && route !== 'admin-command/accountant/expenses') continue;
           try { await controller[method](); passed.push(route); }
           catch (error: any) { unavailable.push({ route, message: error.message }); }
         }
@@ -148,6 +151,7 @@ async function main() {
     assert.deepEqual(schemaFailures, [], 'All owning schema initializers must succeed');
     assert.deepEqual(failures, [], 'Dashboard GET SQL must execute against the deployed schema');
     assert.equal(metricsPassed.length, PRINCIPAL_INSIGHT_PROVIDERS.length, 'Every enabled Principal insight provider must load');
+    assert.ok(passed.includes('admin-command/accountant/expenses'), 'Accountant expense GET must remain in the database audit');
     assert.ok(passed.length >= 282, `Do not silently reduce the GET audit coverage (${passed.length} passed; ${JSON.stringify(unavailable)})`);
     for (const failure of unavailable) {
       assert.match(failure.message, /not an active member|has not uploaded|has not been uploaded|active class-teacher appointment/, JSON.stringify(failure));

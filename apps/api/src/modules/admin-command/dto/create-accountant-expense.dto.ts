@@ -1,10 +1,15 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
 export class CreateAccountantExpenseDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  @MaxLength(128)
+  idempotency_key?: string;
   @Transform(trim)
   @IsString()
   @IsIn([

@@ -6,27 +6,29 @@ import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getMissingFieldError, getApiResponseMessage } from "@/lib/forms/validation";
-import { formatMinorKes, toMinorUnits } from "@/lib/billing/billing-utils";
-import { buildBillingApiPath, buildPaymentsApiPath, unwrapApiData } from "@/lib/data/school-api-config";
-import { Check, ChevronsUpDown, ArrowRight, Wallet, CheckCircle2, History } from "lucide-react";
+import { formatMinorKes } from "@/lib/billing/billing-utils";
+import { buildPaymentsApiPath, unwrapApiData } from "@/lib/data/school-api-config";
 import { LearnerPicker } from "@/components/common/learner-picker";
+import { usePermissions } from "@/components/providers/permission-context";
 import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
-import { mpesaC2bStatusTone, manualReceiptSelectableMethods, manualReceiptMethodLabels, manualReceiptStatusTone, type ManualReceiptResponse, type ManualReceiptStatus, type MpesaC2bPaymentResponse, type MpesaC2bStatus, type ManualReceiptMethod } from "@/components/school/school-pages";
-import type { StatusTone, SyncState } from "@/lib/dashboard/types";
+import { mpesaC2bStatusTone, type MpesaC2bPaymentResponse } from "@/components/school/school-pages";
 
 export function MPesaReconciliationWorkspace({
-  role,
   tenantSlug,
+  onNavigate,
 }: {
   role: SchoolExperienceRole;
   tenantSlug?: string | null;
+  onNavigate?: (section: string) => void;
 }) {
   const [rows, setRows] = useState<MpesaC2bPaymentResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -34,17 +36,17 @@ export function MPesaReconciliationWorkspace({
     async function loadTransactions() {
       try {
         const response = await fetch(
-          buildPaymentsApiPath("/api/payments/mpesa/c2b/payments", tenantSlug),
+          buildPaymentsApiPath(`/api/payments/mpesa/c2b/payments?limit=50&offset=${page * 50}`, tenantSlug),
           { cache: "no-store" }
         );
-        if (!response.ok) return;
+        if (!response.ok) throw new Error("M-Pesa transactions could not be loaded.");
         const payload = await response.json();
         const payments = unwrapApiData<MpesaC2bPaymentResponse[]>(payload);
         if (active && Array.isArray(payments)) {
           setRows(payments);
         }
       } catch (err) {
-        // ignore
+        if (active) setLoadError(err instanceof Error ? err.message : "M-Pesa transactions could not be loaded.");
       } finally {
         if (active) setLoading(false);
       }
@@ -54,12 +56,12 @@ export function MPesaReconciliationWorkspace({
     return () => {
       active = false;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, reload, page]);
 
   const metrics = [
-    { id: "received", label: "Total Transactions", value: rows.length.toString(), helper: "All time" },
-    { id: "pending", label: "Pending Review", value: rows.filter((r) => r.status === "pending_review").length.toString(), helper: "Needs action" },
-    { id: "matched", label: "Matched", value: rows.filter((r) => r.status === "matched").length.toString(), helper: "Fully cleared" },
+    { id: "received", label: "Transactions on this page", value: rows.length.toString(), helper: `Page ${page + 1}` },
+    { id: "pending", label: "Needs attention", value: rows.filter((r) => !["matched", "rejected", "reversed"].includes(r.status)).length.toString(), helper: "On this page" },
+    { id: "matched", label: "Posted", value: rows.filter((r) => r.status === "matched").length.toString(), helper: "Cleared on this page" },
   ];
 
   return (
@@ -69,13 +71,15 @@ export function MPesaReconciliationWorkspace({
         title="Mobile money reconciliation"
         description="Handle auto-matching, manual review, callback confidence, and duplicate detection from one focused page."
       />
+      {loadError && <p role="alert" className="text-danger">{loadError}</p>}
+      <Button variant="secondary" onClick={() => { setLoadError(null); setLoading(true); setReload(value => value + 1); }}>Refresh M-Pesa transactions</Button>
       <MetricGrid items={metrics} />
       <DataTable
         title="MPESA transactions"
         subtitle={loading ? "Loading transactions..." : "Phone, amount, receipt code, status, and matched learner."}
         columns={[
           { id: "phone", header: "Phone", render: (row) => row.phone_number || "-" },
-          { id: "amount", header: "Amount", render: (row) => row.amount_minor, className: "text-right font-semibold", headerClassName: "text-right" },
+          { id: "amount", header: "Amount", render: (row) => formatMinorKes(row.amount_minor), className: "text-right font-semibold", headerClassName: "text-right" },
           { id: "code", header: "Code", render: (row) => row.trans_id },
           { id: "status", header: "Status", render: (row) => <StatusPill label={row.status.replace("_", " ")} tone={row.status === "matched" ? "ok" : "warning"} /> },
           { id: "matchedStudent", header: "Matched Student", render: (row) => row.matched_student_id || "-" },
@@ -84,17 +88,20 @@ export function MPesaReconciliationWorkspace({
         rows={rows}
         getRowKey={(row) => row.id}
       />
-      <MpesaC2bReviewPanel tenantSlug={tenantSlug} />
-      <ManualReceiptsPanel tenantSlug={tenantSlug} />
+      <div className="flex items-center justify-end gap-3"><Button variant="secondary" disabled={!page || loading} onClick={() => { setLoading(true); setPage(value => value - 1); }}>Previous page</Button><span>Page {page + 1}</span><Button variant="secondary" disabled={rows.length < 50 || loading} onClick={() => { setLoading(true); setPage(value => value + 1); }}>Next page</Button></div>
+      <MpesaC2bReviewPanel tenantSlug={tenantSlug} reload={reload} onReconciled={() => setReload(value => value + 1)} />
+      <p className="text-sm text-muted">Cash and cheque receipts are managed in Payments. Bank statement entries and new provider exceptions are managed in Collections.</p>
+      {onNavigate && <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => onNavigate("payments")}>Cash &amp; cheques</Button><Button variant="secondary" onClick={() => onNavigate("collections")}>Bank / M-Pesa collections</Button></div>}
     </div>
   );
 }
-function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
+function MpesaC2bReviewPanel({ tenantSlug, reload, onReconciled }: { tenantSlug?: string | null; reload: number; onReconciled: () => void }) {
+  const { hasPermission } = usePermissions();
   const [payments, setPayments] = useState<MpesaC2bPaymentResponse[]>([]);
+  const [reviewPage, setReviewPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [reconciling, setReconciling] = useState(false);
   const [selectedPaymentId, setSelectedPaymentId] = useState("");
-  const [invoiceId, setInvoiceId] = useState("");
   const [studentId, setStudentId] = useState("");
   const [selectedReviewLearner, setSelectedReviewLearner] = useState<LearnerLookupItem | null>(null);
   const [notes, setNotes] = useState("");
@@ -110,7 +117,7 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
 
       try {
         const response = await fetch(
-          buildPaymentsApiPath("/api/payments/mpesa/c2b/payments?status=pending_review", tenantSlug),
+          buildPaymentsApiPath(`/api/payments/mpesa/c2b/payments?status=verified_unmatched&limit=50&offset=${reviewPage * 50}`, tenantSlug),
           { cache: "no-store" },
         );
 
@@ -130,7 +137,7 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
 
         if (active) {
           setPayments(pendingPayments);
-          setSelectedPaymentId((current) => current || pendingPayments[0]?.id || "");
+          setSelectedPaymentId(current => pendingPayments.some(payment => payment.id === current) ? current : pendingPayments[0]?.id || "");
         }
       } catch (caught) {
         if (active) {
@@ -148,12 +155,13 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
     return () => {
       active = false;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, reload, reviewPage]);
 
   async function reconcilePayment() {
+    if (reconciling || !hasPermission("finance:write")) return;
     const validationError = getMissingFieldError([
       { label: "Payment", value: selectedPaymentId },
-      { label: "Invoice or student", value: invoiceId || studentId },
+      { label: "Learner", value: studentId },
     ]);
 
     if (validationError) {
@@ -176,7 +184,6 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
             "x-myshule-csrf": csrfToken,
           },
           body: JSON.stringify({
-            invoice_id: invoiceId.trim() || undefined,
             student_id: studentId.trim() || undefined,
             notes: notes.trim() || undefined,
           }),
@@ -200,10 +207,10 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
       setPayments((current) => current.filter((payment) => payment.id !== reconciledPayment.id));
       setMessage(`${reconciledPayment.trans_id} reconciled and posted to the fee ledger.`);
       setSelectedPaymentId("");
-      setInvoiceId("");
       setStudentId("");
       setSelectedReviewLearner(null);
       setNotes("");
+      onReconciled();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Paybill deposit could not be reconciled.");
     } finally {
@@ -217,6 +224,7 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Paybill review</p>
           <h3 className="mt-1 text-lg font-semibold text-foreground">Unmatched direct M-PESA deposits</h3>
+          <p className="mt-1 text-sm text-muted">Only provider-verified deposits can be assigned. Select the learner; existing invoice balances are allocated automatically. Verification failures remain in Collections &amp; exceptions.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-4">
           <select
@@ -232,13 +240,6 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
               </option>
             ))}
           </select>
-          <input
-            aria-label="Invoice reference"
-            className="input-base"
-            placeholder="Invoice number"
-            value={invoiceId}
-            onChange={(event) => setInvoiceId(event.target.value)}
-          />
           <div className="sm:col-span-2">
             <LearnerPicker
               label="Learner name or admission number"
@@ -257,7 +258,7 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
           />
-          <Button onClick={reconcilePayment} disabled={reconciling}>
+          <Button onClick={reconcilePayment} disabled={reconciling || loading || !hasPermission("finance:write") || !selectedPaymentId || !studentId}>
             {reconciling ? "Posting..." : "Reconcile"}
           </Button>
         </div>
@@ -272,6 +273,7 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
           {error}
         </div>
       ) : null}
+      <div className="flex items-center justify-end gap-3"><Button variant="secondary" disabled={!reviewPage || loading} onClick={() => setReviewPage(value => value - 1)}>Previous verified deposits</Button><Button variant="secondary" disabled={payments.length < 50 || loading} onClick={() => setReviewPage(value => value + 1)}>More verified deposits</Button></div>
       <DataTable
         title="Pending Paybill deposits"
         subtitle={loading ? "Loading unmatched deposits..." : "Direct customer-to-business payments waiting for accountant review."}
@@ -289,469 +291,3 @@ function MpesaC2bReviewPanel({ tenantSlug }: { tenantSlug?: string | null }) {
     </section>
   );
 }
-
-function ManualReceiptsPanel({ tenantSlug }: { tenantSlug?: string | null }) {
-  const [receipts, setReceipts] = useState<ManualReceiptResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState({
-    payment_method: "cheque" as ManualReceiptMethod,
-    amount: "",
-    student_id: "",
-    invoice_id: "",
-    payer_name: "",
-    cheque_number: "",
-    drawer_bank: "",
-    deposit_reference: "",
-    asset_account_code: "1120-BANK-CLEARING",
-    fee_control_account_code: "1100-AR-FEES",
-    notes: "",
-  });
-  const [selectedReceiptLearner, setSelectedReceiptLearner] = useState<LearnerLookupItem | null>(null);
-  const [manualReconcileOpen, setManualReconcileOpen] = useState(false);
-  const [manualReceiptCode, setManualReceiptCode] = useState("");
-  const [manualMatchedLearner, setManualMatchedLearner] = useState("");
-  const [manualReconcileError, setManualReconcileError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadReceipts() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(buildBillingApiPath("/api/billing/manual-fee-payments", tenantSlug), {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error("Manual receipts could not be loaded.");
-        }
-
-        const payload = (await response.json()) as ManualReceiptResponse[];
-
-        if (active) {
-          setReceipts(payload);
-        }
-      } catch (caught) {
-        if (active) {
-          setError(caught instanceof Error ? caught.message : "Manual receipts could not be loaded.");
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadReceipts();
-
-    return () => {
-      active = false;
-    };
-  }, [tenantSlug]);
-
-  async function submitReceipt() {
-    const amountMinor = toMinorUnits(draft.amount);
-    const validationError = getMissingFieldError([
-      { label: "Amount", value: draft.amount },
-      { label: "Student or invoice", value: draft.student_id || draft.invoice_id },
-      ...(draft.payment_method === "cheque"
-        ? [
-            { label: "Cheque number", value: draft.cheque_number },
-            { label: "Drawer bank", value: draft.drawer_bank },
-          ]
-        : []),
-    ]);
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    if (!amountMinor) {
-      setError("Enter a valid amount.");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const csrfToken = await getCsrfToken();
-      const response = await fetch(buildBillingApiPath("/api/billing/manual-fee-payments", tenantSlug), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-myshule-csrf": csrfToken,
-        },
-        body: JSON.stringify({
-          idempotency_key: `manual-${crypto.randomUUID()}`,
-          payment_method: draft.payment_method,
-          amount_minor: amountMinor,
-          student_id: draft.student_id.trim() || undefined,
-          invoice_id: draft.invoice_id.trim() || undefined,
-          payer_name: draft.payer_name.trim() || undefined,
-          cheque_number: draft.cheque_number.trim() || undefined,
-          drawer_bank: draft.drawer_bank.trim() || undefined,
-          deposit_reference: draft.deposit_reference.trim() || undefined,
-          asset_account_code: draft.asset_account_code.trim() || undefined,
-          fee_control_account_code: draft.fee_control_account_code.trim() || undefined,
-          notes: draft.notes.trim() || undefined,
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | ManualReceiptResponse
-        | { message?: string }
-        | null;
-
-      if (!response.ok || !payload || !("id" in payload)) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Manual receipt could not be saved.",
-        );
-      }
-
-      setReceipts((current) => [payload, ...current.filter((row) => row.id !== payload.id)]);
-      setMessage(
-        payload.status === "cleared"
-          ? `${payload.receipt_number} cleared and posted.`
-          : `${payload.receipt_number} recorded pending clearance.`,
-      );
-      setDraft((current) => ({
-        ...current,
-        student_id: "",
-        invoice_id: "",
-        amount: "",
-        payer_name: "",
-        cheque_number: "",
-        drawer_bank: "",
-        deposit_reference: "",
-        notes: "",
-      }));
-      setSelectedReceiptLearner(null);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Manual receipt could not be saved.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function runReceiptAction(receipt: ManualReceiptResponse, action: "deposit" | "clear" | "bounce" | "reverse") {
-    setError(null);
-    setMessage(null);
-
-    try {
-      const csrfToken = await getCsrfToken();
-      const response = await fetch(
-        buildBillingApiPath(`/api/billing/manual-fee-payments/${receipt.id}/${action}`, tenantSlug),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-          body: JSON.stringify({
-            occurred_at: new Date().toISOString(),
-            notes:
-              action === "bounce"
-                ? "Cheque returned unpaid"
-                : action === "reverse"
-                  ? "Manual receipt reversed by accountant"
-                  : undefined,
-          }),
-        },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | ManualReceiptResponse
-        | { message?: string }
-        | null;
-
-      if (!response.ok || !payload || !("id" in payload)) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Receipt action failed.",
-        );
-      }
-
-      setReceipts((current) => current.map((row) => (row.id === payload.id ? payload : row)));
-      setMessage(`${payload.receipt_number} is now ${payload.status.replace("_", " ")}.`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Receipt action failed.");
-    }
-  }
-
-  function validateManualReconcile() {
-    const receiptCode = manualReceiptCode.trim();
-
-    if (!receiptCode) {
-      setManualReconcileError("Receipt code is required.");
-      return;
-    }
-
-    if (!manualMatchedLearner.trim()) {
-      setManualReconcileError("Matched learner is required.");
-      return;
-    }
-
-    const matchedReceipt = receipts.find((receipt) =>
-      [
-        receipt.receipt_number,
-        receipt.deposit_reference,
-        receipt.cheque_number,
-        receipt.ledger_transaction_id,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase() === receiptCode.toLowerCase()),
-    );
-
-    if (!matchedReceipt) {
-      setManualReconcileError("Receipt code was not found in the current MPESA queue.");
-      return;
-    }
-
-    setManualReconcileError(null);
-    setManualReconcileOpen(false);
-    setMessage(`${matchedReceipt.receipt_number} matched to ${manualMatchedLearner.trim()} for accountant review.`);
-    setManualReceiptCode("");
-    setManualMatchedLearner("");
-  }
-
-  return (
-    <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Manual receipts</p>
-          <h3 className="mt-1 text-lg font-semibold text-foreground">Cheque, cash, bank deposit, and EFT</h3>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Button variant="secondary" onClick={() => {
-            setManualReconcileOpen(true);
-            setManualReconcileError(null);
-          }}>
-            Manual Reconcile
-          </Button>
-          <select
-            aria-label="Payment method"
-            className="input-base"
-            value={draft.payment_method}
-            onChange={(event) => {
-              const method = event.target.value as ManualReceiptMethod;
-              setDraft((current) => ({
-                ...current,
-                payment_method: method,
-                asset_account_code: method === "cash" ? "1010-CASH-ON-HAND" : "1120-BANK-CLEARING",
-              }));
-            }}
-          >
-            {manualReceiptSelectableMethods.map((method) => (
-              <option key={method} value={method}>
-                {manualReceiptMethodLabels[method]}
-              </option>
-            ))}
-          </select>
-          <input
-            aria-label="Manual receipt amount"
-            className="input-base"
-            inputMode="decimal"
-            placeholder="Amount"
-            value={draft.amount}
-            onChange={(event) => setDraft((current) => ({ ...current, amount: event.target.value }))}
-          />
-          <Button onClick={submitReceipt} disabled={saving}>
-            {saving ? "Saving..." : "Record receipt"}
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <input
-          aria-label="Invoice reference"
-          className="input-base"
-          placeholder="Invoice number or receipt reference"
-          value={draft.invoice_id}
-          onChange={(event) => setDraft((current) => ({ ...current, invoice_id: event.target.value }))}
-        />
-        <div className="lg:col-span-2">
-          <LearnerPicker
-            label="Learner name or admission number"
-            tenantSlug={tenantSlug ?? ""}
-            value={selectedReceiptLearner}
-            onChange={(learner) => {
-              setSelectedReceiptLearner(learner);
-              setDraft((current) => ({
-                ...current,
-                student_id: learner?.id ?? "",
-                payer_name: learner?.name ?? current.payer_name,
-              }));
-            }}
-          />
-        </div>
-        <input
-          aria-label="Payer name"
-          className="input-base"
-          placeholder="Payer name"
-          value={draft.payer_name}
-          onChange={(event) => setDraft((current) => ({ ...current, payer_name: event.target.value }))}
-        />
-        <input
-          aria-label="Deposit reference"
-          className="input-base"
-          placeholder="Deposit/reference"
-          value={draft.deposit_reference}
-          onChange={(event) => setDraft((current) => ({ ...current, deposit_reference: event.target.value }))}
-        />
-        {draft.payment_method === "cheque" ? (
-          <>
-            <input
-              aria-label="Cheque number"
-              className="input-base"
-              placeholder="Cheque number"
-              value={draft.cheque_number}
-              onChange={(event) => setDraft((current) => ({ ...current, cheque_number: event.target.value }))}
-            />
-            <input
-              aria-label="Drawer bank"
-              className="input-base"
-              placeholder="Drawer bank"
-              value={draft.drawer_bank}
-              onChange={(event) => setDraft((current) => ({ ...current, drawer_bank: event.target.value }))}
-            />
-          </>
-        ) : null}
-        <input
-          aria-label="Asset account code"
-          className="input-base"
-          placeholder="Asset account"
-          value={draft.asset_account_code}
-          onChange={(event) => setDraft((current) => ({ ...current, asset_account_code: event.target.value }))}
-        />
-        <input
-          aria-label="Fee control account code"
-          className="input-base"
-          placeholder="Fee control account"
-          value={draft.fee_control_account_code}
-          onChange={(event) => setDraft((current) => ({ ...current, fee_control_account_code: event.target.value }))}
-        />
-      </div>
-
-      {message ? (
-        <div aria-live="polite" className="mt-4 rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground">
-          {message}
-        </div>
-      ) : null}
-      {error ? (
-        <div role="alert" className="mt-4 rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
-          {error}
-        </div>
-      ) : null}
-
-      <div>
-        <DataTable
-          title="Manual receipt register"
-          subtitle={loading ? "Loading accountant receipts..." : "Receipts, clearance state, and ledger posting references."}
-          columns={[
-            { id: "receipt", header: "Receipt", render: (row) => row.receipt_number },
-            { id: "method", header: "Method", render: (row) => manualReceiptMethodLabels[row.payment_method] },
-            { id: "amount", header: "Amount", render: (row) => formatMinorKes(row.amount_minor), className: "text-right font-semibold", headerClassName: "text-right" },
-            { id: "status", header: "Status", render: (row) => <StatusPill label={row.status.replace("_", " ")} tone={manualReceiptStatusTone[row.status]} /> },
-            { id: "target", header: "Target", render: (row) => row.invoice_id ?? row.student_id ?? "Unassigned" },
-            { id: "reference", header: "Reference", render: (row) => row.cheque_number ?? row.deposit_reference ?? row.ledger_transaction_id ?? "Pending" },
-            {
-              id: "actions",
-              header: "Actions",
-              render: (row) => (
-                <div className="flex flex-wrap gap-2">
-                  {row.payment_method === "cheque" && row.status === "received" ? (
-                    <Button variant="secondary" onClick={() => void runReceiptAction(row, "deposit")}>
-                      Deposit
-                    </Button>
-                  ) : null}
-                  {["received", "deposited"].includes(row.status) ? (
-                    <Button variant="secondary" onClick={() => void runReceiptAction(row, "clear")}>
-                      Clear
-                    </Button>
-                  ) : null}
-                  {row.payment_method === "cheque" && ["received", "deposited"].includes(row.status) ? (
-                    <Button variant="secondary" onClick={() => void runReceiptAction(row, "bounce")}>
-                      Bounce
-                    </Button>
-                  ) : null}
-                  {row.status === "cleared" ? (
-                    <Button variant="secondary" onClick={() => void runReceiptAction(row, "reverse")}>
-                      Reverse
-                    </Button>
-                  ) : null}
-                </div>
-              ),
-            },
-          ]}
-          rows={receipts}
-          getRowKey={(row) => row.id}
-          emptyMessage={loading ? "Loading manual receipts..." : "No manual receipts have been recorded yet."}
-        />
-      </div>
-      <Modal
-        open={manualReconcileOpen}
-        title="Manual reconcile"
-        description="Match an MPESA or receipt reference only when it exists in the current tenant queue."
-        onClose={() => setManualReconcileOpen(false)}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setManualReconcileOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={validateManualReconcile}>Save match</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {manualReconcileError ? (
-            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
-              {manualReconcileError}
-            </div>
-          ) : null}
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Receipt code</span>
-            <input
-              aria-label="Receipt code"
-              className="input-base"
-              value={manualReceiptCode}
-              onChange={(event) => {
-                setManualReceiptCode(event.target.value);
-                setManualReconcileError(null);
-              }}
-            />
-          </label>
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Matched learner</span>
-            <input
-              aria-label="Matched learner"
-              className="input-base"
-              value={manualMatchedLearner}
-              onChange={(event) => {
-                setManualMatchedLearner(event.target.value);
-                setManualReconcileError(null);
-              }}
-            />
-          </label>
-        </div>
-      </Modal>
-    </section>
-  );
-}
-
-
-
-
-
-
-
-
-

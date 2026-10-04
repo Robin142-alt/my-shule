@@ -621,6 +621,7 @@ describe("dashboard action contract safety", () => {
 
   it("keeps routed finance principal teacher and parent controls wired to real actions", () => {
     const receiptsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/accountant/receipts-workspace.tsx"), "utf8");
+    const registerSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/accountant/payment-register.tsx"), "utf8");
     const arrearsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/accountant/arrears-workspace.tsx"), "utf8");
     const principalStudentsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/principal-dashboard/students-workspace.tsx"), "utf8");
     const teacherSubjectsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/teacher/subjects-classes-workspace.tsx"), "utf8");
@@ -634,9 +635,13 @@ describe("dashboard action contract safety", () => {
     const paymentsControllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/payments/controllers/payments.controller.ts"), "utf8");
     const studentPortalControllerSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/students/student-portal-actions.controller.ts"), "utf8");
 
-    expect(receiptsSource).toMatch(/admin-command\/accountant\/actions/);
-    expect(receiptsSource).toMatch(/openPaymentModal/);
-    expect(receiptsSource).toMatch(/openReceiptPreview/);
+    expect(receiptsSource).toMatch(/<PaymentRegister receiptsOnly/);
+    expect(registerSource).toMatch(/admin-command\/accountant\/actions/);
+    expect(registerSource).toMatch(/receipt_previewed/);
+    expect(registerSource).toMatch(/onClick=\{record\}/);
+    expect(registerSource).toMatch(/onSubmit=\{save\}/);
+    expect(registerSource).toMatch(/billing\/manual-fee-payments/);
+    expect(registerSource).toMatch(/openPrintDocument/);
     expect(arrearsSource).toMatch(/sendArrearsReminders/);
     expect(arrearsSource).toMatch(/admin-command\/accountant\/fee-follow-up/);
     expect(arrearsSource).toMatch(/recipient_scope: "linked_guardians"/);

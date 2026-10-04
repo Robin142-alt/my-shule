@@ -1,1481 +1,187 @@
-import { useEffect, useState } from "react";
+"use client";
+
+import { useRef, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Modal } from "@/components/ui/modal";
-import { StatusPill } from "@/components/ui/status-pill";
-import { Tabs } from "@/components/ui/tabs";
-import { getMonthStartInputValue, getTodayInputValue } from "@/lib/date-utils";
-import {
-  downloadCsvFile,
-  downloadTextFile,
-  openPrintDocument,
-  type CsvReportArtifactResponse,
-} from "@/lib/dashboard/export";
-import { getCsrfToken } from "@/lib/auth/csrf-client";
-import { redirectOnExpiredSessionResponse } from "@/lib/auth/session-expiry-client";
-import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
-import { buildBillingApiPath, toMinorUnits, formatMinorKes, formatActivityDate, unwrapBillingApiData } from "@/lib/billing/billing-utils";
-import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { LearnerPicker } from "@/components/common/learner-picker";
-import { getMissingFieldError } from "@/lib/forms/validation";
-import { SchoolPageHeader } from "@/components/school/school-page-header";
-import { MetricGrid } from "@/components/experience/metric-grid";
-import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, buildFinanceSummaryItems, type FinanceActivityResponse, type FinanceActivityRow, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
 import { usePermissions } from "@/components/providers/permission-context";
+import { useSchoolCommandIdentity } from "@/components/school/integrated-school-command-header";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { formatMinorKes, formatActivityDate, toMinorUnits } from "@/lib/billing/billing-utils";
+import { openPrintDocument, downloadTextFile, type CsvReportArtifactResponse } from "@/lib/dashboard/export";
+import type { LearnerLookupItem } from "@/lib/students/student-lookup";
+import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
+import type { StudentFeeBalanceResponse, StudentFeeStatementResponse, FeeStructureResponse, BillableFeeStudentResponse, BulkFeeInvoiceGenerationResponse } from "@/components/school/school-pages";
 
-type SchoolRouteMode = "hosted" | "public";
-type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
-type ManualReceiptStatus = "received" | "deposited" | "cleared" | "bounced" | "reversed";
+type Invoice = { id: string; invoice_number: string; description: string; status: string; total_amount_minor: string; amount_paid_minor: string; due_at: string; issued_at: string; metadata: { student_id: string; student_name: string; admission_number?: string } };
+const pageSize = 50;
 
-const manualReceiptMethodLabels: Record<ManualReceiptMethod, string> = {
-  cash: "Cash",
-  cheque: "Cheque",
-  bank_deposit: "Bank Deposit",
-  eft: "EFT",
-  mpesa_c2b: "M-PESA",
-};
-
-const manualReceiptSelectableMethods: ManualReceiptMethod[] = [
-  "cash",
-  "cheque",
-  "bank_deposit",
-  "eft",
-  "mpesa_c2b",
-];
-
-import type { StatusTone } from "@/lib/dashboard/types";
-
-const financeReconciliationBucketTone: Record<string, StatusTone> = {
-  cleared: "ok",
-  pending: "warning",
-  exception: "critical",
-};
-
-
-
-function createEmptyFeeLineItemDraft(): FeeLineItemDraft {
-  return { id: crypto.randomUUID(), code: "", label: "", amount: "" };
-}
-
-function createEmptyBulkFeeStudentDraft(): BulkFeeStudentDraft {
-  return {
-    id: crypto.randomUUID(),
-    student_id: "",
-    student_name: "",
-    admission_number: "",
-    class_name: "",
-    guardian_phone: "",
-  };
-}
-
-function getStatementEntryTone(entry: { status: string; debit_amount_minor: string; credit_amount_minor: string }): import("@/lib/dashboard/types").StatusTone | import("@/lib/dashboard/types").SyncState {
-  if (entry.status === "voided" || entry.status === "reversed") return "warning";
-  if (entry.status === "pending" || entry.status === "processing") return "warning";
-  if (entry.status === "failed") return "critical";
-  return "ok";
-}
-
-function toFinanceActivityRow(activity: FinanceActivityResponse): FinanceActivityRow {
-  return {
-    id: activity.id,
-    student: activity.student_name ?? activity.student_id ?? "Unknown",
-    amount: formatMinorKes(activity.amount_minor),
-    method: activity.method,
-    date: formatActivityDate(activity.occurred_at),
-    reference: activity.reference,
-    status: activity.status,
-    statusTone: activity.status === "completed" || activity.status === "cleared" ? "ok" : "warning",
-  };
-}
-
-export function InvoicesWorkspace({
-  role,
-  tenantSlug,
-  routeMode,
-  activeSection,
-}: {
-  role: SchoolExperienceRole;
-  tenantSlug?: string | null;
-  routeMode: SchoolRouteMode;
-  activeSection?: string;
+export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
+  role: SchoolExperienceRole; tenantSlug?: string | null; routeMode: "hosted" | "public"; activeSection?: string; onNavigate?: (section: string) => void;
 }) {
-  const { hasPermission, isLoading: permissionsLoading } = usePermissions();
-  const { subscription } = getSchoolWorkspace(role, tenantSlug);
-  const [activity, setActivity] = useState<FinanceActivityResponse[]>([]);
-  const [rows, setRows] = useState<FinanceActivityRow[]>([]);
-  const [activityLoading, setActivityLoading] = useState(true);
-  const [balances, setBalances] = useState<StudentFeeBalanceResponse[]>([]);
-  const [balancesLoading, setBalancesLoading] = useState(true);
-  const [statement, setStatement] = useState<StudentFeeStatementResponse | null>(null);
-  const [statementLoading, setStatementLoading] = useState(false);
-  const [statementError, setStatementError] = useState<string | null>(null);
-  const [reconciliation, setReconciliation] = useState<FinanceReconciliationResponse | null>(null);
-  const [reconciliationLoading, setReconciliationLoading] = useState(true);
-  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
-  const [reconciliationFilters, setReconciliationFilters] = useState<{
-    from: string;
-    to: string;
-    method: ManualReceiptMethod | "all";
-  }>(() => ({
-    from: getMonthStartInputValue(),
-    to: getTodayInputValue(),
-    method: "all",
-  }));
-  const [feeStructures, setFeeStructures] = useState<FeeStructureResponse[]>([]);
-  const [feeStructuresLoading, setFeeStructuresLoading] = useState(true);
-  const [feeStructureError, setFeeStructureError] = useState<string | null>(null);
-  const [feeStructureDraft, setFeeStructureDraft] = useState({
-    name: "",
-    academic_year: String(new Date().getFullYear()),
-    term: "",
-    grade_level: "",
-    class_name: "",
-    status: "active" as FeeStructureResponse["status"],
-    due_days: "14",
-  });
-  const [feeLineItems, setFeeLineItems] = useState<FeeLineItemDraft[]>(() => [
-    createEmptyFeeLineItemDraft(),
-  ]);
-  const [bulkError, setBulkError] = useState<string | null>(null);
-  const [billableStudents, setBillableStudents] = useState<BillableFeeStudentResponse[]>([]);
-  const [billableStudentsLoading, setBillableStudentsLoading] = useState(false);
-  const [bulkDraft, setBulkDraft] = useState({
-    fee_structure_id: "",
-    idempotency_key: "",
-    due_at: "",
-  });
-  const [bulkStudents, setBulkStudents] = useState<BulkFeeStudentDraft[]>(() => [
-    createEmptyBulkFeeStudentDraft(),
-  ]);
-  const [selectedBulkStudentIds, setSelectedBulkStudentIds] = useState<Set<string>>(() => new Set());
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [invoiceDraft, setInvoiceDraft] = useState({ studentId: "", studentName: "", amount: "", dueAt: "" });
-  const [selectedInvoiceLearner, setSelectedInvoiceLearner] = useState<LearnerLookupItem | null>(null);
-  const [paymentDraft, setPaymentDraft] = useState({
-    payment_method: "cash" as ManualReceiptMethod,
-    student_id: "",
-    invoice_id: "",
-    payer_name: "",
-    amount: "",
-    reference: "",
-  });
-  const [selectedPaymentLearner, setSelectedPaymentLearner] = useState<LearnerLookupItem | null>(null);
-  const [invoiceError, setInvoiceError] = useState<string | null>(null);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [financeMessage, setFinanceMessage] = useState<string | null>(null);
-  const [summaryData, setSummaryData] = useState<any>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
+  const tenantId = useOptionalSchoolTenantId();
+  const identity = useSchoolCommandIdentity();
+  const { hasPermission } = usePermissions();
+  const canWrite = hasPermission("billing:write");
+  const client = useQueryClient();
+  const [tab, setTab] = useState<"invoices" | "balances">("invoices");
+  const [offset, setOffset] = useState(0);
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const invoices = useSchoolQuery<Invoice[]>(`/billing/invoices?student_only=true&limit=${pageSize}&offset=${offset}${status ? `&status=${status}` : ""}`, { enabled: tab === "invoices", refetchInterval: 30_000 });
+  const balances = useSchoolQuery<StudentFeeBalanceResponse[]>(`/billing/student-balances?limit=${pageSize}&offset=${offset}`, { enabled: tab === "balances", refetchInterval: 30_000 });
+  const [dialog, setDialog] = useState<"single" | "bulk" | null>(null);
+  const [learner, setLearner] = useState<LearnerLookupItem | null>(null);
+  const [structureId, setStructureId] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const structures = useSchoolQuery<FeeStructureResponse[]>("/billing/fee-structures", { enabled: dialog === "bulk" });
+  const roster = useSchoolQuery<BillableFeeStudentResponse[]>(structureId ? `/billing/fee-structures/${structureId}/billable-students` : null, { enabled: dialog === "bulk" });
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const submission = useRef<{ key: string; body?: string }>({ key: "" });
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [statementId, setStatementId] = useState<string | null>(null);
+  const statement = useSchoolQuery<StudentFeeStatementResponse>(statementId ? `/billing/student-balances/${statementId}/statement` : null);
+  const [exporting, setExporting] = useState(false);
+  const [documentError, setDocumentError] = useState("");
+  const invoiceRows = (Array.isArray(invoices.data) ? invoices.data : []).filter(row => `${row.invoice_number} ${row.metadata.student_name} ${row.metadata.admission_number || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const balanceRows = (Array.isArray(balances.data) ? balances.data : []).filter(row => (row.student_name || row.student_id).toLowerCase().includes(search.toLowerCase()));
+  const activeQuery = tab === "invoices" ? invoices : balances;
+  const structure = structures.data?.find(row => row.id === structureId);
 
-  async function loadSummary() {
-    setSummaryLoading(true);
-    try {
-      const response = await fetch(buildBillingApiPath("/api/finance/summary", tenantSlug), {
-        cache: "no-store",
-      });
-      if (response.ok) {
-        setSummaryData(await response.json());
-      }
-    } catch (e) {
-    } finally {
-      setSummaryLoading(false);
-    }
+  function openDialog(kind: "single" | "bulk") {
+    submission.current = { key: `fee-invoice-${crypto.randomUUID()}` };
+    setLearner(null); setStructureId(""); setSelectedIds(new Set()); setError(""); setDialog(kind);
   }
-
-  async function loadFinanceActivity() {
-    setActivityLoading(true);
-
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!tenantId || !canWrite || inFlight.current) return;
+    const form = new FormData(event.currentTarget);
+    const amount = toMinorUnits(String(form.get("amount") || ""));
+    const due = String(form.get("due") || "");
+    if (dialog === "single" && (!learner || !amount)) { setError("Choose a learner and enter a positive amount with up to two decimal places."); return; }
+    const selected = (roster.data ?? []).filter(row => selectedIds.has(row.student_id));
+    if (dialog === "bulk" && (!structureId || !selected.length)) { setError("Choose a fee structure and at least one learner."); return; }
+    const body = { idempotency_key: submission.current.key, due_at: due ? new Date(`${due}T23:59:59+03:00`).toISOString() : undefined,
+      ...(dialog === "single" ? { description: `Fees for ${learner!.name}`, total_amount_minor: amount,
+        metadata: { student_id: learner!.id } } : { target_students: selected.map(row => ({ student_id: row.student_id, student_name: row.student_name })) }) };
+    const serialized = JSON.stringify(body);
+    if (submission.current.body && submission.current.body !== serialized) {
+      setError("A submission was already attempted. Retry the same details or check the invoice register before starting a new submission."); return;
+    }
+    submission.current.body = serialized;
+    inFlight.current = true; setBusy(true); setError("");
     try {
-      const response = await fetch(buildBillingApiPath("/api/billing/finance-activity?limit=25&offset=0", tenantSlug), {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Finance activity could not be loaded.");
-      }
-
-      const payload = (await response.json()) as FinanceActivityResponse[];
-      setActivity(payload);
-      setRows(payload.map(toFinanceActivityRow));
-    } catch (caught) {
-      setActivity([]);
-      setRows([]);
-      setFinanceMessage(caught instanceof Error ? caught.message : "Finance activity could not be loaded.");
-    } finally {
-      setActivityLoading(false);
-    }
-  }
-
-  async function loadStudentBalances() {
-    setBalancesLoading(true);
-
-    try {
-      const response = await fetch(buildBillingApiPath("/api/billing/student-balances", tenantSlug), {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Student balances could not be loaded.");
-      }
-
-      const payload = (await response.json()) as StudentFeeBalanceResponse[];
-      setBalances(payload);
-    } catch (caught) {
-      setBalances([]);
-      setFinanceMessage(caught instanceof Error ? caught.message : "Student balances could not be loaded.");
-    } finally {
-      setBalancesLoading(false);
-    }
-  }
-
-  async function loadReconciliationReport() {
-    setReconciliationLoading(true);
-    setReconciliationError(null);
-
-    const params = new URLSearchParams();
-
-    if (reconciliationFilters.from) {
-      params.set("from", reconciliationFilters.from);
-    }
-
-    if (reconciliationFilters.to) {
-      params.set("to", reconciliationFilters.to);
-    }
-
-    if (reconciliationFilters.method !== "all") {
-      params.set("method", reconciliationFilters.method);
-    }
-
-    try {
-      const response = await fetch(
-        buildBillingApiPath(`/api/billing/reconciliation?${params.toString()}`, tenantSlug),
-        { cache: "no-store" },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | FinanceReconciliationResponse
-        | { message?: string }
-        | null;
-
-      if (!response.ok || !payload || !("rows" in payload)) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Reconciliation report could not be loaded.",
-        );
-      }
-
-      setReconciliation(payload);
-    } catch (caught) {
-      setReconciliation(null);
-      setReconciliationError(caught instanceof Error ? caught.message : "Reconciliation report could not be loaded.");
-    } finally {
-      setReconciliationLoading(false);
-    }
-  }
-
-  async function loadFeeStructures() {
-    setFeeStructuresLoading(true);
-    setFeeStructureError(null);
-
-    try {
-      const response = await fetch(buildBillingApiPath("/api/billing/fee-structures", tenantSlug), {
-        cache: "no-store",
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | FeeStructureResponse[]
-        | { data?: FeeStructureResponse[]; message?: string }
-        | { message?: string }
-        | null;
-      const feeStructuresPayload = unwrapBillingApiData<FeeStructureResponse[]>(payload);
-
-      if (!response.ok || !Array.isArray(feeStructuresPayload)) {
-        throw new Error(
-          payload && !Array.isArray(payload) && payload.message
-            ? payload.message
-            : "Fee structures could not be loaded.",
-        );
-      }
-
-      setFeeStructures(feeStructuresPayload);
-      setBulkDraft((current) => ({
-        ...current,
-        fee_structure_id: current.fee_structure_id || feeStructuresPayload[0]?.id || "",
-      }));
-    } catch (caught) {
-      setFeeStructures([]);
-      setFeeStructureError(caught instanceof Error ? caught.message : "Fee structures could not be loaded.");
-    } finally {
-      setFeeStructuresLoading(false);
-    }
-  }
-
-  async function loadBalances() {
-    setBalancesLoading(true);
-    try {
-      const response = await fetch(buildBillingApiPath("/api/billing/student-balances", tenantSlug), { cache: "no-store" });
-      const payload = await response.json().catch(() => null);
-      if (response.ok && Array.isArray(payload)) {
-        setBalances(payload);
+      if (dialog === "bulk") {
+        const result = await requestDashboardApi<BulkFeeInvoiceGenerationResponse>(`/billing/fee-structures/${structureId}/generate-invoices`, { tenantId, method: "POST", body });
+        setNotice(`${result.generated_count} invoices created. ${result.skipped_count} learners already had an invoice for this fee structure and were skipped.`);
       } else {
-        setBalances([]);
+        const result = await requestDashboardApi<Invoice>("/billing/invoices", { tenantId, method: "POST", body });
+        setNotice(`${result.invoice_number} created. The learner’s statement and balance now include this invoice.`);
       }
-    } catch (e) {
-      setBalances([]);
-    } finally {
-      setBalancesLoading(false);
-    }
+      setDialog(null); await client.invalidateQueries({ queryKey: ["school", tenantId] });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Invoices could not be saved. Retry the same submission."); }
+    finally { inFlight.current = false; setBusy(false); }
   }
-
-  useEffect(() => {
-    void loadBalances();
-  }, [tenantSlug]);
-
-  function openInvoiceModal() {
-    setInvoiceDraft({ studentId: "", studentName: "", amount: "", dueAt: "" });
-    setSelectedInvoiceLearner(null);
-    setInvoiceError(null);
-    setShowInvoiceModal(true);
+  function viewStatement(id: string) { setDocumentError(""); setStatementId(id); }
+  function previewInvoice(row: Invoice) {
+    openPrintDocument({ eyebrow: identity.schoolName, logoUrl: identity.logoUrl, title: `Invoice ${row.invoice_number}`,
+      subtitle: row.metadata.student_name || row.description, rows: [
+        { label: "Admission number", value: row.metadata.admission_number || "See learner record" },
+        { label: "Description", value: row.description }, { label: "Issued", value: formatActivityDate(row.issued_at) },
+        { label: "Due", value: formatActivityDate(row.due_at) }, { label: "Status", value: row.status },
+        { label: "Invoiced", value: formatMinorKes(row.total_amount_minor) }, { label: "Paid", value: formatMinorKes(row.amount_paid_minor) },
+        { label: "Generated by", value: identity.userLabel }, { label: "Generated", value: formatActivityDate(new Date().toISOString()) },
+      ], footer: "Check the current learner statement for unapplied credits and the full account balance." });
   }
-
-  function closeInvoiceModal() {
-    setShowInvoiceModal(false);
-    setInvoiceError(null);
+  function previewStatement() {
+    if (!statement.data) return;
+    const { summary, entries } = statement.data;
+    openPrintDocument({ eyebrow: identity.schoolName, logoUrl: identity.logoUrl, title: `Fee statement · ${summary.student_name || "Learner"}`,
+      subtitle: `Statement ${summary.student_id} · ${formatActivityDate(new Date().toISOString())}`, rows: [
+        { label: "Outstanding balance", value: formatMinorKes(summary.balance_amount_minor) },
+        { label: "Unapplied credit", value: formatMinorKes(summary.credit_amount_minor) },
+        ...entries.map(row => ({ label: `${formatActivityDate(row.occurred_at)} · ${row.reference} · ${row.status}`,
+          value: `Debit ${formatMinorKes(row.debit_amount_minor)} · Credit ${formatMinorKes(row.credit_amount_minor)} · Balance ${formatMinorKes(row.balance_after_minor)}` })),
+        { label: "Generated by", value: identity.userLabel },
+      ], footer: "Generated from persisted invoices and payment allocations. Pending payments are not cleared fee credits." });
   }
-
-  function openPaymentModal() {
-    setPaymentDraft({
-      payment_method: "cash",
-      student_id: "",
-      invoice_id: "",
-      payer_name: "",
-      amount: "",
-      reference: "",
-    });
-    setSelectedPaymentLearner(null);
-    setPaymentError(null);
-    setShowPaymentModal(true);
-  }
-
-  function closePaymentModal() {
-    setShowPaymentModal(false);
-    setPaymentError(null);
-  }
-
-  function closeStatementModal() {
-    setStatement(null);
-    setStatementError(null);
-    setStatementLoading(false);
-  }
-
-  async function openStudentStatement(balance: StudentFeeBalanceResponse) {
-    setStatementError(null);
-    setStatementLoading(true);
-
+  async function exportStatement() {
+    if (!tenantId || !statementId || exporting) return;
+    setExporting(true); setDocumentError("");
     try {
-      const response = await fetch(
-        buildBillingApiPath(
-          `/api/billing/student-balances/${encodeURIComponent(balance.student_id)}/statement`,
-          tenantSlug,
-        ),
-        { cache: "no-store" },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | StudentFeeStatementResponse
-        | { message?: string }
-        | null;
-
-      if (!response.ok || !payload || !("entries" in payload)) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Student statement could not be loaded.",
-        );
-      }
-
-      setStatement(payload);
-    } catch (caught) {
-      setStatement(null);
-      setStatementError(caught instanceof Error ? caught.message : "Student statement could not be loaded.");
-    } finally {
-      setStatementLoading(false);
-    }
+      const artifact = await requestDashboardApi<CsvReportArtifactResponse>(`/billing/student-balances/${statementId}/statement/export`, { tenantId });
+      downloadTextFile({ filename: artifact.filename, content: artifact.csv, mimeType: artifact.content_type });
+    } catch (cause) { setDocumentError(cause instanceof Error ? cause.message : "Statement export failed. Retry."); }
+    finally { setExporting(false); }
   }
-
-  async function exportStudentStatement(studentId: string) {
-    setStatementError(null);
-
-    try {
-      const response = await fetch(
-        buildBillingApiPath(
-          `/api/billing/student-balances/${encodeURIComponent(studentId)}/statement/export`,
-          tenantSlug,
-        ),
-        { cache: "no-store" },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | CsvReportArtifactResponse
-        | { message?: string }
-        | null;
-
-      if (!response.ok || !payload || !("csv" in payload)) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Student statement export could not be prepared.",
-        );
-      }
-
-      downloadTextFile({
-        filename: payload.filename,
-        content: payload.csv,
-        mimeType: payload.content_type,
-      });
-    } catch (caught) {
-      setStatementError(caught instanceof Error ? caught.message : "Student statement export could not be prepared.");
-    }
-  }
-
-  async function exportReconciliationReport() {
-    setReconciliationError(null);
-
-    const params = new URLSearchParams();
-
-    if (reconciliationFilters.from) {
-      params.set("from", reconciliationFilters.from);
-    }
-
-    if (reconciliationFilters.to) {
-      params.set("to", reconciliationFilters.to);
-    }
-
-    if (reconciliationFilters.method !== "all") {
-      params.set("method", reconciliationFilters.method);
-    }
-
-    try {
-      const response = await fetch(
-        buildBillingApiPath(`/api/billing/reconciliation/export?${params.toString()}`, tenantSlug),
-        { cache: "no-store" },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | CsvReportArtifactResponse
-        | { message?: string }
-        | null;
-
-      if (!response.ok || !payload || !("csv" in payload)) {
-        throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Reconciliation export could not be prepared.",
-        );
-      }
-
-      downloadTextFile({
-        filename: payload.filename,
-        content: payload.csv,
-        mimeType: payload.content_type,
-      });
-    } catch (caught) {
-      setReconciliationError(caught instanceof Error ? caught.message : "Reconciliation export could not be prepared.");
-    }
-  }
-
-  function updateFeeLineItem(
-    id: string,
-    field: keyof Omit<FeeLineItemDraft, "id">,
-    value: string,
-  ) {
-    setFeeLineItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
-    );
-    setFeeStructureError(null);
-  }
-
-  function removeFeeLineItem(id: string) {
-    setFeeLineItems((current) =>
-      current.length === 1 ? [createEmptyFeeLineItemDraft()] : current.filter((item) => item.id !== id),
-    );
-    setFeeStructureError(null);
-  }
-
-  function updateBulkStudent(
-    id: string,
-    field: keyof Omit<BulkFeeStudentDraft, "id">,
-    value: string,
-  ) {
-    setBulkStudents((current) =>
-      current.map((student) => (student.id === id ? { ...student, [field]: value } : student)),
-    );
-    setBulkError(null);
-  }
-
-  function removeBulkStudent(id: string) {
-    setBulkStudents((current) =>
-      current.length === 1 ? [] : current.filter((student) => student.id !== id),
-    );
-    setSelectedBulkStudentIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
-    setBulkError(null);
-  }
-
-  function toggleBulkRosterStudent(student: BillableFeeStudentResponse) {
-    setSelectedBulkStudentIds((current) => {
-      const next = new Set(current);
-
-      if (next.has(student.student_id)) {
-        next.delete(student.student_id);
-        setBulkStudents((drafts) => drafts.filter((draft) => draft.id !== student.student_id));
-      } else {
-        next.add(student.student_id);
-        setBulkStudents((drafts) => {
-          const manualDrafts = drafts.filter((draft) => !billableStudents.some((row) => row.student_id === draft.id));
-          const rosterDrafts = billableStudents
-            .filter((row) => next.has(row.student_id))
-            .map(toBulkFeeStudentDraft);
-          return [...rosterDrafts, ...manualDrafts];
-        });
-      }
-
-      return next;
-    });
-    setBulkError(null);
-  }
-
-  function selectAllVisibleBulkRosterStudents() {
-    const next = new Set(billableStudents.map((student) => student.student_id));
-    setSelectedBulkStudentIds(next);
-    setBulkStudents((drafts) => {
-      const manualDrafts = drafts.filter((draft) => !billableStudents.some((row) => row.student_id === draft.id));
-      return [...billableStudents.map(toBulkFeeStudentDraft), ...manualDrafts];
-    });
-    setBulkError(null);
-  }
-
-  function clearBulkRosterSelection() {
-    setSelectedBulkStudentIds(new Set());
-    setBulkStudents((drafts) => drafts.filter((draft) => !billableStudents.some((row) => row.student_id === draft.id)));
-    setBulkError(null);
-  }
-
-  const hasBulkBillingStudents = bulkStudents.some((student) =>
-    [student.student_id, student.student_name, student.admission_number, student.class_name, student.guardian_phone].some(
-      (value) => value.trim().length > 0,
-    ),
-  );
-  const canGenerateBulkInvoices = bulkDraft.fee_structure_id.trim().length > 0 && hasBulkBillingStudents;
-
-  async function saveFeeStructure() {
-    const validationError = getMissingFieldError([
-      { label: "Fee name", value: feeStructureDraft.name },
-      { label: "Academic year", value: feeStructureDraft.academic_year },
-      { label: "Term", value: feeStructureDraft.term },
-      { label: "Grade level", value: feeStructureDraft.grade_level },
-    ]);
-    const dueDays = Number(feeStructureDraft.due_days);
-    const lineItemResult = buildFeeStructureLineItems(feeLineItems);
-
-    if (validationError) {
-      setFeeStructureError(validationError);
-      return;
-    }
-
-    if (!Number.isInteger(dueDays) || dueDays < 0 || dueDays > 365) {
-      setFeeStructureError("Due days must be a whole number between 0 and 365.");
-      return;
-    }
-
-    if (lineItemResult.error) {
-      setFeeStructureError(lineItemResult.error);
-      return;
-    }
-
-    try {
-      const csrfToken = await getCsrfToken();
-      const response = await fetch(buildBillingApiPath("/api/billing/fee-structures", tenantSlug), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-myshule-csrf": csrfToken,
-        },
-        body: JSON.stringify({
-          name: feeStructureDraft.name.trim(),
-          academic_year: feeStructureDraft.academic_year.trim(),
-          term: feeStructureDraft.term.trim(),
-          grade_level: feeStructureDraft.grade_level.trim(),
-          class_name: feeStructureDraft.class_name.trim() || undefined,
-          status: feeStructureDraft.status,
-          due_days: dueDays,
-          line_items: lineItemResult.lineItems,
-          metadata: {
-            source: "school_finance_fee_setup",
-          },
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as
-        | FeeStructureResponse
-        | { data?: FeeStructureResponse; message?: string }
-        | { message?: string }
-        | null;
-      const savedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
-
-      if (!response.ok || !savedFeeStructure || !("id" in savedFeeStructure)) {
-        throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be saved.");
-      }
-
-      setFeeStructureError(null);
-      setFinanceMessage(`${savedFeeStructure.name} saved for ${savedFeeStructure.grade_level}.`);
-      setBulkDraft((current) => ({ ...current, fee_structure_id: savedFeeStructure.id }));
-      setFeeStructureDraft((current) => ({
-        ...current,
-        name: "",
-        term: "",
-        grade_level: "",
-        class_name: "",
-      }));
-      setFeeLineItems([createEmptyFeeLineItemDraft()]);
-      await loadFeeStructures();
-    } catch (caught) {
-      setFeeStructureError(caught instanceof Error ? caught.message : "Fee structure could not be saved.");
-    }
-  }
-
-  async function archiveFeeStructure(feeStructure: FeeStructureResponse) {
-    try {
-      const csrfToken = await getCsrfToken();
-      const response = await fetch(
-        buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(feeStructure.id)}/archive`, tenantSlug),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-        },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | FeeStructureResponse
-        | { data?: FeeStructureResponse; message?: string }
-        | { message?: string }
-        | null;
-      const archivedFeeStructure = unwrapBillingApiData<FeeStructureResponse>(payload);
-
-      if (!response.ok || !archivedFeeStructure || !("id" in archivedFeeStructure)) {
-        throw new Error(payload && "message" in payload && payload.message ? payload.message : "Fee structure could not be archived.");
-      }
-
-      setFeeStructureError(null);
-      setFinanceMessage(`${archivedFeeStructure.name} archived.`);
-      setBillableStudents([]);
-      setSelectedBulkStudentIds(new Set());
-      setBulkStudents([]);
-      setBulkDraft((current) => ({
-        ...current,
-        fee_structure_id: current.fee_structure_id === archivedFeeStructure.id ? "" : current.fee_structure_id,
-      }));
-      await loadFeeStructures();
-    } catch (caught) {
-      setFeeStructureError(caught instanceof Error ? caught.message : "Fee structure could not be archived.");
-    }
-  }
-
-  async function generateBulkFeeInvoices() {
-    const selectedFeeStructureId = bulkDraft.fee_structure_id.trim();
-    const studentResult = buildBulkFeeStudents(bulkStudents);
-
-    if (!selectedFeeStructureId) {
-      setBulkError("Select a fee structure before generating invoices.");
-      return;
-    }
-
-    if (studentResult.error) {
-      setBulkError(studentResult.error);
-      return;
-    }
-
-    try {
-      const csrfToken = await getCsrfToken();
-      const idempotencyKey =
-        bulkDraft.idempotency_key.trim() ||
-        `bulk-fees-${crypto.randomUUID()}`;
-      const response = await fetch(
-        buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(selectedFeeStructureId)}/generate-invoices`, tenantSlug),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-myshule-csrf": csrfToken,
-          },
-          body: JSON.stringify({
-            idempotency_key: idempotencyKey,
-            due_at: bulkDraft.due_at.trim()
-              ? new Date(`${bulkDraft.due_at.trim()}T23:59:59.000Z`).toISOString()
-              : undefined,
-            target_students: studentResult.students.map((student) => ({
-              student_id: student.student_id,
-              student_name: student.student_name,
-              admission_number: student.admission_number || undefined,
-              class_name: student.class_name || undefined,
-              guardian_phone: student.guardian_phone || undefined,
-            })),
-            metadata: {
-              source: "school_finance_bulk_billing",
-            },
-          }),
-        },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | BulkFeeInvoiceGenerationResponse
-        | { data?: BulkFeeInvoiceGenerationResponse; message?: string }
-        | { message?: string }
-        | null;
-      const generationResult = unwrapBillingApiData<BulkFeeInvoiceGenerationResponse>(payload);
-
-      if (!response.ok || !generationResult || !("generated_count" in generationResult)) {
-        throw new Error(payload && "message" in payload && payload.message ? payload.message : "Bulk invoices could not be generated.");
-      }
-
-      setBulkError(null);
-      setFinanceMessage(`${generationResult.generated_count} invoices generated; ${generationResult.skipped_count} duplicate rows skipped.`);
-      setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
-      setSelectedBulkStudentIds(new Set());
-      setBulkStudents([]);
-      await loadFinanceActivity();
-      await loadStudentBalances();
-      await loadReconciliationReport();
-    } catch (caught) {
-      setBulkError(caught instanceof Error ? caught.message : "Bulk invoices could not be generated.");
-    }
-  }
-
-  async function loadBillableStudentsForSelectedFeeStructure(overrideStructureId?: string) {
-    const selectedFeeStructureId = overrideStructureId !== undefined ? overrideStructureId.trim() : bulkDraft.fee_structure_id.trim();
-
-    if (!selectedFeeStructureId) {
-      setBulkError("Select a fee structure before loading roster students.");
-      return;
-    }
-
-    setBillableStudentsLoading(true);
-    setBulkError(null);
-
-    try {
-      const response = await fetch(
-        buildBillingApiPath(`/api/billing/fee-structures/${encodeURIComponent(selectedFeeStructureId)}/billable-students`, tenantSlug),
-        { cache: "no-store" },
-      );
-      const payload = (await response.json().catch(() => null)) as
-        | BillableFeeStudentResponse[]
-        | { data?: BillableFeeStudentResponse[]; message?: string }
-        | { message?: string }
-        | null;
-      const billableStudentsPayload = unwrapBillingApiData<BillableFeeStudentResponse[]>(payload);
-
-      if (!response.ok || !Array.isArray(billableStudentsPayload)) {
-        throw new Error(
-          payload && !Array.isArray(payload) && payload.message
-            ? payload.message
-            : "Billable roster could not be loaded.",
-        );
-      }
-
-      setBillableStudents(billableStudentsPayload);
-      setSelectedBulkStudentIds(new Set());
-      setBulkStudents([]);
-
-      if (billableStudentsPayload.length === 0) {
-        setFinanceMessage("No active roster students matched this fee structure.");
-        return;
-      }
-
-      setFinanceMessage(`${billableStudentsPayload.length} roster students loaded. Select learners to bill.`);
-    } catch (caught) {
-      setBillableStudents([]);
-      setBulkError(caught instanceof Error ? caught.message : "Billable roster could not be loaded.");
-    } finally {
-      setBillableStudentsLoading(false);
-    }
-  }
-
-  async function saveInvoice() {
-    const validationError = getMissingFieldError([
-      { label: "Learner", value: invoiceDraft.studentId },
-      { label: "Student name", value: invoiceDraft.studentName },
-      { label: "Amount", value: invoiceDraft.amount },
-    ]);
-    const amountMinor = toMinorUnits(invoiceDraft.amount);
-
-    if (validationError) {
-      setInvoiceError(validationError);
-      return;
-    }
-
-    if (!amountMinor) {
-      setInvoiceError("Amount must be a number greater than zero.");
-      return;
-    }
-
-    try {
-      const csrfToken = await getCsrfToken();
-      const response = await fetch(buildBillingApiPath("/api/billing/invoices", tenantSlug), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-myshule-csrf": csrfToken,
-        },
-        body: JSON.stringify({
-          description: `Fees for ${invoiceDraft.studentName.trim()}`,
-          total_amount_minor: amountMinor,
-          due_at: invoiceDraft.dueAt.trim()
-            ? new Date(invoiceDraft.dueAt.trim()).toISOString()
-            : undefined,
-          metadata: {
-            student_id: invoiceDraft.studentId.trim(),
-            student_name: invoiceDraft.studentName.trim(),
-          },
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "Invoice could not be created.");
-      }
-
-      setInvoiceError(null);
-      setFinanceMessage(`Invoice created for ${invoiceDraft.studentName.trim()}.`);
-      setInvoiceDraft({ studentId: "", studentName: "", amount: "", dueAt: "" });
-      setSelectedInvoiceLearner(null);
-      setShowInvoiceModal(false);
-      await loadFinanceActivity();
-      await loadStudentBalances();
-    } catch (caught) {
-      setInvoiceError(caught instanceof Error ? caught.message : "Invoice could not be created.");
-    }
-  }
-
-  async function savePayment() {
-    const validationError = getMissingFieldError([
-      { label: "Student or invoice", value: paymentDraft.student_id || paymentDraft.invoice_id },
-      { label: "Amount", value: paymentDraft.amount },
-      { label: "Reference", value: paymentDraft.reference },
-    ]);
-    const amountMinor = toMinorUnits(paymentDraft.amount);
-
-    if (validationError) {
-      setPaymentError(validationError);
-      return;
-    }
-
-    if (!amountMinor) {
-      setPaymentError("Amount must be a number greater than zero.");
-      return;
-    }
-
-    try {
-      const csrfToken = await getCsrfToken();
-      const response = await fetch(buildBillingApiPath("/api/billing/manual-fee-payments", tenantSlug), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-myshule-csrf": csrfToken,
-        },
-        body: JSON.stringify({
-          idempotency_key: `finance-quick-${crypto.randomUUID()}`,
-          payment_method: paymentDraft.payment_method,
-          amount_minor: amountMinor,
-          student_id: paymentDraft.student_id.trim() || undefined,
-          invoice_id: paymentDraft.invoice_id.trim() || undefined,
-          payer_name: paymentDraft.payer_name.trim() || undefined,
-          deposit_reference: paymentDraft.reference.trim(),
-          external_reference: paymentDraft.reference.trim(),
-          metadata: {
-            source: "school_finance_quick_entry",
-            student_name: paymentDraft.payer_name.trim() || undefined,
-          },
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-
-      if (!response.ok) {
-        throw new Error(payload?.message ?? "Payment could not be recorded.");
-      }
-
-      setPaymentError(null);
-      setFinanceMessage("Payment recorded and posted to finance activity.");
-      setPaymentDraft({
-        payment_method: "cash",
-        student_id: "",
-        invoice_id: "",
-        payer_name: "",
-        amount: "",
-        reference: "",
-      });
-      setSelectedPaymentLearner(null);
-      setShowPaymentModal(false);
-      await loadFinanceActivity();
-      await loadStudentBalances();
-      await loadReconciliationReport();
-    } catch (caught) {
-      setPaymentError(caught instanceof Error ? caught.message : "Payment could not be recorded.");
-    }
-  }
-
-  const invoiceOptions = activity
-    .filter((entry) => entry.kind === "invoice")
-    .map((entry) => ({
-      id: entry.invoice_id ?? entry.id,
-      reference: entry.reference,
-      studentId: entry.student_id,
-      studentName: entry.student_name,
-      amount: formatMinorKes(entry.amount_minor),
-      status: entry.status,
-    }));
-  const filteredInvoiceOptions = invoiceOptions.filter(
-    (invoice) => !selectedPaymentLearner || invoice.studentId === selectedPaymentLearner.id,
-  );
-
-  return (
-    <div className="space-y-6">
-      <SchoolPageHeader
-        eyebrow="Fees and payments"
-        title="Collections desk"
-        description="Record payments, generate statements, and keep balances obvious enough for bursars and admins to trust instantly."
-        actions={
-          permissionsLoading ? (
-            <Button disabled>Checking access...</Button>
-          ) : hasPermission('finance:write') ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onClick={() => setShowBulkModal(true)}>Bulk invoicing</Button>
-              <Button onClick={openInvoiceModal}>Generate invoice</Button>
-            </div>
-          ) : (
-            <span className="text-xs font-bold text-muted">Restricted</span>
-          )
-        }
-      />
-      {financeMessage ? (
-        <div
-          aria-live="polite"
-          className="rounded-xl border border-success/20 bg-success/10 px-4 py-3 text-sm text-foreground"
-        >
-          {financeMessage}
-        </div>
-      ) : null}
-      {!summaryLoading && summaryData ? (
-        <MetricGrid
-          columns="three"
-          items={[
-            {
-              id: "collections",
-              label: "Today Collections",
-              value: summaryData.collectionsToday || "KES 0",
-              helper: "Ledger activity",
-              trend: summaryData.trendLabel || "Stable",
-            },
-            {
-              id: "outstanding",
-              label: "Outstanding Invoices",
-              value: summaryData.outstandingInvoices || "KES 0",
-              helper: "To be collected",
-              trend: "Needs review",
-            },
-            {
-              id: "failed",
-              label: "Failed Payments",
-              value: summaryData.failedPayments || "0",
-              helper: "Requires follow-up",
-              trend: "Action required",
-            },
-          ]}
-        />
-      ) : (
-        <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
-      )}
-      <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} tenantSlug={tenantSlug} />
-      <DataTable
-        title="Student balances"
-        subtitle={balancesLoading ? "Loading persisted student statements..." : "Outstanding balances from live invoices, cleared allocations, and unapplied credits."}
-        columns={[
-          {
-            id: "student",
-            header: "Student",
-            render: (row) => row.student_name ?? row.student_id,
-          },
-          {
-            id: "invoiced",
-            header: "Invoiced",
-            render: (row) => formatMinorKes(row.invoiced_amount_minor),
-            className: "text-right",
-            headerClassName: "text-right",
-          },
-          {
-            id: "paid",
-            header: "Paid",
-            render: (row) => formatMinorKes(row.paid_amount_minor),
-            className: "text-right",
-            headerClassName: "text-right",
-          },
-          {
-            id: "credit",
-            header: "Credit",
-            render: (row) => formatMinorKes(row.credit_amount_minor),
-            className: "text-right",
-            headerClassName: "text-right",
-          },
-          {
-            id: "balance",
-            header: "Balance",
-            render: (row) => formatMinorKes(row.balance_amount_minor),
-            className: "text-right font-semibold",
-            headerClassName: "text-right",
-          },
-          {
-            id: "invoiceCount",
-            header: "Invoices",
-            render: (row) => String(row.invoice_count),
-            className: "text-right",
-            headerClassName: "text-right",
-          },
-          {
-            id: "lastActivity",
-            header: "Last activity",
-            render: (row) => (row.last_activity_at ? formatActivityDate(row.last_activity_at) : "No activity"),
-          },
-          {
-            id: "actions",
-            header: "Actions",
-            render: (row) => (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => void openStudentStatement(row)}>
-                  View
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => void exportStudentStatement(row.student_id)}>
-                  Export
-                </Button>
-              </div>
-            ),
-          },
-        ]}
-        rows={balances}
-        getRowKey={(row) => row.student_id}
-        emptyMessage={balancesLoading ? "Loading student balances..." : "No student balances have been created yet."}
-      />
-      <Modal
-        open={Boolean(statement || statementLoading || statementError)}
-        title={statement ? `${statement.summary.student_name ?? statement.summary.student_id} fee statement` : "Student statement"}
-        description="Invoice debits, receipt credits, pending payments, and running balance from persisted billing records."
-        onClose={closeStatementModal}
-        footer={
-          <>
-            <Button variant="secondary" onClick={closeStatementModal}>
-              Close
-            </Button>
-            {statement ? (
-              <Button onClick={() => void exportStudentStatement(statement.summary.student_id)}>
-                Export CSV
-              </Button>
-            ) : null}
-          </>
-        }
-      >
-        <div className="space-y-5">
-          {statementError ? (
-            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
-              {statementError}
-            </div>
-          ) : null}
-          {statementLoading ? (
-            <div className="rounded-xl border border-border bg-surface-strong px-4 py-3 text-sm text-muted-foreground">
-              Loading statement activity...
-            </div>
-          ) : null}
-          {statement ? (
-            <>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-border bg-surface-strong p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoiced</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{formatMinorKes(statement.summary.invoiced_amount_minor)}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface-strong p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Paid</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{formatMinorKes(statement.summary.paid_amount_minor)}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface-strong p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Credit</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{formatMinorKes(statement.summary.credit_amount_minor)}</p>
-                </div>
-                <div className="rounded-xl border border-border bg-surface-strong p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Balance</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{formatMinorKes(statement.summary.balance_amount_minor)}</p>
-                </div>
-              </div>
-              <DataTable
-                title="Statement activity"
-                subtitle="Running balance from invoice debits and receipt credits."
-                columns={[
-                  { id: "date", header: "Date", render: (row) => formatActivityDate(row.occurred_at) },
-                  { id: "type", header: "Type", render: (row) => row.kind },
-                  { id: "reference", header: "Reference", render: (row) => row.reference },
-                  { id: "description", header: "Description", render: (row) => row.description },
-                  {
-                    id: "debit",
-                    header: "Debit",
-                    render: (row) => formatMinorKes(row.debit_amount_minor),
-                    className: "text-right",
-                    headerClassName: "text-right",
-                  },
-                  {
-                    id: "credit",
-                    header: "Credit",
-                    render: (row) => formatMinorKes(row.credit_amount_minor),
-                    className: "text-right",
-                    headerClassName: "text-right",
-                  },
-                  {
-                    id: "balance",
-                    header: "Balance",
-                    render: (row) => formatMinorKes(row.balance_after_minor),
-                    className: "text-right font-semibold",
-                    headerClassName: "text-right",
-                  },
-                  {
-                    id: "status",
-                    header: "Status",
-                    render: (row) => <StatusPill label={row.status.replace("_", " ")} tone={getStatementEntryTone(row)} />,
-                  },
-                ]}
-                rows={statement.entries}
-                getRowKey={(row) => row.id}
-                emptyMessage="No statement activity found."
-              />
-            </>
-          ) : null}
-        </div>
-      </Modal>
-      <Modal
-        open={showInvoiceModal}
-        title="Create invoice"
-        description="Generate a new fee invoice that appears in the collections desk immediately."
-        onClose={closeInvoiceModal}
-        footer={
-          <>
-            <Button variant="secondary" onClick={closeInvoiceModal}>
-              Cancel
-            </Button>
-            <Button onClick={saveInvoice}>Create invoice</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {invoiceError ? (
-            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
-              {invoiceError}
-            </div>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <LearnerPicker
-              label="Learner"
-              tenantSlug={tenantSlug ?? ""}
-              value={selectedInvoiceLearner}
-              onChange={(learner) => {
-                setSelectedInvoiceLearner(learner);
-                setInvoiceDraft((current) => ({
-                  ...current,
-                  studentId: learner?.id ?? "",
-                  studentName: learner?.name ?? "",
-                }));
-                setInvoiceError(null);
-              }}
-              hint="Search name or admission number, then enter the invoice amount."
-            />
-          </div>
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Student name</span>
-            <input
-              aria-label="Invoice student"
-              value={invoiceDraft.studentName}
-              onChange={(event) => {
-                setInvoiceDraft((current) => ({ ...current, studentName: event.target.value }));
-                setInvoiceError(null);
-              }}
-              className="input-base"
-              placeholder="Learner full name"
-            />
-          </label>
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Amount</span>
-            <input
-              aria-label="Invoice amount"
-              value={invoiceDraft.amount}
-              onChange={(event) => {
-                setInvoiceDraft((current) => ({ ...current, amount: event.target.value }));
-                setInvoiceError(null);
-              }}
-              className="input-base"
-              inputMode="numeric"
-              placeholder="Amount in KES"
-            />
-          </label>
-          <label className="space-y-2 text-sm text-foreground md:col-span-2">
-            <span className="font-medium">Due date</span>
-            <input
-              aria-label="Invoice due date"
-              value={invoiceDraft.dueAt}
-              onChange={(event) => {
-                setInvoiceDraft((current) => ({ ...current, dueAt: event.target.value }));
-                setInvoiceError(null);
-              }}
-              className="input-base"
-              type="date"
-            />
-          </label>
-        </div>
-        </div>
-      </Modal>
-      <Modal
-        open={showPaymentModal}
-        title="Record payment"
-        description="Post a payment reference straight into the fee history ledger."
-        onClose={closePaymentModal}
-        footer={
-          <>
-            <Button variant="secondary" onClick={closePaymentModal}>
-              Cancel
-            </Button>
-            <Button onClick={savePayment}>Save payment</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          {paymentError ? (
-            <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-foreground">
-              {paymentError}
-            </div>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Method</span>
-            <select
-              aria-label="Payment method"
-              value={paymentDraft.payment_method}
-              onChange={(event) => {
-                setPaymentDraft((current) => ({
-                  ...current,
-                  payment_method: event.target.value as ManualReceiptMethod,
-                }));
-                setPaymentError(null);
-              }}
-              className="input-base"
-            >
-              {manualReceiptSelectableMethods
-                .filter((method) => method !== "cheque")
-                .map((method) => (
-                  <option key={method} value={method}>
-                    {manualReceiptMethodLabels[method]}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Amount</span>
-            <input
-              aria-label="Payment amount"
-              value={paymentDraft.amount}
-              onChange={(event) => {
-                setPaymentDraft((current) => ({ ...current, amount: event.target.value }));
-                setPaymentError(null);
-              }}
-              className="input-base"
-              inputMode="numeric"
-              placeholder="Amount in KES"
-            />
-          </label>
-          <div className="space-y-2 text-sm text-foreground">
-            <LearnerPicker
-              label="Payment student or admission number"
-              tenantSlug={tenantSlug ?? ""}
-              value={selectedPaymentLearner}
-              onChange={(learner) => {
-                setSelectedPaymentLearner(learner);
-                setPaymentDraft((current) => ({
-                  ...current,
-                  student_id: learner?.id ?? "",
-                }));
-                setPaymentError(null);
-              }}
-            />
-          </div>
-          <label className="space-y-2 text-sm text-foreground">
-            <span className="font-medium">Select invoice</span>
-            <select
-              aria-label="Payment invoice"
-              value={paymentDraft.invoice_id}
-              onChange={(event) => {
-                setPaymentDraft((current) => ({ ...current, invoice_id: event.target.value }));
-                setPaymentError(null);
-              }}
-              className="input-base"
-            >
-              <option value="">Match automatically or select invoice</option>
-              {filteredInvoiceOptions.map((invoice) => (
-                <option key={invoice.id} value={invoice.id}>
-                  {invoice.reference} - {invoice.studentName ?? "Learner"} - {invoice.amount}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-2 text-sm text-foreground md:col-span-2">
-            <span className="font-medium">Payer name</span>
-            <input
-              aria-label="Payment payer name"
-              value={paymentDraft.payer_name}
-              onChange={(event) => {
-                setPaymentDraft((current) => ({ ...current, payer_name: event.target.value }));
-                setPaymentError(null);
-              }}
-              className="input-base"
-              placeholder="Parent or payer name"
-            />
-          </label>
-          <label className="space-y-2 text-sm text-foreground md:col-span-2">
-            <span className="font-medium">Reference</span>
-            <input
-              aria-label="Payment reference"
-              value={paymentDraft.reference}
-              onChange={(event) => {
-                setPaymentDraft((current) => ({ ...current, reference: event.target.value }));
-                setPaymentError(null);
-              }}
-              className="input-base"
-              placeholder="Payment reference"
-            />
-          </label>
-        </div>
-        </div>
-      </Modal>
-      <Modal
-        open={showBulkModal}
-        title="Bulk Invoicing"
-        description="Select a fee structure and check the roster students to invoice."
-        onClose={() => setShowBulkModal(false)}
-        footer={
-          <div className="flex justify-end gap-2 w-full">
-            <Button variant="secondary" onClick={() => setShowBulkModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={!canGenerateBulkInvoices}
-              onClick={async () => {
-                await generateBulkFeeInvoices();
-                setShowBulkModal(false);
-              }}
-            >
-              Generate Invoices
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4 py-2">
-          <label className="space-y-2 text-sm text-foreground block">
-            <span className="font-medium block">Fee Structure</span>
-            <select
-              aria-label="Fee Structure"
-              value={bulkDraft.fee_structure_id}
-              onChange={async (event) => {
-                const val = event.target.value;
-                setBulkDraft((current) => ({ ...current, fee_structure_id: val }));
-                setBulkError(null);
-                await loadBillableStudentsForSelectedFeeStructure(val);
-              }}
-              className="input-base w-full"
-            >
-              <option value="">Select fee structure</option>
-              {feeStructures.map((structure) => (
-                <option key={structure.id} value={structure.id}>
-                  {structure.name} ({formatMinorKes(structure.total_amount_minor)})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2 text-sm text-foreground block">
-            <span className="font-medium block">Due Date</span>
-            <input
-              aria-label="Due date"
-              type="date"
-              value={bulkDraft.due_at}
-              onChange={(event) => {
-                setBulkDraft((current) => ({ ...current, due_at: event.target.value }));
-                setBulkError(null);
-              }}
-              className="input-base w-full"
-            />
-          </label>
-
-          <label className="space-y-2 text-sm text-foreground block">
-            <span className="font-medium block">Idempotency Key (Optional)</span>
-            <input
-              aria-label="Idempotency key"
-              value={bulkDraft.idempotency_key}
-              onChange={(event) => {
-                setBulkDraft((current) => ({ ...current, idempotency_key: event.target.value }));
-                setBulkError(null);
-              }}
-              className="input-base w-full"
-              placeholder="Unique transaction key"
-            />
-          </label>
-
-          {billableStudentsLoading ? (
-            <div className="text-sm text-muted-foreground">Loading roster students...</div>
-          ) : billableStudents.length > 0 ? (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-sm font-medium">
-                <span>Roster: {selectedBulkStudentIds.size} / {billableStudents.length} selected</span>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={selectAllVisibleBulkRosterStudents}>
-                    Select All
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={clearBulkRosterSelection}>
-                    Clear
-                  </Button>
-                </div>
-              </div>
-              <div className="max-h-48 overflow-y-auto border border-input rounded-md p-2 space-y-1 bg-muted/10">
-                {billableStudents.map((student) => {
-                  const isSelected = selectedBulkStudentIds.has(student.student_id);
-                  return (
-                    <label key={student.student_id} className="flex items-center gap-2 text-sm p-1 hover:bg-muted/20 rounded cursor-pointer block">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleBulkRosterStudent(student)}
-                        className="rounded border-input text-primary focus:ring-primary h-4 w-4"
-                      />
-                      <span className="truncate">{student.student_name} ({student.admission_number || "No admission #"})</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ) : bulkDraft.fee_structure_id ? (
-            <div className="text-sm text-muted-foreground bg-muted/10 p-3 rounded">
-              No roster students matched this fee structure.
-            </div>
-          ) : null}
-
-          {bulkError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
-              {bulkError}
-            </div>
-          )}
-        </div>
-      </Modal>
+  return <div className="space-y-4">
+    <section className="rounded-xl border border-border bg-surface p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-semibold">Invoices & statements</h3><p className="mt-1 text-sm text-muted">Bill a learner or a class, then follow each account from invoice to cleared payment.</p></div>
+        <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={!canWrite} onClick={() => openDialog("bulk")}>Bill a class</Button><Button disabled={!canWrite} onClick={() => openDialog("single")}>Create invoice</Button></div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">{(["invoices", "balances"] as const).map(value => <Button key={value} variant={tab === value ? "primary" : "ghost"} aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); setSearch(""); }}>{value === "invoices" ? "Invoice register" : "Learner balances"}</Button>)}
+        {onNavigate && <Button variant="ghost" onClick={() => onNavigate("fee-structures")}>Manage fee structures</Button>}
+        <Button variant="ghost" disabled={activeQuery.isFetching} onClick={() => void activeQuery.refetch()}>Refresh</Button>
+      </div>
+    </section>
+    {notice && <p role="status" className="rounded-lg bg-success-soft p-3 text-sm">{notice}</p>}
+    {activeQuery.error && <p role="alert" className="rounded-lg bg-danger-soft p-3">{activeQuery.error.message} Use Refresh to retry.</p>}
+    <div className="flex flex-col gap-3 sm:flex-row"><label className="flex-1 text-sm">Search this page<input type="search" className="input-base mt-1 w-full" value={search} onChange={e => setSearch(e.target.value)} placeholder="Learner or invoice number" /></label>
+      {tab === "invoices" && <label className="text-sm">Invoice status<select className="input-base mt-1 w-full" value={status} onChange={e => { setStatus(e.target.value); setOffset(0); }}><option value="">All statuses</option>{["open", "pending_payment", "paid", "void", "uncollectible", "draft"].map(value => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select></label>}
     </div>
-  );
+    {tab === "invoices" ? <DataTable title="Invoice register" rows={invoiceRows} getRowKey={row => row.id} emptyMessage={invoices.isLoading ? "Loading invoices…" : invoices.error ? "Invoice records unavailable. Retry above." : "No matching invoices. Create an invoice or bill a class to start."} columns={[
+      { id: "invoice", header: "Invoice / learner", render: row => <div><p className="font-semibold">{row.invoice_number}</p><p className="text-muted">{row.metadata.student_name || row.description}</p></div> },
+      { id: "total", header: "Invoiced", render: row => formatMinorKes(row.total_amount_minor) },
+      { id: "paid", header: "Paid", render: row => formatMinorKes(row.amount_paid_minor) },
+      { id: "status", header: "Status", render: row => row.status.replaceAll("_", " ") },
+      { id: "due", header: "Due", render: row => formatActivityDate(row.due_at) },
+      { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => previewInvoice(row)}>Preview / print</Button><Button size="sm" variant="ghost" onClick={() => viewStatement(row.metadata.student_id)}>Statement</Button></div> },
+    ]} /> : <DataTable title="Learner balances" rows={balanceRows} getRowKey={row => row.student_id} emptyMessage={balances.isLoading ? "Loading balances…" : balances.error ? "Balance records unavailable. Retry above." : "No matching learner accounts. Create a learner invoice to start."} columns={[
+      { id: "student", header: "Learner", render: row => row.student_name || "Learner account" },
+      { id: "invoiced", header: "Invoiced", render: row => formatMinorKes(row.invoiced_amount_minor) },
+      { id: "paid", header: "Paid", render: row => formatMinorKes(row.paid_amount_minor) },
+      { id: "credit", header: "Credit", render: row => formatMinorKes(row.credit_amount_minor) },
+      { id: "balance", header: "Balance", render: row => <strong className="tabular-nums">{formatMinorKes(row.balance_amount_minor)}</strong> },
+      { id: "actions", header: "Actions", render: row => <Button size="sm" variant="secondary" onClick={() => viewStatement(row.student_id)}>View statement</Button> },
+    ]} />}
+    <div className="flex flex-wrap items-center justify-end gap-3 text-sm"><span>Page {offset / pageSize + 1}</span><Button variant="secondary" disabled={!offset || activeQuery.isFetching} onClick={() => setOffset(offset - pageSize)}>Previous page</Button><Button variant="secondary" disabled={(activeQuery.data?.length ?? 0) < pageSize || activeQuery.isFetching} onClick={() => setOffset(offset + pageSize)}>Next page</Button></div>
+    <Modal open={Boolean(dialog)} title={dialog === "bulk" ? "Bill a class" : "Create learner invoice"} onClose={() => { if (!busy) setDialog(null); }}
+      footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setDialog(null)}>Cancel</Button><Button form="learner-invoice-form" type="submit" disabled={busy || !canWrite || (dialog === "bulk" && (!selectedIds.size || roster.isFetching))}>{busy ? "Creating invoices…" : dialog === "bulk" ? `Create ${selectedIds.size} invoices` : "Create invoice"}</Button></>}>
+      <form id="learner-invoice-form" onSubmit={save} className="space-y-4"><fieldset disabled={busy} className="space-y-4">
+        {error && <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{error}</p>}
+        {dialog === "single" ? <><LearnerPicker label="Learner name or admission number" tenantSlug={tenantSlug || ""} value={learner} onChange={setLearner} /><label className="block">Amount (KES)<input required name="amount" inputMode="decimal" className="input-base mt-1 w-full" /></label></> : <>
+          <label className="block">Fee structure<select required className="input-base mt-1 w-full" value={structureId} onChange={e => { setStructureId(e.target.value); setSelectedIds(new Set()); }}><option value="">Choose a fee structure</option>{structures.data?.filter(row => row.status === "active").map(row => <option key={row.id} value={row.id}>{row.name} · {formatMinorKes(row.total_amount_minor)}</option>)}</select></label>
+          {structures.isLoading && <p role="status">Loading fee structures…</p>}
+          {structures.error && <p role="alert">{structures.error.message} <Button type="button" variant="ghost" onClick={() => void structures.refetch()}>Retry fee structures</Button></p>}
+          {!structures.isLoading && !structures.error && !structures.data?.some(row => row.status === "active") && <p>No active fee structure. Create one in Fee structures before billing a class.</p>}
+          {roster.isLoading && <p role="status">Loading class roster…</p>}
+          {roster.error && <p role="alert">{roster.error.message} <Button type="button" variant="ghost" onClick={() => void roster.refetch()}>Retry roster</Button></p>}
+          {structureId && !roster.isLoading && !roster.error && !roster.data?.length && <p>No eligible learners match this structure. Check the grade and class on the fee structure.</p>}
+          {!!roster.data?.length && <><div className="flex flex-wrap items-center justify-between gap-2"><span>{selectedIds.size} of {roster.data.length} selected</span><Button type="button" variant="ghost" onClick={() => setSelectedIds(selectedIds.size === roster.data!.length ? new Set() : new Set(roster.data!.map(row => row.student_id)))}>{selectedIds.size === roster.data.length ? "Clear selection" : "Select all"}</Button></div>
+            <div className="max-h-64 overflow-y-auto rounded-lg border border-border">{roster.data.map(row => <label key={row.student_id} className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-border px-3 py-2 last:border-0"><input type="checkbox" checked={selectedIds.has(row.student_id)} onChange={() => setSelectedIds(current => { const next = new Set(current); if (next.has(row.student_id)) next.delete(row.student_id); else next.add(row.student_id); return next; })} /><span>{row.student_name}<span className="ml-2 text-muted">{row.admission_number}</span></span></label>)}</div>
+            {structure && <p className="text-sm">Maximum to issue: <strong>{formatMinorKes((BigInt(structure.total_amount_minor) * BigInt(selectedIds.size)).toString())}</strong>. Existing invoices for this structure are skipped.</p>}</>}
+        </>}
+        <label className="block">Due date (optional)<input name="due" type="date" className="input-base mt-1 w-full" /></label>
+      </fieldset></form>
+    </Modal>
+    <Modal open={Boolean(statementId)} title={statement.data ? `${statement.data.summary.student_name || "Learner"} · fee statement` : "Fee statement"} onClose={() => setStatementId(null)}>
+      <div className="space-y-4">{statement.isLoading && <p role="status">Loading statement…</p>}{statement.error && <p role="alert">{statement.error.message} <Button onClick={() => void statement.refetch()}>Retry statement</Button></p>}
+        {documentError && <p role="alert">{documentError}</p>}
+        {statement.data && <><div className="flex flex-wrap items-center justify-between gap-3"><p>Balance <strong>{formatMinorKes(statement.data.summary.balance_amount_minor)}</strong> · Credit {formatMinorKes(statement.data.summary.credit_amount_minor)}</p><div className="flex gap-2"><Button variant="secondary" onClick={previewStatement}>Preview / print</Button><Button disabled={exporting} onClick={() => void exportStatement()}>{exporting ? "Preparing…" : "Download CSV"}</Button></div></div>
+          <DataTable title="Account activity" rows={statement.data.entries} getRowKey={row => row.id} emptyMessage="No account activity yet." columns={[
+            { id: "reference", header: "Reference / date", render: row => <div>{row.reference}<p className="text-muted">{formatActivityDate(row.occurred_at)}</p></div> },
+            { id: "status", header: "Status", render: row => row.status },
+            { id: "debit", header: "Debit", render: row => formatMinorKes(row.debit_amount_minor) },
+            { id: "credit", header: "Credit", render: row => formatMinorKes(row.credit_amount_minor) },
+            { id: "balance", header: "Balance", render: row => formatMinorKes(row.balance_after_minor) },
+          ]} /></>}
+      </div>
+    </Modal>
+  </div>;
 }
-
