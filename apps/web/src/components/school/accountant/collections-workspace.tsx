@@ -1,4 +1,5 @@
 "use client";
+import { ManualReversalQueue } from "./manual-reversal-queue";
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -52,16 +53,21 @@ export function CollectionsWorkspace({
 }) {
   const tenantId = useOptionalSchoolTenantId();
   const [offset, setOffset] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [showAllVerification, setShowAllVerification] = useState(false);
+  const [verificationOffset, setVerificationOffset] = useState(0);
   const payments = useSchoolQuery<Collection[]>(
-    `/payments/collections?limit=50&offset=${offset}`,
+    `/payments/collections?limit=50&offset=${offset}${statusFilter ? `&status=${statusFilter}` : ""}`,
+    { refetchInterval: 30_000 },
   );
   const reversals = useSchoolQuery<Reversal[]>(
     "/payments/collections/reversals",
   );
   const channels = useSchoolQuery<CollectionChannelRevision[]>(
-    "/tenant-finance/collection-channels?status=active&limit=100",
+    "/tenant-finance/collection-channels?limit=100",
   );
-  const inbox = useSchoolQuery<IngressPayment[]>('/payments/ingress');
+  const inbox = useSchoolQuery<IngressPayment[]>(`/payments/ingress?limit=100&offset=${verificationOffset}`, { refetchInterval: 30_000 });
+  const inboxRows = (inbox.data ?? []).filter(row => showAllVerification || (row.environment === "production" && (row.has_conflict || ["review","unmatched","received","verifying","verified"].includes(row.state))));
   const [action, setAction] = useState<Action | null>(null);
   const [learner, setLearner] = useState<LearnerLookupItem | null>(null);
   const [reason, setReason] = useState("");
@@ -103,7 +109,7 @@ export function CollectionsWorkspace({
       });
       setAction(null);
       setNotice(message);
-      await Promise.all([payments.refetch(), reversals.refetch()]);
+      await Promise.all([payments.refetch(), reversals.refetch(), inbox.refetch()]);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -179,11 +185,12 @@ export function CollectionsWorkspace({
       <section className="space-y-3 rounded-lg border border-border p-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Provider verification inbox</h3>
           <Button variant="secondary" disabled={inbox.isLoading || busy} onClick={()=>void inbox.refetch()}>Refresh verification</Button></div>
-        <p className="text-sm text-muted">Only verified production collections affect fees. Sandbox entries show matching results only. Never credit a review item from a callback alone; verify independent provider evidence before using the statement approval workflow.</p>
+        <p className="text-sm text-muted">Matched, verified payments post automatically. Review exceptions here; bank statement entries require Principal confirmation.</p>
+        <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showAllVerification} onChange={event => setShowAllVerification(event.target.checked)} />Show completed and sandbox checks</label>
         {inbox.error && <p role="alert">{inbox.error.message}</p>}
-        {inbox.isLoading ? <p role="status">Loading verification…</p> : !inbox.data?.length ? <p>No provider callbacks received yet.</p> :
+        {inbox.isLoading ? <p role="status">Loading verification…</p> : inbox.error ? null : !inboxRows.length ? <p>No provider payments need attention in the current verification queue.</p> :
           <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Provider / receipt','Reference / amount','Verification','Action'].map(t=><th className="p-2" key={t}>{t}</th>)}</tr></thead>
-            <tbody>{inbox.data.map(row=><tr key={row.id} className="border-t border-border">
+            <tbody>{inboxRows.map(row=><tr key={row.id} className="border-t border-border">
               <td className="p-2">{row.provider_code} · {row.environment}<span className="block font-mono">{row.provider_transaction_id}</span></td>
               <td className="p-2">{row.account_reference || 'No reference'}<span className="block">{money(row.amount_minor)}</span></td>
               <td className="p-2">{row.state.replaceAll('_',' ')}{row.student_id && <span className="block">Matched student: {row.student_id}</span>}{row.review_reason && <span className="block text-muted">{row.review_reason}</span>}</td>
@@ -193,6 +200,10 @@ export function CollectionsWorkspace({
               }}>Retry verification</Button>:row.has_conflict?'Conflicting evidence — accountant review':row.state==='unmatched'?'Match in collections below':'—'}</td>
             </tr>)}</tbody></table></div>}
       </section>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="ghost" disabled={!verificationOffset || inbox.isFetching} onClick={() => setVerificationOffset(verificationOffset - 100)}>Previous verification page</Button>
+        <Button variant="ghost" disabled={(inbox.data?.length ?? 0) < 100 || inbox.isFetching} onClick={() => setVerificationOffset(verificationOffset + 100)}>Next verification page</Button>
+      </div>
       {error && !action && <p role="alert" className="text-danger">{error}</p>}
       {notice && (
         <p role="status" className="rounded-lg bg-success-soft p-3">
@@ -214,6 +225,12 @@ export function CollectionsWorkspace({
           </Button>
         </div>
       )}
+      <label className="block text-sm font-medium">Collection status
+        <select value={statusFilter} onChange={event => { setStatusFilter(event.target.value); setOffset(0); }} className="input-base mt-1 w-full sm:w-72">
+          <option value="">All collections</option><option value="unmatched">Needs a learner match</option><option value="pending_review">Awaiting Principal approval</option>
+          <option value="posted">Posted to student fees</option><option value="rejected">Rejected</option><option value="reversed">Reversed</option>
+        </select>
+      </label>
       {payments.isLoading ? (
         <p role="status">Loading collections…</p>
       ) : !payments.data?.length ? (
@@ -340,6 +357,7 @@ export function CollectionsWorkspace({
           ))}
         </div>
       )}
+      <ManualReversalQueue review={mode === "review"} />
       <Modal
         open={Boolean(action)}
         title={

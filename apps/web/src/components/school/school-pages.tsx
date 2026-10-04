@@ -106,7 +106,9 @@ const AdmissionsDashboardCommandCenter = dynamic(() => import("./admissions-dash
 export type SchoolRouteMode = "hosted" | "public";
 export type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
 export type ManualReceiptStatus = "received" | "deposited" | "cleared" | "bounced" | "reversed";
-export type MpesaC2bStatus = "pending_review" | "matched" | "rejected";
+export type MpesaC2bStatus = "pending_review" | "matched" | "rejected"
+  | "received_unverified" | "verification_requested" | "verified_matched" | "verified_unmatched"
+  | "amount_mismatch" | "duplicate_provider_receipt" | "missing_provider_record" | "reversed" | "manual_review_required";
 
 export type ManualReceiptResponse = {
   id: string;
@@ -171,7 +173,7 @@ export type StudentFeeBalanceResponse = {
 
 type StudentFeeStatementEntryResponse = {
   id: string;
-  kind: "invoice" | "receipt";
+  kind: "invoice" | "receipt" | "adjustment";
   source_id: string;
   invoice_id: string | null;
   reference: string;
@@ -409,6 +411,9 @@ export const manualReceiptStatusTone: Record<ManualReceiptStatus, "ok" | "warnin
 };
 
 export const mpesaC2bStatusTone: Record<MpesaC2bStatus, "ok" | "warning" | "critical"> = {
+  received_unverified: "warning", verification_requested: "warning", verified_matched: "warning",
+  verified_unmatched: "warning", amount_mismatch: "critical", duplicate_provider_receipt: "critical",
+  missing_provider_record: "critical", reversed: "critical", manual_review_required: "critical",
   pending_review: "warning",
   matched: "ok",
   rejected: "critical",

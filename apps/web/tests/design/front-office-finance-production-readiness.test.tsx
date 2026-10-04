@@ -19,8 +19,8 @@ describe("front office and finance production readiness", () => {
     const commandCenter = await screen.findByTestId("accountant-command-center");
 
     expect(within(commandCenter).getByText(/Accountant Dashboard/i)).toBeVisible();
-    expect(within(commandCenter).getAllByText(/Finance Overview/i).length).toBeGreaterThan(0);
-    expect(within(commandCenter).getByRole("button", { name: /Record payment/i })).toBeVisible();
+    expect(within(commandCenter).getAllByText(/Today/i).length).toBeGreaterThan(0);
+    expect(within(commandCenter).getByRole("button", { name: /Record cash \/ cheque/i })).toBeVisible();
     expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     expect(commandCenter.textContent).not.toMatch(/248,500|M-Pesa Confirmed|Balances Above KSh 10k|Receipts Printed/i);
   });

@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: __dirname,
+    // The dashboard imports shared, browser-safe contracts from apps/api.
+    root: path.resolve(__dirname, "../.."),
   },
   async headers() {
     return [

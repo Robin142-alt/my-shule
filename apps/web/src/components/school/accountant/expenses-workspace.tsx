@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { usePermissions } from "@/components/providers/permission-context";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -63,9 +65,14 @@ function emptyDraft() {
   return { category: "administration", description: "", amount: "" };
 }
 
-export function ExpensesWorkspace() {
+export function ExpensesWorkspace({ review = false }: { review?: boolean }) {
+  const tenantId = useOptionalSchoolTenantId();
+  const { hasPermission } = usePermissions();
+  const [decision, setDecision] = useState<{ row: ExpenseRow; decision: "approve" | "reject" } | null>(null);
+  const commandKey = useRef("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(0);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -78,19 +85,18 @@ export function ExpensesWorkspace() {
     isFetching,
     isLoading,
     refetch,
-  } = useSchoolQuery<ExpensesData>("/admin-command/accountant/expenses");
+  } = useSchoolQuery<ExpensesData>(`/admin-command/accountant/expenses?limit=50&offset=${page * 50}${statusFilter === "all" ? "" : `&status=${statusFilter}`}`);
 
-  const items = Array.isArray(data?.items) ? data.items : [];
+  const items = useMemo(() => Array.isArray(data?.items) ? data.items : [], [data?.items]);
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return items.filter((item) => {
-      const matchesStatus = statusFilter === "all" || item.status.toLowerCase() === statusFilter;
       const matchesQuery = !normalizedQuery
         || item.description.toLowerCase().includes(normalizedQuery)
         || item.category.toLowerCase().includes(normalizedQuery);
-      return matchesStatus && matchesQuery;
+      return matchesQuery;
     });
-  }, [items, query, statusFilter]);
+  }, [items, query]);
 
   const metrics = data?.metrics ?? {
     total_this_month_minor: "0",
@@ -100,6 +106,7 @@ export function ExpensesWorkspace() {
   };
 
   function openExpenseModal() {
+    commandKey.current = `expense-${crypto.randomUUID()}`;
     setDraft(emptyDraft());
     setSubmitError(null);
     setShowExpenseModal(true);
@@ -107,6 +114,7 @@ export function ExpensesWorkspace() {
 
   async function submitExpense(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting || !tenantId || !hasPermission("finance:write")) return;
     const amountMinor = toMinorUnits(draft.amount);
     const description = draft.description.trim();
 
@@ -126,7 +134,9 @@ export function ExpensesWorkspace() {
         "/admin-command/accountant/expenses",
         {
           method: "POST",
+          tenantId,
           body: {
+            idempotency_key: commandKey.current,
             category: draft.category,
             description,
             amount_minor: amountMinor,
@@ -141,6 +151,20 @@ export function ExpensesWorkspace() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function decide(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!decision || submitting || !tenantId) return;
+    const reason = String(new FormData(event.currentTarget).get("reason") ?? "");
+    setSubmitting(true); setSubmitError(null);
+    try {
+      const result = await requestDashboardApi<{ message: string }>(`/admin-command/accountant/expenses/${decision.row.id}/decision`, {
+        tenantId, method: "POST", body: { decision: decision.decision, reason },
+      });
+      setDecision(null); setNotice(result.message); await refetch();
+    } catch (cause) { setSubmitError(cause instanceof Error ? cause.message : "The decision could not be saved."); }
+    finally { setSubmitting(false); }
   }
 
   return (
@@ -164,7 +188,7 @@ export function ExpensesWorkspace() {
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
               Refresh
             </Button>
-            <Button onClick={openExpenseModal}>
+            <Button onClick={openExpenseModal} disabled={!hasPermission("finance:write")}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               Submit expense
             </Button>
@@ -194,7 +218,7 @@ export function ExpensesWorkspace() {
           <section className="grid gap-3 md:grid-cols-3" aria-label="Expense summary">
             {[
               {
-                label: "This month",
+                label: "Requested this month",
                 value: formatMinorKes(metrics.total_this_month_minor),
                 helper: `${metrics.total_count} total expense record${metrics.total_count === 1 ? "" : "s"}`,
                 icon: WalletCards,
@@ -237,15 +261,15 @@ export function ExpensesWorkspace() {
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search description or category"
-                    className="h-10 min-w-64 rounded-lg border border-border-strong pl-9 pr-3 text-sm outline-none focus:border-blue-400"
+                    placeholder="Search this page"
+                    className="h-10 w-full rounded-lg border border-border-strong pl-9 pr-3 text-sm outline-none focus:border-blue-400"
                   />
                 </label>
                 <label>
                   <span className="sr-only">Filter expense status</span>
                   <select
                     value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
+                    onChange={(event) => { setStatusFilter(event.target.value); setPage(0); }}
                     className="h-10 rounded-lg border border-border-strong bg-white px-3 text-sm font-semibold outline-none focus:border-blue-400"
                   >
                     <option value="all">All statuses</option>
@@ -262,13 +286,13 @@ export function ExpensesWorkspace() {
             ) : filteredItems.length === 0 ? (
               <div className="p-8 text-center">
                 <Receipt className="mx-auto h-8 w-8 text-muted" aria-hidden="true" />
-                <p className="mt-3 font-black">{items.length === 0 ? "No expenses have been submitted" : "No expenses match these filters"}</p>
+                <p className="mt-3 font-black">{metrics.total_count === 0 ? "No expenses have been submitted" : "No expenses on this page match these filters"}</p>
                 <p className="mt-1 text-sm font-semibold text-muted">
-                  {items.length === 0
+                  {metrics.total_count === 0
                     ? "Submit the first expense to start an approval-traceable register."
                     : "Change the search text or status filter to see more records."}
                 </p>
-                {items.length === 0 ? <Button className="mt-4" onClick={openExpenseModal}>Submit first expense</Button> : null}
+                {metrics.total_count === 0 ? <Button className="mt-4" onClick={openExpenseModal} disabled={!hasPermission("finance:write")}>Submit first expense</Button> : null}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -280,6 +304,7 @@ export function ExpensesWorkspace() {
                       <th className="px-4 py-3">Category</th>
                       <th className="px-4 py-3">Amount</th>
                       <th className="px-4 py-3">Status</th>
+                      {review && <th className="px-4 py-3">Decision</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -294,19 +319,37 @@ export function ExpensesWorkspace() {
                             {row.status.replaceAll("_", " ")}
                           </span>
                         </td>
+                        {review && <td className="px-4 py-3">{["pending", "pending_approval"].includes(row.status.toLowerCase()) && <div className="flex gap-2">
+                          {(["approve", "reject"] as const).map(choice => <Button key={choice} variant="secondary" size="sm" disabled={!hasPermission("principal:write")}
+                            onClick={() => { setSubmitError(null); setDecision({ row, decision: choice }); }}>{choice === "approve" ? "Approve" : "Reject"}</Button>)}
+                        </div>}</td>}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+            <div className="flex items-center justify-between gap-2 border-t border-border p-4 text-sm">
+              <Button variant="secondary" disabled={page === 0 || isFetching} onClick={() => setPage(value => value - 1)}>Previous</Button>
+              <span>Page {page + 1} · {items.length} records</span>
+              <Button variant="secondary" disabled={items.length < 50 || isFetching} onClick={() => setPage(value => value + 1)}>Next</Button>
+            </div>
           </section>
         </>
       )}
 
+      <Modal open={Boolean(decision)} onClose={() => { if (!submitting) setDecision(null); }} title={`${decision?.decision === "approve" ? "Approve" : "Reject"} expense`}>
+        <form onSubmit={decide} className="space-y-4">
+          <p>{decision?.row.description} · {decision && formatMinorKes(decision.row.amount_minor)}</p>
+          <p className="text-sm text-muted">This saves an approval decision. It does not confirm that money has been paid out.</p>
+          {submitError && <p role="alert" className="text-danger">{submitError}</p>}
+          <label className="block">Decision notes<textarea name="reason" required minLength={5} maxLength={500} className="input-base mt-1 w-full" /></label>
+          <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Save decision"}</Button>
+        </form>
+      </Modal>
       <Modal
         open={showExpenseModal}
-        onClose={() => setShowExpenseModal(false)}
+        onClose={() => { if (!submitting) setShowExpenseModal(false); }}
         title="Submit school expense"
         description="The expense is saved as pending and sent to the Principal approval queue."
         footer={(

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useRouter } from "next/navigation";
 import {
   BadgePercent,
   Banknote,
@@ -63,9 +64,9 @@ type AccountantNavItem = {
 const ACCOUNTANT_NAV_ITEMS: AccountantNavItem[] = [
   {
     id: "overview",
-    label: "Finance Overview",
+    label: "Today",
     description: "Live collections, balances, and exceptions",
-    group: "Command Center",
+    group: "Daily work",
     icon: LayoutDashboard,
   },
   {
@@ -76,33 +77,33 @@ const ACCOUNTANT_NAV_ITEMS: AccountantNavItem[] = [
     icon: Layers3,
   },
   { id: "payment-setup", label: "Payment Setup", description: "School accounts and Principal approval", group: "Billing Setup", icon: Banknote },
-  { id: "collections", label: "School Collections", description: "Bank statements, unmatched payments and reversals", group: "Collections", icon: Banknote },
+  { id: "collections", label: "Collections & exceptions", description: "Automatic payments, bank statements and matching", group: "Daily work", icon: Banknote },
   {
     id: "invoices",
-    label: "Student Invoices",
+    label: "Invoices & statements",
     description: "Generate and manage learner invoices",
-    group: "Billing Setup",
+    group: "Billing",
     icon: FileText,
   },
   {
     id: "payments",
-    label: "Payments",
-    description: "Record and allocate fee payments",
-    group: "Collections",
+    label: "Cash & cheques",
+    description: "Record receipts and confirm cheque clearance",
+    group: "Daily work",
     icon: Banknote,
   },
   {
     id: "m-pesa-reconciliation",
     label: "M-Pesa Reconciliation",
     description: "Match callbacks and resolve exceptions",
-    group: "Collections",
+    group: "Controls",
     icon: Smartphone,
   },
   {
     id: "receipts",
     label: "Receipts",
     description: "Preview, download, and print receipts",
-    group: "Collections",
+    group: "Daily work",
     icon: ReceiptText,
   },
   {
@@ -165,12 +166,16 @@ export function AccountantCommandCenter({
   tenantSlug?: string | null;
   userLabel?: string | null;
 }) {
+  const router = useRouter();
   const [activeWorkspace, setActiveWorkspace] = useState<AccountantSection>(
     normalizeAccountantSection(activeSection),
   );
   const roleTitle = role === "bursar" ? "Bursar Dashboard" : "Accountant Dashboard";
   const roleLabel = role === "bursar" ? "Bursar" : "Accountant";
   const paymentSetup = usePaymentSetupSummary();
+  useEffect(() => {
+    setActiveWorkspace(normalizeAccountantSection(activeSection));
+  }, [activeSection]);
 
   const groupedNavItems = useMemo(
     () =>
@@ -183,11 +188,7 @@ export function AccountantCommandCenter({
 
   const navigateTo = (section: AccountantSection) => {
     setActiveWorkspace(section);
-    window.history.replaceState(
-      null,
-      "",
-      buildSchoolSectionHref(role, section, routeMode),
-    );
+    router.push(buildSchoolSectionHref(role, section, routeMode), { scroll: false });
   };
 
   const workspace = (() => {
@@ -208,6 +209,7 @@ export function AccountantCommandCenter({
             tenantSlug={tenantSlug}
             routeMode={routeMode}
             activeSection="invoices"
+            onNavigate={(section) => navigateTo(normalizeAccountantSection(section))}
           />
         );
       case "payment-setup":
@@ -221,10 +223,11 @@ export function AccountantCommandCenter({
             tenantSlug={tenantSlug}
             routeMode={routeMode}
             activeSection="payments"
+            onNavigate={(section) => navigateTo(normalizeAccountantSection(section))}
           />
         );
       case "m-pesa-reconciliation":
-        return <MPesaReconciliationWorkspace role={role} tenantSlug={tenantSlug} />;
+        return <MPesaReconciliationWorkspace role={role} tenantSlug={tenantSlug} onNavigate={(section) => navigateTo(normalizeAccountantSection(section))} />;
       case "receipts":
         return (
           <ReceiptsWorkspace
@@ -232,6 +235,7 @@ export function AccountantCommandCenter({
             tenantSlug={tenantSlug}
             routeMode={routeMode}
             activeSection="receipts"
+            onNavigate={(section) => navigateTo(normalizeAccountantSection(section))}
           />
         );
       case "arrears":
@@ -265,7 +269,7 @@ export function AccountantCommandCenter({
         );
       case "overview":
       default:
-        return <div className="space-y-6"><SchoolPaymentSetupSummary onOpen={() => navigateTo("payment-setup")} /><AccountantOverviewWorkspace onNavigate={(section) => navigateTo(normalizeAccountantSection(section))} /></div>;
+        return <div className="space-y-5"><AccountantOverviewWorkspace onNavigate={(section) => navigateTo(normalizeAccountantSection(section))} /><SchoolPaymentSetupSummary onOpen={() => navigateTo("payment-setup")} /></div>;
     }
   })();
 
@@ -279,18 +283,19 @@ export function AccountantCommandCenter({
       data-testid="accountant-command-center"
       className="authenticated-app app-padded min-h-dvh bg-background p-3 md:p-5"
     >
-      <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+      <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="hidden h-[calc(100dvh-40px)] rounded-xl border border-border bg-surface p-3 text-foreground xl:sticky xl:top-5 xl:flex xl:flex-col">
           <SchoolCommandSidebarIdentity
+            tone="light"
             eyebrow="Finance command"
             title={roleLabel}
-            subtitle="Billing, collections, reconciliation, controls, and reports"
+            subtitle="School finance"
             icon={ChartNoAxesCombined}
           />
           <nav className="flex-1 space-y-5 overflow-y-auto pr-1" aria-label={`${roleLabel} workspace navigation`}>
             {Object.entries(groupedNavItems).map(([group, items]) => (
               <div key={group}>
-                <p className="px-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/45">
+                <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
                   {group}
                 </p>
                 <div className="mt-2 grid gap-1">
@@ -302,16 +307,17 @@ export function AccountantCommandCenter({
                         key={item.id}
                         type="button"
                         onClick={() => navigateTo(item.id)}
+                        aria-current={isActive ? "page" : undefined}
                         className={`flex min-h-12 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition ${
                           isActive
-                            ? "bg-white/15 text-white shadow-[inset_4px_0_0_#22D3EE]"
-                            : "text-white/70 hover:bg-white/10 hover:text-white"
+                            ? "bg-primary-soft text-primary"
+                            : "text-muted hover:bg-surface-muted hover:text-foreground"
                         }`}
                       >
                         <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden={true} />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-black">{item.label}{item.id === "payment-setup" && Boolean(paymentSetup.data?.attention) ? ` (${paymentSetup.data!.attention} follow-up)` : ""}</span>
-                          <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-white/50">
+                          <span className="block text-sm font-semibold">{item.label}{item.id === "payment-setup" && Boolean(paymentSetup.data?.attention) ? ` (${paymentSetup.data!.attention} follow-up)` : ""}</span>
+                          <span className={`mt-0.5 block text-[11px] leading-4 ${isActive ? "text-inherit opacity-90" : "text-muted"}`}>
                             {item.description}
                           </span>
                         </span>
@@ -337,15 +343,15 @@ export function AccountantCommandCenter({
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-black text-white hover:bg-[#0B2D6F]"
                 >
                   <Banknote className="h-4 w-4" aria-hidden={true} />
-                  Record payment
+                  Record cash / cheque
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigateTo("m-pesa-reconciliation")}
+                  onClick={() => navigateTo("collections")}
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-strong bg-white px-4 text-sm font-black text-foreground hover:bg-surface-muted"
                 >
                   <Smartphone className="h-4 w-4" aria-hidden={true} />
-                  Reconcile M-Pesa
+                  Review collections
                 </button>
               </div>
             )}
@@ -361,13 +367,13 @@ export function AccountantCommandCenter({
             />
           </div>
 
-          <section className="app-dark-workspace app-finance-canvas rounded-2xl bg-primary p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
+          <section className="app-finance-canvas space-y-4">
             <div className="app-workspace-heading mb-5">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 Live school finance
               </p>
-              <h2 className="mt-1 text-2xl font-black text-white">{activeItem.label}</h2>
-              <p className="mt-1 text-sm font-semibold text-white/62">{activeItem.description}</p>
+              <h2 className="mt-1 text-2xl font-semibold text-foreground">{activeItem.label}</h2>
+              <p className="mt-1 text-sm text-muted">{activeItem.description}</p>
             </div>
             {workspace}
           </section>
