@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifySidebarRecords } from './support/sidebar-record-checks';
+import { verifyPrincipalOperations } from './support/principal-operation-checks';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { Pool } from 'pg';
@@ -19,6 +20,10 @@ async function main() {
     const schema = readFileSync('apps/api/test/fixtures/sidebar-legacy-schema.sql', 'utf8').replace(/^\\.*$/gm, '');
     await pool.query(schema);
     await pool.query('SET search_path TO public');
+    await pool.query(`INSERT INTO principal_dashboard_snapshots
+      (tenant_id,enabled_module_hash,filter_hash,payload,generated_at,expires_at,updated_at)
+      VALUES ('legacy-cache-school','modules','all','{"version":1}',NOW()-INTERVAL '1 day',NOW()+INTERVAL '1 day',NOW()),
+             ('legacy-cache-school','modules','all','{"version":2}',NOW(),NOW()+INTERVAL '1 day',NOW())`);
     const schemaFailures: any[] = [];
     let fixture!: { tenantId: string; userId: string; classId: string };
     const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
@@ -54,6 +59,10 @@ async function main() {
       }
 
     }
+    const retainedCache = await pool.query("SELECT payload FROM principal_dashboard_snapshots WHERE tenant_id='legacy-cache-school'");
+    assert.equal(retainedCache.rowCount, 1, 'The upgrade removes only duplicate cached snapshots');
+    assert.equal(retainedCache.rows[0].payload.version, 2, 'The newest cached snapshot survives repeated startup upgrades');
+    await verifyPrincipalOperations(pool, fixture);
     const context = { tenant_id: fixture.tenantId, user_id: fixture.userId, role: 'principal', is_authenticated: true, permissions: ['*:*'] };
     const failures: any[] = [], passed: string[] = [], unavailable: Array<{route: string, message: string}> = [];
     let route = '';
@@ -139,7 +148,7 @@ async function main() {
     assert.deepEqual(schemaFailures, [], 'All owning schema initializers must succeed');
     assert.deepEqual(failures, [], 'Dashboard GET SQL must execute against the deployed schema');
     assert.equal(metricsPassed.length, PRINCIPAL_INSIGHT_PROVIDERS.length, 'Every enabled Principal insight provider must load');
-    assert.ok(passed.length >= 282, 'Do not silently reduce the GET audit coverage');
+    assert.ok(passed.length >= 282, `Do not silently reduce the GET audit coverage (${passed.length} passed; ${JSON.stringify(unavailable)})`);
     for (const failure of unavailable) {
       assert.match(failure.message, /not an active member|has not uploaded|has not been uploaded|active class-teacher appointment/, JSON.stringify(failure));
     }

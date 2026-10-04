@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, Delete, StreamableFile } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, UnauthorizedException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Res, Delete, StreamableFile } from '@nestjs/common';
 import { PdfService } from '../../common/pdf/pdf.service';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { PrismaService } from '../../database/prisma.service';
@@ -8,7 +8,7 @@ import { FinanceTasksService } from './finance-tasks.service';
 import { FinanceWidgetDataDto } from '../dashboard/dashboard.dto';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { ApprovalsService } from '../approvals/approvals.service';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { RequestFeeWaiverDto } from './dto/request-fee-waiver.dto';
 
 export class CreatePaymentDto {
@@ -491,32 +491,19 @@ export class FinanceController {
       `SELECT * FROM finance_fee_categories WHERE tenant_id = $1 AND is_active = true ORDER BY name ASC`,
       [tenantId]
     );
-    return result.rows;
+    return result.rows.map((row) => ({ ...row, amount_minor: String(row.amount_minor) }));
   }
 
   @Post('fee-categories')
   @Permissions('finance:write')
   async createFeeCategory(@Body() dto: { name: string; description?: string; amount_minor: number; currency_code?: string }) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    const result = await this.db.query(
-      `INSERT INTO finance_fee_categories (tenant_id, name, description, amount_minor, currency_code)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [tenantId, dto.name, dto.description || null, dto.amount_minor, dto.currency_code || 'KES']
-    );
-    return result.rows[0];
+    return this.saveFeeCategory('created', null, dto);
   }
 
   @Patch('fee-categories/:id')
   @Permissions('finance:write')
-  async updateFeeCategory(@Body() dto: { name?: string; description?: string; amount_minor?: number; currency_code?: string }, @Param('id') id: string) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    const result = await this.db.query(
-      `UPDATE finance_fee_categories 
-       SET name = COALESCE($1, name), description = COALESCE($2, description), amount_minor = COALESCE($3, amount_minor), currency_code = COALESCE($4, currency_code), updated_at = NOW()
-       WHERE tenant_id = $5 AND id = $6::uuid RETURNING *`,
-      [dto.name, dto.description, dto.amount_minor, dto.currency_code, tenantId, id]
-    );
-    return result.rows[0];
+  async updateFeeCategory(@Body() dto: { name?: string; description?: string; amount_minor?: number; currency_code?: string }, @Param('id', ParseUUIDPipe) id: string) {
+    return this.saveFeeCategory('updated', id, dto);
   }
 
   @Get('collections')
@@ -585,13 +572,71 @@ export class FinanceController {
 
   @Delete('fee-categories/:id')
   @Permissions('finance:write')
-  async deleteFeeCategory(@Param('id') id: string) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    const result = await this.db.query(
-      `UPDATE finance_fee_categories SET is_active = false, updated_at = NOW() WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
-      [tenantId, id]
-    );
-    return result.rows[0];
+  async deleteFeeCategory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.saveFeeCategory('archived', id, {});
+  }
+
+  private async saveFeeCategory(
+    action: 'created' | 'updated' | 'archived',
+    id: string | null,
+    dto: { name?: string; description?: string; amount_minor?: number; currency_code?: string },
+  ) {
+    const store = this.requestContext.requireStore();
+    const tenantId = store.tenant_id;
+    if (!tenantId) throw new UnauthorizedException('A verified school is required');
+    const name = typeof dto?.name === 'string' ? dto.name.trim() : undefined;
+    if ((action === 'created' || dto?.name !== undefined) && (!name || name.length > 160)) {
+      throw new BadRequestException('Enter a fee category name of 1 to 160 characters');
+    }
+    if ((action === 'created' || dto?.amount_minor !== undefined)
+      && (!Number.isSafeInteger(dto?.amount_minor) || dto.amount_minor! <= 0 || dto.amount_minor! > 99_999_999)) {
+      throw new BadRequestException('Enter a positive whole amount in minor units, up to 99,999,999');
+    }
+    if (dto?.description !== undefined && (typeof dto.description !== 'string' || dto.description.length > 1000)) {
+      throw new BadRequestException('Description must be at most 1,000 characters');
+    }
+    const currency = typeof dto?.currency_code === 'string' ? dto.currency_code.trim().toUpperCase() : undefined;
+    if (dto?.currency_code !== undefined && (!currency || !/^[A-Z]{3}$/.test(currency))) {
+      throw new BadRequestException('Enter a three-letter currency code');
+    }
+
+    return this.db.withRequestTransaction(async (tx) => {
+      // Serialize this small configuration change within the school, including
+      // legacy databases that did not have a unique category-name constraint.
+      await this.db.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text", [`fee-categories:${tenantId}`]);
+      if (name) {
+        const duplicate = await this.db.query(
+          'SELECT id FROM finance_fee_categories WHERE tenant_id=$1 AND lower(name)=lower($2) AND ($3::uuid IS NULL OR id<>$3::uuid)',
+          [tenantId, name, id],
+        );
+        if (duplicate.rowCount) throw new ConflictException('A fee category with this name already exists. Choose another name.');
+      }
+      const result = action === 'created'
+        ? await this.db.query(
+          'INSERT INTO finance_fee_categories (tenant_id,name,description,amount_minor,currency_code,updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *',
+          [tenantId, name, dto.description?.trim() || null, dto.amount_minor, currency || 'KES'],
+        )
+        : action === 'archived'
+          ? await this.db.query('UPDATE finance_fee_categories SET is_active=false,updated_at=NOW() WHERE tenant_id=$1 AND id=$2::uuid AND is_active=true RETURNING *', [tenantId, id])
+          : await this.db.query(
+            'UPDATE finance_fee_categories SET name=COALESCE($3,name),description=COALESCE($4,description),amount_minor=COALESCE($5,amount_minor),currency_code=COALESCE($6,currency_code),updated_at=NOW() WHERE tenant_id=$1 AND id=$2::uuid AND is_active=true RETURNING *',
+            [tenantId, id, name ?? null, dto.description?.trim() ?? null, dto.amount_minor ?? null, currency ?? null],
+          );
+      const row = result.rows[0];
+      if (!row) throw new NotFoundException('Fee category was not found in this school');
+      const category = { ...row, amount_minor: String(row.amount_minor) };
+      const eventType = `finance.fee_category_${action}`;
+      await this.db.query(
+        'INSERT INTO audit_logs (tenant_id,actor_user_id,action,resource_type,resource_id,metadata) VALUES ($1,$2,$3,$4,$5,$6::jsonb)',
+        [tenantId, store.user_id, eventType, 'finance_fee_category', category.id, JSON.stringify({ name: category.name, amount_minor: category.amount_minor, currency_code: category.currency_code })],
+      );
+      await this.schoolEvents.recordSchoolOperation({
+        event: { id: randomUUID(), type: eventType, module: 'finance', entityId: category.id,
+          title: `Fee category ${action}`, body: `${category.name} was ${action}.`,
+          payload: { category_id: category.id } },
+      }, tx);
+      return category;
+    });
   }
 
   @Post('fee-structures')

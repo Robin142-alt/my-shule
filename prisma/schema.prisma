@@ -4416,9 +4416,10 @@ model PrincipalDashboardSnapshots {
   generated_at        DateTime
   id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   payload             Json
-  tenant_id           String   @db.Uuid
-  updated_at          DateTime @updatedAt
+  tenant_id           String
+  updated_at          DateTime @default(now()) @updatedAt
 
+  @@unique([tenant_id, enabled_module_hash, filter_hash], map: "uq_principal_dashboard_snapshot_key")
   @@index([tenant_id])
   @@map("principal_dashboard_snapshots")
 }
@@ -4998,11 +4999,12 @@ model FinanceFeeCategories {
   amount_minor  Decimal  @db.Decimal(10, 2)
   created_at    DateTime @default(now())
   currency_code String
-  description   String
+  description   String?
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String
-  tenant_id     String   @db.Uuid
-  updated_at    DateTime @updatedAt
+  tenant_id     String
+  is_active     Boolean @default(true)
+  updated_at    DateTime @default(now()) @updatedAt
 
   @@index([tenant_id])
   @@map("finance_fee_categories")
