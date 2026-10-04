@@ -981,10 +981,10 @@ export class AdmissionsService {
       : 12;
     const initialPortalPasswordHash = await bcrypt.hash(admissionNumber, saltRounds);
 
+    let portalRolesRepaired = false;
     const command = async () => {
       let result: any;
       try {
-        await this.authorizationRepository?.ensureTenantAuthorizationBaseline(tenantId);
         result = await this.admissionsRepository.admitCanonicalStudent({
           tenant_id: tenantId,
           actor_user_id: context.user_id || null,
@@ -1026,6 +1026,14 @@ export class AdmissionsService {
             })
           : undefined);
       } catch (error) {
+        // Missing roles roll the admission transaction back. Repair once, without
+        // rewriting the school's entire permission catalog on ordinary admissions.
+        if (!portalRolesRepaired && this.authorizationRepository && error instanceof Error
+          && ['PARENT_ROLE_NOT_CONFIGURED', 'STUDENT_ROLE_NOT_CONFIGURED'].includes(error.message)) {
+          portalRolesRepaired = true;
+          await this.authorizationRepository.ensureTenantAuthorizationBaseline(tenantId);
+          return command();
+        }
         this.rethrowCanonicalAdmissionError(error);
       }
 
@@ -1036,8 +1044,8 @@ export class AdmissionsService {
     return this.agp.execute({
       actionName: 'STUDENT_ADMITTED',
       requiredCapability: 'admissions:write',
-      aggregateType: 'student',
-      aggregateId: normalizeAdmissionNumber(dto.admission_number),
+      aggregateType: 'admission_attempt',
+      aggregateId: randomUUID(),
       governanceRecordedInHandler: true,
       retrySafe: false,
       handler: command,

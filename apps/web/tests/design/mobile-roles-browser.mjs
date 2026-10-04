@@ -44,6 +44,7 @@ export function useNotificationBadges(){return {...state,badges:{unreadCount:0,u
 export function useOptionalSchoolDashboardRole(){const role=location.pathname.split('/')[2];const name=role.split('-').map(word=>word[0].toUpperCase()+word.slice(1)).join(' ');return {userId:'qa-only',liveDataEnabled:!['parent','student'].includes(role),userLabel:'QA user',availableRoles:[{roleCode:role,authorizationRoleCode:role,roleName:name,isPrimary:true},{roleCode:role==='teacher'?'principal':'teacher',authorizationRoleCode:role==='teacher'?'principal':'teacher',roleName:role==='teacher'?'Principal':'Teacher',isTeacherMode:role!=='teacher'}],activeAuthorizationRoleCode:role,switchDashboardRole:async()=>{}};}
 `);
 const imports=[['PrincipalCommandCenter','principal-command-center'],['DeputyPrincipalCommandCenter','deputy-principal-command-center'],['AccountantCommandCenter','accountant-command-center'],['AdmissionsDashboardCommandCenter','admissions-dashboard/admissions-dashboard-command-center'],['LiveRoleCommandCenter','live-role-command-center'],['TeacherCommandCenter','teacher-command-center'],['ClassTeacherCommandCenter','class-teacher-command-center'],['GradeMasterCommandCenter','grade-master-command-center'],['HodCommandCenter','hod-command-center'],['DeanAcademicsCommandCenter','dean-academics-command-center'],['ExamsManagerCommandCenter','exams-manager-command-center']];
+imports.push(['HosCommandCenter','hos-command-center']);
 fs.writeFileSync(path.join(out,'entry.tsx'),`
 import {createRoot} from 'react-dom/client';import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 ${imports.map(([name,file])=>`import {${name}} from ${source(path.join(web,'src/components/school',file))};`).join('\n')}
@@ -54,6 +55,7 @@ import {SuperadminPages} from ${source(path.join(web,'src/components/platform/su
 const [, ,role,section]=location.pathname.split('/');
 const props={role,section,tenantSlug:'qa-only',userLabel:'QA user',activeSection:section,routeMode:'public'};
 const screens={principal:PrincipalCommandCenter,'deputy-principal':DeputyPrincipalCommandCenter,accountant:AccountantCommandCenter,admissions:AdmissionsDashboardCommandCenter,teacher:TeacherCommandCenter,'class-teacher':ClassTeacherCommandCenter,'grade-master':GradeMasterCommandCenter,hod:HodCommandCenter,'dean-academics':DeanAcademicsCommandCenter,'exams-manager':ExamsManagerCommandCenter,'system-monitor':SystemMonitorDashboard,superadmin:SuperadminPages};
+screens['head-of-subject']=HosCommandCenter;
 const Screen=screens[role];
 createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><SchoolTenantScopeProvider tenantId="qa-only"><SchoolCommandIdentityProvider tenantSlug="qa-only" userLabel="QA user">{Screen?<Screen {...props}/>:<LiveRoleCommandCenter {...props} role={role} experience={role==='parent'||role==='student'?'portal':'school'}/>}</SchoolCommandIdentityProvider></SchoolTenantScopeProvider></QueryClientProvider>);
 `);
@@ -74,6 +76,7 @@ if(process.argv.includes('--preview')){console.log('Isolated role preview: http:
 const browser=await chromium.launch({headless:true});const results=[];
 let cases=[...['teacher','class-teacher','grade-master','hod','dean-academics','exams-manager','system-monitor','superadmin'].map(role=>[role,'overview']),['principal','overview'],['principal','students'],['principal','settings'],['deputy-principal','overview'],['deputy-principal','timetable'],['accountant','overview'],['accountant','payments'],['admissions','overview'],...['secretary','librarian','storekeeper','nurse','guidance-counselling','discipline-master','laboratory-technician','ict-manager','security-officer','transport-manager','boarding-master'].map(role=>[role,'overview']),['librarian','books'],['nurse','visits'],['parent','dashboard'],['parent','fees'],['student','dashboard'],['student','academics']];
 cases.push(['teacher','lesson-log']);
+cases.push(['head-of-subject','overview']);
 if(process.argv.includes('--all-workspaces')){
  const configSource=ts.createSourceFile('roles.tsx',fs.readFileSync(path.join(web,'src/components/school/live-role-command-center.tsx'),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  function visit(node){
@@ -111,13 +114,7 @@ try{
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
    const edgeTab=page.locator('.app-side-menu-tab');
-   if(width<1024&&role==='admissions'){
-    const inlineMenu=page.getByRole('button',{name:'Open Admissions workspace sidebar'});
-    await inlineMenu.waitFor({state:'visible'});
-    const menuBox=await inlineMenu.boundingBox();
-    assert.ok(menuBox&&menuBox.y<150&&menuBox.width>44&&menuBox.height>=44,'Admissions menu stays above the workspace with a full touch target');
-    assert.equal(await edgeTab.count(),0,'Admissions uses one inline menu without an overlapping edge tab');
-   }else if(width<1024){
+   if(width<1024){
     await edgeTab.waitFor({state:'visible',timeout:10000}).catch(()=>{throw new Error(`${role}/${section}: mobile navigation unavailable: ${errors.join('; ')}`);});
     assert.equal(await edgeTab.count(),1,`${role}: exactly one primary mobile MENU tab`);
     const tabBox=await edgeTab.boundingBox();
@@ -162,7 +159,7 @@ try{
      await page.keyboard.press('Escape');
      assert.ok(await switcher.evaluate(el=>el===document.activeElement),'Role picker restores focus');
     }
-    const trigger=role==='admissions'?page.getByRole('button',{name:'Open Admissions workspace sidebar'}):page.locator('.app-side-menu-tab[aria-haspopup="dialog"]').first();
+    const trigger=page.locator('.app-side-menu-tab[aria-haspopup="dialog"]').first();
     if(await trigger.count()){
      await trigger.click();
      const drawer=page.locator('.app-navigation-sheet');

@@ -2858,3 +2858,36 @@ test('manual admission keeps phone-less guardians separate and does not create a
   assert.equal(inputs[0].subject_ids, undefined);
   await assert.rejects(service.createManualAdmission({ ...dto, guardian_phone: 'bad' }), /valid Kenyan/);
 });
+
+test('ordinary admission avoids reseeding permissions and uses a UUID for failed-attempt governance', async () => {
+  let baselineWrites = 0;
+  let intent: any;
+  const service = new AdmissionsService(
+    { requireStore: () => ({ tenant_id: 'school-a', user_id: 'officer', role: 'admissions' }), getStore: () => ({ tenant_id: 'school-a' }) } as any,
+    {} as any, { admitCanonicalStudent: async () => ({ student: { id: 'student' } }) } as any,
+    {} as any, {} as any, undefined, undefined,
+    { execute: async (value: any) => { intent = value; return value.handler(); } } as any,
+    undefined, undefined,
+    { ensureTenantAuthorizationBaseline: async () => { baselineWrites++; } } as any,
+  );
+  await service.createManualAdmission({ admission_number: 'ADM-00030588', first_name: 'Test', last_name: 'Learner',
+    gender: 'female', admission_date: '2026-10-04', class_section_id: 'class', guardian_name: 'Guardian', guardian_relationship: 'Father' });
+  assert.equal(baselineWrites, 0, 'An authorized admission must not rewrite the whole permission catalog');
+  assert.match(intent.aggregateId, /^[0-9a-f]{8}-[0-9a-f-]{27}$/i);
+  assert.equal(intent.retrySafe, false);
+});
+
+test('admission repairs missing portal roles once after the failed transaction has rolled back', async () => {
+  let baselineWrites = 0;
+  let attempts = 0;
+  const service = new AdmissionsService(
+    { requireStore: () => ({ tenant_id: 'school-a', user_id: 'officer' }), getStore: () => ({ tenant_id: 'school-a' }) } as any,
+    {} as any, { admitCanonicalStudent: async () => { attempts++; if (attempts === 1) throw new Error('PARENT_ROLE_NOT_CONFIGURED'); return { student: { id: 'student' } }; } } as any,
+    {} as any, {} as any, undefined, undefined, undefined, undefined, undefined,
+    { ensureTenantAuthorizationBaseline: async (tenant: string) => { assert.equal(tenant, 'school-a'); baselineWrites++; } } as any,
+  );
+  await service.createManualAdmission({ admission_number: 'ADM-001', first_name: 'Test', last_name: 'Learner',
+    gender: 'female', admission_date: '2026-10-04', class_section_id: 'class', guardian_name: 'Guardian', guardian_relationship: 'Father' });
+  assert.equal(baselineWrites, 1);
+  assert.equal(attempts, 2);
+});

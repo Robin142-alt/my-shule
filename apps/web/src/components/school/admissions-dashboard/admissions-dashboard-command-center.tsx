@@ -128,9 +128,8 @@ export function AdmissionsDashboardCommandCenter({
         </aside>
 
         <section className="min-w-0 space-y-5">
-          <div className="rounded-2xl border border-border-strong bg-white p-3 shadow-sm lg:hidden">
+          <div className="lg:hidden">
             <MobileWorkspaceNavigation
-              mobilePlacement="inline"
               label="Admissions workspace"
               items={admissionsNavItems}
               value={workspaceId}

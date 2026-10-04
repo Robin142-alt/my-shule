@@ -257,6 +257,7 @@ jobs:
         run: |
           node --test dist/apps/api/src/modules/admissions/admissions.test.js dist/apps/api/src/modules/admissions/admissions.repository.test.js dist/apps/api/src/modules/admissions/admission-input.test.js dist/apps/api/src/modules/admin-command/admissions-command.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/admissions-simplification.integration-spec.ts
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/admission-canonical.integration-spec.ts
 
       - name: Report-card scopes, exports and workflow isolation
         env:

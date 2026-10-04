@@ -52,9 +52,9 @@ for (const deriveFromClass of [false, true]) test(`admission enrols configured s
     first_name: 'Learner', last_name: 'One', subject_ids: deriveFromClass ? undefined : ['math'],
   } as never), (error) => error === stop);
   assert.equal(enrollment[0], 'school-a');
-  assert.equal(enrollment[7], 'class');
-  assert.equal(enrollment[9], 'math');
-  assert.equal(enrollment[10], '8-4-4');
+  assert.equal(enrollment[5], 'class');
+  assert.deepEqual(JSON.parse(String(enrollment[3])).map((subject: { id: string }) => subject.id), ['math']);
+  assert.equal(enrollment[7], '8-4-4');
 });
 
 test('AdmissionsRepository summary treats three uploads as the complete admissions document set', async () => {

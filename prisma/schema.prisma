@@ -1614,7 +1614,7 @@ model AdmissionApplication {
   applyingForClassId     String               @map("applying_for_class_id")
   applyingForClass       Class                @relation(fields: [applyingForClassId], references: [id])
   guardianName           String               @map("guardian_name")
-  guardianPhone          String               @map("guardian_phone")
+  guardianPhone          String?              @map("guardian_phone")
   guardianEmail          String?              @map("guardian_email")
   guardianOccupation     String?              @map("guardian_occupation")
   guardianRelationship   String?              @map("guardian_relationship")
