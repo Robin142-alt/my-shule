@@ -7,6 +7,7 @@ import { evidence } from './testing/evidence.fixture';
 import { buildAnalyticsPrintReport } from './analytics-report-model';
 import { createAnalyticsReportPdf } from './analytics-report-pdf';
 import { AnalyticsReportService } from './analytics-report.service';
+import { ANALYTICS_REPORT_SECTIONS } from './analytics-report-contract';
 
 const identity={school_name:'QA School - sample document',school_address:'Nairobi, Kenya',school_motto:'Learning with purpose',generated_by:'QA Teacher'};
 const data=()=>buildAcademicIntelligence(Array.from({length:75},(_,index)=>evidence({student_id:`learner-${index}`,student_name:`Sample learner ${index+1} with a longer family name`,admission_number:`QA${index+1}`,average:index%2?75:25})),{level:'assignment',role:'teacher',actor_user_id:'teacher-1'},{page:1,page_size:100},['assignment']);
@@ -26,7 +27,7 @@ test('print model preserves unavailable results and explicit missing evidence',(
 test('PDF export supports long learner names, repeated headers and page footers',async()=>{
   const report=buildAnalyticsPrintReport(data(),'learners',identity,'AI-QA-PRINT-001','2026-09-11T10:00:00Z');
   const artifact=await createAnalyticsReportPdf(report);
-  assert.equal(artifact.content.subarray(0,5).toString(),'%PDF-');assert.equal(artifact.rowCount,75);assert.match(artifact.checksumSha256,/^[a-f0-9]{64}$/);
+  assert.equal(artifact.content.subarray(0,5).toString(),'%PDF-');assert.equal(artifact.rowCount,300);assert.match(artifact.checksumSha256,/^[a-f0-9]{64}$/);
   mkdirSync('output/pdf',{recursive:true});writeFileSync('output/pdf/analytics-print-qa.pdf',artifact.content);
 });
 test('report generation recomputes authorized scope before branding and binds snapshot, actor and event',async()=>{
@@ -44,12 +45,38 @@ test('invalid filters, denied scopes and persistence errors cannot return a docu
   let writes=0;
   const service=new AnalyticsReportService({requireStore:()=>({tenant_id:'school-a',user_id:'teacher-1',role:'teacher'})} as never,
     {getAnalytics:async()=>{throw new Error('Scope denied');}} as never,{executeSql:async()=>{writes++;}} as never,{} as never,{} as never);
-  for(const input of [null,{section:'all',filters:{}},{section:'summary',filters:{scope:{}}}])await assert.rejects(()=>service.generate(input));
+  for(const input of [null,{section:'unknown',filters:{}},{section:'summary',filters:{scope:{}}},{section:'all',filters:{},learner_selection:'unlimited'}])await assert.rejects(()=>service.generate(input));
   await assert.rejects(()=>service.generate({section:'summary',filters:{scope:'school'}}),/Scope denied/);assert.equal(writes,0);
   const failing=new AnalyticsReportService({requireStore:()=>({tenant_id:'school-a',user_id:'teacher-1',role:'teacher'})} as never,
     {getAnalytics:async()=>data()} as never,{executeSql:async()=>({rows:[identity]})} as never,{saveManifest:async()=>{throw new Error('Audit unavailable');}} as never,
     {recordSchoolOperation:async()=>{writes++;}} as never);
   await assert.rejects(()=>failing.generate({section:'summary',filters:{}}),/Audit unavailable/);assert.equal(writes,0);
+});
+
+test('every analytics view has report content and complete export includes every section',()=>{
+  const analytics=data();
+  for(const section of ANALYTICS_REPORT_SECTIONS){
+    const report=buildAnalyticsPrintReport(analytics,section,identity,'AI-COVERAGE','2026-10-04T10:00:00Z');
+    assert.ok(report.title,section);assert.ok(report.sections.length>0,section);
+    for(const table of report.sections) assert.ok(table.rows.every(row=>row.length===table.headers.length),table.title);
+  }
+  const complete=buildAnalyticsPrintReport(analytics,'all',identity,'AI-COMPLETE','2026-10-04T10:00:00Z');
+  const titles=complete.sections.map(s=>s.title);
+  for(const title of ['Score profile','Matched learner progress','Subject support priorities','Learner results','Learner-subject results',
+    'Risk distribution','Term trends','Year trends','Historical benchmarks','Intervention follow-up','Report-card readiness','Academic targets',
+    'Performance gaps','Band movement','Marks workflow','Class comparison','Teacher allocation comparison'])assert.ok(titles.includes(title),title);
+});
+
+test('report service requests all authorized learners by default and preserves explicit page export',async()=>{
+  const selections:boolean[]=[];
+  const service=new AnalyticsReportService({requireStore:()=>({tenant_id:'school-a',user_id:'teacher-1',role:'teacher'})} as never,
+    {getAnalytics:async(_filters:unknown,all:boolean)=>{selections.push(all);return {...data(),learners:{...data().learners,page:3,page_size:25,coverage:'all'}};}} as never,
+    {executeSql:async()=>({rows:[identity]})} as never,{saveManifest:async()=>{}} as never,{recordSchoolOperation:async()=>{}} as never);
+  const full=await service.generate({section:'learners',filters:{page:'3'}});
+  const page=await service.generate({section:'learners',filters:{page:'3'},learner_selection:'page'});
+  assert.deepEqual(selections,[true,true]);
+  assert.equal(full.report.sections[0].rows.length,75);assert.match(full.report.sections[0].note!,/All matching learners/);
+  assert.equal(page.report.sections[0].rows.length,25);assert.match(page.report.sections[0].note!,/51-75 of 75/);
 });
 
 test('subject report forces the appointed subject scope before computing and auditing the PDF',async()=>{

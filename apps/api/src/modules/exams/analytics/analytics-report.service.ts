@@ -22,9 +22,15 @@ export class AnalyticsReportService {
     const body=input as Record<string,unknown>;
     if(!ANALYTICS_REPORT_SECTIONS.includes(body.section as AnalyticsReportSection))throw new BadRequestException('Unknown analytics report.');
     if(!body.filters||typeof body.filters!=='object'||Array.isArray(body.filters)||Object.values(body.filters).some(value=>typeof value!=='string'))throw new BadRequestException('Invalid analytics report filters.');
+    if(body.learner_selection!==undefined&&(typeof body.learner_selection!=='string'||!['all','page'].includes(body.learner_selection)))throw new BadRequestException('Choose all matching learners or the current page.');
     // Authority, data and totals are always recomputed through the existing scope resolver.
     const filters = body.filters as Record<string,string>;
-    const data=await this.exams.getAnalytics(fixedScope ? { ...filters, scope: fixedScope } : filters);
+    const data=await this.exams.getAnalytics(fixedScope ? { ...filters, scope: fixedScope } : filters, true);
+    // Pagination is an explicit learner-only choice; other report sections remain complete.
+    if(body.learner_selection==='page') {
+      const {page,page_size}=data.learners;
+      data.learners={...data.learners,items:data.learners.items.slice((page-1)*page_size,page*page_size),coverage:'page'};
+    }
     const identity=await this.repository.executeSql<{school_name:string;school_address:string|null;school_motto:string|null;generated_by:string}>(`
       SELECT tenant.name AS school_name, NULLIF(tenant.settings->>'address','') AS school_address,
         NULLIF(tenant.settings->>'motto','') AS school_motto,
@@ -35,11 +41,11 @@ export class AnalyticsReportService {
     const report=buildAnalyticsPrintReport(data,body.section as AnalyticsReportSection,identity.rows[0],`AI-${randomUUID().replaceAll('-','').slice(0,20).toUpperCase()}`,new Date().toISOString());
     const artifact=await createAnalyticsReportPdf(report);
     const manifest=createReportSnapshotManifest({tenantId:actor.tenant_id,module:'exams',reportId:report.document_number,title:report.title,format:'pdf',artifact,
-      filters:{...data.filters,section:body.section},generatedByUserId:actor.user_id});
+      filters:{...data.filters,section:body.section,learner_selection:body.learner_selection??'all'},generatedByUserId:actor.user_id});
     await this.snapshots.saveManifest(manifest);
     await this.events.recordSchoolOperation({event:{id:report.document_number,type:'exams.analytics_report.generated',module:'exams',actorRole:actor.role,
       title:'Academic report generated',body:`${report.title} prepared for internal academic review.`,entityId:manifest.snapshot_id,
-      payload:{snapshot_id:manifest.snapshot_id,document_number:report.document_number,scope:data.scope.level,section:body.section,checksum:artifact.checksumSha256}}});
+      payload:{snapshot_id:manifest.snapshot_id,document_number:report.document_number,scope:data.scope.level,section:body.section,learner_selection:body.learner_selection??'all',checksum:artifact.checksumSha256}}});
     return {report,filename:artifact.filename,pdf_base64:artifact.content.toString('base64')};
   }
 }

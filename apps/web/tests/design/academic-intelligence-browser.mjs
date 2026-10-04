@@ -56,7 +56,7 @@ async function run() {
     if(req.url==='/qa-report'){
       try {
         let raw='';for await(const part of req)raw+=part;
-        const body=JSON.parse(raw);const data=buildAcademicIntelligence(qaRows(),{level:body.filters.scope??'school',role:'principal',actor_user_id:'teacher-1'},{page:1,page_size:25,...body.filters},['school','subject']);
+        const body=JSON.parse(raw);const data=buildAcademicIntelligence(qaRows(),{level:body.filters.scope??'school',role:'principal',actor_user_id:'teacher-1'},{page:1,page_size:25,...body.filters},['school','subject'],undefined,body.learner_selection!=='page');
         const report=buildAnalyticsPrintReport(data,body.section,{school_name:'QA School - sample document',school_address:'Nairobi, Kenya',school_motto:'Learning with purpose',generated_by:'QA Teacher'},'AI-BROWSER-QA',new Date().toISOString());
         const pdf=await createAnalyticsReportPdf(report);res.setHeader('Content-Type','application/json');res.end(JSON.stringify({report,pdf_base64:pdf.content.toString('base64'),filename:pdf.filename}));
       }catch(error){res.statusCode=500;res.end(String(error));}
@@ -91,6 +91,24 @@ async function run() {
       await page.getByRole('button',{name:'Print report',exact:true}).click();
       assert.equal(await preview.evaluate(()=>window.__printed),true);
       await page.keyboard.press('Escape');
+      await page.getByRole('button',{name:'Performance',exact:true}).click();
+      await page.getByRole('heading',{name:'Learner score profile',exact:true}).waitFor();
+      await page.getByRole('heading',{name:'Approved result coverage',exact:true}).waitFor();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Performance overflows viewport');
+      await page.screenshot({path:path.join(out,`performance-${viewport.width}.png`),fullPage:true});
+      await page.getByRole('button',{name:'Print / PDF',exact:true}).click();
+      assert.equal(await page.getByLabel('Report content').inputValue(),'performance');
+      await page.getByLabel('Report content').selectOption('all');
+      assert.equal(await page.getByLabel('Learner coverage').inputValue(),'all');
+      await page.getByRole('button',{name:'Prepare preview',exact:true}).click();
+      await page.frameLocator('iframe').getByRole('heading',{name:'Matched learner progress',exact:true}).waitFor();
+      await page.frameLocator('iframe').getByRole('heading',{name:'Intervention follow-up',exact:true}).waitFor();
+      const [complete]=await Promise.all([page.waitForEvent('download'),page.getByRole('link',{name:'Download PDF',exact:true}).click()]);
+      await complete.saveAs(path.join(out,`complete-${viewport.width}.pdf`));
+      assert.equal(fs.readFileSync(path.join(out,`complete-${viewport.width}.pdf`)).subarray(0,5).toString(),'%PDF-');
+      await page.keyboard.press('Escape');
+      await page.getByRole('button',{name:'Comparisons',exact:true}).click();
+      await page.getByRole('heading',{name:'Matched learner progress',exact:true}).waitFor();
       await page.getByRole('button',{name:'Learners',exact:true}).click();
       await page.getByLabel('Learner search').fill('Amina');await page.getByRole('button',{name:'Search',exact:true}).click();
       await page.getByRole('button',{name:'Remove Search filter',exact:true}).click();
@@ -98,6 +116,11 @@ async function run() {
       await page.screenshot({path:path.join(out,`learners-${viewport.width}.png`),fullPage:true});
       await page.getByRole('button',{name:'At Risk',exact:true}).click();
       await page.getByRole('button',{name:'View Learner',exact:true}).first().click();
+      await page.getByRole('button',{name:'Print / PDF learner analysis',exact:true}).click();
+      await page.getByRole('button',{name:'Prepare preview',exact:true}).click();
+      await page.frameLocator('iframe').getByRole('heading',{name:'Learner-subject results',exact:true}).waitFor();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.getByRole('dialog').count(),1,'Closing nested preview must retain learner profile');
       await page.getByRole('button',{name:'Start Intervention',exact:true}).click();
       await page.getByLabel('Responsible staff').selectOption('teacher-1');
       await page.getByLabel('Review date').fill('2026-12-01');

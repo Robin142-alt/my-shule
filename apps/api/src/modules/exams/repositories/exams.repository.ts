@@ -6282,7 +6282,7 @@ export class ExamsRepository {
   }
 
   async getAnalytics(tenantId: string, scope: ExamAnalyticsScope = { level: 'school', actor_user_id: null, role: 'system' },
-    filters: AnalyticsFilters = { page: 1, page_size: 25 }, schoolWideAllowed = scope.level === 'school') {
+    filters: AnalyticsFilters = { page: 1, page_size: 25 }, schoolWideAllowed = scope.level === 'school', forReport = false) {
     const appointments = scope.actor_user_id ? await this.executeSql<{level: ExamAnalyticsScopeLevel}>(
       ANALYTICS_APPOINTMENTS_SQL, [tenantId, scope.actor_user_id]) : { rows: [] };
     const available = [...new Set<ExamAnalyticsScopeLevel>([
@@ -6291,7 +6291,7 @@ export class ExamsRepository {
     if (!available.includes(scope.level) && !filters.scope && available.length) scope = { ...scope, level: available[0] };
     if (!available.includes(scope.level)) throw new ForbiddenException('No active appointment authorizes this academic analytics scope.');
     const result = await this.executeSql<SubjectEvidence>(analyticsQuery(scope.level, requiresPublishedExamAnalytics(scope.role)), [tenantId, scope.actor_user_id, JSON.stringify(filters)]);
-    return buildAcademicIntelligence(result.rows, scope, filters, available);
+    return buildAcademicIntelligence(result.rows, scope, filters, available, undefined, forReport);
   }
 
 }

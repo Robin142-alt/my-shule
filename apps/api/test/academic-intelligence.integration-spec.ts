@@ -164,6 +164,23 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     const unrelated=await read('assignment','teacher',{subject_id:ids.bio});expect(unrelated.learners.total).toBe(0);
     const wrongExam=await read('assignment','teacher',{exam_series_id:randomUUID()});expect(wrongExam.performance.mean).toBeNull();
   });
+  it('full report populations retain RLS, appointments, filters and publication restrictions',async()=>{
+    const report=(tenant:string,scope:ExamAnalyticsScopeLevel,actor:string,extra:Record<string,string>={})=>repository.getAnalytics(tenant,
+      {level:scope,actor_user_id:ids[actor],role:actor},{page:2,page_size:1,scope,...extra},scope==='school',true);
+    const data=await report('school-a','school','principal');
+    expect(data.learners.items).toHaveLength(3);expect(data.learners.coverage).toBe('all');
+    expect(data.analysis.coverage).toMatchObject({complete:2,without_results:1});
+    expect(data.analysis.matched_progress).toMatchObject({matched_learners:2,matched_results:4,change:7.5});
+    expect(JSON.stringify(data)).not.toContain('FOREIGN');
+    expect((await report('school-a','assignment','teacher')).options.subjects.map(s=>s.id)).toEqual([ids.math]);
+    expect((await report('school-a','assignment','teacher',{subject_id:ids.bio})).learners.items).toEqual([]);
+    await expect(report('school-b','assignment','teacher')).rejects.toThrow(/appointment/);
+    const c=await pool.connect();
+    try {
+      await c.query(`UPDATE ${schema}.student_report_cards SET status='approved' WHERE tenant_id='school-a'`);
+      expect((await report('school-a','subject','hos')).learners.items).toEqual([]);
+    } finally {await c.query(`UPDATE ${schema}.student_report_cards SET status='published'`);c.release();}
+  });
   it('lists only the authenticated staff subject appointments under RLS',async()=>{
     const academicRepository = new AcademicsRepository({executeWithTenant:async(tenant:string,_user:unknown,callback:(tx:unknown)=>Promise<unknown>)=>{
       const client=await pool.connect();try{await client.query('BEGIN');await client.query(`SET LOCAL search_path TO ${schema}; SET LOCAL ROLE ${role}`);

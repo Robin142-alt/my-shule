@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { AcademicIntelligenceWorkspace } from '@/components/school/academic-intelligence-workspace';
 import { academicReportHtml } from '@/lib/modules/academic-intelligence-print';
+import { ANALYTICS_VIEW_REPORT } from '@/lib/modules/academic-intelligence-print';
 import { buildAcademicIntelligence } from '../../../api/src/modules/exams/analytics/analytics-engine';
 import { buildAnalyticsPrintReport } from '../../../api/src/modules/exams/analytics/analytics-report-model';
 import { evidence } from '../../../api/src/modules/exams/analytics/testing/evidence.fixture';
@@ -23,15 +24,17 @@ it('searches explicitly, exposes the selected filter and clears it without chang
   fireEvent.click(screen.getByRole('button',{name:'Remove Search filter'}));
   expect(mockQuery.mock.calls.at(-1)?.[0]).not.toContain('learner_query');
 });
-it('prepares the current learner page through the backend, previews, prints and downloads the same report',async()=>{
+it('offers all matching learners by default and can explicitly preview, print and download the current page',async()=>{
   mockMutation.mockResolvedValue({report,filename:'ai-test.pdf',pdf_base64:btoa('%PDF-1.7 test')});
   const {unmount}=renderWithProviders(<AcademicIntelligenceWorkspace audience="teacher"/>);
   fireEvent.click(screen.getByRole('button',{name:'Learners'}));fireEvent.click(screen.getByRole('button',{name:'Print / PDF'}));
   expect(screen.getByLabelText('Report content')).toHaveValue('learners');
+  expect(screen.getByLabelText('Learner coverage')).toHaveValue('all');
+  fireEvent.change(screen.getByLabelText('Learner coverage'),{target:{value:'page'}});
   expect(screen.queryByRole('link',{name:'Download PDF'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:'Prepare preview'}));
   await screen.findByRole('link',{name:'Download PDF'});
-  expect(mockMutation).toHaveBeenCalledWith({section:'learners',filters:{scope:'assignment',exam_series_id:'exam-1'}});
+  expect(mockMutation).toHaveBeenCalledWith({section:'learners',filters:{scope:'assignment',exam_series_id:'exam-1'},learner_selection:'page'});
   const frame=screen.getByTitle('Analytics report preview') as HTMLIFrameElement;
   expect(frame.srcdoc).toContain('Current page only');expect(frame.srcdoc).toContain('Sample School');
   const print=jest.fn();frame.contentWindow!.print=print;frame.contentWindow!.focus=jest.fn();
@@ -59,4 +62,21 @@ it('rejects incomplete report content without crashing the workspace',async()=>{
   fireEvent.click(screen.getByRole('button',{name:'Print / PDF'}));fireEvent.click(screen.getByRole('button',{name:'Prepare preview'}));
   expect(await screen.findByRole('alert')).toHaveTextContent('complete document');
   expect(screen.queryByRole('link',{name:'Download PDF'})).not.toBeInTheDocument();
+});
+
+it.each(Object.entries(ANALYTICS_VIEW_REPORT))('defaults %s to its own downloadable report', (view,section)=>{
+  renderWithProviders(<AcademicIntelligenceWorkspace audience="teacher" activeView={view} onOpenReportCards={()=>{}}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Print / PDF'}));
+  expect(screen.getByLabelText('Report content')).toHaveValue(section);
+  expect(screen.getByRole('option',{name:'Complete exam analytics'})).toBeInTheDocument();
+});
+
+it('requests the complete report with all matching learners and the current school scope',async()=>{
+  mockMutation.mockResolvedValue({report,filename:'all.pdf',pdf_base64:btoa('%PDF-1.7 test')});
+  renderWithProviders(<AcademicIntelligenceWorkspace audience="teacher"/>);
+  fireEvent.click(screen.getByRole('button',{name:'Print / PDF'}));
+  fireEvent.change(screen.getByLabelText('Report content'),{target:{value:'all'}});
+  fireEvent.click(screen.getByRole('button',{name:'Prepare preview'}));
+  await screen.findByRole('link',{name:'Download PDF'});
+  expect(mockMutation).toHaveBeenCalledWith({section:'all',learner_selection:'all',filters:{scope:'assignment',exam_series_id:'exam-1'}});
 });

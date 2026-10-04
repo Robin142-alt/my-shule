@@ -18,6 +18,8 @@ export function isAcademicIntelligence(value: unknown): value is AcademicIntelli
     && objects(data.distribution) && objects(data.benchmarks) && data.band_movement
     && data.risk && objects(data.risk.distribution) && data.operations && objects(data.operations.report_cards)
     && data.interventions && objects(data.interventions.items) && data.targets && data.availability
+    && (!data.analysis || (data.analysis.quartiles && data.analysis.coverage && data.analysis.matched_progress
+      && objects(data.analysis.score_bands) && objects(data.analysis.subject_support)))
     && (!data.cohorts||(objects(data.cohorts)&&data.cohorts.every(c=>objects(c.progression))))
     && (!data.period_trends||(objects(data.period_trends.terms)&&objects(data.period_trends.years)))
     && (!data.period_comparisons||(objects(data.period_comparisons)&&data.period_comparisons.every(p=>p.current&&p.previous))));
