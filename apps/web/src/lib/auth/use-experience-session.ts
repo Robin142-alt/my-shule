@@ -10,6 +10,7 @@ import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import type { SchoolDashboardRoleContext } from "@/lib/auth/dashboard-role-context";
 import type { PublicExperienceGatewaySession } from "@/lib/auth/server-session";
 import { getPostLogoutPath } from "@/lib/pwa/installed-mode";
+import { readRetryAfterSeconds } from "@/lib/auth/retry-after";
 
 type LoginInput = {
   identifier: string;
@@ -34,6 +35,7 @@ export class ExperienceSessionRequestError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly retryAt?: number,
   ) {
     super(message);
     this.name = "ExperienceSessionRequestError";
@@ -52,6 +54,9 @@ async function parseResponse(response: Response) {
         ? json.message
         : "Unable to complete the authentication request.",
       response.status,
+      response.status === 429
+        ? Date.now() + readRetryAfterSeconds(response.headers?.get("retry-after")) * 1000
+        : undefined,
     );
   }
 
@@ -67,6 +72,9 @@ const SESSION_QUERY_ROOT = ["experience-session"] as const;
 // Hooks share the cache, so delayed credential responses must also share a
 // revision across consumers (for example, a header logout during a refresh).
 const sessionRevisions = new WeakMap<QueryClient, number>();
+// Query errors are cleared when a new fetch starts, so preserve server cooldowns
+// independently across remounts. They contain no credentials or session data.
+const sessionCooldowns = new WeakMap<QueryClient, Map<string, ExperienceSessionRequestError>>();
 
 function advanceSessionRevision(client: QueryClient) {
   const revision = (sessionRevisions.get(client) ?? 0) + 1;
@@ -95,8 +103,9 @@ async function requestSession(audience: ExperienceAudience, tenantSlug: string |
     }));
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error("Session verification took too long. Please retry.");
+      throw new ExperienceSessionRequestError("Session verification took too long. Please retry.", 503);
     }
+    if (error instanceof TypeError) throw new ExperienceSessionRequestError("Unable to connect to the session service. Please retry.", 503);
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -115,17 +124,32 @@ export function useExperienceSession(
   const router = useRouter();
   const queryClient = useQueryClient();
   const queryKey = sessionQueryKey(audience, options?.tenantSlug);
+  const cooldownKey = JSON.stringify(queryKey);
   // AppProviders owns this in-memory cache across route changes. Only public
   // session metadata is shared; every data request still uses the secure gateway.
   const sessionQuery = useQuery<SessionResponse | null>({
     queryKey,
     queryFn: async ({ signal }) => {
+      const previousError = sessionCooldowns.get(queryClient)?.get(cooldownKey);
+      if (previousError instanceof ExperienceSessionRequestError && previousError.retryAt && previousError.retryAt > Date.now()) {
+        throw previousError;
+      }
       try {
-        return await requestSession(audience, options?.tenantSlug, signal);
+        const result = await requestSession(audience, options?.tenantSlug, signal);
+        sessionCooldowns.get(queryClient)?.delete(cooldownKey);
+        return result;
       } catch (loadError) {
-        // Failed verification must not leave an earlier identity usable. Ignore
-        // cancelled reads so they cannot erase a completed login or role switch.
-        if (!signal.aborted) {
+        if (!signal.aborted && loadError instanceof ExperienceSessionRequestError && loadError.retryAt) {
+          const cooldowns = sessionCooldowns.get(queryClient) ?? new Map<string, ExperienceSessionRequestError>();
+          cooldowns.set(cooldownKey, loadError);
+          sessionCooldowns.set(queryClient, cooldowns);
+        }
+        // Transient transport/overload failures do not revoke an already verified
+        // identity. All data/actions still pass backend authorization. Definitive
+        // rejection clears every alias; cancellation cannot erase a newer login.
+        const temporary = loadError instanceof ExperienceSessionRequestError
+          && (loadError.status === 429 || loadError.status >= 500);
+        if (!signal.aborted && !temporary) {
           queryClient.setQueriesData({ queryKey: [...SESSION_QUERY_ROOT, audience] }, null);
         }
         throw loadError;
@@ -139,7 +163,12 @@ export function useExperienceSession(
     refetchOnReconnect: true,
     // Keep long-lived school sessions current even while no workspace is clicked.
     // Realtime appointment events invalidate the same query for immediate updates.
-    refetchInterval: audience === "school" ? 30_000 : false,
+    refetchInterval: audience === "school" ? (query) => {
+      const failure = query.state.error;
+      return failure instanceof ExperienceSessionRequestError && failure.retryAt
+        ? Math.max(1000, failure.retryAt - Date.now())
+        : 30_000;
+    } : false,
   });
   const session = sessionQuery.data?.session ?? null;
   const user = sessionQuery.data?.user ?? null;
@@ -150,6 +179,7 @@ export function useExperienceSession(
 
   const publishSession = async (payload: SessionResponse, revision: number) => {
     if (revision !== (sessionRevisions.get(queryClient) ?? 0)) return;
+    sessionCooldowns.delete(queryClient);
     await queryClient.cancelQueries({ queryKey: SESSION_QUERY_ROOT });
     if (revision !== (sessionRevisions.get(queryClient) ?? 0)) return;
     // Credentials are shared by the gateway. Never retain another identity,
@@ -233,6 +263,7 @@ export function useExperienceSession(
       if (revision !== sessionRevisions.get(queryClient)) throw new Error("Your sign-in changed. Please try again.");
       await queryClient.cancelQueries();
       queryClient.setQueriesData({ queryKey: SESSION_QUERY_ROOT }, null);
+      sessionCooldowns.delete(queryClient);
       setError(null);
       queryClient.clear();
       router.replace(getPostLogoutPath(audience, undefined, options?.logoutPath));
@@ -358,6 +389,11 @@ export function useExperienceSession(
     isSwitchingRole,
     error: error ?? sessionQuery.error?.message ?? null,
     errorStatus: sessionQuery.error instanceof ExperienceSessionRequestError ? sessionQuery.error.status : null,
+    verificationError: sessionQuery.error ? {
+      message: sessionQuery.error.message,
+      status: sessionQuery.error instanceof ExperienceSessionRequestError ? sessionQuery.error.status : null,
+      retryAt: sessionQuery.error instanceof ExperienceSessionRequestError ? sessionQuery.error.retryAt ?? null : null,
+    } : null,
     login,
     logout,
     refresh,

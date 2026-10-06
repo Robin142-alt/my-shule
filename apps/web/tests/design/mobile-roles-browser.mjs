@@ -220,6 +220,28 @@ try{
      await page.keyboard.press('Escape');
     }
    }
+   if(role==='accountant'&&section==='overview'&&(width===320||width===1440)){
+    const shell=await page.getByTestId('accountant-command-center').elementHandle();
+    const steps=[['fee-structures','Fee Structures'],['invoices','Invoices & statements'],['collections','Collections & exceptions'],['payments','Cash & cheques'],['payment-setup','Payment Setup'],['m-pesa-reconciliation','M-Pesa Reconciliation'],['receipts','Receipts'],['arrears','Arrears'],['waivers-discounts','Waivers & Discounts'],['expenses','Expenses'],['reports','Finance Reports'],['overview','Today']];
+    metrics.financeNavigation=[];
+    for(const [destination,label] of steps){
+     let nav=page.getByRole('navigation',{name:'Accountant workspace navigation'});
+     if(width<1024){
+      await page.locator('.app-side-menu-tab').click();
+      nav=page.getByRole('dialog').locator('nav');
+     }
+     const start=performance.now();
+     await nav.getByRole('button',{name:label,exact:true}).click();
+     await page.getByRole('heading',{name:label,exact:true}).waitFor({state:'visible'});
+     assert.equal(new URL(page.url()).pathname,`/school/accountant/${destination}`);
+     assert.ok(await shell.evaluate(el=>el.isConnected),'Finance navigation preserves the mounted shell');
+     metrics.financeNavigation.push({destination,elapsedMs:Math.round(performance.now()-start)});
+    }
+    await page.goBack();
+    await page.getByRole('heading',{name:'Finance Reports',exact:true}).waitFor({state:'visible'});
+    await page.goForward();
+    await page.getByRole('heading',{name:'Today',exact:true}).waitFor({state:'visible'});
+   }
    if(process.argv.includes('--contrast')){
     metrics.contrast=await auditWorkspaceContrast(page);
     if(metrics.contrast.failures.length)errors.push('Metric or action text fails WCAG AA contrast');

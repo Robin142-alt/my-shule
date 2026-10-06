@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ComponentType } from "react";
-import { useRouter } from "next/navigation";
 import {
   BadgePercent,
   Banknote,
@@ -166,7 +165,6 @@ export function AccountantCommandCenter({
   tenantSlug?: string | null;
   userLabel?: string | null;
 }) {
-  const router = useRouter();
   const [activeWorkspace, setActiveWorkspace] = useState<AccountantSection>(
     normalizeAccountantSection(activeSection),
   );
@@ -176,6 +174,20 @@ export function AccountantCommandCenter({
   useEffect(() => {
     setActiveWorkspace(normalizeAccountantSection(activeSection));
   }, [activeSection]);
+
+  useEffect(() => {
+    const restoreWorkspace = () => {
+      const root = routeMode === "public" ? `/school/${role}` : "";
+      const pathname = window.location.pathname;
+      if (root && pathname !== root && !pathname.startsWith(`${root}/`)) return;
+      const section = pathname.slice(root.length).replace(/^\//, "") || "overview";
+      if (ACCOUNTANT_NAV_ITEMS.some((item) => item.id === section) || section in ACCOUNTANT_SECTION_ALIASES) {
+        setActiveWorkspace(normalizeAccountantSection(section));
+      }
+    };
+    window.addEventListener("popstate", restoreWorkspace);
+    return () => window.removeEventListener("popstate", restoreWorkspace);
+  }, [role, routeMode]);
 
   const groupedNavItems = useMemo(
     () =>
@@ -188,7 +200,11 @@ export function AccountantCommandCenter({
 
   const navigateTo = (section: AccountantSection) => {
     setActiveWorkspace(section);
-    router.push(buildSchoolSectionHref(role, section, routeMode), { scroll: false });
+    const href = buildSchoolSectionHref(role, section, routeMode);
+    // All finance workspaces already live in this authorized client shell.
+    // Native history keeps deep links/back/forward without remounting the page,
+    // repeating requests or reconnecting the school's realtime stream.
+    if (window.location.pathname !== href) window.history.pushState(null, "", href);
   };
 
   const workspace = (() => {

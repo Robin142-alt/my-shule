@@ -51,6 +51,7 @@ type SchoolDashboardRoleContextValue = {
   isSwitching: boolean;
   switchingToAuthorizationRoleCode: string | null;
   error: string | null;
+  verificationError: { message: string; status: number | null; retryAt: number | null } | null;
   clearError: () => void;
   reloadDashboardRoles: () => Promise<void>;
   switchDashboardRole: (authorizationRoleCode: string) => Promise<void>;
@@ -467,6 +468,7 @@ export function SchoolDashboardRoleProvider({
     isSwitching: switchingToAuthorizationRoleCode !== null || auth.isSwitchingRole,
     switchingToAuthorizationRoleCode,
     error: roleError,
+    verificationError: auth.verificationError,
     clearError: () => setRoleError(null),
     reloadDashboardRoles,
     switchDashboardRole,
@@ -476,6 +478,7 @@ export function SchoolDashboardRoleProvider({
     auth.session,
     auth.session?.userLabel,
     auth.user,
+    auth.verificationError,
     isLoadingRoles,
     liveDataEnabled,
     normalizedTenantSlug,

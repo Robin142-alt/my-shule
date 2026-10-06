@@ -88,6 +88,7 @@ export function DashboardCommunicationProvider({
         }
 
         let acceptedEvents = 0;
+        let revalidateSession = false;
         for (const event of snapshot.events) {
           if (
             event.tenantId !== normalizedTenantId
@@ -108,7 +109,7 @@ export function DashboardCommunicationProvider({
           if (system.eventBus.emit(event)) {
             acceptedEvents += 1;
             if (event.type === "USER_ROLE_CHANGED" || event.sourceModule === "academics") {
-              void queryClient.invalidateQueries({ queryKey: ["experience-session", "school"] });
+              revalidateSession = true;
             }
             if (event.notification) {
               system.notificationChannel.publish(event.notification);
@@ -116,6 +117,9 @@ export function DashboardCommunicationProvider({
           }
         }
 
+        if (revalidateSession) {
+          void queryClient.invalidateQueries({ queryKey: ["experience-session", "school"] });
+        }
         if (acceptedEvents > 0) {
           publishSchoolDataUpdate(normalizedTenantId, "dashboard-realtime");
         }

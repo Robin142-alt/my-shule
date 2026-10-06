@@ -19,8 +19,8 @@ function payload(tenantSlug = "school-a", role: SchoolExperienceRole = "principa
     role, roleContext, user, homePath: `/school/${role}`, redirectTo: `/school/${role}` } };
 }
 
-function response(body: unknown, status = 200) {
-  return { ok: status === 200, status, json: async () => body } as Response;
+function response(body: unknown, status = 200, retryAfter?: string) {
+  return { ok: status === 200, status, headers: new Headers(retryAfter ? { "retry-after": retryAfter } : {}), json: async () => body } as Response;
 }
 
 function deferred<T>() {
@@ -181,4 +181,57 @@ test("Strict Mode cancellation does not poison the shared session", async () => 
   const { result } = renderHook(() => useExperienceSession("school", { tenantSlug: "school-a", autoLoad: true }), { wrapper });
   await waitFor(() => expect(result.current.user?.user_id).toBe("user-a"));
   expect(result.current.error).toBeNull();
+});
+
+test.each([429, 503])("temporary %s verification keeps the verified finance workspace and recovers", async (status) => {
+  jest.mocked(fetch).mockResolvedValueOnce(response(payload("school-a", "accountant")))
+    .mockResolvedValueOnce(response({ message: "Service busy" }, status, "45"))
+    .mockResolvedValueOnce(response(payload("school-a", "accountant")));
+  const now = Date.now();
+  const clock = jest.spyOn(Date, "now").mockReturnValue(now);
+  const { client, wrapper } = setup();
+  render(<SchoolDashboardRoleProvider initialRole="accountant" tenantSlug="school-a" routeMode="public">
+    <SchoolDashboardSessionGate><p>Fee structures workspace</p></SchoolDashboardSessionGate>
+  </SchoolDashboardRoleProvider>, { wrapper });
+  expect(await screen.findByText("Fee structures workspace")).toBeVisible();
+  await act(async () => { await client.invalidateQueries({ queryKey: ["experience-session", "school"] }); });
+  expect(screen.getByText("Fee structures workspace")).toBeVisible();
+  expect(screen.queryByText("Let’s get you signed in")).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent(status === 429 ? "temporarily busy" : "Service busy");
+  if (status === 429) {
+    expect(screen.getByRole("button", { name: "Retry in 45s" })).toBeDisabled();
+    await act(async () => { await client.invalidateQueries({ queryKey: ["experience-session", "school"] }); });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    clock.mockReturnValue(now + 45_001);
+  }
+  await act(async () => { await client.invalidateQueries({ queryKey: ["experience-session", "school"] }); });
+  await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+  expect(screen.getByText("Fee structures workspace")).toBeVisible();
+  expect(fetch).toHaveBeenCalledTimes(3);
+});
+
+test("an initial rate limit does not grant access or demand another sign-in, and remounts respect Retry-After", async () => {
+  jest.mocked(fetch).mockResolvedValue(response({ message: "Rate limit exceeded" }, 429, "60"));
+  const { wrapper } = setup();
+  const workspace = (key: string) => <SchoolDashboardRoleProvider key={key} initialRole="accountant" tenantSlug="school-a" routeMode="public">
+    <SchoolDashboardSessionGate><p>Private finance data</p></SchoolDashboardSessionGate>
+  </SchoolDashboardRoleProvider>;
+  const view = render(workspace("first"), { wrapper });
+  expect(await screen.findByText("Session check temporarily unavailable")).toBeVisible();
+  expect(screen.queryByText("Private finance data")).not.toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Sign in again" })).not.toBeInTheDocument();
+  view.rerender(workspace("second"));
+  expect(await screen.findByText("Session check temporarily unavailable")).toBeVisible();
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+test("a forbidden session removes every cached identity alias", async () => {
+  jest.mocked(fetch).mockResolvedValueOnce(response(payload())).mockResolvedValueOnce(response({ message: "Access removed" }, 403));
+  const { client, wrapper } = setup();
+  const { result } = renderHook(() => useExperienceSession("school", { tenantSlug: "school-a", autoLoad: true }), { wrapper });
+  await waitFor(() => expect(result.current.session).not.toBeNull());
+  client.setQueryData(["experience-session", "school", null], payload());
+  await act(async () => { await result.current.reloadSession().catch(() => undefined); });
+  expect(result.current.session).toBeNull();
+  expect(client.getQueryData(["experience-session", "school", null])).toBeNull();
 });
