@@ -18,25 +18,22 @@ function SidebarNav({
   onNavigate?: () => void;
 }) {
   return (
-    <nav className="space-y-1.5">
+    <nav className="dashboard-navigation space-y-1.5">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeHref === item.href;
 
         return (
           <Link
+            aria-current={isActive ? "page" : undefined}
             key={item.id}
             href={item.href}
             onClick={onNavigate}
-            className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition duration-150 ${
-              isActive
-                ? "bg-accent-soft text-foreground"
-                : "text-muted hover:bg-surface-muted hover:text-foreground"
-            }`}
+            className="dashboard-nav-item"
           >
             <span className="flex min-w-0 items-center gap-3">
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
+              <span className="dashboard-nav-label">{item.label}</span>
             </span>
             {item.badge ? (
               <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] font-semibold text-muted">

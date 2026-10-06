@@ -285,22 +285,20 @@ export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) 
           <h2 className="mt-2 text-xl font-black">System Monitor</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">Live platform observability</p>
         </div>
-        <nav className="space-y-1" aria-label="System Monitor navigation">
+        <nav className="dashboard-navigation space-y-1" aria-label="System Monitor navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <button
+                aria-current={activeView === item.id ? "page" : undefined}
                 key={item.id}
                 type="button"
                 onClick={() => setActiveView(item.id)}
-                className={`flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                  activeView === item.id ? "bg-white/15 text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
-                }`}
+                className="dashboard-nav-item"
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>
-                  <span className="block text-sm font-bold">{item.label}</span>
-                  <span className="mt-0.5 block text-xs text-white/50">{item.desc}</span>
+                  <span className="dashboard-nav-label">{item.label}</span>
                 </span>
               </button>
             );

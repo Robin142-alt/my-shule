@@ -13,7 +13,7 @@ const items = [
   { id: "progress", label: "Learner Progress", group: "Assessments" },
   { id: "parents", label: "Parent Communication", group: "Support" },
   { id: "resources", label: "Teaching Resources", group: "Operations" },
-  { id: "reports", label: "Reports & Downloads", group: "Operations" },
+  { id: "reports", label: "Reports & Downloads", group: "Operations", description: "Printable school documents" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
 
@@ -65,7 +65,7 @@ describe("mobile workspace navigation", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("preserves module descriptions, badges, footer actions and section callbacks in the drawer", async () => {
+  it("uses label-only menus while preserving module badges, footer actions and section callbacks", async () => {
     const user = userEvent.setup();
     const change = jest.fn();
     const retry = jest.fn();
@@ -79,10 +79,10 @@ describe("mobile workspace navigation", () => {
     await user.click(trigger);
     const drawer = screen.getByRole("dialog", { name: "Inventory sections" });
     expect(within(drawer).getByText("3 low")).toBeVisible();
-    expect(within(drawer).getByText("Available items")).toBeVisible();
+    expect(within(drawer).queryByText("Available items")).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole("button", { name: "Retry stock data" }));
     expect(retry).toHaveBeenCalledTimes(1);
-    await user.click(within(drawer).getByRole("button", { name: /Requests.*2 pending.*Review staff requests/ }));
+    await user.click(within(drawer).getByRole("button", { name: /Requests.*2 pending/ }));
     expect(change).toHaveBeenCalledWith("requests");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
@@ -108,7 +108,8 @@ describe("mobile workspace navigation", () => {
     await user.tab({ shift: true });
     expect(within(dialog).getByRole("button", { name: "My Profile" })).toHaveFocus();
 
-    await user.type(within(dialog).getByRole("searchbox", { name: /Search workspaces/i }), "reports");
+    expect(within(dialog).queryByText("Printable school documents")).not.toBeInTheDocument();
+    await user.type(within(dialog).getByRole("searchbox", { name: /Search workspaces/i }), "printable");
     expect(within(dialog).getByRole("button", { name: "Reports & Downloads" })).toBeVisible();
     expect(within(dialog).queryByRole("button", { name: "Overview" })).not.toBeInTheDocument();
 

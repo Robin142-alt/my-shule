@@ -1,0 +1,101 @@
+/* Shared by role menus and the portalled mobile drawer. Workspace tabs, action
+   buttons and printed documents keep their own styles. */
+@media screen {
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation {
+    min-width: 0;
+    align-content: start;
+    scrollbar-width: thin;
+    overscroll-behavior: contain;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--action-muted, var(--sidebar-muted));
+    box-shadow: none;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
+    text-align: left;
+    text-decoration: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    transform: none;
+    translate: none;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item:hover {
+    background: var(--action-hover, var(--sidebar-active));
+    color: var(--action-text, var(--sidebar-foreground));
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item:is([aria-current="page"], [data-active="true"]) {
+    background: var(--sidebar-active);
+    color: var(--sidebar-foreground);
+    box-shadow: inset 3px 0 var(--inverse-accent);
+    font-weight: 600;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item:focus-visible {
+    outline: 2px solid var(--action-focus, var(--inverse-accent));
+    outline-offset: -2px;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-top: 0;
+    color: inherit;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item:is([aria-current="page"], [data-active="true"]) > svg:first-child {
+    color: var(--inverse-accent);
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-label {
+    min-width: 0;
+    flex: 1;
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    color: inherit;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-group {
+    margin: 12px 0 4px;
+    padding: 0 12px;
+    color: var(--action-muted, var(--sidebar-muted));
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation > :where(div, section) + :where(div, section) {
+    margin-top: 4px;
+  }
+
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-toggle {
+    width: 44px;
+    flex-shrink: 0;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item { transition: none; }
+}

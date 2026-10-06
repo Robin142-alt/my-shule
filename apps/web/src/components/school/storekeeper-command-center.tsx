@@ -894,7 +894,7 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
         <p className="text-xs font-black uppercase tracking-[0.22em] text-[#FFB06C]">Store map</p>
         <p className={cn("mt-2 text-sm leading-5", surface.muted)}>Audit-ready navigation for every stock movement.</p>
       </div>
-      <nav className="mt-3 grid gap-1.5" aria-label="Storekeeper command navigation">
+      <nav className="dashboard-navigation mt-3 grid gap-1.5" aria-label="Storekeeper command navigation">
         {commandRail.map((item) => {
           const Icon = item.icon;
           const content = (
@@ -903,21 +903,12 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
               <span className="truncate">{item.label}</span>
             </>
           );
-          const className = cn(
-            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition duration-200",
-            item.active
-              ? "border border-[#FF7A1A]/34 bg-[#FF7A1A]/12 text-[#FFE0C2]"
-              : theme === "dark"
-                ? "text-white/72 hover:bg-white/10 hover:text-white"
-                : "text-[#516488] hover:bg-primary/7 hover:text-foreground",
-          );
-
           return item.href ? (
-            <a key={item.id} href={item.href} className={className}>
+            <a key={item.id} href={item.href} aria-current={item.active ? "page" : undefined} className="dashboard-nav-item">
               {content}
             </a>
           ) : (
-            <span key={item.id} className={className}>
+            <span key={item.id} aria-current={item.active ? "page" : undefined} className="dashboard-nav-item">
               {content}
             </span>
           );
@@ -927,7 +918,7 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
         <p className={cn("px-3 text-[10px] font-black uppercase tracking-[0.18em]", surface.muted)}>
           Support Center
         </p>
-        <nav className="mt-2 grid gap-1.5" aria-label="Storekeeper support navigation">
+        <nav className="dashboard-navigation mt-2 grid gap-1.5" aria-label="Storekeeper support navigation">
           {supportSidebarItems.map((item) => {
             const Icon = item.icon;
 
@@ -935,15 +926,10 @@ function CommandRail({ theme }: { theme: StorekeeperTheme }) {
               <a
                 key={item.id}
                 href={`/school/storekeeper/${item.id}`}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition duration-200",
-                  theme === "dark"
-                    ? "text-white/72 hover:bg-white/10 hover:text-white"
-                    : "text-[#516488] hover:bg-primary/7 hover:text-foreground",
-                )}
+                className="dashboard-nav-item"
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">{item.label}</span>
+                <span className="dashboard-nav-label">{item.label}</span>
               </a>
             );
           })}

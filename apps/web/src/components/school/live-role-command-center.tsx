@@ -561,10 +561,10 @@ export function LiveRoleCommandCenter({
             subtitle={config.subtitle}
             icon={config.icon}
           />
-          <nav className="flex-1 space-y-5 overflow-y-auto pr-1" aria-label={`${config.roleLabel} workspace navigation`}>
+          <nav className="dashboard-navigation flex-1 space-y-5 overflow-y-auto pr-1" aria-label={`${config.roleLabel} workspace navigation`}>
             {Object.entries(groupedNavItems).map(([group, items]) => (
               <div key={group}>
-                <p className="px-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/45">
+                <p className="dashboard-nav-group">
                   {group}
                 </p>
                 <div className="mt-2 grid gap-1">
@@ -573,21 +573,15 @@ export function LiveRoleCommandCenter({
                     const isActive = item.id === activeWorkspace;
                     return (
                       <button
+                        aria-current={isActive ? "page" : undefined}
                         key={item.id}
                         type="button"
                         onClick={() => navigateTo(item.id)}
-                        className={`flex min-h-12 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                          isActive
-                            ? "bg-white/15 text-white shadow-[inset_4px_0_0_#22D3EE]"
-                            : "text-white/70 hover:bg-white/10 hover:text-white"
-                        }`}
+                        className="dashboard-nav-item"
                       >
                         <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden={true} />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-black">{item.label}</span>
-                          <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-white/50">
-                            {sectionDescription(item.label)}
-                          </span>
+                          <span className="dashboard-nav-label">{item.label}</span>
                         </span>
                       </button>
                     );

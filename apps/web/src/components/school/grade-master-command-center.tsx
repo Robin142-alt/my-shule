@@ -1655,20 +1655,18 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
       {/* Sidebar */}
       <aside className="hidden h-dvh w-[260px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Grade command" title="Grade/Form Master" subtitle="Assigned grade, form, and stream oversight" />
-        <nav className="space-y-1" aria-label="Grade form master navigation">
+        <nav className="dashboard-navigation space-y-1" aria-label="Grade form master navigation">
           {navItems.map((item, index) => {
             const showGroup = item.group !== navItems[index - 1]?.group;
             const Icon = item.icon;
             return (
               <div key={`${item.group}-${item.label}`}>
-                {showGroup ? <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">{item.group}</p> : null}
+                {showGroup ? <p className="dashboard-nav-group">{item.group}</p> : null}
                 <button
+                  aria-current={activeView === item.id ? "page" : undefined}
                   type="button"
                   onClick={() => openView(item.id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white",
-                    activeView === item.id && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]",
-                  )}
+                  className="dashboard-nav-item"
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   {item.label}

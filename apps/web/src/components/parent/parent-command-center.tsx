@@ -127,18 +127,16 @@ export function ParentCommandCenter() {
           <h2 className="mt-2 text-xl font-black">Parent Portal</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">Stay connected.</p>
         </div>
-        <nav className="space-y-1">
+        <nav className="dashboard-navigation space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
             return (
               <button
+                aria-current={isActive ? "page" : undefined}
                 key={item.id}
                 onClick={() => setActiveView(item.id)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white",
-                  isActive && "bg-white/15 text-white shadow-[inset_4px_0_0_#f97316]"
-                )}
+                className="dashboard-nav-item"
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {item.label}

@@ -292,10 +292,10 @@ export function AccountantCommandCenter({
             subtitle="School finance"
             icon={ChartNoAxesCombined}
           />
-          <nav className="flex-1 space-y-5 overflow-y-auto pr-1" aria-label={`${roleLabel} workspace navigation`}>
+          <nav className="dashboard-navigation flex-1 space-y-5 overflow-y-auto pr-1" aria-label={`${roleLabel} workspace navigation`}>
             {Object.entries(groupedNavItems).map(([group, items]) => (
               <div key={group}>
-                <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-muted">
+                <p className="dashboard-nav-group">
                   {group}
                 </p>
                 <div className="mt-2 grid gap-1">
@@ -308,18 +308,11 @@ export function AccountantCommandCenter({
                         type="button"
                         onClick={() => navigateTo(item.id)}
                         aria-current={isActive ? "page" : undefined}
-                        className={`flex min-h-12 w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                          isActive
-                            ? "bg-primary-soft text-primary"
-                            : "text-muted hover:bg-surface-muted hover:text-foreground"
-                        }`}
+                        className="dashboard-nav-item"
                       >
                         <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden={true} />
                         <span className="min-w-0">
-                          <span className="block text-sm font-semibold">{item.label}{item.id === "payment-setup" && Boolean(paymentSetup.data?.attention) ? ` (${paymentSetup.data!.attention} follow-up)` : ""}</span>
-                          <span className={`mt-0.5 block text-[11px] leading-4 ${isActive ? "text-inherit opacity-90" : "text-muted"}`}>
-                            {item.description}
-                          </span>
+                          <span className="dashboard-nav-label">{item.label}{item.id === "payment-setup" && Boolean(paymentSetup.data?.attention) ? ` (${paymentSetup.data!.attention} follow-up)` : ""}</span>
                         </span>
                       </button>
                     );

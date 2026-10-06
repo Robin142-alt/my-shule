@@ -172,7 +172,7 @@ export function SchoolShell({
             <span className="rounded-full bg-success-soft px-2.5 py-1 text-[10px] font-bold text-success">Configured live</span>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar">
+        <nav className="dashboard-navigation flex-1 overflow-y-auto px-3 py-3 custom-scrollbar">
           <div className="space-y-0.5">
             {mainItems.map((item) => {
               const Icon = item.icon;
@@ -182,11 +182,10 @@ export function SchoolShell({
 
               return (
                 <Link
+                  aria-current={isActive ? "page" : undefined}
                   key={item.id}
                   href={href}
-                  className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
-                    isActive ? "bg-success-soft text-success" : "text-muted hover:bg-background hover:text-foreground"
-                  }`}
+                  className="dashboard-nav-item"
                 >
                   <div className="flex items-center gap-3">
                     <Icon className={`h-4 w-4 ${isActive ? "text-emerald-600" : "text-muted group-hover:text-muted"}`} />
@@ -238,7 +237,7 @@ export function SchoolShell({
               <p className="text-sm font-semibold text-foreground">{schoolName ?? "School desk"}</p>
               <button type="button" onClick={() => setMobileOpen(false)} className="rounded-lg border border-border p-2 text-muted"><X className="h-4 w-4" /></button>
             </div>
-            <nav className="px-3 py-3">
+            <nav className="dashboard-navigation px-3 py-3">
               <div className="space-y-0.5">
                 {visibleSchoolNavItems.map((item) => {
                   const Icon = item.icon;
@@ -248,12 +247,11 @@ export function SchoolShell({
 
                   return (
                     <Link
+                      aria-current={isActive ? "page" : undefined}
                       key={item.id}
                       href={href}
                       onClick={() => setMobileOpen(false)}
-                      className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                        isActive ? "bg-success-soft text-success" : "text-muted hover:bg-background hover:text-foreground"
-                      }`}
+                      className="dashboard-nav-item"
                     >
                       <div className="flex items-center gap-3">
                         <Icon className={`h-[18px] w-[18px] ${isActive ? "text-emerald-600" : "text-muted group-hover:text-muted"}`} />

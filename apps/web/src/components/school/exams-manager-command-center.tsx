@@ -374,7 +374,7 @@ export function ExamsManagerCommandCenter({
         <aside className="sticky top-0 hidden h-dvh w-[240px] shrink-0 flex-col border-r border-white/10 bg-sidebar p-3 text-white lg:flex">
           <SchoolCommandSidebarIdentity eyebrow="Examinations" className="!rounded-lg !border-0 !bg-transparent !p-2 !shadow-none" />
 
-          <nav aria-label="Exams Manager navigation" className="mt-3 flex-1 space-y-1 overflow-y-auto">
+          <nav aria-label="Exams Manager navigation" className="dashboard-navigation mt-3 flex-1 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const selected = activeView === item.id;
@@ -385,12 +385,10 @@ export function ExamsManagerCommandCenter({
                   aria-label={item.label}
                   aria-current={selected ? "page" : undefined}
                   onClick={() => setActiveView(item.id)}
-                  className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
-                    selected ? "bg-white text-foreground" : "text-slate-300 hover:bg-white/10 hover:text-white"
-                  }`}
+                  className="dashboard-nav-item"
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0">{item.label}</span>
+                  <span className="dashboard-nav-label">{item.label}</span>
                 </button>
               );
             })}

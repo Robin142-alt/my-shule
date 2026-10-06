@@ -85,25 +85,21 @@ export function NurseCommandCenter({ activeSection }: { activeSection?: string }
     <div className="authenticated-app flex min-h-screen bg-background">
       <aside className="hidden h-screen w-[280px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
         <SchoolCommandSidebarIdentity eyebrow="Health command" title="School Nurse" subtitle="Visits, medicine, incidents, and referrals" />
-        <nav className="space-y-1" aria-label="Nurse workspace navigation">
-          <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Health Centre</p>
+        <nav className="dashboard-navigation space-y-1" aria-label="Nurse workspace navigation">
+          <p className="dashboard-nav-group">Health Centre</p>
           {nurseNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.id === section;
             return (
               <a
+                aria-current={isActive ? "page" : undefined}
                 key={item.id}
                 href={`/school/nurse/${item.id}`}
-                className={`flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                  isActive
-                    ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]"
-                    : "text-white/70 hover:bg-white/10 hover:text-white"
-                }`}
+                className="dashboard-nav-item"
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  <span className="block font-black">{item.label}</span>
-                  <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-white/55">{item.description}</span>
+                  <span className="dashboard-nav-label">{item.label}</span>
                 </span>
               </a>
             );

@@ -2,6 +2,7 @@
 @import "./authenticated.css";
 @import "./authenticated-premium.css";
 @import "./authenticated-contrast.css";
+@import "./dashboard-navigation.css";
 @import "./authentication.css";
 
 /* Feedback stays readable above dialogs, long forms, and the mobile keyboard. */

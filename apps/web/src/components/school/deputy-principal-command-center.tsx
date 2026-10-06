@@ -66,10 +66,6 @@ import { resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 import { CbtModuleScreen } from "@/components/modules/cbt/cbt-module-screen";
 import { LmsModuleScreen } from "@/components/modules/lms/lms-module-screen";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
 type NavItem = {
   id: string;
   label: string;
@@ -288,27 +284,23 @@ export function DeputyPrincipalCommandCenter({
               </div>
             </div>
           </div>
-          <nav className="mt-5 flex-1 space-y-5 overflow-auto pr-1 pb-10 custom-scrollbar">
+          <nav className="dashboard-navigation mt-5 flex-1 space-y-5 overflow-auto pr-1 pb-10 custom-scrollbar">
             {Object.entries(groups).map(([group, items]) => (
               <div key={group}>
-                <p className="px-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/45">{group}</p>
+                <p className="dashboard-nav-group">{group}</p>
                 <div className="mt-2 grid gap-1">
                   {items.map((item) => {
                     const Icon = item.icon;
                     const active = activeWorkspace === item.id;
                     return (
                       <button
+                        aria-current={active ? "page" : undefined}
                         key={item.id}
                         onClick={() => setActiveWorkspace(item.id)}
-                        className={cn(
-                          "flex min-h-10 w-full items-center gap-3 rounded-[var(--radius)] px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5",
-                          active
-                            ? "border border-cyan-300/35 bg-cyan-300/12 text-cyan-100 shadow-[inset_4px_0_0_#22D3EE]"
-                            : "text-white/72 hover:bg-white/10 hover:text-white"
-                        )}
+                        className="dashboard-nav-item"
                       >
                         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{item.label}</span>
+                        <span className="dashboard-nav-label">{item.label}</span>
                       </button>
                     );
                   })}

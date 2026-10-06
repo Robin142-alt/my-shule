@@ -1754,7 +1754,7 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
             {groups.map((group) => (
               <div key={group}>
                 <h3 className="px-2 text-xs font-black uppercase tracking-wider text-muted mb-2">{group}</h3>
-                <nav className="space-y-1">
+                <nav className="dashboard-navigation space-y-1">
                   {navItems
                     .filter((n) => n.group === group)
                     .map((item) => {
@@ -1765,12 +1765,7 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
                           key={item.id}
                           aria-current={isActive ? "page" : undefined}
                           onClick={() => setActiveView(item.id)}
-                          className={cn(
-                            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-all",
-                            isActive
-                              ? "bg-info-soft text-info"
-                              : "text-muted hover:bg-surface-muted hover:text-foreground"
-                          )}
+                          className="dashboard-nav-item"
                         >
                           <Icon className={cn("h-5 w-5", isActive ? "text-info" : "text-muted")} />
                           {item.label}
@@ -1864,7 +1859,7 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
                 {groups.map((group) => (
                   <div key={group}>
                     <h3 className="px-2 text-xs font-black uppercase tracking-wider text-muted mb-2">{group}</h3>
-                    <nav className="space-y-1">
+                    <nav className="dashboard-navigation space-y-1">
                       {navItems
                         .filter((n) => n.group === group)
                         .map((item) => {
@@ -1872,17 +1867,13 @@ export function SecretaryCommandCenterFull({ activeSection, routeMode }: { activ
                           const Icon = item.icon;
                           return (
                             <button
+                              aria-current={isActive ? "page" : undefined}
                               key={item.id}
                               onClick={() => {
                                 setActiveView(item.id);
                                 setIsMobileMenuOpen(false);
                               }}
-                              className={cn(
-                                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold",
-                                isActive
-                                  ? "bg-info-soft text-info"
-                                  : "text-muted"
-                              )}
+                              className="dashboard-nav-item"
                             >
                               <Icon className={cn("h-5 w-5", isActive ? "text-info" : "text-muted")} />
                               {item.label}

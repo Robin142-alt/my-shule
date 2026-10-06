@@ -862,15 +862,16 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
         {/* Sidebar */}
         <aside className="hidden h-[calc(100dvh-1.5rem)] shrink-0 overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:w-72 lg:flex-col">
           <SchoolCommandSidebarIdentity eyebrow="Procurement command" title="Procurement Officer" subtitle="Orders, suppliers, requisitions, and budgets" />
-          <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
+          <nav className="dashboard-navigation mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
             {procurementNavItems.map((item) => {
               const Icon = item.icon;
               return (
                 <button
+                  aria-current={activeView === item.id ? "page" : undefined}
                   key={item.id}
                   type="button"
                   onClick={() => setActiveView(item.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold transition ${activeView === item.id ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 hover:bg-white/10 hover:text-white"}`}
+                  className="dashboard-nav-item"
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   {item.label}

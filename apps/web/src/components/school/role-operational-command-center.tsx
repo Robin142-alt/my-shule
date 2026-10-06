@@ -8213,7 +8213,7 @@ function GenericRoleOperationalCommandCenter({
             <p className="mt-2 text-xs font-semibold leading-5 text-white/62">{roleProfile.sidebarSubtitle}</p>
           </div>
 
-          <nav className="mt-4 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1" aria-label={`${roleTitle} operational sidebar`}>
+          <nav className="dashboard-navigation mt-4 grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1" aria-label={`${roleTitle} operational sidebar`}>
             {sidebarItems.map((item, index) => (
               <button
                 key={item}
@@ -8227,11 +8227,7 @@ function GenericRoleOperationalCommandCenter({
                   setActivePanel("queue");
                   setMobileSidebarOpen(false);
                 }}
-                className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs font-bold transition hover:-translate-y-0.5 ${
-                  item === resolvedWorkspace
-                    ? "border-cyan-200/35 bg-cyan-200/14 text-white shadow-[0_0_24px_rgba(34,211,238,0.16)]"
-                    : "border-white/10 bg-white/[0.06] text-white/78 hover:bg-white/[0.1]"
-                }`}
+                className="dashboard-nav-item"
               >
                 <span>{schoolFriendlyText(item)}</span>
                 {item === resolvedWorkspace ? <StatusPill label="Active" tone="ok" compact /> : (
