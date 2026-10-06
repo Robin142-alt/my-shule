@@ -44,7 +44,7 @@ describe("teacher dashboard routing", () => {
 
     const shell = await screen.findByTestId("teacher-command-center");
     expect(shell).toBeVisible();
-    expect(screen.getByRole("button", { name: /Assignments/i })).toHaveClass("bg-white/15");
+    expect(screen.getByRole("button", { name: /Assignments/i })).toHaveAttribute("aria-current", "page");
     expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("teacher dashboard routing", () => {
       );
 
       expect(await screen.findByTestId("teacher-command-center")).toBeVisible();
-      expect(screen.getByRole("button", { name: activeButton })).toHaveClass("bg-white/15");
+      expect(screen.getByRole("button", { name: activeButton })).toHaveAttribute("aria-current", "page");
       expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
       expect(screen.queryByTestId("role-operational-command-center")).not.toBeInTheDocument();
     },
@@ -104,7 +104,7 @@ describe("teacher dashboard routing", () => {
     );
 
     expect(await screen.findByTestId("teacher-command-center")).toBeVisible();
-    expect(screen.getByRole("button", { name: /Overview/i })).toHaveClass("bg-white/15");
+    expect(screen.getByRole("button", { name: /Overview/i })).toHaveAttribute("aria-current", "page");
 
     view.rerender(
       createElement(SchoolPages, {
@@ -116,7 +116,7 @@ describe("teacher dashboard routing", () => {
       }),
     );
 
-    expect(await screen.findByRole("button", { name: /Exams & Marks/i })).toHaveClass("bg-white/15");
+    expect(await screen.findByRole("button", { name: /Exams & Marks/i })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "Exams & Marks", level: 2 })).toBeVisible();
     expect(screen.getByText(/Enter scores, save your draft, then submit results/i)).toBeVisible();
     expect(within(document.body).queryByText(/Workspace Not Found/i)).not.toBeInTheDocument();
