@@ -232,15 +232,15 @@ try{
      }
      const start=performance.now();
      await nav.getByRole('button',{name:label,exact:true}).click();
-     await page.getByRole('heading',{name:label,exact:true}).waitFor({state:'visible'});
+     await page.locator('.app-workspace-heading').getByRole('heading',{name:label,exact:true}).waitFor({state:'visible'});
      assert.equal(new URL(page.url()).pathname,`/school/accountant/${destination}`);
      assert.ok(await shell.evaluate(el=>el.isConnected),'Finance navigation preserves the mounted shell');
      metrics.financeNavigation.push({destination,elapsedMs:Math.round(performance.now()-start)});
     }
     await page.goBack();
-    await page.getByRole('heading',{name:'Finance Reports',exact:true}).waitFor({state:'visible'});
+    await page.locator('.app-workspace-heading').getByRole('heading',{name:'Finance Reports',exact:true}).waitFor({state:'visible'});
     await page.goForward();
-    await page.getByRole('heading',{name:'Today',exact:true}).waitFor({state:'visible'});
+    await page.locator('.app-workspace-heading').getByRole('heading',{name:'Today',exact:true}).waitFor({state:'visible'});
    }
    if(process.argv.includes('--contrast')){
     metrics.contrast=await auditWorkspaceContrast(page);
