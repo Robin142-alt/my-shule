@@ -551,7 +551,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
           {Array.from(new Set(navItems.map(i => i.group))).map(group => (
             <div key={group} className="mb-6">
               <h4 className="mb-2 px-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted">{group}</h4>
-              <nav className="space-y-0.5">
+              <nav className="dashboard-navigation space-y-0.5">
                 {navItems.filter(i => i.group === group).map(item => {
                   const active = activeView === item.id;
                   const Icon = item.icon;
@@ -560,13 +560,10 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
                       key={item.id}
                       aria-current={active ? "page" : undefined}
                       onClick={() => setActiveView(item.id as CounsellorView)}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-sm font-bold transition",
-                        active ? "bg-info-soft text-info" : "text-muted-strong hover:bg-slate-50 hover:text-foreground"
-                      )}
+                      className="dashboard-nav-item"
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
+                      <span className="dashboard-nav-label">{item.label}</span>
                     </button>
                   );
                 })}

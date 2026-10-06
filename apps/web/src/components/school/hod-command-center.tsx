@@ -31,7 +31,6 @@ import { ReportsWorkspace } from "./hod/reports-workspace";
 import { ResourceRequestsWorkspace } from "./hod/resource-requests-workspace";
 import { SubjectAllocationWorkspace } from "./hod/subject-allocation-workspace";
 import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
-import { cn } from "./hod/shared";
 
 type HodRouteMode = "hosted" | "public";
 
@@ -188,7 +187,7 @@ function Sidebar({
     <aside className="hidden h-full w-[292px] shrink-0 overflow-y-auto bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Department command" title="Head of Department" subtitle="Teaching quality, published results, and resources" />
 
-      <nav className="mt-4 space-y-1" aria-label="HOD navigation">
+      <nav className="dashboard-navigation mt-4 space-y-1" aria-label="HOD navigation">
         {hodNavItems.map((item, index) => {
           const showGroup = item.group !== hodNavItems[index - 1]?.group;
           const Icon = item.icon;
@@ -197,20 +196,18 @@ function Sidebar({
           return (
             <div key={`${item.group}-${item.id}`}>
               {showGroup ? (
-                <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                <p className="dashboard-nav-group">
                   {item.group}
                 </p>
               ) : null}
               <button
+                aria-current={active ? "page" : undefined}
                 type="button"
                 onClick={() => onViewChange(item.id)}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white",
-                  active && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]",
-                )}
+                className="dashboard-nav-item"
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
-                <span>{item.label}</span>
+                <span className="dashboard-nav-label">{item.label}</span>
               </button>
             </div>
           );

@@ -81,12 +81,12 @@ export function HosCommandCenter({ activeSection, routeMode = "hosted" }: { acti
           <Search aria-hidden="true" className="h-4 w-4 shrink-0" /><span className="sr-only">Search HOS workspaces</span>
           <input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Find a workspace" className="min-w-0 w-full bg-transparent text-sm text-white outline-none placeholder:text-sidebar-muted" />
         </label>
-        <nav aria-label="Head of Subject workspaces" className="space-y-1">
+        <nav aria-label="Head of Subject workspaces" className="dashboard-navigation space-y-1">
           {visibleItems.map((item, index) => <div key={item.id}>
-            {item.group !== visibleItems[index - 1]?.group && <p className="px-3 pb-2 pt-4 text-xs font-semibold uppercase tracking-wider text-sidebar-muted">{item.group}</p>}
+            {item.group !== visibleItems[index - 1]?.group && <p className="dashboard-nav-group">{item.group}</p>}
             <Link href={buildSchoolSectionHref("hos", item.id, routeMode)} aria-current={section === item.id ? "page" : undefined}
               onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) { event.preventDefault(); openSection(item.id); } }}
-              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-inverse-accent ${section === item.id ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-sidebar-muted hover:bg-white/10 hover:text-white"}`}>
+              className="dashboard-nav-item">
               <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />{item.label}
             </Link>
           </div>)}

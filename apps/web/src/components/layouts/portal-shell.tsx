@@ -72,17 +72,17 @@ export function PortalShell({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 custom-scrollbar">
+        <nav className="dashboard-navigation flex-1 overflow-y-auto px-3 py-3 custom-scrollbar">
           <div className="space-y-1">
             {portalNavItems.map((item) => {
               const Icon = item.icon;
               const href = item.href ? `${basePath}${item.href}` : basePath;
               const isActive = item.href === "" ? pathname === basePath : pathname.startsWith(`${basePath}${item.href}`);
               return (
-                <Link key={item.id} href={href} className={`group flex items-center justify-between rounded-2xl px-4 py-3 text-[14px] font-medium transition-all duration-150 ${isActive ? "bg-info-soft text-info shadow-sm shadow-blue-100" : "text-muted hover:bg-[#f3f5fc] hover:text-foreground"}`}>
+                <Link aria-current={isActive ? "page" : undefined} key={item.id} href={href} className="dashboard-nav-item">
                   <span className="flex items-center gap-3">
                     <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-blue-600" : "text-[#9ca0ab]"}`} />
-                    <span>{item.label}</span>
+                    <span className="dashboard-nav-label">{item.label}</span>
                   </span>
                 </Link>
               );
@@ -120,15 +120,15 @@ export function PortalShell({
               <p className="text-sm font-semibold text-foreground">{studentName ?? "Learner profile pending"}</p>
               <p className="mt-1 text-[12px] text-muted">{schoolName ?? "School workspace"}</p>
             </div>
-            <nav className="px-3 py-3">
+            <nav className="dashboard-navigation px-3 py-3">
               <div className="space-y-1">
                 {portalNavItems.map((item) => {
                   const Icon = item.icon;
                   const href = item.href ? `${basePath}${item.href}` : basePath;
                   const isActive = item.href === "" ? pathname === basePath : pathname.startsWith(`${basePath}${item.href}`);
                   return (
-                    <Link key={item.id} href={href} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium transition ${isActive ? "bg-info-soft text-info" : "text-muted"}`}>
-                      <Icon className="h-5 w-5 shrink-0" /><span>{item.label}</span>
+                    <Link aria-current={isActive ? "page" : undefined} key={item.id} href={href} onClick={() => setMobileOpen(false)} className="dashboard-nav-item">
+                      <Icon className="h-5 w-5 shrink-0" /><span className="dashboard-nav-label">{item.label}</span>
                     </Link>
                   );
                 })}

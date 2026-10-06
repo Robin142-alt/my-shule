@@ -1375,19 +1375,16 @@ export function LibraryWorkspace({
                 Librarian access only
               </div>
             </div>
-            <nav className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
+            <nav className="dashboard-navigation mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
               {librarySidebarItems.map((item) => {
                 const isActive = item.id === section;
 
                 return (
                   <Link
+                    aria-current={isActive ? "page" : undefined}
                     key={item.id}
                     href={item.href}
-                    className={`rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-semibold transition ${
-                      isActive
-                        ? "bg-accent text-white"
-                        : "text-slate-300 hover:bg-slate-900 hover:text-white"
-                    }`}
+                    className="dashboard-nav-item"
                   >
                     {item.label}
                   </Link>
@@ -1398,7 +1395,7 @@ export function LibraryWorkspace({
               <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                 Support Center
               </p>
-              <nav className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
+              <nav className="dashboard-navigation mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-1">
                 {supportSidebarItems.map((item) => {
                   const Icon = item.icon;
 
@@ -1406,10 +1403,10 @@ export function LibraryWorkspace({
                     <Link
                       key={item.id}
                       href={`/school/librarian/${item.id}`}
-                      className="flex items-center gap-2 rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-semibold text-slate-300 transition hover:bg-slate-900 hover:text-white"
+                      className="dashboard-nav-item"
                     >
                       <Icon className="h-3.5 w-3.5 shrink-0" />
-                      <span>{item.label}</span>
+                      <span className="dashboard-nav-label">{item.label}</span>
                     </Link>
                   );
                 })}

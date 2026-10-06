@@ -247,10 +247,8 @@ function ShellButton({
     <button
       type="button"
       onClick={() => onViewChange(item.id)}
-      className={cn(
-        "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/72 transition hover:bg-white/10 hover:text-white",
-        activeView === item.id && "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]",
-      )}
+      aria-current={activeView === item.id ? "page" : undefined}
+      className="dashboard-nav-item"
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
       {item.label}
@@ -268,13 +266,13 @@ function Sidebar({
   return (
     <aside className="hidden h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:block">
       <SchoolCommandSidebarIdentity eyebrow="Transport command" title="Transport Manager" subtitle="Fleet, routes, safety, and parent communication" />
-      <nav className="mt-4 h-[calc(100%-8.5rem)] space-y-1 overflow-y-auto pr-1" aria-label="Transport manager navigation">
+      <nav className="dashboard-navigation mt-4 h-[calc(100%-8.5rem)] space-y-1 overflow-y-auto pr-1" aria-label="Transport manager navigation">
         {navItems.map((item, index) => {
           const showGroup = item.group !== navItems[index - 1]?.group;
 
           return (
             <div key={`${item.group}-${item.label}`}>
-              {showGroup ? <p className="px-3 pb-2 pt-4 text-[11px] font-black uppercase tracking-[0.2em] text-white/45">{item.group}</p> : null}
+              {showGroup ? <p className="dashboard-nav-group">{item.group}</p> : null}
               <ShellButton item={item} activeView={activeView} onViewChange={onViewChange} />
             </div>
           );

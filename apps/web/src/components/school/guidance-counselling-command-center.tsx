@@ -487,26 +487,22 @@ function Sidebar() {
         <h2 className="mt-2 text-2xl font-black">Counselling Care</h2>
         <p className="mt-2 text-sm leading-6 text-white/66">Private, calm, student-centered support tracking for silent risk detection.</p>
       </div>
-      <nav className="mt-5 max-h-[calc(100vh-250px)] space-y-5 overflow-auto pr-1">
+      <nav className="dashboard-navigation mt-5 max-h-[calc(100vh-250px)] space-y-5 overflow-auto pr-1">
         {groups.map((group) => (
           <div key={group}>
-            <p className="px-3 text-[11px] font-black uppercase tracking-[0.16em] text-white/45">{group}</p>
+            <p className="dashboard-nav-group">{group}</p>
             <div className="mt-2 grid gap-1">
               {navItems.filter((item) => item.group === group).map((item) => {
                 const Icon = item.icon;
                 return (
                   <a
+                    aria-current={item.active ? "page" : undefined}
                     key={item.label}
                     href={item.href}
-                    className={cn(
-                      "flex min-h-10 items-center gap-3 rounded-2xl px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5",
-                      item.active
-                        ? "border border-cyan-300/35 bg-cyan-300/12 text-cyan-100 shadow-[inset_4px_0_0_#22D3EE]"
-                        : "text-white/72 hover:bg-white/10 hover:text-white",
-                    )}
+                    className="dashboard-nav-item"
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="dashboard-nav-label">{item.label}</span>
                   </a>
                 );
               })}

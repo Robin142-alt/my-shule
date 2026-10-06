@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useModalLayer } from "@/hooks/use-modal-layer";
 import { createPortal } from "react-dom";
-import { Check, ChevronRight, Menu, Search, X } from "lucide-react";
+import { ChevronRight, Menu, Search, X } from "lucide-react";
 import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
 
 export type MobileWorkspaceNavItem = {
@@ -167,12 +167,12 @@ export function MobileWorkspaceNavigation({
                   </label>
                 ) : null}
 
-                <nav aria-label={`${label} sidebar options`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">
+                <nav aria-label={`${label} sidebar options`} className="dashboard-navigation min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">
                   {filteredGroups.length > 0 ? (
                     <div className="space-y-3">
                       {filteredGroups.map((group) => (
                         <section key={group.name}>
-                          <h3 className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-sidebar-muted">
+                          <h3 className="dashboard-nav-group">
                             {group.name}
                           </h3>
                           <div className="grid gap-1">
@@ -185,27 +185,11 @@ export function MobileWorkspaceNavigation({
                                   type="button"
                                   aria-current={selected ? "page" : undefined}
                                   onClick={() => chooseWorkspace(item.id)}
-                                  className={`flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left outline-none transition focus-visible:ring-4 focus-visible:ring-inverse-accent ${
-                                    selected
-                                      ? "bg-sidebar-active text-sidebar-foreground ring-1 ring-inset ring-inverse-border"
-                                      : "text-sidebar-muted hover:bg-white/5 hover:text-sidebar-foreground"
-                                  }`}
+                                  className="dashboard-nav-item"
                                 >
-                                  {Icon ? (
-                                    <span className={`grid h-6 w-6 shrink-0 place-items-center ${selected ? "text-inverse-accent" : "text-sidebar-muted"}`}>
-                                      <Icon className="h-4 w-4" aria-hidden="true" />
-                                    </span>
-                                  ) : null}
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block break-words text-sm font-semibold leading-5">{item.label}</span>
-                                    {item.badge ? <span className="mt-1 block text-xs">{item.badge}</span> : null}
-                                    {item.description ? (
-                                      <span className={`mt-0.5 block text-xs leading-4 ${selected ? "text-sidebar-muted" : "text-sidebar-muted"}`}>
-                                        {item.description}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                  {selected ? <Check className="h-4 w-4 shrink-0 text-inverse-accent" aria-hidden="true" /> : null}
+                                  {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+                                  <span className="dashboard-nav-label">{item.label}</span>
+                                  {item.badge ? <span className="shrink-0 text-xs">{item.badge}</span> : null}
                                 </button>
                               );
                             })}

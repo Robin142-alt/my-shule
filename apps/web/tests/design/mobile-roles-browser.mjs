@@ -100,6 +100,20 @@ if(process.argv.includes('--all-workspaces')){
 const roleFilter=process.argv.find(arg=>arg.startsWith('--roles='))?.slice(8).split(',');
 if(roleFilter)cases=cases.filter(([role])=>roleFilter.includes(role));
 const viewports=process.argv.includes('--all-workspaces')?[[320,740],[1440,1000]]:[[320,740],[390,844],[768,1024],[1024,768],[1440,1000]];
+async function checkNavigation(navigation) {
+ const rows=navigation.locator('.dashboard-nav-item:visible');
+ await rows.first().waitFor({state:'visible'});
+ assert.ok(await rows.count()>0,'The role menu keeps its navigation actions');
+ const failures=await rows.evaluateAll(nodes=>nodes.flatMap(el=>{
+  const style=getComputedStyle(el),box=el.getBoundingClientRect(),issues=[];
+  if(box.height<44||style.fontSize!=='13px'||style.borderRadius!=='10px')issues.push('inconsistent row size');
+  if(el.scrollWidth>el.clientWidth+1)issues.push('clipped menu content');
+  if([...el.querySelectorAll('svg')].some(icon=>Math.abs(icon.getBoundingClientRect().width-16)>1))issues.push('inconsistent icon size');
+  if(el.getAttribute('aria-current')==='page'&&style.backgroundColor!=='rgb(41, 74, 110)')issues.push('inconsistent active state');
+  return issues.map(issue=>`${el.textContent.trim()}: ${issue}`);
+ }));
+ assert.deepEqual(failures,[],'Desktop and mobile use the same compact menu style');
+}
 try{
  for(const [width,height] of viewports){
   const page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce',timezoneId:'Africa/Nairobi'});
@@ -113,6 +127,7 @@ try{
    await page.locator('.authenticated-app').waitFor({timeout:10000}).catch(()=>{});
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
+   if(width===1440)await checkNavigation(page.locator('aside .dashboard-navigation:visible').first());
    const edgeTab=page.locator('.app-side-menu-tab');
    if(width<1024){
     await edgeTab.waitFor({state:'visible',timeout:10000}).catch(()=>{throw new Error(`${role}/${section}: mobile navigation unavailable: ${errors.join('; ')}`);});
@@ -164,6 +179,7 @@ try{
      await trigger.click();
      const drawer=page.locator('.app-navigation-sheet');
      await drawer.waitFor({state:'visible'});
+     await checkNavigation(drawer.locator('.dashboard-navigation'));
      await drawer.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)));
      const box=await drawer.boundingBox();
      assert.ok(box&&Math.abs(box.x)<1&&box.width<=280&&box.width<=width*.78+1,`Navigation must leave the page edge visible: ${role} ${width} ${JSON.stringify(box)}`);
@@ -197,6 +213,7 @@ try{
     if(role==='principal'){
      await page.getByRole('button',{name:'Open principal navigation'}).click();
      const drawer=page.getByRole('dialog',{name:'Principal navigation',exact:true});
+     await checkNavigation(drawer.locator('.dashboard-navigation'));
      const box=await drawer.boundingBox();
      assert.ok(box&&box.width<=280&&box.width<=width*.78+1,'Principal drawer uses the same compact width');
      if(width===390)await page.screenshot({path:path.join(out,`principal-${section}-drawer-${width}.png`)});

@@ -104,35 +104,39 @@ export function SecretaryCommandCenter({ routeMode }: { routeMode?: "hosted" | "
             <h2 className="mt-2 text-xl font-black">Secretary Desk</h2>
             <p className="mt-2 text-sm leading-6 text-white/65">Front office operations.</p>
           </div>
-          <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
+          <nav className="dashboard-navigation mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
             <button
+              aria-current={activeWorkspace === "front-desk" ? "page" : undefined}
               type="button"
               onClick={() => setActiveWorkspace("front-desk")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "front-desk" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+              className="dashboard-nav-item"
             >
               <Users className="h-4 w-4 shrink-0" />
               Front Desk
             </button>
             <button
+              aria-current={activeWorkspace === "call-logs" ? "page" : undefined}
               type="button"
               onClick={() => setActiveWorkspace("call-logs")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "call-logs" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+              className="dashboard-nav-item"
             >
               <Phone className="h-4 w-4 shrink-0" />
               Call Logs
             </button>
             <button
+              aria-current={activeWorkspace === "appointments" ? "page" : undefined}
               type="button"
               onClick={() => setActiveWorkspace("appointments")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "appointments" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+              className="dashboard-nav-item"
             >
               <Calendar className="h-4 w-4 shrink-0" />
               Appointments
             </button>
             <button
+              aria-current={activeWorkspace === "dispatches" ? "page" : undefined}
               type="button"
               onClick={() => setActiveWorkspace("dispatches")}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold ${activeWorkspace === "dispatches" ? "bg-white/14 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/72 transition hover:bg-white/10 hover:text-white"}`}
+              className="dashboard-nav-item"
             >
               <Mail className="h-4 w-4 shrink-0" />
               Dispatches

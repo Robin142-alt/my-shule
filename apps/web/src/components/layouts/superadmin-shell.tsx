@@ -83,8 +83,8 @@ export function SuperAdminShell({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
-          <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
+        <nav className="dashboard-navigation flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
+          <p className="dashboard-nav-group">
             Navigation
           </p>
           <div className="space-y-0.5">
@@ -94,17 +94,14 @@ export function SuperAdminShell({
 
               return (
                 <Link
+                  aria-current={isActive ? "page" : undefined}
                   key={item.id}
                   href={item.href}
-                  className={`group flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? "bg-white/10 text-white shadow-[inset_4px_0_0_#FF7A1A]"
-                      : "text-white/60 hover:bg-white/10 hover:text-white"
-                  }`}
+                  className="dashboard-nav-item"
                 >
                   <span className="flex items-center gap-3">
                     <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-[#FF7A1A]" : "text-white/35 group-hover:text-white/70"}`} />
-                    <span>{item.label}</span>
+                    <span className="dashboard-nav-label">{item.label}</span>
                   </span>
                 </Link>
               );
@@ -149,22 +146,21 @@ export function SuperAdminShell({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <nav className="px-3 py-4">
+            <nav className="dashboard-navigation px-3 py-4">
               <div className="space-y-0.5">
                 {superadminNav.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
                   return (
                     <Link
+                      aria-current={isActive ? "page" : undefined}
                       key={item.id}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
-                        isActive ? "bg-white/10 text-white shadow-[inset_4px_0_0_#FF7A1A]" : "text-white/60 hover:text-white"
-                      }`}
+                      className="dashboard-nav-item"
                     >
                       <Icon className="h-[18px] w-[18px] shrink-0" />
-                      <span>{item.label}</span>
+                      <span className="dashboard-nav-label">{item.label}</span>
                     </Link>
                   );
                 })}

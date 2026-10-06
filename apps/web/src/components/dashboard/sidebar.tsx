@@ -74,7 +74,7 @@ function SidebarContent({
       </div>
 
       {/* Main Nav */}
-      <nav className="flex-1 custom-scrollbar overflow-y-auto px-3 pb-3">
+      <nav className="dashboard-navigation flex-1 custom-scrollbar overflow-y-auto px-3 pb-3">
         <div className="space-y-0.5">
           {mainItems.map((item) => {
             const Icon = iconMap[item.id as keyof typeof iconMap] ?? LayoutDashboard;
@@ -83,17 +83,14 @@ function SidebarContent({
 
             return (
               <Link
+                aria-current={active ? "page" : undefined}
                 key={item.id}
                 href={href}
                 onClick={onNavigate}
-                className={`flex items-center gap-3 rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
-                  active
-                    ? "bg-accent-soft text-accent shadow-sm"
-                    : "text-muted-strong hover:bg-surface-strong hover:text-foreground"
-                }`}
+                className="dashboard-nav-item"
               >
                 <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? "text-accent" : ""}`} />
-                <span>{item.label}</span>
+                <span className="dashboard-nav-label">{item.label}</span>
                 {active ? (
                   <div className="ml-auto h-1.5 w-1.5 rounded-full bg-accent" />
                 ) : null}

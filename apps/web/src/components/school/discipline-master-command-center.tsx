@@ -114,20 +114,16 @@ export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { ac
         </div>
         
         <div className="h-[calc(100vh-4rem)] overflow-y-auto p-4">
-          <nav className="space-y-1">
+          <nav className="dashboard-navigation space-y-1">
             {SIDEBAR_ITEMS.map((item) => (
               <button
+                aria-current={activeWorkspace === item.id ? "page" : undefined}
                 key={item.id}
                 onClick={() => {
                   setActiveWorkspace(item.id);
                   setIsMobileMenuOpen(false);
                 }}
-                className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition-all",
-                  activeWorkspace === item.id
-                    ? "bg-info-soft text-info"
-                    : "text-muted hover:bg-surface-muted hover:text-foreground"
-                )}
+                className="dashboard-nav-item"
               >
                 <item.icon className={cn(
                   "h-5 w-5",

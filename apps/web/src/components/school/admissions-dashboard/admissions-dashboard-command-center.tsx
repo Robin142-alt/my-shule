@@ -93,10 +93,10 @@ export function AdmissionsDashboardCommandCenter({
         <aside className="hidden rounded-3xl bg-primary p-5 text-white shadow-[0_24px_60px_rgba(7,29,73,0.18)] lg:sticky lg:top-6 lg:block lg:self-start">
           <SchoolCommandSidebarIdentity eyebrow="Admissions command" title="Admissions Officer" subtitle="Admit learners and manage school records" />
 
-          <nav aria-label="Admissions" className="mt-4 space-y-3">
+          <nav aria-label="Admissions" className="dashboard-navigation mt-4 space-y-3">
             {Object.entries(groupedNav).map(([group, items]) => (
               <div key={group}>
-                <p className="px-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/40">
+                <p className="dashboard-nav-group">
                   {group}
                 </p>
                 <div className="mt-2 space-y-1">
@@ -110,14 +110,10 @@ export function AdmissionsDashboardCommandCenter({
                         href={admissionsHref(item.id, routeMode)}
                         prefetch={false}
                         aria-current={isActive ? "page" : undefined}
-                        className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-black transition ${
-                          isActive
-                            ? "bg-cyan-300 text-foreground"
-                            : "text-white/75 hover:bg-white/10 hover:text-white"
-                        }`}
+                        className="dashboard-nav-item"
                       >
                         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span className="truncate">{item.label}</span>
+                        <span className="dashboard-nav-label">{item.label}</span>
                       </Link>
                     );
                   })}

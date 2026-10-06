@@ -181,15 +181,6 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-function principalNavItemClass(selected: boolean) {
-  return cn(
-    "flex min-h-10 w-full min-w-0 items-center gap-3 rounded-[var(--radius)] px-3 py-2 text-sm font-bold transition hover:-translate-y-0.5",
-    selected
-      ? "border border-cyan-300/35 bg-cyan-300/12 text-cyan-100 shadow-[inset_4px_0_0_#22D3EE]"
-      : "text-white/72 hover:bg-white/10 hover:text-white",
-  );
-}
-
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -561,10 +552,10 @@ export function PrincipalCommandCenter({
         type="button"
         aria-current={activeWorkspace === item.id ? "page" : undefined}
         onClick={() => setActiveWorkspace(item.id, item.id === "students" ? "pushState" : "replaceState")}
-        className={principalNavItemClass(activeWorkspace === item.id)}
+        className="dashboard-nav-item"
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="truncate">{item.label}</span>
+        <span className="dashboard-nav-label">{item.label}</span>
         {(item.id === "payment-setup" || item.id === "approvals") && Boolean(paymentSetup.data?.pending_approval) &&
           <span className="ml-auto rounded-full bg-warning-soft px-2 text-xs" aria-label={`${paymentSetup.data!.pending_approval} payment setups awaiting approval`}>{paymentSetup.data!.pending_approval} payment</span>}
       </button>
@@ -628,7 +619,7 @@ export function PrincipalCommandCenter({
                   </div>
                 </div>
               </div>
-              <nav aria-label="Principal dashboard sidebar" className="mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10">
+              <nav aria-label="Principal dashboard sidebar" className="dashboard-navigation mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10">
                 {PRINCIPAL_NAV_ITEMS.map((item) => {
                   if (!("children" in item)) return renderNavItem(item);
                   const Icon = item.icon;
@@ -644,16 +635,17 @@ export function PrincipalCommandCenter({
                           type="button"
                           aria-label={hasPage ? `${expanded ? "Collapse" : "Expand"} ${item.label}` : undefined}
                           aria-expanded={expanded}
+                          data-active={!hasPage && selected}
                           aria-controls={childrenId}
                           onClick={() => setExpandedNavGroups((groups) => ({ ...groups, [item.id]: !expanded }))}
                           className={hasPage
-                            ? "flex min-h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius)] text-white/72 transition hover:bg-white/10 hover:text-white"
-                            : principalNavItemClass(selected)}
+                            ? "dashboard-nav-item dashboard-nav-toggle"
+                            : "dashboard-nav-item"}
                         >
                           {!hasPage ? (
                             <>
                               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                              <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                              <span className="dashboard-nav-label">{item.label}</span>
                             </>
                           ) : null}
                           <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", !expanded && "-rotate-90")} aria-hidden="true" />

@@ -39,7 +39,6 @@ import { TeacherWorkloadWorkspace } from "./dean-academics/teacher-workload-work
 import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 import { DeputyTimetableManagementWorkspace } from "./deputy-principal/timetable-management-workspace";
-import { cn } from "./dean-academics/shared";
 
 type DeanRouteMode = "hosted" | "public";
 
@@ -213,7 +212,7 @@ function Sidebar({
       />
 
       <nav
-        className="space-y-1"
+        className="dashboard-navigation space-y-1"
         aria-label="Dean of Academics navigation"
       >
         {deanNavItems.map((item, index) => {
@@ -224,7 +223,7 @@ function Sidebar({
           return (
             <div key={`${item.group}-${item.id}`}>
               {showGroup ? (
-                <p className="px-3 pb-2 pt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                <p className="dashboard-nav-group">
                   {item.group}
                 </p>
               ) : null}
@@ -232,13 +231,10 @@ function Sidebar({
                 type="button"
                 onClick={() => onViewChange(item.id)}
                 aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFB27E]",
-                  active && "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]",
-                )}
+                className="dashboard-nav-item"
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{item.label}</span>
+                <span className="dashboard-nav-label">{item.label}</span>
               </button>
             </div>
           );

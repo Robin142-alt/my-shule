@@ -621,20 +621,20 @@ export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSe
         {/* Sidebar */}
         <aside className="hidden h-[calc(100vh-1.5rem)] overflow-hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.28)] lg:flex lg:flex-col lg:w-72 shrink-0">
           <SchoolCommandSidebarIdentity eyebrow="ICT command" title="ICT Manager" subtitle="Systems, devices, access, and support" />
-          <nav className="mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
-              <button onClick={() => handleSetView("overview")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "overview" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+          <nav className="dashboard-navigation mt-4 flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar" aria-label="Navigation">
+              <button aria-current={activeView === "overview" ? "page" : undefined} onClick={() => handleSetView("overview")} className="dashboard-nav-item">
                 <LayoutDashboard className="h-4 w-4" /> Overview
               </button>
-              <button onClick={() => handleSetView("helpdesk")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "helpdesk" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+              <button aria-current={activeView === "helpdesk" ? "page" : undefined} onClick={() => handleSetView("helpdesk")} className="dashboard-nav-item">
                 <ShieldAlert className="h-4 w-4" /> Helpdesk
               </button>
-              <button onClick={() => handleSetView("inventory")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "inventory" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+              <button aria-current={activeView === "inventory" ? "page" : undefined} onClick={() => handleSetView("inventory")} className="dashboard-nav-item">
                 <Monitor className="h-4 w-4" /> Asset Inventory
               </button>
-              <button onClick={() => handleSetView("access")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "access" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+              <button aria-current={activeView === "access" ? "page" : undefined} onClick={() => handleSetView("access")} className="dashboard-nav-item">
                 <Users className="h-4 w-4" /> Access Control
               </button>
-              <button onClick={() => handleSetView("logs")} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${activeView === "logs" ? "bg-white/15 text-white shadow-[inset_4px_0_0_#38BDF8]" : "text-white/70 hover:bg-white/10 hover:text-white"}`}>
+              <button aria-current={activeView === "logs" ? "page" : undefined} onClick={() => handleSetView("logs")} className="dashboard-nav-item">
                 <Server className="h-4 w-4" /> System Logs
               </button>
           </nav>
