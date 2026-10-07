@@ -53,7 +53,7 @@ const server=http.createServer(async(req,res)=>{
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}`,browser=await chromium.launch({headless:true}),results=[];
 try{
-  for(const width of [390,1440]){
+  for(const width of [320,768,1024,1440]){
     const page=await browser.newPage({viewport:{width,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);
     await page.getByRole('heading',{name:'Exam Analytics',exact:true}).waitFor();
     assert.equal(await page.locator('article').count(),6);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

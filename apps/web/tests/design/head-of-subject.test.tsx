@@ -50,7 +50,8 @@ it('explains how to assign an empty subject scope and offers retry on failures',
 it('provides grouped desktop navigation and opens a distinct learner workspace', () => {
   render(<HosCommandCenter routeMode="public" />);
   const menu = screen.getByRole('navigation', { name: 'Head of Subject workspaces' });
-  expect(within(menu).getAllByRole('link')).toHaveLength(12);
+  expect(within(menu).getAllByRole('link')).toHaveLength(13);
+  expect(within(menu).getByRole('link', { name: 'Exam Analytics' })).toHaveAttribute('href', '/school/hos/exam-analytics');
   fireEvent.click(within(menu).getByRole('link', { name: 'Learners at Risk' }));
   expect(screen.getByTestId('analytics-audience')).toHaveTextContent('At Risk');
   expect(within(menu).getByRole('link', { name: 'Learners at Risk' })).toHaveAttribute('aria-current', 'page');

@@ -61,6 +61,7 @@ import { DeputyStaffRolesWorkspace } from "./deputy-principal/staff-roles-worksp
 import { DeputySettingsWorkspace } from "./deputy-principal/settings-workspace";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 import { CbtModuleScreen } from "@/components/modules/cbt/cbt-module-screen";
@@ -84,6 +85,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "academics", label: "Academic Foundation", icon: GraduationCap, group: "Academics" },
   { id: "exams", label: "Exams & Marks", icon: ClipboardCheck, group: "Academics" },
   { id: "academic-intelligence", label: "Academic Intelligence", icon: BrainCircuit, group: "Academics" },
+  { id: "exam-analytics", label: "Exam Analytics", icon: BrainCircuit, group: "Academics" },
   { id: "classes", label: "Classes & Streams", icon: Layers, group: "Academics" },
   { id: "approvals", label: "Approvals & Escalations", icon: CheckCircle2, group: "Administration" },
   { id: "communication", label: "Communication", icon: MessageSquareText, group: "Administration" },
@@ -221,6 +223,8 @@ export function DeputyPrincipalCommandCenter({
             <DeputyExamsMarksWorkspace />
           </div>
         );
+      case "exam-analytics":
+        return <ExamAnalyticsWorkspace scope="school" emptyActions={[{label:"Review exams & marks",onClick:()=>setActiveWorkspace("exams")}]}/>;
       case "academic-intelligence":
         return (
           <AcademicIntelligenceWorkspace

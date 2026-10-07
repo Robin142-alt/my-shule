@@ -39,6 +39,7 @@ import { DashboardCommunicationBoundary } from "@/lib/dashboard-communication/da
 import { connectDashboardEventSource } from "@/lib/dashboard-communication/reconnecting-event-source";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { OverviewWorkspace as BoardingOverviewWorkspace } from "./boarding-master/overview-workspace";
 import { OverviewWorkspace as LibraryOverviewWorkspace } from "./librarian/overview-workspace";
 import { PrincipalAcademicSetupWorkspace } from "./principal-dashboard/academic-setup-workspace";
@@ -99,6 +100,7 @@ type PrincipalSection =
   | "library"
   | "exams-reports"
   | "academic-intelligence"
+  | "exam-analytics"
   | "communication"
   | "users-invitations"
   | "approvals"
@@ -136,6 +138,7 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "approvals", label: "Approvals", icon: CheckCircle2 },
   { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3 },
+  { id: "exam-analytics", label: "Exam Analytics", icon: BarChart3 },
   { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
   { id: "communication", label: "Communication", icon: MessageSquareText },
   { id: "timetable", label: "Master Timetable", icon: CalendarDays },
@@ -512,6 +515,9 @@ export function PrincipalCommandCenter({
           theme="dark"
         />
       );
+    }
+    if (activeWorkspace === "exam-analytics") {
+      return <ExamAnalyticsWorkspace scope="school" emptyActions={[{label:"Review exams & report cards",onClick:()=>setActiveWorkspace("exams-reports")}]}/>;
     }
     if (activeWorkspace === "academic-intelligence") {
       return (

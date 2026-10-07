@@ -43,6 +43,7 @@ export const navItems: NavItem[] = [
   { id: "assessments-cats", label: "Assessments", icon: Activity, group: "Assessments" },
   { id: "exams-marks", label: "Exams & Marks", icon: GraduationCap, group: "Assessments" },
   { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3, group: "Assessments" },
+  { id: "exam-analytics", label: "Exam Analytics", icon: BarChart3, group: "Assessments" },
   { id: "learner-progress", label: "Learner Progress", icon: LineChart, group: "Assessments" },
   { id: "discipline-welfare", label: "Discipline", icon: Sword, group: "Student Support" },
   { id: "parent-communication", label: "Parents", icon: MessageSquare, group: "Student Support" },

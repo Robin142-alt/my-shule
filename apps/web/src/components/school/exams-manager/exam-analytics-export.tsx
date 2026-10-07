@@ -8,7 +8,7 @@ import { academicReportHtml, isAnalyticsReportResponse, type AnalyticsReportResp
 import type { AnalyticsLibrary } from '../../../../../api/src/modules/exams/analytics/analytics-library-contract';
 import styles from './exam-analytics.module.css';
 
-export function ExamAnalyticsExport({ids,catalog,filters,onClose}:{ids:string[];catalog:AnalyticsLibrary['catalog'];filters:Record<string,string>;onClose:()=>void}) {
+export function ExamAnalyticsExport({ids,catalog,filters,onClose,subjectOnly=false}:{ids:string[];catalog:AnalyticsLibrary['catalog'];filters:Record<string,string>;onClose:()=>void;subjectOnly?:boolean}) {
   const [chosen,setChosen]=useState(ids);
   const [result,setResult]=useState<AnalyticsReportResponse|null>(null);
   const [urls,setUrls]=useState({pdf:'',csv:''});
@@ -18,7 +18,7 @@ export function ExamAnalyticsExport({ids,catalog,filters,onClose}:{ids:string[];
   const [format,setFormat]=useState<'both'|'csv'>('both');
   const frame=useRef<HTMLIFrameElement>(null);
   const objectUrls=useRef<string[]>([]);
-  const mutation=useSchoolMutation<AnalyticsReportResponse,{section:'library';filters:Record<string,string>;format:'both'|'csv'}>('/exams/analytics/reports','POST',{queueNetworkFailures:false,invalidateSchoolQueries:false});
+  const mutation=useSchoolMutation<AnalyticsReportResponse,{section:'library';filters:Record<string,string>;format:'both'|'csv'}>(subjectOnly?'/exams/analytics/reports/subject':'/exams/analytics/reports','POST',{queueNetworkFailures:false,invalidateSchoolQueries:false});
   useEffect(()=>()=>objectUrls.current.forEach(url=>URL.revokeObjectURL(url)),[]);
   function clear() {setResult(null);setReady(false);setError('');objectUrls.current.forEach(url=>URL.revokeObjectURL(url));objectUrls.current=[];setUrls({pdf:'',csv:''});}
   function choose(next:string[]) {setChosen(next);clear();}

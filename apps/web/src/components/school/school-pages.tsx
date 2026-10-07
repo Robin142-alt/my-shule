@@ -498,6 +498,7 @@ const admissionsDashboardSectionIds = new Set([
 ]);
 
 const teacherDashboardSectionIds = new Set([
+  "exam-analytics",
   "dashboard",
   "overview",
   "students",
@@ -649,6 +650,7 @@ const roleOperationalWorkspaceSectionIds = new Set([
 ]);
 
 const deanAcademicsWorkspaceSectionIds = new Set([
+  "exam-analytics",
   "dashboard",
   "overview",
   "academic-overview",
@@ -688,6 +690,7 @@ const deanAcademicsWorkspaceSectionIds = new Set([
 ]);
 
 const hodWorkspaceSectionIds = new Set([
+  "exam-analytics",
   "dashboard",
   "overview",
   "my-teaching",
@@ -753,6 +756,7 @@ const financeRoleDedicatedSectionIds = new Set([
   "reports",
 ]);
 const principalCommandCenterSectionIds = new Set([
+  "exam-analytics",
   "payment-setup",
   "collections",
   "dashboard",
@@ -954,6 +958,7 @@ const dedicatedLiveModuleSectionIds = new Set([
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
+  if (section === "exam-analytics" && (role === "grade-master" || role === "class-teacher")) return true;
   if (
     sharedOperationalFallbackRoleIds.has(role)
     && roleOperationalWorkspaceSectionIds.has(section)

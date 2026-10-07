@@ -110,6 +110,19 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     const denied=await read('subject','hos',{analytics_mode:'library',student_id:'foreign',analytic_ids:'student-profiles'});
     expect(denied.library!.items[0].total).toBe(0);
   });
+  it.each([
+    ['assignment','teacher',1,80], ['subject','hos',2,60], ['department','hod',2,57.5],
+    ['class','class_teacher',2,57.5], ['grade','grade',1,65], ['school','principal',2,57.5],
+  ] as const)('keeps %s library views and full exports in the same authorized population',async(level,actor,count,mean)=>{
+    for(const forReport of [false,true]) {
+      const data=await repository.getAnalytics('school-a',{level,actor_user_id:ids[actor],role:actor},
+        {page:1,page_size:25,scope:level,analytics_mode:'library',analytic_ids:'mean,student-profiles'},level==='school',forReport);
+      expect(data.performance.learners_examined).toBe(count);
+      expect(data.performance.mean).toBe(mean);
+      expect(data.library!.items.find(item=>item.id==='mean')!.rows[0].values).toEqual(['Average score',mean,'%']);
+      expect(JSON.stringify(data)).not.toContain('FOREIGN');
+    }
+  });
   it('reuses only actor-bound school reads and bypasses reuse for exports and manual refresh',async()=>{
     const spy=jest.spyOn(repository,'executeSql');
     const selection={analytics_mode:'library',analytic_ids:'mean',refresh_key:'cache-test'};

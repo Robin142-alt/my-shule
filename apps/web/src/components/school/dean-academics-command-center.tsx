@@ -28,6 +28,7 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 
 import { buildSchoolSectionHref } from "./school-pages";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { AcademicInterventionsWorkspace } from "./dean-academics/academic-interventions-workspace";
 import { AssessmentsWorkspace } from "./dean-academics/assessments-workspace";
 import { CurriculumCoverageWorkspace } from "./dean-academics/curriculum-coverage-workspace";
@@ -47,6 +48,7 @@ export type DeanView =
   | "academics"
   | "curriculum-coverage"
   | "department-performance"
+  | "exam-analytics"
   | "teacher-workload"
   | "timetable"
   | "lesson-plans"
@@ -64,6 +66,7 @@ type DeanNavItem = {
 };
 
 const deanNavItems: DeanNavItem[] = [
+  { id: "exam-analytics", label: "Exam Analytics", description: "Explore school results, trends, comparisons and printable academic insights.", icon: BarChart3, group: "Academic office" },
   {
     id: "academics",
     label: "Academic Foundation",
@@ -146,6 +149,7 @@ const deanNavItems: DeanNavItem[] = [
 ];
 
 const deanViewAliases: Record<string, DeanView> = {
+  "exam-analytics": "exam-analytics",
   dashboard: "overview",
   "academic-overview": "overview",
   academics: "academics",
@@ -352,6 +356,8 @@ function DeanWorkspace({
   const tenantId = useOptionalSchoolTenantId();
   const { schoolName } = useSchoolCommandIdentity();
   switch (activeView) {
+    case "exam-analytics":
+      return <ExamAnalyticsWorkspace scope="school" emptyActions={[{label:"Review assessments",onClick:()=>onNavigate("assessments")},{label:"Review report cards",onClick:()=>onNavigate("reports")}]}/>;
     case "academics":
       return tenantId ? (
         <div className="rounded-2xl bg-[#0B1E4A] p-4 sm:p-6">

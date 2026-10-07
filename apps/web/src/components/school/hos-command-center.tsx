@@ -7,6 +7,7 @@ import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { hosWorkspaces, normalizeHosSection, type HosSection } from "@/lib/school/hos-workspaces";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "./integrated-school-command-header";
 import { buildSchoolSectionHref } from "./school-pages";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -104,7 +105,7 @@ export function HosCommandCenter({ activeSection, routeMode = "hosted" }: { acti
         </header>
         <div className="app-content space-y-5 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
           <IntegratedSchoolCommandHeader roleTitle="Head of Subject" fallbackUserLabel="Head of Subject" contextLabel="Subject oversight" />
-          {section === "subjects" ? <SubjectAppointmentsWorkspace onOpenSubject={id => { setSubjectId(id); openSection("academic-intelligence"); }} /> : <>
+          {section === "subjects" ? <SubjectAppointmentsWorkspace onOpenSubject={id => { setSubjectId(id); openSection("academic-intelligence"); }} /> : section === "exam-analytics" ? <ExamAnalyticsWorkspace scope="subject" emptyActions={[{label:"Check subject appointments",onClick:()=>openSection("subjects")}]}/> : <>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted"><p>Published results for your appointed subjects.</p><Link href={buildSchoolSectionHref("hos", "subjects", routeMode)} onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openSection("subjects"); } }} className="inline-flex min-h-11 items-center font-semibold text-info underline">Check your subject appointments</Link></div>
             <AcademicIntelligenceWorkspace audience="hos" initialSubjectId={subjectId} activeView={current.view ?? "Overview"} onViewChange={view => openSection(hosWorkspaces.find(item => item.view === view)?.id ?? "academic-intelligence")} hideNavigation />
           </>}

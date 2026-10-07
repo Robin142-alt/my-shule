@@ -11,6 +11,7 @@ import { navItems } from "./teacher-dashboard/nav-config";
 import { TeacherView, TeacherAction } from "./teacher-dashboard/types";
 import { buildSchoolSectionHref } from "./school-pages";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 
 // Workspaces
 import { OverviewWorkspace } from "./teacher-dashboard/overview-workspace";
@@ -107,6 +108,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {activeView === "lesson-log" && <LessonLogWorkspace />}
           {activeView === "assessments-cats" && <AssessmentsCatsWorkspace />}
           {activeView === "exams-marks" && <ExamsMarksWorkspace onStartAction={handleStartAction} />}
+          {activeView === "exam-analytics" && <ExamAnalyticsWorkspace scope="assignment" onOpenMarks={() => setActiveView("exams-marks")} emptyActions={[{label:"Review teaching assignments",onClick:()=>setActiveView("classes")}]}/>}
           {activeView === "academic-intelligence" && (
             <AcademicIntelligenceWorkspace
               audience="teacher"
@@ -131,7 +133,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {/* Fallback for other workspaces */}
           {![
             "overview", "attendance", "assignments", "discipline-welfare", "classes",
-            "lesson-log", "assessments-cats", "exams-marks", "academic-intelligence", "parent-communication",
+            "lesson-log", "assessments-cats", "exams-marks", "exam-analytics", "academic-intelligence", "parent-communication",
             "timetable", "syllabus-coverage", "learner-progress", "teaching-resources",
             "practical-requisitions", "store-requests", "reports", "notifications", "profile", "class-teacher",
             "club", "invigilation"

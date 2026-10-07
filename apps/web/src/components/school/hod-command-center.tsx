@@ -22,6 +22,7 @@ import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/c
 import { TaskQueue } from "@/components/shared/task-queue";
 
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { buildSchoolSectionHref } from "./school-pages";
 import { CoverageReviewWorkspace } from "./hod/coverage-review-workspace";
 import { DepartmentTeachersWorkspace } from "./hod/department-teachers-workspace";
@@ -42,6 +43,7 @@ type HodView =
   | "coverage-review"
   | "lesson-plans"
   | "academic-intelligence"
+  | "exam-analytics"
   | "resource-requests"
   | "reports";
 
@@ -98,11 +100,12 @@ const hodNavItems: HodNavItem[] = [
   },
   {
     id: "academic-intelligence",
-    label: "Exam Analytics",
+    label: "Academic Intelligence",
     description: "Published department results, subject trends, and learner support.",
     icon: BarChart3,
     group: "Exams",
   },
+  { id: "exam-analytics", label: "Exam Analytics", description: "Explore published department results, comparisons and printable insights.", icon: BarChart3, group: "Exams" },
   {
     id: "resource-requests",
     label: "Resource Requests",
@@ -150,6 +153,7 @@ const hodViewAliases: Record<string, HodView> = {
   "student-analytics": "academic-intelligence",
   "academic-analytics": "academic-intelligence",
   "academic-intelligence": "academic-intelligence",
+  "exam-analytics": "exam-analytics",
   "learner-interventions": "academic-intelligence",
   "marks-moderation": "academic-intelligence",
   resources: "resource-requests",
@@ -330,6 +334,8 @@ function HodWorkspace({
       return <CoverageReviewWorkspace />;
     case "lesson-plans":
       return <LessonPlansWorkspace />;
+    case "exam-analytics":
+      return <ExamAnalyticsWorkspace scope="department" emptyActions={[{label:"Review department allocations",onClick:()=>onNavigate("subject-allocation")},{label:"Open department reports",onClick:()=>onNavigate("reports")}]}/>;
     case "academic-intelligence":
       return (
         <AcademicIntelligenceWorkspace

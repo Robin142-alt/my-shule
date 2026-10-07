@@ -20,6 +20,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { type TeacherView, sendClassTeacherCommunication } from "./class-teacher/shared";
 import { buildSchoolSectionHref, type SchoolRouteMode } from "./school-pages";
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { OverviewWorkspace } from "./class-teacher/workspaces/home";
 import { ClassRegisterWorkspace } from "./class-teacher/workspaces/register";
 import { AttendanceWorkspace } from "./class-teacher/workspaces/attendance";
@@ -44,6 +45,7 @@ const navItems = [
   { id: "attendance", label: "Attendance", icon: ClipboardCheck, group: "Class Operations" },
   { id: "progress", label: "Academic Progress", icon: GraduationCap, group: "Academics" },
   { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3, group: "Academics" },
+  { id: "exam-analytics", label: "Exam Analytics", icon: BarChart3, group: "Academics" },
   { id: "comments", label: "Report Card Comments", icon: FileSignature, group: "Academics" },
   { id: "discipline", label: "Discipline & Behaviour", icon: ShieldAlert, group: "Student Welfare" },
   { id: "welfare", label: "Welfare & Counselling", icon: HeartPulse, group: "Student Welfare" },
@@ -191,6 +193,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
           {activeView === "register" && <ClassRegisterWorkspace onSelectLearner={setSelectedLearner} />}
           {activeView === "attendance" && <AttendanceWorkspace />}
           {activeView === "progress" && <AcademicProgressWorkspace />}
+          {activeView === "exam-analytics" && <ExamAnalyticsWorkspace scope="class" emptyActions={[{label:"Review class progress",onClick:()=>setActiveView("progress")},{label:"Review report comments",onClick:()=>setActiveView("comments")}]}/>}
           {activeView === "academic-intelligence" && (
             <AcademicIntelligenceWorkspace
               audience="class-teacher"
