@@ -12,6 +12,7 @@ import { SubjectReportsWorkspace } from "./subject-reports-workspace";
 export type AcademicIntelligenceAudience = "principal" | "deputy" | "dean" | "exams-manager" | "hod" | "hos" | "grade-master" | "teacher" | "class-teacher";
 export interface AcademicIntelligenceWorkspaceProps {
   audience: AcademicIntelligenceAudience;
+  title?: string;
   activeView?: string;
   onViewChange?: (view: string) => void;
   hideNavigation?: boolean;
@@ -58,7 +59,7 @@ export function AcademicIntelligenceWorkspace(props: AcademicIntelligenceWorkspa
   const descriptions:Record<string,string>={Overview:'Your results, changes and next steps in one place.',Performance:'Understand achievement bands and which results are included.',Comparisons:'Compare subjects, classes and previous exams.',Learners:'Find a learner, review their progress and plan support.','At Risk':'Prioritize learners who may need support.',Trends:'See how results change over time.',Interventions:'Review planned support and measured outcomes.','Exam Operations':'Find unfinished marks and move reports toward approval.',Reports:'Check report-card readiness.',Targets:'Review the available target evidence.',Advanced:'Explore variation, gaps and the limits of the evidence.','Exam Analysis':'Review exam results and available assessment evidence.'};
   const selectedScope=analytics?.scope.level;
   const scopeTitle=selectedScope ? scopeNames[selectedScope] : props.audience==="hos"?"Head of Subject":props.audience==="grade-master"?"Grade/Form Master":"Academic";
-  const title=selectedScope==="subject"?"Subject Academic Intelligence":selectedScope==="grade"?"Grade/Form Academic Intelligence":"Academic Intelligence";
+  const title=props.title??(selectedScope==="subject"?"Subject Academic Intelligence":selectedScope==="grade"?"Grade/Form Academic Intelligence":"Academic Intelligence");
   const options=analytics?.options;
   function select(label:string,key:string,values:{id:string;name:string}[],defaultLabel="All",visible=true) {
     if(!visible)return null;

@@ -422,7 +422,7 @@ describe("principal production readiness", () => {
       .filter((item) => !item.closest('[role="group"]') && item.textContent?.trim())
       .map((item) => item.textContent?.trim());
     expect(topLevelLabels).toEqual([
-      "Overview", "Approvals", "Academic Intelligence", "Exam Analytics", "Exams & Report Cards", "Communication",
+      "Overview", "Approvals", "Exam Analytics", "Exams & Report Cards", "Communication",
       "Master Timetable", "Fees & Finance", "Students", "Academics", "Staff", "Parents & Visitors",
       "Transport", "Library", "Users & Invitations", "Reports", "Audit Logs", "School Setup", "Settings",
     ]);

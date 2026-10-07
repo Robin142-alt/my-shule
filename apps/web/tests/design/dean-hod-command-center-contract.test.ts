@@ -11,7 +11,7 @@ describe("academic leadership command center shell contract", () => {
 
     expect(source).toMatch(/from "\.\/dean-academics\/overview-workspace"/);
     expect(source).toMatch(/from "\.\/dean-academics\/curriculum-coverage-workspace"/);
-    expect(source).toMatch(/from "\.\/dean-academics\/department-performance-workspace"/);
+    expect(source).toMatch(/from "\.\/exam-analytics-entry"/);
     expect(source).toMatch(/from "\.\/dean-academics\/teacher-workload-workspace"/);
     expect(source).toMatch(/from "\.\/dean-academics\/lesson-plans-workspace"/);
     expect(source).toMatch(/from "\.\/dean-academics\/lesson-logs-workspace"/);

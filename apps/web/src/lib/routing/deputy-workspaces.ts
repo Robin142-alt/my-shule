@@ -1,6 +1,6 @@
 export const DEPUTY_WORKSPACES = [
   "overview", "daily-operations", "attendance", "discipline", "welfare", "staff-duty",
-  "timetable", "academics", "teaching", "exams", "academic-intelligence", "exam-analytics", "classes",
+  "timetable", "academics", "teaching", "exams", "exam-analytics", "classes",
   "approvals", "communication", "users-invitations", "reports", "staff-roles", "settings", "cbt", "lms",
   "support-new-ticket", "support-my-tickets", "support-knowledge-base", "support-system-status",
 ] as const;
@@ -15,7 +15,7 @@ export const DEPUTY_WORKSPACE_ALIASES: Record<string, string> = {
   "timetable-conflicts": "timetable", "timetable-builder": "timetable",
   "academic-review": "academics", "academic-setup": "academics", "academic-monitoring": "academics",
   "subjects": "academics", "subjects-departments": "academics", "subject-allocation": "academics",
-  "academic-analytics": "academic-intelligence",
+  "academic-analytics": "exam-analytics", "academic-intelligence": "exam-analytics",
   "classes-streams": "classes", "reports-downloads": "reports", "reports-analytics": "reports",
   "my-teaching": "teaching", "teacher-workload": "teaching",
 };

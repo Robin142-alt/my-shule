@@ -243,9 +243,9 @@ export function OverviewWorkspace({
                 icon: CalendarDays,
               },
               {
-                title: "Department performance",
+                title: "Exam Analytics",
                 detail: "Compare outcomes and identify support needs",
-                view: "department-performance" as const,
+                view: "exam-analytics" as const,
                 icon: UsersRound,
               },
               {

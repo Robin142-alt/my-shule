@@ -1,8 +1,7 @@
-import { BarChart3, BookOpen, ChartNoAxesCombined, ClipboardCheck, FileSearch, FileText, GitCompareArrows, HeartHandshake, LayoutGrid, ShieldAlert, TrendingUp, Users } from "lucide-react";
+import { BarChart3, BookOpen, ChartNoAxesCombined, ClipboardCheck, FileSearch, FileText, GitCompareArrows, HeartHandshake, ShieldAlert, TrendingUp, Users } from "lucide-react";
 
 /** Every HOS entry uses the subject-scoped analytics contract or authenticated appointments. */
 export const hosWorkspaces = [
-  { id: "academic-intelligence", label: "Subject Overview", group: "Command Center", icon: LayoutGrid, view: "Overview", description: "Published results and the next steps for your subjects." },
   { id: "subjects", label: "My Subject Appointments", group: "Command Center", icon: BookOpen, view: null, description: "Your subject responsibilities, dates and appointment history." },
   { id: "exam-analytics", label: "Exam Analytics", group: "Academic Results", icon: ChartNoAxesCombined, view: null, description: "Explore the complete analytics library for your appointed subjects, with downloads and printing." },
   { id: "performance-analytics", label: "Subject Performance", group: "Academic Results", icon: BarChart3, view: "Performance", description: "Achievement bands, pass rates and assessment coverage." },
@@ -21,9 +20,9 @@ export type HosSection = typeof hosWorkspaces[number]["id"];
 
 export function normalizeHosSection(section?: string): HosSection {
   if (section === "exams") return "exam-analysis";
-  return hosWorkspaces.find(item => item.id === section)?.id ?? "academic-intelligence";
+  return hosWorkspaces.find(item => item.id === section)?.id ?? "exam-analytics";
 }
 
 export function isHosSection(section: string) {
-  return ["dashboard", "overview", "exams"].includes(section) || hosWorkspaces.some(item => item.id === section);
+  return ["dashboard", "overview", "exams", "academic-intelligence"].includes(section) || hosWorkspaces.some(item => item.id === section);
 }

@@ -13,6 +13,7 @@ jest.mock('@/lib/auth/csrf-client', () => ({ getCsrfToken: async () => 'csrf-tes
 jest.mock('@/components/school/school-pages', () => ({ buildSchoolSectionHref: (role: string, section: string, mode: string) => mode === 'public' ? `/school/${role}/${section}` : `/${section}` }));
 jest.mock('@/components/school/integrated-school-command-header', () => ({ IntegratedSchoolCommandHeader: ({ roleTitle }: { roleTitle: string }) => <h1>{roleTitle}</h1>, SchoolCommandSidebarIdentity: () => <div>School identity</div> }));
 jest.mock('@/components/school/academic-intelligence-workspace', () => ({ AcademicIntelligenceWorkspace: ({ audience, activeView }: { audience: string; activeView?: string }) => <div data-testid="analytics-audience">{audience}<span>{activeView}</span></div> }));
+jest.mock('@/components/school/exam-analytics-entry', () => ({ ExamAnalyticsWorkspace: ({ scope }: { scope: string }) => <div data-testid="exam-analytics-scope">{scope}</div> }));
 jest.mock('@/components/shared/notification-bell', () => ({ NotificationBell: () => <button>Notifications</button> }));
 jest.mock('@/components/school/subject-head-setup', () => ({ SubjectHeadSetup: () => <p>Manage subject appointments</p> }));
 
@@ -26,10 +27,11 @@ it('routes canonical and alias roles to a real subject workspace', () => {
   expect(getSchoolRoleAlias('head_of_subject')).toBe('hos');
   const workspace = getSchoolWorkspace('hos');
   expect(workspace.profile.roleLabel).toBe('Head of Subject');
-  expect(workspace.navItems.map(item => item.id)).toEqual(expect.arrayContaining(['academic-intelligence', 'subjects']));
+  expect(workspace.navItems.map(item => item.id)).toEqual(expect.arrayContaining(['exam-analytics', 'subjects']));
+  expect(workspace.navItems.map(item => item.id)).not.toContain('academic-intelligence');
   render(<HosCommandCenter routeMode="public" />);
   expect(screen.getByRole('heading', { name: 'Head of Subject' })).toBeVisible();
-  expect(screen.getByTestId('analytics-audience')).toHaveTextContent('hos');
+  expect(screen.getByTestId('exam-analytics-scope')).toHaveTextContent('subject');
   expect(screen.getByRole('link', { name: 'My Subject Appointments' })).toHaveAttribute('href', '/school/hos/subjects');
 });
 
@@ -50,7 +52,7 @@ it('explains how to assign an empty subject scope and offers retry on failures',
 it('provides grouped desktop navigation and opens a distinct learner workspace', () => {
   render(<HosCommandCenter routeMode="public" />);
   const menu = screen.getByRole('navigation', { name: 'Head of Subject workspaces' });
-  expect(within(menu).getAllByRole('link')).toHaveLength(13);
+  expect(within(menu).getAllByRole('link')).toHaveLength(12);
   expect(within(menu).getByRole('link', { name: 'Exam Analytics' })).toHaveAttribute('href', '/school/hos/exam-analytics');
   fireEvent.click(within(menu).getByRole('link', { name: 'Learners at Risk' }));
   expect(screen.getByTestId('analytics-audience')).toHaveTextContent('At Risk');
@@ -96,6 +98,15 @@ it('filters appointments by status and opens only active subject results', () =>
   fireEvent.change(screen.getByLabelText('Appointment status'), { target: { value: 'expired' } });
   expect(screen.queryByRole('heading', { name: 'Mathematics' })).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Biology' })).toBeVisible();
+});
+
+it('opens appointment results in Exam Analytics with the selected subject', () => {
+  mockQuery.mockReturnValue({ data: [{ id: 'a', subject_id: 'math', subject_name: 'Mathematics', status: 'active', appointment_type: 'permanent' }], refetch: jest.fn() });
+  render(<HosCommandCenter activeSection="subjects" routeMode="public" />);
+  fireEvent.click(screen.getByRole('button', { name: 'View subject results' }));
+  expect(screen.getByTestId('exam-analytics-scope')).toHaveTextContent('subject');
+  expect(window.location.pathname).toBe('/school/hos/exam-analytics');
+  expect(new URLSearchParams(window.location.search).get('ea_subject_id')).toBe('math');
 });
 
 it('shows dates and appointment state and filters by subject', () => {

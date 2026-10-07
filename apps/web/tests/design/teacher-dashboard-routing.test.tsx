@@ -71,7 +71,7 @@ describe("teacher dashboard routing", () => {
     ["academics", /Exams & Marks/i],
     ["communication", /^Parents$/i],
     ["reports-downloads", /^Reports$/i],
-    ["reports-analytics", /Academic Intelligence/i],
+    ["reports-analytics", /Exam Analytics/i],
   ] as const)(
     "routes legacy teacher sidebar section %s into the new teacher shell",
     async (section, activeButton) => {

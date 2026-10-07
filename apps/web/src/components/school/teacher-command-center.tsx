@@ -10,7 +10,6 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { navItems } from "./teacher-dashboard/nav-config";
 import { TeacherView, TeacherAction } from "./teacher-dashboard/types";
 import { buildSchoolSectionHref } from "./school-pages";
-import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 
 // Workspaces
@@ -54,9 +53,9 @@ function normalizeTeacherView(section?: string): TeacherView {
     "resource-requests": "teaching-resources",
     "lab-practical-requests": "practical-requisitions",
     "reports-downloads": "reports",
-    "reports-analytics": "academic-intelligence",
-    "academic-analytics": "academic-intelligence",
-    "academic-intelligence": "academic-intelligence",
+    "reports-analytics": "exam-analytics",
+    "academic-analytics": "exam-analytics",
+    "academic-intelligence": "exam-analytics",
     messages: "parent-communication",
   };
 
@@ -109,14 +108,6 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {activeView === "assessments-cats" && <AssessmentsCatsWorkspace />}
           {activeView === "exams-marks" && <ExamsMarksWorkspace onStartAction={handleStartAction} />}
           {activeView === "exam-analytics" && <ExamAnalyticsWorkspace scope="assignment" onOpenMarks={() => setActiveView("exams-marks")} emptyActions={[{label:"Review teaching assignments",onClick:()=>setActiveView("classes")}]}/>}
-          {activeView === "academic-intelligence" && (
-            <AcademicIntelligenceWorkspace
-              audience="teacher"
-              onOpenMarks={() => setActiveView("exams-marks")}
-              onOpenInterventions={() => setActiveView("learner-progress")}
-              onOpenReportCards={() => setActiveView("reports")}
-            />
-          )}
           {activeView === "parent-communication" && <ParentCommunicationWorkspace onStartAction={handleStartAction} />}
           {activeView === "timetable" && <AppointedTimetableWorkspace />}
           {activeView === "syllabus-coverage" && <SyllabusCoverageWorkspace />}
@@ -133,7 +124,7 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {/* Fallback for other workspaces */}
           {![
             "overview", "attendance", "assignments", "discipline-welfare", "classes",
-            "lesson-log", "assessments-cats", "exams-marks", "exam-analytics", "academic-intelligence", "parent-communication",
+            "lesson-log", "assessments-cats", "exams-marks", "exam-analytics", "parent-communication",
             "timetable", "syllabus-coverage", "learner-progress", "teaching-resources",
             "practical-requisitions", "store-requests", "reports", "notifications", "profile", "class-teacher",
             "club", "invigilation"

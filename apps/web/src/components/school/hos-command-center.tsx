@@ -68,11 +68,11 @@ export function HosCommandCenter({ activeSection, routeMode = "hosted" }: { acti
   }, []);
   const current = hosWorkspaces.find(item => item.id === section)!;
   const visibleItems = hosWorkspaces.filter(item => `${item.label} ${item.description} ${item.group}`.toLowerCase().includes(search.trim().toLowerCase()));
-  function openSection(next: HosSection) {
+  function openSection(next: HosSection, selectedSubjectId?: string) {
     setSection(next);
     setSearch("");
-    const href = buildSchoolSectionHref("hos", next, routeMode);
-    if (window.location.pathname !== href) window.history.pushState(null, "", href);
+    const href = buildSchoolSectionHref("hos", next, routeMode) + (selectedSubjectId ? `?${new URLSearchParams({ ea_subject_id: selectedSubjectId })}` : "");
+    if (window.location.pathname + window.location.search !== href) window.history.pushState(null, "", href);
   }
   return <div className="authenticated-app min-h-dvh bg-background text-foreground lg:h-dvh lg:overflow-hidden" data-testid="hos-command-center" data-role-dashboard="hos" data-active-view={section}>
     <div className="flex min-h-dvh lg:h-full">
@@ -105,9 +105,9 @@ export function HosCommandCenter({ activeSection, routeMode = "hosted" }: { acti
         </header>
         <div className="app-content space-y-5 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-6">
           <IntegratedSchoolCommandHeader roleTitle="Head of Subject" fallbackUserLabel="Head of Subject" contextLabel="Subject oversight" />
-          {section === "subjects" ? <SubjectAppointmentsWorkspace onOpenSubject={id => { setSubjectId(id); openSection("academic-intelligence"); }} /> : section === "exam-analytics" ? <ExamAnalyticsWorkspace scope="subject" emptyActions={[{label:"Check subject appointments",onClick:()=>openSection("subjects")}]}/> : <>
+          {section === "subjects" ? <SubjectAppointmentsWorkspace onOpenSubject={id => { setSubjectId(id); openSection("exam-analytics", id); }} /> : section === "exam-analytics" ? <ExamAnalyticsWorkspace scope="subject" emptyActions={[{label:"Check subject appointments",onClick:()=>openSection("subjects")}]}/> : <>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted"><p>Published results for your appointed subjects.</p><Link href={buildSchoolSectionHref("hos", "subjects", routeMode)} onClick={event => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); openSection("subjects"); } }} className="inline-flex min-h-11 items-center font-semibold text-info underline">Check your subject appointments</Link></div>
-            <AcademicIntelligenceWorkspace audience="hos" initialSubjectId={subjectId} activeView={current.view ?? "Overview"} onViewChange={view => openSection(hosWorkspaces.find(item => item.view === view)?.id ?? "academic-intelligence")} hideNavigation />
+            <AcademicIntelligenceWorkspace audience="hos" title={current.view === "Reports" ? "Subject report centre" : current.label} initialSubjectId={subjectId} activeView={current.view ?? "Overview"} onViewChange={view => openSection(hosWorkspaces.find(item => item.view === view)?.id ?? "exam-analytics")} hideNavigation />
           </>}
         </div>
       </main>

@@ -32,7 +32,6 @@ import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { AcademicInterventionsWorkspace } from "./dean-academics/academic-interventions-workspace";
 import { AssessmentsWorkspace } from "./dean-academics/assessments-workspace";
 import { CurriculumCoverageWorkspace } from "./dean-academics/curriculum-coverage-workspace";
-import { DepartmentPerformanceWorkspace } from "./dean-academics/department-performance-workspace";
 import { LessonLogsWorkspace } from "./dean-academics/lesson-logs-workspace";
 import { LessonPlansWorkspace } from "./dean-academics/lesson-plans-workspace";
 import { OverviewWorkspace } from "./dean-academics/overview-workspace";
@@ -47,7 +46,6 @@ export type DeanView =
   | "overview"
   | "academics"
   | "curriculum-coverage"
-  | "department-performance"
   | "exam-analytics"
   | "teacher-workload"
   | "timetable"
@@ -133,13 +131,6 @@ const deanNavItems: DeanNavItem[] = [
     group: "Teaching",
   },
   {
-    id: "department-performance",
-    label: "Department Performance",
-    description: "Compare department outcomes and academic trends.",
-    icon: BarChart3,
-    group: "Progress & support",
-  },
-  {
     id: "academic-interventions",
     label: "Academic Interventions",
     description: "Track learners, classes, and departments needing support.",
@@ -156,9 +147,10 @@ const deanViewAliases: Record<string, DeanView> = {
   curriculum: "curriculum-coverage",
   syllabus: "curriculum-coverage",
   "curriculum-coverage": "curriculum-coverage",
-  "academic-analytics": "department-performance",
-  "department-performance": "department-performance",
-  "student-analytics": "department-performance",
+  "academic-analytics": "exam-analytics",
+  "academic-intelligence": "exam-analytics",
+  "department-performance": "exam-analytics",
+  "student-analytics": "exam-analytics",
   teachers: "teacher-workload",
   staff: "teacher-workload",
   "teacher-workload": "teacher-workload",
@@ -369,14 +361,6 @@ function DeanWorkspace({
         <CurriculumCoverageWorkspace
           onOpenPlans={() => onNavigate("lesson-plans")}
           onOpenLogs={() => onNavigate("lesson-logs")}
-        />
-      );
-    case "department-performance":
-      return (
-        <DepartmentPerformanceWorkspace
-          onOpenAssessments={() => onNavigate("assessments")}
-          onOpenInterventions={() => onNavigate("academic-interventions")}
-          onOpenReports={() => onNavigate("reports")}
         />
       );
     case "teacher-workload":

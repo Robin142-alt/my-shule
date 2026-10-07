@@ -26,7 +26,6 @@ import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/c
 import { TaskQueue } from "@/components/shared/task-queue";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { downloadCsvFile } from "@/lib/dashboard/export";
-import { AnalysisWorkspace } from "./exams-manager/analysis-workspace";
 import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { ExamSetupWorkspace } from "./exams-manager/exam-setup-workspace";
 import { ExamTimetableWorkspace } from "./exams-manager/exam-timetable-workspace";
@@ -48,13 +47,14 @@ type ExamsManagerCanonicalView =
   | "exam-timetable"
   | "marks-entry"
   | "moderation"
-  | "analysis"
   | "exam-analytics"
   | "report-cards"
   | "imports-templates"
   | "reports";
 
 type ExamsManagerLegacyView =
+  | "analysis"
+  | "academic-intelligence"
   | "publishing"
   | "dashboard"
   | "exams"
@@ -105,10 +105,11 @@ const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   "marks-entry": "marks-entry",
   moderation: "moderation",
   validation: "moderation",
-  grading: "analysis",
-  "academic-analytics": "analysis",
+  grading: "exam-analytics",
+  "academic-analytics": "exam-analytics",
+  "academic-intelligence": "exam-analytics",
   "exam-analytics": "exam-analytics",
-  analysis: "analysis",
+  analysis: "exam-analytics",
   drafts: "report-cards",
   "report-templates": "report-cards",
   "report-cards": "report-cards",
@@ -168,18 +169,11 @@ const navItems: NavItem[] = [
     aliases: ["moderation", "validation"],
   },
   {
-    id: "analysis",
-    label: "Grade Processing",
-    summary: "Analyze grades and class performance after real marks exist.",
-    icon: BarChart3,
-    aliases: ["grading", "academic-analytics", "analysis"],
-  },
-  {
     id: "exam-analytics",
     label: "Exam Analytics",
     summary: "Explore academic performance, comparisons and historical patterns. Download or print every analytic.",
     icon: BarChart3,
-    aliases: ["exam-analytics"],
+    aliases: ["exam-analytics", "grading", "academic-analytics", "academic-intelligence", "analysis"],
   },
   {
     id: "report-cards",
@@ -258,13 +252,6 @@ function Workspace({
       return <ModerationWorkspace />;
     case "exam-analytics":
       return <ExamAnalyticsWorkspace onOpenMarks={() => onNavigate("marks-entry")} onOpenReportCards={() => onNavigate("report-cards")} />;
-    case "analysis":
-      return (
-        <AnalysisWorkspace
-          onOpenMarks={() => onNavigate("marks-entry")}
-          onOpenReportCards={() => onNavigate("report-cards")}
-        />
-      );
     case "report-cards":
       return <ReportCardsWorkspace />;
     case "imports-templates":
@@ -500,7 +487,7 @@ export function ExamsManagerCommandCenter({
                   description: item.summary,
                   group: ["overview", "exam-workflow", "exam-setup", "exam-timetable"].includes(item.id)
                     ? "Setup"
-                    : ["marks-entry", "moderation", "analysis", "exam-analytics"].includes(item.id)
+                    : ["marks-entry", "moderation", "exam-analytics"].includes(item.id)
                       ? "Marks & analysis"
                       : "Publishing & reports",
                 }))}
