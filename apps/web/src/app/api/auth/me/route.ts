@@ -5,6 +5,7 @@ import { isExperienceAudience } from "@/lib/auth/experience-audience";
 import {
   createServerAuthClient,
   getServerAuthErrorStatus,
+  getServerAuthRetryAfterSeconds,
   isServerAuthUnauthorized,
 } from "@/lib/auth/server-auth-client";
 import {
@@ -74,6 +75,9 @@ export async function GET(request: Request) {
     );
     // An in-flight read has an older cookie snapshot. Only explicit logout may
     // clear credentials; this response must not erase a completed role switch.
+    response.headers.set("Cache-Control", "private, no-store");
+    const retryAfter = getServerAuthRetryAfterSeconds(error);
+    if (retryAfter !== undefined) response.headers.set("Retry-After", String(retryAfter));
     return response;
   }
 }

@@ -19,8 +19,10 @@ import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { LearnerPicker } from "@/components/common/learner-picker";
 import { getMissingFieldError } from "@/lib/forms/validation";
 import { SchoolPageHeader } from "@/components/school/school-page-header";
+import { useSchoolQuery } from "@/lib/data/school-hooks";
+import type { AccountantOverviewResponse } from "./overview-workspace";
 import { MetricGrid } from "@/components/experience/metric-grid";
-import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, buildFinanceSummaryItems, type FinanceActivityResponse, type FinanceActivityRow, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
+import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, type FinanceActivityResponse, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
 
 type SchoolRouteMode = "hosted" | "public";
 type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
@@ -96,19 +98,6 @@ function getStatementEntryTone(entry: { status: string; debit_amount_minor: stri
   return "ok";
 }
 
-function toFinanceActivityRow(activity: FinanceActivityResponse): FinanceActivityRow {
-  return {
-    id: activity.id,
-    student: activity.student_name ?? activity.student_id ?? "Unknown",
-    amount: formatMinorKes(activity.amount_minor),
-    method: activity.method,
-    date: formatActivityDate(activity.occurred_at),
-    reference: activity.reference,
-    status: activity.status,
-    statusTone: activity.status === "completed" || activity.status === "cleared" ? "ok" : "warning",
-  };
-}
-
 export function FeeStructuresWorkspace({
   role,
   tenantSlug,
@@ -121,11 +110,7 @@ export function FeeStructuresWorkspace({
   activeSection?: string;
 }) {
   const { subscription } = getSchoolWorkspace(role, tenantSlug);
-  const [activity, setActivity] = useState<FinanceActivityResponse[]>([]);
-  const [rows, setRows] = useState<FinanceActivityRow[]>([]);
-  const [activityLoading, setActivityLoading] = useState(true);
-  const [balances, setBalances] = useState<StudentFeeBalanceResponse[]>([]);
-  const [balancesLoading, setBalancesLoading] = useState(true);
+  const overview = useSchoolQuery<AccountantOverviewResponse>("/admin-command/accountant/overview", { staleTime: 30_000 });
   const [statement, setStatement] = useState<StudentFeeStatementResponse | null>(null);
   const [statementLoading, setStatementLoading] = useState(false);
   const [statementError, setStatementError] = useState<string | null>(null);
@@ -171,6 +156,7 @@ export function FeeStructuresWorkspace({
   const [selectedBulkStudentIds, setSelectedBulkStudentIds] = useState<Set<string>>(() => new Set());
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const paymentInvoices = useSchoolQuery<FinanceActivityResponse[]>("/billing/finance-activity?limit=25&offset=0", { enabled: showPaymentModal });
   const [invoiceDraft, setInvoiceDraft] = useState({ studentId: "", studentName: "", amount: "", dueAt: "" });
   const [selectedInvoiceLearner, setSelectedInvoiceLearner] = useState<LearnerLookupItem | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({
@@ -185,71 +171,8 @@ export function FeeStructuresWorkspace({
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [financeMessage, setFinanceMessage] = useState<string | null>(null);
-  const [summaryData, setSummaryData] = useState<any>(null);
-  const [summaryLoading, setSummaryLoading] = useState(true);
 
-  async function loadSummary() {
-    setSummaryLoading(true);
-    try {
-      const response = await fetch(buildBillingApiPath("/api/finance/summary", tenantSlug), {
-        cache: "no-store",
-      });
-      if (response.ok) {
-        setSummaryData(await response.json());
-      }
-    } catch (e) {
-    } finally {
-      setSummaryLoading(false);
-    }
-  }
-
-  async function loadFinanceActivity() {
-    setActivityLoading(true);
-
-    try {
-      const response = await fetch(buildBillingApiPath("/api/billing/finance-activity?limit=25&offset=0", tenantSlug), {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Finance activity could not be loaded.");
-      }
-
-      const payload = (await response.json()) as FinanceActivityResponse[];
-      setActivity(payload);
-      setRows(payload.map(toFinanceActivityRow));
-    } catch (caught) {
-      setActivity([]);
-      setRows([]);
-      setFinanceMessage(caught instanceof Error ? caught.message : "Finance activity could not be loaded.");
-    } finally {
-      setActivityLoading(false);
-    }
-  }
-
-  async function loadStudentBalances() {
-    setBalancesLoading(true);
-
-    try {
-      const response = await fetch(buildBillingApiPath("/api/billing/student-balances", tenantSlug), {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Student balances could not be loaded.");
-      }
-
-      const payload = (await response.json()) as StudentFeeBalanceResponse[];
-      setBalances(payload);
-    } catch (caught) {
-      setBalances([]);
-      setFinanceMessage(caught instanceof Error ? caught.message : "Student balances could not be loaded.");
-    } finally {
-      setBalancesLoading(false);
-    }
-  }
-
-  async function loadReconciliationReport() {
+  async function loadReconciliationReport(signal = AbortSignal.timeout(15_000)) {
     setReconciliationLoading(true);
     setReconciliationError(null);
 
@@ -270,37 +193,34 @@ export function FeeStructuresWorkspace({
     try {
       const response = await fetch(
         buildBillingApiPath(`/api/billing/reconciliation?${params.toString()}`, tenantSlug),
-        { cache: "no-store" },
+        { cache: "no-store", signal },
       );
-      const payload = (await response.json().catch(() => null)) as
-        | FinanceReconciliationResponse
-        | { message?: string }
-        | null;
+      const body = await response.json().catch(() => null);
+      const payload = unwrapBillingApiData<FinanceReconciliationResponse>(body);
 
-      if (!response.ok || !payload || !("rows" in payload)) {
+      if (!response.ok || !payload?.totals || !Array.isArray(payload.rows) || !Array.isArray(payload.method_summaries)) {
         throw new Error(
-          payload && "message" in payload && payload.message
-            ? payload.message
-            : "Reconciliation report could not be loaded.",
+          body?.message || "Reconciliation report could not be loaded.",
         );
       }
 
-      setReconciliation(payload);
+      if (!signal.aborted) setReconciliation(payload);
     } catch (caught) {
+      if (signal.aborted && signal.reason?.name === "AbortError") return;
       setReconciliation(null);
-      setReconciliationError(caught instanceof Error ? caught.message : "Reconciliation report could not be loaded.");
+      setReconciliationError(signal.aborted ? "Reconciliation took too long. Please run the report again." : caught instanceof Error ? caught.message : "Reconciliation report could not be loaded.");
     } finally {
-      setReconciliationLoading(false);
+      if (!signal.aborted || signal.reason?.name !== "AbortError") setReconciliationLoading(false);
     }
   }
 
-  async function loadFeeStructures() {
+  async function loadFeeStructures(signal = AbortSignal.timeout(15_000)) {
     setFeeStructuresLoading(true);
     setFeeStructureError(null);
 
     try {
       const response = await fetch(buildBillingApiPath("/api/billing/fee-structures", tenantSlug), {
-        cache: "no-store",
+        cache: "no-store", signal,
       });
       const payload = (await response.json().catch(() => null)) as
         | FeeStructureResponse[]
@@ -317,21 +237,27 @@ export function FeeStructuresWorkspace({
         );
       }
 
+      if (signal.aborted) return;
       setFeeStructures(feeStructuresPayload);
       setBulkDraft((current) => ({
         ...current,
         fee_structure_id: current.fee_structure_id || feeStructuresPayload[0]?.id || "",
       }));
     } catch (caught) {
+      if (signal.aborted && signal.reason?.name === "AbortError") return;
       setFeeStructures([]);
-      setFeeStructureError(caught instanceof Error ? caught.message : "Fee structures could not be loaded.");
+      setFeeStructureError(signal.aborted ? "Fee structures took too long to load. Please refresh." : caught instanceof Error ? caught.message : "Fee structures could not be loaded.");
     } finally {
-      setFeeStructuresLoading(false);
+      if (!signal.aborted || signal.reason?.name !== "AbortError") setFeeStructuresLoading(false);
     }
   }
 
   useEffect(() => {
-    void loadFeeStructures();
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
+    void loadFeeStructures(signal);
+    void loadReconciliationReport(signal);
+    return () => controller.abort();
   }, [tenantSlug]);
 
   function openInvoiceModal() {
@@ -753,8 +679,7 @@ export function FeeStructuresWorkspace({
       setBulkDraft((current) => ({ ...current, idempotency_key: "", due_at: "" }));
       setSelectedBulkStudentIds(new Set());
       setBulkStudents([]);
-      await loadFinanceActivity();
-      await loadStudentBalances();
+      await overview.refetch();
       await loadReconciliationReport();
     } catch (caught) {
       setBulkError(caught instanceof Error ? caught.message : "Bulk invoices could not be generated.");
@@ -859,8 +784,7 @@ export function FeeStructuresWorkspace({
       setInvoiceDraft({ studentId: "", studentName: "", amount: "", dueAt: "" });
       setSelectedInvoiceLearner(null);
       setShowInvoiceModal(false);
-      await loadFinanceActivity();
-      await loadStudentBalances();
+      await overview.refetch();
     } catch (caught) {
       setInvoiceError(caught instanceof Error ? caught.message : "Invoice could not be created.");
     }
@@ -925,15 +849,14 @@ export function FeeStructuresWorkspace({
       });
       setSelectedPaymentLearner(null);
       setShowPaymentModal(false);
-      await loadFinanceActivity();
-      await loadStudentBalances();
+      await overview.refetch();
       await loadReconciliationReport();
     } catch (caught) {
       setPaymentError(caught instanceof Error ? caught.message : "Payment could not be recorded.");
     }
   }
 
-  const invoiceOptions = activity
+  const invoiceOptions = (paymentInvoices.data ?? [])
     .filter((entry) => entry.kind === "invoice")
     .map((entry) => ({
       id: entry.invoice_id ?? entry.id,
@@ -951,8 +874,8 @@ export function FeeStructuresWorkspace({
     <div className="space-y-6">
       <SchoolPageHeader
         eyebrow="Fees and payments"
-        title="Collections desk"
-        description="Record payments, generate statements, and keep balances obvious enough for bursars and admins to trust instantly."
+        title="Fee structures"
+        description="Set school fees, select eligible learners, and generate invoices."
         actions={
           <>
             <Button variant="secondary" onClick={openInvoiceModal}>
@@ -970,36 +893,17 @@ export function FeeStructuresWorkspace({
           {financeMessage}
         </div>
       ) : null}
-      {!summaryLoading && summaryData ? (
-        <MetricGrid
-          columns="three"
-          items={[
-            {
-              id: "collections",
-              label: "Today Collections",
-              value: summaryData.collectionsToday || "KES 0",
-              helper: "Ledger activity",
-              trend: summaryData.trendLabel || "Stable",
-            },
-            {
-              id: "outstanding",
-              label: "Outstanding Invoices",
-              value: summaryData.outstandingInvoices || "KES 0",
-              helper: "To be collected",
-              trend: "Needs review",
-            },
-            {
-              id: "failed",
-              label: "Failed Payments",
-              value: summaryData.failedPayments || "0",
-              helper: "Requires follow-up",
-              trend: "Action required",
-            },
-          ]}
-        />
-      ) : (
-        <MetricGrid items={buildFinanceSummaryItems(activity, activityLoading)} />
-      )}
+      {overview.isError ? (
+        <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm">
+          <p>{overview.error?.message || "Finance totals could not be loaded."}</p>
+          <Button variant="secondary" disabled={overview.isFetching} onClick={() => void overview.refetch()}>Retry finance totals</Button>
+        </div>
+      ) : null}
+      <MetricGrid columns="three" items={[
+        { id: "collections", label: "Today Collections", value: overview.data?.metrics ? formatMinorKes(overview.data.metrics.collected_today_minor) : overview.isLoading ? "Loading" : "Unavailable", helper: "Cleared receipts today" },
+        { id: "outstanding", label: "Outstanding Invoices", value: overview.data?.metrics ? formatMinorKes(overview.data.metrics.outstanding_balance_minor) : overview.isLoading ? "Loading" : "Unavailable", helper: "School fee balances" },
+        { id: "review", label: "Payments to review", value: overview.data?.metrics ? String(overview.data.metrics.mpesa_review_count) : overview.isLoading ? "Loading" : "Unavailable", helper: "Verified payment review queue" },
+      ]} />
       <SubscriptionLifecyclePanel subscription={subscription} role={role} routeMode={routeMode} tenantSlug={tenantSlug} />
       <section className="space-y-5 rounded-xl border border-border bg-surface px-5 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1010,7 +914,7 @@ export function FeeStructuresWorkspace({
               Build structured fees, then generate controlled invoices for the selected student rows.
             </p>
           </div>
-          <Button variant="secondary" onClick={() => void loadFeeStructures()}>
+          <Button variant="secondary" disabled={feeStructuresLoading} onClick={() => void loadFeeStructures()}>
             Refresh
           </Button>
         </div>
@@ -1443,7 +1347,7 @@ export function FeeStructuresWorkspace({
                 </option>
               ))}
             </select>
-            <Button variant="secondary" onClick={() => void loadReconciliationReport()}>
+            <Button variant="secondary" disabled={reconciliationLoading} onClick={() => void loadReconciliationReport()}>
               Run
             </Button>
             <Button onClick={() => void exportReconciliationReport()}>
@@ -1460,25 +1364,25 @@ export function FeeStructuresWorkspace({
           <div className="rounded-xl border border-border bg-surface-strong p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cleared</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {reconciliationLoading ? "Loading" : formatMinorKes(reconciliation?.totals.cleared_amount_minor ?? "0")}
+              {reconciliationLoading ? "Loading" : reconciliationError ? "Unavailable" : formatMinorKes(reconciliation?.totals.cleared_amount_minor ?? "0")}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-surface-strong p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pending</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {reconciliationLoading ? "Loading" : formatMinorKes(reconciliation?.totals.pending_amount_minor ?? "0")}
+              {reconciliationLoading ? "Loading" : reconciliationError ? "Unavailable" : formatMinorKes(reconciliation?.totals.pending_amount_minor ?? "0")}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-surface-strong p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Exceptions</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {reconciliationLoading ? "Loading" : formatMinorKes(reconciliation?.totals.exception_amount_minor ?? "0")}
+              {reconciliationLoading ? "Loading" : reconciliationError ? "Unavailable" : formatMinorKes(reconciliation?.totals.exception_amount_minor ?? "0")}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-surface-strong p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transactions</p>
             <p className="mt-1 text-sm font-semibold text-foreground">
-              {reconciliationLoading ? "Loading" : String(reconciliation?.totals.transaction_count ?? 0)}
+              {reconciliationLoading ? "Loading" : reconciliationError ? "Unavailable" : String(reconciliation?.totals.transaction_count ?? 0)}
             </p>
           </div>
         </div>
@@ -1494,7 +1398,7 @@ export function FeeStructuresWorkspace({
           ]}
           rows={reconciliation?.method_summaries ?? []}
           getRowKey={(row) => row.payment_method}
-          emptyMessage={reconciliationLoading ? "Loading reconciliation method totals..." : "No method totals for this period."}
+          emptyMessage={reconciliationLoading ? "Loading reconciliation method totals..." : reconciliationError ? "Run the report again to load method totals." : "No method totals for this period."}
         />
         <DataTable
           title="Reconciliation register"
@@ -1519,7 +1423,7 @@ export function FeeStructuresWorkspace({
           ]}
           rows={reconciliation?.rows ?? []}
           getRowKey={(row) => row.payment_id}
-          emptyMessage={reconciliationLoading ? "Loading reconciliation receipts..." : "No receipts match this reconciliation period."}
+          emptyMessage={reconciliationLoading ? "Loading reconciliation receipts..." : reconciliationError ? "Run the report again to load receipts." : "No receipts match this reconciliation period."}
         />
       </section>
       <Modal
@@ -1715,6 +1619,11 @@ export function FeeStructuresWorkspace({
               {paymentError}
             </div>
           ) : null}
+          {paymentInvoices.isLoading ? <p role="status">Loading invoice choices...</p> : null}
+          {paymentInvoices.isError ? <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm">
+            <p>{paymentInvoices.error?.message || "Invoice choices could not be loaded."}</p>
+            <Button variant="secondary" disabled={paymentInvoices.isFetching} onClick={() => void paymentInvoices.refetch()}>Retry invoice choices</Button>
+          </div> : null}
           <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm text-foreground">
             <span className="font-medium">Method</span>
@@ -1819,8 +1728,6 @@ export function FeeStructuresWorkspace({
     </div>
   );
 }
-
-
 
 
 

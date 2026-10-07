@@ -533,6 +533,32 @@ test('school sidebar reads have a bounded read budget independent of admin mutat
   }
 });
 
+test('verified session reads have their own bounded budget without weakening login or anonymous auth limits', async () => {
+  const context = new RequestContextService();
+  const service = new RateLimitService({ get: () => undefined } as never, context,
+    buildFakeRedisService(new FakeRedisClient()) as never);
+  const request = (path: string, method = 'GET', tenant = 'school-a', user = 'accountant-a', authenticated = true) => context.run({
+    request_id: 'finance-session', tenant_id: tenant, user_id: user, role: 'accountant',
+    is_authenticated: authenticated, permissions: ['auth:read'], client_ip: '127.0.0.1', session_id: 'session-a', user_agent: 'test-suite',
+    method, path, started_at: new Date().toISOString(),
+  }, () => service.evaluateRequest({ method, path, originalUrl: path, url: path } as never));
+
+  for (let i = 0; i < 300; i++) {
+    const result = await request(i % 2 ? '/auth/me' : '/auth/dashboard-roles');
+    assert.equal(result.allowed, true);
+    assert.equal(result.rate_limit_class, 'authenticated_read');
+  }
+  assert.equal((await request('/auth/me')).allowed, false, 'Session reads remain bounded');
+  assert.equal((await request('/auth/me', 'GET', 'school-b')).allowed, true);
+  assert.equal((await request('/auth/me', 'GET', 'school-a', 'accountant-b')).allowed, true);
+  assert.equal((await request('/billing/fee-structures')).allowed, true, 'Session polling does not starve finance reads');
+  for (let i = 0; i < 10; i++) assert.equal((await request('/auth/login', 'POST')).allowed, true);
+  assert.equal((await request('/auth/refresh', 'POST')).allowed, false, 'Credential attempts retain the existing limit');
+  for (let i = 0; i < 20; i++) assert.equal((await request('/auth/me', 'GET', 'school-a', 'anonymous', false)).allowed, true);
+  assert.equal((await request('/auth/me', 'GET', 'school-a', 'anonymous', false)).allowed, false);
+  assert.equal((await request('/auth/me', 'POST')).rate_limit_class, 'auth');
+});
+
 test('FraudDetectionService emits a high-value audit alert', async () => {
   const redisClient = new FakeRedisClient();
   let capturedAuditEvent: Record<string, unknown> | null = null;

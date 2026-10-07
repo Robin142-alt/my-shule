@@ -107,6 +107,21 @@ describe("persistent regular login", () => {
     expect(jest.mocked(fetch).mock.calls[1][0]).toContain("/auth/logout/refresh");
   });
 
+  test("rate-limited verification preserves cookies and forwards the retry deadline without refreshing credentials", async () => {
+    const issued = NextResponse.json({});
+    setExperienceSessionCookies(issued, session()); saveCookies(issued);
+    jest.mocked(fetch).mockResolvedValueOnce(Response.json({ message: "Rate limit exceeded" }, {
+      status: 429, headers: { "retry-after": "42" },
+    }));
+    const limited = await me(new Request("https://school.example.test/api/auth/me?audience=school"));
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("42");
+    expect(limited.headers.get("cache-control")).toBe("private, no-store");
+    expect(limited.cookies.getAll()).toEqual([]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(fetch).mock.calls[0][0]).toContain("/auth/me");
+  });
+
   test("Super Admin logout makes no new upstream request", async () => {
     jar.set(AUDIENCE_COOKIE, "superadmin"); jar.set(REFRESH_COOKIE, token(100));
     expect((await logout(post("logout"))).status).toBe(200);

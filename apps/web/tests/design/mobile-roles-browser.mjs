@@ -68,6 +68,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','public, max-age=3600');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
  else if(req.url==='/fonts/InterVariable.woff2'){res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
  else if(req.url?.startsWith('/_next/image?')||req.url?.startsWith('/brand/')){res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
+ else if(req.url?.startsWith('/api/billing/reconciliation?')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{rows:[],method_summaries:[],totals:{cleared_amount_minor:'0',pending_amount_minor:'0',exception_amount_minor:'0',transaction_count:0}}}));}
  else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:process.argv.includes('--contrast')&&req.url.startsWith('/api/permissions/me')?['*:*']:[]}));}
  else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });
@@ -219,6 +220,28 @@ try{
      if(width===390)await page.screenshot({path:path.join(out,`principal-${section}-drawer-${width}.png`)});
      await page.keyboard.press('Escape');
     }
+   }
+   if(role==='accountant'&&section==='overview'&&(width===320||width===1440)){
+    const shell=await page.getByTestId('accountant-command-center').elementHandle();
+    const steps=[['fee-structures','Fee Structures'],['invoices','Invoices & statements'],['collections','Collections & exceptions'],['payments','Cash & cheques'],['payment-setup','Payment Setup'],['m-pesa-reconciliation','M-Pesa Reconciliation'],['receipts','Receipts'],['arrears','Arrears'],['waivers-discounts','Waivers & Discounts'],['expenses','Expenses'],['reports','Finance Reports'],['overview','Today']];
+    metrics.financeNavigation=[];
+    for(const [destination,label] of steps){
+     let nav=page.getByRole('navigation',{name:'Accountant workspace navigation'});
+     if(width<1024){
+      await page.locator('.app-side-menu-tab').click();
+      nav=page.getByRole('dialog').locator('nav');
+     }
+     const start=performance.now();
+     await nav.getByRole('button',{name:label,exact:true}).click();
+     await page.locator('.app-workspace-heading').getByRole('heading',{name:label,exact:true}).waitFor({state:'visible'});
+     assert.equal(new URL(page.url()).pathname,`/school/accountant/${destination}`);
+     assert.ok(await shell.evaluate(el=>el.isConnected),'Finance navigation preserves the mounted shell');
+     metrics.financeNavigation.push({destination,elapsedMs:Math.round(performance.now()-start)});
+    }
+    await page.goBack();
+    await page.locator('.app-workspace-heading').getByRole('heading',{name:'Finance Reports',exact:true}).waitFor({state:'visible'});
+    await page.goForward();
+    await page.locator('.app-workspace-heading').getByRole('heading',{name:'Today',exact:true}).waitFor({state:'visible'});
    }
    if(process.argv.includes('--contrast')){
     metrics.contrast=await auditWorkspaceContrast(page);

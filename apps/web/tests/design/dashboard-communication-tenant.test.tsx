@@ -124,6 +124,21 @@ describe("tenant-scoped dashboard communication", () => {
     expect(predicate?.({ queryKey: ["school", "kisumu-boys", "/students"] } as never)).toBe(false);
   });
 
+  it("coalesces a batch of academic assignment events into one session verification", () => {
+    const client = new QueryClient();
+    const invalidate = jest.spyOn(client, "invalidateQueries");
+    render(<QueryClientProvider client={client}>
+      <DashboardCommunicationProvider tenantId="school-a">Finance workspace</DashboardCommunicationProvider>
+    </QueryClientProvider>);
+    const events = Array.from({ length: 30 }, (_, index) => ({
+      ...studentAdmittedEvent("school-a", `academic-${index}`), sourceModule: "academics",
+    }));
+    act(() => EventSourceMock.instances[0].emit("dashboard.events", { tenant_id: "school-a", events }));
+    expect(invalidate.mock.calls.filter(([filters]) => filters?.queryKey?.[0] === "experience-session")).toHaveLength(1);
+    act(() => EventSourceMock.instances[0].emit("dashboard.events", { tenant_id: "school-a", events }));
+    expect(invalidate.mock.calls.filter(([filters]) => filters?.queryKey?.[0] === "experience-session")).toHaveLength(1);
+  });
+
   it("rejects snapshots and events belonging to another school", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateQueries = jest.spyOn(queryClient, "invalidateQueries");

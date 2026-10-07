@@ -1,4 +1,5 @@
 import { getClientIdentityHeaders } from "@/lib/auth/client-identity";
+import { readRetryAfterSeconds } from "@/lib/auth/retry-after";
 import type { LiveAuthUser } from "@/lib/dashboard/api-client";
 import type { ExperienceAudience } from "@/lib/auth/experience-audience";
 import {
@@ -65,6 +66,7 @@ class ServerAuthRequestError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ServerAuthRequestError";
@@ -81,6 +83,10 @@ export function isServerAuthUnauthorized(error: unknown) {
 
 export function getServerAuthErrorStatus(error: unknown) {
   return error instanceof ServerAuthRequestError ? error.status : 500;
+}
+
+export function getServerAuthRetryAfterSeconds(error: unknown) {
+  return error instanceof ServerAuthRequestError ? error.retryAfterSeconds : undefined;
 }
 
 function getBackendErrorMessage(payload: unknown) {
@@ -299,7 +305,8 @@ async function requestBackendAuth<T>(
         throw unauthorized(AUTH_SERVICE_UNAVAILABLE, 503);
       }
 
-      throw unauthorized(message, response.status);
+      throw new ServerAuthRequestError(message, response.status,
+        response.status === 429 ? readRetryAfterSeconds(response.headers?.get("retry-after")) : undefined);
     }
 
     return (await response.json()) as T;

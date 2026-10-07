@@ -59,7 +59,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- payment-channel-setup
 
       - name: Accountant daily finance, receipts and verified payment review
-        run: npm --prefix apps/web run test:design -- accountant-daily-workflows accountant-mpesa-review accountant-command-center-contract finance-amount-precision finance-export-safety front-office-finance-production-readiness
+        run: npm --prefix apps/web run test:design -- accountant-navigation accountant-fee-structures-loading accountant-daily-workflows accountant-mpesa-review accountant-command-center-contract finance-amount-precision finance-export-safety front-office-finance-production-readiness
 
       - name: Conservative web build skipping
         run: node --test apps/web/scripts/ignore-build.test.mjs

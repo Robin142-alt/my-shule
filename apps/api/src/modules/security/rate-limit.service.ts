@@ -333,6 +333,17 @@ export class RateLimitService {
       return 'auth-session';
     }
 
+    // These reads verify an already authenticated principal on every request.
+    // Polling/opening workspaces must not consume the credential-attempt budget.
+    const method = (request.method ?? this.requestContext.getStore()?.method ?? '').toUpperCase();
+    if (
+      (method === 'GET' || method === 'HEAD')
+      && (path === '/auth/me' || path === '/auth/dashboard-roles')
+      && this.requestContext.requireStore().is_authenticated
+    ) {
+      return 'session-verification';
+    }
+
     if (path.startsWith('/auth')) {
       return 'auth';
     }
