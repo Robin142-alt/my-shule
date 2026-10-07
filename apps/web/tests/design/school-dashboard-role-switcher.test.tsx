@@ -55,6 +55,7 @@ function roleState(overrides: Record<string, unknown> = {}) {
     isSwitching: false,
     switchingToAuthorizationRoleCode: null,
     error: null,
+    verificationError: null,
     clearError: jest.fn(),
     reloadDashboardRoles: jest.fn().mockResolvedValue(undefined),
     switchDashboardRole: jest.fn().mockResolvedValue(undefined),

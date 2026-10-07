@@ -68,6 +68,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','public, max-age=3600');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
  else if(req.url==='/fonts/InterVariable.woff2'){res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
  else if(req.url?.startsWith('/_next/image?')||req.url?.startsWith('/brand/')){res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
+ else if(req.url?.startsWith('/api/billing/reconciliation?')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{rows:[],method_summaries:[],totals:{cleared_amount_minor:'0',pending_amount_minor:'0',exception_amount_minor:'0',transaction_count:0}}}));}
  else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:process.argv.includes('--contrast')&&req.url.startsWith('/api/permissions/me')?['*:*']:[]}));}
  else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });

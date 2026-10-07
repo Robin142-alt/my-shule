@@ -6,7 +6,7 @@ let mockHeaderMounts = 0;
 jest.mock("@/components/school/integrated-school-command-header", () => ({
   SchoolCommandSidebarIdentity: () => <p>School identity</p>,
   IntegratedSchoolCommandHeader: () => {
-    const React = require("react");
+    const React = jest.requireActual<typeof import("react")>("react");
     React.useEffect(() => { mockHeaderMounts++; }, []);
     return <h1>Finance dashboard</h1>;
   },
@@ -45,9 +45,9 @@ test.each(["accountant", "bursar"] as const)("%s opens every finance workspace i
   render(<AccountantCommandCenter role={role} routeMode="public" activeSection="overview" tenantSlug="school-a" />);
   const nav = screen.getByRole("navigation");
   for (const [section, label] of workspaces) {
-    fireEvent.click(within(nav).getByRole("button", { name: label, exact: true }));
-    expect(screen.getByRole("heading", { name: label, exact: true })).toBeVisible();
-    expect(within(nav).getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(within(nav).getByRole("button", { name: label }));
+    expect(screen.getByRole("heading", { name: label })).toBeVisible();
+    expect(within(nav).getByRole("button", { name: label })).toHaveAttribute("aria-current", "page");
     expect(window.location.pathname).toBe(`/school/${role}/${section}`);
   }
   expect(router.push).not.toHaveBeenCalled();
@@ -58,17 +58,17 @@ test.each(["public", "hosted"] as const)("Back/Forward restores the finance work
   const base = routeMode === "public" ? "/school/accountant" : "";
   window.history.replaceState(null, "", `${base}/fee-structures`);
   render(<AccountantCommandCenter role="accountant" routeMode={routeMode} activeSection="fee-structures" />);
-  fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Receipts", exact: true }));
+  fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Receipts" }));
   act(() => {
     window.history.replaceState(null, "", `${base}/fee-structures`);
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  expect(screen.getByRole("heading", { name: "Fee Structures", exact: true })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Fee Structures" })).toBeVisible();
   act(() => {
     window.history.replaceState(null, "", `${base}/receipts`);
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
-  expect(screen.getByRole("heading", { name: "Receipts", exact: true })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Receipts" })).toBeVisible();
   expect(mockHeaderMounts).toBe(1);
 });
 
@@ -76,8 +76,7 @@ test("reselecting the current workspace does not add history entries", () => {
   window.history.replaceState(null, "", "/school/accountant/fee-structures");
   render(<AccountantCommandCenter role="accountant" routeMode="public" activeSection="fee-structures" />);
   const push = jest.spyOn(window.history, "pushState");
-  fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Fee Structures", exact: true }));
+  fireEvent.click(within(screen.getByRole("navigation")).getByRole("button", { name: "Fee Structures" }));
   expect(push).not.toHaveBeenCalled();
   push.mockRestore();
 });
-
