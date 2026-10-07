@@ -109,6 +109,7 @@ const roleFilter=process.argv.find(arg=>arg.startsWith('--roles='))?.slice(8).sp
 if(roleFilter)cases=cases.filter(([role])=>roleFilter.includes(role));
 const viewports=process.argv.includes('--all-workspaces')?[[320,740],[1440,1000]]:[[320,740],[390,844],[768,1024],[1024,768],[1440,1000]];
 async function checkNavigation(navigation) {
+ assert.equal(await navigation.getByText('Academic Intelligence',{exact:true}).count(),0,'Exam Analytics replaces the duplicate Academic Intelligence entry');
  const rows=navigation.locator('.dashboard-nav-item:visible');
  await rows.first().waitFor({state:'visible'});
  assert.ok(await rows.count()>0,'The role menu keeps its navigation actions');
@@ -133,7 +134,7 @@ try{
    const errors=[];const handler=error=>errors.push(error.message);page.on('pageerror',handler);
    await page.goto(`http://127.0.0.1:${server.address().port}/school/${role}/${section}`);
    await page.locator('.authenticated-app').waitFor({timeout:10000}).catch(()=>{});
-   if(section==='exam-analytics')await page.getByRole('heading',{name:'Exam Analytics',exact:true,level:2}).waitFor();
+   if(section==='exam-analytics'||(role==='head-of-subject'&&section==='overview'))await page.getByRole('heading',{name:'Exam Analytics',exact:true,level:2}).waitFor();
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
    if(width===1440)await checkNavigation(page.locator('aside .dashboard-navigation:visible').first());

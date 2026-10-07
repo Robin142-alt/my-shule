@@ -20,6 +20,7 @@ const { createAnalyticsReportPdf } = require(path.join(repo, 'apps/api/src/modul
 const { evidence } = require(path.join(repo, 'apps/api/src/modules/exams/analytics/testing/evidence.fixture.ts'));
 const source = value => JSON.stringify(value.replaceAll('\\', '/'));
 fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
+fs.writeFileSync(path.join(out, 'css-loader.cjs'), `module.exports=function(source){return 'export default '+JSON.stringify(Object.fromEntries([...source.matchAll(/\\.([A-Za-z_][\\w-]*)/g)].map(m=>[m[1],'analytics-'+m[1]])))+';';};`);
 fs.writeFileSync(path.join(out, 'header.tsx'), `export const IntegratedSchoolCommandHeader=({roleTitle})=><h1 className="text-2xl font-bold">{roleTitle}</h1>;export const SchoolCommandSidebarIdentity=()=> <p className="mb-4 font-bold">QA School · sample data</p>;`);
 fs.writeFileSync(path.join(out, 'routes.ts'), `export const buildSchoolSectionHref=(_role,section)=>'/school/hos/'+section;`);
 fs.writeFileSync(path.join(out, 'notifications.tsx'), `export const NotificationBell=()=> <button aria-label="Notifications" className="min-h-11 rounded-lg border border-slate-200 px-3 text-sm">Notifications</button>;`);
@@ -49,11 +50,12 @@ async function run() {
         if (resource?.request.endsWith('school-pages')) resource.request = path.join(out, 'routes.ts');
       });
     }); } }],
-    module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: [path.join(out, 'loader.cjs')] }] }, optimization: { minimize: false },
+    module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: [path.join(out, 'loader.cjs')] }, { test: /\.css$/, use: [path.join(out, 'css-loader.cjs')] }] }, optimization: { minimize: false },
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
   const cssFile = path.join(web, 'src/app/globals.css');
-  const css = (await require('postcss')([require('@tailwindcss/postcss')({ base: web })]).process(fs.readFileSync(cssFile, 'utf8'), { from: cssFile })).css;
+  const css = (await require('postcss')([require('@tailwindcss/postcss')({ base: web })]).process(fs.readFileSync(cssFile, 'utf8'), { from: cssFile })).css + '\n' + fs.readFileSync(path.join(web, 'src/components/school/exams-manager/exam-analytics.module.css'), 'utf8').replace(/\.([A-Za-z_][\w-]*)/g, '.analytics-$1');
   assert.ok(css, 'Compile current application styles for browser verification.');
+  const scripts = new Map(fs.readdirSync(out).filter(file => file.endsWith('.js')).map(file => [`/${file}`, fs.readFileSync(path.join(out, file))]));
   const server = http.createServer(async (req, res) => {
     if (req.url === '/qa-report') {
       try {
@@ -65,7 +67,8 @@ async function run() {
         const pdf = await createAnalyticsReportPdf(report);
         res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ report, pdf_base64: pdf.content.toString('base64'), filename: pdf.filename }));
       } catch (error) { res.statusCode = 500; res.end(String(error)); }
-    } else if (req.url === '/bundle.js') { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(fs.readFileSync(path.join(out, 'bundle.js'))); }
+    } else if (scripts.has(req.url)) { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(scripts.get(req.url)); }
+    else if (req.url?.endsWith('.js')) { res.statusCode=404; res.end(); }
     else if (req.url === '/style.css') { res.setHeader('Content-Type', 'text/css'); res.end(css); }
     else { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body style="margin:0"><div id="root"></div><script src="/bundle.js"></script></body></html>'); }
   });
@@ -78,8 +81,8 @@ async function run() {
       const page = await browser.newPage({ viewport: { width, height: 900 } }); const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(base);
-      await page.getByRole('heading', { name: 'Subject Academic Intelligence' }).waitFor();
-      assert.equal(await page.getByLabel('Responsibility').locator('option').count(), 1);
+      await page.getByRole('heading', { name: 'Exam Analytics', level: 2 }).waitFor();
+      await page.waitForFunction(() => window.__query.includes('scope=subject'));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `analytics-${width}.png`), fullPage: true });
       async function navigate(label) {
@@ -95,7 +98,7 @@ async function run() {
         if (label==='Learners at Risk') assert.match(await page.evaluate(() => window.__query), /risk_level=At\+Risk/);
       }
       await page.screenshot({ path: path.join(out, `reports-${width}.png`), fullPage: true });
-      await navigate('Subject Overview');
+      await navigate('Subject Performance');
       await page.getByRole('button', { name: 'Print / PDF', exact: true }).click();
       await page.getByRole('button', { name: 'Prepare preview', exact: true }).click();
       await page.getByRole('link', { name: 'Download PDF', exact: true }).waitFor();
@@ -114,7 +117,7 @@ async function run() {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `appointments-${width}.png`), fullPage: true });
       await page.getByRole('button', { name: 'View subject results' }).click();
-      await page.getByRole('heading', { name: 'Subject Academic Intelligence' }).waitFor();
+      await page.getByRole('heading', { name: 'Exam Analytics', level: 2 }).waitFor();
       await page.waitForFunction(() => window.__query.includes('subject_id=math'));
       await page.goBack();
       await page.getByRole('heading', { name: 'My Subject Appointments', exact: true }).waitFor();
@@ -124,7 +127,7 @@ async function run() {
       }
       for (const scenario of ['empty', 'error', 'loading']) {
         await page.goto(base + `/school/hos/academic-intelligence?scenario=${scenario}`);
-        await (scenario === 'empty' ? page.getByRole('heading', { name: 'No published exam results yet' }) : scenario === 'error' ? page.getByRole('alert') : page.getByLabel('Loading academic intelligence')).waitFor();
+        await (scenario === 'empty' ? page.getByRole('heading', { name: 'No published results in this selection' }) : scenario === 'error' ? page.getByRole('alert') : page.getByText('Loading authorized exam analytics…')).waitFor();
       }
       if (width < 1024) {
         await page.getByRole('button', { name: 'Open Head of Subject workspace sidebar' }).click();

@@ -56,14 +56,12 @@ export const sidebarItems: SidebarItem[] = [
   { id: "exam-timetable", label: "Exam Timetable", href: "exam-timetable", roles: ["exam-manager"] },
   { id: "marks-entry", label: "Marks Entry Hub", href: "marks-entry", roles: ["exam-manager"] },
   { id: "moderation", label: "Moderation & Validation", href: "moderation", roles: ["exam-manager"] },
-  { id: "analysis", label: "Grade Processing", href: "analysis", roles: ["exam-manager"] },
   { id: "report-cards", label: "Report Cards", href: "report-cards", roles: ["exam-manager"] },
   { id: "reports", label: "Reports & Audit", href: "reports", roles: ["exam-manager"] },
   
   // Dean of Academics workspaces
   { id: "overview", label: "Academic Overview", href: "overview", roles: ["dean"] },
   { id: "curriculum-coverage", label: "Curriculum Coverage", href: "curriculum-coverage", roles: ["dean"] },
-  { id: "department-performance", label: "Department Performance", href: "department-performance", roles: ["dean"] },
   { id: "teacher-workload", label: "Teacher Workload", href: "teacher-workload", roles: ["dean"] },
   { id: "lesson-plans", label: "Lesson Plans", href: "lesson-plans", roles: ["dean"] },
   { id: "lesson-logs", label: "Lesson Logs", href: "lesson-logs", roles: ["dean"] },
@@ -77,7 +75,6 @@ export const sidebarItems: SidebarItem[] = [
   { id: "subject-allocation", label: "Subject Allocation", href: "subject-allocation", roles: ["hod"] },
   { id: "coverage-review", label: "Coverage Review", href: "coverage-review", roles: ["hod"] },
   { id: "lesson-plans", label: "Lesson Plans", href: "lesson-plans", roles: ["hod"] },
-  { id: "academic-intelligence", label: "Academic Intelligence", href: "academic-intelligence", roles: ["hod"] },
   { id: "exam-analytics", label: "Exam Analytics", href: "exam-analytics", roles: ["teacher", "exam-manager", "dean", "hod"] },
   { id: "resource-requests", label: "Resource Requests", href: "resource-requests", roles: ["hod"] },
   { id: "reports", label: "Department Reports", href: "reports", roles: ["hod"] },

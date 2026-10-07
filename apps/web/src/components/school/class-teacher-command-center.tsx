@@ -19,7 +19,6 @@ import { toast } from "sonner";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { type TeacherView, sendClassTeacherCommunication } from "./class-teacher/shared";
 import { buildSchoolSectionHref, type SchoolRouteMode } from "./school-pages";
-import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { OverviewWorkspace } from "./class-teacher/workspaces/home";
 import { ClassRegisterWorkspace } from "./class-teacher/workspaces/register";
@@ -44,7 +43,6 @@ const navItems = [
   { id: "register", label: "My Class Register", icon: Users, group: "Class Operations" },
   { id: "attendance", label: "Attendance", icon: ClipboardCheck, group: "Class Operations" },
   { id: "progress", label: "Academic Progress", icon: GraduationCap, group: "Academics" },
-  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3, group: "Academics" },
   { id: "exam-analytics", label: "Exam Analytics", icon: BarChart3, group: "Academics" },
   { id: "comments", label: "Report Card Comments", icon: FileSignature, group: "Academics" },
   { id: "discipline", label: "Discipline & Behaviour", icon: ShieldAlert, group: "Student Welfare" },
@@ -62,6 +60,7 @@ const navItems = [
 ];
 
 function normalizeClassTeacherView(section?: string): TeacherView {
+  if (section === "academic-intelligence" || section === "academic-analytics") return "exam-analytics";
   const candidate = section && section !== "dashboard" ? section : "home";
   return navItems.some((item) => item.id === candidate) ? candidate : "home";
 }
@@ -194,14 +193,6 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
           {activeView === "attendance" && <AttendanceWorkspace />}
           {activeView === "progress" && <AcademicProgressWorkspace />}
           {activeView === "exam-analytics" && <ExamAnalyticsWorkspace scope="class" emptyActions={[{label:"Review class progress",onClick:()=>setActiveView("progress")},{label:"Review report comments",onClick:()=>setActiveView("comments")}]}/>}
-          {activeView === "academic-intelligence" && (
-            <AcademicIntelligenceWorkspace
-              audience="class-teacher"
-              onOpenMarks={() => setActiveView("progress")}
-              onOpenInterventions={() => setActiveView("welfare")}
-              onOpenReportCards={() => setActiveView("comments")}
-            />
-          )}
           {activeView === "comments" && <ReportCommentsWorkspace />}
           {activeView === "discipline" && <DisciplineWorkspace />}
           {activeView === "welfare" && <WelfareWorkspace />}

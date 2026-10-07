@@ -38,7 +38,6 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { DashboardCommunicationBoundary } from "@/lib/dashboard-communication/dashboard-communication-provider";
 import { connectDashboardEventSource } from "@/lib/dashboard-communication/reconnecting-event-source";
 import { tenantSlugToName } from "@/lib/seo/tenant-routes";
-import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { OverviewWorkspace as BoardingOverviewWorkspace } from "./boarding-master/overview-workspace";
 import { OverviewWorkspace as LibraryOverviewWorkspace } from "./librarian/overview-workspace";
@@ -99,7 +98,6 @@ type PrincipalSection =
   | "transport"
   | "library"
   | "exams-reports"
-  | "academic-intelligence"
   | "exam-analytics"
   | "communication"
   | "users-invitations"
@@ -137,7 +135,6 @@ type PrincipalNavigationSettings = {
 const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
   { id: "overview", label: "Overview", icon: Home },
   { id: "approvals", label: "Approvals", icon: CheckCircle2 },
-  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3 },
   { id: "exam-analytics", label: "Exam Analytics", icon: BarChart3 },
   { id: "exams-reports", label: "Exams & Report Cards", icon: ClipboardCheck },
   { id: "communication", label: "Communication", icon: MessageSquareText },
@@ -240,7 +237,7 @@ function normalizePrincipalSection(section?: string | null): PrincipalSection {
       return "exams-reports";
     case "academic-analytics":
     case "academic-intelligence":
-      return "academic-intelligence";
+      return "exam-analytics";
     case "parents":
       return "visitors";
     default:
@@ -518,16 +515,6 @@ export function PrincipalCommandCenter({
     }
     if (activeWorkspace === "exam-analytics") {
       return <ExamAnalyticsWorkspace scope="school" emptyActions={[{label:"Review exams & report cards",onClick:()=>setActiveWorkspace("exams-reports")}]}/>;
-    }
-    if (activeWorkspace === "academic-intelligence") {
-      return (
-        <AcademicIntelligenceWorkspace
-          audience="principal"
-          onOpenMarks={() => setActiveWorkspace("exams-reports")}
-          onOpenInterventions={() => setActiveWorkspace("approvals")}
-          onOpenReportCards={() => setActiveWorkspace("exams-reports")}
-        />
-      );
     }
     if (activeWorkspace === "users-invitations") {
       return (

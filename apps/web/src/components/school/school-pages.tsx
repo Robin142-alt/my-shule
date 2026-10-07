@@ -6,6 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { WorkspaceLoading } from "@/components/shared/workspace-loading";
 import { isHosSection } from "@/lib/school/hos-workspaces";
+import { resolveExamAnalyticsSection } from "@/lib/routing/exam-analytics-routes";
 import { useRouter } from "next/navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
 import { StudentStatusBadge } from "@/components/modules/students/lifecycle/StudentStatusBadge";
@@ -430,6 +431,7 @@ export function buildSchoolSectionHref(
   section: string,
   routeMode: SchoolRouteMode,
 ) {
+  section = resolveExamAnalyticsSection(role, section);
   if (routeMode === "public") {
     return section === "dashboard" ? `/school/${role}` : `/school/${role}/${section}`;
   }
@@ -4346,6 +4348,12 @@ function formatSchoolNotificationTime(value: unknown) {
 }
 
 export function SchoolPages(props: SchoolPagesProps) {
+  const section = props.studentId ? props.section : resolveExamAnalyticsSection(props.role, props.section ?? "dashboard");
+  useEffect(() => {
+    if (!props.section || props.section === section || props.studentId) return;
+    const href = buildSchoolSectionHref(props.role, section!, props.routeMode ?? "hosted");
+    window.history.replaceState(window.history.state, "", href + window.location.search + window.location.hash);
+  }, [props.role, props.routeMode, props.section, props.studentId, section]);
   return (
     <SchoolDashboardRoleProvider
       initialRole={props.role}
@@ -4357,6 +4365,7 @@ export function SchoolPages(props: SchoolPagesProps) {
       <SchoolDashboardSessionGate>
         <AuthorizedSchoolPagesContent
           {...props}
+          section={section}
           tenantId={props.tenantSlug?.trim() || null}
         />
       </SchoolDashboardSessionGate>

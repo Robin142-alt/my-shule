@@ -1,6 +1,6 @@
 # Exam Analytics workspace
 
-**Exam Analytics** (`exam-analytics`) is available in desktop and mobile navigation on all nine academic and school leadership dashboards. Hosted and public school routes load one shared library on demand. The Exams module and backend permissions remain required. Grade Processing, Academic Intelligence and existing intervention workflows retain their own routes.
+**Exam Analytics** (`exam-analytics`) is available in desktop and mobile navigation on all nine academic and school leadership dashboards. Hosted and public school routes load one shared library on demand. The Exams module and backend permissions remain required. Duplicate Academic Intelligence, Grade Processing and Department Performance entries are consolidated into Exam Analytics; saved links resolve to the shared workspace and retain their query context. Grade/Form teaching follow-up and separate learner-support workflows remain available. HOS subject appointments open Exam Analytics with the selected subject.
 
 | Dashboard | Exam Analytics responsibility |
 | --- | --- |

@@ -287,7 +287,7 @@ describe("school command center routing", () => {
         role: "dean-academics",
         section: "academic-analytics",
         testId: "dean-academics-command-center",
-        expected: "Dean academic-analytics",
+        expected: "Dean exam-analytics",
       },
       {
         role: "dean-academics",

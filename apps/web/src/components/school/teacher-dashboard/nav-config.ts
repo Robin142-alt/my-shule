@@ -31,7 +31,7 @@ export type NavItem = {
 };
 
 // One typed registry replaces the duplicate .ts/.tsx files without changing the
-// established teacher labels. Academic Intelligence is retained as its own route.
+// established teacher labels. Exam Analytics is the shared analytics workspace.
 export const navItems: NavItem[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Dashboard" },
   { id: "timetable", label: "My Timetable", icon: CalendarDays, group: "Dashboard" },
@@ -42,7 +42,6 @@ export const navItems: NavItem[] = [
   { id: "assignments", label: "Assignments", icon: FileText, group: "Academics" },
   { id: "assessments-cats", label: "Assessments", icon: Activity, group: "Assessments" },
   { id: "exams-marks", label: "Exams & Marks", icon: GraduationCap, group: "Assessments" },
-  { id: "academic-intelligence", label: "Academic Intelligence", icon: BarChart3, group: "Assessments" },
   { id: "exam-analytics", label: "Exam Analytics", icon: BarChart3, group: "Assessments" },
   { id: "learner-progress", label: "Learner Progress", icon: LineChart, group: "Assessments" },
   { id: "discipline-welfare", label: "Discipline", icon: Sword, group: "Student Support" },

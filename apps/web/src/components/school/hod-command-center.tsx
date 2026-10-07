@@ -21,7 +21,6 @@ import { NotificationBell } from "@/components/shared/notification-bell";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 import { TaskQueue } from "@/components/shared/task-queue";
 
-import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
 import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { buildSchoolSectionHref } from "./school-pages";
 import { CoverageReviewWorkspace } from "./hod/coverage-review-workspace";
@@ -42,7 +41,6 @@ type HodView =
   | "timetable"
   | "coverage-review"
   | "lesson-plans"
-  | "academic-intelligence"
   | "exam-analytics"
   | "resource-requests"
   | "reports";
@@ -98,13 +96,6 @@ const hodNavItems: HodNavItem[] = [
     icon: BookMarked,
     group: "Academics",
   },
-  {
-    id: "academic-intelligence",
-    label: "Academic Intelligence",
-    description: "Published department results, subject trends, and learner support.",
-    icon: BarChart3,
-    group: "Exams",
-  },
   { id: "exam-analytics", label: "Exam Analytics", description: "Explore published department results, comparisons and printable insights.", icon: BarChart3, group: "Exams" },
   {
     id: "resource-requests",
@@ -143,19 +134,19 @@ const hodViewAliases: Record<string, HodView> = {
   "lesson-delivery": "coverage-review",
   "coverage-review": "coverage-review",
   "lesson-plans": "lesson-plans",
-  "assessments-cats": "academic-intelligence",
-  exams: "academic-intelligence",
-  "exams-marks-moderation": "academic-intelligence",
-  marks: "academic-intelligence",
-  grading: "academic-intelligence",
-  validation: "academic-intelligence",
-  "performance-analytics": "academic-intelligence",
-  "student-analytics": "academic-intelligence",
-  "academic-analytics": "academic-intelligence",
-  "academic-intelligence": "academic-intelligence",
+  "assessments-cats": "exam-analytics",
+  exams: "exam-analytics",
+  "exams-marks-moderation": "exam-analytics",
+  marks: "exam-analytics",
+  grading: "exam-analytics",
+  validation: "exam-analytics",
+  "performance-analytics": "exam-analytics",
+  "student-analytics": "exam-analytics",
+  "academic-analytics": "exam-analytics",
+  "academic-intelligence": "exam-analytics",
   "exam-analytics": "exam-analytics",
-  "learner-interventions": "academic-intelligence",
-  "marks-moderation": "academic-intelligence",
+  "learner-interventions": "exam-analytics",
+  "marks-moderation": "exam-analytics",
   resources: "resource-requests",
   "resources-requests": "resource-requests",
   "resource-requests": "resource-requests",
@@ -336,13 +327,6 @@ function HodWorkspace({
       return <LessonPlansWorkspace />;
     case "exam-analytics":
       return <ExamAnalyticsWorkspace scope="department" emptyActions={[{label:"Review department allocations",onClick:()=>onNavigate("subject-allocation")},{label:"Open department reports",onClick:()=>onNavigate("reports")}]}/>;
-    case "academic-intelligence":
-      return (
-        <AcademicIntelligenceWorkspace
-          audience="hod"
-          onOpenReportCards={() => onNavigate("reports")}
-        />
-      );
     case "resource-requests":
       return <ResourceRequestsWorkspace />;
     case "reports":
