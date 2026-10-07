@@ -55,6 +55,7 @@ async function run() {
   const cssFile = path.join(web, 'src/app/globals.css');
   const css = (await require('postcss')([require('@tailwindcss/postcss')({ base: web })]).process(fs.readFileSync(cssFile, 'utf8'), { from: cssFile })).css + '\n' + fs.readFileSync(path.join(web, 'src/components/school/exams-manager/exam-analytics.module.css'), 'utf8').replace(/\.([A-Za-z_][\w-]*)/g, '.analytics-$1');
   assert.ok(css, 'Compile current application styles for browser verification.');
+  const scripts = new Map(fs.readdirSync(out).filter(file => file.endsWith('.js')).map(file => [`/${file}`, fs.readFileSync(path.join(out, file))]));
   const server = http.createServer(async (req, res) => {
     if (req.url === '/qa-report') {
       try {
@@ -66,7 +67,8 @@ async function run() {
         const pdf = await createAnalyticsReportPdf(report);
         res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ report, pdf_base64: pdf.content.toString('base64'), filename: pdf.filename }));
       } catch (error) { res.statusCode = 500; res.end(String(error)); }
-    } else if (/^\/[\w.-]+\.js$/.test(req.url ?? '')) { const file=path.join(out, req.url.slice(1)); if(!fs.existsSync(file)){res.statusCode=404;res.end();return;} res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(fs.readFileSync(file)); }
+    } else if (scripts.has(req.url)) { res.setHeader('Content-Type', 'text/javascript; charset=utf-8'); res.end(scripts.get(req.url)); }
+    else if (req.url?.endsWith('.js')) { res.statusCode=404; res.end(); }
     else if (req.url === '/style.css') { res.setHeader('Content-Type', 'text/css'); res.end(css); }
     else { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body style="margin:0"><div id="root"></div><script src="/bundle.js"></script></body></html>'); }
   });
