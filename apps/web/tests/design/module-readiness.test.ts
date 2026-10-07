@@ -282,25 +282,25 @@ describe("production module readiness", () => {
 
     expect(examManagerHrefs).toEqual([
       "overview",
+      "exam-workflow",
       "exam-setup",
       "exam-timetable",
       "marks-entry",
       "moderation",
-      "analysis",
       "report-cards",
-      "publishing",
       "reports",
+      "exam-analytics",
     ]);
     expect(deanHrefs).toEqual([
       "overview",
       "curriculum-coverage",
-      "department-performance",
       "teacher-workload",
       "lesson-plans",
       "lesson-logs",
       "assessments",
       "academic-interventions",
       "reports",
+      "exam-analytics",
     ]);
     expect(hodHrefs).toEqual([
       "overview",
@@ -308,7 +308,7 @@ describe("production module readiness", () => {
       "subject-allocation",
       "coverage-review",
       "lesson-plans",
-      "marks-moderation",
+      "exam-analytics",
       "resource-requests",
       "reports",
     ]);
