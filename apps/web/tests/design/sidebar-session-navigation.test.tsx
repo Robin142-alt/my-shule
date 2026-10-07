@@ -197,7 +197,7 @@ test.each([429, 503])("temporary %s verification keeps the verified finance work
   await act(async () => { await client.invalidateQueries({ queryKey: ["experience-session", "school"] }); });
   expect(screen.getByText("Fee structures workspace")).toBeVisible();
   expect(screen.queryByText("Let’s get you signed in")).not.toBeInTheDocument();
-  expect(screen.getByRole("status")).toHaveTextContent(status === 429 ? "temporarily busy" : "Service busy");
+  expect(await screen.findByRole("status")).toHaveTextContent(status === 429 ? "temporarily busy" : "Service busy");
   if (status === 429) {
     expect(screen.getByRole("button", { name: "Retry in 45s" })).toBeDisabled();
     await act(async () => { await client.invalidateQueries({ queryKey: ["experience-session", "school"] }); });
