@@ -30,7 +30,7 @@ describe("Exams manager command center", () => {
       "ExamTimetableWorkspace",
       "MarksEntryWorkspace",
       "ModerationWorkspace",
-      "AnalysisWorkspace",
+      "ExamAnalyticsWorkspace",
       "ReportCardsWorkspace",
       "ReportsWorkspace",
     ]) {
@@ -41,6 +41,10 @@ describe("Exams manager command center", () => {
     expect(source).toContain('"marks-entry"');
     expect(source).toContain('"exam-setup"');
     expect(source).toContain('"exam-timetable"');
+    expect(source).not.toContain("AnalysisWorkspace");
+    expect(source).not.toContain('label: "Grade Processing"');
+    expect(source).toContain('analysis: "exam-analytics"');
+    expect(source).toContain('"academic-intelligence": "exam-analytics"');
   });
 
   it("keeps one report workspace while preserving legacy handoff links", () => {
