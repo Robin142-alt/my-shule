@@ -27,6 +27,7 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { downloadCsvFile } from "@/lib/dashboard/export";
 import { AnalysisWorkspace } from "./exams-manager/analysis-workspace";
+import { ExamAnalyticsWorkspace } from "./exams-manager/exam-analytics-workspace";
 import { ExamSetupWorkspace } from "./exams-manager/exam-setup-workspace";
 import { ExamTimetableWorkspace } from "./exams-manager/exam-timetable-workspace";
 import { ExamWorkflowWorkspace } from "./exams-manager/exam-workflow-workspace";
@@ -48,6 +49,7 @@ type ExamsManagerCanonicalView =
   | "marks-entry"
   | "moderation"
   | "analysis"
+  | "exam-analytics"
   | "report-cards"
   | "imports-templates"
   | "reports";
@@ -105,6 +107,7 @@ const routeAliases: Record<ExamsManagerView, ExamsManagerCanonicalView> = {
   validation: "moderation",
   grading: "analysis",
   "academic-analytics": "analysis",
+  "exam-analytics": "exam-analytics",
   analysis: "analysis",
   drafts: "report-cards",
   "report-templates": "report-cards",
@@ -170,6 +173,13 @@ const navItems: NavItem[] = [
     summary: "Analyze grades and class performance after real marks exist.",
     icon: BarChart3,
     aliases: ["grading", "academic-analytics", "analysis"],
+  },
+  {
+    id: "exam-analytics",
+    label: "Exam Analytics",
+    summary: "Explore academic performance, comparisons and historical patterns. Download or print every analytic.",
+    icon: BarChart3,
+    aliases: ["exam-analytics"],
   },
   {
     id: "report-cards",
@@ -246,6 +256,8 @@ function Workspace({
       return <MarksEntryWorkspace onOpenSetup={() => onNavigate("exam-setup")} />;
     case "moderation":
       return <ModerationWorkspace />;
+    case "exam-analytics":
+      return <ExamAnalyticsWorkspace onOpenMarks={() => onNavigate("marks-entry")} onOpenReportCards={() => onNavigate("report-cards")} />;
     case "analysis":
       return (
         <AnalysisWorkspace
@@ -488,7 +500,7 @@ export function ExamsManagerCommandCenter({
                   description: item.summary,
                   group: ["overview", "exam-workflow", "exam-setup", "exam-timetable"].includes(item.id)
                     ? "Setup"
-                    : ["marks-entry", "moderation", "analysis"].includes(item.id)
+                    : ["marks-entry", "moderation", "analysis", "exam-analytics"].includes(item.id)
                       ? "Marks & analysis"
                       : "Publishing & reports",
                 }))}

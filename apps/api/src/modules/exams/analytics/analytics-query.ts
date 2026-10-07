@@ -21,7 +21,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     ORDER BY starts_on DESC, id DESC LIMIT 1
   ), exam_context AS MATERIALIZED (
     (SELECT * FROM candidate_exams WHERE starts_on <= (SELECT starts_on FROM anchor_exam)
-      ORDER BY starts_on DESC, id DESC LIMIT 24)
+      ORDER BY starts_on DESC, id DESC LIMIT COALESCE(($3::jsonb->>'history_limit')::int,24))
     UNION SELECT * FROM candidate_exams WHERE id::text = $3::jsonb->>'comparison_exam_id'
   ), evidence_keys AS (
     SELECT mark.tenant_id, mark.exam_series_id, mark.assessment_id, mark.student_id::text, mark.class_section_id::text
@@ -73,7 +73,8 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
   ), scoped AS MATERIALIZED (
     SELECT evidence.* FROM evidence WHERE evidence.tenant_id = $1 AND ${analyticsScopeSql('evidence', level)}
       ${publishedOnly ? "AND evidence.mark_status = 'published' AND evidence.report_status = 'published'" : ''}
-      AND (($3::jsonb->>'department_id') IS NULL OR department_id = $3::jsonb->>'department_id')
+      AND (($3::jsonb->>'analytics_mode') = 'library' OR (
+      (($3::jsonb->>'department_id') IS NULL OR department_id = $3::jsonb->>'department_id')
       AND (($3::jsonb->>'subject_id') IS NULL OR subject_id = $3::jsonb->>'subject_id')
       AND (($3::jsonb->>'class_section_id') IS NULL OR class_section_id = $3::jsonb->>'class_section_id')
       AND (($3::jsonb->>'stream_id') IS NULL OR stream_id = $3::jsonb->>'stream_id')
@@ -83,8 +84,8 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
           AND teacher.class_section_id::text = evidence.class_section_id AND teacher.subject_id::text = evidence.subject_id
           AND teacher.status = 'active' AND (teacher.academic_term_id IS NULL OR teacher.academic_term_id::text = evidence.academic_term_id)
           AND (teacher.stream_id IS NULL OR teacher.stream_id::text = evidence.stream_id)
-          AND (teacher.effective_from IS NULL OR teacher.effective_from <= CURRENT_DATE)
-          AND (teacher.effective_to IS NULL OR teacher.effective_to >= CURRENT_DATE)))
+          AND (teacher.effective_from IS NULL OR teacher.effective_from <= evidence.ends_on)
+          AND (teacher.effective_to IS NULL OR teacher.effective_to >= evidence.exam_date::date)))))
   ), subject_results AS (
     SELECT tenant_id, exam_series_id::text, exam_name, exam_status, exam_date, ends_on, academic_term_id, academic_year_id, term_name, year_name,
       student_id, student_name, admission_number, subject_id, subject_name, department_id, department_name,

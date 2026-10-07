@@ -1,4 +1,6 @@
 import type { AnalyticsFilters, ExamAnalyticsScope, ExamAnalyticsScopeLevel } from './analytics-contract';
+import { buildAnalyticsLibrary, filterLibraryEvidence } from './analytics-library';
+import type { AnalyticsLibrary } from './analytics-library-contract';
 
 export interface Boundary { label: string; min: number; max: number; points: number | null; is_pass: boolean }
 export interface InterventionEvidence {
@@ -58,10 +60,18 @@ export function targetResult(actual: number | null, target: number | null) {
   return { target, actual, variance: delta(actual, target), achievement: actual !== null && target !== null && target > 0 ? round(actual / target * 100) : null,
     status: target === null ? 'No target configured' : actual === null ? 'No approved results' : actual >= target ? 'Achieved' : 'Below target' };
 }
-function gradeFor(score: number | null, boundaries: Boundary[]) {
+export function gradeFor(score: number | null, boundaries: Boundary[]) {
   if (score === null) return null;
-  return [...boundaries].sort((a,b) => Number(b.min)-Number(a.min)).find(b => score >= Number(b.min) && score <= Number(b.max)) ?? null;
+  let found:Boundary|null=null;
+  for(const boundary of boundaries)if(score>=Number(boundary.min)&&score<=Number(boundary.max)&&(!found||Number(boundary.min)>Number(found.min)))found=boundary;
+  return found;
 }
+function evidenceOptions(rows:SubjectEvidence[],idKey:keyof SubjectEvidence,labelKey:keyof SubjectEvidence){
+  const options=new Map<string,{id:string;name:string}>();
+  for(const r of rows){if(!r[idKey])continue;const id=String(r[idKey]),name=String(r[labelKey]??r[idKey]);if(options.get(id)?.name!==name)options.set(id,{id,name});}
+  return [...options.values()];
+}
+function teacherOptions(rows:SubjectEvidence[]){const options=new Map<string,{id:string;name:string}>();for(const r of rows)for(const t of r.teachers??[])options.set(t.id,t);return [...options.values()];}
 function consistency(values: number[]) {
   if (values.length < ANALYTICS_RULES.minimum_history) return { status: 'Insufficient history', consecutive_improvement: 0, consecutive_decline: 0, recent_average: mean(values), best: null, weakest: null, variability: null };
   const recent = values.slice(-5); const stats = statistics(recent);
@@ -71,7 +81,7 @@ function consistency(values: number[]) {
   return { status: up >= 2 ? 'Consistently improving' : down >= 2 ? 'Consecutive decline' : stats.standard_deviation! <= ANALYTICS_RULES.consistency_deviation ? 'Consistent' : 'Variable',
     consecutive_improvement: up, consecutive_decline: down, recent_average: stats.mean, best: stats.highest, weakest: stats.lowest, variability: stats.standard_deviation };
 }
-function summarize(rows: SubjectEvidence[]) {
+export function summarize(rows: SubjectEvidence[]) {
   const learners = [...group(rows,r=>r.student_id).values()];
   const learnerMeans = learners.map(subjects => mean(subjects.map(r=>numeric(r.average)).filter((n): n is number=>n!==null)));
   const grades = rows.map(r=>gradeFor(numeric(r.average),r.boundaries));
@@ -95,6 +105,7 @@ function positionIndex(rows: SubjectEvidence[]) {
   type Positions={class:number|null;stream:number|null;grade:number|null;subjects:{subject_id:string;position:number|null}[]};
   const output=new Map<string,Positions>();
   for(const [id,rs] of group(rows,r=>r.student_id)) if(rs.every(r=>r.ranking_enabled===true&&r.reporting_mode==='traditional')) output.set(id,{class:null,stream:null,grade:null,subjects:[]});
+  if(!output.size)return output;
   for(const dimension of ['class','stream','grade','subject'] as const) {
     const groups=group(rows,r=>dimension==='class'?r.class_section_id:dimension==='stream'?(r.stream_id??''):dimension==='grade'?(r.grade_level??''):r.class_section_id+'|'+r.subject_id);
     for(const [key,population] of groups) {
@@ -136,7 +147,7 @@ function historicalRisk(subjects: SubjectEvidence[], history: SubjectEvidence[])
     baseline_change:delta(average,averages.length>=ANALYTICS_RULES.minimum_history?mean(averages):null)});
 }
 
-export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnalyticsScope, filters: AnalyticsFilters, availableScopes: ExamAnalyticsScopeLevel[], today = new Date().toISOString().slice(0,10), forReport = false) {
+function buildCoreAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnalyticsScope, filters: AnalyticsFilters, availableScopes: ExamAnalyticsScopeLevel[], today = new Date().toISOString().slice(0,10), forReport = false) {
   const rows = input.map(row => ({...row, average:numeric(row.average), boundaries:Array.isArray(row.boundaries)?row.boundaries:[], teachers:row.teachers??[], interventions:row.interventions??[]}));
   const exams = [...group(rows,r=>r.exam_series_id).values()].map(rs=>({ id:rs[0].exam_series_id,name:rs[0].exam_name,date:rs[0].exam_date,
     academic_term_id:rs[0].academic_term_id,academic_year_id:rs[0].academic_year_id,term_name:rs[0].term_name,year_name:rs[0].year_name })).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
@@ -294,11 +305,9 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
   return {
     scope:{level:scope.level,role:scope.role,available_scopes:availableScopes},
     filters:{...filters,exam_series_id:selected?.id??null,comparison_exam_id:comparison?.id??null},
-    options:{exams,departments:[...new Map(rows.filter(r=>r.department_id).map(r=>[r.department_id!,{id:r.department_id!,name:r.department_name??r.department_id!}])).values()],
-      subjects:[...new Map(rows.map(r=>[r.subject_id,{id:r.subject_id,name:r.subject_name}])).values()],
-      classes:[...new Map(rows.map(r=>[r.class_section_id,{id:r.class_section_id,name:r.class_name}])).values()],
-      streams:[...new Map(rows.filter(r=>r.stream_id).map(r=>[r.stream_id!,{id:r.stream_id!,name:r.stream_name??r.stream_id!}])).values()],
-      grades:[...new Set(rows.map(r=>r.grade_level).filter((v):v is string=>v!==null))],teachers:[...new Map(rows.flatMap(r=>r.teachers).map(t=>[t.id,t])).values()]},
+    options:{exams,departments:evidenceOptions(rows,'department_id','department_name'),subjects:evidenceOptions(rows,'subject_id','subject_name'),
+      classes:evidenceOptions(rows,'class_section_id','class_name'),streams:evidenceOptions(rows,'stream_id','stream_name'),
+      grades:[...new Set(rows.map(r=>r.grade_level).filter((v):v is string=>v!==null))],teachers:teacherOptions(rows)},
     kpis:{school_average:performance.mean,pending_reviews:operations.submitted,missing_marks_alerts:operations.missing,
       active_exams:new Set(rows.filter(r=>['draft','submitted','reviewed'].includes(r.exam_status??'')&&r.exam_date<=today
         && (r.ends_on instanceof Date?r.ends_on.toISOString().slice(0,10):String(r.ends_on??''))>=today).map(r=>r.exam_series_id)).size},
@@ -331,7 +340,51 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
       topImprovers:improvers.map(l=>({student_id:l.student_id,student_name:l.student_name,admission_number:l.admission_number,latest_exam_series:selected?.name??'',latest_average:l.average!,previous_exam_series:comparison?.name??'',previous_average:l.previous_average!,improvement:l.change!})),
       atRiskStudents:learnerRows.filter(l=>l.risk.level!=='Low').slice(0,10).map(l=>({student_id:l.student_id,student_name:l.student_name,admission_number:l.admission_number,average_percentage:l.average,assessments_taken:l.assessments_taken,reasons:l.risk.reasons}))},
     data_quality:{final_mark_count:operations.numeric_count,explicit_evidence_count:sum(current.map(r=>r.explicit_count)),missing_or_incomplete_count:operations.missing,invalid_marks:operations.invalid,
-      ungraded_results:performance.ungraded_results,notes:['Average uses approved numeric results only. Missing work is never zero.','Pass rates count graded learner-subject results. Attendance counts scored or explicitly absent assessments.','Teacher comparisons describe allocations, not teacher effectiveness.','History includes up to 24 exam cycles before the selected exam, plus the explicit comparison. Select an older year to explore earlier history.']},
+      ungraded_results:performance.ungraded_results,notes:['Average uses approved numeric results only. Missing work is never zero.','Pass rates count graded learner-subject results. Attendance counts scored or explicitly absent assessments.','Teacher comparisons describe allocations, not teacher effectiveness.',`History includes up to ${filters.history_limit??24} exam cycles through the selected exam, plus the explicit comparison. Select an older year to explore earlier history.`]},
   };
 }
-export type AcademicIntelligence = ReturnType<typeof buildAcademicIntelligence>;
+export type CoreAcademicIntelligence = ReturnType<typeof buildCoreAcademicIntelligence>;
+export type AcademicIntelligence = CoreAcademicIntelligence & { library?: AnalyticsLibrary };
+
+function buildLibraryBase(input: SubjectEvidence[], scope: ExamAnalyticsScope, filters: AnalyticsFilters, availableScopes: ExamAnalyticsScopeLevel[], today?:string) {
+  const examMap=new Map<string,CoreAcademicIntelligence['options']['exams'][number]>();
+  for(const r of input)if(!examMap.has(r.exam_series_id))examMap.set(r.exam_series_id,{id:r.exam_series_id,name:r.exam_name,date:r.exam_date,
+    academic_year_id:r.academic_year_id,academic_term_id:r.academic_term_id,year_name:r.year_name,term_name:r.term_name});
+  const exams=[...examMap.values()].sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  const anchor=filters.exam_series_id??exams.filter(e=>(!filters.academic_year_id||e.academic_year_id===filters.academic_year_id)&&(!filters.academic_term_id||e.academic_term_id===filters.academic_term_id)).at(-1)?.id;
+  const selected=filterLibraryEvidence(input,filters);
+  const data=buildCoreAcademicIntelligence(selected,scope,{...filters,exam_series_id:anchor},availableScopes,today,true);
+  // Keep selectors available when a child filter has no results. These options are still role/tenant scoped.
+  const options=(id:keyof SubjectEvidence,label:keyof SubjectEvidence)=>evidenceOptions(input,id,label);
+  data.options={...data.options,exams,subjects:options('subject_id','subject_name'),classes:options('class_section_id','class_name'),
+    streams:options('stream_id','stream_name'),departments:options('department_id','department_name'),grades:[...new Set(input.map(r=>r.grade_level).filter((v):v is string=>!!v))],
+    teachers:teacherOptions(input)};
+  // Retain the explicit empty selection in report context, rather than silently switching exams.
+  data.filters.exam_series_id=anchor??null;
+  if(filters.student_id) {
+    const peerEvidence=filterLibraryEvidence(input,{...filters,student_id:undefined});
+    const positions=positionIndex(peerEvidence.filter(r=>r.exam_series_id===anchor));
+    const previousPositions=positionIndex(peerEvidence.filter(r=>r.exam_series_id===data.filters.comparison_exam_id));
+    for(const learner of data.learners.items){learner.positions=positions.get(learner.student_id)??null;learner.previous_positions=previousPositions.get(learner.student_id)??null;learner.position_movement=delta(learner.previous_positions?.class??null,learner.positions?.class??null);}
+  }
+  const priorPlacements=new Map(selected.filter(r=>r.exam_series_id===data.filters.comparison_exam_id).map(r=>[r.student_id,r.class_section_id]));
+  for(const learner of data.learners.items)if(priorPlacements.get(learner.student_id)!==learner.class_section_id)learner.position_movement=null;
+  return {data,selected};
+}
+
+// Evidence arrays come from immutable repository read snapshots. Weak keys release all
+// computed populations when their bounded repository snapshot is evicted.
+const libraryCores=new WeakMap<SubjectEvidence[],Map<string,ReturnType<typeof buildLibraryBase>>>();
+export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnalyticsScope, filters: AnalyticsFilters, availableScopes: ExamAnalyticsScopeLevel[], today?:string, forReport=false):AcademicIntelligence {
+  if(filters.analytics_mode!=='library')return buildCoreAcademicIntelligence(input,scope,filters,availableScopes,today,forReport);
+  const viewOnly=new Set(['analytic_ids','analytic_page','page','page_size','comparison_dimension','compare_left_id','compare_right_id','refresh_key']);
+  const key=JSON.stringify([scope,availableScopes,today??new Date().toISOString().slice(0,10),Object.entries(filters).filter(([k])=>!viewOnly.has(k)).sort(([a],[b])=>a.localeCompare(b))]);
+  const cache=libraryCores.get(input)??new Map<string,ReturnType<typeof buildLibraryBase>>();
+  let base=!forReport?cache.get(key):undefined;
+  if(!base){base=buildLibraryBase(input,scope,filters,availableScopes,today);if(!forReport){if(cache.size>=3)cache.delete(cache.keys().next().value!);cache.set(key,base);libraryCores.set(input,cache);}}
+  const selected=base.selected;
+  const data={...base.data,scope:{...base.data.scope,available_scopes:availableScopes},options:{...base.data.options},learners:{...base.data.learners,page:filters.page,page_size:filters.page_size},filters:{...base.data.filters,...filters,exam_series_id:base.data.filters.exam_series_id,comparison_exam_id:base.data.filters.comparison_exam_id}};
+  const library=buildAnalyticsLibrary(selected,input,data,filters,forReport);
+  if(!forReport)data.learners={...data.learners,items:data.learners.items.slice((filters.page-1)*filters.page_size,filters.page*filters.page_size),coverage:'page'};
+  return {...data,library};
+}

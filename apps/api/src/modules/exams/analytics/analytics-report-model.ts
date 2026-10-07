@@ -22,6 +22,13 @@ export function buildAnalyticsPrintReport(data: AcademicIntelligence, section: A
   selected('risk_level', 'Learner risk'); selected('learner_query', 'Learner search');
   selected('learner_group', 'Learner group'); selected('grade', 'Achievement');
   selected('marks_status', 'Marks status'); selected('publication_status', 'Publication');
+  selected('student_id', 'Student', data.learners.items.map(l=>({id:l.student_id,name:`${l.student_name} / ${l.admission_number}`})));
+  selected('comparison_exam_id', 'Comparison exam', data.options.exams);
+  if(data.library?.items.some(item=>item.id==='focused-comparison')){
+    selected('comparison_dimension','Comparison dimension');
+    selected('compare_left_id','Left comparison',data.library.comparison_options);
+    selected('compare_right_id','Right comparison',data.library.comparison_options);
+  }
   const report: AnalyticsPrintReport = {
     ...identity, document_number: documentNumber, generated_at: generatedAt,
     title: ANALYTICS_REPORT_LABELS[section],
@@ -40,6 +47,16 @@ export function buildAnalyticsPrintReport(data: AcademicIntelligence, section: A
       'Summary statistics describe the selected academic scope. Learner search, risk and recognition filters narrow the learner list only.',
     ],
   };
+  if(section==='library'&&data.library) {
+    report.title=data.library.items.length===1?data.library.items[0].title:'Exam Analytics report';
+    report.metrics=[];
+    report.filters.push({label:'History coverage',value:`${data.library.history.cycles} cycles; ${data.library.history.first??'No history'} to ${data.library.history.last??'No history'}; limit ${data.library.history.limit}`});
+    report.sections=data.library.items.map(item=>({title:item.title,headers:item.columns,
+      rows:item.rows.map(row=>row.values.map(value=>value===null?'Not available':typeof value==='number'?String(value):value)),
+      note:`${item.question} ${item.note} All ${item.total} matching rows included.`}));
+    report.notes=['Internal academic review; not a published learner report card.','All selected analytics include the full matching evidence, across all pages. Charts and matrices are provided as labelled evidence tables for precise printing and reuse.',...data.data_quality.notes.filter(note=>!note.startsWith('History includes'))];
+    return report;
+  }
   const add = (title:string,headers:string[],rows:string[][],note?:string) => report.sections.push({title,headers,rows,note});
   const includes=(...sections:AnalyticsReportSection[])=>section==='all'||sections.includes(section);
   if(includes('summary')) {

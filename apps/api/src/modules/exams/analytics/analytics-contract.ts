@@ -8,4 +8,7 @@ export interface AnalyticsFilters {
   stream_id?: string; teacher_user_id?: string; student_id?: string; learner_query?: string;
   risk_level?: string; grade?: string; marks_status?: string; publication_status?: string; learner_group?: string;
   page: number; page_size: number;
+  analytics_mode?: 'library'; analytic_ids?: string; analytic_page?: number; history_limit?: number;
+  comparison_dimension?: 'student'|'class'|'stream'|'subject'|'exam'|'term'|'year'; compare_left_id?: string; compare_right_id?: string;
+  refresh_key?: string;
 }

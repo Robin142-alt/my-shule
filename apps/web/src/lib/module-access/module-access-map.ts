@@ -352,6 +352,7 @@ const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
   academics: "academics",
   exams: "exams",
   "exam-workflow": "exams",
+  "exam-analytics": "exams",
   discipline: "discipline",
   reports: "reports",
   communication: "communication_sms",

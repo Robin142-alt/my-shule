@@ -56,7 +56,8 @@ test('invalid filters, denied scopes and persistence errors cannot return a docu
 test('every analytics view has report content and complete export includes every section',()=>{
   const analytics=data();
   for(const section of ANALYTICS_REPORT_SECTIONS){
-    const report=buildAnalyticsPrintReport(analytics,section,identity,'AI-COVERAGE','2026-10-04T10:00:00Z');
+    const source=section==='library'?buildAcademicIntelligence([evidence()],{level:'school',role:'exams_manager',actor_user_id:'manager'},{page:1,page_size:25,analytics_mode:'library'},['school'],undefined,true):analytics;
+    const report=buildAnalyticsPrintReport(source,section,identity,'AI-COVERAGE','2026-10-04T10:00:00Z');
     assert.ok(report.title,section);assert.ok(report.sections.length>0,section);
     for(const table of report.sections) assert.ok(table.rows.every(row=>row.length===table.headers.length),table.title);
   }
