@@ -2,6 +2,7 @@
 "use client";
 
 import { AcademicIntelligenceWorkspace } from "./academic-intelligence-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 
 import { useState, useEffect, type ReactNode } from "react";
 import {
@@ -46,7 +47,7 @@ import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-work
 
 type GradeRouteMode = "hosted" | "public";
 type Tone = "success" | "info" | "warning" | "danger" | "neutral";
-type GradeView = "overview" | "learners" | "streams" | "attendance" | "academics" | "exams" | "discipline" | "welfare" | "communication" | "meetings" | "timetable" | "assignments" | "requests" | "reports" | "notifications" | "teaching" | "settings";
+type GradeView = "overview" | "learners" | "streams" | "attendance" | "academics" | "exam-analytics" | "exams" | "discipline" | "welfare" | "communication" | "meetings" | "timetable" | "assignments" | "requests" | "reports" | "notifications" | "teaching" | "settings";
 type GradeActionTone = "success" | "info" | "warning" | "danger";
 type GradeOverviewData = {
   total_learners?: string | number;
@@ -241,6 +242,7 @@ const navItems: NavItem[] = [
   { id: "streams", label: "Streams & Class Teachers", icon: Network, group: "Grade Operations" },
   { id: "attendance", label: "Attendance Monitor", icon: UserCheck, group: "Grade Operations" },
   { id: "academics", label: "Academic Progress", icon: TrendingUp, group: "Academics" },
+  { id: "exam-analytics", label: "Exam Analytics", icon: TrendingUp, group: "Academics" },
   { id: "exams", label: "Exams & Report Readiness", icon: ClipboardCheck, group: "Academics" },
   { id: "discipline", label: "Discipline & Behaviour", icon: ShieldAlert, group: "Student Welfare" },
   { id: "welfare", label: "Welfare & Counselling", icon: HeartPulse, group: "Student Welfare" },
@@ -1737,6 +1739,7 @@ export function GradeMasterCommandCenter({ activeSection, routeMode }: { activeS
           {activeView === "streams" && <StreamsWorkspace />}
           {activeView === "attendance" && <AttendanceWorkspace />}
           {activeView === "academics" && <><AcademicIntelligenceWorkspace audience="grade-master" onOpenMarks={() => openView("exams")} onOpenReportCards={() => openView("reports")} /><details><summary className="cursor-pointer py-3 font-bold">Teaching follow-up</summary><AcademicsWorkspace /></details></>}
+          {activeView === "exam-analytics" && <ExamAnalyticsWorkspace scope="grade" emptyActions={[{label:"Review exam readiness",onClick:()=>openView("exams")},{label:"Review assigned streams",onClick:()=>openView("streams")}]}/>}
           {activeView === "exams" && <ExamsWorkspace />}
           {activeView === "discipline" && <DisciplineWorkspace />}
           {activeView === "welfare" && <WelfareWorkspace />}

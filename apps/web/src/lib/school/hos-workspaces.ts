@@ -4,6 +4,7 @@ import { BarChart3, BookOpen, ChartNoAxesCombined, ClipboardCheck, FileSearch, F
 export const hosWorkspaces = [
   { id: "academic-intelligence", label: "Subject Overview", group: "Command Center", icon: LayoutGrid, view: "Overview", description: "Published results and the next steps for your subjects." },
   { id: "subjects", label: "My Subject Appointments", group: "Command Center", icon: BookOpen, view: null, description: "Your subject responsibilities, dates and appointment history." },
+  { id: "exam-analytics", label: "Exam Analytics", group: "Academic Results", icon: ChartNoAxesCombined, view: null, description: "Explore the complete analytics library for your appointed subjects, with downloads and printing." },
   { id: "performance-analytics", label: "Subject Performance", group: "Academic Results", icon: BarChart3, view: "Performance", description: "Achievement bands, pass rates and assessment coverage." },
   { id: "comparisons", label: "Compare Results", group: "Academic Results", icon: GitCompareArrows, view: "Comparisons", description: "Compare exams, classes, streams and teacher allocations." },
   { id: "trends", label: "Performance Trends", group: "Academic Results", icon: TrendingUp, view: "Trends", description: "Exam, term and year trends for your subjects." },

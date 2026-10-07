@@ -22,7 +22,7 @@ assert.equal(fixtureDeclarations.length,2,'Principal workflow fixtures must be a
 fs.writeFileSync(path.join(out,'principal-fixtures.ts'),fixtureDeclarations.map(declaration=>`export const ${declaration.getText(principalTest)};`).join('\n'));
 fs.writeFileSync(path.join(out,'loader.cjs'),`const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(out,'link.tsx'),'export default function Link({children,...props}){return <a {...props}>{children}</a>;}');
-fs.writeFileSync(path.join(out,'css-loader.cjs'), `module.exports=function(){return 'export default {workspace:"dean-workspace",table:"dean-table"};'};`);
+fs.writeFileSync(path.join(out,'css-loader.cjs'), `module.exports=function(source){if(!this.resourcePath.endsWith('exam-analytics.module.css'))return 'export default {workspace:"dean-workspace",table:"dean-table"};';return 'export default '+JSON.stringify(Object.fromEntries([...source.matchAll(/\\.([A-Za-z_][\\w-]*)/g)].map(m=>[m[1],'analytics-'+m[1]])))+';';};`);
 fs.writeFileSync(path.join(out,'navigation.ts'),`export function useRouter(){return {push:href=>window.history.replaceState(null,'',href),refresh(){},replace(){},back(){}};}export function usePathname(){return location.pathname;}export function useSearchParams(){return new URLSearchParams(location.search);}`);
 fs.writeFileSync(path.join(out,'hooks.ts'),`
 import {canonicalResponses} from './principal-fixtures';
@@ -63,9 +63,15 @@ const hookAliases=['@/lib/data/school-hooks','@/hooks/useDashboardTasks','@/hook
 await new Promise((resolve,reject)=>webpack({mode:'development',devtool:false,entry:path.join(out,'entry.tsx'),output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[path.join(web,'node_modules'),'node_modules'],alias:{...Object.fromEntries(hookAliases.map(key=>[key,path.join(out,'hooks.ts')])),'next/link':path.join(out,'link.tsx'),'next/navigation':path.join(out,'navigation.ts'),'@':path.join(web,'src')}},plugins:[new webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],module:{rules:[{test:/\.tsx?$/,exclude:/node_modules/,use:[path.join(out,'loader.cjs')]},{test:/\.css$/,use:[path.join(out,'css-loader.cjs')]}]},optimization:{minimize:false}},(error,stats)=>error||stats.hasErrors()?reject(error||new Error(stats.toString({all:false,errors:true}))):resolve()));
 const globalsPath=path.join(web,'src/app/globals.css');
 const globals=fs.readFileSync(globalsPath,'utf8').replace('@import "tailwindcss";',`@import "tailwindcss" source(none);\n@source ${source(path.join(web,'src/components'))};`);
-const css=(await require('postcss')([require('@tailwindcss/postcss')()]).process(globals,{from:globalsPath})).css+'\n'+fs.readFileSync(path.join(web,'src/components/school/dean-academics/dean-workspace.module.css'),'utf8').replaceAll('.workspace','.dean-workspace').replaceAll('.table','.dean-table').replace(/:global\(([^)]+)\)/g,'$1');
+const css=(await require('postcss')([require('@tailwindcss/postcss')()]).process(globals,{from:globalsPath})).css+'\n'+fs.readFileSync(path.join(web,'src/components/school/dean-academics/dean-workspace.module.css'),'utf8').replaceAll('.workspace','.dean-workspace').replaceAll('.table','.dean-table').replace(/:global\(([^)]+)\)/g,'$1')+'\n'+fs.readFileSync(path.join(web,'src/components/school/exams-manager/exam-analytics.module.css'),'utf8').replace(/\.([A-Za-z_][\w-]*)/g,'.analytics-$1');
 const server=http.createServer((req,res)=>{
- if(req.url==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','public, max-age=3600');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
+ const assetName=new URL(req.url,'http://localhost').pathname.slice(1);
+ if(/^[\w.-]+\.js$/.test(assetName)){
+  const assetPath=path.join(out,assetName);
+  res.setHeader('Content-Type','application/javascript');
+  if(!fs.existsSync(assetPath)){res.statusCode=404;res.end('');return;}
+  res.setHeader('Cache-Control','public, max-age=3600');res.end(fs.readFileSync(assetPath));
+ }
  else if(req.url==='/fonts/InterVariable.woff2'){res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
  else if(req.url?.startsWith('/_next/image?')||req.url?.startsWith('/brand/')){res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
  else if(req.url?.startsWith('/api/billing/reconciliation?')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{rows:[],method_summaries:[],totals:{cleared_amount_minor:'0',pending_amount_minor:'0',exception_amount_minor:'0',transaction_count:0}}}));}
@@ -78,6 +84,7 @@ const browser=await chromium.launch({headless:true});const results=[];
 let cases=[...['teacher','class-teacher','grade-master','hod','dean-academics','exams-manager','system-monitor','superadmin'].map(role=>[role,'overview']),['principal','overview'],['principal','students'],['principal','settings'],['deputy-principal','overview'],['deputy-principal','timetable'],['accountant','overview'],['accountant','payments'],['admissions','overview'],...['secretary','librarian','storekeeper','nurse','guidance-counselling','discipline-master','laboratory-technician','ict-manager','security-officer','transport-manager','boarding-master'].map(role=>[role,'overview']),['librarian','books'],['nurse','visits'],['parent','dashboard'],['parent','fees'],['student','dashboard'],['student','academics']];
 cases.push(['teacher','lesson-log']);
 cases.push(['head-of-subject','overview']);
+for(const role of ['principal','deputy-principal','dean-academics','exams-manager','hod','head-of-subject','grade-master','class-teacher','teacher'])cases.push([role,'exam-analytics']);
 if(process.argv.includes('--all-workspaces')){
  const configSource=ts.createSourceFile('roles.tsx',fs.readFileSync(path.join(web,'src/components/school/live-role-command-center.tsx'),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
  function visit(node){
@@ -126,6 +133,7 @@ try{
    const errors=[];const handler=error=>errors.push(error.message);page.on('pageerror',handler);
    await page.goto(`http://127.0.0.1:${server.address().port}/school/${role}/${section}`);
    await page.locator('.authenticated-app').waitFor({timeout:10000}).catch(()=>{});
+   if(section==='exam-analytics')await page.getByRole('heading',{name:'Exam Analytics',exact:true,level:2}).waitFor();
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
    if(width===1440)await checkNavigation(page.locator('aside .dashboard-navigation:visible').first());

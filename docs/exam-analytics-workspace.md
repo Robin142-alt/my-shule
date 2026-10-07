@@ -1,6 +1,17 @@
 # Exam Analytics workspace
 
-Exam Manager → **Exam Analytics** (`exam-analytics`) is a separate, Exams-module-gated workspace. Grade Processing retains its existing workflow. Hosted and public school routes use the same workspace.
+**Exam Analytics** (`exam-analytics`) is available in desktop and mobile navigation on all nine academic and school leadership dashboards. Hosted and public school routes load one shared library on demand. The Exams module and backend permissions remain required. Grade Processing, Academic Intelligence and existing intervention workflows retain their own routes.
+
+| Dashboard | Exam Analytics responsibility |
+| --- | --- |
+| Principal, Deputy Principal, Dean of Academics, Exams Manager | Whole school |
+| Head of Department | Active appointed departments; published results only |
+| Head of Subject | Active appointed subjects; published results only |
+| Grade/Form Master | Active grade/form appointments |
+| Class Teacher | Active class appointments |
+| Teacher | Active class, stream, term and subject assignments |
+
+Dashboard entries request their responsibility explicitly; URL filters cannot override it. The server rechecks tenant, membership and appointments on every read and export. Heads of Subject use the existing subject-only read and report endpoints with `exams:subject-analytics`, without granting `exams:read`. Scope labels and empty-state actions match the dashboard responsibility. Staff holding additional teaching responsibilities can also open the Teacher dashboard through the existing dashboard switcher.
 
 ## Data audit and interpretation
 
@@ -51,7 +62,7 @@ Focused verification covers calculations and empty evidence, all registry export
 ```powershell
 node -r ts-node/register/transpile-only --test apps/api/src/modules/exams/analytics/analytics-library.test.ts apps/api/src/modules/exams/analytics/analytics-report.test.ts apps/api/src/modules/exams/analytics/analytics-depth.test.ts apps/api/src/modules/exams/analytics/analytics.test.ts apps/api/src/modules/exams/analytics/analytics-service.test.ts
 node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand --testTimeout=30000 apps/api/test/academic-intelligence.integration-spec.ts
-npm --prefix apps/web run test:design -- --runTestsByPath tests/design/exam-analytics-library.test.tsx tests/design/exams-manager-routing.test.tsx tests/design/academic-intelligence-print.test.tsx
+npm --prefix apps/web run test:design -- --runTestsByPath tests/design/exam-analytics-library.test.tsx tests/design/exam-analytics-role-routing.test.tsx tests/design/exams-manager-routing.test.tsx tests/design/academic-intelligence-print.test.tsx
 node apps/web/tests/design/exam-analytics-library-browser.mjs
 node -r ts-node/register/transpile-only scripts/benchmark-exam-analytics.ts 3000
 ```

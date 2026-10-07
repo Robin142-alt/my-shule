@@ -27,7 +27,7 @@ import { TaskQueue } from "@/components/shared/task-queue";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { downloadCsvFile } from "@/lib/dashboard/export";
 import { AnalysisWorkspace } from "./exams-manager/analysis-workspace";
-import { ExamAnalyticsWorkspace } from "./exams-manager/exam-analytics-workspace";
+import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { ExamSetupWorkspace } from "./exams-manager/exam-setup-workspace";
 import { ExamTimetableWorkspace } from "./exams-manager/exam-timetable-workspace";
 import { ExamWorkflowWorkspace } from "./exams-manager/exam-workflow-workspace";

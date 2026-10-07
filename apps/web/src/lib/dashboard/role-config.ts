@@ -77,7 +77,8 @@ export const sidebarItems: SidebarItem[] = [
   { id: "subject-allocation", label: "Subject Allocation", href: "subject-allocation", roles: ["hod"] },
   { id: "coverage-review", label: "Coverage Review", href: "coverage-review", roles: ["hod"] },
   { id: "lesson-plans", label: "Lesson Plans", href: "lesson-plans", roles: ["hod"] },
-  { id: "academic-intelligence", label: "Exam Analytics", href: "academic-intelligence", roles: ["hod"] },
+  { id: "academic-intelligence", label: "Academic Intelligence", href: "academic-intelligence", roles: ["hod"] },
+  { id: "exam-analytics", label: "Exam Analytics", href: "exam-analytics", roles: ["teacher", "exam-manager", "dean", "hod"] },
   { id: "resource-requests", label: "Resource Requests", href: "resource-requests", roles: ["hod"] },
   { id: "reports", label: "Department Reports", href: "reports", roles: ["hod"] },
 ];

@@ -1,6 +1,6 @@
 export const DEPUTY_WORKSPACES = [
   "overview", "daily-operations", "attendance", "discipline", "welfare", "staff-duty",
-  "timetable", "academics", "teaching", "exams", "academic-intelligence", "classes",
+  "timetable", "academics", "teaching", "exams", "academic-intelligence", "exam-analytics", "classes",
   "approvals", "communication", "users-invitations", "reports", "staff-roles", "settings", "cbt", "lms",
   "support-new-ticket", "support-my-tickets", "support-knowledge-base", "support-system-status",
 ] as const;

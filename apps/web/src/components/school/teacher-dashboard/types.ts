@@ -9,6 +9,7 @@ export type TeacherView =
   | "assessments-cats"
   | "exams-marks"
   | "academic-intelligence"
+  | "exam-analytics"
   | "learner-progress"
   | "discipline-welfare"
   | "parent-communication"

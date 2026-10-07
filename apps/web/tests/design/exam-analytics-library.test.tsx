@@ -8,8 +8,8 @@ import { isSchoolSection } from '@/lib/routing/experience-routes';
 import { isSchoolSectionEnabled } from '@/lib/module-access/module-access-map';
 import { renderWithProviders } from './test-utils';
 
-const mockQuery=jest.fn(),mockMutation=jest.fn();
-jest.mock('@/lib/data/school-hooks',()=>({useSchoolQuery:(...args:unknown[])=>mockQuery(...args),useSchoolMutation:()=>({mutateAsync:mockMutation,isPending:false})}));
+const mockQuery=jest.fn(),mockMutation=jest.fn(),mockMutationEndpoint=jest.fn();
+jest.mock('@/lib/data/school-hooks',()=>({useSchoolQuery:(...args:unknown[])=>mockQuery(...args),useSchoolMutation:(path:string)=>{mockMutationEndpoint(path);return {mutateAsync:mockMutation,isPending:false};}}));
 jest.mock('recharts',()=>({ResponsiveContainer:()=>null,AreaChart:()=>null,Area:()=>null,CartesianGrid:()=>null,Tooltip:()=>null,XAxis:()=>null,YAxis:()=>null}));
 const rows=[evidence({average:60}),evidence({student_id:'second',student_name:'Brian',average:80,class_section_id:'class-2',class_name:'Class Two'}),evidence({exam_series_id:'old',exam_date:'2026-01-01',average:40})];
 const scope={level:'school' as const,role:'exams_manager',actor_user_id:'manager'};
@@ -18,11 +18,41 @@ const scope={level:'school' as const,role:'exams_manager',actor_user_id:'manager
 const queryFilters=(filters:Record<string,string>={}):AnalyticsFilters=>({...filters,page:1,page_size:25,analytics_mode:'library',analytic_page:Number(filters.analytic_page??1),history_limit:Number(filters.history_limit??24)});
 const build=(filters:Record<string,string>={},all=false)=>buildAcademicIntelligence(rows,scope,queryFilters(filters),['school'],undefined,all);
 beforeEach(()=>{
-  window.history.replaceState(null,'','/');mockQuery.mockReset();mockMutation.mockReset();URL.createObjectURL=jest.fn(()=> 'blob:analytics');URL.revokeObjectURL=jest.fn();
+  window.history.replaceState(null,'','/');mockQuery.mockReset();mockMutation.mockReset();mockMutationEndpoint.mockReset();URL.createObjectURL=jest.fn(()=> 'blob:analytics');URL.revokeObjectURL=jest.fn();
   mockQuery.mockImplementation((url:string)=>({data:build(Object.fromEntries(new URLSearchParams(url.split('?')[1]))),isLoading:false,isFetching:false,error:null,refetch:jest.fn()}));
   mockMutation.mockImplementation(async(body:{filters:Record<string,string>})=>({report:buildAnalyticsPrintReport(build(body.filters,true),'library',{school_name:'QA School',school_address:null,school_motto:null,generated_by:'Manager'},'AI-QA','2026-10-07T10:00:00Z'),filename:'report.pdf',pdf_base64:btoa('%PDF-1.7 QA'),csv_base64:btoa('School,QA School'),csv_filename:'report.csv'}));
 });
 const render=()=>renderWithProviders(<ExamAnalyticsWorkspace onOpenMarks={jest.fn()} onOpenReportCards={jest.fn()}/>);
+
+it('uses the subject-head permission contract for library reads and printable exports', async()=>{
+  mockQuery.mockImplementation(()=>({data:buildAcademicIntelligence(rows,{...scope,level:'subject',role:'head_of_subject'},queryFilters(),['subject']),isLoading:false,isFetching:false,error:null}));
+  renderWithProviders(<ExamAnalyticsWorkspace scope="subject" emptyActions={[{label:'Check subject appointments',onClick:jest.fn()}]}/>);
+  expect(mockQuery.mock.calls.at(-1)?.[0]).toContain('/exams/analytics/subject?');
+  expect(screen.getByText('Published results · Appointed subjects · Every analytic downloadable & printable')).toBeVisible();
+  fireEvent.click(screen.getByRole('button',{name:'Download Average score'}));
+  fireEvent.click(screen.getByRole('button',{name:'Prepare preview'}));
+  await screen.findByRole('link',{name:'Download PDF'});
+  expect(mockMutation.mock.calls[0][0].filters.scope).toBe('subject');
+  expect(mockMutationEndpoint).toHaveBeenCalledWith('/exams/analytics/reports/subject');
+});
+
+it('offers an appointment check rather than approval actions to a subject head with no published evidence',()=>{
+  mockQuery.mockReturnValue({data:buildAcademicIntelligence([],{...scope,level:'subject',role:'head_of_subject'},queryFilters(),['subject']),isLoading:false,isFetching:false,error:null});
+  const openAppointments=jest.fn();
+  renderWithProviders(<ExamAnalyticsWorkspace scope="subject" emptyActions={[{label:'Check subject appointments',onClick:openAppointments}]}/>);
+  expect(screen.getByRole('heading',{name:'No published results in this selection'})).toBeVisible();
+  expect(screen.queryByRole('button',{name:'Open marks workflow'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Check subject appointments'}));
+  expect(openAppointments).toHaveBeenCalledTimes(1);
+});
+
+it.each(['assignment','class','grade','department','school'] as const)('retains %s responsibility through URL filters and drill-downs', level=>{
+  window.history.replaceState(null,'','/?ea_scope=school&ea_subject_id=math');
+  renderWithProviders(<ExamAnalyticsWorkspace scope={level}/>);
+  const params=new URLSearchParams(mockQuery.mock.calls.at(-1)?.[0].split('?')[1]);
+  expect(params.get('scope')).toBe(level);
+  expect(params.get('subject_id')).toBe('math');
+});
 
 it('registers a distinct route and locks it when Exams is disabled',()=>{
   expect(isSchoolSection('exam-analytics')).toBe(true);expect(isSchoolSectionEnabled('exam-analytics',['exams'])).toBe(true);expect(isSchoolSectionEnabled('exam-analytics',['academics'])).toBe(false);

@@ -145,7 +145,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "timetable", label: "Department Timetable", href: toSchoolPath("timetable"), icon: CalendarDays },
     { id: "coverage-review", label: "Coverage Review", href: toSchoolPath("coverage-review"), icon: LayoutGrid },
     { id: "lesson-plans", label: "Lesson Plans", href: toSchoolPath("lesson-plans"), icon: FileSpreadsheet },
-    { id: "academic-intelligence", label: "Exam Analytics", href: toSchoolPath("academic-intelligence"), icon: ShieldAlert },
+    { id: "academic-intelligence", label: "Academic Intelligence", href: toSchoolPath("academic-intelligence"), icon: ShieldAlert },
     { id: "resource-requests", label: "Resource Requests", href: toSchoolPath("resource-requests"), icon: FileSpreadsheet },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,
@@ -386,6 +386,7 @@ for (const role of [
   if (!schoolNavMap[role].some((item) => item.id === "exams")) {
     schoolNavMap[role] = [...schoolNavMap[role], examsWorkspaceNavItem];
   }
+  schoolNavMap[role] = [...schoolNavMap[role], { id: "exam-analytics", label: "Exam Analytics", href: toSchoolPath("exam-analytics"), icon: Activity }];
 }
 
 const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
@@ -418,6 +419,7 @@ const roleToDashboardRole: Record<SchoolExperienceRole, DashboardRole> = {
 };
 
 export const schoolSectionLabels: Record<string, string> = {
+  "exam-analytics": "Exam Analytics",
   "overview": "Overview",
   "setup-checklist": "Setup Checklist",
   "school-profile": "School Profile",

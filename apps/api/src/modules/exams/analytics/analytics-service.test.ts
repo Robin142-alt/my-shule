@@ -5,13 +5,13 @@ import { buildAcademicIntelligence } from './analytics-engine';
 import { evidence } from './testing/evidence.fixture';
 import type { ExamAnalyticsScope } from './analytics-scope';
 
-test('all eight academic roles resolve default scopes using the authenticated school context',async()=>{
+test('all nine academic roles resolve library scopes using the authenticated school context',async()=>{
   for(const [role,level] of [['teacher','assignment'],['head_of_subject','subject'],['class_teacher','class'],['hod','department'],
-    ['grade_master','grade'],['dean_of_academics','school'],['deputy_principal','school'],['principal','school']]) {
+    ['grade_master','grade'],['dean_academics','school'],['deputy_principal','school'],['principal','school'],['exams_manager','school']]) {
     let actual:unknown;
     const service=new ExamsService({getStore:()=>({tenant_id:'school-a',user_id:'staff-a',role,permissions:['exams:read']})} as never,
       {getAnalytics:async(tenant:string,scope:ExamAnalyticsScope)=>{actual={tenant,...scope};return buildAcademicIntelligence([],scope,{page:1,page_size:25},[scope.level]);}} as never);
-    await service.getAnalytics({school_id:'school-b',actor_user_id:'another-user'});
+    await service.getAnalytics({analytics_mode:'library',school_id:'school-b',actor_user_id:'another-user'});
     assert.deepEqual(actual,{tenant:'school-a',level,role,actor_user_id:'staff-a'});
     if(level!=='school') await assert.rejects(()=>service.getAnalytics({scope:'school'}),/leadership/);
   }
