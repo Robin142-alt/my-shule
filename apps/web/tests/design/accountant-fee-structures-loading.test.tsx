@@ -4,8 +4,8 @@ import { FeeStructuresWorkspace } from "@/components/school/accountant/fee-struc
 const mockRefetch = jest.fn();
 let mockOverviewError: Error | null = null;
 jest.mock("@/lib/data/school-hooks", () => ({
-  useSchoolQuery: () => ({
-    data: mockOverviewError ? undefined : { metrics: { collected_today_minor: "123400", outstanding_balance_minor: "987600", mpesa_review_count: 2 } },
+  useSchoolQuery: (path: string) => ({
+    data: path.includes("finance-activity") ? [] : mockOverviewError ? undefined : { metrics: { collected_today_minor: "123400", outstanding_balance_minor: "987600", mpesa_review_count: 2 } },
     isError: Boolean(mockOverviewError), error: mockOverviewError, isLoading: false, isFetching: false, refetch: mockRefetch,
   }),
 }));
@@ -58,7 +58,7 @@ test("failed reads leave visible recovery instead of loading forever or showing 
   fireEvent.click(screen.getByRole("button", { name: "Run" }));
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(1));
-  expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
 });
 
 test("leaving the workspace cancels pending finance reads", () => {
@@ -69,4 +69,23 @@ test("leaving the workspace cancels pending finance reads", () => {
   expect(signals.every(signal => !signal.aborted)).toBe(true);
   view.unmount();
   expect(signals.every(signal => signal.aborted)).toBe(true);
+});
+
+test("timed out reads end loading and explain how to recover", async () => {
+  const timeout = new AbortController();
+  const timeoutSpy = jest.spyOn(AbortSignal, "timeout").mockReturnValue(timeout.signal);
+  fetchMock.mockImplementation((_url: string, options: RequestInit) => new Promise((_, reject) => {
+    options.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true });
+  }));
+  try {
+    render(<FeeStructuresWorkspace role="accountant" tenantSlug="school-a" routeMode="public" />);
+    expect(timeoutSpy).toHaveBeenCalledWith(15_000);
+    timeout.abort(new DOMException("Timed out", "TimeoutError"));
+    await screen.findByText("Reconciliation took too long. Please run the report again.");
+    expect(screen.getByText("Fee structures took too long to load. Please refresh.")).toBeVisible();
+    expect(screen.queryAllByText(/Loading/)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
+  } finally {
+    timeoutSpy.mockRestore();
+  }
 });

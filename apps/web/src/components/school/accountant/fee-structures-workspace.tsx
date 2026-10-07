@@ -22,7 +22,7 @@ import { SchoolPageHeader } from "@/components/school/school-page-header";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import type { AccountantOverviewResponse } from "./overview-workspace";
 import { MetricGrid } from "@/components/experience/metric-grid";
-import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
+import { buildFeeStructureLineItems, buildBulkFeeStudents, type BulkFeeInvoiceGenerationResponse, SubscriptionLifecyclePanel, type FinanceActivityResponse, type StudentFeeBalanceResponse, type StudentFeeStatementResponse, type FinanceReconciliationResponse, type FeeStructureResponse, type FeeLineItemDraft, type BillableFeeStudentResponse, type BulkFeeStudentDraft, toBulkFeeStudentDraft } from "@/components/school/school-pages";
 
 type SchoolRouteMode = "hosted" | "public";
 type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
@@ -156,6 +156,7 @@ export function FeeStructuresWorkspace({
   const [selectedBulkStudentIds, setSelectedBulkStudentIds] = useState<Set<string>>(() => new Set());
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const paymentInvoices = useSchoolQuery<FinanceActivityResponse[]>("/billing/finance-activity?limit=25&offset=0", { enabled: showPaymentModal });
   const [invoiceDraft, setInvoiceDraft] = useState({ studentId: "", studentName: "", amount: "", dueAt: "" });
   const [selectedInvoiceLearner, setSelectedInvoiceLearner] = useState<LearnerLookupItem | null>(null);
   const [paymentDraft, setPaymentDraft] = useState({
@@ -170,6 +171,7 @@ export function FeeStructuresWorkspace({
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [financeMessage, setFinanceMessage] = useState<string | null>(null);
+
   async function loadReconciliationReport(signal = AbortSignal.timeout(15_000)) {
     setReconciliationLoading(true);
     setReconciliationError(null);
@@ -206,7 +208,7 @@ export function FeeStructuresWorkspace({
     } catch (caught) {
       if (signal.aborted && signal.reason?.name === "AbortError") return;
       setReconciliation(null);
-      setReconciliationError(caught instanceof Error ? caught.message : "Reconciliation report could not be loaded.");
+      setReconciliationError(signal.aborted ? "Reconciliation took too long. Please run the report again." : caught instanceof Error ? caught.message : "Reconciliation report could not be loaded.");
     } finally {
       if (!signal.aborted || signal.reason?.name !== "AbortError") setReconciliationLoading(false);
     }
@@ -244,7 +246,7 @@ export function FeeStructuresWorkspace({
     } catch (caught) {
       if (signal.aborted && signal.reason?.name === "AbortError") return;
       setFeeStructures([]);
-      setFeeStructureError(caught instanceof Error ? caught.message : "Fee structures could not be loaded.");
+      setFeeStructureError(signal.aborted ? "Fee structures took too long to load. Please refresh." : caught instanceof Error ? caught.message : "Fee structures could not be loaded.");
     } finally {
       if (!signal.aborted || signal.reason?.name !== "AbortError") setFeeStructuresLoading(false);
     }
@@ -854,7 +856,7 @@ export function FeeStructuresWorkspace({
     }
   }
 
-  const invoiceOptions = activity
+  const invoiceOptions = (paymentInvoices.data ?? [])
     .filter((entry) => entry.kind === "invoice")
     .map((entry) => ({
       id: entry.invoice_id ?? entry.id,
@@ -912,7 +914,7 @@ export function FeeStructuresWorkspace({
               Build structured fees, then generate controlled invoices for the selected student rows.
             </p>
           </div>
-          <Button variant="secondary" onClick={() => void loadFeeStructures()}>
+          <Button variant="secondary" disabled={feeStructuresLoading} onClick={() => void loadFeeStructures()}>
             Refresh
           </Button>
         </div>
@@ -1617,6 +1619,11 @@ export function FeeStructuresWorkspace({
               {paymentError}
             </div>
           ) : null}
+          {paymentInvoices.isLoading ? <p role="status">Loading invoice choices...</p> : null}
+          {paymentInvoices.isError ? <div role="alert" className="rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm">
+            <p>{paymentInvoices.error?.message || "Invoice choices could not be loaded."}</p>
+            <Button variant="secondary" disabled={paymentInvoices.isFetching} onClick={() => void paymentInvoices.refetch()}>Retry invoice choices</Button>
+          </div> : null}
           <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm text-foreground">
             <span className="font-medium">Method</span>
@@ -1721,8 +1728,6 @@ export function FeeStructuresWorkspace({
     </div>
   );
 }
-
-
 
 
 
