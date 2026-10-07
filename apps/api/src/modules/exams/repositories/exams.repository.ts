@@ -4,7 +4,7 @@ import { reportPdfIdentity } from '../services/report-artifact-identity';
 import { buildScopeSqlClause, parseReportCardScope, reportCardIneligibilitySql, reportCardPreviewToken,
   REPORT_CARD_SCOPE_ORDER, REPORT_CARD_TRANSITION_SOURCE_STATUSES, type ReportCardScopeQuery } from '../report-card-scope';
 import { requiresPublishedExamAnalytics } from '../analytics/analytics-scope';
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -15,6 +15,7 @@ import { reportCardReadinessCtes, REPORT_CARD_READINESS_CTES, REPORT_CARD_READIN
 import { ANALYTICS_APPOINTMENTS_SQL, type AnalyticsFilters, type ExamAnalyticsScope, type ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
 import { analyticsQuery } from '../analytics/analytics-query';
 import { buildAcademicIntelligence, type SubjectEvidence } from '../analytics/analytics-engine';
+import { InvalidAnalyticSelectionError } from '../analytics/analytics-library-contract';
 export type { ExamAnalyticsScope, ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
 
 // Owned by one batch, never shared across requests or schools. Rejected reads are evicted for retry.
@@ -22,10 +23,16 @@ export type ReportCardReadCache = Map<string, Promise<{ rows: any[]; rowCount: n
 
 @Injectable()
 export class ExamsRepository {
+  // Only school-wide reads may be reused: scoped appointments can change their exact
+  // subject/class boundary without losing the appointment level. Authorization is checked
+  // on every call. Reports always bypass this short-lived, actor-bound cache.
+  private readonly analyticsReads=new Map<string,{rows:SubjectEvidence[];expires:number;readAt:string}>();
   private reportTransaction?: { tenantId: string; client: Prisma.TransactionClient };
   constructor(private readonly prisma: PrismaService) {}
 
   public async executeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
+    // Exam writes invalidate read snapshots immediately, including writes inside CTEs.
+    if(/\b(?:INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|TRUNCATE\b)/i.test(query))this.analyticsReads.clear();
     const tenantId = params[0] as string;
     if (this.reportTransaction) {
       if (tenantId !== this.reportTransaction.tenantId) throw new ForbiddenException('Report transaction school mismatch');
@@ -6290,8 +6297,36 @@ export class ExamsRepository {
     ])];
     if (!available.includes(scope.level) && !filters.scope && available.length) scope = { ...scope, level: available[0] };
     if (!available.includes(scope.level)) throw new ForbiddenException('No active appointment authorizes this academic analytics scope.');
-    const result = await this.executeSql<SubjectEvidence>(analyticsQuery(scope.level, requiresPublishedExamAnalytics(scope.role)), [tenantId, scope.actor_user_id, JSON.stringify(filters)]);
-    return buildAcademicIntelligence(result.rows, scope, filters, available, undefined, forReport);
+    // Small metadata catalog is independent of the bounded evidence window. Older years and
+    // newly created exams must remain selectable even when they have no approved scores.
+    let examCatalog: {id:string;name:string;date:string;academic_year_id:string;academic_term_id:string;year_name:string;term_name:string}[] | undefined;
+    if(filters.analytics_mode==='library'&&scope.level==='school') {
+      const metadata=await this.executeSql<NonNullable<typeof examCatalog>[number]>(`SELECT series.id::text, series.name, series.starts_on::text AS date,
+        term.id::text AS academic_term_id, year.id::text AS academic_year_id, term.name AS term_name, year.name AS year_name
+        FROM exam_series series JOIN academic_terms term ON term.tenant_id=series.tenant_id AND term.id::text=series.academic_term_id::text
+        JOIN academic_years year ON year.tenant_id=term.tenant_id AND year.id::text=term.academic_year_id::text
+        WHERE series.tenant_id=$1 ORDER BY series.starts_on,series.id`,[tenantId]);
+      examCatalog=metadata.rows;
+      if(!filters.exam_series_id)filters={...filters,exam_series_id:examCatalog.filter(e=>(!filters.academic_year_id||e.academic_year_id===filters.academic_year_id)&&(!filters.academic_term_id||e.academic_term_id===filters.academic_term_id)).at(-1)?.id};
+    }
+    const cacheable=filters.analytics_mode==='library'&&scope.level==='school'&&!!scope.actor_user_id&&!forReport;
+    const cacheKey=JSON.stringify([tenantId,scope.actor_user_id,scope.role,scope.level,filters.academic_year_id,filters.academic_term_id,filters.exam_series_id,filters.comparison_exam_id,filters.history_limit,filters.refresh_key]);
+    for(const [key,entry] of this.analyticsReads)if(entry.expires<=Date.now())this.analyticsReads.delete(key);
+    let read=cacheable?this.analyticsReads.get(cacheKey):undefined;
+    if(!read){
+      const result=await this.executeSql<SubjectEvidence>(analyticsQuery(scope.level, requiresPublishedExamAnalytics(scope.role)), [tenantId, scope.actor_user_id, JSON.stringify(filters)]);
+      read={rows:result.rows,expires:Date.now()+30000,readAt:new Date().toISOString()};
+      if(cacheable&&read.rows.length<=200000){
+        while(this.analyticsReads.size>=6||[...this.analyticsReads.values()].reduce((n,r)=>n+r.rows.length,0)+read.rows.length>200000){const oldest=this.analyticsReads.keys().next().value;if(oldest===undefined)break;this.analyticsReads.delete(oldest);}
+        this.analyticsReads.set(cacheKey,read);
+      }
+    }
+    let data:ReturnType<typeof buildAcademicIntelligence>;
+    try {data=buildAcademicIntelligence(read.rows, scope, filters, available, undefined, forReport);}
+    catch(error){if(error instanceof InvalidAnalyticSelectionError)throw new BadRequestException(error.message);throw error;}
+    if(examCatalog)data.options.exams=examCatalog;
+    if(data.library)data.library.source_read_at=read.readAt;
+    return data;
   }
 
 }

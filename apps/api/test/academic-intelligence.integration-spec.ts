@@ -100,6 +100,32 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
   },60000);
   afterAll(async()=>{await pool?.end();});
   const read=(scope:ExamAnalyticsScopeLevel,actor:string,extra:Record<string,string>={})=>repository.getAnalytics('school-a',{level:scope,actor_user_id:ids[actor],role:actor},{page:1,page_size:25,scope,...extra},scope==='school');
+  it('library drill-down retains school benchmarks while RLS and appointment scopes prevent foreign evidence',async()=>{
+    const school=await read('school','principal',{analytics_mode:'library',student_id:ids.learner,analytic_ids:'parent-benchmarks,student-profiles'});
+    expect(school.performance.mean).toBe(50);
+    expect(school.library!.items.find(i=>i.id==='parent-benchmarks')!.rows[0].values).toEqual(['School',57.5,50,-7.5,2]);
+    expect(JSON.stringify(school)).not.toContain('FOREIGN');
+    const teacher=await read('assignment','teacher',{analytics_mode:'library',subject_id:ids.bio,analytic_ids:'mean'});
+    expect(teacher.performance.mean).toBeNull();expect(teacher.options.subjects.map(s=>s.id)).toEqual([ids.math]);
+    const denied=await read('subject','hos',{analytics_mode:'library',student_id:'foreign',analytic_ids:'student-profiles'});
+    expect(denied.library!.items[0].total).toBe(0);
+  });
+  it('reuses only actor-bound school reads and bypasses reuse for exports and manual refresh',async()=>{
+    const spy=jest.spyOn(repository,'executeSql');
+    const selection={analytics_mode:'library',analytic_ids:'mean',refresh_key:'cache-test'};
+    await read('school','principal',selection);
+    await read('school','principal',{...selection,analytic_ids:'subject-performance'});
+    const evidenceReads=()=>spy.mock.calls.filter(([sql])=>String(sql).includes('subject_results AS')).length;
+    expect(evidenceReads()).toBe(1);
+    await repository.getAnalytics('school-a',{level:'school',actor_user_id:ids.principal,role:'principal'},{page:1,page_size:25,analytics_mode:'library',analytic_ids:'mean',refresh_key:'cache-test'},true,true);
+    expect(evidenceReads()).toBe(2);
+    await read('school','principal',{...selection,refresh_key:'cache-refresh'});expect(evidenceReads()).toBe(3);
+    await read('assignment','teacher',selection);await read('assignment','teacher',selection);expect(evidenceReads()).toBe(5);
+    await expect(read('school','principal',{...selection,analytic_ids:'unknown-analytic'})).rejects.toThrow('not available');
+    await repository.executeSql('UPDATE exam_series SET name=name WHERE tenant_id=$1 RETURNING id',['school-a']);
+    await read('school','principal',selection);expect(evidenceReads()).toBe(6);
+    spy.mockRestore();
+  });
   it.each([['assignment','teacher',80],['subject','hos',60],['department','hod',57.5],['class','class_teacher',57.5],['grade','grade',65],['school','principal',57.5]] as const)('%s enforces the tenant and exact appointment',async(scope,actor,average)=>{
     const data=await read(scope,actor);expect(data.performance.mean).toBe(average);
     expect(JSON.stringify(data)).not.toContain('FOREIGN');

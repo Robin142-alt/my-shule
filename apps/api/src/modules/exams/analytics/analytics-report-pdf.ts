@@ -9,10 +9,11 @@ export async function createAnalyticsReportPdf(report: AnalyticsPrintReport): Pr
     const doc = new PDFDocument({size:'A4',margin:40,bufferPages:true,info:{Title:report.title,Author:report.generated_by,Subject:report.school_name,CreationDate:new Date(report.generated_at)}});
     const chunks:Buffer[]=[];
     doc.on('data',chunk=>chunks.push(chunk));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
+    const render=async()=>{
     const width=doc.page.width-80;
     const bottom=doc.page.height-62;
     // Helvetica supports these text values; normalize control characters and typography.
-    const clean=(value:string)=>value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[\u2010-\u2015]/g,'-').replace(/\u00d7/g,'x');
+    const clean=(value:string)=>value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[\u2010-\u2015\u2212]/g,'-').replace(/\u00d7/g,'x').replace(/≥/g,'>=').replace(/≤/g,'<=').replace(/→/g,'to');
     const text=(value:string,size=10,bold=false)=>{doc.font(bold?'Helvetica-Bold':'Helvetica').fontSize(size).fillColor('#18263b').text(clean(value),{width,lineGap:3});};
     const page=()=>{doc.addPage();text(report.school_name,10,true);text(`${report.title} / ${report.document_number}`,8);doc.moveDown(0.6);};
     const reserve=(height:number)=>{if(doc.y+height>bottom)page();};
@@ -26,6 +27,7 @@ export async function createAnalyticsReportPdf(report: AnalyticsPrintReport): Pr
     doc.moveDown(0.5);
     for(const filter of report.filters){reserve(32);text(`${filter.label}: ${filter.value}`,9);}
     doc.moveDown(0.5);
+    if(report.metrics.length) {
     reserve(66);
     const metricsTop=doc.y;
     report.metrics.forEach((metric,index)=>{
@@ -34,12 +36,17 @@ export async function createAnalyticsReportPdf(report: AnalyticsPrintReport): Pr
       doc.font('Helvetica-Bold').fontSize(12).fillColor('#18263b').text(clean(metric.value),x,metricsTop+25,{width:width/4-10});
     });
     doc.x=40;doc.y=metricsTop+60;
+    }
     for(const section of report.sections){
       reserve(100);doc.moveDown();text(section.title,13,true);
       if(section.note){reserve(60);text(section.note,9);doc.moveDown(0.3);}
       if(!section.rows.length){text('No records in this selection.',9);continue;}
       const count=section.headers.length;
-      const weights=count===2?[0.34,0.66]:count===6?[0.29,0.17,0.12,0.12,0.17,0.13]:Array(count).fill(1/count);
+      doc.font('Helvetica').fontSize(9);
+      // Size columns to their actual labels/evidence, rather than assuming every six-column
+      // report has the same numeric/text layout. Long explanations get room to wrap.
+      const weights=count===2?[0.34,0.66]:section.headers.map((header,index)=>Math.min(170,Math.max(45,
+        ...[header,...section.rows.slice(0,100).map(cells=>cells[index])].map(cell=>doc.widthOfString(clean(cell))))+12));
       const total=weights.reduce((a,b)=>a+b,0);
       const widths=weights.map(weight=>width*weight/total);
       const row=(cells:string[],heading=false)=>{
@@ -54,7 +61,12 @@ export async function createAnalyticsReportPdf(report: AnalyticsPrintReport): Pr
         doc.moveTo(40,top+height).lineTo(40+width,top+height).strokeColor('#dbe2eb').lineWidth(0.5).stroke();
         doc.x=40;doc.y=top+height;
       };
-      row(section.headers,true);section.rows.forEach(cells=>row(cells));
+      row(section.headers,true);
+      for(let index=0;index<section.rows.length;index++){
+        row(section.rows[index]);
+        // Large collections yield between batches so other school requests stay responsive.
+        if(index>0&&index%200===0)await new Promise<void>(resume=>setImmediate(resume));
+      }
     }
     reserve(100);doc.moveDown();text('How to read this report',11,true);
     for(const note of report.notes){reserve(64);text(note,8);doc.moveDown(0.3);}
@@ -68,6 +80,8 @@ export async function createAnalyticsReportPdf(report: AnalyticsPrintReport): Pr
       doc.page.margins.bottom=margin;
     }
     doc.end();
+    };
+    void render().catch(error=>{doc.destroy();reject(error);});
   });
   return {filename:`${report.document_number.toLowerCase()}.pdf`,contentType:'application/pdf',content,byteLength:content.length,
     checksumSha256:createHash('sha256').update(content).digest('hex'),generatedAt:report.generated_at,rowCount:report.sections.reduce((count,section)=>count+section.rows.length,0)};

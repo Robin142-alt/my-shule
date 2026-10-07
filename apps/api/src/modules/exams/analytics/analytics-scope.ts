@@ -8,7 +8,7 @@ export type { AnalyticsFilters, ExamAnalyticsScope, ExamAnalyticsScopeLevel } fr
 export function parseAnalyticsFilters(query: Record<string, string | undefined>): AnalyticsFilters {
   const result: Record<string, string | number> = {};
   const textKeys = ['academic_year_id', 'academic_term_id', 'exam_series_id', 'comparison_exam_id',
-    'department_id', 'subject_id', 'grade_level', 'class_section_id', 'stream_id', 'teacher_user_id', 'student_id', 'learner_query', 'grade'];
+    'department_id', 'subject_id', 'grade_level', 'class_section_id', 'stream_id', 'teacher_user_id', 'student_id', 'learner_query', 'grade', 'compare_left_id', 'compare_right_id', 'refresh_key'];
   for (const key of textKeys) {
     const value = query[key];
     if (value === undefined || value === '') continue;
@@ -16,12 +16,24 @@ export function parseAnalyticsFilters(query: Record<string, string | undefined>)
     result[key] = value.trim();
   }
   const enums: Record<string, readonly string[]> = { scope: ANALYTICS_SCOPES,
+    analytics_mode: ['library'],
+    comparison_dimension: ['student','class','stream','subject','exam','term','year'],
     risk_level: ['At Risk', 'Low', 'Moderate', 'High', 'Critical'], learner_group: ['high_performers', 'most_improved', 'passing_all', 'declining', 'consistent_improvers', 'consistent_high'], marks_status: ['missing', 'draft', 'submitted', 'reviewed', 'locked', 'published'],
     publication_status: ['draft_requested', 'draft_generated', 'under_review', 'approved', 'published', 'withdrawn', 'regeneration_required', 'draft'] };
   for (const [key, values] of Object.entries(enums)) {
     if (!query[key]) continue;
     if (!values.includes(query[key]!)) throw new BadRequestException(`Invalid ${key}`);
     result[key] = query[key]!;
+  }
+  if(query.analytic_ids !== undefined) {
+    if(typeof query.analytic_ids !== 'string' || query.analytic_ids.length > 4000 || !/^[a-z0-9-]+(?:,[a-z0-9-]+)*$/.test(query.analytic_ids)) throw new BadRequestException('Invalid analytic selection');
+    result.analytic_ids = query.analytic_ids;
+  }
+  for(const [key,fallback,max] of [['analytic_page',1,100000],['history_limit',24,120]] as const) {
+    if(query[key] === undefined) continue;
+    const value=Number(query[key] ?? fallback);
+    if(!Number.isInteger(value)||value<1||value>max)throw new BadRequestException(`Invalid ${key}`);
+    result[key]=value;
   }
   for (const [key, fallback, max] of [['page', 1, 100000], ['page_size', 25, 100]] as const) {
     const value = query[key] === undefined ? fallback : Number(query[key]);

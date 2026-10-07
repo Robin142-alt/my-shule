@@ -11,6 +11,12 @@ import { renderWithProviders } from "./test-utils";
 jest.setTimeout(30000);
 
 describe("exams manager dashboard routing", () => {
+  it.each(["public", "hosted"] as const)("opens dedicated Exam Analytics from its %s route", async (routeMode) => {
+    renderWithProviders(createElement(SchoolPages, {role:"exams-manager",section:"exam-analytics",tenantSlug:"homabay-high",routeMode,liveDataEnabled:false}));
+    expect(await screen.findByRole("heading",{name:"Exam Analytics"})).toBeVisible();
+    expect(screen.getByRole("button",{name:"Exam Analytics"})).toHaveAttribute("aria-current","page");
+    expect(screen.queryByText(/School section not available/i)).not.toBeInTheDocument();
+  });
   it("registers the workflow route and requires the Exams module", () => {
     expect(isSchoolSection("exam-workflow")).toBe(true);
     expect(isSchoolSectionEnabled("exam-workflow", ["exams"])).toBe(true);
