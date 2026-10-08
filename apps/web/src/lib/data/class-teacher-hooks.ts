@@ -369,14 +369,14 @@ export function useSaveClassTeacherSettings(streamId: string) {
   const scope = useClassTeacherQueryScope();
 
   return useMutation({
-    mutationFn: (settings: { notificationsEnabled: boolean; defaultView: string; darkMode?: boolean }) =>
+    mutationFn: (settings: { notificationsEnabled: boolean; defaultView: string; darkMode?: boolean; nameTitle?: string }) =>
       fetchApi(scope.schoolId, `class-teacher/settings?streamId=${encodeURIComponent(streamId || "")}`, {
         method: "POST",
         body: JSON.stringify(settings),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: buildClassTeacherQueryKey(scope, "settings", streamId),
+        queryKey: buildClassTeacherQueryKey(scope, "settings"),
       });
     },
   });

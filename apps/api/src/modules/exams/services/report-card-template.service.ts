@@ -32,6 +32,7 @@ export interface ReportCardPayload {
   attendance: Record<string, unknown> | null;
   subjects: ReportCardSubjectPayload[];
   analytics: {
+    comparison_exams?: Array<{ exam_series_id: string; label: string }>;
     term_history: Array<{ exam_series_id: string; label: string; percentage: number }>;
     subject_history: Array<{ exam_series_id: string; label: string; subject_id: string; subject_name: string; percentage: number }>;
   };
@@ -136,6 +137,9 @@ export class ReportCardTemplateService {
       attendance: asRecord(data.attendance),
       subjects,
       analytics: {
+        comparison_exams: Array.isArray(analytics.comparison_exams)
+          ? analytics.comparison_exams.filter((row): row is { exam_series_id: string; label: string } => Boolean(row && typeof row === 'object' && typeof row.exam_series_id === 'string' && typeof row.label === 'string'))
+          : undefined,
         term_history: termHistory,
         subject_history: subjectHistory,
       },

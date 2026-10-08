@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import PDFDocument from 'pdfkit';
+import { join } from 'node:path';
 
-import { createReportCardPdfArtifact } from './report-card-pdf-artifact';
+import { createBulkReportCardPdfBuffer, createReportCardPdfArtifact } from './report-card-pdf-artifact';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
 import { buildPersonalizedReportCardComments, ReportCardTemplateService } from './report-card-template.service';
 
@@ -108,7 +109,9 @@ test('report-card HTML and PDF display signature images and role labels without 
 });
 
 test('report-card PDF remains a single A4 page with all learner rows represented', async () => {
-  const artifact = await createReportCardPdfArtifact(referencePayload(), 'RC-2026-0001');
+  const payload = referencePayload();
+  payload.template_fields.school_motto = 'Knowledge, Discipline, Excellence';
+  const artifact = await createReportCardPdfArtifact(payload, 'RC-2026-0001');
   const pdfSource = artifact.content.toString('latin1');
   const pages = pdfSource.match(/\/Type\s*\/Page\b/g) ?? [];
 
@@ -117,6 +120,61 @@ test('report-card PDF remains a single A4 page with all learner rows represented
   assert.equal(artifact.content.subarray(0, 5).toString('ascii'), '%PDF-');
   assert.equal(pages.length, 1);
   assert.ok(artifact.byteLength > 4_000);
+  assert.equal((pdfSource.match(/\/FontFile2\b/g) ?? []).length, 3, 'regular, bold and italic fonts must be embedded');
+  assert.match(pdfSource, /\/MediaBox \[0 0 595\.28 841\.89\]/);
+});
+
+test('long school, learner and exam names wrap without losing text or overlapping the subject key', async (t) => {
+  const payload = referencePayload();
+  payload.template_fields.school_name = 'Greenfield International Girls Secondary School and Junior Academy';
+  payload.template_fields.learner_name = 'Amani Wanjiku Njoroge Mwangi';
+  const previous = 'Mid Term Three Continuous Assessment Examination';
+  const current = 'End of Year Comprehensive Academic Examination';
+  payload.template_fields.exam_series = current;
+  payload.exam_series.id = 'current';
+  payload.analytics.comparison_exams = [{ exam_series_id: 'previous', label: previous }, { exam_series_id: 'current', label: current }];
+  payload.analytics.subject_history = payload.subjects.map(subject => ({ exam_series_id: 'previous', label: previous, subject_id: subject.subject_id, subject_name: subject.subject_name, percentage: 50 }));
+  const text = t.mock.method(PDFDocument.prototype, 'text');
+  const artifact = await createReportCardPdfArtifact(payload, 'LONG-NAMES');
+  const calls: unknown[][] = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments);
+  const chartStart = calls.findIndex(call => call[0] === 'Subject Performance');
+  const chart = calls.slice(chartStart);
+  assert.equal(chart.filter(call => call[0] === previous).length, 1);
+  assert.equal(chart.filter(call => call[0] === current).length, 1);
+  for (const expected of [payload.template_fields.school_name, payload.template_fields.learner_name, previous, current]) {
+    const call = calls.find(call => call[0] === expected)!;
+    assert.ok(call, expected);
+    assert.equal((call[3] as Record<string, unknown>).ellipsis, undefined);
+  }
+  const labelY = Number(chart.find(call => call[0] === previous)![2]);
+  const keyY = Number(chart.find(call => call[0] === payload.subjects[0].subject_name)![2]);
+  assert.ok(keyY >= labelY + 16);
+  assert.equal((artifact.content.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
+});
+
+test('oversized content fails truthfully for individual and bulk reports instead of clipping or shrinking text', async () => {
+  const payload = referencePayload();
+  payload.template_fields.class_teacher_comment = 'Detailed academic feedback. '.repeat(300);
+  await assert.rejects(createReportCardPdfArtifact(payload, 'OVERFLOW'), /single A4 page.*no text has been clipped/);
+  await assert.rejects(createBulkReportCardPdfBuffer([{ payload, verificationCode: 'OVERFLOW' }]), /single A4 page.*no text has been clipped/);
+});
+
+test('12 subjects, three trend exams and full comments fit A4 with the original sections retained', async (t) => {
+  const payload = referencePayload();
+  const names = ['Agriculture', 'Biology', 'Chemistry', 'English', 'History', 'Kiswahili', 'Mathematics', 'Physics', 'Computer Studies', 'Christian Religious Education', 'Business Studies', 'Home Science'];
+  payload.subjects = names.map((subject_name, index) => ({ ...payload.subjects[0], subject_id: `subject-${index}`, subject_name, descriptor: 'Meeting Expectation' }));
+  payload.exam_series.id = 'current';
+  payload.template_fields.exam_series = 'End Year Examination';
+  payload.analytics.comparison_exams = [{ exam_series_id: 'previous', label: 'Mid Term Assessment' }, { exam_series_id: 'current', label: 'End Year Examination' }];
+  payload.analytics.subject_history = payload.subjects.map(subject => ({ exam_series_id: 'previous', label: 'Mid Term Assessment', subject_id: subject.subject_id, subject_name: subject.subject_name, percentage: 50 }));
+  payload.analytics.term_history = [{ exam_series_id: 'previous', label: 'Mid Term Assessment', percentage: 65 }, { exam_series_id: 'older', label: 'Opening Assessment', percentage: 60 }];
+  payload.template_fields.class_teacher_comment = 'Amani has made consistent progress. Continue practising Mathematics and Agriculture each day and review corrections with your teachers.';
+  payload.template_fields.principal_comment = 'Maintain the excellent work in Kiswahili. Set a clear revision goal for the next assessment and discuss progress with your parent or guardian.';
+  const text = t.mock.method(PDFDocument.prototype, 'text');
+  const pdf = await createReportCardPdfArtifact(payload, 'TWELVE-SUBJECTS');
+  const printed = text.mock.calls.map((call: { arguments: unknown[] }) => String(call.arguments[0]));
+  for (const value of [...names, 'SUMMARY OVERVIEW', 'Overall Grade: ', payload.template_fields.class_teacher_comment, payload.template_fields.principal_comment, 'Opening Assessment', 'Mid Term Assessment', 'End Year Examination']) assert.ok(printed.includes(value));
+  assert.equal((pdf.content.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
 });
 
 test('unsigned HTML and PDF reports leave space for manual signing with no placeholder text', async (t) => {
@@ -130,7 +188,7 @@ test('unsigned HTML and PDF reports leave space for manual signing with no place
   assert.match(renderedText, /Class Teacher Signature/);
   assert.match(renderedText, /Principal Signature/);
   assert.doesNotMatch(renderedText, /No saved signature|Upload and regenerate|Not signed/i);
-  assert.equal(images.mock.callCount(), 0);
+  assert.equal(images.mock.callCount(), 1, 'only the original MyShule brand image is drawn on an unsigned report');
 });
 
 test('HTML signatures use the same physical image bounds and alignment as the PDF', async (t) => {
@@ -141,8 +199,40 @@ test('HTML signatures use the same physical image bounds and alignment as the PD
   assert.match(html, /\.signature-line img \{[^}]*object-fit:contain; object-position:center bottom;/);
   const images = t.mock.method(PDFDocument.prototype, 'image');
   await createReportCardPdfArtifact(payload, 'RC-SIZING');
-  assert.equal(images.mock.callCount(), 1);
-  assert.deepEqual(images.mock.calls[0].arguments[3], { fit: [130, 32], align: 'center', valign: 'bottom' });
+  assert.equal(images.mock.callCount(), 2);
+  assert.deepEqual(images.mock.calls[1].arguments[3], { fit: [130, 32], align: 'center', valign: 'bottom' });
+});
+
+test('PDF uses the original MyShule mark without distortion and only solid graph lines', async (t) => {
+  const payload = referencePayload();
+  payload.exam_series.id = 'current';
+  payload.analytics.comparison_exams = [{ exam_series_id: 'previous', label: 'Mid Term' }, { exam_series_id: 'current', label: 'End Term' }];
+  payload.analytics.subject_history = payload.subjects.map(subject => ({ exam_series_id: 'previous', label: 'Mid Term', subject_id: subject.subject_id, subject_name: subject.subject_name, percentage: 50 }));
+  const images = t.mock.method(PDFDocument.prototype, 'image');
+  const dash = t.mock.method(PDFDocument.prototype, 'dash');
+  await createReportCardPdfArtifact(payload, 'ORIGINAL-BRAND');
+  assert.equal(images.mock.calls[0].arguments[0], join(process.cwd(), 'apps/web/public/brand/myshule-mark-512.png'));
+  assert.deepEqual(images.mock.calls[0].arguments[3], { fit: [34, 34], align: 'center', valign: 'center' });
+  assert.equal(dash.mock.callCount(), 0);
+});
+
+test('the existing report layout retains Overall Grade and the separate right-hand Summary Overview', async (t) => {
+  const payload = referencePayload();
+  payload.totals.overall_grade = 'B';
+  const text = t.mock.method(PDFDocument.prototype, 'text');
+  await createReportCardPdfArtifact(payload, 'PRESERVE-LAYOUT');
+  const calls: unknown[][] = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments);
+  const analytics = calls.find(call => call[0] === 'PERFORMANCE ANALYTICS')!;
+  const overview = calls.find(call => call[0] === 'SUMMARY OVERVIEW')!;
+  assert.equal(analytics[2], overview[2], 'overview stays beside the charts');
+  assert.ok(Number(overview[1]) > Number(analytics[1]) + 300);
+  const grade = calls.findIndex(call => call[0] === 'Overall Grade: ');
+  assert.ok(grade > 0);
+  assert.equal(calls[grade + 1][0], 'B');
+  assert.ok(calls.findIndex(call => call[0] === 'Average: ') < grade);
+  assert.ok(calls.findIndex(call => call[0] === 'Total Score: ') > grade);
+  assert.ok(calls.findIndex(call => String(call[0]).startsWith('Learning Areas and Competency Progress:')) > grade);
+  assert.ok(calls.findIndex(call => call[0] === 'COMMENTS') > calls.indexOf(overview));
 });
 
 for (const withHistory of [false, true]) {
@@ -216,6 +306,7 @@ for (const examName of ['End Term 1', 'Mid Term', 'End Term 3', 'CAT 1']) {
     const printed = textSpy.mock.calls.map((call: { arguments: unknown[] }) => String(call.arguments[0]));
     const academicTable = printed.slice(printed.indexOf('ACADEMIC PERFORMANCE') + 1, printed.indexOf('Average: '));
     assert.deepEqual(academicTable, [
+      examName.toUpperCase(),
       'Subject', examName, 'Grade', 'Achievement Level',
       ...payload.subjects.flatMap((subject) => [subject.subject_name, `${subject.percentage}%`, subject.grade_label, subject.descriptor]),
     ]);

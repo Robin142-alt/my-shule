@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdtemp, unlink, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { setImmediate as yieldToEventLoop, setTimeout as waitForWriter } from 'node:timers/promises';
 import PDFDocument from 'pdfkit';
+import { subjectComparison, termComparison } from './report-card-comparison';
 import { normalizeReportGeneratedAt, type ReportArtifact } from '../../../common/reports/report-artifact';
 import type {
   ReportCardPayload,
@@ -23,6 +24,14 @@ const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 22;
 const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2);
+let reportFonts: Buffer[] | undefined;
+
+function registerReportFonts(document: PDFKit.PDFDocument) {
+  // Embed the same licensed fonts in every artifact; never rely on viewer substitutions.
+  reportFonts ??= ['Regular', 'Bold', 'Italic'].map(style =>
+    readFileSync(join(process.cwd(), 'apps/api/assets/report-fonts', `LiberationSans-${style}.ttf`)));
+  ['MyShule-Regular', 'MyShule-Bold', 'MyShule-Italic'].forEach((name, index) => document.registerFont(name, reportFonts![index]));
+}
 
 export async function createReportCardPdfArtifact(
   payload: ReportCardPayload,
@@ -68,6 +77,7 @@ export async function createBulkReportCardPdfFile(entries: AsyncIterable<BulkRep
   let count = 0;
   const started=Date.now();
   try {
+    registerReportFonts(document);
     for await (const entry of entries) {
       if (count>=limits.maxPages || Date.now()-started>limits.maxDurationMs) throw new Error('Report export exceeds its work limit; select a smaller scope');
       if (document.destroyed) {
@@ -116,13 +126,15 @@ export function createBulkReportCardPdfBuffer(
     document.on('error', reject);
     document.on('end', () => resolve(Buffer.concat(chunks)));
 
-    for (const entry of entries) {
-      document.addPage({ size: 'A4', margin: 0 });
-      const generatedAt = normalizeReportGeneratedAt(entry.payload.generated_at);
-      renderReportCardPageContent(document, entry.payload, entry.verificationCode, generatedAt);
-    }
-
-    document.end();
+    try {
+      registerReportFonts(document);
+      for (const entry of entries) {
+        document.addPage({ size: 'A4', margin: 0 });
+        const generatedAt = normalizeReportGeneratedAt(entry.payload.generated_at);
+        renderReportCardPageContent(document, entry.payload, entry.verificationCode, generatedAt);
+      }
+      document.end();
+    } catch (error) { document.destroy(); reject(error); }
   });
 }
 
@@ -133,9 +145,9 @@ function renderReportCardPageContent(
   generatedAt: string,
 ) {
   document.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT).fill('#ffffff');
-  drawHeader(document, payload, verificationCode);
-  drawStudentInformation(document, payload);
-  const performanceBottom = drawAcademicPerformance(document, payload);
+  const headerBottom = drawHeader(document, payload, verificationCode);
+  const informationBottom = drawStudentInformation(document, payload, headerBottom + 8);
+  const performanceBottom = drawAcademicPerformance(document, payload, informationBottom + 8);
   const analyticsBottom = drawAnalyticsAndOverview(document, payload, performanceBottom + 8);
   drawCommentsAndSignatures(document, payload, analyticsBottom + 8);
   drawFooter(document, verificationCode, generatedAt);
@@ -169,8 +181,11 @@ function renderReportCardPdf(
     document.on('error', reject);
     document.on('end', () => resolve(Buffer.concat(chunks)));
 
-    renderReportCardPageContent(document, payload, verificationCode, generatedAt);
-    document.end();
+    try {
+      registerReportFonts(document);
+      renderReportCardPageContent(document, payload, verificationCode, generatedAt);
+      document.end();
+    } catch (error) { document.destroy(); reject(error); }
   });
 }
 
@@ -194,70 +209,57 @@ function drawHeader(document: PDFKit.PDFDocument, payload: ReportCardPayload, ve
   }
 
   const brand = [{ text: 'My', color: NAVY }, { text: 'Shule', color: GOLD }];
-  document.font('Helvetica-Bold').fontSize(25);
+  document.font('MyShule-Bold').fontSize(25);
   const brandWidth = brand.reduce((sum, item) => sum + document.widthOfString(item.text), 0);
-  const markWidth = 30;
-  const brandGap = 6;
+  const markWidth = 34;
+  const brandGap = 2;
   let brandX = (PAGE_WIDTH - brandWidth - markWidth - brandGap) / 2 + markWidth + brandGap;
-  drawMyShuleMark(document, brandX - markWidth - brandGap, 19, markWidth, 27);
+  document.image(join(process.cwd(), 'apps/web/public/brand/myshule-mark-512.png'), brandX - markWidth - brandGap, 11, { fit: [markWidth, markWidth], align: 'center', valign: 'center' });
   for (const item of brand) {
-    document.fillColor(item.color).text(item.text, brandX, 22, { lineBreak: false });
+    document.fillColor(item.color).text(item.text, brandX, 18, { lineBreak: false });
     brandX += document.widthOfString(item.text);
   }
 
-  document
-    .font('Helvetica-Bold')
-    .fontSize(18)
-    .fillColor(NAVY)
-    .text(fields.school_name, 102, 53, { width: PAGE_WIDTH - 204, align: 'center', ellipsis: true, lineBreak: false });
+  const schoolWidth = PAGE_WIDTH - 212;
+  const schoolHeight = document.font('MyShule-Bold').fontSize(16).heightOfString(fields.school_name, { width: schoolWidth });
+  document.fillColor(NAVY).text(fields.school_name, 106, 46, { width: schoolWidth, align: 'center' });
+  let detailsY = Math.max(67, 46 + schoolHeight + 4);
   if (fields.school_motto) {
-    document.font('Helvetica-Oblique').fontSize(7).fillColor(MUTED).text(fields.school_motto, 112, 75, {
+    const mottoHeight = document.font('MyShule-Italic').fontSize(7).heightOfString(fields.school_motto, { width: PAGE_WIDTH - 224 });
+    document.fillColor(MUTED).text(fields.school_motto, 112, detailsY, {
       width: PAGE_WIDTH - 224,
       align: 'center',
-      ellipsis: true,
-      lineBreak: false,
     });
+    detailsY += mottoHeight + 6;
   }
 
   document.roundedRect(PAGE_WIDTH - MARGIN - 68, 28, 68, 38, 6).fillAndStroke(SOFT, LINE);
-  document.font('Helvetica-Bold').fontSize(5.5).fillColor(MUTED).text('REPORT NO.', PAGE_WIDTH - MARGIN - 64, 34, { width: 60, align: 'center' });
+  document.font('MyShule-Bold').fontSize(5.5).fillColor(MUTED).text('REPORT NO.', PAGE_WIDTH - MARGIN - 64, 34, { width: 60, align: 'center' });
   document.fontSize(verificationCode.length>12?4.5:7).fillColor(NAVY).text(verificationCode, PAGE_WIDTH - MARGIN - 64, 44, { width: 60, align: 'center', lineBreak: false });
 
   const term = reportPeriod(fields.term, fields.academic_year);
   const curriculum = recordText(series, 'curriculum_model', 'reporting_mode', 'curriculum');
-  drawCenteredSegments(document, 89, [
+  const metadataBottom = drawCenteredSegments(document, Math.max(81, detailsY), [
     'Academic Report Card',
     term,
     curriculum ? `Curriculum: ${curriculum}` : '',
   ].filter(Boolean));
 
   const contacts = [fields.school_address, fields.school_email, fields.school_phone].filter((item): item is string => Boolean(item));
-  document.font('Helvetica').fontSize(6.5).fillColor(MUTED).text(contacts.join('  |  '), MARGIN + 45, 106, {
+  const contactsY = metadataBottom + 4;
+  const contactHeight = document.font('MyShule-Regular').fontSize(6.5).heightOfString(contacts.join('  |  '), { width: CONTENT_WIDTH - 90 });
+  document.fillColor(MUTED).text(contacts.join('  |  '), MARGIN + 45, contactsY, {
     width: CONTENT_WIDTH - 90,
     align: 'center',
-    ellipsis: true,
-    lineBreak: false,
   });
-  document.moveTo(MARGIN, 121).lineTo(PAGE_WIDTH - MARGIN, 121).lineWidth(2).strokeColor(NAVY).stroke();
-}
-
-function drawMyShuleMark(document: PDFKit.PDFDocument, x: number, y: number, width: number, height: number) {
-  const bottom = y + height - 5;
-  document
-    .path(`M ${x + 5} ${bottom} C ${x + 1} ${bottom} ${x} ${bottom - 4} ${x} ${bottom - 7} C ${x} ${bottom - 12} ${x + 4} ${bottom - 15} ${x + 9} ${bottom - 15} C ${x + 11} ${y + 2} ${x + 17} ${y} ${x + 21} ${y + 3} C ${x + 25} ${y + 4} ${x + 27} ${y + 8} ${x + 27} ${y + 12} C ${x + 31} ${y + 13} ${x + 32} ${y + 17} ${x + 31} ${y + 20} C ${x + 30} ${bottom - 1} ${x + 27} ${bottom} ${x + 24} ${bottom} Z`)
-    .lineWidth(1.8)
-    .strokeColor(NAVY)
-    .stroke();
-  document.moveTo(x + 8, y + 12).lineTo(x + 8, bottom - 1).lineTo(x + 15, y + 16).lineTo(x + 21, y + 11).lineTo(x + 21, bottom - 1)
-    .lineWidth(3).strokeColor(NAVY).stroke();
-  document.moveTo(x + 15, y + 16).lineTo(x + 21, y + 11).lineTo(x + 21, bottom - 1)
-    .lineWidth(3).strokeColor(GOLD).stroke();
-  document.circle(x + 15, bottom + 3, 1.8).fill(GOLD);
+  const bottom = Math.max(112, contactsY + contactHeight + 7);
+  document.moveTo(MARGIN, bottom).lineTo(PAGE_WIDTH - MARGIN, bottom).lineWidth(2).strokeColor(NAVY).stroke();
+  return bottom;
 }
 
 function drawInitialsCrest(document: PDFKit.PDFDocument, x: number, y: number, size: number, schoolName: string) {
   document.roundedRect(x + 4, y + 4, size - 8, size - 8, 6).fill(NAVY);
-  document.font('Helvetica-Bold').fontSize(18).fillColor('#ffffff').text(initials(schoolName), x + 4, y + 18, {
+  document.font('MyShule-Bold').fontSize(18).fillColor('#ffffff').text(initials(schoolName), x + 4, y + 18, {
     width: size - 8,
     align: 'center',
     lineBreak: false,
@@ -266,10 +268,17 @@ function drawInitialsCrest(document: PDFKit.PDFDocument, x: number, y: number, s
 }
 
 function drawCenteredSegments(document: PDFKit.PDFDocument, y: number, segments: string[]) {
-  document.font('Helvetica-Bold').fontSize(7.5);
+  document.font('MyShule-Bold').fontSize(7.5);
   const gap = 13;
   const widths = segments.map((segment) => document.widthOfString(segment));
   const totalWidth = widths.reduce((sum, width) => sum + width, 0) + ((segments.length - 1) * gap);
+  if (totalWidth > CONTENT_WIDTH - 20) {
+    const display = segments.join('  |  ');
+    const height = document.heightOfString(display, { width: CONTENT_WIDTH - 20 });
+    document.fillColor(NAVY).text(display, MARGIN + 10, y, { width: CONTENT_WIDTH - 20, align: 'center' });
+    document.moveTo(MARGIN + 70, y + height + 4).lineTo(PAGE_WIDTH - MARGIN - 70, y + height + 4).lineWidth(0.7).strokeColor(GOLD).stroke();
+    return y + height + 4;
+  }
   let x = (PAGE_WIDTH - totalWidth) / 2;
   segments.forEach((segment, index) => {
     document.fillColor(NAVY).text(segment, x, y, { lineBreak: false });
@@ -280,17 +289,14 @@ function drawCenteredSegments(document: PDFKit.PDFDocument, y: number, segments:
     }
   });
   document.moveTo(MARGIN + 70, y + 13).lineTo(PAGE_WIDTH - MARGIN - 70, y + 13).lineWidth(0.7).strokeColor(GOLD).stroke();
+  return y + 13;
 }
 
-function drawStudentInformation(document: PDFKit.PDFDocument, payload: ReportCardPayload) {
+function drawStudentInformation(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
   const fields = payload.template_fields;
   const student = asRecord(payload.student);
   const series = asRecord(payload.exam_series);
   const attendance = asRecord(payload.attendance);
-  const y = 132;
-  const height = 82;
-  drawCard(document, MARGIN, y, CONTENT_WIDTH, height);
-  drawSectionTitle(document, 'STUDENT INFORMATION', MARGIN + 13, y + 8);
 
   const persistedFields: Array<[string, string | null]> = [
     ['Student Name', fields.learner_name || null],
@@ -307,25 +313,28 @@ function drawStudentInformation(document: PDFKit.PDFDocument, payload: ReportCar
   const availableFields = persistedFields.filter((entry): entry is [string, string] => Boolean(entry[1]));
   const rows = Array.from({ length: Math.ceil(availableFields.length / 5) }, (_, index) => availableFields.slice(index * 5, (index + 1) * 5));
 
-  const gridY = y + 25;
-  const rowHeight = 27;
+  const gridY = y + 22;
+  const rowHeights = rows.map(row => Math.max(24, ...row.map(([, display]) => document.font('MyShule-Regular').fontSize(8).heightOfString(display, { width: (CONTENT_WIDTH - 12) / row.length - 8 }) + 15)));
+  const height = 25 + rowHeights.reduce((total, value) => total + value, 0);
+  drawCard(document, MARGIN, y, CONTENT_WIDTH, height);
+  drawSectionTitle(document, 'STUDENT INFORMATION', MARGIN + 13, y + 8);
   rows.forEach((row, rowIndex) => row.forEach(([label, display], columnIndex) => {
+    const rowHeight = rowHeights[rowIndex];
     const cellWidth = (CONTENT_WIDTH - 12) / row.length;
     const cellX = MARGIN + 6 + (columnIndex * cellWidth);
-    const cellY = gridY + (rowIndex * rowHeight);
+    const cellY = gridY + rowHeights.slice(0, rowIndex).reduce((total, value) => total + value, 0);
     if (rowIndex === 1) document.moveTo(cellX, cellY).lineTo(cellX + cellWidth, cellY).lineWidth(0.5).strokeColor(LINE).stroke();
     if (columnIndex > 0) document.moveTo(cellX, cellY + 2).lineTo(cellX, cellY + rowHeight - 2).lineWidth(0.5).strokeColor(LINE).stroke();
-    document.font('Helvetica-Bold').fontSize(6.5).fillColor(NAVY).text(label, cellX + 3, cellY + 5, { width: cellWidth - 6, align: 'center', lineBreak: false });
-    document.font('Helvetica').fontSize(7.5).fillColor(INK).text(display, cellX + 3, cellY + 15, { width: cellWidth - 6, align: 'center', ellipsis: true, lineBreak: false });
+    document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text(label, cellX + 3, cellY + 5, { width: cellWidth - 6, align: 'center', lineBreak: false });
+    document.font('MyShule-Regular').fontSize(8).fillColor(INK).text(display, cellX + 4, cellY + 14, { width: cellWidth - 8, align: 'center' });
   }));
+  return y + height;
 }
 
-function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCardPayload) {
-  const y = 222;
+function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
   const subjectCount = Math.max(payload.subjects.length, 1);
-  const rowHeight = Math.max(7.5, Math.min(14, 168 / subjectCount));
-  const tableHeaderHeight = 18;
-  const titleHeight = 19;
+  const rowHeight = subjectCount > 8 ? 12 : 17;
+  const rowPadding = subjectCount > 8 ? 3 : 5;
   const enteredSubjects = payload.subjects.filter(isEntered);
   const totals = asRecord(payload.totals);
   const summary: Array<[string, string]> = [];
@@ -336,24 +345,38 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
   if (classPosition) summary.push(['Class Position', classPosition]);
   else if (payload.totals.total_max_score > 0) summary.push(['Total Score', `${formatNumber(payload.totals.total_score)} / ${formatNumber(payload.totals.total_max_score)}`]);
   const summaryHeight = summary.length ? 23 : 0;
-  const rowsHeight = rowHeight * subjectCount;
-  const height = titleHeight + tableHeaderHeight + rowsHeight + summaryHeight;
   const examName = recordText(payload.template_fields, 'exam_series')
     ?? recordText(payload.exam_series, 'name') ?? 'Assessment';
+  const titleHeight = Math.max(19, document.font('MyShule-Bold').fontSize(5.7).heightOfString(examName.toUpperCase(), { width: 215 }) + 8);
   const columns = [
-    { key: 'subject', label: 'Subject', weight: 2.2 },
-    { key: 'result', label: examName, weight: 1.05 },
-    { key: 'grade', label: 'Grade', weight: 0.85 },
-    { key: 'achievement', label: 'Achievement Level', weight: 2.25 },
+    { key: 'subject', label: 'Subject', weight: 1 },
+    { key: 'result', label: examName, weight: 1 },
+    { key: 'grade', label: 'Grade', weight: 1 },
+    { key: 'achievement', label: 'Achievement Level', weight: 1 },
   ];
   const totalWeight = columns.reduce((sum, column) => sum + column.weight, 0);
   const columnWidths = columns.map((column) => (CONTENT_WIDTH * column.weight) / totalWeight);
   const headers = columns.map((column) => column.label);
+  const tableHeaderHeight = Math.max(18, ...headers.map((label, index) => document.font('MyShule-Bold').fontSize(7.5).heightOfString(label, { width: columnWidths[index] - 8 }) + 5));
+  const data = payload.subjects.map(subject => {
+    const percentage = subjectPercentage(subject);
+    const entered = isEntered(subject);
+    return [subject.subject_name, entered && percentage !== null ? `${formatNumber(percentage)}%` : scoreStatus(subject.score_status), entered ? subject.grade_label ?? '' : '', entered ? subject.descriptor ?? subject.remarks ?? '' : scoreStatus(subject.score_status)];
+  });
+  const rowHeights = data.map(row => Math.max(rowHeight, ...row.map((value, index) => document.font(index === 0 ? 'MyShule-Bold' : 'MyShule-Regular').fontSize(8).heightOfString(value, { width: columnWidths[index] - 8 }) + rowPadding)));
+  const rowsHeight = rowHeights.reduce((sum, value) => sum + value, 0);
+  const learningAreas = payload.subjects.slice(0, 4).filter(isEntered).map(subject =>
+    [subject.subject_name, subject.grade_label ?? subject.descriptor].filter(Boolean).join(' - ')).join(' | ');
+  const learningText = learningAreas ? `Learning Areas and Competency Progress: ${learningAreas}` : '';
+  const learningHeight = learningText ? document.font('MyShule-Regular').fontSize(6).heightOfString(learningText, { width: CONTENT_WIDTH - 18 }) + 10 : 0;
+  const height = titleHeight + tableHeaderHeight + rowsHeight + summaryHeight + learningHeight;
+  if (y + height > 545) throw new Error('Report content exceeds a readable single A4 page. Shorten subject descriptions or comments and regenerate; no content has been clipped.');
 
   drawCard(document, MARGIN, y, CONTENT_WIDTH, height);
   document.roundedRect(MARGIN, y, CONTENT_WIDTH, titleHeight, 6).fill(NAVY);
   document.rect(MARGIN, y + 10, CONTENT_WIDTH, 9).fill(NAVY);
-  document.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff').text('ACADEMIC PERFORMANCE', MARGIN + 12, y + 6, { lineBreak: false });
+  document.font('MyShule-Bold').fontSize(9).fillColor('#ffffff').text('ACADEMIC PERFORMANCE', MARGIN + 12, y + 6, { lineBreak: false });
+  document.fontSize(5.7).fillColor('#e0eafa').text(examName.toUpperCase(), MARGIN + CONTENT_WIDTH - 227, y + 6, { width: 215, align: 'right' });
   const tableY = y + titleHeight;
   document.rect(MARGIN, tableY, CONTENT_WIDTH, tableHeaderHeight).fill('#edf4fb');
   drawTableRow(document, headers, columnWidths, MARGIN, tableY, tableHeaderHeight, true);
@@ -369,7 +392,7 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
         achievement: entered ? subject.descriptor ?? subject.remarks ?? '' : scoreStatus(subject.score_status),
       };
       const row = columns.map((column) => rowValues[column.key] ?? '');
-      drawTableRow(document, row, columnWidths, MARGIN, tableY + tableHeaderHeight + (index * rowHeight), rowHeight, false);
+      drawTableRow(document, row, columnWidths, MARGIN, tableY + tableHeaderHeight + rowHeights.slice(0, index).reduce((sum, value) => sum + value, 0), rowHeights[index], false);
     });
   }
 
@@ -380,12 +403,17 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
     summary.forEach(([label, display], index) => {
       const x = MARGIN + (index * summaryWidth);
       if (index > 0) document.moveTo(x, summaryY).lineTo(x, summaryY + summaryHeight).lineWidth(0.6).strokeColor(GOLD).stroke();
-      const prefixWidth = document.font('Helvetica').fontSize(7.5).widthOfString(`${label}: `);
-      const displayWidth = document.font('Helvetica-Bold').fontSize(11).widthOfString(display);
+      const prefixWidth = document.font('MyShule-Regular').fontSize(7.5).widthOfString(`${label}: `);
+      const displayWidth = document.font('MyShule-Bold').fontSize(11).widthOfString(display);
       const startX = x + ((summaryWidth - prefixWidth - displayWidth) / 2);
-      document.font('Helvetica').fontSize(7.5).fillColor(INK).text(`${label}: `, startX, summaryY + 7, { lineBreak: false });
-      document.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text(display, startX + prefixWidth, summaryY + 4.5, { lineBreak: false });
+      document.font('MyShule-Regular').fontSize(7.5).fillColor(INK).text(`${label}: `, startX, summaryY + 7, { lineBreak: false });
+      document.font('MyShule-Bold').fontSize(11).fillColor(NAVY).text(display, startX + prefixWidth, summaryY + 4.5, { lineBreak: false });
     });
+  }
+  if (learningHeight) {
+    const learningY = summaryY + summaryHeight;
+    document.rect(MARGIN, learningY, CONTENT_WIDTH, learningHeight).fill(SOFT);
+    document.font('MyShule-Regular').fontSize(6).fillColor(INK).text(learningText, MARGIN + 9, learningY + 5, { width: CONTENT_WIDTH - 18 });
   }
   return y + height;
 }
@@ -404,15 +432,12 @@ function drawTableRow(
     const width = widths[index] ?? 0;
     document.rect(cursor, y, width, height).lineWidth(0.35).strokeColor(LINE).stroke();
     document
-      .font(header ? 'Helvetica-Bold' : index === 0 ? 'Helvetica-Bold' : 'Helvetica')
-      .fontSize(header ? 6.4 : Math.max(5.4, Math.min(7, height - 2)))
+      .font(header ? 'MyShule-Bold' : index === 0 ? 'MyShule-Bold' : 'MyShule-Regular')
+      .fontSize(header ? 7.5 : 8)
       .fillColor(header ? NAVY : INK)
-      .text(display, cursor + 3, y + Math.max(1.3, (height - (header ? 7 : 6)) / 2), {
-        width: width - 6,
-        height: Math.max(5, height - 2),
+      .text(display, cursor + 4, y + Math.max(2, (height - document.heightOfString(display, { width: width - 8 })) / 2), {
+        width: width - 8,
         align: index === 0 ? 'left' : 'center',
-        ellipsis: true,
-        lineBreak: false,
       });
     cursor += width;
   });
@@ -426,27 +451,31 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
     .map((subject) => ({ subject, percentage: subjectPercentage(subject) }))
     .filter((entry): entry is { subject: ReportCardSubjectPayload; percentage: number } => entry.percentage !== null)
     .sort((left, right) => right.percentage - left.percentage);
-  const persistedTermHistory = payload.analytics?.term_history ?? [];
-  const termHistory = persistedTermHistory.length
-    ? [...persistedTermHistory].reverse()
-    : [{
-        exam_series_id: recordText(asRecord(payload.exam_series), 'id') ?? 'current',
-        label: payload.template_fields.term ?? payload.template_fields.exam_series ?? '',
-        percentage: payload.totals.percentage,
-      }].filter((entry) => Boolean(entry.label));
+  const termHistory = termComparison(payload);
   const chartGap = 8;
   const chartWidth = (leftWidth - 30 - chartGap) / 2;
-  const subjectHistory = payload.analytics?.subject_history ?? [];
-  const subjects = subjectHistory.length
-    ? [...new Map(subjectHistory.map((entry) => [entry.subject_id, entry.subject_name])).entries()].map(([id, name]) => ({ id, name }))
-    : entries.map((entry) => ({ id: entry.subject.subject_id, name: entry.subject.subject_name }));
-  document.font('Helvetica').fontSize(5.5);
-  const legendRows = Array.from({ length: Math.ceil(subjects.length / 2) }, (_, row) => {
-    const names = subjects.slice(row * 2, row * 2 + 2);
-    return Math.max(9, ...names.map(subject => document.heightOfString(subject.name, { width: (chartWidth - 30) / 2, lineGap: 1 }) + 3));
+  const subjectWidth = chartWidth;
+  const graph = subjectComparison(payload);
+  document.font('MyShule-Regular').fontSize(6);
+  const legendRows = Array.from({ length: Math.ceil(graph.subjects.length / 2) }, (_, row) => {
+    const names = graph.subjects.slice(row * 2, row * 2 + 2);
+    return Math.max(10, ...names.map(subject => document.heightOfString(subject.name, { width: (subjectWidth - 16) / 2 - 14, lineGap: 1 }) + 3));
   });
   const legendHeight = legendRows.reduce((total, row) => total + row, 0);
-  const height = Math.max(165, 148 + legendHeight);
+  const subjectLabelsHeight = Math.max(16, ...graph.exams.map(exam => document.font('MyShule-Bold').fontSize(6.8).heightOfString(exam.label, { width: (subjectWidth - 16) / graph.exams.length })));
+  const termLabelsHeight = Math.max(16, ...termHistory.map(exam => document.font('MyShule-Regular').fontSize(6).heightOfString(exam.label, { width: (chartWidth - 8) / termHistory.length })));
+  const attendance = asRecord(payload.attendance);
+  const overview: Array<[string, string | null | undefined]> = [
+    ['Attendance', attendancePercentage(attendance)],
+    ['Best Subject', entries[0]?.subject.subject_name],
+    ['Improvement', recordText(asRecord(payload.totals), 'improvement', 'improvement_percentage')],
+    ['Conduct', payload.template_fields.conduct_summary],
+  ];
+  const availableOverview = overview.filter((entry): entry is [string, string] => Boolean(entry[1]));
+  const overviewHeights = availableOverview.map(([, display]) => Math.max(30,
+    document.font('MyShule-Bold').fontSize(8).heightOfString(display, { width: rightWidth - 52 }) + 20));
+  const height = Math.max(180, 124 + Math.max(subjectLabelsHeight + legendHeight, termLabelsHeight),
+    35 + overviewHeights.reduce((sum, value) => sum + value + 5, 0));
   drawCard(document, MARGIN, y, leftWidth, height);
   drawCard(document, MARGIN + leftWidth + gap, y, rightWidth, height);
   drawSectionTitle(document, 'PERFORMANCE ANALYTICS', MARGIN + 12, y + 8);
@@ -458,33 +487,20 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
     document,
     MARGIN + 11 + chartWidth + chartGap,
     chartY,
-    chartWidth,
+    subjectWidth,
     chartHeight,
-    subjectHistory,
-    entries,
-    payload.template_fields.term ?? payload.template_fields.exam_series ?? '',
-    subjects,
+    graph,
     legendRows,
+    subjectLabelsHeight,
   );
 
-  const attendance = asRecord(payload.attendance);
-  const comments = payload.template_fields;
-  const overview: Array<[string, string | null | undefined]> = [
-    ['Attendance', attendancePercentage(attendance)],
-    ['Best Subject', entries[0]?.subject.subject_name],
-    ['Improvement', recordText(asRecord(payload.totals), 'improvement', 'improvement_percentage')],
-    ['Conduct', comments.conduct_summary],
-  ];
-  const availableOverview = overview.filter((entry): entry is [string, string] => Boolean(entry[1]));
-  const cardStep = Math.min(32, 128 / Math.max(1, availableOverview.length));
   availableOverview.forEach(([label, display], index) => {
     const cardX = MARGIN + leftWidth + gap + 9;
-    const cardY = y + 27 + (index * cardStep);
-    const cardHeight = Math.min(27, cardStep - 4);
-    document.roundedRect(cardX, cardY, rightWidth - 18, cardHeight, 5).fillAndStroke(index % 2 ? '#fff8e8' : SOFT, LINE);
-    drawOverviewIcon(document, index, cardX + 4, cardY + 3, 21);
-    document.font('Helvetica-Bold').fontSize(5.5).fillColor(MUTED).text(label.toUpperCase(), cardX + 31, cardY + 5, { width: rightWidth - 52, lineBreak: false });
-    document.font('Helvetica-Bold').fontSize(8.5).fillColor(NAVY).text(display, cardX + 31, cardY + 14, { width: rightWidth - 52, ellipsis: true, lineBreak: false });
+    const cardY = y + 27 + overviewHeights.slice(0, index).reduce((sum, value) => sum + value + 5, 0);
+    document.roundedRect(cardX, cardY, rightWidth - 18, overviewHeights[index], 5).fillAndStroke(index % 2 ? '#fff8e8' : SOFT, LINE);
+    drawOverviewIcon(document, label === 'Best Subject' ? 1 : label === 'Attendance' ? 0 : label === 'Improvement' ? 2 : 3, cardX + 4, cardY + 4, 21);
+    document.font('MyShule-Bold').fontSize(5.5).fillColor(MUTED).text(label.toUpperCase(), cardX + 31, cardY + 5, { width: rightWidth - 52, lineBreak: false });
+    document.font('MyShule-Bold').fontSize(8).fillColor(NAVY).text(display, cardX + 31, cardY + 14, { width: rightWidth - 52 });
   });
   return y + height;
 }
@@ -498,8 +514,9 @@ function drawTermTrendChart(
   history: Array<{ exam_series_id: string; label: string; percentage: number }>,
 ) {
   document.roundedRect(x, y, width, height, 5).fillAndStroke('#fbfdff', LINE);
-  document.font('Helvetica-Bold').fontSize(6.5).fillColor(NAVY).text('Term Performance Trend', x + 5, y + 7, { width: width - 10, align: 'center', lineBreak: false });
-  const plot = { x: x + 24, y: y + 24, width: width - 34, height: height - 47 };
+  document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text('Term Performance Trend', x + 5, y + 7, { width: width - 10, align: 'center', lineBreak: false });
+  const labelHeight = Math.max(16, ...history.map(entry => document.font('MyShule-Regular').fontSize(6).heightOfString(entry.label, { width: (width - 8) / history.length })));
+  const plot = { x: x + 24, y: y + 24, width: width - 34, height: height - 35 - labelHeight };
   drawChartAxes(document, plot.x, plot.y, plot.width, plot.height);
   const points = history.map((entry, index) => ({
     ...entry,
@@ -511,10 +528,10 @@ function drawTermTrendChart(
     points.slice(1).forEach((point) => document.lineTo(point.x, point.y));
     document.lineWidth(1.4).strokeColor(GOLD).stroke();
   }
-  points.forEach((point) => {
+  points.forEach((point, index) => {
     document.circle(point.x, point.y, 3.2).fill(GOLD);
-    document.font('Helvetica-Bold').fontSize(5.2).fillColor(NAVY).text(`${formatNumber(point.percentage)}%`, point.x - 15, Math.max(plot.y - 1, point.y - 10), { width: 30, align: 'center', lineBreak: false });
-    document.font('Helvetica').fontSize(4.5).fillColor(MUTED).text(abbreviate(point.label, 9), point.x - 18, plot.y + plot.height + 5, { width: 36, align: 'center', lineBreak: false });
+    document.font('MyShule-Bold').fontSize(5.2).fillColor(NAVY).text(`${formatNumber(point.percentage)}%`, point.x - 15, Math.max(plot.y - 1, point.y - 10), { width: 30, align: 'center', lineBreak: false });
+    document.font('MyShule-Regular').fontSize(6).fillColor(MUTED).text(point.label, x + 4 + (index * (width - 8) / history.length), plot.y + plot.height + 5, { width: (width - 8) / history.length, align: 'center' });
   });
 }
 
@@ -524,47 +541,45 @@ function drawSubjectPerformanceChart(
   y: number,
   width: number,
   height: number,
-  history: Array<{ exam_series_id: string; label: string; subject_id: string; subject_name: string; percentage: number }>,
-  currentEntries: Array<{ subject: ReportCardSubjectPayload; percentage: number }>,
-  currentLabel: string,
-  subjects: Array<{ id: string; name: string }>,
+  graph: ReturnType<typeof subjectComparison>,
   legendRows: number[],
+  labelHeight: number,
 ) {
   document.roundedRect(x, y, width, height, 5).fillAndStroke('#fbfdff', LINE);
-  document.font('Helvetica-Bold').fontSize(6.5).fillColor(NAVY).text('Subject Performance', x + 5, y + 7, { width: width - 10, align: 'center', lineBreak: false });
+  document.font('MyShule-Bold').fontSize(8).fillColor(NAVY).text('Subject Performance', x + 5, y + 7, { width: width - 10, align: 'center', lineBreak: false });
   const legendHeight = legendRows.reduce((total, row) => total + row, 0);
-  const plot = { x: x + 24, y: y + 24, width: width - 34, height: height - 47 - legendHeight };
+  const plot = { x: x + 27, y: y + 24, width: width - 48, height: height - 39 - labelHeight - legendHeight };
   drawChartAxes(document, plot.x, plot.y, plot.width, plot.height);
-  const terms = history.length
-    ? [...new Map(history.map((entry) => [entry.exam_series_id, entry.label])).entries()].map(([id, label]) => ({ id, label }))
-    : currentLabel ? [{ id: 'current', label: currentLabel }] : [];
+  const terms = graph.exams;
   const colors = [NAVY, GOLD, '#6fa83a', '#7244b8', '#c43c39', '#00838f', '#a05178', '#76552b', '#3b78bc', '#db6b20', '#4c6b35', '#c34f91'];
-  subjects.forEach((subject, subjectIndex) => {
+  graph.subjects.forEach((subject, subjectIndex) => {
     const color = colors[subjectIndex % colors.length];
     const points = terms.map((term, termIndex) => {
-      const persisted = history.find((entry) => entry.exam_series_id === term.id && entry.subject_id === subject.id);
-      const current = !history.length ? currentEntries.find((entry) => entry.subject.subject_id === subject.id) : null;
-      const percentage = persisted?.percentage ?? current?.percentage;
-      if (percentage === undefined) return null;
+      const percentage = subject.percentages[termIndex];
+      if (percentage === null || percentage === undefined) return null;
       return {
-        x: plot.x + 8 + (((plot.width - 16) * termIndex) / Math.max(1, terms.length - 1)),
+        x: terms.length === 1 ? plot.x + plot.width / 2 : plot.x + 8 + (plot.width - 16) * termIndex,
         y: plot.y + plot.height - ((Math.max(0, Math.min(100, percentage)) / 100) * plot.height),
       };
     }).filter((point): point is { x: number; y: number } => point !== null);
     if (points.length > 1) {
+      document.save();
       document.moveTo(points[0]?.x ?? plot.x, points[0]?.y ?? plot.y);
       points.slice(1).forEach((point) => document.lineTo(point.x, point.y));
       document.lineWidth(1.1).strokeColor(color).stroke();
+      document.restore();
     }
     points.forEach((point) => document.circle(point.x, point.y, 2.4).fill(color));
     const legendX = x + 8 + ((subjectIndex % 2) * ((width - 16) / 2));
-    const legendY = plot.y + plot.height + 17 + legendRows.slice(0, Math.floor(subjectIndex / 2)).reduce((total, row) => total + row, 0);
-    document.circle(legendX + 2, legendY + 3, 2).fill(color);
-    document.font('Helvetica').fontSize(5.5).fillColor(MUTED).text(subject.name, legendX + 7, legendY, { width: (width - 30) / 2, lineGap: 1 });
+    const legendY = plot.y + plot.height + labelHeight + 10 + legendRows.slice(0, Math.floor(subjectIndex / 2)).reduce((total, row) => total + row, 0);
+    document.save();
+    document.moveTo(legendX, legendY + 4).lineTo(legendX + 8, legendY + 4).lineWidth(1.1).strokeColor(color).stroke();
+    document.restore();
+    document.font('MyShule-Regular').fontSize(6).fillColor(INK).text(subject.name, legendX + 12, legendY, { width: (width - 16) / 2 - 14, lineGap: 1 });
   });
   terms.forEach((term, index) => {
-    const labelX = plot.x + 8 + (((plot.width - 16) * index) / Math.max(1, terms.length - 1));
-    document.font('Helvetica').fontSize(4.3).fillColor(MUTED).text(abbreviate(term.label, 8), labelX - 16, plot.y + plot.height + 4, { width: 32, align: 'center', lineBreak: false });
+    const labelWidth = (width - 16) / terms.length;
+    document.font('MyShule-Bold').fontSize(6.8).fillColor(NAVY).text(term.label, x + 8 + labelWidth * index, plot.y + plot.height + 5, { width: labelWidth, align: 'center' });
   });
 }
 
@@ -572,7 +587,7 @@ function drawChartAxes(document: PDFKit.PDFDocument, x: number, y: number, width
   [0, 50, 100].forEach((tick) => {
     const tickY = y + height - ((tick / 100) * height);
     document.moveTo(x, tickY).lineTo(x + width, tickY).lineWidth(0.35).strokeColor(tick === 0 ? '#8997aa' : '#dfe6ef').stroke();
-    document.font('Helvetica').fontSize(4).fillColor(MUTED).text(String(tick), x - 18, tickY - 2.5, { width: 14, align: 'right', lineBreak: false });
+    document.font('MyShule-Regular').fontSize(6).fillColor(MUTED).text(String(tick), x - 20, tickY - 3, { width: 16, align: 'right', lineBreak: false });
   });
   document.moveTo(x, y).lineTo(x, y + height).lineWidth(0.5).strokeColor('#8997aa').stroke();
 }
@@ -601,13 +616,14 @@ function drawOverviewIcon(document: PDFKit.PDFDocument, index: number, x: number
 }
 
 function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
-  const height = Math.max(118, Math.min(205, 803 - y));
+  const height = 803 - y;
+  if (height < 82) throw new Error('Report content exceeds a readable single A4 page. Shorten subject descriptions and regenerate; no content has been clipped.');
   drawCard(document, MARGIN, y, CONTENT_WIDTH, height);
   drawSectionTitle(document, 'COMMENTS', MARGIN + 12, y + 8);
   const commentsY = y + 26;
   const fields = payload.template_fields;
 
-  const commentHeight = Math.max(32, Math.min(96, height - 86));
+  const commentHeight = height - 82;
   const comments: Array<[string, string | null]> = [
     ['Class Teacher Comment', fields.class_teacher_comment],
     ['Principal Comment', fields.principal_comment],
@@ -637,13 +653,13 @@ function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: Report
 }
 
 function drawComment(document: PDFKit.PDFDocument, x: number, y: number, width: number, height: number, label: string, comment: string) {
+  const textHeight = document.font('MyShule-Regular').fontSize(7.5).heightOfString(comment, { width: width - 17 });
+  if (height < textHeight + 24) throw new Error('Comments exceed the available single A4 page. Shorten the comments and regenerate; no text has been clipped.');
   document.roundedRect(x, y, width, height, 4).fill(SOFT);
   document.rect(x, y, 3, height).fill(GOLD);
-  document.font('Helvetica-Bold').fontSize(6.5).fillColor(NAVY).text(label, x + 9, y + 7, { lineBreak: false });
-  document.font('Helvetica').fontSize(6.5).fillColor(INK).text(comment, x + 9, y + 17, {
+  document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text(label, x + 9, y + 7, { lineBreak: false });
+  document.font('MyShule-Regular').fontSize(7.5).fillColor(INK).text(comment, x + 9, y + 17, {
     width: width - 17,
-    height: Math.max(17, height - 24),
-    ellipsis: true,
   });
 }
 
@@ -664,14 +680,14 @@ function drawSignature(
     }
   }
   document.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(NAVY).stroke();
-  document.font('Helvetica-Bold').fontSize(6).fillColor(NAVY).text(label, x, y + 5, { width, align: 'center', lineBreak: false });
+  document.font('MyShule-Bold').fontSize(6).fillColor(NAVY).text(label, x, y + 5, { width, align: 'center', lineBreak: false });
 }
 
 function drawFooter(document: PDFKit.PDFDocument, verificationCode: string, generatedAt: string) {
   const y = PAGE_HEIGHT - 28;
   document.moveTo(MARGIN, y - 7).lineTo(PAGE_WIDTH - MARGIN, y - 7).lineWidth(0.7).strokeColor(GOLD).stroke();
-  document.font('Helvetica-Bold').fontSize(6.5).fillColor(NAVY).text('Generated securely by MyShule School Management System', MARGIN, y, { width: 310, lineBreak: false });
-  document.font('Helvetica').fontSize(5.7).fillColor(MUTED).text(`Verification: ${verificationCode}  |  ${formatDate(generatedAt)}`, PAGE_WIDTH - MARGIN - 220, y, { width: 220, align: 'right', lineBreak: false });
+  document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text('Generated securely by MyShule School Management System', MARGIN, y, { width: 310, lineBreak: false });
+  document.font('MyShule-Regular').fontSize(5.7).fillColor(MUTED).text(`Verification: ${verificationCode}  |  ${formatDate(generatedAt)}`, PAGE_WIDTH - MARGIN - 220, y, { width: 220, align: 'right', lineBreak: false });
 }
 
 function drawCard(document: PDFKit.PDFDocument, x: number, y: number, width: number, height: number) {
@@ -680,7 +696,7 @@ function drawCard(document: PDFKit.PDFDocument, x: number, y: number, width: num
 
 function drawSectionTitle(document: PDFKit.PDFDocument, title: string, x: number, y: number) {
   document.circle(x + 3, y + 4, 3).fill(GOLD);
-  document.font('Helvetica-Bold').fontSize(8).fillColor(NAVY).text(title, x + 11, y, { lineBreak: false });
+  document.font('MyShule-Bold').fontSize(8).fillColor(NAVY).text(title, x + 11, y, { lineBreak: false });
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

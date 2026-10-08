@@ -125,7 +125,9 @@ test('single and bulk PDFs include both signatures throughout the review lifecyc
   const service = new ReportCardExportService({
     assertReportCardScopeAccess: () => 'school-a',
     bulkDownloadReportCards: async () => ({ cards, preview_token: 'confirmed', scope: { scopeType: 'school' } }),
-  } as never, { listReportCardIdsForBulkDownload: async () => cards } as never, {} as never, files as never,
+  } as never, { listReportCardIdsForBulkDownload: async () => cards,
+    loadReportCardComparison: async () => [], loadReportCardTrend: async () => [],
+  } as never, {} as never, files as never,
   {} as never, {} as never, {} as never);
   const artifact = await service.generate({ preview_token: 'confirmed' });
   try {

@@ -40,6 +40,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built output
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/apps/api/assets/report-fonts ./apps/api/assets/report-fonts
+COPY --from=build /app/apps/web/public/brand/myshule-mark-512.png ./apps/web/public/brand/myshule-mark-512.png
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 

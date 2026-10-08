@@ -10,10 +10,12 @@ export interface ReportDeliveryJob {
 export async function awaitReportDelivery(
   initial: ReportDeliveryJob,
   onProgress: (job: ReportDeliveryJob) => void,
+  signal?: AbortSignal,
 ) {
   let job = initial;
   const started = Date.now();
   while (!job.download_url) {
+    signal?.throwIfAborted();
     if (job.state === 'failed')
       throw new Error(
         job.message ?? 'Report preparation failed. Preview and retry.',
@@ -25,9 +27,12 @@ export async function awaitReportDelivery(
         'Your report is still being prepared. Follow it in Recent report tasks.',
       );
     onProgress(job);
-    await new Promise((resolve) =>
-      setTimeout(resolve, Math.min(5000, 1000 + (Date.now() - started) / 30)),
-    );
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => { clearTimeout(timer); reject(signal?.reason); };
+      const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, Math.min(5000, 1000 + (Date.now() - started) / 30));
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+    signal?.throwIfAborted();
     job = await requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}`);
   }
   return job.download_url;
