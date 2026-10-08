@@ -12,7 +12,7 @@ export const PasswordField = forwardRef<
     hint?: string;
   }
 >(function PasswordField(
-  { label, error, hint, className = "", id, onKeyUp, onBlur, ...props },
+  { label, error, hint, className = "", id, onKeyUp, onBlur, "aria-describedby": describedBy, ...props },
   ref,
 ) {
   const [visible, setVisible] = useState(false);
@@ -44,7 +44,7 @@ export const PasswordField = forwardRef<
             id={inputId}
             type={visible ? "text" : "password"}
             aria-invalid={Boolean(error)}
-            aria-describedby={error || hint || capsLock ? helperId : undefined}
+            aria-describedby={[describedBy, error || hint ? helperId : null, capsLock ? `${inputId}-caps-lock` : null].filter(Boolean).join(" ") || undefined}
             placeholder={props.placeholder ?? " "}
             onKeyUp={handleKeyUp}
             onBlur={(event) => {
@@ -57,6 +57,9 @@ export const PasswordField = forwardRef<
             type="button"
             onClick={() => setVisible((value) => !value)}
             aria-label={visible ? "Hide password" : "Show password"}
+            aria-pressed={visible}
+            aria-controls={inputId}
+            disabled={props.disabled}
             className="ml-3 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface-strong hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {visible ? (
@@ -75,21 +78,16 @@ export const PasswordField = forwardRef<
       </div>
       {capsLock ? (
         <p
-          id={helperId}
+          id={`${inputId}-caps-lock`}
           className="flex items-center gap-2 text-sm font-medium text-warning"
         >
           <Keyboard className="h-4 w-4" />
           Caps Lock is on.
         </p>
-      ) : error ? (
-        <p id={helperId} className="text-sm font-medium text-danger">
-          {error}
-        </p>
-      ) : hint ? (
-        <p id={helperId} className="text-sm leading-6 text-muted">
-          {hint}
-        </p>
       ) : null}
+      <p id={helperId} aria-live="polite" aria-atomic="true" className={error ? "text-sm font-medium text-danger" : hint ? "text-sm leading-6 text-muted" : "sr-only"}>
+        {error || hint}
+      </p>
     </div>
   );
 });

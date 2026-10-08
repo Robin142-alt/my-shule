@@ -11,7 +11,7 @@ import { createHash, randomInt, randomUUID } from 'node:crypto';
 
 import { AuthResponseDto } from '../../auth/dto/auth-response.dto';
 import { DashboardRoleContextDto } from '../../auth/dto/dashboard-role.dto';
-import { PasswordService } from '../../auth/password.service';
+import { assertPasswordPolicy, PasswordService } from '../../auth/password.service';
 import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
 import { SessionService } from '../../auth/session.service';
 import { TokenService } from '../../auth/token.service';
@@ -188,7 +188,7 @@ export class ParentPortalAuthService {
       if (!dto.new_password) {
         throw new BadRequestException('Create a new parent password to continue');
       }
-      this.assertStrongPassword(dto.new_password);
+      assertPasswordPolicy(dto.new_password);
       const completed = await this.parentPortalAuthRepository.completeParentPasswordSetup({
         tenant_id: challenge.tenant_id,
         challenge_id: challenge.id,
@@ -372,7 +372,7 @@ export class ParentPortalAuthService {
       throw new BadRequestException('Create a new password to complete guardian-verified access');
     }
 
-    this.assertStrongPassword(dto.new_password);
+    assertPasswordPolicy(dto.new_password);
     const passwordHash = await this.requirePasswordService().hash(dto.new_password);
     const completed = await this.parentPortalAuthRepository.completeStudentPasswordSetup({
       tenant_id: challenge.tenant_id,
@@ -612,16 +612,4 @@ export class ParentPortalAuthService {
     return value === true || String(value).toLowerCase() === 'true';
   }
 
-  private assertStrongPassword(password: string): void {
-    if (
-      password.length < 10
-      || !/[A-Z]/.test(password)
-      || !/[a-z]/.test(password)
-      || !/\d/.test(password)
-    ) {
-      throw new BadRequestException(
-        'Use at least 10 characters with uppercase, lowercase, and a number',
-      );
-    }
-  }
 }

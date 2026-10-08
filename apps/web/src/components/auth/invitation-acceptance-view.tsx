@@ -6,7 +6,8 @@ import { useState } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { AuthPasswordField } from "@/components/auth/auth-password-field";
+import { NewPasswordFields } from "@/components/auth/new-password-fields";
+import { getPasswordError } from "@/lib/auth/password-policy";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import { buildInviteLoginHref, inviteLoginLabel } from "@/lib/auth/invite-redirect";
 import { acceptInvitation } from "@/lib/auth/invitation-client";
@@ -32,9 +33,8 @@ export function InvitationAcceptanceView({
       nextErrors.displayName = "Enter your full name as it should appear in the school workspace.";
     }
 
-    if (password.trim().length < 12) {
-      nextErrors.password = "Use at least 12 characters.";
-    }
+    const passwordError = getPasswordError(password);
+    if (passwordError) nextErrors.password = passwordError;
 
     if (confirmPassword !== password) {
       nextErrors.confirmPassword = "The password confirmation does not match.";
@@ -107,19 +107,15 @@ export function InvitationAcceptanceView({
               onChange={(event) => setDisplayName(event.target.value)}
               error={fieldErrors.displayName}
             />
-            <AuthPasswordField
-              label="Password"
-              placeholder="Create a secure password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              error={fieldErrors.password}
-            />
-            <AuthPasswordField
-              label="Confirm password"
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              error={fieldErrors.confirmPassword}
+            <NewPasswordFields
+              passwordLabel="Password"
+              confirmationLabel="Confirm password"
+              password={password}
+              confirmation={confirmPassword}
+              onPasswordChange={setPassword}
+              onConfirmationChange={setConfirmPassword}
+              showErrors={Boolean(fieldErrors.password || fieldErrors.confirmPassword)}
+              disabled={busy}
             />
             {generalError ? (
               <AuthMessage tone="error" title="Activation failed" description={generalError} />

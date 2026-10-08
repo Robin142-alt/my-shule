@@ -6,7 +6,8 @@ import { useState } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { AuthPasswordField } from "@/components/auth/auth-password-field";
+import { NewPasswordFields } from "@/components/auth/new-password-fields";
+import { getPasswordError } from "@/lib/auth/password-policy";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
   requestPasswordRecovery,
@@ -174,15 +175,8 @@ export function ResetPasswordView({
         "Enter the reset code or token from your recovery message.";
     }
 
-    if (
-      secret.trim().length < 10 ||
-      !/[A-Z]/.test(secret) ||
-      !/[a-z]/.test(secret) ||
-      !/\d/.test(secret)
-    ) {
-      nextErrors.secret =
-        "Use at least 10 characters with uppercase, lowercase, and a number.";
-    }
+    const passwordError = getPasswordError(secret);
+    if (passwordError) nextErrors.secret = passwordError;
 
     if (confirmSecret !== secret) {
       nextErrors.confirmSecret =
@@ -259,22 +253,15 @@ export function ResetPasswordView({
                 description={fieldErrors.code}
               />
             ) : null}
-            <AuthPasswordField
-              label={secretLabel}
-              placeholder={secretPlaceholder}
-              autoComplete="new-password"
-              value={secret}
-              onChange={(event) => setSecret(event.target.value)}
-              hint="10+ characters, with uppercase, lowercase and a number."
-              error={fieldErrors.secret}
-            />
-            <AuthPasswordField
-              label="Confirm new password"
-              placeholder="Re-enter your new password"
-              autoComplete="new-password"
-              value={confirmSecret}
-              onChange={(event) => setConfirmSecret(event.target.value)}
-              error={fieldErrors.confirmSecret}
+            <NewPasswordFields
+              passwordLabel={secretLabel}
+              passwordPlaceholder={secretPlaceholder}
+              password={secret}
+              confirmation={confirmSecret}
+              onPasswordChange={setSecret}
+              onConfirmationChange={setConfirmSecret}
+              showErrors={Boolean(fieldErrors.secret || fieldErrors.confirmSecret)}
+              disabled={busy}
             />
             <AuthSubmitButton busy={busy} type="submit">
               Save new password

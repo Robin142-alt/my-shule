@@ -122,6 +122,7 @@ test.each(["parent", "student"] as const)(
       "numeric",
     );
     expect(screen.getByText(/phone ending 5678/)).toBeVisible();
+    expect(screen.getByRole("list", { name: "Password requirements" })).toBeVisible();
     expect(screen.queryByLabelText(/admission number/i)).toBeNull();
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       tenant_id: "school-a",
@@ -133,9 +134,11 @@ test.each(["parent", "student"] as const)(
     fireEvent.change(screen.getByLabelText("Create new password"), {
       target: { value: "StrongPassword1" },
     });
+    expect(screen.getByRole("meter", { name: "Password strength" })).toHaveAttribute("aria-valuetext", "Good");
     fireEvent.change(screen.getByLabelText("Confirm new password"), {
       target: { value: "different" },
     });
+    expect(screen.getByText(/Passwords do not match/)).toBeVisible();
     fireEvent.submit(
       screen
         .getByRole("button", { name: "Verify and set password" })
@@ -146,6 +149,7 @@ test.each(["parent", "student"] as const)(
     fireEvent.change(screen.getByLabelText("Confirm new password"), {
       target: { value: "StrongPassword1" },
     });
+    expect(screen.getByText("Passwords match.")).toBeVisible();
     csrfThen({ message: "Code expired. Request a new code." }, 401);
     fireEvent.submit(
       screen

@@ -8,6 +8,8 @@ import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { AuthPasswordField } from "@/components/auth/auth-password-field";
+import { NewPasswordFields } from "@/components/auth/new-password-fields";
+import { getPasswordError } from "@/lib/auth/password-policy";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import { useAuthCountdown } from "@/components/auth/use-auth-countdown";
 import { getCsrfToken } from "@/lib/auth/csrf-client";
@@ -153,15 +155,8 @@ export function PortalLoginView({
         if (code.length !== 6)
           throw new Error("Enter the 6-digit verification code.");
         if (setup) {
-          if (
-            newPassword.length < 10 ||
-            !/[A-Z]/.test(newPassword) ||
-            !/[a-z]/.test(newPassword) ||
-            !/\d/.test(newPassword)
-          )
-            throw new Error(
-              "Use at least 10 characters with uppercase, lowercase and a number.",
-            );
+          const passwordError = getPasswordError(newPassword);
+          if (passwordError) throw new Error(passwordError);
           if (newPassword !== confirmation)
             throw new Error("The passwords do not match.");
         }
@@ -312,22 +307,15 @@ export function PortalLoginView({
             />
           )}
           {challenge && setup && (
-            <>
-              <AuthPasswordField
-                label="Create new password"
-                autoComplete="new-password"
-                hint="10+ characters, with uppercase, lowercase and a number."
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-              <AuthPasswordField
-                label="Confirm new password"
-                autoComplete="new-password"
-                enterKeyHint="go"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-              />
-            </>
+            <NewPasswordFields
+              passwordLabel="Create new password"
+              password={newPassword}
+              confirmation={confirmation}
+              onPasswordChange={(value) => { setNewPassword(value); setError(null); }}
+              onConfirmationChange={(value) => { setConfirmation(value); setError(null); }}
+              showErrors={Boolean(error)}
+              disabled={busy}
+            />
           )}
         </div>
         {notice ? (
