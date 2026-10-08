@@ -271,6 +271,7 @@ export function PrincipalSchoolProfileWorkspace() {
           <div className="shrink-0">
             <SignatureUploadButton
               available={Boolean(signature?.available)}
+              currentImageUrl={signatureSource ?? undefined}
               label="Principal Signature"
               onUpload={handleSignatureUpload}
               disabled={isSaving || isUploading}

@@ -119,6 +119,32 @@ test('report-card PDF remains a single A4 page with all learner rows represented
   assert.ok(artifact.byteLength > 4_000);
 });
 
+test('unsigned HTML and PDF reports leave space for manual signing with no placeholder text', async (t) => {
+  const payload = referencePayload();
+  const html = new ReportCardTemplateService().renderHtml(payload, 'RC-UNSIGNED').toString('utf8');
+  assert.equal((html.match(/<div class="signature-line"><\/div>/g) ?? []).length, 2);
+  const text = t.mock.method(PDFDocument.prototype, 'text');
+  const images = t.mock.method(PDFDocument.prototype, 'image');
+  await createReportCardPdfArtifact(payload, 'RC-UNSIGNED');
+  const renderedText = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments[0]).join('\n');
+  assert.match(renderedText, /Class Teacher Signature/);
+  assert.match(renderedText, /Principal Signature/);
+  assert.doesNotMatch(renderedText, /No saved signature|Upload and regenerate|Not signed/i);
+  assert.equal(images.mock.callCount(), 0);
+});
+
+test('HTML signatures use the same physical image bounds and alignment as the PDF', async (t) => {
+  const payload = referencePayload();
+  payload.template_fields.class_teacher_signature_ref = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const html = new ReportCardTemplateService().renderHtml(payload, 'RC-SIZING').toString('utf8');
+  assert.match(html, /\.signature-line \{[^}]*width:130pt;[^}]*height:32pt;[^}]*padding-bottom:4pt;/);
+  assert.match(html, /\.signature-line img \{[^}]*object-fit:contain; object-position:center bottom;/);
+  const images = t.mock.method(PDFDocument.prototype, 'image');
+  await createReportCardPdfArtifact(payload, 'RC-SIZING');
+  assert.equal(images.mock.callCount(), 1);
+  assert.deepEqual(images.mock.calls[0].arguments[3], { fit: [130, 32], align: 'center', valign: 'bottom' });
+});
+
 for (const withHistory of [false, true]) {
   test(`HTML and PDF subject keys include all 12 full names without clipping (history: ${withHistory})`, async (t) => {
     const payload = referencePayload();

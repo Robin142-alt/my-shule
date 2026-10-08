@@ -48,12 +48,27 @@ it('offers a real retry when a saved signature cannot load', () => {
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 
-it('explains missing saved signatures without fabricating signatures or approval dates', () => {
+it('leaves both signing areas empty for manual signing without changing report status', () => {
   const document = report('draft_generated', false);
   renderWithProviders(<ReportCardDocument report={document} />);
   expect(screen.queryByRole('img', { name: 'Class Teacher Signature' })).not.toBeInTheDocument();
   expect(screen.queryByRole('img', { name: 'Principal Signature' })).not.toBeInTheDocument();
-  expect(screen.getAllByText('No saved signature. Upload and regenerate.')).toHaveLength(2);
+  const signatures = screen.getByTestId('report-card-document').querySelector('[data-report-section="signatures"]')!;
+  expect(signatures.textContent).toBe('Class Teacher SignaturePrincipal Signature');
+  const spaces = signatures.querySelectorAll('[data-signature-space]');
+  expect(spaces).toHaveLength(2);
+  spaces.forEach(space => expect(space).toBeEmptyDOMElement());
   expect(document.signatures.every(signature => signature.date === undefined)).toBe(true);
   expect(document.curriculum.reportStatus).toBe('Draft');
+});
+
+it.each(['Class Teacher Signature', 'Principal Signature'])('leaves only the missing %s blank', label => {
+  const document = report();
+  const signature = document.signatures.find(item => label.startsWith(item.role))!;
+  signature.imageUrl = undefined;
+  renderWithProviders(<ReportCardDocument report={document} />);
+  const signatures = screen.getByTestId('report-card-document').querySelector('[data-report-section="signatures"]')!;
+  expect(within(signatures as HTMLElement).getAllByRole('img')).toHaveLength(1);
+  expect(screen.queryByRole('img', { name: label })).not.toBeInTheDocument();
+  expect(signatures).not.toHaveTextContent(/No saved|Upload|regenerate/i);
 });

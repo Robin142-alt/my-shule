@@ -314,9 +314,9 @@ export class ReportCardTemplateService {
     .comment b { color:var(--navy); font-size:2.2mm; }
     .comment p { margin:1mm 0 0; font-size:2.15mm; line-height:1.35; }
     .signatures { display:grid; grid-template-columns:1fr 1fr; gap:20mm; padding:1.5mm 16mm 1mm; text-align:center; }
-    .signature-line { height:12mm; border-bottom:.35mm solid var(--navy); display:flex; align-items:flex-end; justify-content:center; padding-bottom:1mm; }
-    .signature-line img { display:block; max-width:42mm; max-height:11mm; object-fit:contain; }
-    .signature-label { margin-top:1mm; color:var(--navy); font-size:2mm; font-weight:700; }
+    .signature-line { box-sizing:content-box; width:130pt; max-width:100%; height:32pt; margin:0 auto; border-bottom:.6pt solid var(--navy); padding-bottom:4pt; }
+    .signature-line img { display:block; width:100%; height:100%; object-fit:contain; object-position:center bottom; }
+    .signature-label { margin-top:5pt; color:var(--navy); font-family:Arial,Helvetica,sans-serif; font-size:6pt; line-height:1; font-weight:700; }
     .footer { display:flex; justify-content:space-between; align-items:center; margin-top:2mm; padding:1.8mm 3mm 0; border-top:.45mm solid var(--gold); color:var(--navy); font-size:1.9mm; }
     .empty-note { margin:3mm; color:var(--muted); font-size:2.1mm; }
     @media print { html, body { background:#fff; } .sheet { margin:0; } }
