@@ -15,3 +15,5 @@ npm --prefix apps/web run test:design:e2e -- password-validation.spec.ts --worke
 ```
 
 Browser checks cover public reset aliases and invitation creation at mobile and desktop widths. Test responses are intercepted for the reset submission/retry check; no real account password is changed.
+
+Release preparation also updates Next.js and its ESLint configuration to 16.3.8, Wrangler to 4.149.0, and the transitive source-map-js package. These resolve the production dependency audit findings encountered before deployment; the root and web production audits report zero vulnerabilities. The release starts from production revision `c7121246` and excludes unrelated local report-card edits.
