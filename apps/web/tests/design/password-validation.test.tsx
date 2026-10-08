@@ -83,10 +83,10 @@ test("paste preserves supported Unicode, symbols and whitespace; clearing restor
 
 test("strength is advisory and does not call long repetitive passwords strong", () => {
   const props = { confirmation: "", onPasswordChange: jest.fn(), onConfirmationChange: jest.fn() };
-  const { rerender } = render(<NewPasswordFields {...props} password="Aa1aaaaaaaaaaaaaaaaaaaa" />);
+  const { rerender } = render(<NewPasswordFields {...props} value="Aa1aaaaaaaaaaaaaaaaaaaa" />);
   expect(screen.getByLabelText("New password", { exact: true })).toHaveAttribute("aria-invalid", "false");
   expect(screen.getByRole("meter")).toHaveAttribute("aria-valuetext", "Weak");
-  rerender(<NewPasswordFields {...props} password="River7!Orbit-Lantern" />);
+  rerender(<NewPasswordFields {...props} value="River7!Orbit-Lantern" />);
   expect(screen.getByRole("meter")).toHaveAttribute("aria-valuetext", "Strong");
 });
 

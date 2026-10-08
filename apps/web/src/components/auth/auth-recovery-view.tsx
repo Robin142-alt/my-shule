@@ -256,7 +256,7 @@ export function ResetPasswordView({
             <NewPasswordFields
               passwordLabel={secretLabel}
               passwordPlaceholder={secretPlaceholder}
-              password={secret}
+              value={secret}
               confirmation={confirmSecret}
               onPasswordChange={setSecret}
               onConfirmationChange={setConfirmSecret}

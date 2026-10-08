@@ -309,7 +309,7 @@ export function PortalLoginView({
           {challenge && setup && (
             <NewPasswordFields
               passwordLabel="Create new password"
-              password={newPassword}
+              value={newPassword}
               confirmation={confirmation}
               onPasswordChange={(value) => { setNewPassword(value); setError(null); }}
               onConfirmationChange={(value) => { setConfirmation(value); setError(null); }}

@@ -156,7 +156,7 @@ export function InviteAcceptanceView({
             <NewPasswordFields
               passwordLabel="Create password"
               confirmationLabel="Confirm password"
-              password={password}
+              value={password}
               confirmation={confirmPassword}
               onPasswordChange={setPassword}
               onConfirmationChange={setConfirmPassword}

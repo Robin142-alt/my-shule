@@ -6,7 +6,7 @@ import { AuthPasswordField } from "@/components/auth/auth-password-field";
 import { evaluatePassword, getPasswordError } from "@/lib/auth/password-policy";
 
 export function NewPasswordFields({
-  password,
+  value: password,
   confirmation,
   onPasswordChange,
   onConfirmationChange,
@@ -16,7 +16,7 @@ export function NewPasswordFields({
   showErrors = false,
   disabled = false,
 }: {
-  password: string;
+  value: string;
   confirmation: string;
   onPasswordChange: (value: string) => void;
   onConfirmationChange: (value: string) => void;
