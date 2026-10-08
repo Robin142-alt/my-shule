@@ -47,7 +47,7 @@ jobs:
         run: npm run web:lint
 
       - name: Browser authentication contracts
-        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client client-identity session-refreshing-fetch session-logout dashboard-api-cookie-session
+        run: npm --prefix apps/web run test:design -- auth.test auth-recovery-experience auth-recovery-routing password-validation pwa-entry invitation-acceptance invite-redirect persistent-login auth-route-contract auth-token-containment server-auth-client client-identity session-refreshing-fetch session-logout dashboard-api-cookie-session
 
       - name: Dashboard realtime transport and tenant isolation
         run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant proxy-body experience-routing
@@ -312,7 +312,7 @@ jobs:
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-infrastructure.integration-spec.ts
 
       - name: Persistent authentication contracts with real Redis
-        run: node -r ts-node/register/transpile-only -r tsconfig-paths/register --test apps/api/src/auth/persistent-session.test.ts apps/api/src/auth/auth-recovery.service.test.ts
+        run: node -r ts-node/register/transpile-only -r tsconfig-paths/register --test apps/api/src/auth/persistent-session.test.ts apps/api/src/auth/auth-recovery.service.test.ts apps/api/src/auth/password-policy.test.ts
 
       - name: Authentication tenant isolation and Super Admin compatibility
         env:

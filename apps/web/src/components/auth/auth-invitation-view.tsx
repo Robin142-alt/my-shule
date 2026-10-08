@@ -6,7 +6,8 @@ import { useState } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthField } from "@/components/auth/auth-field";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { AuthPasswordField } from "@/components/auth/auth-password-field";
+import { NewPasswordFields } from "@/components/auth/new-password-fields";
+import { getPasswordError } from "@/lib/auth/password-policy";
 import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import {
   buildInviteLoginHref,
@@ -56,15 +57,8 @@ export function InviteAcceptanceView({
         "Enter your full name or leave this field blank.";
     }
 
-    if (
-      password.trim().length < 10 ||
-      !/[A-Z]/.test(password) ||
-      !/[a-z]/.test(password) ||
-      !/\d/.test(password)
-    ) {
-      nextErrors.password =
-        "Use at least 10 characters with uppercase, lowercase, and a number.";
-    }
+    const passwordError = getPasswordError(password);
+    if (passwordError) nextErrors.password = passwordError;
 
     if (confirmPassword !== password) {
       nextErrors.confirmPassword =
@@ -159,22 +153,15 @@ export function InviteAcceptanceView({
               onChange={(event) => setDisplayName(event.target.value)}
               error={fieldErrors.displayName}
             />
-            <AuthPasswordField
-              label="Create password"
-              placeholder="Create a school workspace password"
-              autoComplete="new-password"
+            <NewPasswordFields
+              passwordLabel="Create password"
+              confirmationLabel="Confirm password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              hint="10+ characters, with uppercase, lowercase and a number."
-              error={fieldErrors.password}
-            />
-            <AuthPasswordField
-              label="Confirm password"
-              placeholder="Re-enter your password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              error={fieldErrors.confirmPassword}
+              confirmation={confirmPassword}
+              onPasswordChange={setPassword}
+              onConfirmationChange={setConfirmPassword}
+              showErrors={Boolean(fieldErrors.password || fieldErrors.confirmPassword)}
+              disabled={busy}
             />
             <AuthSubmitButton busy={busy} type="submit">
               Create account

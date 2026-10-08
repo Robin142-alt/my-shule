@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from '../../../auth/password-policy';
 
 const SMS_PROVIDER_CODES = ['textsms_kenya', 'africas_talking', 'twilio'] as const;
 const DARAJA_ENVIRONMENTS = ['sandbox', 'production'] as const;
@@ -255,8 +256,8 @@ export class VerifyParentOtpDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(10)
-  @MaxLength(128)
+  @MinLength(PASSWORD_MIN_LENGTH)
+  @MaxLength(PASSWORD_MAX_LENGTH)
   new_password?: string;
 }
 

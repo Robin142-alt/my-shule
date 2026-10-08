@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 
 import { DatabaseService } from '../database/database.service';
 import { AcceptInvitationDto, InvitationAcceptanceResponseDto } from './dto/invitation.dto';
-import { PasswordService } from './password.service';
+import { assertPasswordPolicy, PasswordService } from './password.service';
 
 type InvitationAcceptanceRow = {
   user_id: string;
@@ -23,6 +23,7 @@ export class AuthInvitationService {
   async acceptInvitation(
     dto: AcceptInvitationDto,
   ): Promise<InvitationAcceptanceResponseDto> {
+    assertPasswordPolicy(dto.password);
     const tokenHash = this.hashToken(dto.token.trim());
     const passwordHash = await this.passwordService.hash(dto.password);
     let acceptedInvite: InvitationAcceptanceRow | undefined;

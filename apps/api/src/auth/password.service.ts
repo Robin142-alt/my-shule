@@ -1,6 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { getPasswordError } from './password-policy';
+
+export function assertPasswordPolicy(password: string): void {
+  const error = getPasswordError(password);
+  if (error) throw new BadRequestException(error);
+}
 
 @Injectable()
 export class PasswordService {
@@ -15,4 +21,3 @@ export class PasswordService {
     return bcrypt.compare(password, passwordHash);
   }
 }
-

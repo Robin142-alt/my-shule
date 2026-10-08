@@ -11,7 +11,7 @@ import {
   RequestPasswordRecoveryDto,
   ResetPasswordDto,
 } from './dto/password-recovery.dto';
-import { PasswordService } from './password.service';
+import { assertPasswordPolicy, PasswordService } from './password.service';
 import { SessionService } from './session.service';
 
 type RecoveryUserRow = {
@@ -119,6 +119,7 @@ export class AuthRecoveryService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<AuthActionResponseDto> {
+    assertPasswordPolicy(dto.password);
     const passwordHash = await this.passwordService.hash(dto.password);
     const tokenHash = this.hashToken(dto.token.trim());
     let result: Awaited<ReturnType<DatabaseService['query']>>;
