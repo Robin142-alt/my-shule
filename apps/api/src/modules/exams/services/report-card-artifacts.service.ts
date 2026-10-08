@@ -22,6 +22,7 @@ import {
   ReportCardTemplateService,
 } from './report-card-template.service';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
+import { hydrateReportComparison } from './report-card-comparison';
 
 @Injectable()
 export class ReportCardArtifactsService implements OnModuleInit {
@@ -276,7 +277,9 @@ export class ReportCardArtifactsService implements OnModuleInit {
   async ensurePdf(card: Record<string, any>) {
     const existing = await this.cachedPath(card);
     if (existing) return existing;
-    const payload = extractPersistedReportCardPayload(card.metadata)!;
+    const payload = await hydrateReportComparison(extractPersistedReportCardPayload(card.metadata)!,
+      () => this.repository.loadReportCardComparison(card.tenant_id, card.exam_series_id, card.student_id),
+      () => this.repository.loadReportCardTrend(card.tenant_id, card.exam_series_id, card.student_id));
     const rendered = await createReportCardPdfArtifact(
       await hydrateReportCardLogoForRendering(
         payload,

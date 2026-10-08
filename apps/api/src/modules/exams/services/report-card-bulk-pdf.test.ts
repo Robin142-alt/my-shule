@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile, access } from 'node:fs/promises';
 import { inflateSync } from 'node:zlib';
+import PDFDocument from 'pdfkit';
 import { createBulkReportCardPdfFile, createReportCardPdfArtifact } from './report-card-pdf-artifact';
 import { ReportCardTemplateService } from './report-card-template.service';
 function payload(name: string) {
@@ -15,13 +16,15 @@ function contentStreams(pdf: Buffer) {
   const streams: string[] = [];
   for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)) {
     try {
-      streams.push(inflateSync(Buffer.from(match[1], 'latin1')).toString());
+      const stream = inflateSync(Buffer.from(match[1], 'latin1')).toString();
+      if (stream.startsWith('1 0 0 -1 0 841.89 cm')) streams.push(stream);
     }
     catch { /* Not a deflated content stream. */ }
   }
   return streams;
 }
-test('combined PDF starts each learner on a new A4 page and preserves the individual renderer and order', async () => {
+test('combined PDF starts each learner on a new A4 page and preserves the individual renderer and order', async (t) => {
+  const text = t.mock.method(PDFDocument.prototype, 'text');
   const names = ['Ada', 'Ben', 'Cara'];
   async function* entries() { for (const name of names)
     yield { payload: payload(name), verificationCode: 'VERIFY-' + name }; }
@@ -32,9 +35,16 @@ test('combined PDF starts each learner on a new A4 page and preserves the indivi
     assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length, 3);
     const bulkStreams = contentStreams(pdf);
     assert.equal(bulkStreams.length, 3);
+    const bulkText = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments);
+    // Font subsets encode glyphs per document, and image resource numbers differ.
+    // Compare page geometry separately from the complete text and its positioning.
+    const geometry = (stream: string) => stream.replace(/<[0-9a-f]+>/gi, '<glyphs>').replace(/\/I\d+ Do/g, '/Image Do');
     for (let i = 0; i < names.length; i++) {
+      text.mock.resetCalls();
       const single = await createReportCardPdfArtifact(payload(names[i]), 'VERIFY-' + names[i]);
-      assert.equal(bulkStreams[i], contentStreams(single.content)[0], `Learner ${names[i]} must use exactly the individual page layout`);
+      const singleText = text.mock.calls.map((call: { arguments: unknown[] }) => call.arguments);
+      assert.deepEqual(bulkText.slice(i * singleText.length, (i + 1) * singleText.length), singleText);
+      assert.equal(geometry(bulkStreams[i]), geometry(contentStreams(single.content)[0]), `Learner ${names[i]} must use exactly the individual page layout`);
     }
   }
   finally {

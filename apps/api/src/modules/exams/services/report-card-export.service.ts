@@ -13,6 +13,7 @@ import { SchoolOperationalEventsService } from '../../events/school-operational-
 import { ExamsService } from '../exams.service';
 import { ExamsRepository } from '../repositories/exams.repository';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
+import { hydrateReportComparison } from './report-card-comparison';
 import { extractPersistedReportCardPayload } from './report-card-template.service';
 import {
   createBulkReportCardPdfFile,
@@ -228,7 +229,9 @@ export class ReportCardExportService implements OnModuleInit {
             );
           yield {
             payload: await hydrateReportCardLogoForRendering(
-              payload,
+              await hydrateReportComparison(payload,
+                () => repository.loadReportCardComparison(tenantId, card.exam_series_id, card.student_id),
+                () => repository.loadReportCardTrend(tenantId, card.exam_series_id, card.student_id)),
               tenantId,
               cachedStorage,
               true,

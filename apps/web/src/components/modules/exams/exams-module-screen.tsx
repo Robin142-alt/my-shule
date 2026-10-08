@@ -1,4 +1,5 @@
 "use client";
+import { OfficialReportPreview } from "@/components/report-cards/official-report-preview";
 import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
 import { awaitReportDelivery,openReportDelivery,type ReportDeliveryJob } from "@/lib/report-cards/report-delivery";
 
@@ -1785,55 +1786,27 @@ function ReportCardsPanel({
     setNotice(null);
   }
 
-  function openPrintPreview(report: ReportCardDocumentData) {
-    const documentElement = document.getElementById(`report-card-document-${report.id}`);
-
-    if (!documentElement) {
-      setNotice("Open the report preview before printing.");
+  async function openPrintPreview(report: ReportCardDocumentData) {
+    if (!liveCards.some(card => card.id === report.id)) {
+      setNotice("Generate the official report before printing. Readiness data is not a report-card snapshot.");
       return;
     }
-
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
-
-    if (!printWindow) {
-      setNotice("Browser blocked the print preview window. Allow popups, then try again.");
-      return;
+    const printWindow = window.open("", "_blank");
+    try {
+      const job = await requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/${encodeURIComponent(report.id)}/prepare-download`, { method: "POST" });
+      openReportDelivery(await awaitReportDelivery(job, value => setNotice(`PDF preparation ${value.state}.`)), printWindow);
+      setNotice("Official PDF opened. Use the PDF viewer's Print control.");
+    } catch (error) {
+      printWindow?.close();
+      setNotice(error instanceof Error ? error.message : "PDF preparation failed. Retry.");
     }
-
-    printWindow.document.write(`<!doctype html>
-      <html>
-        <head>
-          <title>${getReportCardTypeLabel(report.curriculum.reportCardType)} - ${report.learner.fullName}</title>
-          <style>
-            @page { size: A4; margin: 12mm; }
-            * { box-sizing: border-box; }
-            body { margin: 0; background: #ffffff; color: #0f172a; font-family: Arial, sans-serif; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; vertical-align: top; }
-            .print-shell { width: 794px; margin: 0 auto; }
-            button, .print\\:hidden { display: none !important; }
-          </style>
-        </head>
-        <body>
-          <div class="print-shell">${documentElement.outerHTML}</div>
-          <script>
-            window.onload = function () {
-              window.focus();
-              window.print();
-            };
-          </script>
-        </body>
-      </html>`);
-    printWindow.document.close();
-    setNotice(`${report.learner.fullName}: print preview ready.`);
   }
 
   async function downloadPdf(report: ReportCardDocumentData) {
     const isAuthoritativeLiveCard = liveCards.some((card) => card.id === report.id);
 
     if (!isAuthoritativeLiveCard) {
-      openPrintPreview(report);
-      setNotice(`${report.learner.fullName}: this is a read-only readiness preview. Use the browser print dialog to save it; no report-card download was claimed.`);
+      setNotice("Generate the official report before downloading. Readiness data is not a report-card snapshot.");
       return;
     }
 
@@ -2228,7 +2201,7 @@ function ReportCardsPanel({
       <Modal
         open={Boolean(selectedReport)}
         title="Report card preview"
-        description="Review the exact A4 document before printing or saving as PDF."
+        description={selectedReport && liveCards.some(card => card.id === selectedReport.id) ? "Official A4 report card" : "Readiness data. Generate the official report before printing or downloading."}
         onClose={() => setSelectedReport(null)}
         size="xl"
       >
@@ -2236,11 +2209,14 @@ function ReportCardsPanel({
           <div className="space-y-4">
             <ReportCardActionBar
               report={selectedReport}
+              disabled={!liveCards.some(card => card.id === selectedReport.id)}
               onPrint={() => openPrintPreview(selectedReport)}
               onDownloadPdf={() => downloadPdf(selectedReport)}
             />
             <ReportCardVerificationStrip report={selectedReport} />
-            <ReportCardDocument report={selectedReport} />
+            {liveCards.some(card => card.id === selectedReport.id)
+              ? <OfficialReportPreview reportId={selectedReport.id} revision={selectedReport.verification.generatedAt} learnerName={selectedReport.learner.fullName} />
+              : <ReportCardDocument report={selectedReport} />}
           </div>
         ) : null}
       </Modal>

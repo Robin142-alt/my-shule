@@ -411,11 +411,11 @@ export function ReportCardDocument({ report }: { report: ReportCardDocumentData 
   );
 }
 
-export function ReportCardActionBar({ report, onPrint, onDownloadPdf }: { report: ReportCardDocumentData; onPrint: () => void; onDownloadPdf: () => void }) {
+export function ReportCardActionBar({ report, onPrint, onDownloadPdf, disabled = false }: { report: ReportCardDocumentData; onPrint: () => void; onDownloadPdf: () => void; disabled?: boolean }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border border-border bg-surface p-3 print:hidden">
       <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill label={getReportCardTypeLabel(report.curriculum.reportCardType)} tone="ok" /><StatusPill label={report.curriculum.reportStatus} tone={report.curriculum.reportStatus === "Published" ? "ok" : "warning"} /></div><p className="mt-1 truncate text-[12px] text-muted">{getReportCardFilename(report)}</p></div>
-      <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={onDownloadPdf}><Download className="h-4 w-4" />Download PDF</Button><Button onClick={onPrint}><Printer className="h-4 w-4" />Print</Button></div>
+      <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={disabled} onClick={onDownloadPdf}><Download className="h-4 w-4" />Download PDF</Button><Button disabled={disabled} onClick={onPrint}><Printer className="h-4 w-4" />Print</Button></div>
     </div>
   );
 }

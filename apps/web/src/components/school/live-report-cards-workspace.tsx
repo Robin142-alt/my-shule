@@ -1,5 +1,6 @@
 "use client";
 
+import { OfficialReportPreview } from "@/components/report-cards/official-report-preview";
 import {
   CheckCircle2,
   ChevronRight,
@@ -18,7 +19,6 @@ import Link from "next/link";
 
 import {
   ReportCardActionBar,
-  ReportCardDocument,
   ReportCardVerificationStrip,
 } from "@/components/report-cards/report-card-document";
 import { Button } from "@/components/ui/button";
@@ -1577,7 +1577,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 onDownloadPdf={() => void downloadReport(selectedReport)}
               />
             </div>
-            <ReportCardDocument report={selectedDocument} />
+            <OfficialReportPreview key={selectedReport.id} reportId={selectedReport.id} revision={selectedReport.updated_at ?? selectedDocument.verification.generatedAt} learnerName={selectedDocument.learner.fullName} />
           </div>
         </div>
       ) : null}

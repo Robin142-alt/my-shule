@@ -21,6 +21,7 @@ import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../exa
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
+import { STAFF_NAME_TITLES } from '../hr/staff-name-title';
 
 @Injectable()
 export class ClassTeacherService {
@@ -2036,7 +2037,7 @@ export class ClassTeacherService {
 
     const { rows } = await this.executeSql(
       `
-        SELECT payload
+        SELECT payload, created_at
         FROM workflow_events
         WHERE tenant_id::text = $1::text
           AND source_user_id = $2
@@ -2049,11 +2050,18 @@ export class ClassTeacherService {
     );
 
     const payload = rows[0]?.payload || {};
+    const profile = await this.executeSql(
+      'SELECT name_title, display_name FROM staff_profiles WHERE tenant_id = $1 AND user_id::text = $2 LIMIT 1',
+      [tenantId, userId],
+    );
     return {
       notificationsEnabled: payload.notificationsEnabled ?? true,
       defaultView: payload.defaultView ?? 'Overview',
       darkMode: payload.darkMode ?? false,
       updatedAt: rows[0]?.created_at ?? null,
+      nameTitle: profile.rows[0]?.name_title ?? null,
+      displayName: profile.rows[0]?.display_name ?? null,
+      nameTitles: STAFF_NAME_TITLES,
     };
   }
 
@@ -2129,6 +2137,42 @@ export class ClassTeacherService {
       defaultView,
       darkMode: Boolean(payload?.darkMode),
     };
+
+    if (payload?.nameTitle !== undefined) {
+      await this.assertActiveClassTeacherClass(tenantId, userId, streamId);
+      if (typeof payload.nameTitle !== 'string' || !STAFF_NAME_TITLES.includes(payload.nameTitle as typeof STAFF_NAME_TITLES[number])) {
+        throw new BadRequestException('Choose a valid name title.');
+      }
+      const result = await this.executeSql(`
+        WITH previous AS (
+          SELECT id, name_title, display_name FROM staff_profiles
+          WHERE tenant_id = $1 AND user_id::text = $2 FOR UPDATE
+        ), updated AS (
+          UPDATE staff_profiles staff SET name_title = $4, updated_at = NOW()
+          FROM previous WHERE staff.id = previous.id AND staff.tenant_id = $1
+          RETURNING staff.id, staff.name_title, staff.display_name,
+            previous.name_title AS previous_title, previous.display_name AS previous_name
+        ), audit AS (
+          INSERT INTO staff_audit_logs (tenant_id, staff_profile_id, actor_user_id, action, metadata)
+          SELECT $1, id, $2::uuid, 'staff.name_title.updated',
+            jsonb_build_object('previous_title', previous_title, 'name_title', name_title,
+              'previous_name', previous_name, 'display_name', display_name,
+              'source_dashboard', 'class_teacher', 'class_section_id', $3::text)
+          FROM updated RETURNING id
+        ), event AS (
+          INSERT INTO workflow_events (tenant_id, source_user_id, entity_id, event_type,
+            entity_type, title, message, payload, status, priority, target_roles)
+          SELECT $1, $2::uuid, $3, 'class_teacher.settings_saved', 'class_teacher_settings',
+            'Class-teacher settings saved', 'Staff name title and preferences updated.',
+            $5::jsonb || jsonb_build_object('nameTitle', name_title, 'displayName', display_name),
+            'applied', 'normal', '["class_teacher"]'::jsonb
+          FROM updated RETURNING id
+        ) SELECT updated.name_title, updated.display_name FROM updated
+          CROSS JOIN audit CROSS JOIN event`,
+      [tenantId, userId, streamId, payload.nameTitle, JSON.stringify(settings)]);
+      if (!result.rows[0]) throw new BadRequestException('Your staff profile was not found in this school. Ask the school administrator to complete it.');
+      return { success: true, settings: { ...settings, nameTitle: result.rows[0].name_title, displayName: result.rows[0].display_name } };
+    }
 
     await this.executeSql(
       `

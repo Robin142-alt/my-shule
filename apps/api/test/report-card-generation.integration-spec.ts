@@ -9,6 +9,7 @@ import { EXAM_SETUP_INTEGRITY_SCHEMA } from '../src/modules/exams/exam-setup-int
 import { ExamsService } from '../src/modules/exams/exams.service';
 import { DeanAcademicsCommandService } from '../src/modules/admin-command/dean-academics-command.service';
 import { HrSchemaService } from '../src/modules/hr/hr-schema.service';
+import { STAFF_NAME_TITLE_SCHEMA_SQL } from '../src/modules/hr/staff-name-title';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
 import { ReportCardGenerationService } from '../src/modules/exams/services/report-card-generation.service';
 import { ReportCardTemplateService } from '../src/modules/exams/services/report-card-template.service';
@@ -47,6 +48,7 @@ describe('Report generation with the production staff schema', () => {
     await new HrSchemaService({ runSchemaBootstrap: async (sql: string) => { hrBootstrap += sql; } } as never).onModuleInit();
     const staffTable = hrBootstrap.match(/CREATE TABLE IF NOT EXISTS staff_profiles \([\s\S]*?\n      \);/)![0];
     await query(staffTable);
+    await query(STAFF_NAME_TITLE_SCHEMA_SQL);
     await query(`
       CREATE UNIQUE INDEX report_current ON student_report_cards(tenant_id,exam_series_id,student_id) WHERE is_current;
       CREATE UNIQUE INDEX report_verification ON report_card_artifacts(tenant_id,verification_code,artifact_type);
@@ -252,6 +254,22 @@ describe('Report generation with the production staff schema', () => {
     const repeated=await generation.generateStudentReportCard({...studentInput(),reuse_existing:true});
     expect(repeated.reused).toBe(true);expect(sqlReads).toBeLessThanOrEqual(3);
     expect(signatureReads).toHaveLength(0);
+  });
+
+  it('uses the chosen teacher title for new reports without rewriting saved snapshots or account names', async () => {
+    const original = await generation.generateStudentReportCard(studentInput());
+    try {
+      await query("UPDATE staff_profiles SET name_title='Mrs.' WHERE tenant_id='school-a' AND user_id=$1", [ids.teacher]);
+      const data = await repository.loadReportCardData(studentInput());
+      const payload = new ReportCardTemplateService().buildPayload(data, new Date().toISOString());
+      expect(payload.student.class_teacher_name).toBe('Mrs. Assigned Teacher');
+      expect(payload.template_fields.class_teacher_name).toBe('Mrs. Assigned Teacher');
+      const saved = (await query('SELECT metadata FROM student_report_cards WHERE id=$1', [original.id])).rows[0];
+      expect(saved.metadata.report_card.student.class_teacher_name).toBe('Assigned Teacher');
+      expect((await query('SELECT full_name FROM users WHERE id=$1', [ids.teacher])).rows[0].full_name).toBe('Teacher Account');
+    } finally {
+      await query("UPDATE staff_profiles SET name_title=NULL,display_name='Assigned Teacher' WHERE tenant_id='school-a' AND user_id=$1", [ids.teacher]);
+    }
   });
 
   it('generates all 11 cards using the actual HR staff table without full_name, preferred_name or email columns', async () => {

@@ -93,7 +93,7 @@ jobs:
           retention-days: 7
 
       - name: Report-card class generation and recovery interface
-        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions report-card-scopes report-regeneration-job report-card-api-contract report-card-signatures report-card-reference-layout exams-manager-entry-controls exams-manager-command-center academic-office-production-readiness
+        run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions official-report-preview class-teacher-name-title report-card-scopes report-regeneration-job report-card-api-contract report-card-signatures report-card-reference-layout exams-manager-entry-controls exams-manager-command-center academic-office-production-readiness
 
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
@@ -273,11 +273,19 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: |
-          node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js dist/apps/api/src/modules/exams/services/report-card-artifact-design.test.js dist/apps/api/src/modules/exams/services/report-card-signatures.test.js
-          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-scope.integration-spec.ts
+          node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js dist/apps/api/src/modules/exams/services/report-card-artifact-design.test.js dist/apps/api/src/modules/exams/services/report-card-signatures.test.js dist/apps/api/src/modules/exams/services/report-card-comparison.test.js dist/apps/api/src/modules/exams/services/report-card-preview.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-scope.integration-spec.ts apps/api/test/report-card-comparison.integration-spec.ts
 
       - name: Install isolated session test dependency
         run: sudo apt-get update && sudo apt-get install -y redis-server
+
+      - name: Class-teacher name titles and transactional isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/class-teacher/class-teacher-name-title.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/class-teacher-name-title.integration-spec.ts
 
       - name: Verified payment ingress, accounting and tenant boundaries
         env:

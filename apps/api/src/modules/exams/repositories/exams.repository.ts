@@ -1,3 +1,4 @@
+import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 import { reportPdfIdentity } from '../services/report-artifact-identity';
@@ -2668,81 +2669,8 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
-    const termHistoryResult = await this.executeSql(
-      `
-        WITH latest_by_series AS (
-          SELECT DISTINCT ON (snapshot.exam_series_id)
-            snapshot.exam_series_id::text,
-            COALESCE(term.name, series.name) AS label,
-            snapshot.average_percentage::float AS percentage,
-            term.starts_on,
-            snapshot.processed_at
-          FROM exam_result_snapshots snapshot
-          JOIN exam_series series
-            ON series.tenant_id = snapshot.tenant_id
-           AND series.id = snapshot.exam_series_id
-          LEFT JOIN academic_terms term
-            ON term.tenant_id = series.tenant_id
-           AND term.id::text = series.academic_term_id::text
-          WHERE snapshot.tenant_id = $1
-            AND snapshot.student_id = $2::uuid
-          ORDER BY snapshot.exam_series_id, snapshot.processed_at DESC
-        )
-        SELECT exam_series_id, label, percentage
-        FROM latest_by_series
-        ORDER BY starts_on DESC NULLS LAST, processed_at DESC
-        LIMIT 3
-      `,
-      [input.tenant_id, input.student_id],
-    );
-    const subjectHistoryResult = await this.executeSql(
-      `
-        WITH marked_series AS (
-          SELECT
-            series.id,
-            COALESCE(term.name, series.name) AS label,
-            term.starts_on,
-            MAX(mark.updated_at) AS last_marked_at
-          FROM exam_marks mark
-          JOIN exam_series series
-            ON series.tenant_id = mark.tenant_id
-           AND series.id = mark.exam_series_id
-          LEFT JOIN academic_terms term
-            ON term.tenant_id = series.tenant_id
-           AND term.id::text = series.academic_term_id::text
-          WHERE mark.tenant_id = $1
-            AND mark.student_id = $2::uuid
-            AND mark.status IN ('locked', 'published')
-            AND mark.score_status = 'entered'
-          GROUP BY series.id, term.name, series.name, term.starts_on
-          ORDER BY term.starts_on DESC NULLS LAST, MAX(mark.updated_at) DESC
-          LIMIT 3
-        )
-        SELECT
-          series.id::text AS exam_series_id,
-          series.label,
-          mark.subject_id::text,
-          subject.name AS subject_name,
-          ROUND(AVG((mark.score / assessment.max_score) * 100)::numeric, 2)::float AS percentage
-        FROM marked_series series
-        JOIN exam_marks mark
-          ON mark.tenant_id = $1
-         AND mark.exam_series_id = series.id
-         AND mark.student_id = $2::uuid
-         AND mark.status IN ('locked', 'published')
-         AND mark.score_status = 'entered'
-        JOIN exam_assessments assessment
-          ON assessment.tenant_id = mark.tenant_id
-         AND assessment.id = mark.assessment_id
-         AND assessment.max_score > 0
-        LEFT JOIN subjects subject
-          ON subject.tenant_id = mark.tenant_id
-         AND subject.id = mark.subject_id::text
-        GROUP BY series.id, series.label, series.starts_on, mark.subject_id, subject.name
-        ORDER BY series.starts_on ASC NULLS FIRST, subject.name ASC
-      `,
-      [input.tenant_id, input.student_id],
-    );
+    const termHistory = await this.loadReportCardTrend(input.tenant_id, input.exam_series_id, input.student_id);
+    const subjectHistory = await this.loadReportCardComparison(input.tenant_id, input.exam_series_id, input.student_id);
 
     const academicGradingSystem = academicGradingSystemResult.rows[0] ?? null;
     const subjects = subjectsResult.rows.map((subject) =>
@@ -2801,10 +2729,19 @@ export class ExamsRepository {
           : null,
       },
       analytics: {
-        term_history: termHistoryResult.rows,
-        subject_history: subjectHistoryResult.rows,
+        term_history: termHistory,
+        subject_history: subjectHistory,
+        comparison_exams: comparisonExams(subjectHistory),
       },
     };
+  }
+
+  async loadReportCardComparison(tenantId: string, examId: string, studentId: string) {
+    return (await this.executeSql(REPORT_COMPARISON_SQL, [tenantId, examId, studentId])).rows;
+  }
+
+  async loadReportCardTrend(tenantId: string, examId: string, studentId: string) {
+    return (await this.executeSql(REPORT_TREND_SQL, [tenantId, examId, studentId])).rows;
   }
 
   async listReportCards(input: {

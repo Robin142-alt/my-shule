@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestj
 
 import { SCHOOL_STAFF_ROLE_CODES } from '../../auth/auth.constants';
 import { PrismaService } from '../../database/prisma.service';
+import { STAFF_NAME_TITLE_SCHEMA_SQL } from './staff-name-title';
 
 const SCHOOL_STAFF_ROLE_SQL = SCHOOL_STAFF_ROLE_CODES
   .map((roleCode) => `'${roleCode}'`)
@@ -67,6 +68,8 @@ export class HrSchemaService implements OnModuleInit, OnApplicationBootstrap {
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_staff_profiles_tenant_number UNIQUE (tenant_id, staff_number)
       );
+
+      ${STAFF_NAME_TITLE_SCHEMA_SQL}
 
       CREATE TABLE IF NOT EXISTS staff_contracts (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

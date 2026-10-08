@@ -76,6 +76,19 @@ export class ReportCardDownloadController {
     return this.artifacts.prepare(reportCardId);
   }
 
+  @Get('report-cards/:reportCardId/preview')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Permissions('exams:read')
+  async previewReportCard(@Param('reportCardId', new ParseUUIDPipe()) reportCardId: string) {
+    this.examsService.assertReportCardScopeAccess();
+    if (!this.artifacts) throw new ServiceUnavailableException('Report artifact storage is unavailable');
+    // Read the same cached bytes used by download, without cross-origin redirects.
+    const pdf = await this.artifacts.read(reportCardId);
+    return new StreamableFile(pdf.content, { type: 'application/pdf', disposition: 'inline', length: pdf.byteLength });
+  }
+
   @Get('report-cards/jobs/:jobId')
   @Header('Cache-Control', 'private, no-store')
   @Header('Referrer-Policy', 'no-referrer')
