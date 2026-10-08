@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import {
   Award,
   BarChart3,
@@ -25,6 +25,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
+import { ReportSignature } from "@/components/report-cards/report-signature";
 import {
   getReportCardFilename,
   getReportCardTypeLabel,
@@ -367,30 +368,6 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
           {metrics.map((metric) => <Metric key={metric.label} {...metric} />)}
         </div>
       </section> : null}
-    </div>
-  );
-}
-
-function ReportSignature({ label, imageUrl }: { label: string; imageUrl?: string }) {
-  const [status, setStatus] = useState("loading");
-  const [attempt, setAttempt] = useState(0);
-  return (
-    <div>
-      {imageUrl ? (
-        <div className="relative min-h-9">
-          {status === "loading" ? <p role="status" className="text-slate-500 print:hidden">Loading signature...</p> : null}
-          {status === "failed" ? (
-            <p role="alert" className="text-warning">
-              Signature could not load. <button type="button" className="font-bold underline print:hidden" onClick={() => { setStatus("loading"); setAttempt((value) => value + 1); }}>Retry {label.toLowerCase()}</button>
-            </p>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={`${imageUrl}${attempt ? `${imageUrl.includes("?") ? "&" : "?"}retry=${attempt}` : ""}`} alt={label} className="mx-auto h-9 w-36 max-w-full object-contain" onLoad={() => setStatus("loaded")} onError={() => setStatus("failed")} />
-          )}
-        </div>
-      ) : <p className="text-slate-500">No saved signature. Upload and regenerate.</p>}
-      <div className="mt-1 border-b border-slate-500" />
-      <p className="mt-1 text-slate-600">{label}</p>
     </div>
   );
 }

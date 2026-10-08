@@ -128,6 +128,7 @@ export function SettingsWorkspace() {
             <div className="shrink-0">
               <SignatureUploadButton
                 available={Boolean(signature?.available)}
+                currentImageUrl={signatureSource ?? undefined}
                 label="Class Teacher Signature"
                 disabled={!streamId || uploadSignature.isPending}
                 onUpload={handleSignatureUpload}

@@ -38,16 +38,17 @@ it('rejects unsupported, oversized and damaged images', async () => {
   await expect(inspectSignatureUpload(file())).rejects.toThrow(/damaged/);
 });
 
-it('shows requirements and a role-only preview before explicitly saving the selected file', async () => {
+it.each(['Principal Signature', 'Class Teacher Signature'])('previews %s before explicitly saving the selected file', async label => {
   const upload = jest.fn().mockResolvedValue(undefined);
-  renderWithProviders(<SignatureUploadButton available label="Principal Signature" className="" onUpload={upload} />);
+  renderWithProviders(<SignatureUploadButton available label={label} className="" onUpload={upload} />);
   fireEvent.click(screen.getByRole('button', { name: 'Replace signature' }));
   expect(screen.getByRole('dialog')).toHaveTextContent('600 × 200');
   expect(screen.getByRole('dialog')).toHaveTextContent('Avoid shadows and ruled paper');
   expect(screen.getByRole('button', { name: 'Use signature' })).toBeDisabled();
   const selected = file();
   fireEvent.change(screen.getByLabelText('Choose signature image'), { target: { files: [selected] } });
-  expect(await screen.findByAltText('Selected signature preview')).toHaveAttribute('src', 'blob:signature');
+  expect(await screen.findByRole('img', { name: label })).toHaveAttribute('src', 'blob:signature');
+  expect(screen.getByRole('img', { name: label }).closest('[data-report-signature]')).not.toBeNull();
   expect(upload).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Use signature' }));
   await waitFor(() => expect(upload).toHaveBeenCalledWith(selected));
@@ -60,13 +61,28 @@ it('keeps the preview for retry after a server rejection and cancels without an 
   renderWithProviders(<SignatureUploadButton available={false} label="Class Teacher Signature" className="" onUpload={upload} />);
   fireEvent.click(screen.getByRole('button', { name: 'Upload signature' }));
   fireEvent.change(screen.getByLabelText('Choose signature image'), { target: { files: [file()] } });
-  await screen.findByAltText('Selected signature preview');
+  await screen.findByRole('img', { name: 'Class Teacher Signature' });
   fireEvent.click(screen.getByRole('button', { name: 'Use signature' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Signature service unavailable');
   expect(screen.getByRole('button', { name: 'Use signature' })).toBeEnabled();
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(upload).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('previews the saved signature when replacing it and updates immediately for a new selection', async () => {
+  const upload = jest.fn();
+  renderWithProviders(<SignatureUploadButton available currentImageUrl="/api/signature/content?v=saved" label="Principal Signature" className="" onUpload={upload} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Replace signature' }));
+  expect(screen.getByRole('img', { name: 'Principal Signature' })).toHaveAttribute('src', '/api/signature/content?v=saved');
+  expect(screen.getByRole('button', { name: 'Use signature' })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Choose signature image'), { target: { files: [file()] } });
+  await waitFor(() => expect(screen.getByRole('img', { name: 'Principal Signature' })).toHaveAttribute('src', 'blob:signature'));
+  expect(upload).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Replace signature' }));
+  expect(screen.getByRole('img', { name: 'Principal Signature' })).toHaveAttribute('src', '/api/signature/content?v=saved');
+  expect(screen.getByRole('button', { name: 'Use signature' })).toBeDisabled();
 });
 
 it('keeps invalid image selection visible and blocks upload', async () => {
