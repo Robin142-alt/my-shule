@@ -122,10 +122,16 @@ describe("persistent regular login", () => {
     expect(jest.mocked(fetch).mock.calls[0][0]).toContain("/auth/me");
   });
 
-  test("Super Admin logout makes no new upstream request", async () => {
+  test("Super Admin logout revokes the backend session before clearing browser credentials", async () => {
     jar.set(AUDIENCE_COOKIE, "superadmin"); jar.set(REFRESH_COOKIE, token(100));
-    expect((await logout(post("logout"))).status).toBe(200);
-    expect(fetch).not.toHaveBeenCalled();
+    jest.mocked(fetch).mockResolvedValueOnce(backendResponse(session('superadmin')))
+      .mockResolvedValueOnce(Response.json({success:true}));
+    const response=await logout(post("logout"));
+    expect(response.status).toBe(200);
+    expect(jest.mocked(fetch).mock.calls[0][0]).toContain('/auth/refresh');
+    expect(jest.mocked(fetch).mock.calls[1][0]).toMatch(/\/auth\/logout$/);
+    expect(jest.mocked(fetch).mock.calls[1][1]?.headers).toMatchObject({'x-auth-audience':'superadmin',Authorization:`Bearer ${session('superadmin').accessToken}`});
+    expect(response.cookies.get(REFRESH_COOKIE)?.maxAge).toBe(0);
   });
 
   test("wrong-audience restoration cannot refresh or clear a different active session", async () => {

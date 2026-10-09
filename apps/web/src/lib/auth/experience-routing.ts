@@ -575,7 +575,7 @@ export function evaluateExperienceRouting(input: {
   const headers = buildHeaders(resolution);
   // These endpoints enforce their own authentication/CSRF contracts. Routing
   // cookies must never turn a verification request into an HTML redirect.
-  if (input.pathname.startsWith("/api/auth/") || new Set([
+  if (input.pathname === "/privacy" || input.pathname === "/terms" || input.pathname === "/legal" || input.pathname.startsWith("/legal/") || input.pathname.startsWith("/legal-assets/") || input.pathname.startsWith("/api/legal/") || input.pathname.startsWith("/api/auth/") || new Set([
     "/app", "/verify-code", "/mfa", "/otp", "/verify-email", "/invite/accept",
     "/session-expired", "/account-locked", "/access-denied", "/unauthorized",
     "/device-verification", "/tenant-selection", "/maintenance", "/offline",

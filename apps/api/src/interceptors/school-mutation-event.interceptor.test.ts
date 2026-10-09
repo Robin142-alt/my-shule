@@ -67,7 +67,7 @@ test('successful school mutations publish a tenant-bound refresh event without r
   assert.equal(JSON.stringify(published[0]).includes('must-not-leak'), false);
 });
 
-test('read requests, event routes, and unauthenticated requests do not publish refresh events', async () => {
+test('read requests, transactional legal events, event routes, and unauthenticated requests do not publish refresh events', async () => {
   let publishCount = 0;
   const publisher = {
     publish: async () => {
@@ -88,6 +88,10 @@ test('read requests, event routes, and unauthenticated requests do not publish r
   await lastValueFrom(authenticated.intercept(
     createContext('POST', '/api/events/dispatch'),
     { handle: () => of({ ok: true }) } as never,
+  ));
+  await lastValueFrom(authenticated.intercept(
+    createContext('POST', '/api/legal/accept'),
+    { handle: () => of({ ready: true }) } as never,
   ));
   await lastValueFrom(unauthenticated.intercept(
     createContext('POST', '/api/students'),

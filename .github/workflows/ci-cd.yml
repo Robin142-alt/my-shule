@@ -52,6 +52,9 @@ jobs:
       - name: Dashboard realtime transport and tenant isolation
         run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant proxy-body experience-routing
 
+      - name: Legal acceptance and server access contracts
+        run: npm --prefix apps/web run test:design -- legal-acceptance.test legal-server-gate
+
       - name: Cloudflare ingress and cache isolation
         run: npm --prefix apps/web run test:cloudflare
 
@@ -83,6 +86,7 @@ jobs:
           npx playwright install --with-deps chromium
           node tests/design/colour-system-browser.mjs
           node tests/design/mobile-roles-browser.mjs --all-workspaces --contrast
+          npx playwright test -c playwright.legal.config.ts
 
       - name: Keep dashboard visual diagnostics
         if: failure()
@@ -197,6 +201,7 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing scoped Cloudflare deployment credential'; exit 1; }
           node cloudflare/verify-origin.mjs
+          node cloudflare/verify-legal-release.mjs
           secret_file=$(mktemp)
           export SECRET_FILE="$secret_file"
           trap 'rm -f "$SECRET_FILE"' EXIT
@@ -237,6 +242,14 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Legal policy, immutable evidence and authenticated acceptance
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/legal/legal-policy.test.js dist/apps/api/src/modules/legal/legal-stream.interceptor.test.js dist/apps/api/src/interceptors/school-mutation-event.interceptor.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/legal-acceptance.integration-spec.ts
 
       - name: Signed gateway client identity
         run: node -r ts-node/register --test apps/api/src/common/gateway-identity.test.ts

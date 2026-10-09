@@ -92,6 +92,7 @@ export function PortalShell({
 
         {/* Bottom */}
         <div className="border-t border-blue-100/60 px-3 py-3">
+          <Link href="/legal/accept" className="block rounded-2xl px-4 py-3 text-sm font-medium text-blue-700">Privacy, terms & authorisations</Link>
           <button type="button" onClick={onLogout} className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[14px] font-medium text-red-500/70 transition hover:bg-danger-soft hover:text-red-600">
             <LogOut className="h-5 w-5 shrink-0" /><span>Sign out</span>
           </button>

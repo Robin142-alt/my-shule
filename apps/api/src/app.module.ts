@@ -1,3 +1,6 @@
+import { LegalModule } from './modules/legal/legal.module';
+import { LegalGuard } from './modules/legal/legal.guard';
+import { LegalStreamInterceptor } from './modules/legal/legal-stream.interceptor';
 import { AgpModule } from './common/platform-governance/agp.module';
 import { WidgetRegistryModule } from './common/widget-registry/widget-registry.module';
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
@@ -96,6 +99,7 @@ const ENV_FILE_PATHS = [
     }),
     CommonModule,
     AuthModule,
+    LegalModule,
     TenantModule,
     DatabaseModule,
     RedisModule,
@@ -156,11 +160,19 @@ const ENV_FILE_PATHS = [
     },
     {
       provide: APP_INTERCEPTOR,
+      useClass: LegalStreamInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
       useClass: SchoolMutationEventInterceptor,
     },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: LegalGuard,
     },
     {
       provide: APP_GUARD,

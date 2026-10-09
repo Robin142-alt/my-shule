@@ -521,6 +521,7 @@ export function Topbar({
                     {liveUser.display_name}
                   </p>
                   <p className="mt-0.5 text-[11px] text-muted">{liveUser.email}</p>
+                  <Link href="/legal/accept" className="mt-2 inline-block py-2 text-xs underline">Privacy, terms & agreements</Link>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <StatusPill label={liveUser.role} tone="ok" />
                     <StatusPill label={liveUser.tenant_id ?? "Platform"} tone="warning" />

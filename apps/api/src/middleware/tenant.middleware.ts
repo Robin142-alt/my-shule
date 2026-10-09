@@ -14,7 +14,7 @@ export class TenantMiddleware implements NestMiddleware {
 
   async use(request: Request, response: Response, next: NextFunction): Promise<void> {
     try {
-      if (this.isHealthProbeRequest(request) || isPaymentIngressCallback(request.method, request.path)) {
+      if (this.isGlobalProbeRequest(request) || isPaymentIngressCallback(request.method, request.path)) {
         next();
         return;
       }
@@ -35,10 +35,12 @@ export class TenantMiddleware implements NestMiddleware {
     }
   }
 
-  private isHealthProbeRequest(request: Request): boolean {
+  private isGlobalProbeRequest(request: Request): boolean {
     const path = (request.path || request.originalUrl || request.url || '').toLowerCase();
 
-    return path === '/health' || path === '/health/live';
+    // Legal release metadata contains public document hashes only, never school or user data.
+    return path === '/health' || path === '/health/live'
+      || (['GET', 'HEAD'].includes(request.method) && path === '/legal/release');
   }
 
 }

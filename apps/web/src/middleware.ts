@@ -7,6 +7,7 @@ import {
   SUPERADMIN_SESSION_COOKIE,
 } from "@/lib/auth/experience-routing";
 import { REFRESH_COOKIE } from "@/lib/auth/session-cookies";
+import { requiresLegalReview } from '@/lib/legal/server-gate';
 
 function applySecurityHeaders(response: NextResponse) {
   response.headers.set('X-Frame-Options', 'DENY');
@@ -33,7 +34,7 @@ function applySecurityHeaders(response: NextResponse) {
   return response;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const decision = evaluateExperienceRouting({
     host:
       request.headers.get("x-forwarded-host") ??
@@ -53,6 +54,12 @@ export function middleware(request: NextRequest) {
 
   if (decision.action === "redirect") {
     return applySecurityHeaders(NextResponse.redirect(new URL(decision.location, request.url)));
+  }
+
+  if (await requiresLegalReview(request, decision.rewrittenPath)) {
+    const response = NextResponse.redirect(new URL('/legal/accept', request.url));
+    response.headers.set('Cache-Control', 'private, no-store');
+    return applySecurityHeaders(response);
   }
 
   const requestHeaders = new Headers(request.headers);

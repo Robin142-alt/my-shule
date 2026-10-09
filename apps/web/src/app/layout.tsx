@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
+import { LegalGate } from "@/components/legal/legal-gate";
 import {
   absoluteUrl,
   SEO_KEYWORDS,
@@ -88,7 +89,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="min-h-screen text-foreground" style={{ backgroundColor: "#F3F4F6" }}>
-        <AppProviders>{children}</AppProviders>
+        <AppProviders><LegalGate>{children}</LegalGate></AppProviders>
       </body>
     </html>
   );

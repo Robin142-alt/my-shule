@@ -465,10 +465,23 @@ export function createServerAuthClient(request: Request) {
 
     async logoutRegularSession(cookies: CookieReader) {
       const audience = readAudienceCookie(cookies);
-      if (audience !== "school" && audience !== "portal") return;
+      if (audience !== "school" && audience !== "portal" && audience !== "superadmin") return;
       const refreshToken = readRefreshCookie(cookies);
       const accessToken = readAccessCookie(cookies);
       if (!refreshToken && !accessToken) return;
+      // The existing Super Admin flow revokes by access token; regular refresh
+      // logout intentionally rejects platform credentials.
+      if (audience === "superadmin") {
+        try {
+          let token = accessToken;
+          if (refreshToken) {
+            const refreshed = await requestBackendAuth<BackendAuthResponse>("/auth/refresh", { request, audience, method: "POST", body: { refresh_token: refreshToken } });
+            token = refreshed.tokens.access_token;
+          }
+          if (token) await requestBackendAuth("/auth/logout", { request, audience, method: "POST", accessToken: token });
+        } catch (error) { if (!isServerAuthUnauthorized(error)) throw error; }
+        return;
+      }
       try {
         await requestBackendAuth(refreshToken ? "/auth/logout/refresh" : "/auth/logout", {
           request,
