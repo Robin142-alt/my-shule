@@ -1,3 +1,4 @@
+import { AllowPendingLegal } from '../modules/legal/legal-access.decorator';
 import { resolveRequestClientIp } from '../common/gateway-identity';
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
@@ -100,6 +101,7 @@ export class AuthController {
     return this.authRecoveryService.resetPassword(dto);
   }
 
+  @AllowPendingLegal()
   @Post('email-verification/request')
   @Permissions('auth:read')
   async requestEmailVerification(
@@ -194,24 +196,28 @@ export class AuthController {
     );
   }
 
+  @AllowPendingLegal()
   @Post('logout')
   @Permissions('auth:read')
   async logout(): Promise<LogoutResponseDto> {
     return this.authService.logout();
   }
 
+  @AllowPendingLegal()
   @Get('me')
   @Permissions('auth:read')
   async me(): Promise<MeResponseDto> {
     return this.authService.me();
   }
 
+  @AllowPendingLegal()
   @Get('dashboard-roles')
   @Permissions('auth:read')
   async dashboardRoles(): Promise<DashboardRoleContextDto> {
     return this.authService.dashboardRoles();
   }
 
+  @AllowPendingLegal()
   @Post('active-role')
   @Permissions('auth:read')
   async switchActiveRole(
@@ -221,6 +227,7 @@ export class AuthController {
     return this.authService.switchActiveRole(dto, this.buildRequestMetadata(request));
   }
 
+  @AllowPendingLegal()
   @Get('sessions')
   @Permissions('auth:read')
   async getSessions(@Req() request: Request) {
@@ -239,6 +246,7 @@ export class AuthController {
     }));
   }
 
+  @AllowPendingLegal()
   @Post('sessions/revoke')
   @Permissions('auth:write')
   async revokeSession(@Body() body: RevokeSessionDto) {
@@ -251,6 +259,7 @@ export class AuthController {
     return this.authService.logoutWithRefreshToken(body);
   }
 
+  @AllowPendingLegal()
   @Post('my-sessions/revoke')
   @Permissions('auth:read')
   async revokeMySession(@Body() body: RevokeSessionDto) {
@@ -258,6 +267,7 @@ export class AuthController {
     return this.authService.revokeOwnSession(body.sessionId);
   }
 
+  @AllowPendingLegal()
   @Post('my-sessions/revoke-others')
   @Permissions('auth:read')
   async revokeMyOtherSessions() {
@@ -265,12 +275,14 @@ export class AuthController {
     return this.authService.revokeOtherOwnSessions();
   }
 
+  @AllowPendingLegal()
   @Get('my-sessions')
   @Permissions('auth:read')
   async mySessions() {
     return this.authService.listOwnSessions();
   }
 
+  @AllowPendingLegal()
   @Post('sessions/revoke-all')
   @Permissions('auth:write')
   async revokeAllSessions(@Req() request: Request) {

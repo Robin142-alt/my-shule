@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./legal.css";
 @import "./authenticated.css";
 @import "./authenticated-premium.css";
 @import "./authenticated-contrast.css";

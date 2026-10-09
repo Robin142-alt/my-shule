@@ -1,0 +1,184 @@
+{
+  "verifiedAt": "2026-10-08T21:54:24.548Z",
+  "configuration": {
+    "NODE_ENV": "production",
+    "DATABASE_SSL": "false",
+    "DATABASE_RUNTIME_ROLE": "shule_hub_runtime",
+    "EMAIL_PROVIDER": "resend",
+    "REPORT_OBJECT_STORAGE_ENABLED": "true",
+    "REPORT_OBJECT_STORAGE_REGION": "auto",
+    "UPLOAD_OBJECT_STORAGE_ENABLED": "true",
+    "MPESA_CALLBACK_TRUST_MODE": "not explicitly set",
+    "MPESA_PAYLOAD_VAULT_ENABLED": "true",
+    "SECURITY_MALWARE_SCAN_ENABLED": "not explicitly set",
+    "REPORT_OBJECT_STORAGE_ENDPOINT": {
+      "protocol": "https:",
+      "hostname": "[account].r2.cloudflarestorage.com"
+    },
+    "UPLOAD_OBJECT_STORAGE_ENDPOINT": {
+      "protocol": "https:",
+      "hostname": "t3.storageapi.dev"
+    },
+    "SMS_RELAY_URL": "not explicitly set",
+    "MPESA_BASE_URL": {
+      "protocol": "https:",
+      "hostname": "api.safaricom.co.ke"
+    },
+    "DATABASE_URL": {
+      "protocol": "postgresql:",
+      "hostname": "postgres.railway.internal"
+    },
+    "REDIS_URL": {
+      "protocol": "redis:",
+      "hostname": "redis.railway.internal"
+    },
+    "SECURITY_PII_ENCRYPTION_KEY": "configured (value not inspected)",
+    "JWT_ACCESS_TOKEN_SECRET": "configured (value not inspected)",
+    "JWT_REFRESH_TOKEN_SECRET": "configured (value not inspected)",
+    "RESEND_API_KEY": "configured (value not inspected)",
+    "REPORT_OBJECT_STORAGE_ACCESS_KEY_ID": "configured (value not inspected)",
+    "REPORT_OBJECT_STORAGE_SECRET_ACCESS_KEY": "configured (value not inspected)"
+  },
+  "database": {
+    "version": {
+      "server_version": "18.6 (Debian 18.6-1.pgdg13+2)"
+    },
+    "ssl": {
+      "ssl": false,
+      "version": null
+    },
+    "runtimeRole": [
+      {
+        "rolname": "shule_hub_runtime",
+        "rolsuper": false,
+        "rolbypassrls": false
+      }
+    ],
+    "controls": [
+      {
+        "relname": "audit_logs",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "data_subject_requests",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "outbox_events",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "student_guardians",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "student_portal_access",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "students",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "tenant_memberships",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 1
+      },
+      {
+        "relname": "users",
+        "relrowsecurity": true,
+        "relforcerowsecurity": true,
+        "policies": 4
+      }
+    ]
+  },
+  "railway": {
+    "environment": "production",
+    "services": [
+      {
+        "name": "payments-worker",
+        "status": "SUCCESS",
+        "deployedAt": "2026-10-08T20:34:42.968Z",
+        "commit": "21540600b995549705875ed816ecb82ae073eddd",
+        "regions": [
+          "sfo"
+        ]
+      },
+      {
+        "name": "Redis",
+        "status": "SUCCESS",
+        "deployedAt": "2026-09-05T10:02:57.085Z",
+        "regions": [
+          "sfo"
+        ]
+      },
+      {
+        "name": "sms-relay",
+        "status": "SUCCESS",
+        "deployedAt": "2026-07-12T17:06:46.295Z",
+        "regions": [
+          "sfo"
+        ]
+      },
+      {
+        "name": "Postgres",
+        "status": "SUCCESS",
+        "deployedAt": "2026-08-23T02:42:22.907Z",
+        "regions": [
+          "sfo"
+        ]
+      },
+      {
+        "name": "reports-bulk",
+        "status": "SUCCESS",
+        "deployedAt": "2026-10-08T20:34:42.970Z",
+        "commit": "21540600b995549705875ed816ecb82ae073eddd",
+        "regions": [
+          "sfo"
+        ]
+      },
+      {
+        "name": "my-shule-api",
+        "status": "SUCCESS",
+        "deployedAt": "2026-10-08T20:34:42.970Z",
+        "commit": "21540600b995549705875ed816ecb82ae073eddd",
+        "regions": [
+          "us-west2"
+        ]
+      },
+      {
+        "name": "reports-interactive",
+        "status": "SUCCESS",
+        "deployedAt": "2026-10-08T20:34:42.969Z",
+        "commit": "21540600b995549705875ed816ecb82ae073eddd",
+        "regions": [
+          "sfo"
+        ]
+      },
+      {
+        "name": "malware-scanner",
+        "status": "SUCCESS",
+        "deployedAt": "2026-07-12T17:06:46.142Z",
+        "regions": [
+          "sfo"
+        ]
+      }
+    ],
+    "buckets": [
+      "my-shule-production-uploads"
+    ]
+  }
+}

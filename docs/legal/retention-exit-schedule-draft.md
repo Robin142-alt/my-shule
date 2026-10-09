@@ -1,0 +1,38 @@
+# MyShule Retention and Exit Schedule
+
+**Document ID:** retention-exit-draft-2026-10-09  
+**Version:** 0.1 DRAFT — not approved; no contractual retention or exit deadline is established  
+**Prepared:** 9 October 2026 · Orbitlane Technologies · orbitlanetechnology@gmail.com
+
+This is an evidence-based draft of DPA Schedule C. It describes implemented mechanisms and identifies decisions still needed. An expiry field, soft delete or backup runbook does not establish secure disposal. No guessed statutory retention period has been inserted. School instructions, lawful purpose, applicable educational/financial obligations and approved legal holds must determine the final periods.
+
+| Data category / purpose | Observed mechanism | Period / review decision | Disposition and outstanding verification |
+|---|---|---|---|
+| Accounts, invitations, sessions and authority verification | User/session lifecycle, expiring action tokens, revocable memberships and trusted-device controls | Token/session lifetimes are configuration-dependent. Durable account/identity-evidence retention after closure needs approval. | Revoke live sessions and memberships; define minimised audit retention and subsequent anonymisation/deletion. Test all devices and backups. |
+| Student, parent, staff and academic records | School-scoped PostgreSQL tables; lifecycle and soft-delete fields | No approved institution-wide schedule verified. Review on transfer, graduation, employment exit and contract exit; exact review dates pending. | School-approved export, correction, legal-hold checks and disposal; soft deletion alone is not erasure. |
+| Health, counselling, discipline and safeguarding records | Sensitive modules with separate permissions; compliance/DPIA record types | Purpose-specific necessity and school/legal review required; no verified approved periods. | Restrict access, minimise exports, define category-specific deletion/anonymisation and backup handling. Complete risk assessment before approving. |
+| Fee ledgers, invoices, receipts and M-Pesa reconciliation | Traceable financial workflows, payment payload vault and callback processing | Financial recordkeeping obligations and dispute/hold periods require legal and accounting approval. | Preserve ledger integrity; minimise ancillary/raw payloads separately. Do not delete records merely to satisfy a generic portal withdrawal. |
+| Uploaded documents and attachments | `file_objects` supports retention-policy and expiry fields; object storage and database fallback | Expiry may be NULL. No universal approved upload lifecycle verified. | Add approved expiry assignments per category, object/version deletion and orphan reconciliation. Verify both R2 and Railway storage. |
+| Generated report PDFs and exports | Staging uploads expire after 24 hours in code; replacement staging can receive 30 days; export retention follows job expiry. Bulk worker sweeps report-specific expired objects, job records and abandoned temporary PDFs. | These are existing technical defaults, not approved school-record retention. Review their suitability and current worker configuration. | Verify current object deletion, retry after storage failure, signed-link expiry, backup/version survival and retained source marks. Report deletion does not delete underlying academic records. |
+| Notifications, email, SMS and support requests | Delivery status, retries, outbox and support attachments | Application and downstream-provider retention periods unverified. | Set content/log minimisation and approved deletion across app, relay, providers and support mailbox. |
+| Audit logs, events and legal acceptance evidence | Audit/outbox persistence; new legal receipts and verification evidence are protected against ordinary modification/deletion | Required accountability/dispute retention must be approved; **not indefinite by default**. Current legal evidence has no automatic expiry. | Establish controlled, approved expiry/pseudonymisation process compatible with audit integrity. User foreign keys and append-only triggers currently prevent routine deletion of linked legal records. A supervised retention migration is needed before promising complete erasure. |
+| Local/offline data and device caches | Existing offline/PWA modules; legal acceptance itself is never offline-queued or locally authoritative | Device-draft retention and shared-device clearing need module-by-module verification | Test sign-out, account changes, sync conflicts and deletion on managed/shared devices; a server delete cannot prove removal of previously downloaded copies. |
+| Backups, exports and disaster recovery artifacts | Backup/restore runbooks and CI operational workflow; workflow artifacts configured for 14 days | Actual production backup cadence, storage countries, immutable/version copies, retention, RPO/RTO and expiry remain unverified | Evidence recent restore and expiry runs; prevent restored data from reviving deleted accounts or withdrawn authority. CI artifact retention is not a backup guarantee. |
+
+## Proposed exit procedure for review
+
+1. Verify the school's authorised requester, school identity, contract status, legal holds and recipient. Record the request, scope and acknowledgement.
+2. Agree the **export window, formats, secure delivery method and fees if applicable** in the approved schedule. All values remain pending; do not show invented deadlines to schools.
+3. Produce a school-scoped export inventory covering records, attachments and relevant schema/format descriptions. Existing module reports and data-subject tools do not prove a complete school exit export. Implement and test a reconciled export with checksums and a readable manifest before promising completeness.
+4. Verify delivery and provide a usable review window. Revoke operational access at the agreed point, while keeping the authorised export process available as contracted.
+5. Approve disposal after documented legal-hold and statutory-retention decisions. Delete/anonymise active records and objects across databases, storage, message providers, caches and replicas according to the final timetable.
+6. Record **active-data deletion deadline, backup expiry deadline, permitted retained categories and purpose, retention review date, and deletion confirmation date**. These values are pending approval. Backups must expire according to the approved schedule; restoration must reapply deletion/withdrawal instructions.
+7. Issue a truthful completion record distinguishing completed disposal, legally retained data and copies awaiting scheduled expiry. Never mark a request complete from a UI action alone.
+
+## Required approvals and implementation work
+
+The school/controller and Orbitlane must approve a versioned schedule with specific periods and reasons for every applicable category, the exit timings above, legal-hold handling, disposal ownership, provider obligations and review cadence. Regulation 19 calls for documented retention and periodic review; see the [ODPC General Regulations](https://www.odpc.go.ke/wp-content/uploads/2024/03/THE-DATA-PROTECTION-GENERAL-REGULATIONS-2021-1.pdf).
+
+Existing `data_retention_schedules` and `data_subject_requests` can support the workflow. Their presence is not evidence that every school's policy is approved or enforced. Full tenant export, category-specific disposal, provider deletion verification and a lawful legal-evidence expiry process remain release work. Do not activate the DPA or promise those deadlines until verified.
+
+**Approval record:** reviewer, school/controller instructions, approval date, evidence reference and final SHA-256: pending.

@@ -15,6 +15,7 @@ COPY .env.example ./
 COPY jest.integration.config.js ./
 COPY prisma ./prisma
 COPY apps ./apps
+COPY shared ./shared
 
 RUN npx prisma generate
 RUN npm run build

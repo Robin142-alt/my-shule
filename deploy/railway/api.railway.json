@@ -5,6 +5,7 @@
     "buildCommand": "npm run build",
     "watchPatterns": [
       "apps/**",
+      "shared/**",
       "api/**",
       "package.json",
       "package-lock.json",

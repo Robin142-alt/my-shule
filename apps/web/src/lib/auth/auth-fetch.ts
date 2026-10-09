@@ -7,7 +7,9 @@ export async function authFetch(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    if (response.status === 428 && typeof window !== 'undefined') window.dispatchEvent(new Event('myshule-legal-required'));
+    return response;
   } catch (error) {
     if (controller.signal.aborted)
       throw new Error(

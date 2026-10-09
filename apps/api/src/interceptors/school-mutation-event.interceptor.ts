@@ -16,6 +16,7 @@ import { EventPublisherService } from '../modules/events/event-publisher.service
 const READ_ONLY_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const EXCLUDED_PATH_PREFIXES = [
   '/auth',
+  '/legal', // Legal evidence writes its audit and outbox events in the acceptance transaction.
   '/events',
   '/health',
   '/metrics',

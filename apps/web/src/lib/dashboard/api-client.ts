@@ -378,6 +378,7 @@ export async function requestDashboardApi<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 428 && typeof window !== 'undefined') window.dispatchEvent(new Event('myshule-legal-required'));
     let responseMessage = "";
     try {
       const payload = await response.clone().json() as {

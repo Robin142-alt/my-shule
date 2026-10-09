@@ -1,3 +1,4 @@
+import { LegalLinks } from "@/components/legal/legal-links";
 import type { ReactNode } from "react";
 import { MyShuleBrand } from "@/components/brand/myshule-brand";
 
@@ -9,6 +10,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
           <MyShuleBrand markSize={40} tone="brand" preload />
         </div>
         {children}
+        <LegalLinks />
       </div>
     </main>
   );

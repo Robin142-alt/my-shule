@@ -28,6 +28,23 @@ for (const path of ['/school/login', '/portal/login', '/superadmin/login', '/off
   await response.body?.cancel();
 }
 
+for (const path of ['/legal/accept', '/legal/documents/privacy-1.0', '/legal/documents/terms-1.0']) {
+  const response = await read(path);
+  assert.equal(response.status, 200, path);
+  assert.match(response.headers.get('content-type') ?? '', /text\/html/);
+  await response.body?.cancel();
+}
+for (const [path, target] of [['/privacy', 'privacy-1.0'], ['/terms', 'terms-1.0']]) {
+  const response = await read(path);
+  assert.ok([307, 308].includes(response.status), `public legal alias ${path}`);
+  assert.ok(response.headers.get('location')?.endsWith(`/legal/documents/${target}`));
+  await response.body?.cancel();
+}
+const legalPdf = await read('/legal-assets/MyShule_School_DPA_Contract_v2.0.pdf');
+assert.equal(legalPdf.status, 200, 'original legal PDF');
+assert.match(legalPdf.headers.get('content-type') ?? '', /application\/pdf/);
+await legalPdf.body?.cancel();
+
 const manifest = await read('/manifest.webmanifest');
 assert.equal(manifest.status, 200);
 const pwa = await manifest.json();
@@ -53,7 +70,7 @@ assert.match(csrf.headers.get('cache-control') ?? '', /private.*no-store/);
 assert.match(csrf.headers.get('set-cookie') ?? '', /HttpOnly/i);
 await csrf.body?.cancel();
 
-for (const path of ['/api/permissions/me', '/api/reports/files', '/api/events/dashboard/stream']) {
+for (const path of ['/api/permissions/me', '/api/reports/files', '/api/events/dashboard/stream', '/api/legal/status']) {
   const response = await read(path, { headers: {
     'x-forwarded-host': 'forged-school.myshule.online',
     'x-tenant-id': 'forged-school',

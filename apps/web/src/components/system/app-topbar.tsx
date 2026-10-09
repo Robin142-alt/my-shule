@@ -733,6 +733,7 @@ export function AppTopbar({
               <NotificationBell />
             </div>
           ) : null}
+          <a href="/legal/accept" className="rounded-lg px-3 py-2 text-xs font-semibold text-muted underline underline-offset-4">Agreements</a>
           {actions}
         </div>
       </div>

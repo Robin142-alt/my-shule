@@ -75,6 +75,8 @@ export function PublicSiteShell({ children }: { children: React.ReactNode }) {
           <div className="grid gap-3 text-sm font-semibold sm:grid-cols-2">
             {[
               ...primaryLinks,
+              { label: "Privacy Policy", href: "/privacy" },
+              { label: "Terms of Use", href: "/terms" },
               { label: "Login as Parent", href: "/parent/login" },
               { label: "Login to Dashboard", href: "/school/login" },
               { label: "Request Demo", href: "/school-portal" },
