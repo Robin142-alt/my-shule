@@ -3,7 +3,20 @@ import { test } from 'node:test';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { LEGAL_DOCUMENTS } from '../../../../../shared/legal/documents';
-import { needsGuardian, outstandingDocuments, validateSelections } from './legal-policy';
+import { isLegalEnforcementActive, needsGuardian, outstandingDocuments, validateSelections } from './legal-policy';
+
+test('rollout preparation is server-only and enforcement is the fail-closed default', () => {
+  const previous = process.env.LEGAL_ROLLOUT_MODE;
+  try {
+    delete process.env.LEGAL_ROLLOUT_MODE; assert.equal(isLegalEnforcementActive(), true);
+    process.env.LEGAL_ROLLOUT_MODE = 'unknown'; assert.equal(isLegalEnforcementActive(), true);
+    process.env.LEGAL_ROLLOUT_MODE = 'prepare'; assert.equal(isLegalEnforcementActive(), false);
+    process.env.LEGAL_ROLLOUT_MODE = 'active'; assert.equal(isLegalEnforcementActive(), true);
+  } finally {
+    if (previous === undefined) delete process.env.LEGAL_ROLLOUT_MODE;
+    else process.env.LEGAL_ROLLOUT_MODE = previous;
+  }
+});
 
 test('unknown age, future birth dates and children require guardian authorisation', () => {
   const now = new Date('2026-10-09T08:00:00Z');

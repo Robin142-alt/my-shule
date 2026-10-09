@@ -3,11 +3,13 @@ import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../../auth/auth.constants';
 import { ALLOW_PENDING_LEGAL } from './legal-access.decorator';
 import { LegalService } from './legal.service';
+import { isLegalEnforcementActive } from './legal-policy';
 
 @Injectable()
 export class LegalGuard implements CanActivate {
   constructor(private readonly reflector: Reflector, private readonly legal: LegalService) {}
   async canActivate(context: ExecutionContext) {
+    if (!isLegalEnforcementActive()) return true;
     const targets = [context.getHandler(), context.getClass()];
     if (context.switchToHttp().getRequest().method === 'OPTIONS' || this.reflector.getAllAndOverride(IS_PUBLIC_KEY, targets) || this.reflector.getAllAndOverride(ALLOW_PENDING_LEGAL, targets)) return true;
     const status = await this.legal.status(false);

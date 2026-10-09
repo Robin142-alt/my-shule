@@ -1,7 +1,9 @@
 # MyShule Retention and Exit Schedule
 
-**Document ID:** retention-exit-draft-2026-10-09  
-**Version:** 0.1 DRAFT — not approved; no contractual retention or exit deadline is established  
+**Document ID:** retention-exit-draft-2026-10-09
+
+**Version:** 0.1 DRAFT — not approved; no contractual retention or exit deadline is established
+
 **Prepared:** 9 October 2026 · Orbitlane Technologies · orbitlanetechnology@gmail.com
 
 This is an evidence-based draft of DPA Schedule C. It describes implemented mechanisms and identifies decisions still needed. An expiry field, soft delete or backup runbook does not establish secure disposal. No guessed statutory retention period has been inserted. School instructions, lawful purpose, applicable educational/financial obligations and approved legal holds must determine the final periods.

@@ -69,7 +69,8 @@ describe('Legal acceptance on real PostgreSQL and authenticated API requests', (
     expect(release.dpa_active).toBe(false);
     expect(release.documents).toHaveLength(3);
     expect(release.documents.every((doc:any)=>doc.sha256.length===64)).toBe(true);
-    expect(Object.keys(release).sort()).toEqual(['documents','dpa_active']);
+    expect(release.enforcement_active).toBe(true);
+    expect(Object.keys(release).sort()).toEqual(['documents','dpa_active','enforcement_active']);
     await send(staff,'get','/legal-probe').expect(428);
     await request(app.getHttpServer()).get('/legal/status').set('host',`${tenant}.integration.test`).expect(401);
     const status=data((await send(staff,'get','/legal/status').expect(200)).body);

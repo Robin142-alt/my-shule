@@ -37,6 +37,10 @@ The [ODPC 2025 children's-data guidance](https://www.odpc.go.ke/wp-content/uploa
 
 ## Safe operation and rollback
 
+For the initial deployment, the operator may set `LEGAL_ROLLOUT_MODE=prepare` on the API while publishing the compatible API and website. This preserves the pre-release access behaviour during the handoff; it does not create acceptances or disable the new website's review screen. After the Worker is verified, set `LEGAL_ROLLOUT_MODE=active`, await the API deployment, and verify `/legal/release` reports `enforcement_active: true` with `dpa_active: false`. Missing or unknown values enforce by default. Preparation is temporary and is not a completed deployment. Only server deployment configuration controls this mode; there is no client, role or tenant bypass.
+
+Docker copies `shared/legal`, and the Worker deployment checks the API's public document IDs/hashes/generations before publishing. Railway projects with dashboard-managed watch patterns must also watch `shared/**`, or explicitly redeploy the API for document-only updates; version mismatch blocks the website release.
+
 Schema changes are additive. Do not mutate or delete acceptance evidence to roll back. Roll back web/API binaries together if needed while preserving legal tables; document that older binaries do not enforce the gate. Do not silently exempt existing accounts or copy another user's acceptance. Invalid/unavailable verification fails closed with a retry and sign-in path. DPA inactivity affects institutional contracting only: individual Terms/Privacy and applicable guardian safeguards remain active.
 
 Live evidence in this folder covers a selected metadata/configuration inspection, not a penetration test of the entire ERP. Browser workflow tests use synthetic responses; PostgreSQL integration tests exercise real persistence, guards and sessions in disposable databases. Neither substitutes for staging and authorised production rollout verification.

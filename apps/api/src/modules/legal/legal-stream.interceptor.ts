@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { concatMap } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { LegalService } from './legal.service';
+import { isLegalEnforcementActive } from './legal-policy';
 
 @Injectable()
 export class LegalStreamInterceptor implements NestInterceptor {
@@ -15,7 +16,7 @@ export class LegalStreamInterceptor implements NestInterceptor {
     return next.handle().pipe(concatMap((message) => this.legal.context.run(captured, async () => {
       if (!token || !captured.audience) throw new UnauthorizedException();
       await this.auth.authenticateAccessToken(token, captured.audience === 'superadmin' ? null : captured.tenant_id, captured.audience);
-      if (!(await this.legal.status(false)).ready) throw new HttpException('Review your agreements before reconnecting.', 428);
+      if (isLegalEnforcementActive() && !(await this.legal.status(false)).ready) throw new HttpException('Review your agreements before reconnecting.', 428);
       return message;
     })));
   }

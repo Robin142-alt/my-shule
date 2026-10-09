@@ -1,8 +1,11 @@
 # MyShule Production Register
 
-**Document ID:** production-register-draft-2026-10-09  
-**Version:** 0.1 DRAFT — not approved, not incorporated into a school contract  
-**Prepared:** 9 October 2026, Africa/Nairobi  
+**Document ID:** production-register-draft-2026-10-09
+
+**Version:** 0.1 DRAFT — not approved, not incorporated into a school contract
+
+**Prepared:** 9 October 2026, Africa/Nairobi
+
 **Provider:** Orbitlane Technologies · orbitlanetechnology@gmail.com · Kenya
 
 ## Approval boundary

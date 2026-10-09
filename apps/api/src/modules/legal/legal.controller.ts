@@ -6,6 +6,7 @@ import { LegalVerificationService } from './legal-verification.service';
 import { Public } from '../../auth/decorators/public.decorator';
 import { currentDocuments } from './legal.service';
 import { isDpaActive } from '../../../../../shared/legal/release';
+import { isLegalEnforcementActive } from './legal-policy';
 
 @Controller('legal')
 export class LegalController {
@@ -13,7 +14,7 @@ export class LegalController {
   // Public document metadata lets deployment verify API/web compatibility without a user session.
   @Get('release') @Public() @Header('Cache-Control', 'no-store')
   release() {
-    return { dpa_active: isDpaActive(), documents: currentDocuments.map(({ id, sha256, generation }) => ({ id, sha256, generation })) };
+    return { enforcement_active: isLegalEnforcementActive(), dpa_active: isDpaActive(), documents: currentDocuments.map(({ id, sha256, generation }) => ({ id, sha256, generation })) };
   }
   @Get('status') @AllowPendingLegal() @Header('Cache-Control', 'private, no-store')
   status() { return this.legal.status(); }
