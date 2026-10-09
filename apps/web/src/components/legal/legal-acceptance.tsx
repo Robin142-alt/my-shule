@@ -45,7 +45,7 @@ export function LegalAcceptance({ status, onStatus, onRetry }: { status: LegalSt
       {status.required_documents.length > 0 && <fieldset className="legal-options" disabled={saving}><legend className="sr-only">Required agreements</legend>
         {status.required_documents.map((doc) => <div className="legal-option" key={doc.id}>
           <input id={`agreement-${doc.id}`} aria-labelledby={`agreement-text-${doc.id}`} type="checkbox" checked={checked[doc.id] === true} onChange={(event) => setChecked({ ...checked, [doc.id]: event.target.checked })} />
-          <div><span id={`agreement-text-${doc.id}`}><label htmlFor={`agreement-${doc.id}`}>{doc.kind === 'privacy' ? 'I acknowledge the ' : doc.kind === 'dpa' ? 'I am authorised to bind my school and accept the ' : status.guardian_required ? 'I acknowledge the ' : 'I agree to the '}</label><LegalDocumentLink documentId={doc.id}>{doc.title}</LegalDocumentLink></span><span className="block text-xs text-slate-500">Version {doc.version}{doc.kind === 'dpa' ? ' · On behalf of your school' : ''}</span></div>
+          <div><span id={`agreement-text-${doc.id}`}><label htmlFor={`agreement-${doc.id}`}>{doc.kind === 'privacy' ? 'I acknowledge the ' : doc.kind === 'dpa' ? 'I am authorised to bind my school and accept the ' : status.guardian_required ? 'I acknowledge the ' : 'I agree to the '}</label><LegalDocumentLink documentId={doc.id}>{doc.title}</LegalDocumentLink></span>{doc.kind === 'dpa' && <span className="block text-xs text-slate-500">On behalf of your school</span>}</div>
         </div>)}
       </fieldset>}
       {status.guardian_required && <p className="mt-4 text-xs leading-5 text-slate-600">Your acknowledgement does not replace your parent or guardian’s authorisation.</p>}
