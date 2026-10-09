@@ -23,4 +23,3 @@ export function validateSelections(selections: unknown, documents: readonly Docu
 // Operators use prepare only during the API/web handoff. Missing or unknown values enforce.
 // This setting never comes from a request, session, tenant, role or browser.
 export const isLegalEnforcementActive = () => process.env.LEGAL_ROLLOUT_MODE !== 'prepare';
-

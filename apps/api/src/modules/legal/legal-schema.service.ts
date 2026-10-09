@@ -107,10 +107,14 @@ DECLARE actor uuid; school text; BEGIN
  END IF;
 END; $$;
 REVOKE ALL ON FUNCTION app.legal_identity(uuid,boolean) FROM PUBLIC;
+ALTER TABLE legal_acceptances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE legal_acceptances FORCE ROW LEVEL SECURITY;
+ALTER TABLE legal_authorities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE legal_authorities FORCE ROW LEVEL SECURITY;
+ALTER TABLE legal_guardian_withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE legal_guardian_withdrawals FORCE ROW LEVEL SECURITY;
 DO $$ DECLARE table_name text; BEGIN
  FOREACH table_name IN ARRAY ARRAY['legal_acceptances','legal_authorities','legal_guardian_withdrawals'] LOOP
-  EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
-  EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', table_name);
   EXECUTE format('DROP POLICY IF EXISTS legal_tenant_policy ON %I', table_name);
   EXECUTE format('CREATE POLICY legal_tenant_policy ON %I FOR ALL USING (tenant_id = current_setting(''app.tenant_id'', true)) WITH CHECK (tenant_id = current_setting(''app.tenant_id'', true))', table_name);
  END LOOP;
