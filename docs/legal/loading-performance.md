@@ -2,7 +2,7 @@
 
 The agreement gate, route fallback and successful-acceptance navigation use the existing data-free `WorkspaceLoading` component. The screen renders in the initial HTML, uses the existing MyShule mark, and respects reduced motion. No minimum display timer delays verified navigation.
 
-Only overlapping verification requests in the same mounted gate and route share a promise. Completed decisions are not cached. A route change, backend legal-required event or successful acceptance invalidates older results. A later focus/visibility check still contacts the backend. Errors remain closed with a retry action.
+Only overlapping verification requests in the same mounted gate and route share a promise. Completed decisions are not cached. The verification component is keyed to its route and removed on public pages, so returning through a sign-in page starts with fresh state, even when the pathname is the same as before. A route change, backend legal-required event or successful acceptance invalidates older results. A later focus/visibility check still contacts the backend. Errors remain closed with a retry action.
 
 Protected pages request the existing `/legal/access` check, which performs the full required individual, institutional and guardian access decision without loading review-only history, school labels or parent-management details. A pending decision loads `/legal/status` and the agreement interface. The review page requests detailed status directly. Both routes use the existing cookie-authenticated, tenant-scoped proxy and no-store responses; middleware and backend guards are unchanged.
 

@@ -80,3 +80,38 @@ test('a legal-required event supersedes an older in-flight approval', async () =
   expect(screen.queryByText('Private dashboard')).not.toBeInTheDocument();
   await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
 });
+
+test('leaving for a public page and returning never revives old state or an in-flight check', async () => {
+  const old = deferred<{ ready: boolean }>();
+  request.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ ready: false }).mockResolvedValueOnce(pending);
+  const view = render(<LegalGate><p>Private dashboard</p></LegalGate>);
+  mockPathname = '/school/login';
+  view.rerender(<LegalGate><p>Sign-in page</p></LegalGate>);
+  mockPathname = '/school/teacher';
+  view.rerender(<LegalGate><p>Private dashboard</p></LegalGate>);
+  expect(screen.getByRole('status', { name: 'Loading MyShule' })).toBeVisible();
+  await screen.findByText('Agreements for Amina');
+  await act(async () => old.resolve({ ready: true }));
+  expect(screen.queryByText('Private dashboard')).not.toBeInTheDocument();
+  expect(request.mock.calls.map(([path]) => path)).toEqual(['access', 'access', 'status']);
+});
+
+test('a completed approval cannot flash protected children when returning from a public page', async () => {
+  let renders = 0;
+  function Dashboard() { renders++; return <p>Private dashboard</p>; }
+  request.mockResolvedValueOnce({ ready: true });
+  const view = render(<LegalGate><Dashboard /></LegalGate>);
+  await screen.findByText('Private dashboard');
+  const verifiedRenders = renders;
+  mockPathname = '/school/login';
+  view.rerender(<LegalGate><p>Sign-in page</p></LegalGate>);
+  const fresh = deferred<{ ready: boolean }>();
+  request.mockReturnValueOnce(fresh.promise).mockResolvedValueOnce(pending);
+  mockPathname = '/school/teacher';
+  view.rerender(<LegalGate><Dashboard /></LegalGate>);
+  expect(renders).toBe(verifiedRenders);
+  expect(screen.getByRole('status', { name: 'Loading MyShule' })).toBeVisible();
+  await act(async () => fresh.resolve({ ready: false }));
+  await screen.findByText('Agreements for Amina');
+  expect(renders).toBe(verifiedRenders);
+});
