@@ -6,6 +6,7 @@ import { legalRequest } from '@/lib/legal/client';
 import { isLegalProtectedPath } from '@/lib/legal/routing';
 import { LEGAL_DOCUMENTS } from '../../../../shared/legal/documents';
 import type { LegalStatus } from '@/lib/legal/types';
+import { routerReplaceMock } from './router-mock';
 jest.mock('@/lib/legal/client', () => ({legalRequest:jest.fn()}));
 const request = jest.mocked(legalRequest);
 const base:LegalStatus={user_id:'user',school_id:'amani',school_name:'Amani School',display_name:'Amina',ready:false,required_documents:LEGAL_DOCUMENTS.filter(d=>d.kind!=='dpa'),documents:[...LEGAL_DOCUMENTS],blockers:[],school_accepted:false,school_authority_verified:false,guardian_required:false,dpa_active:false,incorporated_documents:[],guardian_children:[],can_verify_school_authority:false,can_verify_guardians:false,statements:{school:'school',guardian:'I authorise my child to use the portal.'},receipts:[]};
@@ -59,4 +60,34 @@ test('the application gate stays closed on failure and never renders a protected
 test('all public, legal, login, invitation and password routes remain available',()=>{
   for(const path of ['/','/app','/parent-portal','/school-portal','/privacy','/terms','/legal/accept','/legal-assets/MyShule_School_DPA_Contract_v2.0.pdf','/invite/accept','/parent/login','/internal/school/new-password']) expect(isLegalProtectedPath(path)).toBe(false);
   for(const path of ['/school/principal','/dashboard/teacher/exams','/internal/portal/attendance','/portal/parent','/student','/superadmin/schools','/library','/school/teacher/students/name.pdf']) expect(isLegalProtectedPath(path)).toBe(true);
+});
+
+test('successful acceptance stays on the branded loader until the dashboard navigation finishes', async()=>{
+  request.mockResolvedValueOnce({...base,ready:true,required_documents:[]});
+  const originalFetch=global.fetch;
+  global.fetch=jest.fn().mockResolvedValue({ok:true,json:async()=>({path:'/school/teacher'})});
+  try {
+    render(<LegalAcceptance status={base} onStatus={jest.fn()} onRetry={jest.fn()}/>);
+    fireEvent.click(screen.getByRole('checkbox',{name:/Privacy Policy/}));
+    fireEvent.click(screen.getByRole('checkbox',{name:/Terms of Use/}));
+    fireEvent.click(screen.getByRole('button',{name:'Agree & Continue'}));
+    await waitFor(()=>expect(routerReplaceMock).toHaveBeenCalledWith('/school/teacher'));
+    expect(screen.getByRole('status',{name:'Loading MyShule'})).toBeVisible();
+    expect(screen.queryByRole('button',{name:'Agree & Continue'})).not.toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  } finally {global.fetch=originalFetch;}
+});
+
+test('destination failure returns a retryable agreement screen without inventing access', async()=>{
+  request.mockResolvedValueOnce({...base,ready:true,required_documents:[]});
+  const originalFetch=global.fetch;
+  global.fetch=jest.fn().mockResolvedValue({ok:false,json:async()=>({message:'unavailable'})});
+  try {
+    render(<LegalAcceptance status={{...base,ready:true,required_documents:[]}} onStatus={jest.fn()} onRetry={jest.fn()}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Continue to dashboard'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to open your dashboard');
+    expect(screen.queryByRole('status',{name:'Loading MyShule'})).not.toBeInTheDocument();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+    expect(screen.getByRole('button',{name:'Continue to dashboard'})).toBeEnabled();
+  } finally {global.fetch=originalFetch;}
 });

@@ -53,7 +53,7 @@ jobs:
         run: npm --prefix apps/web run test:design -- reconnecting-event-source dashboard-stream-proxy dashboard-communication-tenant proxy-body experience-routing
 
       - name: Legal acceptance and server access contracts
-        run: npm --prefix apps/web run test:design -- legal-acceptance.test legal-server-gate
+        run: npm --prefix apps/web run test:design -- legal-acceptance.test legal-server-gate legal-loading.test legal-access-proxy
 
       - name: Cloudflare ingress and cache isolation
         run: npm --prefix apps/web run test:cloudflare
