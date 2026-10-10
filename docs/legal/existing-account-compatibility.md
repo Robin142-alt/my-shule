@@ -1,0 +1,11 @@
+# Existing-account legal access compatibility
+
+Existing production accounts encountered HTTP 500 on `/legal/status`. The query joins guardian links for every signed-in user, including staff without children. Production uses `student_guardians.id text`; the new legal authority table originally declared its reference as UUID. PostgreSQL rejects the UUID/text comparison before evaluating rows. Fresh-database tests used UUID guardian IDs and missed this difference.
+
+The legal authority reference now stores text, preserving exact school-owned identifiers. The startup migration widens existing UUID references to text without changing their values. Comparisons explicitly render the source guardian ID as text so both schema generations work. Verification also stores non-UUID guardian IDs without a UUID cast. Original guardian records, authentication, tenant checks, independent authority verification, acceptance history, and DPA inactivity are preserved.
+
+Regression coverage runs the complete authenticated legal workflow against both UUID and text guardian keys, including a non-UUID legacy identifier. A separate transactional test confirms that the migration preserves existing authority evidence and is idempotent. The text-schema staff status test reproduced the production 500 before the correction.
+
+Local validation: 21 PostgreSQL integration tests, 7 legal policy/stream tests, API build, tenant-isolation audit, and production dependency audit passed. The integration suite covers acceptance persistence, concurrency, refreshed sessions, role switching, guardian verification and withdrawal, separate school authority, audit rollback, cross-school denials, and renewed acceptance after material changes.
+
+For emergency recovery on the verified production text-key schema, the same tested reference-type migration can be applied transactionally before the new binary reaches production. Compare evidence fingerprints before/after and confirm the formerly failing join against an empty synthetic tenant. Do not turn off enforcement, fabricate acceptance, alter school-owned guardian IDs, or change document generations. Deploy the matching code after migration so future non-UUID guardian verification also works. Do not narrow the column back to UUID after text keys have been stored.

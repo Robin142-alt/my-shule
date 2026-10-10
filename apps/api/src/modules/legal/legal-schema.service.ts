@@ -37,13 +37,21 @@ CREATE TABLE IF NOT EXISTS legal_documents (
 CREATE TABLE IF NOT EXISTS legal_authorities (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
  kind text NOT NULL CHECK (kind IN ('school','guardian')), user_id uuid NOT NULL REFERENCES users(id),
- student_id text NOT NULL DEFAULT '', guardian_link_id uuid,
+ student_id text NOT NULL DEFAULT '', guardian_link_id text,
  evidence_reference text NOT NULL CHECK (length(btrim(evidence_reference)) BETWEEN 8 AND 500),
  verified_by uuid NOT NULL REFERENCES users(id), verified_at timestamptz NOT NULL DEFAULT NOW(),
  revoked_at timestamptz, revoked_by uuid REFERENCES users(id),
  CHECK (user_id <> verified_by), CHECK ((kind = 'school' AND student_id = '' AND guardian_link_id IS NULL) OR (kind = 'guardian' AND student_id <> '' AND guardian_link_id IS NOT NULL)),
  UNIQUE(tenant_id, id)
 );
+-- Existing school databases may use text guardian keys. Preserve their exact IDs,
+-- including non-UUID values, without changing the school's source records.
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public'
+   AND table_name='legal_authorities' AND column_name='guardian_link_id' AND udt_name='uuid') THEN
+   ALTER TABLE legal_authorities ALTER COLUMN guardian_link_id TYPE text USING guardian_link_id::text;
+ END IF;
+END $$;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_legal_authorities_active ON legal_authorities(tenant_id, kind, user_id, student_id) WHERE revoked_at IS NULL;
 CREATE TABLE IF NOT EXISTS legal_acceptances (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,

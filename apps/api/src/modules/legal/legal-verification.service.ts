@@ -61,7 +61,7 @@ export class LegalVerificationService {
         guardianId = link.rows[0].id;
       }
       const result = await this.legal.database.query(`INSERT INTO legal_authorities(tenant_id,kind,user_id,student_id,guardian_link_id,evidence_reference,verified_by)
-        VALUES ($1,$2,$3::uuid,$4,$5::uuid,$6,$7::uuid) ON CONFLICT DO NOTHING RETURNING id`, [dto.school_id,dto.kind,dto.user_id,studentId,guardianId,dto.evidence_reference.trim(),ctx.user_id]);
+        VALUES ($1,$2,$3::uuid,$4,$5::text,$6,$7::uuid) ON CONFLICT DO NOTHING RETURNING id`, [dto.school_id,dto.kind,dto.user_id,studentId,guardianId,dto.evidence_reference.trim(),ctx.user_id]);
       if (result.rows[0]) await this.legal.evidenceEvent(result.rows[0].id, 'legal.authority.verified', { kind: dto.kind, subject_user_id: dto.user_id, student_id: studentId });
     });
     return { success: true };

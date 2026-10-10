@@ -77,7 +77,7 @@ export class LegalService {
     const children = detailed ? await this.database.query(`SELECT s.id, s.first_name || ' ' || s.last_name AS name,
       s.date_of_birth::text, a.id AS authority_id FROM student_guardians g
       JOIN students s ON s.tenant_id=g.tenant_id AND s.id=g.student_id AND s.deleted_at IS NULL
-      LEFT JOIN legal_authorities a ON a.tenant_id=g.tenant_id AND a.guardian_link_id=g.id AND a.user_id=g.user_id AND a.kind='guardian' AND a.revoked_at IS NULL
+      LEFT JOIN legal_authorities a ON a.tenant_id=g.tenant_id AND a.guardian_link_id=g.id::text AND a.user_id=g.user_id AND a.kind='guardian' AND a.revoked_at IS NULL
       WHERE g.tenant_id=$1 AND g.user_id=$2::uuid AND g.status='active' AND s.status='active'`, [ctx.tenant_id, ctx.user_id]) : { rows: [] };
     const guardianChildren = await Promise.all(children.rows.filter((child) => needsGuardian(child.date_of_birth)).map(async (child) => ({
       student_id: child.id as string, name: child.name as string, verified: Boolean(child.authority_id),
@@ -106,7 +106,7 @@ export class LegalService {
     const ctx = this.identity();
     const result = await this.database.query(`SELECT DISTINCT a.kind, a.generation FROM legal_acceptances a
       JOIN legal_authorities v ON v.tenant_id=a.tenant_id AND v.id=a.authority_id AND v.revoked_at IS NULL
-      JOIN student_guardians g ON g.tenant_id=v.tenant_id AND g.id=v.guardian_link_id AND g.student_id=v.student_id AND g.user_id=v.user_id AND g.status='active'
+      JOIN student_guardians g ON g.tenant_id=v.tenant_id AND g.id::text=v.guardian_link_id AND g.student_id=v.student_id AND g.user_id=v.user_id AND g.status='active'
       JOIN tenant_memberships m ON m.tenant_id=g.tenant_id AND m.user_id=g.user_id AND m.status='active'
       JOIN LATERAL app.legal_identity(g.user_id) u ON true
       WHERE a.tenant_id=$1 AND a.scope='guardian' AND a.subject_id=$2 AND ($3::uuid IS NULL OR a.user_id=$3::uuid)
