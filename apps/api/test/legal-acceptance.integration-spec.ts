@@ -17,6 +17,7 @@ import { TrustedDeviceService } from '../src/auth/trusted-device.service';
 import { DPA_RELEASE } from '../../../shared/legal/release';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
+import { LEGAL_SCHEMA_SQL } from '../src/modules/legal/legal-schema.service';
 
 @Controller('legal-probe') class LegalProbe { @Get() read() { return { permitted: true }; } }
 @Module({ imports: [AuthSecurityTestModule, LegalModule], controllers: [LegalProbe], providers: [{ provide: APP_GUARD, useClass: LegalGuard }] }) class LegalTestModule {}
@@ -26,10 +27,10 @@ type Identity = { id: string; tenant: string; token: string; refresh: string; ro
 const selections = [{ document_id:'privacy-1.0',checked:true },{ document_id:'terms-1.0',checked:true }];
 const data = (body: any) => body.data ?? body;
 
-describe('Legal acceptance on real PostgreSQL and authenticated API requests', () => {
+describe.each(['uuid', 'text'] as const)('Legal acceptance with %s guardian IDs on PostgreSQL and authenticated API requests', (guardianIdType) => {
   let app: INestApplication; let module: TestingModule; let pool: Pool;
   let staff: Identity; let parent: Identity; let student: Identity; let other: Identity; let platform: Identity;
-  let childId: string;
+  let childId: string; let guardianId: string;
   const suffix=randomUUID().slice(0,8); const tenant=`legal-${suffix}`;
   const send=(user:Identity,method:'get'|'post',path:string,body?:object)=>{
     const call=request(app.getHttpServer())[method](path).set('host',`${user.tenant}.integration.test`).set('x-auth-audience',user.audience).set('authorization',`Bearer ${user.token}`);
@@ -55,14 +56,39 @@ describe('Legal acceptance on real PostgreSQL and authenticated API requests', (
     pool=new Pool({connectionString:process.env.DATABASE_URL});
     module=await Test.createTestingModule({imports:[LegalTestModule]}).overrideProvider(REDIS_CLIENT).useValue(new InMemoryRedis()).compile();
     app=module.createNestApplication();app.useGlobalPipes(new ValidationPipe({whitelist:true,transform:true,forbidNonWhitelisted:true}));await app.init();
+    if (guardianIdType === 'text') {
+      // Older production databases retain text primary keys, including non-UUID IDs.
+      await pool.query(`ALTER TABLE student_guardians ALTER COLUMN id DROP DEFAULT;
+        ALTER TABLE student_guardians ALTER COLUMN id TYPE text USING id::text;
+        ALTER TABLE student_guardians ALTER COLUMN id SET DEFAULT gen_random_uuid()::text`);
+    }
     staff=await user(tenant,'owner');parent=await user(tenant,'parent');student=await user(tenant,'student');other=await user(`other-${suffix}`,'owner');
     platform=await user('global','owner',true);
     childId=randomUUID();
     await pool.query(`INSERT INTO students(id,tenant_id,admission_number,first_name,last_name,status,date_of_birth) VALUES ($1,$2,'L-001','Test','Learner','active','2014-05-01')`,[childId,tenant]);
     await pool.query(`INSERT INTO student_portal_access(tenant_id,student_id,user_id,username,guardian_phone_hash,force_password_change) VALUES ($1,$2,$3,'legal-student','test-hash',false)`,[tenant,childId,student.id]);
-    await pool.query(`INSERT INTO student_guardians(tenant_id,student_id,user_id,display_name,email,relationship,status) VALUES ($1,$2,$3,'Test Guardian',$4,'parent','active')`,[tenant,childId,parent.id,parent.email]);
+    guardianId=guardianIdType === 'text' ? `legacy-guardian-${suffix}` : randomUUID();
+    await pool.query(`INSERT INTO student_guardians(tenant_id,student_id,user_id,display_name,email,relationship,status,id) VALUES ($1,$2,$3,'Test Guardian',$4,'parent','active',$5)`,[tenant,childId,parent.id,parent.email,guardianId]);
   });
-  afterAll(async()=>{ await app?.close();await pool?.end(); });
+  afterAll(async()=>{
+    // The two schema variants share one disposable database, which permits one platform owner.
+    if (platform) await pool.query("UPDATE users SET user_type='member' WHERE id=$1",[platform.id]);
+    await app?.close();await pool?.end();
+  });
+
+  if (guardianIdType === 'uuid') test('schema upgrade preserves existing guardian evidence and remains idempotent',async()=>{
+    const client=await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('ALTER TABLE legal_authorities ALTER COLUMN guardian_link_id TYPE uuid USING guardian_link_id::uuid');
+      const inserted=await client.query(`INSERT INTO legal_authorities(tenant_id,kind,user_id,student_id,guardian_link_id,evidence_reference,verified_by)
+        VALUES ($1,'guardian',$2,$3,$4,'migration-fixture-record',$5) RETURNING id`,[tenant,parent.id,childId,guardianId,staff.id]);
+      await client.query(LEGAL_SCHEMA_SQL);
+      await client.query(LEGAL_SCHEMA_SQL);
+      const result=await client.query('SELECT guardian_link_id,pg_typeof(guardian_link_id)::text AS type FROM legal_authorities WHERE id=$1',[inserted.rows[0].id]);
+      expect(result.rows).toEqual([{guardian_link_id:guardianId,type:'text'}]);
+    } finally {await client.query('ROLLBACK');client.release();}
+  });
 
   test('old and fresh sessions cannot use protected APIs before affirmative acceptance',async()=>{
     const release=data((await request(app.getHttpServer()).get('/legal/release').expect(200)).body);
@@ -173,7 +199,7 @@ describe('Legal acceptance on real PostgreSQL and authenticated API requests', (
 
   test('a material version change gates existing sessions until the exact new document is accepted',async()=>{
     const documents=currentDocuments as LegalDocument[];const index=documents.findIndex(doc=>doc.kind==='terms');const original=documents[index];
-    const replacement={...original,id:'terms-test-2',version:'test-2',generation:2};
+    const replacement={...original,id:`terms-test-2-${suffix}`,version:`test-2-${suffix}`,generation:2};
     await pool.query('INSERT INTO legal_documents(id,kind,version,generation,content_hash,content,effective_date) VALUES($1,$2,$3,$4,$5,$6,$7)',[replacement.id,replacement.kind,replacement.version,replacement.generation,replacement.sha256,replacement.content,replacement.effectiveDate]);
     documents[index]=replacement;
     try {
