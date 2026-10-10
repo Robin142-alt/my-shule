@@ -9,7 +9,7 @@ async function proxy(request: NextRequest, context: Context) {
   const audience = readAudienceCookie(await cookies());
   if (!isExperienceAudience(audience)) return NextResponse.json({ message: 'Sign in to review your agreements.' }, { status: 401 });
   const path = (await context.params).path.join('/');
-  const allowed = request.method === 'GET' ? ['status','verification/candidates'].includes(path) : ['accept','guardian/authorise','guardian/withdraw','verification'].includes(path) || /^verification\/[0-9a-f-]{36}\/revoke$/i.test(path);
+  const allowed = request.method === 'GET' ? ['access','status','verification/candidates'].includes(path) : ['accept','guardian/authorise','guardian/withdraw','verification'].includes(path) || /^verification\/[0-9a-f-]{36}\/revoke$/i.test(path);
   if (!allowed) return NextResponse.json({ message: 'Legal endpoint not found.' }, { status: 404 });
   const response = await proxySchoolApiRequest(request, context, '/legal', { audience });
   response.headers.set('Cache-Control', 'private, no-store');

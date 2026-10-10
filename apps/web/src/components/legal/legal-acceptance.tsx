@@ -9,20 +9,26 @@ import { LegalDocumentLink, IncorporatedDocumentLink } from './legal-viewer';
 import { legalRequest } from '@/lib/legal/client';
 import type { LegalStatus } from '@/lib/legal/types';
 import { GuardianAuthorisations } from './legal-guardian';
+import { WorkspaceLoading } from '@/components/shared/workspace-loading';
+import { authFetch } from '@/lib/auth/auth-fetch';
 
 export function LegalAcceptance({ status, onStatus, onRetry }: { status: LegalStatus; onStatus: (status: LegalStatus) => void; onRetry: () => void }) {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const router = useRouter();
   const canAccept = status.required_documents.length > 0 && status.required_documents.every((doc) => checked[doc.id]);
   async function continueToDashboard() {
     // Resolve the destination from the verified session. Do not accept a return URL from the browser.
-    const response = await fetch('/api/legal/destination', { credentials: 'same-origin', cache: 'no-store' });
+    setNavigating(true);
+    const response = await authFetch('/api/legal/destination', { credentials: 'same-origin', cache: 'no-store' });
     const destination = await response.json();
     if (!response.ok || typeof destination.path !== 'string' || !destination.path.startsWith('/') || destination.path.startsWith('//')) throw new Error('Unable to open your dashboard. Please retry.');
-    router.replace(destination.path); router.refresh();
+    // Navigation performs the current server-side checks. Refreshing as well
+    // starts a second navigation and repeats those checks.
+    router.replace(destination.path);
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault(); if (saving || (!canAccept && !status.ready)) return;
@@ -31,9 +37,10 @@ export function LegalAcceptance({ status, onStatus, onRetry }: { status: LegalSt
       const result = status.ready ? await legalRequest<LegalStatus>('status') : await legalRequest<LegalStatus>('accept', { selections: status.required_documents.map((doc) => ({ document_id: doc.id, checked: checked[doc.id] === true })) });
       onStatus(result); setChecked({}); setSaved(true);
       if (result.ready) await continueToDashboard();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Unable to save. Please retry.'); }
+    } catch (failure) { setNavigating(false); setError(failure instanceof Error ? failure.message : 'Unable to save. Please retry.'); }
     finally { setSaving(false); }
   }
+  if (navigating) return <WorkspaceLoading />;
   return <main className="legal-page"><section className="legal-card" aria-labelledby="legal-title">
     <div className="flex items-center justify-between gap-4"><MyShuleBrand markSize={36} tone="brand" /><ShieldCheck className="h-5 w-5 text-slate-500" aria-hidden="true" /></div>
     <p className="legal-eyebrow">Your account · Your privacy</p>
