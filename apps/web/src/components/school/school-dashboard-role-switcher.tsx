@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
+import { preloadSchoolRole } from "./school-role-resources";
 
 function optionDescription(input: {
   isTeacherMode: boolean;
@@ -126,6 +127,9 @@ export function SchoolDashboardRoleSwitcher({
                 role="radio"
                 aria-checked={active}
                 disabled={roleState.isSwitching}
+                onPointerEnter={() => { void preloadSchoolRole(option.roleCode).catch(() => undefined); }}
+                onFocus={() => { void preloadSchoolRole(option.roleCode).catch(() => undefined); }}
+                onTouchStart={() => { void preloadSchoolRole(option.roleCode).catch(() => undefined); }}
                 onClick={() => {
                   void roleState.switchDashboardRole(option.authorizationRoleCode)
                     .then(() => setOpen(false))

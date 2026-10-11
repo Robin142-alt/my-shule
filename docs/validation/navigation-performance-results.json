@@ -1,0 +1,1737 @@
+{
+  "date": "2026-10-11",
+  "environment": "Windows, local Next.js production build, Playwright Chromium. Explicit authentication/permission fixtures; data APIs return controlled 503 errors.",
+  "sourceRun": "tmp/navigation-final.json; only the failed Super Admin mobile driver row replaced from tmp/navigation-profile.json",
+  "baseline": {
+    "transitions": 15,
+    "shellRemovalsBefore": 15,
+    "shellRemovalsAfter": 0,
+    "splashTransitionsBefore": 15,
+    "splashTransitionsAfter": 0,
+    "incorrectSelectionBefore": 12,
+    "incorrectSelectionAfter": 0,
+    "legalRequestsBefore": 4,
+    "legalRequestsAfter": 1
+  },
+  "broadTiming": {
+    "cold": {
+      "samples": 443,
+      "medianMs": 20.3,
+      "p95Ms": 188,
+      "maxMs": 519.7,
+      "under100ms": 362
+    },
+    "warm": {
+      "samples": 180,
+      "medianMs": 14.6,
+      "p95Ms": 144.3,
+      "maxMs": 273.8,
+      "under100ms": 159
+    }
+  },
+  "focusedTiming": {
+    "cold": {
+      "samples": 83,
+      "medianMs": 34.3,
+      "p95Ms": 76.6,
+      "maxMs": 112.7,
+      "under100ms": 80
+    },
+    "warm": {
+      "samples": 24,
+      "medianMs": 19.4,
+      "p95Ms": 37.2,
+      "maxMs": 53,
+      "under100ms": 24
+    }
+  },
+  "matrix": [
+    {
+      "role": "principal",
+      "width": 1440,
+      "coldShellMs": 6056,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 32,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/principal/settings",
+        "selected": "Settings"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 87
+      }
+    },
+    {
+      "role": "deputy-principal",
+      "width": 1440,
+      "coldShellMs": 5284,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 21,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/deputy-principal/settings",
+        "selected": "Settings"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 38
+      }
+    },
+    {
+      "role": "teacher",
+      "width": 1440,
+      "coldShellMs": 7186,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 25,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/teacher/invigilation",
+        "selected": "Invigilation"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 45
+      }
+    },
+    {
+      "role": "accountant",
+      "width": 1440,
+      "coldShellMs": 1093,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 15,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/accountant/reports",
+        "selected": "Finance Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 32
+      }
+    },
+    {
+      "role": "bursar",
+      "width": 1440,
+      "coldShellMs": 1114,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 15,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/bursar/reports",
+        "selected": "Finance Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 32
+      }
+    },
+    {
+      "role": "dean-academics",
+      "width": 1440,
+      "coldShellMs": 1132,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 14,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/dean-academics/academic-interventions",
+        "selected": "Academic Interventions"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 41
+      }
+    },
+    {
+      "role": "exams-manager",
+      "width": 1440,
+      "coldShellMs": 1255,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 13,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/exams-manager/reports",
+        "selected": "Reports & Audit"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 29
+      }
+    },
+    {
+      "role": "hod",
+      "width": 1440,
+      "coldShellMs": 1162,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 12,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/hod/reports",
+        "selected": "Department Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 24
+      }
+    },
+    {
+      "role": "hos",
+      "width": 1440,
+      "coldShellMs": 1174,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 15,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/hos/reports",
+        "selected": "Subject Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 13
+      }
+    },
+    {
+      "role": "class-teacher",
+      "width": 1440,
+      "coldShellMs": 1214,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 21,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/class-teacher/settings",
+        "selected": "Settings"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 22
+      }
+    },
+    {
+      "role": "grade-master",
+      "width": 1440,
+      "coldShellMs": 1154,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 21,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/grade-master/settings",
+        "selected": "Settings"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 29
+      }
+    },
+    {
+      "role": "admissions",
+      "width": 1440,
+      "coldShellMs": 1183,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/admissions/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 13
+      }
+    },
+    {
+      "role": "secretary",
+      "width": 1440,
+      "coldShellMs": 1315,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 12,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/secretary/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 9
+      }
+    },
+    {
+      "role": "librarian",
+      "width": 1440,
+      "coldShellMs": 6760,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/librarian/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 18
+      }
+    },
+    {
+      "role": "storekeeper",
+      "width": 1440,
+      "coldShellMs": 5485,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 12,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/storekeeper/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 18
+      }
+    },
+    {
+      "role": "nurse",
+      "width": 1440,
+      "coldShellMs": 6884,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 10,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/nurse/health-reports",
+        "selected": "Health Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 17
+      }
+    },
+    {
+      "role": "guidance-counselling",
+      "width": 1440,
+      "coldShellMs": 5821,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/guidance-counselling/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 23
+      }
+    },
+    {
+      "role": "discipline-master",
+      "width": 1440,
+      "coldShellMs": 5426,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 10,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/discipline-master/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 13
+      }
+    },
+    {
+      "role": "laboratory-technician",
+      "width": 1440,
+      "coldShellMs": 1125,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/laboratory-technician/reports",
+        "selected": "Registers & Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "ict-manager",
+      "width": 1440,
+      "coldShellMs": 1114,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 10,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/ict-manager/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 10
+      }
+    },
+    {
+      "role": "security-officer",
+      "width": 1440,
+      "coldShellMs": 1117,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 10,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/security-officer/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 9
+      }
+    },
+    {
+      "role": "transport-manager",
+      "width": 1440,
+      "coldShellMs": 1154,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/transport-manager/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 9
+      }
+    },
+    {
+      "role": "boarding-master",
+      "width": 1440,
+      "coldShellMs": 1138,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/boarding-master/reports",
+        "selected": "Reports"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 10
+      }
+    },
+    {
+      "role": "procurement-officer",
+      "width": 1440,
+      "coldShellMs": 1143,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 8,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/procurement-officer/budget",
+        "selected": "Budget Tracking"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 18
+      }
+    },
+    {
+      "role": "admin",
+      "width": 1440,
+      "coldShellMs": 1338,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 15,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/admin?workspace=Visitor+Pass+Printing",
+        "selected": "Visitor Pass PrintingActive"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 42
+      }
+    },
+    {
+      "role": "student",
+      "width": 1440,
+      "coldShellMs": 1328,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 10,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/student/notifications",
+        "selected": "Notifications"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 9
+      }
+    },
+    {
+      "role": "portal-parent",
+      "width": 1440,
+      "coldShellMs": 1295,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 12,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/portal/parent/notifications",
+        "selected": "Notifications"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 9
+      }
+    },
+    {
+      "role": "portal-student",
+      "width": 1440,
+      "coldShellMs": 1191,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 11,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/portal/student/notifications",
+        "selected": "Notifications"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 9
+      }
+    },
+    {
+      "role": "superadmin",
+      "width": 1440,
+      "coldShellMs": 843,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 16,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/superadmin/system-settings",
+        "selected": "System Settings"
+      },
+      "calls": {
+        "auth": 0,
+        "legal": 1,
+        "data": 32
+      }
+    },
+    {
+      "role": "system-monitor",
+      "width": 1440,
+      "coldShellMs": 3217,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": true,
+      "serviceWorkerControlled": false,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": null,
+      "calls": {
+        "auth": 0,
+        "legal": 1,
+        "data": 3
+      }
+    },
+    {
+      "role": "principal",
+      "width": 390,
+      "coldShellMs": 5865,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/principal/exams",
+        "selected": "Exams & Report Cards"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 38
+      }
+    },
+    {
+      "role": "deputy-principal",
+      "width": 390,
+      "coldShellMs": 6067,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/deputy-principal/discipline",
+        "selected": "Discipline & Behaviour"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 22
+      }
+    },
+    {
+      "role": "teacher",
+      "width": 390,
+      "coldShellMs": 7058,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/teacher/attendance",
+        "selected": "Attendance"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 32
+      }
+    },
+    {
+      "role": "accountant",
+      "width": 390,
+      "coldShellMs": 5249,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/accountant/receipts",
+        "selected": "Receipts"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 33
+      }
+    },
+    {
+      "role": "bursar",
+      "width": 390,
+      "coldShellMs": 1278,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/bursar/receipts",
+        "selected": "Receipts"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 31
+      }
+    },
+    {
+      "role": "dean-academics",
+      "width": 390,
+      "coldShellMs": 1139,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/dean-academics/assessments",
+        "selected": "Assessments"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 34
+      }
+    },
+    {
+      "role": "exams-manager",
+      "width": 390,
+      "coldShellMs": 1104,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/exams-manager/exam-timetable",
+        "selected": "Exam Timetable"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 26
+      }
+    },
+    {
+      "role": "hod",
+      "width": 390,
+      "coldShellMs": 1125,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/hod/timetable",
+        "selected": "Department Timetable"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 22
+      }
+    },
+    {
+      "role": "hos",
+      "width": 390,
+      "coldShellMs": 1142,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/hos/comparisons",
+        "selected": "Compare Results"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 13
+      }
+    },
+    {
+      "role": "class-teacher",
+      "width": 390,
+      "coldShellMs": 1206,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/class-teacher/progress",
+        "selected": "Academic Progress"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 17
+      }
+    },
+    {
+      "role": "grade-master",
+      "width": 390,
+      "coldShellMs": 1184,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/grade-master/attendance",
+        "selected": "Attendance Monitor"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 22
+      }
+    },
+    {
+      "role": "admissions",
+      "width": 390,
+      "coldShellMs": 1193,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/admissions/parents",
+        "selected": "Parents & Guardians"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 15
+      }
+    },
+    {
+      "role": "secretary",
+      "width": 390,
+      "coldShellMs": 1189,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/secretary/appointments",
+        "selected": "Appointments"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 12
+      }
+    },
+    {
+      "role": "librarian",
+      "width": 390,
+      "coldShellMs": 4958,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/librarian/return-book",
+        "selected": "Return Book"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "storekeeper",
+      "width": 390,
+      "coldShellMs": 4903,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/storekeeper/stock-issue",
+        "selected": "Stock Issue"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "nurse",
+      "width": 390,
+      "coldShellMs": 4271,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/nurse/medicine-inventory",
+        "selected": "Medicine Inventory"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "guidance-counselling",
+      "width": 390,
+      "coldShellMs": 4373,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/guidance-counselling/follow-ups",
+        "selected": "Follow-ups"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 22
+      }
+    },
+    {
+      "role": "discipline-master",
+      "width": 390,
+      "coldShellMs": 4888,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/discipline-master/actions-sanctions",
+        "selected": "Actions & Sanctions"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 18
+      }
+    },
+    {
+      "role": "laboratory-technician",
+      "width": 390,
+      "coldShellMs": 1105,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/laboratory-technician/apparatus-issue",
+        "selected": "Issue & Return"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 20
+      }
+    },
+    {
+      "role": "ict-manager",
+      "width": 390,
+      "coldShellMs": 1102,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/ict-manager/maintenance",
+        "selected": "Maintenance"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 18
+      }
+    },
+    {
+      "role": "security-officer",
+      "width": 390,
+      "coldShellMs": 1139,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/security-officer/student-exit-passes",
+        "selected": "Student Exit Passes"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 12
+      }
+    },
+    {
+      "role": "transport-manager",
+      "width": 390,
+      "coldShellMs": 1127,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/transport-manager/drivers",
+        "selected": "Drivers"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 12
+      }
+    },
+    {
+      "role": "boarding-master",
+      "width": 390,
+      "coldShellMs": 1135,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/boarding-master/allocation",
+        "selected": "Allocation"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 12
+      }
+    },
+    {
+      "role": "procurement-officer",
+      "width": 390,
+      "coldShellMs": 1154,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/procurement-officer/requisitions",
+        "selected": "Requisitions"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 19
+      }
+    },
+    {
+      "role": "admin",
+      "width": 390,
+      "coldShellMs": 1316,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/admin?workspace=Admissions+Support",
+        "selected": "Admissions SupportActive"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 42
+      }
+    },
+    {
+      "role": "student",
+      "width": 390,
+      "coldShellMs": 1169,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/school/student/behavior",
+        "selected": "Behavior"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "portal-parent",
+      "width": 390,
+      "coldShellMs": 1127,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/portal/parent/timetable",
+        "selected": "Timetable"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "portal-student",
+      "width": 390,
+      "coldShellMs": 1128,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/portal/student/timetable",
+        "selected": "Timetable"
+      },
+      "calls": {
+        "auth": 1,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "superadmin",
+      "width": 390,
+      "coldShellMs": 1071,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": {
+        "path": "/superadmin/principal-invites",
+        "selected": "Principal Invites"
+      },
+      "calls": {
+        "auth": 0,
+        "legal": 1,
+        "data": 14
+      }
+    },
+    {
+      "role": "system-monitor",
+      "width": 390,
+      "coldShellMs": 2729,
+      "backCorrect": true,
+      "forwardRestored": true,
+      "historyShellPreserved": true,
+      "rapidCorrect": null,
+      "serviceWorkerControlled": true,
+      "noHorizontalOverflow": true,
+      "issues": [],
+      "clicks": 7,
+      "shellRemovals": 0,
+      "splashInsertions": 0,
+      "direct": null,
+      "calls": {
+        "auth": 0,
+        "legal": 1,
+        "data": 3
+      }
+    }
+  ],
+  "roleSwitching": [
+    {
+      "width": 1440,
+      "roleRequests": 27,
+      "authRequests": 1,
+      "legalRequests": 1,
+      "flashes": 0,
+      "documents": 1
+    },
+    {
+      "width": 390,
+      "roleRequests": 27,
+      "authRequests": 1,
+      "legalRequests": 1,
+      "flashes": 0,
+      "documents": 1
+    }
+  ],
+  "limitations": [
+    "No production deployment or real-school mutation.",
+    "No production backend/database latency measured.",
+    "Standalone display/mobile viewport emulation is not physical installation or hardware testing.",
+    "The broad-run p95 exceeds the 100 ms target; no universal latency guarantee is claimed."
+  ],
+  "slowStandalone": {
+    "network": "120 ms latency, 8 Mbps, data API failures delayed 1500 ms",
+    "standalone": "display mode emulated; service worker active on all five mobile contexts",
+    "timing": {
+      "cold": {
+        "samples": 75,
+        "medianMs": 13.7,
+        "p95Ms": 41.3,
+        "maxMs": 80.4,
+        "under100ms": 75
+      },
+      "warm": {
+        "samples": 30,
+        "medianMs": 12.1,
+        "p95Ms": 16.4,
+        "maxMs": 23.9,
+        "under100ms": 30
+      }
+    },
+    "checks": [
+      {
+        "role": "teacher",
+        "width": 1440,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": true,
+        "serviceWorkerControlled": false,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/school/teacher/invigilation",
+          "selected": "Invigilation"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "nurse",
+        "width": 1440,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": true,
+        "serviceWorkerControlled": false,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/school/nurse/health-reports",
+          "selected": "Health Reports"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "portal-parent",
+        "width": 1440,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": true,
+        "serviceWorkerControlled": false,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/portal/parent/notifications",
+          "selected": "Notifications"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "superadmin",
+        "width": 1440,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": true,
+        "serviceWorkerControlled": false,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/superadmin/system-settings",
+          "selected": "System Settings"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "system-monitor",
+        "width": 1440,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": true,
+        "serviceWorkerControlled": false,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/system-monitor?workspace=api-failures",
+          "selected": "API Failures"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "teacher",
+        "width": 390,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": null,
+        "serviceWorkerControlled": true,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/school/teacher/attendance",
+          "selected": "Attendance"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "nurse",
+        "width": 390,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": null,
+        "serviceWorkerControlled": true,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/school/nurse/medicine-inventory",
+          "selected": "Medicine Inventory"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "portal-parent",
+        "width": 390,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": null,
+        "serviceWorkerControlled": true,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/portal/parent/timetable",
+          "selected": "Timetable"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "superadmin",
+        "width": 390,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": null,
+        "serviceWorkerControlled": true,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/superadmin/principal-invites",
+          "selected": "Principal Invites"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      },
+      {
+        "role": "system-monitor",
+        "width": 390,
+        "backCorrect": true,
+        "forwardRestored": true,
+        "historyShellPreserved": true,
+        "rapidCorrect": null,
+        "serviceWorkerControlled": true,
+        "privateCacheEntries": [],
+        "direct": {
+          "path": "/system-monitor?workspace=api-failures",
+          "selected": "API Failures"
+        },
+        "noHorizontalOverflow": true,
+        "issues": []
+      }
+    ]
+  },
+  "roleSwitchingCoverage": [
+    "principal",
+    "teacher",
+    "class-teacher",
+    "grade-master",
+    "exams-manager",
+    "nurse",
+    "admin",
+    "deputy-principal",
+    "dean-academics",
+    "hod",
+    "hos",
+    "accountant",
+    "bursar",
+    "admissions",
+    "secretary",
+    "librarian",
+    "storekeeper",
+    "guidance-counselling",
+    "discipline-master",
+    "laboratory-technician",
+    "ict-manager",
+    "security-officer",
+    "transport-manager",
+    "boarding-master",
+    "procurement-officer",
+    "student"
+  ],
+  "checks": {
+    "productionBuild": "passed: compile, TypeScript, 102 static pages",
+    "regressionRun": {
+      "suites": 20,
+      "tests": 239,
+      "result": "passed"
+    },
+    "routingFollowupRun": {
+      "suites": 7,
+      "tests": 81,
+      "result": "passed; overlaps regression run"
+    },
+    "medicineFailureStates": {
+      "suites": 1,
+      "tests": 2,
+      "result": "passed"
+    },
+    "diffWhitespaceCheck": "passed"
+  }
+}

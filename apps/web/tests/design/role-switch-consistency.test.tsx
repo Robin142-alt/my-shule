@@ -1,3 +1,4 @@
+jest.mock("@/components/school/school-role-resources", () => ({ preloadSchoolRole: jest.fn().mockResolvedValue(undefined) }));
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
@@ -75,6 +76,8 @@ describe("role switch consistency", () => {
       </SchoolDashboardRoleProvider>
     </QueryClientProvider>);
     await waitFor(() => expect(roleState.availableRoles).toHaveLength(2));
+    client.setQueryData(["legacy-workspace", "private-records"], { owner: "principal" });
+    client.setQueryData(["permissions", "school-a", "user-a", "principal"], ["finance:read"]);
     // Start an explicit access refresh to exercise a real in-flight role read.
     // Dashboard initialization itself must reuse the authenticated context.
     let reloading!: Promise<void>;
@@ -91,6 +94,8 @@ describe("role switch consistency", () => {
       await switching;
     });
     expect(replaceDashboardDocument).toHaveBeenCalledTimes(1);
+    expect(client.getQueryData(["legacy-workspace", "private-records"])).toBeUndefined();
+    expect(client.getQueryData(["permissions", "school-a", "user-a", "principal"])).toBeUndefined();
     expect(replaceDashboardDocument).toHaveBeenCalledWith(routeMode === "public" ? "/school/teacher" : "/dashboard");
     expect(roleState.isSwitching).toBe(true);
     expect(invalidate).not.toHaveBeenCalled();

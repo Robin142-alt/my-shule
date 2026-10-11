@@ -220,6 +220,7 @@ export function useExperienceSession(
       if (revision !== sessionRevisions.get(queryClient)) throw new Error("Your sign-in changed. Please try again.");
       await queryClient.cancelQueries();
       queryClient.clear();
+      window.dispatchEvent(new Event("myshule-session-changed"));
       await publishSession(payload, revision);
       return payload;
     } catch (loginError) {
@@ -266,6 +267,7 @@ export function useExperienceSession(
       sessionCooldowns.delete(queryClient);
       setError(null);
       queryClient.clear();
+      window.dispatchEvent(new Event("myshule-session-changed"));
       router.replace(getPostLogoutPath(audience, undefined, options?.logoutPath));
     } catch (logoutError) {
       const message = logoutError instanceof Error
@@ -368,6 +370,11 @@ export function useExperienceSession(
         throw new Error("The server did not confirm the requested dashboard role.");
       }
       if (revision !== sessionRevisions.get(queryClient)) throw new Error("Your sign-in changed. Please try again.");
+      // Rotation changes authorization even when two roles share a route alias.
+      // Cancel first so late outgoing requests cannot repopulate the new cache.
+      const workspaceQueries = { predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== SESSION_QUERY_ROOT[0] };
+      await queryClient.cancelQueries(workspaceQueries);
+      queryClient.removeQueries(workspaceQueries);
       await publishSession(payload, revision);
       return payload;
     } catch (switchError) {

@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { IntegratedSchoolCommandHeader } from "@/components/school/integrated-school-command-header";
 import { MobileMenuTrigger } from "@/components/shared/mobile-menu-trigger";
@@ -5070,7 +5071,9 @@ function GenericRoleOperationalCommandCenter({
   const greetingName = getSchoolRoleGreetingName(role);
   const schoolId = tenantSlug?.trim() || "";
   const sidebarItems = useMemo(() => blueprint?.sidebar ?? [], [blueprint?.sidebar]);
-  const routeWorkspaceKey = `${initialSection ?? ""}:${initialWorkspace ?? ""}`;
+  const searchParams = useSearchParams();
+  const routeWorkspace = searchParams.get("workspace");
+  const routeWorkspaceKey = `${initialSection ?? ""}:${initialWorkspace ?? ""}:${routeWorkspace ?? ""}`;
   const preferredWorkspace = useMemo(
     () => resolvePreferredWorkspace({
       role,
@@ -5080,15 +5083,21 @@ function GenericRoleOperationalCommandCenter({
     }),
     [initialSection, initialWorkspace, role, sidebarItems],
   );
-  const [workspaceSelection, setWorkspaceSelection] = useState<{
+  const [workspaceSelection, setLocalWorkspaceSelection] = useState<{
     routeKey: string;
     workspace: string | null;
   }>({
     routeKey: routeWorkspaceKey,
     workspace: null,
   });
+  const setWorkspaceSelection = (selection: { routeKey: string; workspace: string | null }) => {
+    setLocalWorkspaceSelection(selection);
+    const query = new URLSearchParams(window.location.search);
+    if (selection.workspace) query.set("workspace", selection.workspace); else query.delete("workspace");
+    window.history.pushState(null, "", `${window.location.pathname}?${query}`);
+  };
   const activeWorkspace =
-    workspaceSelection.routeKey === routeWorkspaceKey && workspaceSelection.workspace
+    routeWorkspace && sidebarItems.includes(routeWorkspace) ? routeWorkspace : workspaceSelection.routeKey === routeWorkspaceKey && workspaceSelection.workspace
       ? workspaceSelection.workspace
       : preferredWorkspace;
   const [activePanel, setActivePanel] = useState<WorkspacePanel>("queue");

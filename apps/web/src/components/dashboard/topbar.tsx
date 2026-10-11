@@ -15,7 +15,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { startTransition, useDeferredValue, useState } from "react";
 
 import { StatusPill } from "@/components/ui/status-pill";

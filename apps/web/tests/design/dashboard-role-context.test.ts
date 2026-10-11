@@ -152,6 +152,11 @@ describe("school dashboard role context", () => {
     expect(isValidDashboardRolePath("/school/teacher/teacher-attendance", "teacher", "public")).toBe(true);
     expect(isValidDashboardRolePath("/school/teacher/finance", "teacher", "public")).toBe(false);
     expect(isValidDashboardRolePath("/school/principal/finance", "teacher", "public")).toBe(false);
+    expect(isValidDashboardRolePath("/school/class-teacher/register", "class-teacher", "public")).toBe(true);
+    expect(isValidDashboardRolePath("/school/grade-master/welfare", "grade-master", "public")).toBe(true);
+    expect(isValidDashboardRolePath("/school/exams-manager/imports-templates", "exams-manager", "public")).toBe(true);
+    expect(isValidDashboardRolePath("/pos", "procurement-officer", "hosted")).toBe(true);
+    expect(isValidDashboardRolePath("/attendance", "teacher", "hosted")).toBe(true);
     expect(getDefaultDashboardRolePath("teacher", "public")).toBe("/school/teacher");
     expect(getDefaultDashboardRolePath("teacher", "hosted")).toBe("/dashboard");
   });

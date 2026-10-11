@@ -1,4 +1,5 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
 
 export default async function LibrarianLibrarySectionPage({
   params,
@@ -7,5 +8,6 @@ export default async function LibrarianLibrarySectionPage({
 }) {
   const { section } = await params;
 
-  redirect(section === "dashboard" ? "/school/librarian" : "/school/librarian/library");
+  if (!isSchoolWorkspaceSection("librarian", section)) notFound();
+  redirect(section === "dashboard" ? "/school/librarian" : `/school/librarian/${section}`);
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useEffect, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
 import { ApprovalInbox } from "@/components/shared/approval-inbox";
@@ -65,20 +67,17 @@ function normalizeTeacherView(section?: string): TeacherView {
 }
 
 export function TeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" } = {}) {
-  const [activeViewState, setActiveViewState] = useState<TeacherView>(
+  const [activeViewState, setActiveViewState] = useWorkspaceState<TeacherView>(
     normalizeTeacherView(activeSection)
   );
   const activeView = activeViewState;
   const [notice, setNotice] = useState("");
 
-  useEffect(() => {
-    setActiveViewState(normalizeTeacherView(activeSection));
-  }, [activeSection]);
 
   const setActiveView = (view: TeacherView) => {
     setActiveViewState(view);
     const newPath = buildSchoolSectionHref("teacher", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
 
   const handleStartAction = (action: TeacherAction, view: TeacherView, message: string) => {

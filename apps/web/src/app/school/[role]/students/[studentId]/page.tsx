@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 
-import { SchoolPages } from "@/components/school/school-pages";
 import { getSchoolRoleAlias } from "@/lib/auth/school-role-normalization";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { readPublicSchoolSession } from "@/lib/routing/public-experience-session";
@@ -47,14 +46,6 @@ export default async function SchoolStudentProfilePage({
     notFound();
   }
 
-  const session = await readPublicSchoolSession(role as SchoolExperienceRole);
-  return (
-    <SchoolPages
-      role={session.role}
-      studentId={studentId}
-      tenantSlug={session.tenantSlug}
-      routeMode="public"
-      sessionVerificationEnabled
-    />
-  );
+  await readPublicSchoolSession(role as SchoolExperienceRole);
+  return null; // The persistent school layout renders the selected workspace.
 }

@@ -1,5 +1,1 @@
-import { WorkspaceLoading } from "@/components/shared/workspace-loading";
-
-export default function SchoolLoading() {
-  return <WorkspaceLoading />;
-}
+export default function Loading() { return null; }

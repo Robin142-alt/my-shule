@@ -111,8 +111,8 @@ export function LabQuickActions({ compact = false }: { compact?: boolean }) {
     const roleIndex = segments.findIndex((segment) => segment === "laboratory-technician");
     const next = roleIndex >= 0
       ? `/${segments.slice(0, roleIndex + 1).join("/")}/${section}`
-      : `/school/laboratory-technician/${section}`;
-    window.location.assign(`${next}?action=${encodeURIComponent(action)}`);
+      : `/${section}`;
+    window.history.pushState(null, "", `${next}?action=${encodeURIComponent(action)}`);
   };
 
   return (

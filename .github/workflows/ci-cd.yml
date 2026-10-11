@@ -70,6 +70,9 @@ jobs:
       - name: Dashboard role switching and delayed session responses
         run: npm --prefix apps/web run test:design -- sidebar-session-navigation role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
 
+      - name: Persistent workspace navigation and progressive loading
+        run: npm --prefix apps/web run test:design -- workspace-navigation workspace-resource legal-navigation-persistence legal-loading legal-acceptance medicine-inventory-loading
+
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence exam-analytics academic-foundation academic-setup-simplification academic-policy-builders academic-curriculum-builder head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 

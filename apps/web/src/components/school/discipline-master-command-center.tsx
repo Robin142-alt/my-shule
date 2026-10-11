@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useState } from "react";
 import { 
   Home, Inbox, FilePlus, List, Activity, UserCircle, 
@@ -56,12 +58,12 @@ const SIDEBAR_ITEMS = [
 
 export function DisciplineMasterCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
   const queryClient = useQueryClient();
-  const [activeWorkspace, setActiveWorkspaceState] = useState(activeSection && activeSection !== "dashboard" ? activeSection : "overview");
+  const [activeWorkspace, setActiveWorkspaceState] = useWorkspaceState(activeSection && activeSection !== "dashboard" ? activeSection : "overview");
 
   const setActiveWorkspace = (view: string) => {
     setActiveWorkspaceState(view);
     const newPath = buildSchoolSectionHref("discipline-master", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

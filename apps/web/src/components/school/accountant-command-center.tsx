@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   BadgePercent,
@@ -165,15 +167,12 @@ export function AccountantCommandCenter({
   tenantSlug?: string | null;
   userLabel?: string | null;
 }) {
-  const [activeWorkspace, setActiveWorkspace] = useState<AccountantSection>(
+  const [activeWorkspace, setActiveWorkspace] = useWorkspaceState<AccountantSection>(
     normalizeAccountantSection(activeSection),
   );
   const roleTitle = role === "bursar" ? "Bursar Dashboard" : "Accountant Dashboard";
   const roleLabel = role === "bursar" ? "Bursar" : "Accountant";
   const paymentSetup = usePaymentSetupSummary();
-  useEffect(() => {
-    setActiveWorkspace(normalizeAccountantSection(activeSection));
-  }, [activeSection]);
 
   useEffect(() => {
     const restoreWorkspace = () => {

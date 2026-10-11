@@ -297,6 +297,7 @@ export async function requestDashboardApi<T>(
     accessToken?: string | null;
     body?: BodyInit | Record<string, unknown> | null;
     timeoutMs?: number;
+    signal?: AbortSignal;
   },
 ): Promise<T> {
   const baseUrl = getDashboardApiBaseUrl(options?.tenantId);
@@ -328,6 +329,9 @@ export async function requestDashboardApi<T>(
 
   const sendRequest = async () => {
     const controller = new AbortController();
+    const cancel = () => controller.abort(options?.signal?.reason);
+    options?.signal?.addEventListener("abort", cancel, { once: true });
+    if (options?.signal?.aborted) cancel();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
@@ -351,6 +355,7 @@ export async function requestDashboardApi<T>(
         ...(requestBody !== undefined ? { body: requestBody } : {}),
       });
     } catch (error) {
+      if (options?.signal?.aborted) throw error;
       if (controller.signal.aborted) {
         throw new Error(
           `Request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Please retry.`,
@@ -360,6 +365,7 @@ export async function requestDashboardApi<T>(
       throw error;
     } finally {
       clearTimeout(timeout);
+      options?.signal?.removeEventListener("abort", cancel);
     }
   };
 

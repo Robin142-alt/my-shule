@@ -5,7 +5,7 @@ import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, Clock, Users } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { buildSchoolSectionHref } from "../school-pages";
+import { useSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 
 type PrincipalTeachingData = {
   status: "active" | "degraded" | "setup_required";
@@ -16,6 +16,7 @@ type PrincipalTeachingData = {
 };
 
 export function PrincipalTeachingWorkspace() {
+  const roleState = useSchoolDashboardRole();
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalTeachingData>('/admin-command/principal/teaching');
 
   if (isLoading) {
@@ -104,9 +105,10 @@ export function PrincipalTeachingWorkspace() {
             <p className="text-white/60 text-sm mt-1 max-w-sm">
               For entering marks, taking attendance, and managing your specific classes, please switch to the Teacher Dashboard.
             </p>
-            <button type="button" onClick={() => window.location.assign(buildSchoolSectionHref("teacher", "overview", "public"))} className="mt-6 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg transition">
+            <button type="button" disabled={roleState.isSwitching} onClick={() => { void roleState.switchDashboardRole("teacher").catch(() => undefined); }} className="mt-6 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg transition">
               Switch to Teacher Role
             </button>
+            {roleState.error ? <p role="alert" className="mt-3 text-danger">{roleState.error}</p> : null}
           </div>
         </Card>
       </div>

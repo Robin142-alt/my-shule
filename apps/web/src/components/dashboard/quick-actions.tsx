@@ -6,7 +6,8 @@ import {
   ReceiptText,
   UserPlus,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 
 import { Card } from "@/components/ui/card";
 import type { DashboardRole, QuickActionItem } from "@/lib/dashboard/types";

@@ -1,11 +1,13 @@
 "use client";
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
 
 import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
 import { useState, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { Search, ShoppingCart, FileText, Truck, DollarSign, LayoutDashboard, Plus, Package } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -844,13 +846,13 @@ export function ProcurementOfficerCommandCenter({ routeMode, activeSection }: { 
   const [searchTerm, setSearchTerm] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [purchaseOrderModalOpen, setPurchaseOrderModalOpen] = useState(false);
-  const [rawActiveView, setRawActiveView] = useState<ProcurementView>(
-    (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as ProcurementView
+  const [rawActiveView, setRawActiveView] = useWorkspaceState<ProcurementView>(
+    (activeSection === "purchase-orders" ? "pos" : activeSection && activeSection !== "dashboard" ? activeSection : "overview") as ProcurementView
   );
 
   const setActiveView = (view: ProcurementView) => {
     setRawActiveView(view);
-    window.history.replaceState(null, "", buildSchoolSectionHref("procurement-officer", view, routeMode ?? "hosted"));
+    window.history.pushState(null, "", buildSchoolSectionHref("procurement-officer", view, routeMode ?? "hosted"));
   };
   
   const activeView = rawActiveView;

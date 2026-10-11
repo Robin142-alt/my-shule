@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
@@ -402,15 +404,12 @@ export function DeanAcademicsCommandCenter({
   examsEnabled?: boolean;
   rolePermitted?: boolean;
 }) {
-  const [activeView, setActiveView] = useState<DeanView>(() =>
+  const [activeView, setActiveView] = useWorkspaceState<DeanView>(() =>
     normalizeDeanView(activeSection),
   );
   const [searchTerm, setSearchTerm] = useState("");
   const workspaceRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    setActiveView(normalizeDeanView(activeSection));
-  }, [activeSection]);
 
   useEffect(() => {
     const restoreView = () => {

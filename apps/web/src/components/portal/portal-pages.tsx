@@ -27,7 +27,7 @@ export function PortalPages({
     <SchoolCommandIdentityProvider tenantSlug={scopedTenantId} userLabel={userLabel}>
       <PermissionProvider schoolId={scopedTenantId ?? undefined}>
         <LiveRoleCommandCenter
-          key={`${viewer}:${section}`}
+          key={`${scopedTenantId}:${viewer}`}
           role={viewer}
           routeMode={routeMode}
           activeSection={section}

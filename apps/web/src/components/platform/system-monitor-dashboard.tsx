@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
@@ -229,7 +230,14 @@ function ApiFailuresWorkspace({ failures }: { failures: RecentApiFailure[] }) {
 }
 
 export function SystemMonitorDashboard({ routeMode }: { routeMode: RouteMode }) {
-  const [activeView, setActiveView] = useState<ViewId>("overview");
+  const params = useSearchParams();
+  const selectedView = params.get("workspace");
+  const activeView: ViewId = navItems.some((item) => item.id === selectedView) ? selectedView as ViewId : "overview";
+  const setActiveView = (view: ViewId) => {
+    const query = new URLSearchParams(window.location.search);
+    query.set("workspace", view);
+    window.history.pushState(null, "", `${window.location.pathname}?${query}`);
+  };
   const [health, setHealth] = useState<ObservabilityHealthResponse | null>(null);
   const [alerts, setAlerts] = useState<ObservabilityAlert[]>([]);
   const [failures, setFailures] = useState<RecentApiFailure[]>([]);

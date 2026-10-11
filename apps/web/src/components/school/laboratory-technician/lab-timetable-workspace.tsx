@@ -141,7 +141,7 @@ function navigateToIssue(requestId: string) {
     /\/lab-timetable\/?$/,
     "/apparatus-issue",
   );
-  window.location.assign(
+  window.history.pushState(null, "",
     `${path}?action=issue&request=${encodeURIComponent(requestId)}`,
   );
 }

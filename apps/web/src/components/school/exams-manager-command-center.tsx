@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
@@ -208,7 +210,7 @@ export function canonicalizeExamsManagerView(section?: string): ExamsManagerCano
 function updateBrowserPath(view: ExamsManagerCanonicalView, routeMode: ExamsManagerRouteMode) {
   if (typeof window === "undefined") return;
 
-  window.history.replaceState(null, "", buildSchoolSectionHref("exams-manager", view, routeMode));
+  window.history.pushState(null, "", buildSchoolSectionHref("exams-manager", view, routeMode));
 }
 
 function LockedWorkspace({ reason }: { reason: string }) {
@@ -276,7 +278,7 @@ export function ExamsManagerCommandCenter({
   rolePermitted?: boolean;
 }) {
   const actualRouteMode = routeMode ?? "hosted";
-  const [activeView, setActiveViewState] = useState<ExamsManagerCanonicalView>(() =>
+  const [activeView, setActiveViewState] = useWorkspaceState<ExamsManagerCanonicalView>(() =>
     canonicalizeExamsManagerView(activeSection),
   );
   const [searchTerm, setSearchTerm] = useState("");

@@ -1,9 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
-import { SchoolPages } from "@/components/school/school-pages";
-import { isProductionReadyModule } from "@/lib/features/module-readiness";
+import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
 import { readSchoolRequestContext } from "@/lib/routing/experience-context";
-import { isSchoolSection, type SchoolSection } from "@/lib/routing/experience-routes";
 import { isDeputyWorkspace, resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 
 export default async function InternalSchoolSectionPage({
@@ -22,16 +20,9 @@ export default async function InternalSchoolSectionPage({
     if (!isDeputyWorkspace(section)) notFound();
     const currentSection = resolveDeputyWorkspace(section);
     if (currentSection !== section) redirect(`/${currentSection}`);
-  } else if (!isSchoolSection(section) || !isProductionReadyModule(section)) {
+  } else if (!isSchoolWorkspaceSection(context.role, section)) {
     notFound();
   }
 
-  return (
-    <SchoolPages
-      role={context.role}
-      section={section as SchoolSection}
-      tenantSlug={context.tenantSlug}
-      sessionVerificationEnabled
-    />
-  );
+  return null; // The persistent school layout renders the selected workspace.
 }

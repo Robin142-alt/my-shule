@@ -72,7 +72,7 @@ export function useSchoolQuery<T, TData = T>(path: string | null, options?: Scho
       activeAuthorizationRoleCode,
       path,
     ),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!path || !activeTenantId) {
         throw new TenantMismatchError("A verified school context is required before loading school records");
       }
@@ -80,6 +80,7 @@ export function useSchoolQuery<T, TData = T>(path: string | null, options?: Scho
       try {
         return await requestDashboardApi<T>(path, {
           tenantId: activeTenantId,
+          signal,
         });
       } catch (err: unknown) {
         if (err instanceof Error && err.message?.includes("403")) throw new PermissionDeniedError();

@@ -1,6 +1,8 @@
 // GENERATED AND SPLIT BY scaffold_class_teacher_split.js
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useState } from "react";
 import {
   Bell, BookOpenCheck, Calendar, CalendarDays, CheckSquare,
@@ -169,7 +171,7 @@ function LearnerProfileDrawer({ learnerId, onClose }: { learnerId: string | null
 }
 
 export function ClassTeacherCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: SchoolRouteMode }) {
-  const [activeViewState, setActiveViewState] = useState<TeacherView>(
+  const [activeViewState, setActiveViewState] = useWorkspaceState<TeacherView>(
     normalizeClassTeacherView(activeSection)
   );
   const activeView = activeViewState;
@@ -177,7 +179,7 @@ export function ClassTeacherCommandCenter({ activeSection, routeMode }: { active
   const setActiveView = (view: TeacherView) => {
     setActiveViewState(view);
     const newPath = buildSchoolSectionHref("class-teacher", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
   const [selectedLearner, setSelectedLearner] = useState<string | null>(null);
 

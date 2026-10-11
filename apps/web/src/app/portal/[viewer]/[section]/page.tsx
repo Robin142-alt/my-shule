@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 
 import type { PortalViewer } from "@/lib/experiences/types";
-import { PortalPages } from "@/components/portal/portal-pages";
 import { readPublicPortalSession } from "@/lib/routing/public-experience-session";
 import { isPortalSection } from "@/lib/routing/experience-routes";
 
@@ -22,14 +21,6 @@ export default async function PortalSectionPage({
     notFound();
   }
 
-  const session = await readPublicPortalSession(viewer as PortalViewer);
-  return (
-    <PortalPages
-      viewer={session.viewer}
-      section={section}
-      routeMode="public"
-      tenantSlug={session.tenantSlug}
-      userLabel={session.userLabel}
-    />
-  );
+  await readPublicPortalSession(viewer as PortalViewer);
+  return null; // The persistent portal layout owns workspace rendering.
 }

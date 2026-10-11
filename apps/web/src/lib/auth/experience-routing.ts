@@ -6,11 +6,10 @@ import {
   isSchoolExperienceRole,
   normalizeSchoolExperienceRole,
 } from "@/lib/auth/school-role-normalization";
-import { isProductionReadyModule } from "@/lib/features/module-readiness";
+import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
 import { isDeputyWorkspace, resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 import {
   isPortalSection,
-  isSchoolSection,
   isSuperadminSection,
   toPortalPath,
   toSchoolPath,
@@ -216,8 +215,8 @@ function isLibrarianLibraryPath(pathname: string) {
   return pathname === "/library" || pathname.startsWith("/library/");
 }
 
-function isRoutableSchoolSection(section: string) {
-  return isSchoolSection(section) && isProductionReadyModule(section);
+function isRoutableSchoolSection(section: string, role = "") {
+  return isSchoolWorkspaceSection(role, section);
 }
 
 function getInternalPrefix(experience: Exclude<PlatformExperience, "public">) {
@@ -250,6 +249,7 @@ function mapPublicPathToInternal(
 function mapProtectedPathToInternal(
   experience: Exclude<PlatformExperience, "public">,
   pathname: string,
+  role = "",
 ) {
   const prefix = getInternalPrefix(experience);
 
@@ -278,7 +278,7 @@ function mapProtectedPathToInternal(
     }
 
     const roleDashboardSection = pathname.match(/^\/([^/]+)\/dashboard$/)?.[1];
-    if (roleDashboardSection && isRoutableSchoolSection(roleDashboardSection)) {
+    if (roleDashboardSection && isRoutableSchoolSection(roleDashboardSection, role)) {
       return `${prefix}/${roleDashboardSection}`;
     }
 
@@ -290,7 +290,7 @@ function mapProtectedPathToInternal(
       return `${prefix}${pathname}`;
     }
 
-    if (pathname.startsWith("/") && isRoutableSchoolSection(pathname.slice(1))) {
+    if (pathname.startsWith("/") && isRoutableSchoolSection(pathname.slice(1), role)) {
       return `${prefix}${pathname}`;
     }
 
@@ -311,6 +311,7 @@ function mapProtectedPathToInternal(
 function resolveLegacyCompatibilityPath(
   experience: Exclude<PlatformExperience, "public">,
   pathname: string,
+  role = "",
 ) {
   if (experience === "superadmin") {
     if (pathname === "/superadmin") {
@@ -353,7 +354,7 @@ function resolveLegacyCompatibilityPath(
     const schoolSectionMatch = pathname.match(/^\/school\/[^/]+(?:\/([^/]+))?$/);
     if (schoolSectionMatch) {
       const section = schoolSectionMatch[1];
-      return section && isRoutableSchoolSection(section) ? `/${section}` : toSchoolPath("dashboard");
+      return section && isRoutableSchoolSection(section, role) ? `/${section}` : toSchoolPath("dashboard");
     }
 
     const legacyDashboardStudentMatch =
@@ -366,7 +367,7 @@ function resolveLegacyCompatibilityPath(
       pathname.match(/^\/dashboard\/[^/]+(?:\/([^/]+))?$/);
     if (legacyDashboardSectionMatch) {
       const section = legacyDashboardSectionMatch[1];
-      return section && isRoutableSchoolSection(section) ? `/${section}` : toSchoolPath("dashboard");
+      return section && isRoutableSchoolSection(section, role) ? `/${section}` : toSchoolPath("dashboard");
     }
 
     return null;
@@ -699,7 +700,7 @@ export function evaluateExperienceRouting(input: {
     }
   }
 
-  const compatibilityPath = resolveLegacyCompatibilityPath(experience, input.pathname);
+  const compatibilityPath = resolveLegacyCompatibilityPath(experience, input.pathname, session?.experience === "school" ? session.role : "");
   if (compatibilityPath) {
     if ((input.reauthenticate && compatibilityPath === "/login") || compatibilityPath === "/forgot-password" || compatibilityPath === "/reset-password") {
       return { action: "next", headers, rewrittenPath: mapPublicPathToInternal(experience, compatibilityPath) };
@@ -742,7 +743,7 @@ export function evaluateExperienceRouting(input: {
     };
   }
 
-  const protectedRewrite = mapProtectedPathToInternal(experience, input.pathname);
+  const protectedRewrite = mapProtectedPathToInternal(experience, input.pathname, session?.experience === "school" ? session.role : "");
 
   if (!protectedRewrite) {
     return {

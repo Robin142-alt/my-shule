@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -25,9 +25,11 @@ import {
 } from "@/lib/auth/use-experience-session";
 import { getExpiredSessionLoginPath } from "@/lib/auth/session-expiry-client";
 import { replaceDashboardDocument } from "@/lib/auth/dashboard-role-navigation";
+import { preloadSchoolRole } from "@/components/school/school-role-resources";
 import type { SchoolExperienceRole } from "@/lib/experiences/types";
 import { getSchoolWorkspace } from "@/lib/experiences/school-data";
-import { isSchoolSection } from "@/lib/routing/experience-routes";
+import { isSchoolWorkspaceSection, isDedicatedSchoolWorkspace } from "@/lib/routing/school-workspace-contract";
+import { isDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
 import type { PublicExperienceGatewaySession } from "@/lib/auth/server-session";
 
 export type SchoolDashboardRouteMode = "hosted" | "public";
@@ -96,9 +98,11 @@ export function isValidDashboardRolePath(
     }
 
     const section = pathname.slice(roleRoot.length + 1).split("/")[0] ?? "";
-    if (!isSchoolSection(section)) {
+    if (!isSchoolWorkspaceSection(role, section)) {
       return false;
     }
+
+    if (isDedicatedSchoolWorkspace(role, section) || (role === "deputy-principal" && isDeputyWorkspace(section)) || (role === "teacher" && section === "attendance")) return true;
 
     return getSchoolWorkspace(role).navItems.some((item) => {
       const navSection = item.href.replace(/^\/+/, "").split("/")[0] ?? "";
@@ -111,9 +115,11 @@ export function isValidDashboardRolePath(
   }
 
   const section = pathname.replace(/^\/+/, "").split("/")[0] ?? "";
-  if (!section || !isSchoolSection(section)) {
+  if (!section || !isSchoolWorkspaceSection(role, section)) {
     return false;
   }
+
+  if (isDedicatedSchoolWorkspace(role, section) || (role === "deputy-principal" && isDeputyWorkspace(section)) || (role === "teacher" && section === "attendance")) return true;
 
   return getSchoolWorkspace(role).navItems.some((item) => {
     const navSection = item.href.replace(/^\/+/, "").split("/")[0] ?? "";
@@ -217,6 +223,8 @@ export function SchoolDashboardRoleProvider({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const dashboardPath = pathname + (search ? `?${search}` : "");
   const queryClient = useQueryClient();
   const auth = useExperienceSession("school", {
     tenantSlug,
@@ -241,6 +249,14 @@ export function SchoolDashboardRoleProvider({
     liveDataEnabled,
   }).tenantSlug;
   const loadDashboardRoles = useEffectEvent(() => auth.loadDashboardRoles());
+
+  useEffect(() => {
+    if (switchingToAuthorizationRoleCode && sessionRoleContext?.activeRole === initialRole
+      && sessionRoleContext.activeAuthorizationRoleCode === switchingToAuthorizationRoleCode) {
+      switchInProgress.current = false;
+      setSwitchingToAuthorizationRoleCode(null);
+    }
+  }, [initialRole, sessionRoleContext, switchingToAuthorizationRoleCode]);
 
   useEffect(() => {
     if (!auth.session && auth.error) setRoleError(auth.error);
@@ -353,13 +369,13 @@ export function SchoolDashboardRoleProvider({
       userId,
       role: roleContext.activeRole,
       routeMode,
-      path: pathname,
+      path: dashboardPath,
     });
-  }, [initialRole, normalizedTenantSlug, pathname, roleContext.activeRole, routeMode, userId]);
+  }, [initialRole, normalizedTenantSlug, dashboardPath, roleContext.activeRole, routeMode, userId]);
 
   const switchDashboardRole = useCallback(async (authorizationRoleCode: string) => {
     // React state updates alone cannot stop two clicks in the same render frame.
-    // Keep this lock until the new document opens, including same-URL hosted switches.
+    // Hold the lock through confirmation, including same-URL hosted switches.
     if (switchInProgress.current) return;
     const normalizedAuthorizationRoleCode = authorizationRoleCode.trim().toLowerCase();
     const selectedOption = roleContext.availableRoles.find(
@@ -387,10 +403,11 @@ export function SchoolDashboardRoleProvider({
       userId,
       role: roleContext.activeRole,
       routeMode,
-      path: pathname,
+      path: dashboardPath,
     });
 
     try {
+      await preloadSchoolRole(selectedOption.roleCode);
       // Cancel outgoing reads before rotating credentials. Requests already at
       // the server are rejected as role conflicts without refreshing the session.
       await queryClient.cancelQueries({
@@ -409,8 +426,8 @@ export function SchoolDashboardRoleProvider({
       }
 
       setRoleContext(nextContext);
-      // Do not refetch the outgoing workspace under the newly issued role.
-      // The new document creates fresh query and permission caches.
+      // The session hook discarded outgoing query/permission caches before
+      // publishing. The identity boundary resets role-specific component state.
 
       const targetPath = readLastDashboardPath({
         tenantSlug: normalizedTenantSlug,
@@ -441,7 +458,7 @@ export function SchoolDashboardRoleProvider({
       setSwitchingToAuthorizationRoleCode(null);
       throw error;
     }
-  }, [auth, normalizedTenantSlug, pathname, queryClient, roleContext, routeMode, router, userId]);
+  }, [auth, normalizedTenantSlug, dashboardPath, queryClient, roleContext, routeMode, router, userId]);
 
   const effectiveRoleContext = sessionRoleContext
     && sessionRoleContext.activeAuthorizationRoleCode.trim().toLowerCase()

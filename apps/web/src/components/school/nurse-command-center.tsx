@@ -12,7 +12,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { DispensingLogWorkspace } from "@/components/school/nurse/dispensing-log-workspace";
 import { HealthReportsWorkspace } from "@/components/school/nurse/health-reports-workspace";

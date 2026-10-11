@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BarChart3,
@@ -344,12 +346,9 @@ export function HodCommandCenter({
   activeSection?: string;
   routeMode?: HodRouteMode;
 }) {
-  const [activeView, setActiveView] = useState<HodView>(() => normalizeHodView(activeSection));
+  const [activeView, setActiveView] = useWorkspaceState<HodView>(() => normalizeHodView(activeSection));
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    setActiveView(normalizeHodView(activeSection));
-  }, [activeSection]);
 
   const searchResults = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -369,7 +368,7 @@ export function HodCommandCenter({
     setSearchTerm("");
 
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", buildSchoolSectionHref("hod", nextView, routeMode));
+      window.history.pushState(null, "", buildSchoolSectionHref("hod", nextView, routeMode));
     }
   }
 

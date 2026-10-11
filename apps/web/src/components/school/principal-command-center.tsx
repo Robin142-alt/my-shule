@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import {
   Activity,
   BarChart3,
@@ -307,7 +309,7 @@ export function PrincipalCommandCenter({
   const fallbackSchoolName = getPrincipalSchoolName(schoolId);
   const principalName = userLabel?.trim() || "Principal";
   const queryClient = useQueryClient();
-  const [activeWorkspace, setActiveWorkspaceState] = useState<PrincipalSection>(() =>
+  const [activeWorkspace, setActiveWorkspaceState] = useWorkspaceState<PrincipalSection>(() =>
     normalizePrincipalSection(activeSection),
   );
   const defaultViewApplied = useRef(false);
@@ -357,9 +359,6 @@ export function PrincipalCommandCenter({
     if (activeGroup) setExpandedNavGroups((groups) => ({ ...groups, [activeGroup.id]: true }));
   }, [activeWorkspace]);
 
-  useEffect(() => {
-    setActiveWorkspaceState(normalizePrincipalSection(activeSection));
-  }, [activeSection]);
 
   useEffect(() => {
     const restoreWorkspace = () => {
@@ -425,7 +424,7 @@ export function PrincipalCommandCenter({
     && principalDashboardStreamState.degraded
   ) || Boolean(principalDashboardError && !principalDashboard);
 
-  function setActiveWorkspace(section: PrincipalSection, historyMode: "replaceState" | "pushState" = "replaceState") {
+  function setActiveWorkspace(section: PrincipalSection, historyMode: "replaceState" | "pushState" = "pushState") {
     defaultViewApplied.current = true;
     setActiveWorkspaceState(section);
     setMobileSidebarOpen(false);
@@ -544,7 +543,7 @@ export function PrincipalCommandCenter({
         key={item.id}
         type="button"
         aria-current={activeWorkspace === item.id ? "page" : undefined}
-        onClick={() => setActiveWorkspace(item.id, item.id === "students" ? "pushState" : "replaceState")}
+        onClick={() => setActiveWorkspace(item.id)}
         className="dashboard-nav-item"
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

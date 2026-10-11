@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useEffect, useState, useMemo } from "react";
 import {
   Activity,
@@ -124,17 +126,14 @@ export function DeputyPrincipalCommandCenter({
   });
   const schoolName = schoolIdentity?.schoolName?.trim() || fallbackSchoolName;
   const deputyName = userLabel?.trim() || "Deputy Principal";
-  const [activeWorkspace, setActiveWorkspaceState] = useState(resolveDeputyWorkspace(activeSection));
+  const [activeWorkspace, setActiveWorkspaceState] = useWorkspaceState(resolveDeputyWorkspace(activeSection));
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    setActiveWorkspaceState(resolveDeputyWorkspace(activeSection));
-  }, [activeSection]);
 
   const setActiveWorkspace = (view: string) => {
     setActiveWorkspaceState(view);
     const newPath = buildSchoolSectionHref("deputy-principal", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
   const [isTeachingEnabled, setIsTeachingEnabled] = useState(true);
 

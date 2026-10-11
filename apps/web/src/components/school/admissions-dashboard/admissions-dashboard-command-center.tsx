@@ -2,7 +2,8 @@
 
 import { BarChart3, FileInput, FileText, Import, MessageSquareText, Users } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import type { ComponentType } from "react";
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";

@@ -31,7 +31,7 @@ type AdjustStockFormData = {
 };
 
 export function MedicineInventoryWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<MedicineData>('/admin-command/nurse/medicine-inventory');
+  const { data, isLoading, error, refetch } = useSchoolQuery<MedicineData>('/admin-command/nurse/medicine-inventory');
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -100,18 +100,23 @@ export function MedicineInventoryWorkspace() {
         <PlusCircle className="w-4 h-4" /> Add Medicine
       </button>
     }>
+      {error ? <div role="alert" className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">
+        Medicine inventory could not be refreshed. {error.message}{" "}
+        {data ? "Previously loaded stock is shown below. " : "Stock levels are unavailable. "}
+        <button type="button" className="font-semibold underline" onClick={() => { void refetch(); }}>Retry inventory</button>
+      </div> : null}
       <div className="grid gap-4 md:grid-cols-3 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">Total Items</div>
-          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_items ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_items ?? "—"}</div>
         </div>
         <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
           <div className="flex items-center gap-1 text-sm font-semibold text-warning"><AlertTriangle className="w-3 h-3" /> Low Stock</div>
-          <div className="mt-1 text-lg font-black text-warning">{isLoading ? "..." : data?.metrics?.low_stock ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-warning">{isLoading ? "..." : data?.metrics?.low_stock ?? "—"}</div>
         </div>
         <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
           <div className="text-sm font-semibold text-danger">Expired</div>
-          <div className="mt-1 text-lg font-black text-danger">{isLoading ? "..." : data?.metrics?.expired ?? 0}</div>
+          <div className="mt-1 text-lg font-black text-danger">{isLoading ? "..." : data?.metrics?.expired ?? "—"}</div>
         </div>
       </div>
 
@@ -177,6 +182,8 @@ export function MedicineInventoryWorkspace() {
           <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Loading inventory...</td></tr>
+            ) : error && !data ? (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">Unable to load medicine stock. Retry when the service is available.</td></tr>
             ) : medicines.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-8 text-center text-muted">No medicine in stock. Click &quot;Add Medicine&quot; to start tracking your inventory.</td></tr>
             ) : (

@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import {
   AlertTriangle,
   ArrowRight,
@@ -2015,10 +2016,14 @@ export function SuperadminPages({
   const normalizedSection = sectionAliases[section] ?? section;
   const paymentQueue = usePaymentIntegrationSummary();
 
-  const activeHref =
-    normalizedSection === "overview" || normalizedSection === "dashboard"
-      ? buildSuperadminHref("dashboard", routeMode)
-      : buildSuperadminHref(
+  const matchedNav = superadminNav.find(item => {
+    const itemSection = item.href.replace(/^\//, "");
+    const normalizedItem = sectionAliases[itemSection] ?? itemSection;
+    return normalizedItem === normalizedSection || (normalizedSection === "dashboard" && normalizedItem === "overview");
+  });
+  const activeHref = matchedNav
+    ? mapSuperadminHref(matchedNav.href, routeMode)
+    : buildSuperadminHref(
           normalizedSection === "tenants"
             ? "schools"
             : (section as Parameters<typeof toSuperadminPath>[0]),

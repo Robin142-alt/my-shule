@@ -23,9 +23,9 @@ describe("Principal server page routes", () => {
     "preserves authenticated Principal context for %s on public and school hosts", async (section) => {
       const publicPage = await SchoolSectionPage({ params: Promise.resolve({ role: "principal", section }) });
       expect(readPublicSchoolSession).toHaveBeenCalledWith("principal", { preserveSection: section });
-      expect(publicPage.props).toEqual(expect.objectContaining({ role: "principal", section, tenantSlug: "school-a", sessionVerificationEnabled: true }));
+      expect(publicPage).toBeNull(); // Guard-only page: UI belongs to the persistent layout.
       const hostedPage = await InternalSchoolSectionPage({ params: Promise.resolve({ section }) });
-      expect(hostedPage.props).toEqual(expect.objectContaining({ role: "principal", section, tenantSlug: "school-a", sessionVerificationEnabled: true }));
+      expect(hostedPage).toBeNull(); // Guard-only page: UI belongs to the persistent layout.
     },
   );
 
@@ -35,8 +35,8 @@ describe("Principal server page routes", () => {
   });
 
   it("keeps the retired generic attendance workspace unavailable to other roles", async () => {
-    await expect(SchoolSectionPage({ params: Promise.resolve({ role: "teacher", section: "attendance" }) })).rejects.toThrow("not-found");
-    jest.mocked(readSchoolRequestContext).mockResolvedValue({ role: "teacher", tenantSlug: "school-a" } as never);
+    await expect(SchoolSectionPage({ params: Promise.resolve({ role: "admin", section: "attendance" }) })).rejects.toThrow("not-found");
+    jest.mocked(readSchoolRequestContext).mockResolvedValue({ role: "admin", tenantSlug: "school-a" } as never);
     await expect(InternalSchoolSectionPage({ params: Promise.resolve({ section: "attendance" }) })).rejects.toThrow("not-found");
   });
 

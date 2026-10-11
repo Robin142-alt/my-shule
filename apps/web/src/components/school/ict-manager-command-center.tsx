@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { MyShuleMark } from "@/components/brand/myshule-brand";
 import { IntegratedSchoolCommandHeader, SchoolCommandSidebarIdentity } from "@/components/school/integrated-school-command-header";
 
@@ -604,14 +606,14 @@ import { buildSchoolSectionHref } from "./school-pages";
 export function IctManagerCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
-  const [activeView, setActiveView] = useState<any>(
+  const [activeView, setActiveView] = useWorkspaceState<any>(
     activeSection && activeSection !== "dashboard" ? activeSection : "overview"
   );
 
   const handleSetView = (view: any) => {
     setActiveView(view);
     const newPath = buildSchoolSectionHref("ict-manager", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
 
   return (
