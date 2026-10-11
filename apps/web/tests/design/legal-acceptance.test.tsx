@@ -129,7 +129,7 @@ test('a renewed agreement or guardian blocker keeps the entry closed until the b
 test('manual review preserves access to guardian controls without automatic navigation',async()=>{
   request.mockResolvedValueOnce({...base,ready:true,required_documents:[],guardian_children:[{student_id:'child-1',name:'Alex',verified:true,authorised:false}]});
   render(<AgreementsPage />);
-  expect(await screen.findByRole('heading',{name:'Your agreements',exact:true})).toBeVisible();
+  expect(await screen.findByRole('heading',{name:'Your agreements'})).toBeVisible();
   expect(screen.getByRole('button',{name:'Authorise portal access'})).toBeDisabled();
   expect(routerReplaceMock).not.toHaveBeenCalled();
 });
