@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { label: "Privacy & agreements", icon: ShieldAlert, href: "/legal/accept" },
+  { label: "Privacy & agreements", icon: ShieldAlert, href: "/legal/account" },
   { label: "Dashboard", icon: LayoutDashboard, href: "/parent" },
   { label: "My Children", icon: Users, href: "/parent/children" },
   { label: "Fees & Payments", icon: Banknote, href: "/parent/fees" },
