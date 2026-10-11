@@ -9,7 +9,8 @@ import { useDashboardEventBus } from "@/lib/dashboard-communication/dashboard-co
 import { useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { buildSchoolSectionHref } from "@/components/school/school-pages";
 
 import { useStudentEvents } from "@/hooks/useStudentEvents";

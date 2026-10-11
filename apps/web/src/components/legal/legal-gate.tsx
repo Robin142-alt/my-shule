@@ -18,9 +18,12 @@ type GateMode = 'access' | 'accept' | 'review';
 export function LegalGate({ children, mode = 'access' }: { children?: React.ReactNode; mode?: GateMode }) {
   const pathname = usePathname();
   if (mode === 'access' && !isLegalProtectedPath(pathname)) return <>{children}</>;
-  // A route's verification state must not survive leaving it, including a
-  // round trip through a public sign-in page back to the same pathname.
-  return <RouteLegalGate key={`${pathname}:${mode}`} mode={mode}>{children}</RouteLegalGate>;
+  // Workspace URLs do not change the account's agreements. Keep the verified
+  // tree mounted within an audience; leaving protected routes unmounts this
+  // gate, so returning from sign-in always requires fresh verification.
+  const audience = /^\/(superadmin|internal\/superadmin|system-monitor)(\/|$)/.test(pathname) ? 'superadmin'
+    : /^\/(portal|parent|student|internal\/portal)(\/|$)/.test(pathname) ? 'portal' : 'school';
+  return <RouteLegalGate key={`${audience}:${mode}`} mode={mode}>{children}</RouteLegalGate>;
 }
 
 function RouteLegalGate({ children, mode }: { children?: React.ReactNode; mode: GateMode }) {
@@ -30,15 +33,18 @@ function RouteLegalGate({ children, mode }: { children?: React.ReactNode; mode: 
   const invalidate = useCallback(() => { revision.current++; }, []);
   const load = useCallback(async () => {
     const requestRevision = ++revision.current;
-    setState({});
-    // Coalesce only overlapping reads within this gate/route. Never retain an
-    // approval across completed checks, routes, sessions or browser tabs.
+    // Keep the authorized shell during background verification. A failed check
+    // or a new requirement still closes the gate. Coalesce overlapping reads
+    // only within this mounted gate, never across accounts or browser tabs.
     let pending = inFlight.current;
     if (!pending) {
       pending = (async (): Promise<Verification> => {
         if (mode !== 'review') {
           const access = await legalRequest<{ ready: boolean }>('access');
           if (access?.ready === true) return { allowed: true };
+          // A confirmed denial closes access immediately, even if loading the
+          // detailed agreement form takes longer. Ignore superseded requests.
+          if (inFlight.current === pending) setState({});
         }
         // Fetch the form code alongside its data, not on every dashboard visit.
         void loadAcceptance().catch(() => undefined);
@@ -54,12 +60,14 @@ function RouteLegalGate({ children, mode }: { children?: React.ReactNode; mode: 
     let active = true;
     const verify = () => { if (active) void load(); };
     // A new backend denial supersedes a read started before that denial.
-    const required = () => { inFlight.current = null; verify(); };
+    const required = () => { invalidate(); inFlight.current = null; setState({}); verify(); };
     const visible = () => { if (document.visibilityState === 'visible') verify(); };
     verify();
     window.addEventListener('focus', verify); window.addEventListener('myshule-legal-required', required);
+    window.addEventListener('myshule-session-changed', required);
     document.addEventListener('visibilitychange', visible);
-    return () => { active = false; invalidate(); window.removeEventListener('focus', verify); window.removeEventListener('myshule-legal-required', required); document.removeEventListener('visibilitychange', visible); };
+    const timer = window.setInterval(visible, 60_000);
+    return () => { active = false; invalidate(); window.clearInterval(timer); window.removeEventListener('focus', verify); window.removeEventListener('myshule-legal-required', required); window.removeEventListener('myshule-session-changed', required); document.removeEventListener('visibilitychange', visible); };
   }, [load, invalidate]);
   if (!state.allowed && !state.status && !state.error) return <WorkspaceLoading />;
   if (state.error) return <main className="legal-page"><div className="legal-card"><h1>We couldn’t verify your access</h1><p role="alert" className="legal-notice legal-error">{state.error}</p><button className="legal-button" onClick={load}>Try again</button><Link className="legal-link mt-4 block text-center" href="/app">Sign in</Link></div></main>;

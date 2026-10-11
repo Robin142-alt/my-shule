@@ -581,7 +581,8 @@ describe("dashboard action contract safety", () => {
     expect(academicsSource).toMatch(/admin-command\/principal\/reports\/generate/);
     expect(examsSource).toMatch(/admin-command\/principal\/exams-report-cards\/\$\{series\.id\}\/publish/);
     expect(examsSource).not.toMatch(/exams-report-cards\/\$\{[^}]+\}\/approve|Approve All/);
-    expect(teachingSource).toMatch(/buildSchoolSectionHref\("teacher", "overview"/);
+    expect(teachingSource).toMatch(/switchDashboardRole\("teacher"\)/);
+    expect(teachingSource).not.toMatch(/buildSchoolSectionHref\("teacher", "overview"/);
     expect(settingsSource).toMatch(/admin-command\/principal\/settings\/preferences/);
     expect(settingsSource).not.toMatch(/principal-teaching-toggle|settings\/action/);
     expect(controllerSource).toMatch(/@Patch\('principal\/settings\/preferences'\)/);
@@ -1370,7 +1371,8 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/publishSchoolOperationalEvent/);
     expect(source).toMatch(/persistGradeWorkflowAction/);
     expect(source).toMatch(/\/api\/grade-master\/actions/);
-    expect(source).toMatch(/buildSchoolSectionHref\("teacher", "overview"/);
+    expect(source).toMatch(/switchDashboardRole\("teacher"\)/);
+    expect(source).not.toMatch(/buildSchoolSectionHref\("teacher", "overview"/);
     expect(source).not.toMatch(/Grade master report action recorded/);
     expect(source).not.toMatch(/Grade report readiness action recorded/);
     expect(controllerSource).toMatch(/@Post\('actions'\)/);

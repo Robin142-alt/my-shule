@@ -16,6 +16,20 @@ function unsignedJwt(payload: Record<string, unknown>) {
 }
 
 describe("experience routing", () => {
+  test.each([
+    ["class-teacher", "home"], ["class-teacher", "register"], ["class-teacher", "attendance"],
+    ["grade-master", "streams"], ["grade-master", "welfare"], ["grade-master", "attendance"],
+    ["exams-manager", "imports-templates"], ["procurement-officer", "pos"], ["teacher", "attendance"],
+  ] as const)("preserves the %s %s workspace on hosted and compatibility routes", (role, section) => {
+    const cookies = { [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({ experience: "school", role, tenantSlug: "barakaacademy", userLabel: "Staff", homePath: "/dashboard" }) };
+    const refreshToken = unsignedJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    expect(evaluateExperienceRouting({ host: "barakaacademy.myshule.test", pathname: `/${section}`, cookies, refreshToken }))
+      .toMatchObject({ action: "next", rewrittenPath: `/internal/school/${section}` });
+    expect(evaluateExperienceRouting({ host: "barakaacademy.myshule.test", pathname: `/school/${role}/${section}`, cookies, refreshToken }))
+      .toMatchObject({ action: "redirect", location: `/${section}` });
+    expect(evaluateExperienceRouting({ host: "another.myshule.test", pathname: `/${section}`, cookies, refreshToken }))
+      .toMatchObject({ action: "redirect", location: "/login" });
+  });
   test.each(["attendance", "welfare", "staff-duty", "teaching", "academics"])("routes the deputy's current %s workspace on its school host", (section) => {
     const cookies = { [SCHOOL_SESSION_COOKIE]: serializeExperienceSession({ experience: "school", role: "deputy-principal", tenantSlug: "barakaacademy", userLabel: "Deputy", homePath: "/dashboard" }) };
     const refreshToken = unsignedJwt({ exp: Math.floor(Date.now() / 1000) + 3600 });

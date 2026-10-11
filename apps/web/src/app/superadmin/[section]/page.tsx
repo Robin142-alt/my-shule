@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { readPublicSuperadminSession } from "@/lib/routing/public-experience-session";
-import type { SuperadminSection } from "@/lib/routing/experience-routes";
 import { isSuperadminPublicSection } from "@/lib/routing/superadmin-sections";
 
 export default async function SuperadminSectionPage({
@@ -18,7 +16,6 @@ export default async function SuperadminSectionPage({
     notFound();
   }
 
-  const mappedSection = section as SuperadminSection;
 
-  return <SuperadminPages section={mappedSection} routeMode="public" />;
+  return null; // The persistent platform layout owns workspace rendering.
 }

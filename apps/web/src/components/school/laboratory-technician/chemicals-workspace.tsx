@@ -44,9 +44,9 @@ function chemicalStatus(item: LabInventoryItem) {
 function navigateToInventory(action: "add-item" | "add-stock") {
   const segments = window.location.pathname.split("/").filter(Boolean);
   const roleIndex = segments.findIndex((segment) => segment === "laboratory-technician");
-  const base = roleIndex >= 0 ? `/${segments.slice(0, roleIndex + 1).join("/")}` : "/school/laboratory-technician";
+  const base = roleIndex >= 0 ? `/${segments.slice(0, roleIndex + 1).join("/")}` : "";
   const extra = action === "add-item" ? "&type=chemical" : "";
-  window.location.assign(`${base}/lab-inventory?action=${action}${extra}`);
+  window.history.pushState(null, "", `${base}/lab-inventory?action=${action}${extra}`);
 }
 
 export function ChemicalsWorkspace() {

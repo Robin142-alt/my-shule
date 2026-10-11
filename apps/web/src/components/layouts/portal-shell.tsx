@@ -12,7 +12,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { useState, type ReactNode } from "react";
 
 import { MyShuleMark } from "@/components/brand/myshule-brand";

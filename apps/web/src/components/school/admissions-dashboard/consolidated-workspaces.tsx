@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import dynamic from "next/dynamic";
 import { useQueryClient } from "@tanstack/react-query";
 import { StudentAdmissionWizard } from "./student-admission-wizard";

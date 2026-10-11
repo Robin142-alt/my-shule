@@ -38,9 +38,9 @@ function navigateTo(section: string, params: Record<string, string> = {}) {
   const roleIndex = segments.findIndex((segment) => segment === "laboratory-technician");
   const base = roleIndex >= 0
     ? `/${segments.slice(0, roleIndex + 1).join("/")}`
-    : "/school/laboratory-technician";
+    : "";
   const query = new URLSearchParams(params).toString();
-  window.location.assign(`${base}/${section}${query ? `?${query}` : ""}`);
+  window.history.pushState(null, "", `${base}/${section}${query ? `?${query}` : ""}`);
 }
 
 function practicalStatus(request: PracticalRequest) {

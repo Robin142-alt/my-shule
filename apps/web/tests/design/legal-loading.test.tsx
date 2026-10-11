@@ -33,7 +33,7 @@ test('shows the branded loader immediately and keeps protected content closed un
   expect(request.mock.calls.map(([path]) => path)).toEqual(['access']);
 });
 
-test('Strict Mode, focus and visibility overlap share one in-flight check without cached approval', async () => {
+test('overlapping checks preserve the shell until a confirmed denial and close it before form loading', async () => {
   const check = deferred<{ ready: boolean }>();
   request.mockReturnValue(check.promise);
   render(<StrictMode><LegalGate><p>Private dashboard</p></LegalGate></StrictMode>);
@@ -42,9 +42,12 @@ test('Strict Mode, focus and visibility overlap share one in-flight check withou
   expect(request).toHaveBeenCalledTimes(1);
   await act(async () => check.resolve({ ready: true }));
   await screen.findByText('Private dashboard');
-  request.mockResolvedValueOnce({ ready: false }).mockResolvedValueOnce(pending);
+  const details = deferred<LegalStatus>();
+  request.mockResolvedValueOnce({ ready: false }).mockReturnValueOnce(details.promise);
   fireEvent.focus(window);
-  expect(screen.queryByText('Private dashboard')).not.toBeInTheDocument();
+  expect(screen.getByText('Private dashboard')).toBeVisible();
+  await waitFor(() => expect(screen.queryByText('Private dashboard')).not.toBeInTheDocument());
+  await act(async () => details.resolve(pending));
   expect(await screen.findByText('Agreements for Amina')).toBeVisible();
   expect(request.mock.calls.map(([path]) => path)).toEqual(['access', 'access', 'status']);
 });
@@ -59,11 +62,11 @@ test('review goes directly to detailed status and failure remains recoverable', 
   expect(request.mock.calls.map(([path]) => path)).toEqual(['status', 'status']);
 });
 
-test('a new route cannot use a delayed positive response from the previous route', async () => {
+test('a different audience cannot use a delayed positive response from the previous audience', async () => {
   const previous = deferred<{ ready: boolean }>();
   request.mockReturnValueOnce(previous.promise).mockResolvedValueOnce({ ready: false }).mockResolvedValueOnce(pending);
   const view = render(<LegalGate><p>Private dashboard</p></LegalGate>);
-  mockPathname = '/school/principal';
+  mockPathname = '/portal/parent';
   view.rerender(<LegalGate><p>Private dashboard</p></LegalGate>);
   await screen.findByText('Agreements for Amina');
   await act(async () => previous.resolve({ ready: true }));

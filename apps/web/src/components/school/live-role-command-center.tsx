@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
+import { useMemo, useEffect, type ComponentType } from "react";
+import { workspaceResource } from "@/components/shared/workspace-resource";
 import {
   BedDouble,
   Boxes,
@@ -17,113 +20,113 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { AllocationWorkspace as BoardingAllocationWorkspace } from "@/components/school/boarding-master/allocation-workspace";
-import { BoardingAttendanceWorkspace } from "@/components/school/boarding-master/boarding-attendance-workspace";
-import { HostelsWorkspace } from "@/components/school/boarding-master/hostels-workspace";
-import { IncidentsWorkspace as BoardingIncidentsWorkspace } from "@/components/school/boarding-master/incidents-workspace";
-import { LeaveExitWorkspace } from "@/components/school/boarding-master/leave-exit-workspace";
-import { OverviewWorkspace as BoardingOverviewWorkspace } from "@/components/school/boarding-master/overview-workspace";
-import { ReportsWorkspace as BoardingReportsWorkspace } from "@/components/school/boarding-master/reports-workspace";
-import { RoomsBedsWorkspace } from "@/components/school/boarding-master/rooms-beds-workspace";
-import { ActionsSanctionsWorkspace } from "@/components/school/discipline-master/actions-sanctions-workspace";
-import { CasesWorkspace as DisciplineCasesWorkspace } from "@/components/school/discipline-master/cases-workspace";
-import { CounsellingReferralsWorkspace as DisciplineCounsellingReferralsWorkspace } from "@/components/school/discipline-master/counselling-referrals-workspace";
-import { IncidentLogWorkspace } from "@/components/school/discipline-master/incident-log-workspace";
-import { OverviewWorkspace as DisciplineOverviewWorkspace } from "@/components/school/discipline-master/overview-workspace";
-import { ParentSummonsWorkspace } from "@/components/school/discipline-master/parent-summons-workspace";
-import { ReportsWorkspace as DisciplineReportsWorkspace } from "@/components/school/discipline-master/reports-workspace";
-import { FollowUpsWorkspace } from "@/components/school/guidance-counselling/follow-ups-workspace";
-import { OverviewWorkspace as CounsellingOverviewWorkspace } from "@/components/school/guidance-counselling/overview-workspace";
-import { ParentEngagementWorkspace } from "@/components/school/guidance-counselling/parent-engagement-workspace";
-import { ReferralsWorkspace } from "@/components/school/guidance-counselling/referrals-workspace";
-import { ReportsWorkspace as CounsellingReportsWorkspace } from "@/components/school/guidance-counselling/reports-workspace";
-import { SessionsWorkspace } from "@/components/school/guidance-counselling/sessions-workspace";
-import { SettingsWorkspace as CounsellingSettingsWorkspace } from "@/components/school/guidance-counselling/settings-workspace";
-import { WelfareNotesWorkspace } from "@/components/school/guidance-counselling/welfare-notes-workspace";
-import { AssetAssignmentWorkspace } from "@/components/school/ict-manager/asset-assignment-workspace";
-import { AssetsWorkspace as IctAssetsWorkspace } from "@/components/school/ict-manager/assets-workspace";
-import { FacilitiesIssuesWorkspace } from "@/components/school/ict-manager/facilities-issues-workspace";
-import { LoansReturnsWorkspace } from "@/components/school/ict-manager/loans-returns-workspace";
-import { MaintenanceWorkspace } from "@/components/school/ict-manager/maintenance-workspace";
-import { OverviewWorkspace as IctOverviewWorkspace } from "@/components/school/ict-manager/overview-workspace";
-import { ReportsWorkspace as IctReportsWorkspace } from "@/components/school/ict-manager/reports-workspace";
-import { ApparatusIssueWorkspace } from "@/components/school/laboratory-technician/apparatus-issue-workspace";
-import { ChemicalsWorkspace } from "@/components/school/laboratory-technician/chemicals-workspace";
-import { LabInventoryWorkspace } from "@/components/school/laboratory-technician/lab-inventory-workspace";
-import { LabTimetableWorkspace } from "@/components/school/laboratory-technician/lab-timetable-workspace";
-import { OverviewWorkspace as LaboratoryOverviewWorkspace } from "@/components/school/laboratory-technician/overview-workspace";
-import { ReportsWorkspace as LaboratoryReportsWorkspace } from "@/components/school/laboratory-technician/reports-workspace";
-import { SafetyIncidentsWorkspace } from "@/components/school/laboratory-technician/safety-incidents-workspace";
-import { StocktakeWorkspace as LaboratoryStocktakeWorkspace } from "@/components/school/laboratory-technician/stocktake-workspace";
-import { BooksWorkspace } from "@/components/school/librarian/books-workspace";
-import { BorrowersWorkspace } from "@/components/school/librarian/borrowers-workspace";
-import { FinesLostDamagedWorkspace } from "@/components/school/librarian/fines-lost-damaged-workspace";
-import { IssueBookWorkspace } from "@/components/school/librarian/issue-book-workspace";
-import { OverviewWorkspace as LibrarianOverviewWorkspace } from "@/components/school/librarian/overview-workspace";
-import { OverdueBooksWorkspace } from "@/components/school/librarian/overdue-books-workspace";
-import { ReportsWorkspace as LibrarianReportsWorkspace } from "@/components/school/librarian/reports-workspace";
-import { ReturnBookWorkspace } from "@/components/school/librarian/return-book-workspace";
-import { DispensingLogWorkspace } from "@/components/school/nurse/dispensing-log-workspace";
-import { HealthReportsWorkspace } from "@/components/school/nurse/health-reports-workspace";
-import { MedicineInventoryWorkspace } from "@/components/school/nurse/medicine-inventory-workspace";
-import { OverviewWorkspace as NurseOverviewWorkspace } from "@/components/school/nurse/overview-workspace";
-import { ParentNotificationsWorkspace as NurseParentNotificationsWorkspace } from "@/components/school/nurse/parent-notifications-workspace";
-import { SickBayQueueWorkspace } from "@/components/school/nurse/sick-bay-queue-workspace";
-import { VisitsWorkspace } from "@/components/school/nurse/visits-workspace";
-import { AcademicsWorkspace as ParentAcademicsWorkspace } from "@/components/school/parent/academics-workspace";
-import { BehaviorWorkspace as ParentBehaviorWorkspace } from "@/components/school/parent/behavior-workspace";
-import { DashboardWorkspace as ParentDashboardWorkspace } from "@/components/school/parent/dashboard-workspace";
-import { DownloadsWorkspace as ParentDownloadsWorkspace } from "@/components/school/parent/downloads-workspace";
-import { FeesWorkspace as ParentFeesWorkspace } from "@/components/school/parent/fees-workspace";
-import { HealthWorkspace as ParentHealthWorkspace } from "@/components/school/parent/health-workspace";
-import { MessagesWorkspace as ParentMessagesWorkspace } from "@/components/school/parent/messages-workspace";
-import { NotificationsWorkspace as ParentNotificationsWorkspace } from "@/components/school/parent/notifications-workspace";
-import { PortalTimetableWorkspace } from "@/components/school/portal-timetable-workspace";
-import { GateRegisterWorkspace } from "@/components/school/security-officer/gate-register-workspace";
-import { IncidentsWorkspace as SecurityIncidentsWorkspace } from "@/components/school/security-officer/incidents-workspace";
-import { OverviewWorkspace as SecurityOverviewWorkspace } from "@/components/school/security-officer/overview-workspace";
-import { ReportsWorkspace as SecurityReportsWorkspace } from "@/components/school/security-officer/reports-workspace";
-import { StaffMovementWorkspace } from "@/components/school/security-officer/staff-movement-workspace";
-import { StudentExitPassesWorkspace } from "@/components/school/security-officer/student-exit-passes-workspace";
-import { VisitorsWorkspace as SecurityVisitorsWorkspace } from "@/components/school/security-officer/visitors-workspace";
-import { AppointmentsWorkspace } from "@/components/school/secretary/appointments-workspace";
-import { CallsLogWorkspace } from "@/components/school/secretary/calls-log-workspace";
-import { LettersDocumentsWorkspace } from "@/components/school/secretary/letters-documents-workspace";
-import { OverviewWorkspace as SecretaryOverviewWorkspace } from "@/components/school/secretary/overview-workspace";
-import { ParentMessagesWorkspace as SecretaryParentMessagesWorkspace } from "@/components/school/secretary/parent-messages-workspace";
-import { ReceptionQueueWorkspace } from "@/components/school/secretary/reception-queue-workspace";
-import { ReportsWorkspace as SecretaryReportsWorkspace } from "@/components/school/secretary/reports-workspace";
-import { StudentClearanceWorkspace } from "@/components/school/secretary/student-clearance-workspace";
-import { VisitorsWorkspace as SecretaryVisitorsWorkspace } from "@/components/school/secretary/visitors-workspace";
+const BoardingAllocationWorkspace = workspaceResource(() => import("@/components/school/boarding-master/allocation-workspace").then((module) => module.AllocationWorkspace));
+const BoardingAttendanceWorkspace = workspaceResource(() => import("@/components/school/boarding-master/boarding-attendance-workspace").then((module) => module.BoardingAttendanceWorkspace));
+const HostelsWorkspace = workspaceResource(() => import("@/components/school/boarding-master/hostels-workspace").then((module) => module.HostelsWorkspace));
+const BoardingIncidentsWorkspace = workspaceResource(() => import("@/components/school/boarding-master/incidents-workspace").then((module) => module.IncidentsWorkspace));
+const LeaveExitWorkspace = workspaceResource(() => import("@/components/school/boarding-master/leave-exit-workspace").then((module) => module.LeaveExitWorkspace));
+const BoardingOverviewWorkspace = workspaceResource(() => import("@/components/school/boarding-master/overview-workspace").then((module) => module.OverviewWorkspace));
+const BoardingReportsWorkspace = workspaceResource(() => import("@/components/school/boarding-master/reports-workspace").then((module) => module.ReportsWorkspace));
+const RoomsBedsWorkspace = workspaceResource(() => import("@/components/school/boarding-master/rooms-beds-workspace").then((module) => module.RoomsBedsWorkspace));
+const ActionsSanctionsWorkspace = workspaceResource(() => import("@/components/school/discipline-master/actions-sanctions-workspace").then((module) => module.ActionsSanctionsWorkspace));
+const DisciplineCasesWorkspace = workspaceResource(() => import("@/components/school/discipline-master/cases-workspace").then((module) => module.CasesWorkspace));
+const DisciplineCounsellingReferralsWorkspace = workspaceResource(() => import("@/components/school/discipline-master/counselling-referrals-workspace").then((module) => module.CounsellingReferralsWorkspace));
+const IncidentLogWorkspace = workspaceResource(() => import("@/components/school/discipline-master/incident-log-workspace").then((module) => module.IncidentLogWorkspace));
+const DisciplineOverviewWorkspace = workspaceResource(() => import("@/components/school/discipline-master/overview-workspace").then((module) => module.OverviewWorkspace));
+const ParentSummonsWorkspace = workspaceResource(() => import("@/components/school/discipline-master/parent-summons-workspace").then((module) => module.ParentSummonsWorkspace));
+const DisciplineReportsWorkspace = workspaceResource(() => import("@/components/school/discipline-master/reports-workspace").then((module) => module.ReportsWorkspace));
+const FollowUpsWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/follow-ups-workspace").then((module) => module.FollowUpsWorkspace));
+const CounsellingOverviewWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/overview-workspace").then((module) => module.OverviewWorkspace));
+const ParentEngagementWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/parent-engagement-workspace").then((module) => module.ParentEngagementWorkspace));
+const ReferralsWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/referrals-workspace").then((module) => module.ReferralsWorkspace));
+const CounsellingReportsWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/reports-workspace").then((module) => module.ReportsWorkspace));
+const SessionsWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/sessions-workspace").then((module) => module.SessionsWorkspace));
+const CounsellingSettingsWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/settings-workspace").then((module) => module.SettingsWorkspace));
+const WelfareNotesWorkspace = workspaceResource(() => import("@/components/school/guidance-counselling/welfare-notes-workspace").then((module) => module.WelfareNotesWorkspace));
+const AssetAssignmentWorkspace = workspaceResource(() => import("@/components/school/ict-manager/asset-assignment-workspace").then((module) => module.AssetAssignmentWorkspace));
+const IctAssetsWorkspace = workspaceResource(() => import("@/components/school/ict-manager/assets-workspace").then((module) => module.AssetsWorkspace));
+const FacilitiesIssuesWorkspace = workspaceResource(() => import("@/components/school/ict-manager/facilities-issues-workspace").then((module) => module.FacilitiesIssuesWorkspace));
+const LoansReturnsWorkspace = workspaceResource(() => import("@/components/school/ict-manager/loans-returns-workspace").then((module) => module.LoansReturnsWorkspace));
+const MaintenanceWorkspace = workspaceResource(() => import("@/components/school/ict-manager/maintenance-workspace").then((module) => module.MaintenanceWorkspace));
+const IctOverviewWorkspace = workspaceResource(() => import("@/components/school/ict-manager/overview-workspace").then((module) => module.OverviewWorkspace));
+const IctReportsWorkspace = workspaceResource(() => import("@/components/school/ict-manager/reports-workspace").then((module) => module.ReportsWorkspace));
+const ApparatusIssueWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/apparatus-issue-workspace").then((module) => module.ApparatusIssueWorkspace));
+const ChemicalsWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/chemicals-workspace").then((module) => module.ChemicalsWorkspace));
+const LabInventoryWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/lab-inventory-workspace").then((module) => module.LabInventoryWorkspace));
+const LabTimetableWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/lab-timetable-workspace").then((module) => module.LabTimetableWorkspace));
+const LaboratoryOverviewWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/overview-workspace").then((module) => module.OverviewWorkspace));
+const LaboratoryReportsWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/reports-workspace").then((module) => module.ReportsWorkspace));
+const SafetyIncidentsWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/safety-incidents-workspace").then((module) => module.SafetyIncidentsWorkspace));
+const LaboratoryStocktakeWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/stocktake-workspace").then((module) => module.StocktakeWorkspace));
+const BooksWorkspace = workspaceResource(() => import("@/components/school/librarian/books-workspace").then((module) => module.BooksWorkspace));
+const BorrowersWorkspace = workspaceResource(() => import("@/components/school/librarian/borrowers-workspace").then((module) => module.BorrowersWorkspace));
+const FinesLostDamagedWorkspace = workspaceResource(() => import("@/components/school/librarian/fines-lost-damaged-workspace").then((module) => module.FinesLostDamagedWorkspace));
+const IssueBookWorkspace = workspaceResource(() => import("@/components/school/librarian/issue-book-workspace").then((module) => module.IssueBookWorkspace));
+const LibrarianOverviewWorkspace = workspaceResource(() => import("@/components/school/librarian/overview-workspace").then((module) => module.OverviewWorkspace));
+const OverdueBooksWorkspace = workspaceResource(() => import("@/components/school/librarian/overdue-books-workspace").then((module) => module.OverdueBooksWorkspace));
+const LibrarianReportsWorkspace = workspaceResource(() => import("@/components/school/librarian/reports-workspace").then((module) => module.ReportsWorkspace));
+const ReturnBookWorkspace = workspaceResource(() => import("@/components/school/librarian/return-book-workspace").then((module) => module.ReturnBookWorkspace));
+const DispensingLogWorkspace = workspaceResource(() => import("@/components/school/nurse/dispensing-log-workspace").then((module) => module.DispensingLogWorkspace));
+const HealthReportsWorkspace = workspaceResource(() => import("@/components/school/nurse/health-reports-workspace").then((module) => module.HealthReportsWorkspace));
+const MedicineInventoryWorkspace = workspaceResource(() => import("@/components/school/nurse/medicine-inventory-workspace").then((module) => module.MedicineInventoryWorkspace));
+const NurseOverviewWorkspace = workspaceResource(() => import("@/components/school/nurse/overview-workspace").then((module) => module.OverviewWorkspace));
+const NurseParentNotificationsWorkspace = workspaceResource(() => import("@/components/school/nurse/parent-notifications-workspace").then((module) => module.ParentNotificationsWorkspace));
+const SickBayQueueWorkspace = workspaceResource(() => import("@/components/school/nurse/sick-bay-queue-workspace").then((module) => module.SickBayQueueWorkspace));
+const VisitsWorkspace = workspaceResource(() => import("@/components/school/nurse/visits-workspace").then((module) => module.VisitsWorkspace));
+const ParentAcademicsWorkspace = workspaceResource(() => import("@/components/school/parent/academics-workspace").then((module) => module.AcademicsWorkspace));
+const ParentBehaviorWorkspace = workspaceResource(() => import("@/components/school/parent/behavior-workspace").then((module) => module.BehaviorWorkspace));
+const ParentDashboardWorkspace = workspaceResource(() => import("@/components/school/parent/dashboard-workspace").then((module) => module.DashboardWorkspace));
+const ParentDownloadsWorkspace = workspaceResource(() => import("@/components/school/parent/downloads-workspace").then((module) => module.DownloadsWorkspace));
+const ParentFeesWorkspace = workspaceResource(() => import("@/components/school/parent/fees-workspace").then((module) => module.FeesWorkspace));
+const ParentHealthWorkspace = workspaceResource(() => import("@/components/school/parent/health-workspace").then((module) => module.HealthWorkspace));
+const ParentMessagesWorkspace = workspaceResource(() => import("@/components/school/parent/messages-workspace").then((module) => module.MessagesWorkspace));
+const ParentNotificationsWorkspace = workspaceResource(() => import("@/components/school/parent/notifications-workspace").then((module) => module.NotificationsWorkspace));
+const PortalTimetableWorkspace = workspaceResource(() => import("@/components/school/portal-timetable-workspace").then((module) => module.PortalTimetableWorkspace));
+const GateRegisterWorkspace = workspaceResource(() => import("@/components/school/security-officer/gate-register-workspace").then((module) => module.GateRegisterWorkspace));
+const SecurityIncidentsWorkspace = workspaceResource(() => import("@/components/school/security-officer/incidents-workspace").then((module) => module.IncidentsWorkspace));
+const SecurityOverviewWorkspace = workspaceResource(() => import("@/components/school/security-officer/overview-workspace").then((module) => module.OverviewWorkspace));
+const SecurityReportsWorkspace = workspaceResource(() => import("@/components/school/security-officer/reports-workspace").then((module) => module.ReportsWorkspace));
+const StaffMovementWorkspace = workspaceResource(() => import("@/components/school/security-officer/staff-movement-workspace").then((module) => module.StaffMovementWorkspace));
+const StudentExitPassesWorkspace = workspaceResource(() => import("@/components/school/security-officer/student-exit-passes-workspace").then((module) => module.StudentExitPassesWorkspace));
+const SecurityVisitorsWorkspace = workspaceResource(() => import("@/components/school/security-officer/visitors-workspace").then((module) => module.VisitorsWorkspace));
+const AppointmentsWorkspace = workspaceResource(() => import("@/components/school/secretary/appointments-workspace").then((module) => module.AppointmentsWorkspace));
+const CallsLogWorkspace = workspaceResource(() => import("@/components/school/secretary/calls-log-workspace").then((module) => module.CallsLogWorkspace));
+const LettersDocumentsWorkspace = workspaceResource(() => import("@/components/school/secretary/letters-documents-workspace").then((module) => module.LettersDocumentsWorkspace));
+const SecretaryOverviewWorkspace = workspaceResource(() => import("@/components/school/secretary/overview-workspace").then((module) => module.OverviewWorkspace));
+const SecretaryParentMessagesWorkspace = workspaceResource(() => import("@/components/school/secretary/parent-messages-workspace").then((module) => module.ParentMessagesWorkspace));
+const ReceptionQueueWorkspace = workspaceResource(() => import("@/components/school/secretary/reception-queue-workspace").then((module) => module.ReceptionQueueWorkspace));
+const SecretaryReportsWorkspace = workspaceResource(() => import("@/components/school/secretary/reports-workspace").then((module) => module.ReportsWorkspace));
+const StudentClearanceWorkspace = workspaceResource(() => import("@/components/school/secretary/student-clearance-workspace").then((module) => module.StudentClearanceWorkspace));
+const SecretaryVisitorsWorkspace = workspaceResource(() => import("@/components/school/secretary/visitors-workspace").then((module) => module.VisitorsWorkspace));
 import { MobileWorkspaceNavigation } from "@/components/shared/mobile-workspace-navigation";
 import {
   IntegratedSchoolCommandHeader,
   SchoolCommandSidebarIdentity,
 } from "@/components/school/integrated-school-command-header";
-import { AcademicsWorkspace as StudentAcademicsWorkspace } from "@/components/school/student/academics-workspace";
-import { BehaviorWorkspace as StudentBehaviorWorkspace } from "@/components/school/student/behavior-workspace";
-import { DashboardWorkspace as StudentDashboardWorkspace } from "@/components/school/student/dashboard-workspace";
-import { DownloadsWorkspace as StudentDownloadsWorkspace } from "@/components/school/student/downloads-workspace";
-import { FeesWorkspace as StudentFeesWorkspace } from "@/components/school/student/fees-workspace";
-import { MessagesWorkspace as StudentMessagesWorkspace } from "@/components/school/student/messages-workspace";
-import { NotificationsWorkspace as StudentNotificationsWorkspace } from "@/components/school/student/notifications-workspace";
-import { DamagedMissingWorkspace } from "@/components/school/storekeeper/damaged-missing-workspace";
-import { ItemsWorkspace } from "@/components/school/storekeeper/items-workspace";
-import { LowStockWorkspace } from "@/components/school/storekeeper/low-stock-workspace";
-import { OverviewWorkspace as StorekeeperOverviewWorkspace } from "@/components/school/storekeeper/overview-workspace";
-import { ReportsWorkspace as StorekeeperReportsWorkspace } from "@/components/school/storekeeper/reports-workspace";
-import { RequestsWorkspace } from "@/components/school/storekeeper/requests-workspace";
-import { StockInWorkspace } from "@/components/school/storekeeper/stock-in-workspace";
-import { StockIssueWorkspace } from "@/components/school/storekeeper/stock-issue-workspace";
-import { StocktakeWorkspace } from "@/components/school/storekeeper/stocktake-workspace";
-import { DriversWorkspace } from "@/components/school/transport-manager/drivers-workspace";
-import { FuelMaintenanceWorkspace } from "@/components/school/transport-manager/fuel-maintenance-workspace";
-import { OverviewWorkspace as TransportOverviewWorkspace } from "@/components/school/transport-manager/overview-workspace";
-import { ReportsWorkspace as TransportReportsWorkspace } from "@/components/school/transport-manager/reports-workspace";
-import { RoutesWorkspace } from "@/components/school/transport-manager/routes-workspace";
-import { StudentTransportListWorkspace } from "@/components/school/transport-manager/student-transport-list-workspace";
-import { TripsWorkspace } from "@/components/school/transport-manager/trips-workspace";
-import { VehiclesWorkspace } from "@/components/school/transport-manager/vehicles-workspace";
+const StudentAcademicsWorkspace = workspaceResource(() => import("@/components/school/student/academics-workspace").then((module) => module.AcademicsWorkspace));
+const StudentBehaviorWorkspace = workspaceResource(() => import("@/components/school/student/behavior-workspace").then((module) => module.BehaviorWorkspace));
+const StudentDashboardWorkspace = workspaceResource(() => import("@/components/school/student/dashboard-workspace").then((module) => module.DashboardWorkspace));
+const StudentDownloadsWorkspace = workspaceResource(() => import("@/components/school/student/downloads-workspace").then((module) => module.DownloadsWorkspace));
+const StudentFeesWorkspace = workspaceResource(() => import("@/components/school/student/fees-workspace").then((module) => module.FeesWorkspace));
+const StudentMessagesWorkspace = workspaceResource(() => import("@/components/school/student/messages-workspace").then((module) => module.MessagesWorkspace));
+const StudentNotificationsWorkspace = workspaceResource(() => import("@/components/school/student/notifications-workspace").then((module) => module.NotificationsWorkspace));
+const DamagedMissingWorkspace = workspaceResource(() => import("@/components/school/storekeeper/damaged-missing-workspace").then((module) => module.DamagedMissingWorkspace));
+const ItemsWorkspace = workspaceResource(() => import("@/components/school/storekeeper/items-workspace").then((module) => module.ItemsWorkspace));
+const LowStockWorkspace = workspaceResource(() => import("@/components/school/storekeeper/low-stock-workspace").then((module) => module.LowStockWorkspace));
+const StorekeeperOverviewWorkspace = workspaceResource(() => import("@/components/school/storekeeper/overview-workspace").then((module) => module.OverviewWorkspace));
+const StorekeeperReportsWorkspace = workspaceResource(() => import("@/components/school/storekeeper/reports-workspace").then((module) => module.ReportsWorkspace));
+const RequestsWorkspace = workspaceResource(() => import("@/components/school/storekeeper/requests-workspace").then((module) => module.RequestsWorkspace));
+const StockInWorkspace = workspaceResource(() => import("@/components/school/storekeeper/stock-in-workspace").then((module) => module.StockInWorkspace));
+const StockIssueWorkspace = workspaceResource(() => import("@/components/school/storekeeper/stock-issue-workspace").then((module) => module.StockIssueWorkspace));
+const StocktakeWorkspace = workspaceResource(() => import("@/components/school/storekeeper/stocktake-workspace").then((module) => module.StocktakeWorkspace));
+const DriversWorkspace = workspaceResource(() => import("@/components/school/transport-manager/drivers-workspace").then((module) => module.DriversWorkspace));
+const FuelMaintenanceWorkspace = workspaceResource(() => import("@/components/school/transport-manager/fuel-maintenance-workspace").then((module) => module.FuelMaintenanceWorkspace));
+const TransportOverviewWorkspace = workspaceResource(() => import("@/components/school/transport-manager/overview-workspace").then((module) => module.OverviewWorkspace));
+const TransportReportsWorkspace = workspaceResource(() => import("@/components/school/transport-manager/reports-workspace").then((module) => module.ReportsWorkspace));
+const RoutesWorkspace = workspaceResource(() => import("@/components/school/transport-manager/routes-workspace").then((module) => module.RoutesWorkspace));
+const StudentTransportListWorkspace = workspaceResource(() => import("@/components/school/transport-manager/student-transport-list-workspace").then((module) => module.StudentTransportListWorkspace));
+const TripsWorkspace = workspaceResource(() => import("@/components/school/transport-manager/trips-workspace").then((module) => module.TripsWorkspace));
+const VehiclesWorkspace = workspaceResource(() => import("@/components/school/transport-manager/vehicles-workspace").then((module) => module.VehiclesWorkspace));
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { getPortalWorkspace } from "@/lib/experiences/portal-data";
 import { getSchoolWorkspace, type SchoolExperienceRole } from "@/lib/experiences/school-data";
@@ -137,7 +140,7 @@ export { isLiveRoleCommandCenterRole } from "@/lib/routing/live-school-roles";
 
 type LiveRole = LiveSchoolRole | PortalViewer;
 
-type WorkspaceComponent = ComponentType;
+type WorkspaceComponent = ComponentType & { preload?: () => Promise<ComponentType> };
 
 type RoleCommandConfig = {
   roleTitle: string;
@@ -499,7 +502,7 @@ export function LiveRoleCommandCenter({
   experience?: "school" | "portal";
 }) {
   const config = LIVE_ROLE_CONFIG[role];
-  const [activeWorkspace, setActiveWorkspace] = useState(() => normalizeSection(config, activeSection));
+  const [activeWorkspace, setActiveWorkspace] = useWorkspaceState(() => normalizeSection(config, activeSection));
   const workspaceDefinition = experience === "portal"
     ? getPortalWorkspace(role as PortalViewer, tenantSlug)
     : getSchoolWorkspace(role as SchoolExperienceRole, tenantSlug);
@@ -520,13 +523,25 @@ export function LiveRoleCommandCenter({
     [navItems],
   );
 
+  const preload = (section: string) => { void config.workspaces[section]?.preload?.().catch(() => undefined); };
+  useEffect(() => {
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "")) return;
+    const timer = window.setTimeout(() => {
+      navItems.filter((item) => item.id !== activeWorkspace).slice(0, 2).forEach((item) => {
+        void config.workspaces[item.id]?.preload?.().catch(() => undefined);
+      });
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [config, navItems, activeWorkspace]);
+
   const navigateTo = (section: string) => {
     const normalized = normalizeSection(config, section);
     setActiveWorkspace(normalized);
     const href = experience === "portal"
       ? buildPortalCommandSectionHref(role as PortalViewer, normalized, routeMode)
       : buildSchoolSectionHref(role as SchoolExperienceRole, normalized, routeMode);
-    window.history.replaceState(null, "", href);
+    window.history.pushState(null, "", href);
   };
 
   const ActiveWorkspace = config.workspaces[activeWorkspace];
@@ -576,6 +591,9 @@ export function LiveRoleCommandCenter({
                         aria-current={isActive ? "page" : undefined}
                         key={item.id}
                         type="button"
+                        onPointerEnter={() => preload(item.id)}
+                        onFocus={() => preload(item.id)}
+                        onTouchStart={() => preload(item.id)}
                         onClick={() => navigateTo(item.id)}
                         className="dashboard-nav-item"
                       >

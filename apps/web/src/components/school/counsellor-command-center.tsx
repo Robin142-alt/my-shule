@@ -1,6 +1,8 @@
 // GENERATED COUNSELLOR COMMAND CENTER
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useState, useEffect, type FormEvent, type ReactNode } from "react";
 import {
   LayoutDashboard,
@@ -322,7 +324,7 @@ function NewCounsellingCaseModal({
 import { buildSchoolSectionHref } from "./school-pages";
 
 export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: RouteMode }) {
-  const [activeViewState, setActiveViewState] = useState<any>(
+  const [activeViewState, setActiveViewState] = useWorkspaceState<any>(
     activeSection && activeSection !== "dashboard" ? activeSection : "overview"
   );
   const activeView = activeViewState;
@@ -330,7 +332,7 @@ export function CounsellorCommandCenter({ activeSection, routeMode }: { activeSe
   const setActiveView = (view: any) => {
     setActiveViewState(view);
     const newPath = buildSchoolSectionHref("guidance-counselling", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
   
   const [schoolId, setSchoolId] = useState<string | null>(null);

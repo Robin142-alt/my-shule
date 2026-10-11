@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useState, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -655,7 +657,7 @@ function IssueReturnWorkspace({ openLabWorkflow }: { openLabWorkflow: (draft: La
 }
 
 export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: RouteMode }) {
-  const [activeViewState, setActiveViewState] = useState<ViewId>(
+  const [activeViewState, setActiveViewState] = useWorkspaceState<ViewId>(
     (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as ViewId
   );
   const [labWorkflowDraft, setLabWorkflowDraft] = useState<LabWorkflowDraft | null>(null);
@@ -664,7 +666,7 @@ export function LaboratoryTechnicianCommandCenter({ activeSection, routeMode }: 
   const setActiveView = (view: ViewId) => {
     setActiveViewState(view);
     const newPath = buildSchoolSectionHref("laboratory-technician", view, routeMode ?? "hosted");
-    window.history.replaceState(null, "", newPath);
+    window.history.pushState(null, "", newPath);
   };
 
   const submitLabWorkflow = async () => {

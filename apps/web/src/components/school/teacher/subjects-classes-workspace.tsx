@@ -4,7 +4,8 @@ import { Users, BookOpen, Clock, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { buildSchoolSectionHref } from "@/components/school/school-pages";
 
 export function SubjectsClassesWorkspace() {

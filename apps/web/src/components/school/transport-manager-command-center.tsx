@@ -1,6 +1,8 @@
 
 "use client";
 
+import { useWorkspaceState } from "@/lib/routing/workspace-navigation";
+
 import { useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -1739,7 +1741,7 @@ function ActiveWorkspace({
 }
 
 export function TransportManagerCommandCenter({ routeMode, activeSection }: { routeMode: TransportRouteMode; activeSection?: string }) {
-  const [activeView, setActiveView] = useState<TransportView>(
+  const [activeView, setActiveView] = useWorkspaceState<TransportView>(
     (activeSection && activeSection !== "dashboard" ? activeSection : "overview") as TransportView
   );
   const [searchTerm, setSearchTerm] = useState("");
@@ -1773,13 +1775,13 @@ export function TransportManagerCommandCenter({ routeMode, activeSection }: { ro
 
   function openView(view: TransportView) {
     setActiveView(view);
-    window.history.replaceState(null, "", buildSchoolSectionHref("transport-manager", view, routeMode ?? "hosted"));
+    window.history.pushState(null, "", buildSchoolSectionHref("transport-manager", view, routeMode ?? "hosted"));
     setNotice(`${getViewLabel(view)} workspace opened with transport controls loaded.`);
   }
 
   function openSearchRecord(record: TransportSearchRecord) {
     setActiveView(record.view);
-    window.history.replaceState(null, "", buildSchoolSectionHref("transport-manager", record.view, routeMode ?? "hosted"));
+    window.history.pushState(null, "", buildSchoolSectionHref("transport-manager", record.view, routeMode ?? "hosted"));
     setSearchTerm("");
     setNotice(`${record.label} focused in ${getViewLabel(record.view)}.`);
   }

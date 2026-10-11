@@ -70,9 +70,9 @@ export function PermissionProvider({
   const userId = dashboardRole?.userId ?? "session-user";
   const { data, isLoading } = useQuery({
     queryKey: buildPermissionQueryKey(schoolId, userId, activeAuthorizationRoleCode),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!schoolId) return [];
-      const res = await fetch(`/api/permissions/me?schoolId=${schoolId}`);
+      const res = await fetch(`/api/permissions/me?schoolId=${encodeURIComponent(schoolId)}`, { signal, cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch permissions");
       const json = await res.json();
       return json.data as string[];

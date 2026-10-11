@@ -3,11 +3,13 @@
 import { SchoolPaymentChannels } from "@/components/school/accountant/payment-channels-workspace";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
+import { roleResources, preloadSchoolRole } from "./school-role-resources";
+import { isDedicatedSchoolWorkspace } from "@/lib/routing/school-workspace-contract";
 import { WorkspaceLoading } from "@/components/shared/workspace-loading";
 import { isHosSection } from "@/lib/school/hos-workspaces";
 import { resolveExamAnalyticsSection } from "@/lib/routing/exam-analytics-routes";
-import { useRouter } from "next/navigation";
+
+import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
 import { StudentStatusBadge } from "@/components/modules/students/lifecycle/StudentStatusBadge";
 import { StudentLifecycleActions } from "@/components/modules/students/lifecycle/StudentLifecycleActions";
@@ -89,20 +91,20 @@ import { PermissionProvider } from "@/components/providers/permission-context";
 
 // Session verification must not wait for every role's workspace JavaScript.
 // Keep these boundaries explicit so Next can load only the selected dashboard.
-const DeanAcademicsCommandCenter = dynamic(() => import("./dean-academics-command-center").then((module) => module.DeanAcademicsCommandCenter), { loading: WorkspaceLoading });
-const DeputyPrincipalCommandCenter = dynamic(() => import("./deputy-principal-command-center").then((module) => module.DeputyPrincipalCommandCenter), { loading: WorkspaceLoading });
-const PrincipalCommandCenter = dynamic(() => import("./principal-command-center").then((module) => module.PrincipalCommandCenter), { loading: WorkspaceLoading });
-const AccountantCommandCenter = dynamic(() => import("./accountant-command-center").then((module) => module.AccountantCommandCenter), { loading: WorkspaceLoading });
-const ExamsManagerCommandCenter = dynamic(() => import("./exams-manager-command-center").then((module) => module.ExamsManagerCommandCenter), { loading: WorkspaceLoading });
-const GradeMasterCommandCenter = dynamic(() => import("./grade-master-command-center").then((module) => module.GradeMasterCommandCenter), { loading: WorkspaceLoading });
-const HosCommandCenter = dynamic(() => import("./hos-command-center").then((module) => module.HosCommandCenter), { loading: WorkspaceLoading });
-const HodCommandCenter = dynamic(() => import("./hod-command-center").then((module) => module.HodCommandCenter), { loading: WorkspaceLoading });
-const LiveRoleCommandCenter = dynamic(() => import("./live-role-command-center").then((module) => module.LiveRoleCommandCenter), { loading: WorkspaceLoading });
-const RoleOperationalCommandCenter = dynamic(() => import("./role-operational-command-center").then((module) => module.RoleOperationalCommandCenter), { loading: WorkspaceLoading });
-const TeacherCommandCenter = dynamic(() => import("./teacher-command-center").then((module) => module.TeacherCommandCenter), { loading: WorkspaceLoading });
-const ProcurementOfficerCommandCenter = dynamic(() => import("./procurement-officer-command-center").then((module) => module.ProcurementOfficerCommandCenter), { loading: WorkspaceLoading });
-const ClassTeacherCommandCenter = dynamic(() => import("./class-teacher-command-center").then((module) => module.ClassTeacherCommandCenter), { loading: WorkspaceLoading });
-const AdmissionsDashboardCommandCenter = dynamic(() => import("./admissions-dashboard/admissions-dashboard-command-center").then((module) => module.AdmissionsDashboardCommandCenter), { loading: WorkspaceLoading });
+const DeanAcademicsCommandCenter = roleResources.DeanAcademicsCommandCenter;
+const DeputyPrincipalCommandCenter = roleResources.DeputyPrincipalCommandCenter;
+const PrincipalCommandCenter = roleResources.PrincipalCommandCenter;
+const AccountantCommandCenter = roleResources.AccountantCommandCenter;
+const ExamsManagerCommandCenter = roleResources.ExamsManagerCommandCenter;
+const GradeMasterCommandCenter = roleResources.GradeMasterCommandCenter;
+const HosCommandCenter = roleResources.HosCommandCenter;
+const HodCommandCenter = roleResources.HodCommandCenter;
+const LiveRoleCommandCenter = roleResources.LiveRoleCommandCenter;
+const RoleOperationalCommandCenter = roleResources.RoleOperationalCommandCenter;
+const TeacherCommandCenter = roleResources.TeacherCommandCenter;
+const ProcurementOfficerCommandCenter = roleResources.ProcurementOfficerCommandCenter;
+const ClassTeacherCommandCenter = roleResources.ClassTeacherCommandCenter;
+const AdmissionsDashboardCommandCenter = roleResources.AdmissionsDashboardCommandCenter;
 
 export type SchoolRouteMode = "hosted" | "public";
 export type ManualReceiptMethod = "cash" | "cheque" | "bank_deposit" | "eft" | "mpesa_c2b";
@@ -960,6 +962,7 @@ const dedicatedLiveModuleSectionIds = new Set([
 ]);
 
 function shouldRenderRoleOperationalWorkspace(role: SchoolExperienceRole, section: string) {
+  if (isDedicatedSchoolWorkspace(role, section)) return true;
   if (section === "exam-analytics" && (role === "grade-master" || role === "class-teacher")) return true;
   if (
     sharedOperationalFallbackRoleIds.has(role)
@@ -4348,6 +4351,7 @@ function formatSchoolNotificationTime(value: unknown) {
 }
 
 export function SchoolPages(props: SchoolPagesProps) {
+  useEffect(() => { void preloadSchoolRole(props.role).catch(() => undefined); }, [props.role]);
   const section = props.studentId ? props.section : resolveExamAnalyticsSection(props.role, props.section ?? "dashboard");
   useEffect(() => {
     if (!props.section || props.section === section || props.studentId) return;
@@ -4425,12 +4429,11 @@ function AuthorizedSchoolPagesContent(
   };
 
   return (
-    <SchoolTenantScopeProvider tenantId={tenantId}>
+    <SchoolTenantScopeProvider key={`${tenantId}:${roleState.userId}:${roleState.activeAuthorizationRoleCode}`} tenantId={tenantId}>
       <DashboardCommunicationProvider tenantId={tenantId}>
         <SchoolCommandIdentityProvider tenantSlug={tenantId} userLabel={props.userLabel}>
           {!props.studentId && authorizedProps.role === "deputy-principal" ? (
             <DeputyPrincipalCommandCenter
-              key={`deputy-principal:${props.section ?? "dashboard"}`}
               activeSection={props.section ?? "dashboard"}
               routeMode={props.routeMode ?? "hosted"}
               tenantSlug={tenantId}
@@ -4439,7 +4442,6 @@ function AuthorizedSchoolPagesContent(
           ) : !props.studentId && isLiveRoleCommandCenterRole(authorizedProps.role) ? (
             <PermissionProvider schoolId={tenantId}>
               <LiveRoleCommandCenter
-                key={`${authorizedProps.role}:${props.section ?? "dashboard"}`}
                 role={authorizedProps.role}
                 routeMode={props.routeMode ?? "hosted"}
                 activeSection={props.section ?? "dashboard"}
@@ -4824,7 +4826,7 @@ function SchoolPagesShell({
     if (sharedOperationalFallbackRoleIds.has(role)) {
       return (
         <RoleOperationalCommandCenter
-          key={`${role}:${section}`}
+          key={role}
           role={role}
           initialSection={section}
           initialWorkspace={schoolSectionLabels[section]}
@@ -4843,7 +4845,7 @@ function SchoolPagesShell({
       return (
         <PermissionProvider schoolId={tenantSlug ?? undefined}>
           <AccountantCommandCenter
-            key={section ?? "overview"}
+            key={role}
             routeMode={routeMode}
             role={role}
             activeSection={section}
@@ -4891,7 +4893,7 @@ function SchoolPagesShell({
 
     return (
       <RoleOperationalCommandCenter
-        key={`${role}:${section}`}
+        key={role}
         role={role}
         initialSection={section}
         initialWorkspace={schoolSectionLabels[section]}

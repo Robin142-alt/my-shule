@@ -22,9 +22,9 @@ beforeEach(() => {
 it.each(DEPUTY_WORKSPACES)("opens deputy %s with the authenticated school on public and hosted routes", async (section) => {
   const publicPage = await SchoolSectionPage({ params: Promise.resolve({ role: "deputy-principal", section }) });
   expect(readPublicSchoolSession).toHaveBeenCalledWith("deputy-principal", { preserveSection: section });
-  expect(publicPage.props).toMatchObject({ role: "deputy-principal", section, tenantSlug: "school-a", sessionVerificationEnabled: true });
+  expect(publicPage).toBeNull(); // Guard-only page: UI belongs to the persistent layout.
   const hosted = await InternalSchoolSectionPage({ params: Promise.resolve({ section }) });
-  expect(hosted.props).toMatchObject({ role: "deputy-principal", section, tenantSlug: "school-a", sessionVerificationEnabled: true });
+  expect(hosted).toBeNull(); // Guard-only page: UI belongs to the persistent layout.
 });
 
 it.each(Object.entries(DEPUTY_WORKSPACE_ALIASES))("retires %s in favour of %s", async (section, target) => {

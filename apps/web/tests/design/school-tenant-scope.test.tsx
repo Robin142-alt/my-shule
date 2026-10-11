@@ -30,7 +30,7 @@ describe("school tenant scope", () => {
     const { result } = renderHook(() => useSchoolQuery("/students"), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(requestDashboardApi).toHaveBeenCalledWith("/students", { tenantId: "maranda-high" });
+    expect(requestDashboardApi).toHaveBeenCalledWith("/students", { tenantId: "maranda-high", signal: expect.any(AbortSignal) });
     expect(queryClient.getQueryData(["school", "maranda-high", "session-user", "session-role", "/students"])).toEqual({ status: "ok" });
     expect(queryClient.getQueryData(["school", "stale-browser-school", "session-user", "session-role", "/students"])).toBeUndefined();
   });
@@ -51,7 +51,7 @@ describe("school tenant scope", () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(requestDashboardApi).toHaveBeenCalledWith("/tenant-health", { tenantId: "explicit-tenant" });
+    expect(requestDashboardApi).toHaveBeenCalledWith("/tenant-health", { tenantId: "explicit-tenant", signal: expect.any(AbortSignal) });
   });
 
   it("invalidates only the routed school's cached workspaces after a successful mutation", async () => {

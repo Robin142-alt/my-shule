@@ -126,17 +126,29 @@ describe("auth and support route production contracts", () => {
 
   it("keeps every school dashboard entry route behind live session verification", () => {
     const protectedSchoolRoutes = [
-      "src/app/internal/school/[section]/page.tsx",
-      "src/app/internal/school/students/[studentId]/page.tsx",
-      "src/app/school/[role]/page.tsx",
-      "src/app/school/[role]/[section]/page.tsx",
-      "src/app/school/[role]/students/[studentId]/page.tsx",
+      ["src/app/internal/school/[section]/page.tsx", "readSchoolRequestContext"],
+      ["src/app/internal/school/students/[studentId]/page.tsx", "readSchoolRequestContext"],
+      ["src/app/school/[role]/page.tsx", "readPublicSchoolSession"],
+      ["src/app/school/[role]/[section]/page.tsx", "readPublicSchoolSession"],
+      ["src/app/school/[role]/students/[studentId]/page.tsx", "readPublicSchoolSession"],
     ];
 
-    for (const route of protectedSchoolRoutes) {
+    for (const [route, guard] of protectedSchoolRoutes) {
       const source = readFileSync(path.join(process.cwd(), route), "utf8");
+      expect(source).toContain(`await ${guard}(`);
+    }
+
+    // Live verification belongs above the changing page segment, so every
+    // entry remains protected without remounting authentication on each click.
+    for (const layout of ["src/app/internal/school/layout.tsx", "src/app/school/layout.tsx"]) {
+      const source = readFileSync(path.join(process.cwd(), layout), "utf8");
+      expect(source).toContain("<SchoolWorkspaceLayout");
       expect(source).toContain("sessionVerificationEnabled");
     }
+    const workspace = readFileSync(path.join(process.cwd(), "src/components/school/school-workspace-layout.tsx"), "utf8");
+    expect(workspace).toContain("<SchoolPages {...initial}");
+    const pages = readFileSync(path.join(process.cwd(), "src/components/school/school-pages.tsx"), "utf8");
+    expect(pages).toContain("liveDataEnabled={props.sessionVerificationEnabled === true}");
   });
 
   it("exposes the public status proxy route and forwards upstream JSON", async () => {

@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation";
 
-import { SuperadminPages } from "@/components/platform/superadmin-pages";
 import { readPlatformRequestContext } from "@/lib/routing/experience-context";
 import {
   isSuperadminSection,
-  type SuperadminSection,
 } from "@/lib/routing/experience-routes";
 
 export default async function InternalSuperadminSectionPage({
@@ -20,8 +18,6 @@ export default async function InternalSuperadminSectionPage({
     notFound();
   }
 
-  const viewSection: "overview" | SuperadminSection =
-    section === "dashboard" ? "overview" : (section as SuperadminSection);
 
-  return <SuperadminPages section={viewSection} />;
+  return null; // The persistent platform layout owns workspace rendering.
 }

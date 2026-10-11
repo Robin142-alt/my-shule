@@ -1,4 +1,3 @@
-import { SchoolPages } from "@/components/school/school-pages";
 import { readSchoolRequestContext } from "@/lib/routing/experience-context";
 
 export default async function InternalSchoolStudentPage({
@@ -9,13 +8,5 @@ export default async function InternalSchoolStudentPage({
   const context = await readSchoolRequestContext();
   const { studentId } = await params;
 
-  return (
-    <SchoolPages
-      role={context.role}
-      studentId={studentId}
-      tenantSlug={context.tenantSlug}
-      section="students"
-      sessionVerificationEnabled
-    />
-  );
+  return null; // The persistent school layout renders the selected workspace.
 }
