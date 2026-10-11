@@ -144,7 +144,10 @@ it("loads and refreshes deputy exam oversight through the school-scoped workflow
 
   expect(await screen.findByRole("heading", { name: "Submitted teacher marks" })).toBeVisible();
   expect(screen.getByRole("heading", { name: "School exam and report-card progress" })).toBeVisible();
-  expect(mockRequest).toHaveBeenCalledWith("/admin-command/deputy/exams", { tenantId: "school-a" });
+  expect(mockRequest).toHaveBeenCalledWith("/admin-command/deputy/exams", {
+    tenantId: "school-a",
+    signal: expect.any(AbortSignal),
+  });
   await user.click(screen.getByRole("button", { name: "Refresh" }));
   await waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(2));
   expect(mockRequest.mock.calls.every(([endpoint, options]) =>

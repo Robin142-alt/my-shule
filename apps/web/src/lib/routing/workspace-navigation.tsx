@@ -61,8 +61,8 @@ export function useWorkspaceRouter() {
   const navigate = useContext(WorkspaceNavigationContext);
   return useMemo(() => ({
     ...router,
-    push: (href: string, options?: { scroll?: boolean }) => { if (!navigate?.(href)) router.push(href, options); },
-    replace: (href: string, options?: { scroll?: boolean }) => { if (!navigate?.(href, true)) router.replace(href, options); },
+    push: (...args: Parameters<typeof router.push>) => { if (!navigate?.(args[0])) router.push(...args); },
+    replace: (...args: Parameters<typeof router.replace>) => { if (!navigate?.(args[0], true)) router.replace(...args); },
   }), [router, navigate]);
 }
 
