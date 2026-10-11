@@ -14,6 +14,7 @@ for (const width of [320, 390, 768, 1440]) test(`branded agreement loading and t
   let finish!: () => void;
   const hold = new Promise<void>(resolve => { finish = resolve; });
   let requests = 0;
+  await page.route('**/api/legal/access', route => route.fulfill({ json: { ready: false } }));
   await page.route('**/api/legal/status', async route => {
     requests++;
     await hold;

@@ -7,21 +7,23 @@ import { WorkspaceLoading } from '@/components/shared/workspace-loading';
 import { isLegalProtectedPath } from '@/lib/legal/routing';
 import { legalRequest } from '@/lib/legal/client';
 import type { LegalStatus } from '@/lib/legal/types';
+import { LegalDashboardRedirect } from './legal-dashboard-redirect';
 
 const loadAcceptance = () => import('./legal-acceptance').then(module => module.LegalAcceptance);
 const LegalAcceptance = dynamic(loadAcceptance, { loading: WorkspaceLoading });
 type Verification = { allowed?: true; status?: LegalStatus };
 type GateState = Verification & { error?: string };
+type GateMode = 'access' | 'accept' | 'review';
 
-export function LegalGate({ children, review = false }: { children?: React.ReactNode; review?: boolean }) {
+export function LegalGate({ children, mode = 'access' }: { children?: React.ReactNode; mode?: GateMode }) {
   const pathname = usePathname();
-  if (!review && !isLegalProtectedPath(pathname)) return <>{children}</>;
+  if (mode === 'access' && !isLegalProtectedPath(pathname)) return <>{children}</>;
   // A route's verification state must not survive leaving it, including a
   // round trip through a public sign-in page back to the same pathname.
-  return <RouteLegalGate key={`${pathname}:${review}`} review={review}>{children}</RouteLegalGate>;
+  return <RouteLegalGate key={`${pathname}:${mode}`} mode={mode}>{children}</RouteLegalGate>;
 }
 
-function RouteLegalGate({ children, review }: { children?: React.ReactNode; review: boolean }) {
+function RouteLegalGate({ children, mode }: { children?: React.ReactNode; mode: GateMode }) {
   const [state, setState] = useState<GateState>({});
   const revision = useRef(0);
   const inFlight = useRef<Promise<Verification> | null>(null);
@@ -34,7 +36,7 @@ function RouteLegalGate({ children, review }: { children?: React.ReactNode; revi
     let pending = inFlight.current;
     if (!pending) {
       pending = (async (): Promise<Verification> => {
-        if (!review) {
+        if (mode !== 'review') {
           const access = await legalRequest<{ ready: boolean }>('access');
           if (access?.ready === true) return { allowed: true };
         }
@@ -47,7 +49,7 @@ function RouteLegalGate({ children, review }: { children?: React.ReactNode; revi
     try { const result = await pending; if (requestRevision === revision.current) setState(result); }
     catch (error) { if (requestRevision === revision.current) setState({ error: error instanceof Error ? error.message : 'Unable to verify your agreements.' }); }
     finally { if (inFlight.current === pending) inFlight.current = null; }
-  }, [review]);
+  }, [mode]);
   useEffect(() => {
     let active = true;
     const verify = () => { if (active) void load(); };
@@ -61,7 +63,8 @@ function RouteLegalGate({ children, review }: { children?: React.ReactNode; revi
   }, [load, invalidate]);
   if (!state.allowed && !state.status && !state.error) return <WorkspaceLoading />;
   if (state.error) return <main className="legal-page"><div className="legal-card"><h1>We couldn’t verify your access</h1><p role="alert" className="legal-notice legal-error">{state.error}</p><button className="legal-button" onClick={load}>Try again</button><Link className="legal-link mt-4 block text-center" href="/app">Sign in</Link></div></main>;
-  if (state.status && (!state.status.ready || review)) return <LegalAcceptance key={state.status.user_id + state.status.school_id} status={state.status} onStatus={(status) => {
+  if (mode === 'accept' && (state.allowed || state.status?.ready)) return <LegalDashboardRedirect />;
+  if (state.status && (!state.status.ready || mode === 'review')) return <LegalAcceptance key={state.status.user_id + state.status.school_id} status={state.status} review={mode === 'review'} onStatus={(status) => {
     invalidate(); inFlight.current = null; setState({ status });
   }} onRetry={load} />;
   return <>{children}</>;

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { LegalAcceptance } from '@/components/legal/legal-acceptance';
 import { LegalGate } from '@/components/legal/legal-gate';
 import { GuardianAuthorisations } from '@/components/legal/legal-guardian';
@@ -7,6 +7,9 @@ import { isLegalProtectedPath } from '@/lib/legal/routing';
 import { LEGAL_DOCUMENTS } from '../../../../shared/legal/documents';
 import type { LegalStatus } from '@/lib/legal/types';
 import { routerReplaceMock } from './router-mock';
+import AcceptancePage from '@/app/legal/accept/page';
+import AgreementsPage from '@/app/legal/account/page';
+import { StrictMode } from 'react';
 jest.mock('@/lib/legal/client', () => ({legalRequest:jest.fn()}));
 const request = jest.mocked(legalRequest);
 const base:LegalStatus={user_id:'user',school_id:'amani',school_name:'Amani School',display_name:'Amina',ready:false,required_documents:LEGAL_DOCUMENTS.filter(d=>d.kind!=='dpa'),documents:[...LEGAL_DOCUMENTS],blockers:[],school_accepted:false,school_authority_verified:false,guardian_required:false,dpa_active:false,incorporated_documents:[],guardian_children:[],can_verify_school_authority:false,can_verify_guardians:false,statements:{school:'school',guardian:'I authorise my child to use the portal.'},receipts:[]};
@@ -78,16 +81,68 @@ test('successful acceptance stays on the branded loader until the dashboard navi
   } finally {global.fetch=originalFetch;}
 });
 
-test('destination failure returns a retryable agreement screen without inventing access', async()=>{
+test('destination failure offers retry without asking for already recorded agreements again', async()=>{
   request.mockResolvedValueOnce({...base,ready:true,required_documents:[]});
   const originalFetch=global.fetch;
   global.fetch=jest.fn().mockResolvedValue({ok:false,json:async()=>({message:'unavailable'})});
   try {
     render(<LegalAcceptance status={{...base,ready:true,required_documents:[]}} onStatus={jest.fn()} onRetry={jest.fn()}/>);
-    fireEvent.click(screen.getByRole('button',{name:'Continue to dashboard'}));
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to open your dashboard');
     expect(screen.queryByRole('status',{name:'Loading MyShule'})).not.toBeInTheDocument();
     expect(routerReplaceMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('button',{name:'Continue to dashboard'})).toBeEnabled();
+    expect(screen.getByRole('button',{name:'Try again'})).toBeEnabled();
+    expect(screen.queryByText('Your agreements are up to date')).not.toBeInTheDocument();
+    global.fetch=jest.fn().mockResolvedValue({ok:true,json:async()=>({path:'/portal/parent'})});
+    fireEvent.click(screen.getByRole('button',{name:'Try again'}));
+    await waitFor(()=>expect(routerReplaceMock).toHaveBeenCalledWith('/portal/parent'));
+  } finally {global.fetch=originalFetch;}
+});
+
+test.each(['/school/principal','/school/teacher','/portal/parent','/portal/student','/superadmin'])('accepted entry automatically opens the verified %s destination without a success screen', async(path)=>{
+  request.mockResolvedValue({...base,ready:true,required_documents:[]});
+  const originalFetch=global.fetch;
+  global.fetch=jest.fn().mockResolvedValue({ok:true,json:async()=>({path})});
+  try {
+    const view=render(<StrictMode><AcceptancePage /></StrictMode>);
+    await waitFor(()=>expect(routerReplaceMock).toHaveBeenCalledWith(path));
+    expect(screen.getByRole('status',{name:'Loading MyShule'})).toBeVisible();
+    expect(screen.queryByText('Your agreements are up to date')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Continue to dashboard'})).not.toBeInTheDocument();
+    expect(request.mock.calls.map(([endpoint])=>endpoint)).toEqual(['access']);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    view.unmount();
+    render(<AcceptancePage />);
+    await waitFor(()=>expect(routerReplaceMock).toHaveBeenCalledTimes(2));
+    expect(request.mock.calls.map(([endpoint])=>endpoint)).toEqual(['access','access']);
+  } finally {global.fetch=originalFetch;}
+});
+
+test('a renewed agreement or guardian blocker keeps the entry closed until the backend approves',async()=>{
+  request.mockResolvedValueOnce({ready:false}).mockResolvedValueOnce({...base,required_documents:[{...base.required_documents[1],id:'terms-next',version:'next',generation:2}],blockers:[{code:'GUARDIAN_AUTHORISATION_REQUIRED',message:'Your guardian must authorise access.'}]});
+  render(<AcceptancePage />);
+  expect(await screen.findByRole('checkbox',{name:/Terms of Use/})).not.toBeChecked();
+  expect(screen.queryByRole('checkbox',{name:/Privacy Policy/})).not.toBeInTheDocument();
+  expect(screen.getByText('Your guardian must authorise access.')).toBeVisible();
+  expect(routerReplaceMock).not.toHaveBeenCalled();
+});
+
+test('manual review preserves access to guardian controls without automatic navigation',async()=>{
+  request.mockResolvedValueOnce({...base,ready:true,required_documents:[],guardian_children:[{student_id:'child-1',name:'Alex',verified:true,authorised:false}]});
+  render(<AgreementsPage />);
+  expect(await screen.findByRole('heading',{name:'Your agreements',exact:true})).toBeVisible();
+  expect(screen.getByRole('button',{name:'Authorise portal access'})).toBeDisabled();
+  expect(routerReplaceMock).not.toHaveBeenCalled();
+});
+
+test('leaving during destination lookup cannot redirect a later session',async()=>{
+  let finish!:(value:unknown)=>void;
+  const originalFetch=global.fetch;
+  global.fetch=jest.fn().mockReturnValue(new Promise(resolve=>{finish=resolve;}));
+  try {
+    const view=render(<LegalAcceptance status={{...base,ready:true,required_documents:[]}} onStatus={jest.fn()} onRetry={jest.fn()}/>);
+    view.unmount();
+    await act(async()=>finish({ok:true,json:async()=>({path:'/school/principal'})}));
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(routerReplaceMock).not.toHaveBeenCalled();
   } finally {global.fetch=originalFetch;}
 });

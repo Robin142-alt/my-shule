@@ -52,7 +52,7 @@ test('Strict Mode, focus and visibility overlap share one in-flight check withou
 test('review goes directly to detailed status and failure remains recoverable', async () => {
   mockPathname = '/legal/accept';
   request.mockRejectedValueOnce(new Error('Connection unavailable')).mockResolvedValueOnce(pending);
-  render(<LegalGate review />);
+  render(<LegalGate mode="review" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Connection unavailable');
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByText('Agreements for Amina')).toBeVisible();
