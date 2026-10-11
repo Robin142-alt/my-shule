@@ -1,5 +1,10 @@
 "use client";
 
+// CSS is small and shared by many appointed roles. Load it with the persistent
+// shell so a lazy workspace's stylesheet cannot hold up subsequent selections.
+import "./exams-manager/exam-analytics.module.css";
+import "./dean-academics/dean-workspace.module.css";
+
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { SchoolPages, type SchoolPagesProps } from "./school-pages";
