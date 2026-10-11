@@ -1,5 +1,5 @@
-const { chromium, expect } = require('@playwright/test');
-const fs = require('node:fs');
+import { chromium, expect } from '@playwright/test';
+import fs from 'node:fs';
 const base = process.env.NAVIGATION_BASE_URL || 'http://127.0.0.1:3017';
 const switches = (process.env.NAVIGATION_SWITCH_ROLES || 'teacher,principal,teacher').split(',');
 const roles = [...new Set(['principal', ...switches])];

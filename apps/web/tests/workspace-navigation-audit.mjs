@@ -1,7 +1,7 @@
 /* Production-build browser audit. All API replies are explicit test fixtures;
  * unavailable data stays unavailable. Never connects to a school's backend. */
-const { chromium } = require('@playwright/test');
-const fs = require('node:fs');
+import { chromium } from '@playwright/test';
+import fs from 'node:fs';
 const base = process.env.NAVIGATION_BASE_URL || 'http://127.0.0.1:3017';
 const output = process.argv[2] || '../../tmp/workspace-navigation-audit.json';
 const roles = (process.env.NAVIGATION_ROLES || 'principal,deputy-principal,teacher,accountant,bursar,dean-academics,exams-manager,hod,hos,class-teacher,grade-master,admissions,secretary,librarian,storekeeper,nurse,guidance-counselling,discipline-master,laboratory-technician,ict-manager,security-officer,transport-manager,boarding-master,procurement-officer,admin,student,portal-parent,portal-student,superadmin,system-monitor').split(',');

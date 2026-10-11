@@ -1,5 +1,5 @@
-const { chromium } = require('@playwright/test');
-const fs = require('node:fs');
+import { chromium } from '@playwright/test';
+import fs from 'node:fs';
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const results = [];

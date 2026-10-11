@@ -22,9 +22,9 @@ From `apps/web`, build and start a production server, then run the browser scrip
 npm run build
 npm run start -- --hostname 127.0.0.1 --port 3019
 $env:NAVIGATION_BASE_URL='http://127.0.0.1:3019'
-node tests/navigation-baseline.cjs ../../tmp/navigation-after.json
-node tests/workspace-navigation-audit.cjs ../../tmp/navigation-final.json
-node tests/role-navigation-audit.cjs ../../tmp/role-navigation-final.json
+node tests/navigation-baseline.mjs ../../tmp/navigation-after.json
+node tests/workspace-navigation-audit.mjs ../../tmp/navigation-final.json
+node tests/role-navigation-audit.mjs ../../tmp/role-navigation-final.json
 ```
 
 `NAVIGATION_ROLES` and `NAVIGATION_WIDTHS` select subsets. `NAVIGATION_SLOW=1` adds 120 ms network latency and 8 Mbps download throughput. `NAVIGATION_DATA_DELAY_MS` controls the data fixture delay. `NAVIGATION_STANDALONE=1` emulates standalone display mode; it is not a physical installed-device test. `NAVIGATION_TRACE=1` writes a Chromium performance trace under `tmp`. `NAVIGATION_SWITCH_ROLES` selects the role-switch sequence.
@@ -84,7 +84,7 @@ These runs use different role subsets and execution windows; the lower slow-netw
 - ESLint passed for the new navigation/resource files and tests. `git diff --check` passed. The existing middleware deprecation notice remains.
 - Hosted tenant/role routing is covered by contract tests; browser runs use the public role URLs.
 
-Compact measured evidence is saved in [validation/navigation-performance-results.json](validation/navigation-performance-results.json). Browser audit scripts live in `apps/web/tests/navigation-baseline.cjs`, `workspace-navigation-audit.cjs`, and `role-navigation-audit.cjs`. Detailed local samples, screenshots and the Principal Chromium trace are under `tmp/navigation-*`.
+Compact measured evidence is saved in [validation/navigation-performance-results.json](validation/navigation-performance-results.json). Browser audit scripts live in `apps/web/tests/navigation-baseline.mjs`, `workspace-navigation-audit.mjs`, and `role-navigation-audit.mjs`. Detailed local samples, screenshots and the Principal Chromium trace are under `tmp/navigation-*`.
 
 ## Verification limits
 
