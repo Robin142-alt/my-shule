@@ -143,12 +143,17 @@ jobs:
             sleep 2
           done
           node cloudflare/smoke.mjs
+          npx playwright install --with-deps chromium
+          mkdir -p ../../tmp
+          NAVIGATION_BASE_URL=http://127.0.0.1:8787 NAVIGATION_ROLES=principal,dean-academics,grade-master NAVIGATION_CSS_DELAY_MS=1500 node tests/workspace-navigation-audit.mjs ../../tmp/worker-navigation.json
       - name: Keep Worker diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: cloudflare-runtime-diagnostics
-          path: /tmp/myshule-workerd.log
+          path: |
+            /tmp/myshule-workerd.log
+            tmp/worker-navigation.json
           retention-days: 7
       - name: Package verified build with module permissions intact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

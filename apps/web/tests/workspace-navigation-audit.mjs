@@ -78,6 +78,15 @@ async function openNav(page, width) {
     const row = { role, width, samples: [], errors: [] };
     const context = await browser.newContext({ viewport: { width, height: 900 }, serviceWorkers: width < 1000 ? 'allow' : 'block', isMobile: width < 1000, hasTouch: width < 1000 });
     const page = await context.newPage();
+    let shellReady = false;
+    row.lateStylesheets = [];
+    page.on('request', request => {
+      if (shellReady && request.resourceType() === 'stylesheet') row.lateStylesheets.push(new URL(request.url()).pathname);
+    });
+    if (process.env.NAVIGATION_CSS_DELAY_MS) await context.route('**/*.css*', async route => {
+      if (shellReady) await new Promise(resolve => setTimeout(resolve, Number(process.env.NAVIGATION_CSS_DELAY_MS)));
+      return route.continue();
+    });
     page.on('pageerror', error => row.errors.push(error.message));
     try {
       const { home, calls } = await fixture(context, role);
@@ -102,6 +111,7 @@ async function openNav(page, width) {
       await page.goto(base + home);
       await page.locator('.authenticated-app').first().waitFor({ timeout: 30000 });
       row.coldShellMs = Date.now() - start;
+      shellReady = true;
       let nav = await openNav(page, width);
       if (!await nav.count()) throw new Error('No accessible navigation');
       const groups = await nav.locator('button[aria-expanded]').all();
@@ -158,6 +168,7 @@ async function openNav(page, width) {
       row.calls = { ...calls };
       const final = row.samples.at(-1);
       if (final) {
+        shellReady = false;
         await page.goto(base + final.path);
         await page.locator('.authenticated-app').first().waitFor({ timeout: 15000 });
         row.direct = { path: new URL(page.url()).pathname + new URL(page.url()).search, selected: clean(await page.locator('nav [aria-current="page"]').first().textContent().catch(() => '')) };
@@ -165,7 +176,7 @@ async function openNav(page, width) {
       row.noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
       if (['teacher','nurse','principal','superadmin','portal-parent'].includes(role)) { await page.waitForTimeout(2200); await page.screenshot({ path: `../../tmp/navigation-${role}-${width}.png`, fullPage: false }); }
     } catch (error) { row.failure = error.message; row.url = page.url(); row.body = (await page.locator('body').innerText().catch(() => '')).slice(0,1500); }
-    row.issues = [row.privateCacheEntries?.length ? 'Private data found in service worker cache' : null, row.noHorizontalOverflow === false ? 'Horizontal page overflow' : null, row.failure, ...row.errors, ...(row.samples.filter(s => !s.selected.startsWith(s.label)).map(s => 'Wrong workspace: '+s.label+' -> '+s.selected)), ...(row.observations || []).filter(s=>s.removed || s.splash).map(s=>'Shell replaced or splash: '+s.label), row.rapidCorrect === false ? 'Rapid click mismatch' : null, row.backCorrect === false ? 'Back workspace mismatch' : null, row.forwardRestored === false ? 'Forward URL mismatch' : null, row.historyShellPreserved === false ? 'History shell replaced' : null, row.direct && !row.direct.selected.startsWith(row.samples.at(-1).label) ? 'Direct workspace mismatch' : null, row.samples.length === 0 ? 'No transitions exercised' : null].filter(Boolean);
+    row.issues = [process.env.NAVIGATION_CSS_DELAY_MS && row.lateStylesheets.length ? 'Workspace stylesheet requested after shell was ready' : null, row.privateCacheEntries?.length ? 'Private data found in service worker cache' : null, row.noHorizontalOverflow === false ? 'Horizontal page overflow' : null, row.failure, ...row.errors, ...(row.samples.filter(s => !s.selected.startsWith(s.label)).map(s => 'Wrong workspace: '+s.label+' -> '+s.selected)), ...(row.observations || []).filter(s=>s.removed || s.splash).map(s=>'Shell replaced or splash: '+s.label), row.rapidCorrect === false ? 'Rapid click mismatch' : null, row.backCorrect === false ? 'Back workspace mismatch' : null, row.forwardRestored === false ? 'Forward URL mismatch' : null, row.historyShellPreserved === false ? 'History shell replaced' : null, row.direct && !row.direct.selected.startsWith(row.samples.at(-1).label) ? 'Direct workspace mismatch' : null, row.samples.length === 0 ? 'No transitions exercised' : null].filter(Boolean);
     results.push(row);
     fs.writeFileSync(output, JSON.stringify(results,null,2));
     console.log(JSON.stringify({ role, width, transitions: row.samples.length, failures: row.issues, remounts: row.observations?.filter(s=>s.removed).length, flashes: row.observations?.filter(s=>s.splash).length, maxMs: Math.max(...(row.observations || []).map(s=>s.feedbackMs || 0)), direct: row.direct, calls: row.calls }));
