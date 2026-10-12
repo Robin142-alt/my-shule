@@ -46,6 +46,18 @@ describe('School fee waivers and multi-grade rosters', () => {
   }));
   const decide = (id: string, decision: 'APPROVED' | 'REJECTED' = 'APPROVED', tenant = 'school-a', actor = principal, actorRole = 'principal', permissions = ['finance:write']) => context.run({tenant_id: tenant, user_id: actor, role: actorRole, permissions} as never,
     () => approvals.decideRequest({tenantId: tenant, approvalId: id, actorUserId: actor, actorRole, decision, requestId: randomUUID(), note: 'Reviewed current fee account'}));
+  it('expands legacy invoices without a total constraint and rejects negative totals', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('CREATE TEMP TABLE invoices(total_amount_minor bigint NOT NULL) ON COMMIT DROP');
+      await client.query(FEE_WAIVER_INVOICE_SCHEMA_SQL);
+      await client.query(FEE_WAIVER_INVOICE_SCHEMA_SQL);
+      await client.query('INSERT INTO invoices VALUES(0),(100)');
+      expect((await client.query('SELECT total_amount_minor FROM invoices ORDER BY total_amount_minor')).rows).toEqual([{total_amount_minor: '0'}, {total_amount_minor: '100'}]);
+      await expect(client.query('INSERT INTO invoices VALUES(-1)')).rejects.toMatchObject({code: '23514'});
+    } finally { await client.query('ROLLBACK'); client.release(); }
+  });
   beforeAll(async () => {
     const url = new URL(process.env.DATABASE_URL ?? 'postgresql://invalid/invalid');
     if (process.env.MYSHULE_DISPOSABLE_POSTGRES !== '1' || !['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.startsWith('/my_shule_disposable_')) throw Error('Requires disposable PostgreSQL');
