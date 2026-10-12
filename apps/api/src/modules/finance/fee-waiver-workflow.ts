@@ -77,7 +77,7 @@ export async function applySchoolFeeWaiver(tx: FeeWaiverTransaction, input: {
         status = CASE WHEN total_amount_minor - $3::bigint = amount_paid_minor THEN 'paid' ELSE status END,
         metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{fee_waivers}',
           COALESCE(metadata->'fee_waivers', '[]'::jsonb) || $4::jsonb), updated_at = NOW()
-      WHERE tenant_id = $1 AND id = $2::uuid RETURNING id
+      WHERE tenant_id = $1 AND id::text = $2 RETURNING id
     `, input.schoolId, invoice.id, reduction.toString(), JSON.stringify([{
       approval_id: input.approvalId, amount_minor: reduction.toString(), reason: request.reason,
       approved_by: input.actorUserId, applied_at: new Date().toISOString(),

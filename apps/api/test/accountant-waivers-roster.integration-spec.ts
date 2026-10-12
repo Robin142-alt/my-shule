@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { Pool, PoolClient } from 'pg';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { ApprovalService } from '../src/modules/workflow/services/approval.service';
-import { requestSchoolFeeWaiver } from '../src/modules/finance/fee-waiver-workflow';
+import { requestSchoolFeeWaiver, applySchoolFeeWaiver } from '../src/modules/finance/fee-waiver-workflow';
 import { FeeStructuresRepository } from '../src/modules/billing/repositories/fee-structures.repository';
 import { FinanceController } from '../src/modules/finance/finance.controller';
 import { SchoolOperationalEventsService } from '../src/modules/events/school-operational-events.service';
@@ -91,6 +91,19 @@ describe('School fee waivers and multi-grade rosters', () => {
         ('school-b','${randomUUID()}','PRIVATE','Private fees',100000,100000,0,now(),'{{"student_id":"${other}"}}'::jsonb,now());`.replaceAll('{{','{').replaceAll('}}','}'));
   });
   afterAll(async () => {if(pool){await pool.query(`DROP SCHEMA ${schema} CASCADE; DROP ROLE ${role}`);await pool.end();}});
+  it('applies waivers to legacy text invoice identifiers without crossing schools', async () => {
+    const pending = await request('1000', 'legacy-text');
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('ALTER TABLE invoices ALTER COLUMN id TYPE text USING id::text');
+      await client.query(`SET LOCAL ROLE ${role}`);
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", ['school-a']);
+      await applySchoolFeeWaiver(txFor(client), {schoolId:'school-a',approvalId:pending.id,actorUserId:principal,actorRole:'principal',approved:true});
+      expect((await client.query("SELECT total_amount_minor::text AS total FROM invoices WHERE tenant_id='school-a' AND invoice_number='INV-1'")).rows).toEqual([{total:'9000'}]);
+      expect((await client.query("SELECT id FROM invoices WHERE tenant_id='school-b'")).rows).toEqual([]);
+    } finally { await client.query('ROLLBACK'); client.release(); }
+  });
   it('the Accountant request endpoint persists its approval and Principal notification in one transaction', async () => {
     const publisher={publish:async(event:any,tx:ReturnType<typeof txFor>)=>{
       if(failEvent)throw Error('Outbox unavailable');
