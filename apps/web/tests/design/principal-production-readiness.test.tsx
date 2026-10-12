@@ -521,7 +521,7 @@ describe("principal production readiness", () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: ["students:read", "school_admissions:write"] }) });
     renderWithProviders(<SchoolPages role="principal" section="students" tenantSlug="maranda-high" routeMode="public" />);
     await user.click(await screen.findByRole("button", { name: "Admit New" }));
-    expect(routerPushMock).toHaveBeenCalledWith("/school/principal/admissions");
+    expect(routerPushMock.mock.calls[0][0]).toBe("/school/principal/admissions");
   });
 
   it("opens student setup in Students and uses the supported attendance URL", async () => {
@@ -937,6 +937,50 @@ describe("principal production readiness", () => {
 
     const commandCenter = await screen.findByTestId("principal-practical-command-center");
     await user.click(await within(commandCenter).findByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Confirm approval" }));
+
+    await waitFor(() => {
+      expect(requestDashboardApiMock).toHaveBeenCalledWith(
+        "/admin-command/principal/approvals/00000000-0000-4000-8000-000000000704/action",
+        {
+          method: "POST",
+          tenantId: "lakeview-school",
+          body: { action: "approve", comment: undefined },
+        },
+      );
+    });
+  });
+
+  it("decides fee waivers through the governed Principal action", async () => {
+    const user = userEvent.setup();
+    responseOverrides.set("/admin-command/principal/approvals", {
+      status: "active",
+      pendingTotal: 1,
+      urgentApprovals: 1,
+      categories: [{ name: "Finance", pending: 1, urgent: 1 }],
+      requests: [
+        {
+          id: "00000000-0000-4000-8000-000000000704",
+          title: "Fee waiver · KES 10.00 · Amina",
+          reason: "Scholarship request",
+          status: "pending",
+          approval_type: "fee_waiver",
+          module: "finance",
+          record_id: "00000000-0000-4000-8000-000000000705",
+          priority: "urgent",
+          created_at: "2026-08-22T07:00:00.000Z",
+        },
+      ],
+      recentApprovals: [],
+    });
+
+    renderWithProviders(
+      <SchoolPages role="principal" section="approvals" tenantSlug="lakeview-school" />,
+    );
+
+    const commandCenter = await screen.findByTestId("principal-practical-command-center");
+    await user.click(await within(commandCenter).findByRole("button", { name: "Approve" }));
+    expect(screen.getByText(/It does not record a payment/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() => {

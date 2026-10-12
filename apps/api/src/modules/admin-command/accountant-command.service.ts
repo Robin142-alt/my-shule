@@ -192,7 +192,8 @@ export class AccountantCommandService {
             'pending_cheques', (SELECT COUNT(*) FROM manual_fee_payments WHERE tenant_id = $1 AND payment_method = 'cheque' AND status IN ('received', 'deposited')),
             'reversal_approvals', ((SELECT COUNT(*) FROM collection_reversal_requests WHERE tenant_id = $1 AND status = 'pending') + (SELECT COUNT(*) FROM manual_fee_reversal_requests WHERE tenant_id = $1 AND status = 'pending')),
             'expense_approvals', (SELECT COUNT(*) FROM school_expenses WHERE tenant_id = $1 AND lower(status) IN ('pending', 'pending_approval')),
-            'waiver_approvals', (SELECT COUNT(*) FROM tenant_pending_waivers WHERE tenant_id::text = $1 AND lower(status) = 'pending')
+            'waiver_approvals', ((SELECT COUNT(*) FROM tenant_pending_waivers WHERE tenant_id::text = $1 AND lower(status) = 'pending')
+              + (SELECT COUNT(*) FROM dashboard_approval_requests WHERE tenant_id::text = $1 AND module = 'finance' AND approval_type = 'fee_waiver' AND lower(status) IN ('pending','pending_approval','escalated')))
           ) AS pending_actions
         FROM payment_metrics
         CROSS JOIN invoice_metrics

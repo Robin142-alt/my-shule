@@ -1,3 +1,4 @@
+import { FEE_WAIVER_INVOICE_SCHEMA_SQL } from './fee-waiver-schema';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -120,6 +121,8 @@ export class BillingSchemaService implements OnModuleInit {
         CONSTRAINT uq_invoices_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_invoices_tenant_invoice_number UNIQUE (tenant_id, invoice_number)
       );
+
+      ${FEE_WAIVER_INVOICE_SCHEMA_SQL}
 
       CREATE TABLE IF NOT EXISTS usage_records (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

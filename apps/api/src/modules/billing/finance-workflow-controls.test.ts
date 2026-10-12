@@ -101,3 +101,25 @@ test('invoice retry returns the same invoice and rejects a changed amount', asyn
   await assert.rejects(as('accountant',()=>service.createInvoice({...dto,total_amount_minor:'2000'})),/different invoice/);
   assert.equal(writes(),0);
 });
+
+
+test('invoice metadata cannot inject fee waiver adjustments', async () => {
+  let metadata: any;
+  const date=new Date('2026-10-01');
+  const service=new BillingService(context,{withRequestTransaction:(work:()=>unknown)=>work(),query:async()=>({rows:[{student_name:'Amina',admission_number:'001'}]})} as never,
+    {invalidateTenant:async()=>{}} as never,{} as never,{} as never,
+    {lockCurrentByTenant:async()=>({id:'subscription',status:'active',currency_code:'KES'})} as never,
+    {createInvoice:async(input:any)=>{metadata=input.metadata;return {...input,id:'invoice',issued_at:date,due_at:date,created_at:date,updated_at:date};}} as never,
+    undefined,undefined,undefined,{recordSchoolOperation:async()=>{}} as never);
+  await as('accountant',()=>service.createInvoice({description:'Fees',total_amount_minor:'1000',metadata:{student_id:'student',fee_waivers:[{approval_id:'forged',amount_minor:'999999'}]}}));
+  assert.equal(metadata.fee_waivers,undefined);
+});
+
+
+test('an invoice retry after an approved waiver still recognizes its original charge', async () => {
+  const date=new Date('2026-10-01T10:00:00Z');
+  const saved={id:'invoice',tenant_id:'school-a',description:'Fees',total_amount_minor:'600',metadata:{student_id:'student',fee_waivers:[{approval_id:'waiver',amount_minor:'400',applied_at:'2026-10-02T10:00:00Z',reason:'Scholarship'}]},issued_at:date,due_at:date,created_at:date,updated_at:date};
+  const {service,writes}=invoiceService(async(sql)=>({rows:sql.includes('FROM students')?[{student_name:'Amina',admission_number:'001'}]:[{id:'invoice'}]}),saved);
+  assert.equal((await as('accountant',()=>service.createInvoice({description:'Fees',total_amount_minor:'1000',idempotency_key:'same',metadata:{student_id:'student'}}))).id,'invoice');
+  assert.equal(writes(),0);
+});

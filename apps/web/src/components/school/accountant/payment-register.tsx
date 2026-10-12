@@ -172,7 +172,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
         <option value="">All statuses</option>{["received", "deposited", "cleared", "bounced", "reversed"].map(s => <option key={s} value={s}>{s === "received" ? "Awaiting clearance" : s}</option>)}
       </select></label>
     </div>
-    <DataTable title={receiptsOnly ? "Receipts" : "Payment history"} rows={rows} getRowKey={row => row.id}
+    <DataTable pageSize={50} title={receiptsOnly ? "Receipts" : "Payment history"} rows={rows} getRowKey={row => row.id}
       emptyMessage={query.isLoading ? "Loading receipts…" : query.error ? "Receipt records are unavailable. Retry above." : "No matching receipts. Record cash or a cheque, or check your collection channels."}
       columns={[
         { id: "receipt", header: "Receipt / learner", render: row => <div><p className="font-semibold">{row.receipt_number}</p><p className="mt-1 text-muted">{row.student_name || "Learner fee account"} {row.admission_number && `· ${row.admission_number}`}</p></div> },

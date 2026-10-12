@@ -114,6 +114,13 @@ type StudentStatementWorkingEntry = {
   ledger_transaction_id: string | null;
 };
 
+function invoiceFeeWaivers(invoice: InvoiceEntity) {
+  return Array.isArray(invoice.metadata.fee_waivers) ? invoice.metadata.fee_waivers.filter(
+    (row): row is { approval_id: string; amount_minor: string; applied_at: string; reason: string } =>
+      row && typeof row === 'object' && typeof row.approval_id === 'string' && /^[1-9][0-9]*$/.test(row.amount_minor) && !Number.isNaN(Date.parse(row.applied_at)),
+  ) : [];
+}
+
 type FinanceReconciliationInput = {
   from?: string;
   to?: string;
@@ -325,6 +332,7 @@ export class BillingService {
       }
       const metadata = { ...(dto.metadata ?? {}) };
       delete metadata.submission_key;
+      delete metadata.fee_waivers;
       const studentId = this.readStringMetadata(metadata, 'student_id');
       if ('student_id' in metadata && !studentId) throw new BadRequestException('A valid learner reference is required');
       if (studentId) {
@@ -342,7 +350,8 @@ export class BillingService {
         )).rows[0];
         if (previous) {
           const saved = await this.invoicesRepository.findById(tenantId, previous.id);
-          if (!saved || saved.total_amount_minor !== dto.total_amount_minor || saved.description !== dto.description.trim()
+          const originalAmount = saved ? BigInt(saved.total_amount_minor) + invoiceFeeWaivers(saved).reduce((sum, row) => sum + BigInt(row.amount_minor), 0n) : null;
+          if (!saved || originalAmount?.toString() !== dto.total_amount_minor || saved.description !== dto.description.trim()
             || this.readStringMetadata(saved.metadata, 'student_id') !== studentId
             || (dto.due_at && saved.due_at.toISOString() !== this.resolveTimestamp(dto.due_at))) {
             throw new ConflictException('This submission already created a different invoice. Check the invoice register.');
@@ -401,19 +410,20 @@ export class BillingService {
     const totalAmountMinor = lineItems
       .reduce((total, item) => total + BigInt(item.amount_minor), 0n)
       .toString();
+    if (BigInt(totalAmountMinor) > 9_223_372_036_854_775_807n) throw new BadRequestException('The fee total exceeds the supported financial limit');
     const feeStructure = await feeStructuresRepository.create({
       tenant_id: tenantId,
       name: dto.name.trim(),
       academic_year: dto.academic_year.trim(),
       term: dto.term.trim(),
-      grade_level: dto.grade_level.trim(),
+      grade_level: dto.grade_levels?.[0]?.trim() || dto.grade_level.trim(),
       class_name: dto.class_name?.trim() || null,
       currency_code: BILLING_DEFAULT_CURRENCY_CODE,
       status: dto.status ?? 'active',
       due_days: dto.due_days ?? 14,
       line_items: lineItems,
       total_amount_minor: totalAmountMinor,
-      metadata: dto.metadata ?? {},
+      metadata: { ...dto.metadata, billing_grade_levels: dto.grade_levels ?? [dto.grade_level.trim()] },
       created_by_user_id: store.user_id ?? null,
     });
 
@@ -426,6 +436,10 @@ export class BillingService {
     );
 
     return feeStructures.map((feeStructure) => this.mapFeeStructure(feeStructure));
+  }
+
+  async listFeeRosterOptions() {
+    return this.requireFeeStructuresRepository().listRosterOptions(this.requireTenantId());
   }
 
   async listBillableStudentsForFeeStructure(
@@ -451,6 +465,7 @@ export class BillingService {
       tenantId,
       {
         grade_level: feeStructure.grade_level,
+        ...(Array.isArray(feeStructure.metadata?.billing_grade_levels) ? { grade_levels: this.feeStructureGrades(feeStructure) } : {}),
         class_name: feeStructure.class_name,
       },
     );
@@ -514,6 +529,7 @@ export class BillingService {
       const selected = this.normalizeBulkFeeStudents(dto.target_students);
       const roster = await feeStructuresRepository.listBillableStudentsForFeeStructure(tenantId, {
         grade_level: feeStructure.grade_level, class_name: feeStructure.class_name,
+        grade_levels: this.feeStructureGrades(feeStructure),
       });
       const students = selected.map(student => {
         const enrolled = roster.find(row => row.student_id === student.student_id);
@@ -577,12 +593,13 @@ export class BillingService {
           due_at: dueAt,
           metadata: {
             ...(dto.metadata ?? {}),
+            fee_waivers: [],
             billing_reason: 'fee_structure_bulk_generation',
             fee_structure_id: feeStructure.id,
             idempotency_key: dto.idempotency_key.trim(),
             academic_year: feeStructure.academic_year,
             term: feeStructure.term,
-            grade_level: feeStructure.grade_level,
+            grade_level: student.grade_level,
             class_name: student.class_name ?? feeStructure.class_name,
             student_id: student.student_id,
             student_name: student.student_name,
@@ -1259,6 +1276,7 @@ export class BillingService {
       academic_year: feeStructure.academic_year,
       term: feeStructure.term,
       grade_level: feeStructure.grade_level,
+      grade_levels: this.feeStructureGrades(feeStructure),
       class_name: feeStructure.class_name,
       currency_code: feeStructure.currency_code,
       status: feeStructure.status,
@@ -1270,6 +1288,12 @@ export class BillingService {
       created_at: feeStructure.created_at.toISOString(),
       updated_at: feeStructure.updated_at.toISOString(),
     });
+  }
+
+  private feeStructureGrades(feeStructure: FeeStructureEntity): string[] {
+    const grades = feeStructure.metadata?.billing_grade_levels;
+    return Array.isArray(grades) && grades.length && grades.every(grade => typeof grade === 'string' && grade.trim())
+      ? grades : [feeStructure.grade_level];
   }
 
   private normalizeFeeStructureLineItems(
@@ -1361,6 +1385,8 @@ export class BillingService {
 
     for (const invoice of invoices) {
       if (invoice.status === 'draft') continue;
+      const waivers = invoiceFeeWaivers(invoice);
+      const waivedMinor = waivers.reduce((sum, row) => sum + BigInt(row.amount_minor), 0n);
       entries.push({
         id: `invoice:${invoice.id}`,
         kind: 'invoice',
@@ -1370,10 +1396,17 @@ export class BillingService {
         description: invoice.description,
         status: invoice.status,
         method: 'invoice',
-        debit_amount_minor: this.toMinorBigInt(invoice.total_amount_minor),
+        debit_amount_minor: this.toMinorBigInt(invoice.total_amount_minor) + waivedMinor,
         credit_amount_minor: 0n,
         occurred_at: invoice.issued_at,
         ledger_transaction_id: null,
+      });
+
+      for (const waiver of waivers) entries.push({
+        id: `waiver:${invoice.id}:${waiver.approval_id}`, kind: 'adjustment', source_id: waiver.approval_id,
+        invoice_id: invoice.id, reference: `WV-${waiver.approval_id.slice(0, 8).toUpperCase()}`,
+        description: `Approved fee waiver: ${waiver.reason}`, status: 'approved', method: 'fee_waiver',
+        debit_amount_minor: 0n, credit_amount_minor: BigInt(waiver.amount_minor), occurred_at: new Date(waiver.applied_at), ledger_transaction_id: null,
       });
 
       const paidMinor = this.toMinorBigInt(invoice.amount_paid_minor);

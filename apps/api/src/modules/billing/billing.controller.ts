@@ -151,6 +151,12 @@ export class BillingController {
     return this.billingService.listBillableStudentsForFeeStructure(feeStructureId);
   }
 
+  @Get('fee-roster-options')
+  @Permissions('billing:read')
+  async listFeeRosterOptions() {
+    return this.billingService.listFeeRosterOptions();
+  }
+
   @Post('fee-structures/:feeStructureId/archive')
   @Permissions('billing:write')
   async archiveFeeStructure(

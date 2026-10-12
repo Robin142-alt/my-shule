@@ -67,6 +67,10 @@ export class ApprovalsController {
 
     if (!request) throw new NotFoundException('Approval request not found');
 
+    if (request.module === 'FINANCE' && request.action === 'FEE_WAIVER') {
+      throw new BadRequestException('This legacy waiver needs administrator review before it can affect current invoices. Submit current fee waivers from the Accountant workspace.');
+    }
+
     if (request.status !== ApprovalStatus.PENDING_APPROVAL && request.status !== ApprovalStatus.ESCALATED) {
       throw new BadRequestException(`Cannot process request in state ${request.status}`);
     }

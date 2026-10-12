@@ -34,6 +34,8 @@ export function MPesaReconciliationWorkspace({
     let active = true;
 
     async function loadTransactions() {
+      setLoading(true);
+      setLoadError(null);
       try {
         const response = await fetch(
           buildPaymentsApiPath(`/api/payments/mpesa/c2b/payments?limit=50&offset=${page * 50}`, tenantSlug),
@@ -42,7 +44,8 @@ export function MPesaReconciliationWorkspace({
         if (!response.ok) throw new Error("M-Pesa transactions could not be loaded.");
         const payload = await response.json();
         const payments = unwrapApiData<MpesaC2bPaymentResponse[]>(payload);
-        if (active && Array.isArray(payments)) {
+        if (!Array.isArray(payments)) throw new Error("M-Pesa records could not be read. Please refresh.");
+        if (active) {
           setRows(payments);
         }
       } catch (err) {
@@ -69,12 +72,13 @@ export function MPesaReconciliationWorkspace({
       <SchoolPageHeader
         eyebrow="MPESA"
         title="Mobile money reconciliation"
-        description="Handle auto-matching, manual review, callback confidence, and duplicate detection from one focused page."
+        description="Review M-Pesa deposits that need attention and link verified payments to the correct learner."
       />
       {loadError && <p role="alert" className="text-danger">{loadError}</p>}
       <Button variant="secondary" onClick={() => { setLoadError(null); setLoading(true); setReload(value => value + 1); }}>Refresh M-Pesa transactions</Button>
       <MetricGrid items={metrics} />
       <DataTable
+        pageSize={50}
         title="MPESA transactions"
         subtitle={loading ? "Loading transactions..." : "Phone, amount, receipt code, status, and matched learner."}
         columns={[
@@ -82,7 +86,7 @@ export function MPesaReconciliationWorkspace({
           { id: "amount", header: "Amount", render: (row) => formatMinorKes(row.amount_minor), className: "text-right font-semibold", headerClassName: "text-right" },
           { id: "code", header: "Code", render: (row) => row.trans_id },
           { id: "status", header: "Status", render: (row) => <StatusPill label={row.status.replace("_", " ")} tone={row.status === "matched" ? "ok" : "warning"} /> },
-          { id: "matchedStudent", header: "Matched Student", render: (row) => row.matched_student_id || "-" },
+          { id: "matchedStudent", header: "Learner account", render: (row) => row.matched_student_id ? "Linked to learner" : "Not yet matched" },
           { id: "receivedAt", header: "Received", render: (row) => new Date(row.received_at).toLocaleString() },
         ]}
         rows={rows}
@@ -275,6 +279,7 @@ function MpesaC2bReviewPanel({ tenantSlug, reload, onReconciled }: { tenantSlug?
       ) : null}
       <div className="flex items-center justify-end gap-3"><Button variant="secondary" disabled={!reviewPage || loading} onClick={() => setReviewPage(value => value - 1)}>Previous verified deposits</Button><Button variant="secondary" disabled={payments.length < 50 || loading} onClick={() => setReviewPage(value => value + 1)}>More verified deposits</Button></div>
       <DataTable
+        pageSize={50}
         title="Pending Paybill deposits"
         subtitle={loading ? "Loading unmatched deposits..." : "Direct customer-to-business payments waiting for accountant review."}
         columns={[

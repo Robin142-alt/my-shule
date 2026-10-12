@@ -282,7 +282,8 @@ export function PrincipalApprovalsWorkspace() {
                 {requests.map((request) => {
                   const normalizedModule = String(request.module ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
                   const normalizedType = String(request.approval_type ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
-                  const canDecideHere = normalizedModule === "procurement" && normalizedType === "procurement";
+                  const canDecideHere = (normalizedModule === "procurement" && normalizedType === "procurement")
+                    || (normalizedModule === "finance" && normalizedType === "fee_waiver");
                   return (
                     <tr key={request.id} className="align-top text-white/80">
                       <td className="px-4 py-3 font-semibold text-white">{request.title}</td>
@@ -385,7 +386,9 @@ export function PrincipalApprovalsWorkspace() {
       >
         <form onSubmit={submitDecision} className="space-y-4">
           <p className="text-sm text-slate-600">
-            {selectedRequest?.title}. This decision will be persisted in the originating procurement workflow.
+            {selectedRequest?.title}. {selectedRequest?.module === "finance"
+              ? "Approval reduces the learner’s outstanding invoices and updates their statement. It does not record a payment."
+              : "This decision updates the originating procurement request."}
           </p>
           {actionError ? (
             <div role="alert" className="rounded border border-danger-border bg-danger-soft p-3 text-sm text-danger">{actionError}</div>

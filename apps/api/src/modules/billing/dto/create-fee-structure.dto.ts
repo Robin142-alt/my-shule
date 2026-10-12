@@ -2,9 +2,11 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -57,6 +59,17 @@ export class CreateFeeStructureDto {
   @IsString()
   @MaxLength(80)
   grade_level!: string;
+
+  @IsOptional()
+  @Transform(({ value }) => Array.isArray(value) ? value.map(item => typeof item === 'string' ? item.trim() : item) : value)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(40)
+  @ArrayUnique((value: string) => typeof value === 'string' ? value.toLowerCase() : value)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(80, { each: true })
+  grade_levels?: string[];
 
   @Transform(trim)
   @IsOptional()

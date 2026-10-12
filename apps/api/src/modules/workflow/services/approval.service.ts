@@ -7,6 +7,7 @@ import {
 import { RequestContextService } from '../../../common/request-context/request-context.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { EventPublisherService } from '../../events/event-publisher.service';
+import { applySchoolFeeWaiver } from '../../finance/fee-waiver-workflow';
 
 export interface CreateApprovalRequestInput {
   tenantId: string;
@@ -70,7 +71,7 @@ type ApprovalTransaction = {
 };
 
 type DomainDecisionResult = {
-  module: 'procurement';
+  module: 'procurement' | 'finance';
   recordId: string;
   approvalId: string;
   requestedByUserId: string;
@@ -309,6 +310,10 @@ export class ApprovalService {
       }
 
       if (projection.status === input.decision.toLowerCase()) {
+        if (projection.module === 'finance' && projection.approval_type === 'fee_waiver') {
+          this.assertFeeWaiverApprovalCapability(normalizedRole);
+          return projection;
+        }
         await this.assertCompletedProcurementDecision(tx, projection, input);
         return projection;
       }
@@ -385,6 +390,28 @@ export class ApprovalService {
           domainStatus: domainDecision.status,
         },
       });
+      if (domainDecision.module === 'finance') {
+        await this.eventPublisher.publish({
+          tenant_id: input.tenantId, event_name: 'school.operation.recorded', event_key: `fee-waiver-decision:${approval.id}`,
+          aggregate_type: 'approval_request', aggregate_id: approval.id,
+          payload: { tenant_id: input.tenantId, school_id: input.tenantId, operation_id: `fee-waiver-decision:${approval.id}`,
+            operation_type: input.decision === 'APPROVED' ? 'fee_waiver.approved' : 'fee_waiver.rejected', module: 'finance',
+            actor_role: normalizedRole, title: `Fee waiver ${input.decision.toLowerCase()}`, body: note || 'Fee waiver decision recorded.',
+            entity_id: approval.id, severity: 'info', target_roles: ['accountant', 'bursar'], notifications: [], sms: [],
+            payload: { student_id: domainDecision.recordId, approval_id: approval.id, decision: input.decision }, occurred_at: new Date().toISOString(),
+          },
+          headers: { request_id: input.requestId }, actor_user_id: input.actorUserId, actor_role: normalizedRole,
+          source_dashboard: 'principal-approvals',
+        }, tx);
+        await tx.$executeRawUnsafe(`
+          INSERT INTO notifications (tenant_id, notification_key, recipient_user_id, type, title, body, status, priority, source_module, source_record_id, metadata)
+          VALUES ($1,$2,$3::uuid,'FEE_WAIVER_DECIDED',$4,$5,'unread','normal','finance',$6,'{}'::jsonb)
+          ON CONFLICT (tenant_id, notification_key) DO NOTHING
+        `, input.tenantId, `waiver-decision:${approval.id}`, domainDecision.requestedByUserId,
+          input.decision === 'APPROVED' ? 'Fee waiver approved' : 'Fee waiver rejected',
+          input.decision === 'APPROVED' ? 'The learner’s invoice balance and statement now include the approved waiver.' : `Waiver rejected: ${note || 'See approval history.'}`, approval.id);
+        return approval;
+      }
       await this.writeProcurementRequesterNotification(tx, {
         tenantId: input.tenantId,
         approvalProjectionId: approval.id,
@@ -539,6 +566,15 @@ export class ApprovalService {
     note: string | null,
     normalizedRole: string,
   ): Promise<DomainDecisionResult> {
+    if (projection.module === 'finance' && projection.approval_type === 'fee_waiver') {
+      this.assertFeeWaiverApprovalCapability(normalizedRole);
+      const waiver = await applySchoolFeeWaiver(tx, {
+        schoolId: input.tenantId, approvalId: input.approvalId, actorUserId: input.actorUserId,
+        actorRole: normalizedRole, approved: input.decision === 'APPROVED',
+      });
+      return { module: 'finance', recordId: waiver.record_id, approvalId: projection.id,
+        requestedByUserId: waiver.requested_by_user_id, status: input.decision.toLowerCase() as 'approved' | 'rejected' };
+    }
     if (
       this.normalizeRole(projection.module ?? '') !== 'procurement'
       || this.normalizeRole(projection.approval_type ?? '') !== 'procurement'
@@ -740,6 +776,13 @@ export class ApprovalService {
     }
     if (!rows[0]?.role_can_approve) {
       throw new BadRequestException('Approver role does not have procurement approval permission');
+    }
+  }
+
+  private assertFeeWaiverApprovalCapability(role: string): void {
+    const permissions = this.requestContext.getStore()?.permissions ?? [];
+    if (role !== 'principal' || !permissions.some(permission => ['*:*', 'finance:*', 'finance:write', 'principal:write'].includes(permission))) {
+      throw new ForbiddenException('Principal finance approval permission is required');
     }
   }
 

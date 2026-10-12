@@ -215,6 +215,7 @@ export function AccountantCommandCenter({
             tenantSlug={tenantSlug}
             routeMode={routeMode}
             activeSection="fee-structures"
+            onNavigate={(section) => navigateTo(normalizeAccountantSection(section))}
           />
         );
       case "invoices":

@@ -1244,7 +1244,7 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
   const feeStructure = {
     id: '00000000-0000-0000-0000-000000000902',
     tenant_id: 'tenant-a',
-    name: 'Grade 8 Term 2 Fees',
+    name: 'Grades 8 and 9 Term 2 Fees',
     academic_year: '2026',
     term: 'Term 2',
     grade_level: 'Grade 8',
@@ -1257,7 +1257,7 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
       { code: 'activity', label: 'Activity fee', amount_minor: '25000' },
     ],
     total_amount_minor: '125000',
-    metadata: {},
+    metadata: { billing_grade_levels: ['Grade 8', 'Grade 9'] },
     created_by_user_id: '00000000-0000-0000-0000-000000000010',
     created_at: new Date('2026-05-15T09:00:00.000Z'),
     updated_at: new Date('2026-05-15T09:00:00.000Z'),
@@ -1355,8 +1355,8 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
     {
       findById: async () => feeStructure,
       listBillableStudentsForFeeStructure: async () => [
-        { student_id: studentA, student_name: 'Alice Learner', admission_number: 'ADM-001', class_name: 'Unity', guardian_phone: null },
-        { student_id: studentB, student_name: 'Brian Learner', admission_number: 'ADM-002', class_name: 'Unity', guardian_phone: null },
+        { student_id: studentA, student_name: 'Alice Learner', admission_number: 'ADM-001', grade_level: 'Grade 9', class_name: 'Unity', guardian_phone: null },
+        { student_id: studentB, student_name: 'Brian Learner', admission_number: 'ADM-002', grade_level: 'Grade 8', class_name: 'Unity', guardian_phone: null },
       ],
     } as never,
     { recordSchoolOperation: async (input: any) => { assert.equal(input.event.type, 'invoice.created'); } } as never,
@@ -1380,6 +1380,7 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
     () =>
       service.bulkGenerateFeeInvoices({
         fee_structure_id: feeStructure.id,
+        metadata: { fee_waivers: [{ approval_id: 'forged', amount_minor: '999999' }] },
         idempotency_key: 'term-2-grade-8-unity',
         due_at: '2026-06-01T00:00:00.000Z',
         target_students: [
@@ -1403,6 +1404,8 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
   assert.equal(response.generated_count, 1);
   assert.equal(response.skipped_count, 1);
   assert.equal(response.invoices[0].metadata.student_id, studentA);
+  assert.equal(response.invoices[0].metadata.grade_level, 'Grade 9');
+  assert.deepEqual(response.invoices[0].metadata.fee_waivers, []);
   assert.equal(response.invoices[0].metadata.fee_structure_id, feeStructure.id);
   assert.equal(response.invoices[0].metadata.idempotency_key, 'term-2-grade-8-unity');
   assert.equal(response.invoices[0].total_amount_minor, '125000');
@@ -3037,4 +3040,17 @@ test('student statements exclude draft charges and preserve cancelled/write-off 
   assert.equal(result.entries.filter(row=>row.kind==='adjustment').length,2);
   assert.equal(result.entries.at(-1)?.balance_after_minor,'0');
   assert.ok(result.entries.every(row=>row.status!=='draft'));
+});
+
+
+test('approved waivers show the original charge and explicit adjustment, never a cash receipt', async () => {
+  const context=new RequestContextService(), studentId='00000000-0000-0000-0000-000000000802';
+  const invoice=makeInvoice({total_amount_minor:'6000',subtotal_amount_minor:'6000',amount_paid_minor:'0',metadata:{student_id:studentId,fee_waivers:[{approval_id:'approved-one',amount_minor:'4000',reason:'Scholarship',applied_at:'2026-10-02T10:00:00Z'}]},issued_at:new Date('2026-10-01'),updated_at:new Date('2026-10-02')});
+  const service=new BillingService(context,{} as never,{} as never,{} as never,{} as never,{} as never,{listStudentInvoices:async()=>[invoice]} as never,undefined,{listStudentStatementPayments:async()=>[]} as never);
+  const statement=await context.run({tenant_id:'tenant-a'} as never,()=>service.getStudentStatement(studentId));
+  assert.equal(statement.summary.balance_amount_minor,'6000');
+  assert.equal(statement.entries.find(row=>row.kind==='invoice')?.debit_amount_minor,'10000');
+  assert.equal(statement.entries.find(row=>row.kind==='adjustment')?.credit_amount_minor,'4000');
+  assert.equal(statement.entries.at(-1)?.balance_after_minor,'6000');
+  assert.equal(statement.entries.filter(row=>row.kind==='receipt').length,0);
 });
