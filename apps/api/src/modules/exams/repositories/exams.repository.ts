@@ -6244,7 +6244,6 @@ export class ExamsRepository {
         JOIN academic_years year ON year.tenant_id=term.tenant_id AND year.id::text=term.academic_year_id::text
         WHERE series.tenant_id=$1 ORDER BY series.starts_on,series.id`,[tenantId]);
       examCatalog=metadata.rows;
-      if(!filters.exam_series_id)filters={...filters,exam_series_id:examCatalog.filter(e=>(!filters.academic_year_id||e.academic_year_id===filters.academic_year_id)&&(!filters.academic_term_id||e.academic_term_id===filters.academic_term_id)).at(-1)?.id};
     }
     const cacheable=filters.analytics_mode==='library'&&scope.level==='school'&&!!scope.actor_user_id&&!forReport;
     const cacheKey=JSON.stringify([tenantId,scope.actor_user_id,scope.role,scope.level,filters.academic_year_id,filters.academic_term_id,filters.exam_series_id,filters.comparison_exam_id,filters.history_limit,filters.refresh_key]);
@@ -6261,7 +6260,10 @@ export class ExamsRepository {
     let data:ReturnType<typeof buildAcademicIntelligence>;
     try {data=buildAcademicIntelligence(read.rows, scope, filters, available, undefined, forReport);}
     catch(error){if(error instanceof InvalidAnalyticSelectionError)throw new BadRequestException(error.message);throw error;}
-    if(examCatalog)data.options.exams=examCatalog;
+    if(examCatalog){
+      data.options.exams=examCatalog;
+      if(!data.filters.exam_series_id)data.filters.exam_series_id=filters.exam_series_id??examCatalog.filter(e=>(!filters.academic_year_id||e.academic_year_id===filters.academic_year_id)&&(!filters.academic_term_id||e.academic_term_id===filters.academic_term_id)).at(-1)?.id??null;
+    }
     if(data.library)data.library.source_read_at=read.readAt;
     return data;
   }

@@ -272,7 +272,13 @@ jobs:
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts node -r ts-node/register/transpile-only --test apps/api/test/dashboard-sse-database.test.ts
 
       - name: Academic analytics print authorization and pagination
-        run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/modules/exams/analytics/analytics-library.test.js dist/apps/api/src/modules/exams/analytics/analytics-depth.test.js dist/apps/api/src/auth/head-of-subject.test.js dist/apps/api/src/modules/academics/academic-hos-assignment.test.js dist/apps/api/src/modules/academics/academic-setup-simplification.test.js
+        run: node --test dist/apps/api/src/modules/exams/analytics/analytics-report.test.js dist/apps/api/src/modules/exams/analytics/analytics-library.test.js dist/apps/api/src/modules/exams/analytics/analytics-depth.test.js dist/apps/api/src/modules/exams/analytics/analytics-experience.test.js dist/apps/api/src/auth/head-of-subject.test.js dist/apps/api/src/modules/academics/academic-hos-assignment.test.js dist/apps/api/src/modules/academics/academic-setup-simplification.test.js
+
+      - name: Academic analytics saved grading and tenant isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
 
       - name: Existing-school dashboard reads and Principal operations
         env:

@@ -5,6 +5,8 @@ import { evidence } from '../../../api/src/modules/exams/analytics/testing/evide
 import type { AnalyticsFilters } from '../../../api/src/modules/exams/analytics/analytics-contract';
 import { buildAnalyticsPrintReport } from '../../../api/src/modules/exams/analytics/analytics-report-model';
 import { isSchoolSection } from '@/lib/routing/experience-routes';
+import { academicReportHtml, isAnalyticsReportResponse } from '@/lib/modules/academic-intelligence-print';
+import { ExamAnalyticsCard } from '@/components/school/exams-manager/exam-analytics-card';
 import { isSchoolSectionEnabled } from '@/lib/module-access/module-access-map';
 import { renderWithProviders } from './test-utils';
 
@@ -23,6 +25,57 @@ beforeEach(()=>{
   mockMutation.mockImplementation(async(body:{filters:Record<string,string>})=>({report:buildAnalyticsPrintReport(build(body.filters,true),'library',{school_name:'QA School',school_address:null,school_motto:null,generated_by:'Manager'},'AI-QA','2026-10-07T10:00:00Z'),filename:'report.pdf',pdf_base64:btoa('%PDF-1.7 QA'),csv_base64:btoa('School,QA School'),csv_filename:'report.csv'}));
 });
 const render=()=>renderWithProviders(<ExamAnalyticsWorkspace onOpenMarks={jest.fn()} onOpenReportCards={jest.fn()}/>);
+
+it('student drill-down removes placement filters so recorded history survives promotion',()=>{
+  window.history.replaceState(null,'','/?ea_view=Students&ea_analytic_ids=student-profiles&ea_class_section_id=form-1&ea_stream_id=blue&ea_grade_level=1');
+  render();fireEvent.click(screen.getByRole('button',{name:'Explore Amina · A001'}));
+  const query=new URLSearchParams(mockQuery.mock.calls.at(-1)![0].split('?')[1]);
+  expect(query.get('student_id')).toBe('learner-1');
+  for(const key of ['class_section_id','stream_id','grade_level'])expect(query.has(key)).toBe(false);
+  fireEvent.click(screen.getByRole('button',{name:'Back to previous analysis'}));
+  expect(window.location.search).toContain('ea_class_section_id=form-1');
+});
+
+it('search presents only matching choices and the mobile analysis picker keeps every capability reachable',()=>{
+  render();fireEvent.change(screen.getByRole('searchbox',{name:'Search analytics library'}),{target:{value:'Student performance profiles'}});
+  expect(screen.queryAllByRole('article')).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button',{name:/Student performance profiles/}));
+  fireEvent.change(screen.getByLabelText('Choose analysis'),{target:{value:'student-history'}});
+  expect(screen.getByRole('heading',{name:'Student progress over time'})).toBeVisible();
+});
+
+it('bar charts disclose truncation, allow all page rows, and keep negative changes on the left of zero',()=>{
+  const item=build({analytic_ids:'class-performance'}).library!.items[0];
+  item.rows=Array.from({length:15},(_,i)=>({values:[`Class ${i}`,i===0?-5:i]}));item.total=15;item.columns=['Class','Change'];
+  renderWithProviders(<ExamAnalyticsCard item={item} disabled={false} onExport={jest.fn()} onPage={jest.fn()} onDrill={jest.fn()}/>);
+  expect(screen.queryByText('Class 14')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Show all 15 on this page'}));expect(screen.getByText('Class 14')).toBeVisible();
+  expect(screen.getByText('Change · zero at centre')).toBeVisible();expect(screen.getByText('-5')).toBeVisible();
+});
+
+it('report previews render exact chart evidence and reject malformed visual payloads',()=>{
+  const report=buildAnalyticsPrintReport(build({},true),'library',{school_name:'QA <script>',school_address:null,school_motto:null,generated_by:'QA'},'AI-QA','2026-10-12');
+  const html=academicReportHtml(report);expect(html).toContain('<svg');expect(html).toContain('QA &lt;script&gt;');expect(html).toContain('Calculation details');
+  expect(html).toContain('All exact values appear below.');
+  const payload={report,filename:'test.pdf',pdf_base64:'test'};
+  expect(isAnalyticsReportResponse(payload)).toBe(true);
+  report.sections[0].chart={kind:'bar',label:'Score',points:[{label:'Invalid',value:Infinity}],total:1};
+  expect(isAnalyticsReportResponse(payload)).toBe(false);
+});
+
+it('keeps table evidence visible when a chart has no numeric values',()=>{
+  const item=build({analytic_ids:'class-performance'}).library!.items[0];
+  item.rows=[{values:['Form 1',null,null,null,0,null]}];item.total=1;
+  renderWithProviders(<ExamAnalyticsCard item={item} disabled={false} onExport={jest.fn()} onPage={jest.fn()} onDrill={jest.fn()}/>);
+  expect(screen.getByRole('table')).toBeVisible();expect(screen.getByText('Form 1')).toBeVisible();
+  expect(screen.queryByRole('button',{name:/View data table/})).not.toBeInTheDocument();
+});
+
+it('opens a bookmarked workspace with its default analysis',()=>{
+  window.history.replaceState(null,'','/?ea_view=Students');render();
+  expect(screen.getByRole('heading',{name:'Student performance profiles'})).toBeVisible();
+  expect(screen.queryByRole('heading',{name:'Average score'})).not.toBeInTheDocument();
+});
 
 it('uses the subject-head permission contract for library reads and printable exports', async()=>{
   mockQuery.mockImplementation(()=>({data:buildAcademicIntelligence(rows,{...scope,level:'subject',role:'head_of_subject'},queryFilters(),['subject']),isLoading:false,isFetching:false,error:null}));

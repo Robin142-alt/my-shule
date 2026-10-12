@@ -89,7 +89,7 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
     add(`${dimension}-performance`,category,`${name}: performance`,`How do ${name.toLowerCase()} compare?`,['Area','Average %','Median %','Pass %','Learners','Change (pp)'],()=>[...areas].sort((a,b)=>(b.mean??-1)-(a.mean??-1)).map(c=>row([c.label,c.mean,c.median,c.pass_rate,c.learners_examined,c.change],c.drill_down)),`${note} ${progressNote}`,'bar',1);
     add(`${dimension}-movement`,category,`${name}: improvement and decline`,`Which ${name.toLowerCase()} changed most?`,['Area','Previous %','Current %','Change (pp)','Historical %','Trend'],()=>[...areas].filter(c=>c.change!==null).sort((a,b)=>b.change!-a.change!).map(c=>row([c.label,c.previous_mean,c.mean,c.change,c.historical_average,c.consistency.status],c.drill_down)),progressNote,'bar',3);
     add(`${dimension}-spread`,category,`${name}: gaps and consistency`,`Where is performance most varied?`,['Area','Lowest %','Highest %','Range (pp)','Deviation','History deviation'],()=>[...areas].sort((a,b)=>(b.range??-1)-(a.range??-1)).map(c=>row([c.label,c.lowest,c.highest,c.range,c.standard_deviation,c.consistency.variability],c.drill_down)),`${approvedNote} History variability needs at least three exams. Within-exam spread and between-exam variability measure different things.`);
-    add(`${dimension}-history`,'Trends',`${name}: historical performance`,`How have ${name.toLowerCase()} changed across exams?`,['Area','Exam','Average %','Pass %','Learners'],()=>areas.flatMap(c=>c.history.map(h=>row([c.label,h.exam,h.mean,h.pass_rate,h.learners_examined],c.drill_down))),`${historyNote} ${progressNote}`);
+    add(`${dimension}-history`,'Trends',`${name}: historical performance`,`How have ${name.toLowerCase()} changed across exams?`,['Area','Exam','Average %','Pass %','Learners'],()=>areas.flatMap(c=>[...c.history.map(h=>row([c.label,h.exam,h.mean,h.pass_rate,h.learners_examined],c.drill_down)),row([c.label,exam?.name??'Selected exam',c.mean,c.pass_rate,c.learners_examined],c.drill_down)]),`${historyNote} ${progressNote}`);
   }
   for(const dimension of ['class','stream'] as const) {
     const key=(r:SubjectEvidence)=>dimension==='class'?r.class_section_id:r.stream_id;
@@ -152,7 +152,9 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
     },`${rankNote} Prior group positions are calculated among current groups with previous results.`);
   }
   add('score-distribution','Distributions','Score distribution','Where are learner scores concentrated?',['Score band','Learners','Share %'],()=>data.analysis.score_bands.map(b=>row([b.label,b.count,b.percentage])),`${approvedNote} Bands describe scores, not school pass thresholds.`,'bar',1);
-  add('grade-distribution','Distributions','Grade distribution','Which configured achievement bands are most frequent?',['Grade / policy','Range','Results','Share %','Previous count'],()=>data.distribution.map(b=>row([`${b.label} (${b.id})`,b.min===null?'Ungraded':`${b.min}–${b.max}`,b.count,b.percentage,b.previous_count])), 'Counts of learner-subject results; grades from different policies remain separate.','bar',2);
+  const policyIds=[...new Set(current.filter(r=>score(r)!==null&&r.policy_id).map(r=>r.policy_id!))].sort();
+  const gradeLabel=(id:string,label:string)=>policyIds.length<=1?label:`${label} · Scale ${policyIds.findIndex(policy=>id===`${policy}:${label}`)+1}`;
+  add('grade-distribution','Distributions','Grade distribution','Which configured achievement bands are most frequent?',['Grade / scale','Range','Results','Share %','Previous count'],()=>data.distribution.map(b=>row([b.id==='ungraded'?b.label:gradeLabel(b.id,b.label),b.min===null?'Ungraded':`${b.min}–${b.max}`,b.count,b.percentage,b.previous_count])), 'Counts of learner-subject results; grades from different policies remain separate. Numbered scales distinguish recorded grading policies.','bar',2);
   const learnerScores=(rs:SubjectEvidence[])=>[...group(rs,r=>r.student_id).values()].map(v=>summarize(v).mean).filter((v):v is number=>v!==null);
   const band=(value:number)=>Math.min(4,Math.floor(value/20));
   const bandName=(index:number)=>index===4?'80–100':`${index*20}–<${index*20+20}`;
@@ -228,8 +230,31 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
   const selected=filters.analytic_ids ? [...new Set(filters.analytic_ids.split(','))] : OVERVIEW_ANALYTICS;
   if(selected.some(id=>!specs.some(s=>s.meta.id===id)))throw new InvalidAnalyticSelectionError('An analytic in the selection is not available. Refresh the analytics library.');
   const items=specs.filter(s=>selected.includes(s.meta.id)).map(s=>{
-    const all=s.build(),size=25,page=filters.analytic_page??1;
-    return {...s.meta,total:all.length,page:forReport?1:page,page_size:forReport?all.length:size,rows:forReport?all:all.slice((page-1)*size,page*size)};
+    const all=s.build(),size=25,page=Math.min(filters.analytic_page??1,Math.max(1,Math.ceil(all.length/size)));
+    let empty_title='No results for this selection';
+    let empty_message='Choose another exam or clear a filter to explore available results.';
+    if(current.some(r=>score(r)!==null)) {
+      if(s.meta.category==='Rankings') {
+        empty_title='Ranking is not enabled for these results';
+        empty_message='Positions follow the school’s grading and ranking settings. Scores remain available in Performance.';
+      } else if(['student-improvement','student-decline','exceptional-change','repeated-struggle'].includes(s.meta.id)||s.meta.id.endsWith('-movement')) {
+        empty_title=previous.some(r=>score(r)!==null)?'No learners or groups match this pattern':'Choose an earlier exam with results';
+        empty_message=previous.some(r=>score(r)!==null)?'The available comparison has been checked. Explore performance to see all results.':'A change needs results in both exams. Use Compare with to choose a recorded exam.';
+      } else if(['sustained-improvement','sustained-decline','consistent-excellence','student-volatility','sustained-areas'].includes(s.meta.id)) {
+        empty_title=cycles.size<3?'More exams needed for this pattern':'No matching pattern in the recorded results';
+        empty_message='Sustained patterns need at least three scored exams. Individual scores and two-exam changes are available in learner profiles.';
+      } else if(s.meta.id==='cohort-progression') {
+        empty_title='Cohort placements have not been recorded';
+        empty_message='Class and learner trends are available. Cohort trends need saved cohort identifiers on historical placements.';
+      } else if(s.meta.id==='intervention-outcomes') {
+        empty_title='No academic support outcomes recorded';
+        empty_message='Recorded support plans and their before-and-after results appear here.';
+      } else if(s.meta.id==='outliers') {
+        empty_title=p.count<8?'At least eight scored learners needed':'No unusual scores detected';
+        empty_message=p.count<8?'Explore score distribution to see the results already available.':'No learner falls outside the stated statistical limits.';
+      }
+    }
+    return {...s.meta,empty_title,empty_message,total:all.length,page:forReport?1:page,page_size:forReport?all.length:size,rows:forReport?all:all.slice((page-1)*size,page*size)};
   });
   const dates=[...cycles.values()].map(rs=>rs[0].exam_date).sort();
   return {version:1,catalog:specs.map(s=>s.meta),items,comparison_options:selected.includes('focused-comparison')?comparisonOptions:[],history:{cycles:cycles.size,limit:filters.history_limit??24,first:dates[0]??null,last:dates.at(-1)??null}};

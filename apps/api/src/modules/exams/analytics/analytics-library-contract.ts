@@ -9,6 +9,8 @@ export interface LibraryAnalytic {
   columns: string[]; rows: AnalyticRow[]; note: string;
   total: number; page: number; page_size: number;
   value_column?: number;
+  empty_title?: string;
+  empty_message?: string;
 }
 export interface AnalyticsLibrary {
   version: 1;

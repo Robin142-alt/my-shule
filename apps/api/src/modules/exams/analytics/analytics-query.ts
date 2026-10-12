@@ -53,6 +53,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
       mark.id AS mark_id, mark.score, COALESCE(mark.score_status,'missing') AS score_status,
       COALESCE(mark.status,'missing') AS mark_status,
       card.status AS report_status, card.grading_policy_id, card.grading_policy_version,
+      card.metadata->'grading_policy' AS grading_snapshot,
       (mark.status IN ('locked','published') AND card.status IN ('approved','published')) AS finalized
     FROM evidence_keys key
     JOIN exam_context series ON series.tenant_id = key.tenant_id AND series.id = key.exam_series_id
@@ -89,7 +90,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
   ), subject_results AS (
     SELECT tenant_id, exam_series_id::text, exam_name, exam_status, exam_date, ends_on, academic_term_id, academic_year_id, term_name, year_name,
       student_id, student_name, admission_number, subject_id, subject_name, department_id, department_name,
-      class_section_id, class_name, grade_level, stream_id, stream_name, cohort_id, report_status, grading_policy_id, grading_policy_version,
+      class_section_id, class_name, grade_level, stream_id, stream_name, cohort_id, report_status, grading_policy_id, grading_policy_version, grading_snapshot,
       SUM(score / NULLIF(max_score,0) * 100 * weight) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score)
         / NULLIF(SUM(weight) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score),0) AS average,
       COUNT(*)::int AS expected,
@@ -107,12 +108,12 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     FROM scoped
     GROUP BY tenant_id, exam_series_id, exam_name, exam_status, exam_date, ends_on, academic_term_id, academic_year_id, term_name, year_name,
       student_id, student_name, admission_number, subject_id, subject_name, department_id, department_name,
-      class_section_id, class_name, grade_level, stream_id, stream_name, cohort_id, report_status, grading_policy_id, grading_policy_version
+      class_section_id, class_name, grade_level, stream_id, stream_name, cohort_id, report_status, grading_policy_id, grading_policy_version, grading_snapshot
   )
-  SELECT result.*, policy.id::text AS policy_id, policy.reporting_mode,
+  SELECT result.*, policy.id::text AS policy_id, CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END AS reporting_mode,
     COALESCE((SELECT settings.show_rank FROM academics_report_card_settings settings
       WHERE settings.tenant_id = result.tenant_id AND settings.is_active = TRUE AND settings.archived_at IS NULL
-      ORDER BY settings.updated_at DESC, settings.id DESC LIMIT 1),FALSE) AND policy.reporting_mode = 'traditional' AS ranking_enabled,
+      ORDER BY settings.updated_at DESC, settings.id DESC LIMIT 1),FALSE) AND (CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END) = 'traditional' AS ranking_enabled,
     COALESCE(boundaries.items,'[]'::jsonb) AS boundaries,
     COALESCE(teachers.items,'[]'::jsonb) AS teachers,
     COALESCE(subject_heads.items,'[]'::jsonb) AS heads_of_subject,

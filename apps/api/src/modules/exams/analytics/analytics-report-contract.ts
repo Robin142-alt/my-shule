@@ -24,7 +24,11 @@ export interface AnalyticsPrintReport {
   period: string;
   filters: { label: string; value: string }[];
   metrics: { label: string; value: string }[];
-  sections: { title: string; headers: string[]; rows: string[][]; note?: string }[];
+  sections: { title: string; headers: string[]; rows: string[][]; note?: string;
+    empty_message?: string;
+    metric?: { value: string; unit: string };
+    chart?: { kind: 'bar' | 'line'; label: string; points: { label: string; value: number | null }[]; total: number };
+  }[];
   notes: string[];
 }
 export interface AnalyticsReportResponse {
@@ -33,4 +37,13 @@ export interface AnalyticsReportResponse {
   pdf_base64: string;
   csv_base64?: string;
   csv_filename?: string;
+}
+
+/** Shared methods are printed once even when a collection contains many related views. */
+export function analyticsReportMethods(report:AnalyticsPrintReport) {
+  const groups=new Map<string,string[]>();
+  for(const section of report.sections)if(section.note){
+    const titles=groups.get(section.note)??[];titles.push(section.title);groups.set(section.note,titles);
+  }
+  return [...groups].map(([note,titles])=>({title:titles.join(' · '),note}));
 }

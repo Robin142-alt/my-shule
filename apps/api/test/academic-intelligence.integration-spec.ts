@@ -83,6 +83,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query("INSERT INTO academics_role_appointments VALUES ('school-a',$1,'grade_master',NULL,$2,$3,$4,'active',NULL,NULL)",[ids.grade,ids.class,ids.red,ids.year]);
       await c.query("ALTER TABLE academics_role_appointments ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN appointment_type text DEFAULT 'permanent'");
       await c.query("UPDATE exam_series SET status='published'; UPDATE exam_marks SET status='published'; UPDATE student_report_cards SET status='published'");
+      await c.query("ALTER TABLE student_report_cards ADD COLUMN metadata jsonb DEFAULT '{}'::jsonb");
       await c.query(`ALTER TABLE exam_marks ADD COLUMN updated_by_user_id uuid, ADD COLUMN reviewed_at timestamptz, ADD COLUMN locked_at timestamptz, ADD COLUMN updated_at timestamptz;
         CREATE TABLE exam_mark_audit_logs(id uuid DEFAULT gen_random_uuid(), tenant_id text, mark_id uuid, exam_series_id uuid, assessment_id uuid, student_id uuid,
           action text, actor_user_id uuid, previous_score numeric, new_score numeric, reason text, metadata jsonb);`);
@@ -100,6 +101,24 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
   },60000);
   afterAll(async()=>{await pool?.end();});
   const read=(scope:ExamAnalyticsScopeLevel,actor:string,extra:Record<string,string>={})=>repository.getAnalytics('school-a',{level:scope,actor_user_id:ids[actor],role:actor},{page:1,page_size:25,scope,...extra},scope==='school');
+  it('finds recorded results before an unfinished exam and restores only the approved report grading snapshot',async()=>{
+    const client=await pool.connect(),future=randomUUID(),academicScale=randomUUID();
+    try {
+      await client.query(`SET search_path TO ${schema}`);
+      await client.query("INSERT INTO exam_series VALUES ('school-a',$1,$2,'Upcoming assessment','2026-12-01','2026-12-10','draft')",[future,ids.term]);
+      await repository.executeSql("UPDATE student_report_cards SET grading_policy_id=$2::uuid, metadata=$3::jsonb WHERE tenant_id=$1 AND exam_series_id=$4::uuid RETURNING student_id",['school-a',academicScale,JSON.stringify({grading_policy:{id:academicScale,source:'academic_setup',version:1,reporting_mode:'traditional',rules:[{label:'Meeting',min:40,max:100,is_pass:true},{label:'Developing',min:0,max:39,is_pass:false}]}}),ids.exam]);
+      const data=await read('school','principal',{analytics_mode:'library'});
+      expect(data.filters.exam_series_id).toBe(ids.exam);expect(data.options.exams.some(e=>e.id===future)).toBe(true);
+      expect(data.performance.mean).toBe(57.5);expect(data.performance.pass_rate).toBe(75);expect(data.performance.mean_grade).toBe('Meeting');
+      expect(data.analysis.matched_progress.change).toBeNull();expect(JSON.stringify(data)).not.toContain('FOREIGN');
+      const explicit=await read('school','principal',{analytics_mode:'library',exam_series_id:future});
+      expect(explicit.filters.exam_series_id).toBe(future);expect(explicit.performance.mean).toBeNull();
+    }finally{
+      await client.query("DELETE FROM exam_series WHERE tenant_id='school-a' AND id=$1",[future]);
+      await repository.executeSql("UPDATE student_report_cards SET grading_policy_id=$2::uuid, metadata='{}'::jsonb WHERE tenant_id=$1 AND exam_series_id=$3::uuid RETURNING student_id",['school-a',ids.policy,ids.exam]);
+      client.release();
+    }
+  });
   it('library drill-down retains school benchmarks while RLS and appointment scopes prevent foreign evidence',async()=>{
     const school=await read('school','principal',{analytics_mode:'library',student_id:ids.learner,analytic_ids:'parent-benchmarks,student-profiles'});
     expect(school.performance.mean).toBe(50);
