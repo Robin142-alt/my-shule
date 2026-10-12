@@ -38,7 +38,9 @@ test('statistics, trend thresholds, target arithmetic and transparent risk are d
 });
 test('consistency needs three exams and failures must use the same learner and subject',()=>{
   const rows=[evidence({average:75}),evidence({exam_series_id:'exam-2',exam_date:'2026-04-01',average:65})];
-  assert.equal(buildAcademicIntelligence(rows,school,filters,['school']).learners.items[0].consistency.status,'Insufficient history');
+  const shortHistory=buildAcademicIntelligence(rows,school,filters,['school']).learners.items[0];
+  assert.equal(shortHistory.consistency.status,'Critical Decline');
+  assert.equal(shortHistory.consistency.variability,null);assert.equal(shortHistory.consistency.consecutive_decline,0);
   rows.push(evidence({exam_series_id:'exam-3',exam_date:'2026-06-01',average:45}));
   const learner=buildAcademicIntelligence(rows,school,filters,['school']).learners.items[0];assert.equal(learner.consistency.consecutive_decline,2);assert.equal(learner.risk.level,'Critical');
 });

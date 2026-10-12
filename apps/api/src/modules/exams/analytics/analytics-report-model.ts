@@ -52,9 +52,13 @@ export function buildAnalyticsPrintReport(data: AcademicIntelligence, section: A
     report.metrics=[];
     report.filters.push({label:'History coverage',value:`${data.library.history.cycles} cycles; ${data.library.history.first??'No history'} to ${data.library.history.last??'No history'}; limit ${data.library.history.limit}`});
     report.sections=data.library.items.map(item=>({title:item.title,headers:item.columns,
-      rows:item.rows.map(row=>row.values.map(value=>value===null?'Not available':typeof value==='number'?String(value):value)),
-      note:`${item.question} ${item.note} All ${item.total} matching rows included.`}));
-    report.notes=['Internal academic review; not a published learner report card.','All selected analytics include the full matching evidence, across all pages. Charts and matrices are provided as labelled evidence tables for precise printing and reuse.',...data.data_quality.notes.filter(note=>!note.startsWith('History includes'))];
+      rows:item.rows.map(row=>row.values.map(value=>value===null?'—':typeof value==='number'?String(value):value)),
+      ...(item.kind==='metric'?{metric:{value:item.rows[0]?.values[1]==null?'—':String(item.rows[0].values[1]),unit:item.rows[0]?.values[1]==null?'':String(item.rows[0]?.values[2]??'')}}:{}),
+      ...(['bar','line'].includes(item.kind)?{chart:{kind:item.kind as 'bar'|'line',label:item.columns[item.value_column??1],total:item.total,
+        points:item.rows.slice(0,item.kind==='line'?24:12).map(row=>({label:String(row.values[0]??''),value:typeof row.values[item.value_column??1]==='number'?row.values[item.value_column??1] as number:null}))}}:{}),
+      empty_message:`${item.empty_title??'No results for this selection'}. ${item.empty_message??'Choose another exam or clear a filter.'}`,
+      note:item.note}));
+    report.notes=['Internal academic review; not a published learner report card.','All matching results are included. A dash means no recorded or comparable value; it never means zero.'];
     return report;
   }
   const add = (title:string,headers:string[],rows:string[][],note?:string) => report.sections.push({title,headers,rows,note});
