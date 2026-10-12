@@ -44,7 +44,14 @@ export interface CreateFeeStructureInput {
 
 export interface FeeStructureBillableStudentScope {
   grade_level: string;
+  grade_levels?: string[];
   class_name: string | null;
+}
+
+export interface FeeRosterOption {
+  grade_level: string;
+  class_name: string | null;
+  student_count: number;
 }
 
 export interface FeeStructureBillableStudentRow {
@@ -260,7 +267,7 @@ export class FeeStructuresRepository {
     tenantId: string,
     scope: FeeStructureBillableStudentScope,
   ): Promise<FeeStructureBillableStudentRow[]> {
-    const values: unknown[] = [tenantId, scope.grade_level];
+    const values: unknown[] = [tenantId, (scope.grade_levels ?? [scope.grade_level]).map(grade => grade.toLowerCase())];
     const classCondition = scope.class_name
       ? 'AND lower(allocation.stream_name) = lower($3)'
       : '';
@@ -285,13 +292,30 @@ export class FeeStructuresRepository {
          AND allocation.is_current = TRUE
         WHERE student.tenant_id = $1
           AND student.status = 'active'
-          AND lower(allocation.class_name) = lower($2)
+          AND student.deleted_at IS NULL
+          AND lower(allocation.class_name) = ANY($2::text[])
           ${classCondition}
         ORDER BY student.last_name ASC, student.first_name ASC, student.admission_number ASC
       `,
       values,
     );
 
+    return result.rows;
+  }
+
+  async listRosterOptions(tenantId: string): Promise<FeeRosterOption[]> {
+    const result = await this.executeSql<FeeRosterOption>(`
+      SELECT allocation.class_name AS grade_level,
+        allocation.stream_name AS class_name, COUNT(DISTINCT student.id)::integer AS student_count
+      FROM students student
+      JOIN student_allocations allocation ON allocation.tenant_id = student.tenant_id
+        AND allocation.student_id = student.id AND allocation.is_current = TRUE
+      WHERE student.tenant_id = $1 AND student.status = 'active'
+        AND student.deleted_at IS NULL
+        AND NULLIF(TRIM(allocation.class_name), '') IS NOT NULL
+      GROUP BY allocation.class_name, allocation.stream_name
+      ORDER BY allocation.class_name, allocation.stream_name NULLS FIRST
+    `, [tenantId]);
     return result.rows;
   }
 

@@ -6,6 +6,12 @@ const trim = ({ value }: { value: unknown }): unknown =>
 
 export class RequestFeeWaiverDto {
   @Transform(trim)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  idempotency_key?: string;
+  @Transform(trim)
   @IsUUID()
   student_id!: string;
 

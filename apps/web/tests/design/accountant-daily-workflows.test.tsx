@@ -45,13 +45,13 @@ it('single invoice keeps failed form open, retries the same key and sends the ac
 it('bulk billing loads eligible learners, sends only accepted fields and preserves a failed selection',async()=>{
   request.mockRejectedValueOnce(new Error('Invoice service unavailable'));
   render(<InvoicesWorkspace role="accountant" tenantSlug="isolated-school" routeMode="public" />);
-  fireEvent.click(screen.getByRole('button',{name:'Bill a class'}));
+  fireEvent.click(screen.getByRole('button',{name:'Bill learners'}));
   fireEvent.change(screen.getByLabelText('Fee structure'),{target:{value:'structure-one'}});
-  fireEvent.click(screen.getByRole('button',{name:'Select all'}));
-  fireEvent.click(screen.getByRole('button',{name:'Create 1 invoices'}));
+  fireEvent.click(screen.getByRole('button',{name:'Review 1 invoices'}));
+  fireEvent.click(screen.getByRole('button',{name:'Issue 1 invoices'}));
   await screen.findByText('Invoice service unavailable');
   expect(screen.getByRole('dialog')).toBeVisible();
-  expect(screen.getByRole('checkbox')).toBeChecked();
+  expect(screen.getByRole('button', {name:'Retry issuing invoices'})).toBeEnabled();
   expect(request.mock.calls[0][1].body.target_students).toEqual([{student_id:learner.id,student_name:learner.name}]);
 });
 

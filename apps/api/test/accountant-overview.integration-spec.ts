@@ -65,6 +65,7 @@ describe('Accountant daily figures agree with posted school accounts', () => {
       CREATE TABLE manual_fee_reversal_requests(tenant_id text,status text);
       CREATE TABLE school_expenses(tenant_id text,status text);
       CREATE TABLE tenant_pending_waivers(tenant_id text,status text);
+      CREATE TABLE dashboard_approval_requests(tenant_id text,module text,approval_type text,status text);
       INSERT INTO invoices(id,tenant_id,invoice_number,metadata,status,total_amount_minor,amount_paid_minor) VALUES
         ('i1','school-a','INV-1','{"student_id":"learner-a"}','open',20000,10000),
         ('draft','school-a','DRAFT','{"student_id":"learner-a"}','draft',99999,0),

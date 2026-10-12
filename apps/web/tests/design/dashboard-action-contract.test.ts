@@ -1949,7 +1949,13 @@ describe("dashboard action contract safety", () => {
     expect(source).not.toMatch(/backend endpoint might not be ready/i);
     expect(source).not.toMatch(/body:\s*JSON\.stringify/);
     expect(controllerSource).toMatch(/@Post\('waivers'\)/);
-    expect(controllerSource).toMatch(/enforceApprovalRule/);
+    expect(controllerSource).toMatch(/requestSchoolFeeWaiver/);
+    expect(controllerSource).toMatch(/executeWithTenant/);
+    const workflowSource = fs.readFileSync(path.join(process.cwd(), "../api/src/modules/finance/fee-waiver-workflow.ts"), "utf8");
+    expect(workflowSource).toMatch(/'principal','finance'/);
+    expect(workflowSource).toMatch(/'fee_waiver',\$5,'PENDING'/);
+    expect(workflowSource).toMatch(/requested_by_user_id === input.actorUserId/);
+    expect(workflowSource).not.toMatch(/DIRECT_APPLY|AUTO_APPROVE/);
   });
 
   it("submits transport assignment and maintenance modals to concrete command endpoints with object bodies", () => {

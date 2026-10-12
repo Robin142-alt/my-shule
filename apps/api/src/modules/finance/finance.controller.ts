@@ -10,6 +10,7 @@ import { EventPublisherService } from '../events/event-publisher.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { createHash, randomUUID } from 'node:crypto';
 import { RequestFeeWaiverDto } from './dto/request-fee-waiver.dto';
+import { requestSchoolFeeWaiver } from './fee-waiver-workflow';
 
 export class CreatePaymentDto {
 
@@ -734,9 +735,10 @@ export class FinanceController {
           amount_minor::text,
           reason,
           lower(status) AS status,
-          created_at
+          created_at,
+          lower(status) IN ('pending', 'pending_approval', 'escalated', 'changes_requested') AS requires_administrator_review
         FROM tenant_pending_waivers
-        WHERE tenant_id = $1
+        WHERE tenant_id::text = $1
 
         UNION ALL
 
@@ -749,11 +751,18 @@ export class FinanceController {
           COALESCE(NULLIF(new_value ->> 'amountMinor', ''), '0') AS amount_minor,
           COALESCE(reason, 'Fee waiver approval request') AS reason,
           lower(status::text) AS status,
-          created_at
+          created_at,
+          lower(status::text) IN ('pending', 'pending_approval', 'escalated', 'changes_requested') AS requires_administrator_review
         FROM approval_requests
-        WHERE school_id = $1
+        WHERE school_id::text = $1
           AND module = 'FINANCE'
           AND action = 'FEE_WAIVER'
+        UNION ALL
+        SELECT id::text, CONCAT('WV-', UPPER(LEFT(id::text, 8))), record_id,
+          COALESCE(metadata->>'student_name', record_id), NULL::text,
+          COALESCE(metadata->>'amount_minor', '0'), reason, lower(status), created_at, FALSE
+        FROM dashboard_approval_requests
+        WHERE tenant_id::text = $1 AND module = 'finance' AND approval_type = 'fee_waiver'
       ) AS waiver_register
       ORDER BY created_at DESC
       LIMIT 100
@@ -767,90 +776,37 @@ export class FinanceController {
   @Permissions('finance:write')
   async requestWaiver(@Body() dto: RequestFeeWaiverDto) {
     const store = this.requestContext.requireStore();
-    const tenantId = store.tenant_id;
-    const userId = store.user_id;
-    const role = store.role || 'accountant';
-
-    const approvalResult = await this.approvals.enforceApprovalRule({
-      schoolId: tenantId as string,
-      userId: userId as string,
-      userRole: role,
-      module: 'FINANCE',
-      action: 'FEE_WAIVER',
-      targetEntityType: 'STUDENT',
-      targetEntityId: dto.student_id,
-      newValue: {
-        studentName: dto.student_name,
-        className: dto.class_name,
-        amountMinor: dto.amount_minor,
-      },
-      reason: dto.reason,
+    if (!store.tenant_id || !store.user_id) throw new UnauthorizedException('A school finance session is required');
+    const tenantId = store.tenant_id, userId = store.user_id;
+    return this.db.executeWithTenant(tenantId, userId, async tx => {
+      const result = await requestSchoolFeeWaiver(tx, {
+        schoolId: tenantId, userId, studentId: dto.student_id, amountMinor: dto.amount_minor,
+        reason: dto.reason.trim(), key: dto.idempotency_key || randomUUID(),
+      });
+      if (result.created) {
+        await tx.$executeRawUnsafe(`
+          INSERT INTO audit_logs (tenant_id, school_id, actor_user_id, request_id, action, module, entity_type, entity_id, resource_type, reason, metadata)
+          VALUES ($1,$1,$2::uuid,$3,'fee_waiver.requested','finance','approval_request',$4,'approval_request',$5,$6::jsonb)
+        `, tenantId, userId, store.request_id ?? null, result.id, dto.reason.trim(),
+          JSON.stringify({ student_id: dto.student_id, amount_minor: dto.amount_minor }));
+        await this.schoolEvents.recordSchoolOperation({
+          schoolId: tenantId,
+          event: { id: `fee-waiver-requested:${result.id}`, type: 'fee_waiver.requested', module: 'finance',
+            entityId: result.id, title: 'Fee waiver awaiting approval', body: 'Review the requested fee reduction in Approvals.',
+            payload: { approval_id: result.id, student_id: dto.student_id, amount_minor: dto.amount_minor },
+          },
+          notifications: [{ audienceRoles: ['principal'], title: 'Fee waiver awaiting approval', body: 'Review the requested fee reduction in Approvals.' }],
+        }, tx);
+      }
+      return { success: true, status: result.status, request_id: result.id,
+        message: result.created ? 'Fee waiver sent to the Principal for approval. The balance has not changed.' : 'This waiver request is already saved. Check its current status in the register.' };
     });
-
-    if (approvalResult.mode === 'CREATE_APPROVAL_REQUEST') {
-      return { 
-        success: true, 
-        status: 'PENDING_APPROVAL', 
-        message: 'Fee waiver request submitted for approval.',
-        request: approvalResult.request 
-      };
-    }
-
-    // Direct apply logic (if approval is NONE or AUTO_APPROVE)
-    const result = await this.db.query(
-      `INSERT INTO tenant_pending_waivers (tenant_id, waiver_number, student_id, student_name, class_name, amount_minor, reason, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved') RETURNING *`,
-      [tenantId, `WV-${Date.now()}`, dto.student_id, dto.student_name || 'N/A', dto.class_name || 'N/A', dto.amount_minor, dto.reason]
-    );
-    const waiver = result.rows[0];
-
-    // Execute waiver directly (e.g., updating balance immediately)
-    // For brevity, using the same balance update logic
-    const invRes = await this.db.query(
-      `SELECT id, balance_minor FROM student_invoices WHERE student_id = $1 AND tenant_id = $2 AND status = 'open' ORDER BY created_at ASC LIMIT 1`,
-      [waiver.student_id, tenantId]
-    );
-    if ((invRes.rowCount ?? 0) > 0) {
-      const inv = invRes.rows[0];
-      const newBalance = Math.max(0, Number(inv.balance_minor) - Number(waiver.amount_minor));
-      await this.db.query(
-        `UPDATE student_invoices SET balance_minor = $1, status = CASE WHEN $1 <= 0 THEN 'paid' ELSE 'open' END WHERE id = $2`,
-        [newBalance, inv.id]
-      );
-    }
-
-    return { success: true, status: 'APPROVED', message: 'Fee waiver applied.', waiver };
   }
 
   @Post('waivers/:id/approve')
   @Permissions('finance:write')
-  async approveWaiver(@Param('id') id: string, @Body() dto: { approved: boolean }, @Res({ passthrough: true }) res: any) {
-    res.setHeader('Warning', '299 - "This endpoint is deprecated. Use the centralized Approvals engine instead."');
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    const result = await this.db.query(
-      `UPDATE tenant_pending_waivers SET status = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *`,
-      [dto.approved ? 'approved' : 'rejected', id, tenantId]
-    );
-    
-    // If approved, update student balance
-    if (dto.approved && (result.rowCount ?? 0) > 0) {
-      const waiver = result.rows[0];
-      // Reduce balance in oldest open invoice
-      const invRes = await this.db.query(
-        `SELECT id, balance_minor FROM student_invoices WHERE student_id = $1 AND tenant_id = $2 AND status = 'open' ORDER BY created_at ASC LIMIT 1`,
-        [waiver.student_id, tenantId]
-      );
-      if ((invRes.rowCount ?? 0) > 0) {
-        const inv = invRes.rows[0];
-        const newBalance = Math.max(0, Number(inv.balance_minor) - Number(waiver.amount_minor));
-        await this.db.query(
-          `UPDATE student_invoices SET balance_minor = $1, status = CASE WHEN $1 <= 0 THEN 'paid' ELSE 'open' END WHERE id = $2`,
-          [newBalance, inv.id]
-        );
-      }
-    }
-    
-    return result.rows[0];
+  async approveWaiver(@Param('id') _id: string, @Body() _dto: { approved: boolean }, @Res({ passthrough: true }) _res: any) {
+    throw new ConflictException('Legacy waiver decisions require administrator review. Decide current fee waiver requests in the Principal approval inbox.');
   }
 
   @Get('balances')

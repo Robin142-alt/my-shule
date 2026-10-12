@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchoolPages } from "@/components/school/school-pages";
@@ -21,6 +21,8 @@ describe("school finance bulk billing", () => {
     fetchMock.mockReset();
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
+      if (url.startsWith("/api/permissions/me")) return Promise.resolve(jsonResponse({data:["billing:read","billing:write"]}));
 
       if (url === "/api/auth/csrf") {
         return Promise.resolve(jsonResponse({ token: "csrf-bulk-billing-token" }));
@@ -85,7 +87,6 @@ describe("school finance bulk billing", () => {
           expect.objectContaining({
             student_id: "student-brian",
             student_name: "Brian Otieno",
-            admission_number: "KBI/2026/044",
           }),
         ]);
         return Promise.resolve(jsonResponse({ fee_structure_id: "fee-term-2", idempotency_key: body.idempotency_key, generated_count: 1, skipped_count: 0 }));
@@ -130,28 +131,21 @@ describe("school finance bulk billing", () => {
 
     renderWithProviders(<SchoolPages role="accountant" section="fee-structures" tenantSlug="kisumu-boys" liveDataEnabled={false} />);
 
-    await screen.findByRole("heading", { name: /collections desk/i });
-    await user.selectOptions(await screen.findByLabelText(/bulk billing fee structure/i), "fee-term-2");
-    await user.click(screen.getByRole("button", { name: /load roster/i }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText(/Brian Otieno/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Faith Akinyi/i).length).toBeGreaterThan(0);
-    });
-    expect(screen.getByRole("button", { name: /generate invoices/i })).toBeDisabled();
-
-    await user.click(screen.getAllByRole("checkbox", { name: /select Brian Otieno for bulk billing/i })[0]);
-    expect(screen.getAllByText(/1 selected/i).some((element) => element.textContent?.includes("1 selected"))).toBe(true);
-    expect(screen.getByRole("button", { name: /generate invoices/i })).toBeEnabled();
-
-    await user.click(screen.getByRole("button", { name: /generate invoices/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/1 invoices generated; 0 duplicate rows skipped/i)).toBeVisible();
-    });
+    await screen.findByRole("heading", { name: "Fee structures" });
+    const billButton=(await screen.findAllByRole("button", { name: "Bill learners" }))[0];
+    await waitFor(()=>expect(billButton).toBeEnabled());
+    await user.click(billButton);
+    await user.click(await screen.findByLabelText("Individual learners"));
+    await screen.findByLabelText("Select Brian Otieno (KBI/2026/044)");
+    expect(screen.getByRole("button", { name: "Review 0 invoices" })).toBeDisabled();
+    await user.click(screen.getByLabelText("Select Brian Otieno (KBI/2026/044)"));
+    await user.click(screen.getByRole("button", { name: "Review 1 invoices" }));
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/generate-invoices"))).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: "Issue 1 invoices" }));
+    await screen.findByText(/1 invoices issued/);
 
     const generateCalls = fetchMock.mock.calls.filter(([url]) => String(url).includes("/generate-invoices"));
     expect(generateCalls).toHaveLength(1);
-    expect(within(screen.getByText(/billable roster/i).closest("section") ?? document.body).queryByText(/2 selected/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

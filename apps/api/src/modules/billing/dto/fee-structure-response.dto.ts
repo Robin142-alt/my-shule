@@ -10,6 +10,7 @@ export class FeeStructureResponseDto {
   academic_year!: string;
   term!: string;
   grade_level!: string;
+  grade_levels!: string[];
   class_name!: string | null;
   currency_code!: string;
   status!: FeeStructureStatus;

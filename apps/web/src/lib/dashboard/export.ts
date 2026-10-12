@@ -179,13 +179,14 @@ function openInlinePrintPreview(html: string, title: string) {
   existing?.remove();
 
   const overlay = window.document.createElement("div");
+  const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const closePreview = () => { overlay.remove(); if (previousFocus?.isConnected) previousFocus.focus(); };
   overlay.setAttribute("data-myshule-print-preview", "true");
   overlay.innerHTML = `
-    <div style="position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,0.62);padding:24px;box-sizing:border-box;">
-      <button data-myshule-close type="button" aria-label="Close" style="position:absolute;right:24px;top:16px;border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Close</button>
+    <div style="position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,0.62);padding:clamp(8px,3vw,24px);box-sizing:border-box;">
       <div role="dialog" aria-modal="true" aria-label="${escapeHtml(title)} print preview" style="height:100%;max-width:960px;margin:0 auto;background:#ffffff;border-radius:16px;box-shadow:0 24px 80px rgba(15,23,42,0.28);display:flex;flex-direction:column;overflow:hidden;">
         <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #e2e8f0;padding:12px 14px;background:#f8fafc;">
-          <div>
+          <div style="min-width:0;overflow-wrap:anywhere;">
             <p style="margin:0;font:700 11px/1.2 Inter,Segoe UI,Arial,sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:#64748b;">Print preview</p>
             <h2 style="margin:4px 0 0;font:800 16px/1.25 Inter,Segoe UI,Arial,sans-serif;color:#0f172a;">${escapeHtml(title)}</h2>
           </div>
@@ -193,10 +194,10 @@ function openInlinePrintPreview(html: string, title: string) {
             <button data-myshule-print type="button" style="border:1px solid #0f3f8a;border-radius:10px;background:#0f3f8a;color:#ffffff;cursor:pointer;font-weight:800;padding:9px 13px;">Print</button>
             <button data-myshule-download-pdf type="button" title="Choose Save as PDF in your browser's print dialog" style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#0f3f8a;cursor:pointer;font-weight:800;padding:9px 13px;">Save as PDF</button>
             <button data-myshule-download-document type="button" style="border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#0f3f8a;cursor:pointer;font-weight:800;padding:9px 13px;">Download document</button>
-            <button data-myshule-cancel type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;">Cancel</button>
+            <button data-myshule-close type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:#ffffff;color:#334155;cursor:pointer;font-weight:800;padding:9px 13px;min-height:44px;">Close</button>
           </div>
         </div>
-        <iframe title="${escapeHtml(title)} document preview" style="width:100%;height:100%;border:0;background:#f8fafc;"></iframe>
+        <iframe title="${escapeHtml(title)} document preview" style="width:100%;flex:1;min-height:0;border:0;background:#f8fafc;"></iframe>
       </div>
     </div>
   `;
@@ -235,11 +236,14 @@ function openInlinePrintPreview(html: string, title: string) {
     iframe?.contentWindow?.focus();
     iframe?.contentWindow?.print?.();
   });
-  overlay.querySelector("[data-myshule-close]")?.addEventListener("click", () => overlay.remove());
+  overlay.querySelector("[data-myshule-close]")?.addEventListener("click", closePreview);
+  const handleKey = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); closePreview(); } };
+  overlay.addEventListener("keydown", handleKey);
+  previewDocument?.addEventListener("keydown", handleKey);
+  overlay.querySelector<HTMLButtonElement>("[data-myshule-close]")?.focus();
   overlay.querySelector("[data-myshule-download-document]")?.addEventListener("click", () => {
     downloadTextFile({ filename: `${title.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'school-document'}.html`, content: html, mimeType: 'text/html;charset=utf-8' });
   });
-  overlay.querySelector("[data-myshule-cancel]")?.addEventListener("click", () => overlay.remove());
 }
 
 export function openPrintDocument({
