@@ -35,8 +35,8 @@ fs.writeFileSync(path.join(out,'entry.tsx'),`import {createRoot} from 'react-dom
 await new Promise((resolve,reject)=>webpack({mode:'development',entry:path.join(out,'entry.tsx'),devtool:false,output:{path:out,filename:'bundle.js'},
   resolve:{extensions:['.tsx','.ts','.js'],modules:[path.join(web,'node_modules'),'node_modules'],alias:{'@/lib/data/school-hooks':path.join(out,'hooks.ts'),'@':path.join(web,'src')}},
   module:{rules:[{test:/\.tsx?$/,exclude:/node_modules/,use:[path.join(out,'loader.cjs')]},{test:/\.css$/,use:[path.join(out,'css-loader.cjs')]}]},optimization:{minimize:false}},(error,stats)=>error||stats.hasErrors()?reject(error||new Error(stats.toString({all:false,errors:true}))):resolve()));
-const cssRoot=path.join(web,'.next/static');
-const baseCss=fs.existsSync(cssRoot)?fs.readdirSync(cssRoot,{recursive:true}).filter(f=>String(f).endsWith('.css')).map(f=>fs.readFileSync(path.join(cssRoot,String(f)),'utf8')).join('\n'):'';
+const globalsPath=path.join(web,'src/app/globals.css');
+const baseCss=(await require('postcss')([require('@tailwindcss/postcss')()]).process(fs.readFileSync(globalsPath,'utf8'),{from:globalsPath})).css;
 const css=baseCss+'\n'+fs.readFileSync(path.join(web,'src/components/school/exams-manager/exam-analytics.module.css'),'utf8');
 const server=http.createServer(async(req,res)=>{
   if(req.url==='/qa-report'){

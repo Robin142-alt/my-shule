@@ -89,6 +89,7 @@ jobs:
           npx playwright install --with-deps chromium
           node tests/design/colour-system-browser.mjs
           node tests/design/mobile-roles-browser.mjs --all-workspaces --contrast
+          node tests/design/exam-analytics-library-browser.mjs
           npx playwright test -c playwright.legal.config.ts
 
       - name: Keep dashboard visual diagnostics
