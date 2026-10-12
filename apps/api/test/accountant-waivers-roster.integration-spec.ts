@@ -75,7 +75,7 @@ describe('School fee waivers and multi-grade rosters', () => {
       CREATE TABLE student_allocations(tenant_id text,student_id uuid,class_name text,stream_name text,is_current boolean);
       CREATE TABLE student_invoices(id uuid,tenant_id text,student_id uuid,invoice_number text,term text,academic_year text,amount_minor bigint,balance_minor bigint,created_at timestamptz);
       CREATE TABLE evidence(tenant_id text,event jsonb);
-      CREATE TABLE tenant_pending_waivers(id uuid,tenant_id text,waiver_number text,student_id uuid,student_name text,class_name text,amount_minor bigint,reason text,status text,created_at timestamptz DEFAULT now());
+      CREATE TABLE tenant_pending_waivers(id uuid,tenant_id uuid,waiver_number text,student_id uuid,student_name text,class_name text,amount_minor bigint,reason text,status text,created_at timestamptz DEFAULT now());
       CREATE TABLE approval_requests(id uuid,school_id text,module text,action text,target_entity_id text,new_value jsonb,reason text,status text,created_at timestamptz DEFAULT now()); GRANT ALL ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
     for (const name of ['invoices','dashboard_approval_requests','notifications','audit_logs','students','student_allocations','evidence']) await pool.query(`ALTER TABLE ${name} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${name} FORCE ROW LEVEL SECURITY; CREATE POLICY tenant_only ON ${name} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
     await pool.query('INSERT INTO users VALUES($1),($2)', [requester, principal]);

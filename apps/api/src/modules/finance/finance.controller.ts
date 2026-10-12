@@ -738,7 +738,7 @@ export class FinanceController {
           created_at,
           lower(status) IN ('pending', 'pending_approval', 'escalated', 'changes_requested') AS requires_administrator_review
         FROM tenant_pending_waivers
-        WHERE tenant_id = $1
+        WHERE tenant_id::text = $1
 
         UNION ALL
 
@@ -754,7 +754,7 @@ export class FinanceController {
           created_at,
           lower(status::text) IN ('pending', 'pending_approval', 'escalated', 'changes_requested') AS requires_administrator_review
         FROM approval_requests
-        WHERE school_id = $1
+        WHERE school_id::text = $1
           AND module = 'FINANCE'
           AND action = 'FEE_WAIVER'
         UNION ALL
@@ -762,7 +762,7 @@ export class FinanceController {
           COALESCE(metadata->>'student_name', record_id), NULL::text,
           COALESCE(metadata->>'amount_minor', '0'), reason, lower(status), created_at, FALSE
         FROM dashboard_approval_requests
-        WHERE tenant_id = $1 AND module = 'finance' AND approval_type = 'fee_waiver'
+        WHERE tenant_id::text = $1 AND module = 'finance' AND approval_type = 'fee_waiver'
       ) AS waiver_register
       ORDER BY created_at DESC
       LIMIT 100
