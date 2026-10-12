@@ -37,7 +37,7 @@ export function BulkFeeBillingDialog({ initialStructureId = "", onClose, onCompl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const inFlight = useRef(false);
-  const attempt = useRef<{ path: string; body: Record<string, unknown> } | null>(null);
+  const [attempt, setAttempt] = useState<{ path: string; body: Record<string, unknown> } | null>(null);
   const rows = roster.data ?? [];
   const grades = [...new Set(rows.map(row => row.grade_level))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const groups = [...new Map(rows.map(row => [classKey(row), row])).entries()];
@@ -52,8 +52,8 @@ export function BulkFeeBillingDialog({ initialStructureId = "", onClose, onCompl
     return next;
   }
   async function issue() {
-    if (!tenantId || !hasPermission("billing:write") || inFlight.current || !review || (!attempt.current && !ready)) return;
-    if (!attempt.current) attempt.current = {
+    if (!tenantId || !hasPermission("billing:write") || inFlight.current || !review || (!attempt && !ready)) return;
+    const submission = attempt ?? {
       path: `/billing/fee-structures/${encodeURIComponent(review!.structure.id)}/generate-invoices`,
       body: {
         idempotency_key: `fee-billing-${crypto.randomUUID()}`,
@@ -61,9 +61,9 @@ export function BulkFeeBillingDialog({ initialStructureId = "", onClose, onCompl
         target_students: review!.students.map(row => ({ student_id: row.student_id, student_name: row.student_name })),
       },
     };
-    inFlight.current = true; setBusy(true); setError("");
+    inFlight.current = true; setAttempt(submission); setBusy(true); setError("");
     try {
-      const result = await requestDashboardApi<BulkFeeInvoiceGenerationResponse>(attempt.current.path, { tenantId, method: "POST", body: attempt.current.body });
+      const result = await requestDashboardApi<BulkFeeInvoiceGenerationResponse>(submission.path, { tenantId, method: "POST", body: submission.body });
       await client.invalidateQueries({ queryKey: ["school", tenantId] });
       onComplete(result);
     } catch (cause) {
@@ -74,8 +74,8 @@ export function BulkFeeBillingDialog({ initialStructureId = "", onClose, onCompl
   return <Modal open size="lg" mobileFullScreen title={review ? "Review invoices" : "Bill learners"} description="Choose a fee plan and who should receive it. Existing invoices for this plan are skipped automatically."
     onClose={() => { if (!busy) onClose(); }} footer={<>
       <Button variant="secondary" disabled={busy} onClick={onClose}>Close</Button>
-      {review && !attempt.current && <Button variant="secondary" disabled={busy} onClick={() => setReview(null)}>Change selection</Button>}
-      {review ? <Button disabled={busy || (!attempt.current && !ready)} onClick={() => void issue()}>{busy ? "Issuing invoices…" : attempt.current ? "Retry issuing invoices" : `Issue ${review.students.length} invoices`}</Button>
+      {review && !attempt && <Button variant="secondary" disabled={busy} onClick={() => setReview(null)}>Change selection</Button>}
+      {review ? <Button disabled={busy || (!attempt && !ready)} onClick={() => void issue()}>{busy ? "Issuing invoices…" : attempt ? "Retry issuing invoices" : `Issue ${review.students.length} invoices`}</Button>
         : <Button disabled={!ready} onClick={() => { if (structure) setReview({ structure, students: [...selected], due }); }}>Review {selected.length} invoices</Button>}
     </>}>
     <div className="space-y-5">
