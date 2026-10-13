@@ -1,5 +1,6 @@
 import { numeric, summarize, gradeFor, type CoreAcademicIntelligence, type SubjectEvidence } from './analytics-engine';
-import type { AnalyticsFilters } from './analytics-contract';
+import type { AnalyticsFilters, RankingDimension, RankingMeasure } from './analytics-contract';
+import { buildRankings } from './analytics-rankings';
 import { InvalidAnalyticSelectionError, OVERVIEW_ANALYTICS, type AnalyticRow, type AnalyticValue, type AnalyticsLibrary, type LibraryAnalytic, type LibraryCategory } from './analytics-library-contract';
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -42,6 +43,25 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
   function metric(id:string,title:string,value:AnalyticValue,unit:string,note=approvedNote) {
     add(id,'Performance',title,`What is the ${title.toLowerCase()} in this selection?`,['Measure','Value','Unit'],()=>[row([title,value,unit])],note,'metric',1);
   }
+  const rankingNames:Record<RankingDimension,string>={student:'Students',class:'Grades / Forms',stream:'Streams',subject:'Subjects',department:'Departments',grade:'Grade levels'};
+  function ranking(id:string,dimension:RankingDimension,measure:RankingMeasure='average',lowest=false,category:LibraryCategory='Rankings') {
+    const title=`${rankingNames[dimension]} · ${measure==='average'?(lowest?'Lowest scores':'Performance'):measure==='improvement'?'Most improved':'Largest decline'}`;
+    const valueColumn=measure==='average'?2:4;
+    add(id,category,title,measure==='average'?`How does this selection rank?`:`What changed between the selected exams?`,
+      [dimension==='student'?'Learner / admission':'Area','Position','Average %','Previous %','Change (points)','Learners','Subjects','Excluded learners'],
+      ()=>{
+        const result=buildRankings(current,previous,dimension,measure,lowest);
+        const meta=specs.find(s=>s.meta.id===id)!.meta;
+        meta.note=result.note;
+        meta.ranking={excluded:result.excluded,considered:result.considered,measure,order:measure==='decline'?'Largest decline first':measure==='improvement'?'Largest improvement first':lowest?'Lowest first':'Highest first'};
+        meta.empty_title=result.policyBlocked?'Ranking is not enabled for these results':measure==='average'?'No complete results to rank':previous.length?'No comparable changes in this direction':'Choose a comparison exam';
+        meta.empty_message=result.policyBlocked?'Positions follow the school’s grading and ranking settings. Scores remain available in Performance.':measure==='average'?'Complete the expected assessments or choose another exam. Partial results remain available in Performance.':'Changes need complete results for the same learners, subjects, class and grading policy in both exams.';
+        const visible=result.rows.filter(r=>dimension!=='student'||!filters.learner_query||r.name.toLowerCase().includes(filters.learner_query.toLowerCase()));
+        if(result.rows.length&&!visible.length){meta.empty_title='No learners match this search';meta.empty_message='Try a learner name or admission number, or clear the search.';}
+        return visible.map(r=>row([r.name,r.position,r.average,r.previous,r.change,r.learners,r.subjects,r.excluded],r.drill));
+      },'Complete results only. Ties share positions. Progress uses matching learners, subjects, class and grading policy.','bar',valueColumn);
+  }
+  ranking('rankings',filters.ranking_dimension??'student',filters.ranking_measure??'average',filters.ranking_order==='lowest');
   const p=data.performance, coverage=data.analysis.coverage, matched=data.analysis.matched_progress;
   metric('mean','Average score',p.mean,'%');
   metric('median','Median score',p.median,'%');
@@ -127,8 +147,8 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
   add('student-subjects','Students','Student subject profiles','How does each learner perform across subjects?',['Learner / admission','Subject','Average %','Grade','Previous %','Change (pp)'],()=>learners.flatMap(l=>l.subjects.map(s=>row([`${l.student_name} · ${l.admission_number}`,s.subject_name,s.average,s.grade,s.previous_average,s.change],{student_id:l.student_id,subject_id:s.subject_id}))),progressNote,'matrix',2);
   add('student-history','Students','Student progress over time','How has each learner progressed across exams?',['Learner / admission','Exam','Date','Average %'],()=>learners.flatMap(l=>[...l.history.map(h=>row([`${l.student_name} · ${l.admission_number}`,h.exam_name,h.date,h.average],{student_id:l.student_id,exam_series_id:h.exam_series_id,academic_year_id:'',academic_term_id:''})),row([`${l.student_name} · ${l.admission_number}`,exam?.name??'Selected exam',exam?.date??'',l.average],{student_id:l.student_id})]),`${historyNote} ${progressNote}`);
   const studentList=(id:string,title:string,question:string,select:()=>typeof learners,note=progressNote)=>add(id,'Students',title,question,['Learner / admission','Average %','Change (pp)','Historical %','History deviation','Pattern'],()=>select().map(l=>row([`${l.student_name} · ${l.admission_number}`,l.average,l.change,l.historical_average,l.consistency.variability,l.consistency.status],{student_id:l.student_id})),note);
-  studentList('student-improvement','Most improved learners','Which learners improved most?',()=>learners.filter(l=>(l.change??0)>0).sort((a,b)=>b.change!-a.change!));
-  studentList('student-decline','Most declined learners','Which learners declined most?',()=>learners.filter(l=>(l.change??0)<0).sort((a,b)=>a.change!-b.change!));
+  ranking('student-improvement','student','improvement',false,'Students');
+  ranking('student-decline','student','decline',false,'Students');
   studentList('sustained-improvement','Sustained learner improvement','Who improved across at least three exams?',()=>learners.filter(l=>l.consistency.consecutive_improvement>=2));
   studentList('sustained-decline','Sustained learner decline','Who declined across at least three exams?',()=>learners.filter(l=>l.consistency.consecutive_decline>=2));
   studentList('consistent-excellence','Consistently excelling learners','Who repeatedly reaches the highest configured band?',()=>learners.filter(l=>l.consistently_high),'Highest configured band in every available subject in the current and two previous exams; missing evidence does not count as excellence.');
@@ -139,18 +159,17 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
     return current.flatMap(r=>{const old=prior.get(`${r.student_id}|${r.subject_id}`);return old&&r.policy_id&&old.policy_id===r.policy_id&&gradeFor(score(r),r.boundaries)?.is_pass===false&&gradeFor(score(old),old.boundaries)?.is_pass===false?[row([`${r.student_name} · ${r.admission_number}`,r.subject_name,score(old),score(r),gradeFor(score(r),r.boundaries)?.label??null],{student_id:r.student_id,subject_id:r.subject_id})]:[];});
   },'Same learner, subject and grading policy in both exams; only configured failing bands count.');
 
-  const rankNote=data.availability.ranking+' These positions are descriptive and are not official published report-card positions. Different subject coverage can affect ordering.';
-  add('learner-rankings','Rankings','Student rankings and movement','How have permitted student positions changed?',['Learner / admission','Class rank','Stream rank','Grade rank','Previous class rank','Movement'],()=>learners.filter(l=>l.positions).sort((a,b)=>(a.positions?.class??Infinity)-(b.positions?.class??Infinity)).map(l=>row([`${l.student_name} · ${l.admission_number}`,l.positions!.class,l.positions!.stream,l.positions!.grade,l.previous_positions?.class??null,l.position_movement],{student_id:l.student_id})),rankNote);
-  add('learner-subject-rankings','Rankings','Student subject rankings','How do learners rank within a subject?',['Learner / admission','Subject','Position','Previous position'],()=>learners.flatMap(l=>(l.positions?.subjects??[]).map(s=>row([`${l.student_name} · ${l.admission_number}`,l.subjects.find(x=>x.subject_id===s.subject_id)?.subject_name??s.subject_id,s.position,l.previous_positions?.subjects.find(x=>x.subject_id===s.subject_id)?.position??null],{student_id:l.student_id,subject_id:s.subject_id}))),rankNote);
-  for(const direction of ['top','bottom'] as const)add(`${direction}-performers`,'Rankings',direction==='top'?'Top performers':'Lowest scoring learners',direction==='top'?'Which permitted learners have the highest averages?':'Which permitted learners have the lowest averages?',['Learner / admission','Class','Average %','Grade','Class rank','Approved assessments'],()=>learners.filter(l=>l.positions&&l.average!==null).sort((a,b)=>direction==='top'?b.average!-a.average!:a.average!-b.average!).map(l=>row([`${l.student_name} · ${l.admission_number}`,l.class_name,l.average,l.mean_grade,l.positions!.class,l.assessments_taken],{student_id:l.student_id})),rankNote);
-  for(const dimension of ['class','stream','subject'] as const) {
-    add(`${dimension}-rankings`,'Rankings',`${dimension[0].toUpperCase()+dimension.slice(1)} rankings`,`Which ${dimension} groups lead the selection?`,['Area','Rank','Average %','Previous rank','Movement'],()=>{
-      if(!current.length||!current.every(r=>r.ranking_enabled&&r.reporting_mode==='traditional'))return [];
-      const areas=comparisons.filter(c=>c.dimension===dimension&&c.mean!==null).sort((a,b)=>b.mean!-a.mean!);
-      const old=[...areas].filter(c=>c.previous_mean!==null).sort((a,b)=>b.previous_mean!-a.previous_mean!);
-      return areas.map(c=>{const pos=areas.findIndex(v=>v.mean===c.mean)+1, previousPos=c.previous_mean===null?null:old.findIndex(v=>v.previous_mean===c.previous_mean)+1;return row([c.label,pos,c.mean,previousPos,change(previousPos,pos)],c.drill_down);});
-    },`${rankNote} Prior group positions are calculated among current groups with previous results.`);
-  }
+  ranking('learner-rankings','student');
+  ranking('top-performers','student'); ranking('bottom-performers','student','average',true);
+  for(const dimension of ['class','stream','subject','department','grade'] as const)ranking(`${dimension}-rankings`,dimension);
+  add('learner-subject-rankings','Rankings','Student subject rankings','Who leads each subject within each Grade / Form?',
+    ['Learner / admission','Subject','Grade / Form','Position','Average %','Previous %','Change (pp)'],()=>{
+      const key=(r:SubjectEvidence)=>JSON.stringify([r.class_section_id,r.subject_id]);
+      const prior=group(previous,key);
+      return [...group(current,key)].sort(([a],[b])=>a.localeCompare(b)).flatMap(([id,rs])=>buildRankings(rs,prior.get(id)??[],'student').rows
+        .filter(r=>!filters.learner_query||r.name.toLowerCase().includes(filters.learner_query.toLowerCase()))
+        .map(r=>row([r.name,rs[0].subject_name,rs[0].class_name,r.position,r.average,r.previous,r.change],{...r.drill,subject_id:rs[0].subject_id})));
+    },'Positions restart within each Grade / Form and subject. Complete approved numeric assessments only; school ranking settings apply. Competition ties share positions (1, 2, 2, 4). Previous scores require the same saved grading policy.');
   add('score-distribution','Distributions','Score distribution','Where are learner scores concentrated?',['Score band','Learners','Share %'],()=>data.analysis.score_bands.map(b=>row([b.label,b.count,b.percentage])),`${approvedNote} Bands describe scores, not school pass thresholds.`,'bar',1);
   const policyIds=[...new Set(current.filter(r=>score(r)!==null&&r.policy_id).map(r=>r.policy_id!))].sort();
   const gradeLabel=(id:string,label:string)=>policyIds.length<=1?label:`${label} · Scale ${policyIds.findIndex(policy=>id===`${policy}:${label}`)+1}`;
@@ -254,7 +273,7 @@ export function buildAnalyticsLibrary(evidence:SubjectEvidence[], authorized:Sub
         empty_message=p.count<8?'Explore score distribution to see the results already available.':'No learner falls outside the stated statistical limits.';
       }
     }
-    return {...s.meta,empty_title,empty_message,total:all.length,page:forReport?1:page,page_size:forReport?all.length:size,rows:forReport?all:all.slice((page-1)*size,page*size)};
+    return {...s.meta,empty_title:s.meta.empty_title??empty_title,empty_message:s.meta.empty_message??empty_message,total:all.length,page:forReport?1:page,page_size:forReport?all.length:size,rows:forReport?all:all.slice((page-1)*size,page*size)};
   });
   const dates=[...cycles.values()].map(rs=>rs[0].exam_date).sort();
   return {version:1,catalog:specs.map(s=>s.meta),items,comparison_options:selected.includes('focused-comparison')?comparisonOptions:[],history:{cycles:cycles.size,limit:filters.history_limit??24,first:dates[0]??null,last:dates.at(-1)??null}};

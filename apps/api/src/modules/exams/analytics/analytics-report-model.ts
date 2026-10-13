@@ -16,9 +16,9 @@ export function buildAnalyticsPrintReport(data: AcademicIntelligence, section: A
   };
   selected('department_id', 'Department', data.options.departments);
   selected('subject_id', 'Subject', data.options.subjects);
-  selected('class_section_id', 'Class', data.options.classes);
+  selected('class_section_id', 'Grade / Form', data.options.classes);
   selected('stream_id', 'Stream', data.options.streams);
-  selected('grade_level', 'Grade / Form'); selected('teacher_user_id', 'Teacher', data.options.teachers);
+  if(!data.filters.class_section_id)selected('grade_level', 'Grade / Form'); selected('teacher_user_id', 'Teacher', data.options.teachers);
   selected('risk_level', 'Learner risk'); selected('learner_query', 'Learner search');
   selected('learner_group', 'Learner group'); selected('grade', 'Achievement');
   selected('marks_status', 'Marks status'); selected('publication_status', 'Publication');

@@ -1,5 +1,6 @@
 import type { AnalyticsFilters, ExamAnalyticsScope, ExamAnalyticsScopeLevel } from './analytics-contract';
 import { buildAnalyticsLibrary, filterLibraryEvidence } from './analytics-library';
+import { buildRankings } from './analytics-rankings';
 import type { AnalyticsLibrary } from './analytics-library-contract';
 
 export interface Boundary { label: string; min: number; max: number; points: number | null; is_pass: boolean | null }
@@ -127,16 +128,14 @@ function positionIndex(rows: SubjectEvidence[]) {
   for(const [id,rs] of group(rows,r=>r.student_id)) if(rs.every(r=>r.ranking_enabled===true&&r.reporting_mode==='traditional')) output.set(id,{class:null,stream:null,grade:null,subjects:[]});
   if(!output.size)return output;
   for(const dimension of ['class','stream','grade','subject'] as const) {
-    const groups=group(rows,r=>dimension==='class'?r.class_section_id:dimension==='stream'?(r.stream_id??''):dimension==='grade'?(r.grade_level??''):r.class_section_id+'|'+r.subject_id);
+    const groups=group(rows,r=>dimension==='class'?r.class_section_id:dimension==='stream'?(r.stream_id?JSON.stringify([r.class_section_id,r.stream_id]):''):dimension==='grade'?(r.grade_level??''):r.class_section_id+'|'+r.subject_id);
     for(const [key,population] of groups) {
       if(!key)continue;
-      const ordered=[...group(population,r=>r.student_id)].map(([id,rs])=>({id,mean:summarize(rs).mean})).filter(r=>r.mean!==null).sort((a,b)=>b.mean!-a.mean!);
-      let position=0;
-      ordered.forEach((row,index)=>{
-        if(index===0||row.mean!==ordered[index-1].mean)position=index+1;
-        const entry=output.get(row.id);if(!entry)return;
-        if(dimension==='subject')entry.subjects.push({subject_id:population[0].subject_id,position});else entry[dimension]=position;
-      });
+      // Protected or incomplete learners never occupy a position in the ranking pool.
+      for(const row of buildRankings(population,[],'student').rows) {
+        const entry=output.get(row.id);if(!entry)continue;
+        if(dimension==='subject')entry.subjects.push({subject_id:population[0].subject_id,position:row.position});else entry[dimension]=row.position;
+      }
     }
   }
   return output;
@@ -382,7 +381,7 @@ function buildLibraryBase(input: SubjectEvidence[], scope: ExamAnalyticsScope, f
   // Keep selectors available when a child filter has no results. These options are still role/tenant scoped.
   const options=(id:keyof SubjectEvidence,label:keyof SubjectEvidence)=>evidenceOptions(input,id,label);
   data.options={...data.options,exams,subjects:options('subject_id','subject_name'),classes:options('class_section_id','class_name'),
-    streams:options('stream_id','stream_name'),departments:options('department_id','department_name'),grades:[...new Set(input.map(r=>r.grade_level).filter((v):v is string=>!!v))],
+    streams:evidenceOptions(input.filter(r=>!filters.class_section_id||r.class_section_id===filters.class_section_id),'stream_id','stream_name'),departments:options('department_id','department_name'),grades:[...new Set(input.map(r=>r.grade_level).filter((v):v is string=>!!v))],
     teachers:teacherOptions(input)};
   // Retain the explicit empty selection in report context, rather than silently switching exams.
   data.filters.exam_series_id=anchor??null;
@@ -405,7 +404,7 @@ export function buildAcademicIntelligence(input: SubjectEvidence[], scope: ExamA
   if(filters.analytics_mode!=='library')return buildCoreAcademicIntelligence(input.map(restoreAnalyticsGrading),scope,filters,availableScopes,today,forReport);
   const restored=restoredEvidence.get(input)??input.map(restoreAnalyticsGrading);
   restoredEvidence.set(input,restored);input=restored;
-  const viewOnly=new Set(['analytic_ids','analytic_page','page','page_size','comparison_dimension','compare_left_id','compare_right_id','refresh_key']);
+  const viewOnly=new Set(['analytic_ids','analytic_page','page','page_size','comparison_dimension','compare_left_id','compare_right_id','refresh_key','ranking_dimension','ranking_measure','ranking_order']);
   const key=JSON.stringify([scope,availableScopes,today??new Date().toISOString().slice(0,10),Object.entries(filters).filter(([k])=>!viewOnly.has(k)).sort(([a],[b])=>a.localeCompare(b))]);
   const cache=libraryCores.get(input)??new Map<string,ReturnType<typeof buildLibraryBase>>();
   let base=!forReport?cache.get(key):undefined;

@@ -17,6 +17,8 @@ export function parseAnalyticsFilters(query: Record<string, string | undefined>)
   }
   const enums: Record<string, readonly string[]> = { scope: ANALYTICS_SCOPES,
     analytics_mode: ['library'],
+    ranking_dimension: ['student','class','stream','subject','department','grade'],
+    ranking_measure: ['average','improvement','decline'], ranking_order: ['highest','lowest'],
     comparison_dimension: ['student','class','stream','subject','exam','term','year'],
     risk_level: ['At Risk', 'Low', 'Moderate', 'High', 'Critical'], learner_group: ['high_performers', 'most_improved', 'passing_all', 'declining', 'consistent_improvers', 'consistent_high'], marks_status: ['missing', 'draft', 'submitted', 'reviewed', 'locked', 'published'],
     publication_status: ['draft_requested', 'draft_generated', 'under_review', 'approved', 'published', 'withdrawn', 'regeneration_required', 'draft'] };
