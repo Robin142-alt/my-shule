@@ -9,6 +9,7 @@ export interface LibraryAnalytic {
   columns: string[]; rows: AnalyticRow[]; note: string;
   total: number; page: number; page_size: number;
   value_column?: number;
+  ranking?: { excluded: number; considered: number; measure: string; order: string };
   empty_title?: string;
   empty_message?: string;
 }

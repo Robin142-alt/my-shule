@@ -1,6 +1,8 @@
 export const ANALYTICS_SCOPES = ['school', 'department', 'subject', 'grade', 'class', 'assignment'] as const;
 export type ExamAnalyticsScopeLevel = typeof ANALYTICS_SCOPES[number];
 export interface ExamAnalyticsScope { level: ExamAnalyticsScopeLevel; actor_user_id: string | null; role: string }
+export type RankingDimension = 'student' | 'class' | 'stream' | 'subject' | 'department' | 'grade';
+export type RankingMeasure = 'average' | 'improvement' | 'decline';
 export interface AnalyticsFilters {
   scope?: ExamAnalyticsScopeLevel;
   academic_year_id?: string; academic_term_id?: string; exam_series_id?: string; comparison_exam_id?: string;
@@ -11,4 +13,5 @@ export interface AnalyticsFilters {
   analytics_mode?: 'library'; analytic_ids?: string; analytic_page?: number; history_limit?: number;
   comparison_dimension?: 'student'|'class'|'stream'|'subject'|'exam'|'term'|'year'; compare_left_id?: string; compare_right_id?: string;
   refresh_key?: string;
+  ranking_dimension?: RankingDimension; ranking_measure?: RankingMeasure; ranking_order?: 'highest' | 'lowest';
 }

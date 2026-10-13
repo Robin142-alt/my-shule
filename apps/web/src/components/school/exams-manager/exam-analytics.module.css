@@ -43,3 +43,22 @@
   .button,.primaryButton{font-size:12px}.method{font-size:11px}
   .mainFilters{grid-template-columns:1fr 1fr}.cardActions button{min-height:44px;min-width:38px}
 }
+/* Own the reading surface, including inside dashboards with dark backgrounds. */
+.workspace{background:#f5f8f7;border:1px solid #dce7e3;border-radius:20px;padding:24px;color-scheme:light;box-shadow:0 12px 40px #112b3610}
+.workspace h2,.workspace h3,.workspace strong{color:inherit}.hero h2{color:#182e38}.metricValue{color:#143f43!important}
+.mainFilters{grid-template-columns:repeat(3,minmax(0,1fr))}.filterGrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.filters label{color:#526b70}.contextBar{color:#526b70}.footer{color:#617873}.question{color:#607679}
+.navigation nav{flex-wrap:wrap;overflow:visible;border:0;gap:6px;background:#eaf1ee;padding:6px;border-radius:12px}
+.navigation nav button{flex:1 1 auto;border:0;border-radius:8px;padding:11px 13px;min-height:44px;color:#4d6766}
+.navigation nav button[aria-current=page]{background:#fff;color:#086e65;box-shadow:0 2px 5px #183e4010}
+.rankingsLayout{display:flex;flex-direction:column;gap:16px;min-width:0}.rankingsLayout .libraryList{width:100%;padding:6px;border:0;background:transparent}.rankingsLayout .libraryList>p{display:none}.rankingsLayout .libraryLinks{flex-direction:row;gap:8px}.rankingsLayout .libraryLinks button{width:auto;min-height:44px;background:#eaf1ee}.rankingsLayout .libraryLinks button[aria-current=true]{background:#fff}.rankingsLayout .libraryLinks svg{display:none}
+.rankingFilters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.rankHint{font-size:13px;color:#315953;padding-top:5px;font-weight:600}.rankHint span{display:block;font-size:11px;color:#627b75;font-weight:400;margin-top:9px}
+.rankingSummary{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;font-size:12px;color:#5c7770;padding:0 0 16px;border-bottom:1px solid #e5ede9}
+.rankingList{display:flex;flex-direction:column;margin:4px 0 16px}.rankingRow{display:grid;grid-template-columns:40px minmax(0,1fr) 150px;gap:16px;align-items:center;padding:17px 0;border-bottom:1px solid #edf2ef}
+.rankPosition{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#f0f4f2;color:#647a73;font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}.rankPosition[data-leading=true]{background:#dff1e9;color:#176451}
+.rankEntity{min-width:0}.rankEntity button,.rankEntity>strong{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;min-height:32px;text-align:left;overflow-wrap:anywhere;color:#264c47}.rankEntity button:hover{color:#087e75;text-decoration:underline}.rankEntity svg{flex-shrink:0}.rankEntity small{display:block;color:#617b73;font-size:11px;margin-top:3px}
+.rankTrack{height:4px;background:#edf4f0;border-radius:3px;overflow:hidden;margin-top:10px}.rankTrack i{display:block;height:100%;background:#56a893;border-radius:3px}
+.rankScore{text-align:right;font-variant-numeric:tabular-nums}.rankScore strong{font-size:22px;font-weight:650;letter-spacing:-.5px}.rankScore span{display:block;font-size:11px;color:#74877f;margin-top:6px}.rankScore span[data-direction=up]{color:#127254}.rankScore span[data-direction=down]{color:#ad4e3a}
+@media(max-width:1150px){.workspace{padding:18px}.filterGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.workspace{padding:12px;border-radius:14px;gap:16px}.hero{padding:18px}.mainFilters{grid-template-columns:repeat(2,minmax(0,1fr))}.rankingFilters{grid-template-columns:1fr 1fr}.rankingFilters>label:first-child{grid-column:1 / -1}.rankHint{padding:0}.rankingRow{grid-template-columns:30px minmax(0,1fr) 87px;gap:9px;padding:15px 0}.rankPosition{height:30px;width:30px;border-radius:8px;font-size:12px}.rankEntity button,.rankEntity>strong{font-size:12px;min-height:44px}.rankEntity small{font-size:10px}.rankScore strong{font-size:18px}.rankScore span{font-size:10px;line-height:1.5}.rankingSummary{font-size:11px}.rankingsLayout .libraryList{padding:0}.rankingsLayout .mobileAnalytic{display:flex}.rankingsLayout .libraryLinks{display:none}}
+@media(max-width:390px){.mainFilters,.filterGrid{grid-template-columns:1fr}.workspace{padding:9px}.heroActions{gap:8px}.heroActions .button,.heroActions .primaryButton{width:100%;flex:auto}.metricGrid{grid-template-columns:1fr}.rankingRow{grid-template-columns:26px minmax(0,1fr) 78px;gap:7px}.rankEntity svg{display:none}}

@@ -18,7 +18,7 @@ const analytic=(id:string,filters:Record<string,string>={})=>build({analytic_ids
 
 test('library registers a broad stable catalog and every analytic has a complete branded report and safe CSV',()=>{
   const data=build();const ids=data.library!.catalog.map(c=>c.id);
-  assert.equal(ids.length,93);assert.equal(ids.length,new Set(ids).size);
+  assert.equal(ids.length,96);assert.equal(ids.length,new Set(ids).size);
   const full=build({analytic_ids:ids.join(',')},true);
   assert.equal(full.library!.items.length,ids.length);
   const report=buildAnalyticsPrintReport(full,'library',identity,'AI-LIBRARY-QA','2026-10-07T12:00:00Z');

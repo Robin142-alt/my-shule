@@ -48,7 +48,7 @@ const server=http.createServer(async(req,res)=>{
   }
   if(req.url==='/bundle.js'){res.setHeader('Content-Type','text/javascript');res.end(fs.readFileSync(path.join(out,'bundle.js')));}
   else if(req.url==='/style.css'){res.setHeader('Content-Type','text/css');res.end(css);}
-  else{res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body style="margin:0;background:#f7faf8;font-family:Arial,sans-serif"><div id="root"></div><script src="/bundle.js"></script></body></html>');}
+  else{res.setHeader('Content-Type','text/html');res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body style="margin:0;background:#11263f;color:#fff;font-family:Arial,sans-serif"><div id="root"></div><script src="/bundle.js"></script></body></html>');}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const base=`http://127.0.0.1:${server.address().port}`,browser=await chromium.launch({headless:true}),results=[];
@@ -74,6 +74,23 @@ try{
     const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('link',{name:'Download PDF',exact:true}).click()]);await download.saveAs(path.join(out,`students-${width}.pdf`));
     await page.screenshot({path:path.join(out,`print-preview-${width}.png`),fullPage:true});await page.keyboard.press('Escape');
     await page.getByRole('button',{name:'Download / print view',exact:true}).click();await page.getByLabel('Export format').selectOption('csv');await page.getByRole('button',{name:'Prepare data export',exact:true}).click();await page.getByRole('link',{name:'Download CSV',exact:true}).waitFor();assert.equal(await page.getByRole('link',{name:'Download PDF',exact:true}).count(),0);await page.keyboard.press('Escape');
+    await page.goto(base+'/?ea_view=Rankings');
+    await page.getByRole('heading',{name:'Students · Performance',exact:true}).waitFor();
+    assert.equal(await page.getByRole('combobox',{name:'Grade / Form',exact:true}).count(),1);
+    assert.equal(await page.getByRole('combobox',{name:'Class',exact:true}).count(),0);
+    assert.equal(await page.locator('.workspace').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(245, 248, 247)');
+    await page.getByRole('combobox',{name:'Grade / Form',exact:true}).selectOption('c1');
+    await page.getByRole('combobox',{name:'Rank',exact:true}).selectOption('subject');
+    await page.getByRole('heading',{name:'Subjects · Performance',exact:true}).waitFor();
+    await page.screenshot({path:path.join(out,`rankings-${width}.png`),fullPage:true});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.getByRole('combobox',{name:'Measure',exact:true}).selectOption('improvement');
+    assert.equal(await page.getByLabel('Position 1',{exact:true}).count(),3);
+    await page.getByRole('button',{name:'Download / print view',exact:true}).click();
+    await page.getByRole('button',{name:'Prepare preview',exact:true}).click();
+    await page.getByRole('link',{name:'Download PDF',exact:true}).waitFor();
+    for(const type of ['PDF','CSV']){const [file]=await Promise.all([page.waitForEvent('download'),page.getByRole('link',{name:`Download ${type}`,exact:true}).click()]);await file.saveAs(path.join(out,`rankings-${width}.${type.toLowerCase()}`));}
+    await page.keyboard.press('Escape');
     await page.goto(base+'/?scenario=empty');await page.getByRole('button',{name:'Open marks workflow',exact:true}).click();assert.equal(await page.evaluate(()=>window.__action),'marks');
     await page.goto(base+'/?scenario=error');await page.getByRole('alert').waitFor();assert.equal(await page.locator('article').count(),0);
     assert.deepEqual(errors,[]);results.push({width,passed:true});await page.close();

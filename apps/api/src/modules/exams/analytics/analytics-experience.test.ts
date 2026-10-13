@@ -53,14 +53,14 @@ test('grade thresholds match report cards for decimal marks and saved academic s
 });
 
 test('zero matching patterns have specific empty states and reports carry exact chart values and all rows',()=>{
-  const data=build([evidence(),evidence({...old,average:80})],{analytic_ids:'student-improvement,student-volatility,exam-trend,mean'});
-  assert.match(data.library!.items.find(i=>i.id==='student-improvement')!.empty_title!,/No learners/);
+  const data=build([evidence({ranking_enabled:true}),evidence({...old,average:80,ranking_enabled:true})],{analytic_ids:'student-improvement,student-volatility,exam-trend,mean'});
+  assert.match(data.library!.items.find(i=>i.id==='student-improvement')!.empty_title!,/No comparable changes/);
   assert.match(data.library!.items.find(i=>i.id==='student-volatility')!.empty_title!,/More exams/);
   const report=buildAnalyticsPrintReport(data,'library',{school_name:'QA',school_address:null,school_motto:null,generated_by:'QA'},'AI-QA','2026-10-12');
   const chart=report.sections.find(s=>s.title==='Performance over time')!;
   assert.deepEqual(chart.chart!.points.map(p=>p.value),[80,75]);assert.equal(chart.rows.length,2);
   assert.equal(report.sections.find(s=>s.title==='Average score')!.metric!.value,'75');
-  assert.ok(createAnalyticsReportCsv(report).content.toString('utf8').includes('No learners or groups match this pattern'));
+  assert.ok(createAnalyticsReportCsv(report).content.toString('utf8').includes('No comparable changes in this direction'));
 });
 
 test('year comparisons use recorded year identities and match exam names within the same term',()=>{
