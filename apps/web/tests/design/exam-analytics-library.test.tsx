@@ -153,3 +153,31 @@ it('offers real next actions on an empty school and handles malformed responses'
   const view=render();expect(screen.getByRole('button',{name:'Open marks workflow'})).toBeVisible();expect(screen.getByRole('button',{name:'Open report cards'})).toBeVisible();view.unmount();
   mockQuery.mockReturnValue({data:{library:{}},isLoading:false,isFetching:false,error:null,refetch:jest.fn()});render();expect(screen.getByRole('alert')).toHaveTextContent('incomplete library');expect(screen.queryByRole('article')).not.toBeInTheDocument();
 });
+
+
+it('offers one Grade / Form filter, clears dependent filters, and keeps legacy grade bookmarks visible',()=>{
+  window.history.replaceState(null,'','/?ea_grade_level=1');render();
+  expect(screen.getAllByRole('combobox',{name:'Grade / Form'})).toHaveLength(1);
+  expect(screen.queryByRole('combobox',{name:'Class'})).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox',{name:'Grade / Form'})).toHaveValue('grade:1');
+  fireEvent.change(screen.getByRole('combobox',{name:'Grade / Form'}),{target:{value:'form-1'}});
+  expect(window.location.search).toContain('ea_class_section_id=form-1');expect(window.location.search).not.toContain('ea_grade_level=');
+  expect(screen.getByRole('button',{name:'Remove Grade / Form filter'})).toHaveTextContent('Form 1');
+  fireEvent.click(screen.getByRole('button',{name:'Remove Grade / Form filter'}));
+  expect(screen.getByRole('combobox',{name:'Grade / Form'})).toHaveValue('');
+});
+
+it('keeps ranking choices in one workspace and exports the chosen ranking without duplicated aliases',async()=>{
+  mockQuery.mockImplementation((url:string)=>({data:buildAcademicIntelligence(rows.map(r=>({...r,ranking_enabled:true})),scope,queryFilters(Object.fromEntries(new URLSearchParams(url.split('?')[1]))),['school']),isLoading:false,isFetching:false,error:null}));
+  window.history.replaceState(null,'','/?ea_view=Rankings&ea_analytic_ids=class-rankings');render();
+  expect(screen.getByRole('combobox',{name:'Rank'})).toHaveValue('class');
+  expect(screen.getByRole('heading',{name:'Grades / Forms · Performance'})).toBeVisible();
+  fireEvent.change(screen.getByRole('combobox',{name:'Rank'}),{target:{value:'student'}});
+  fireEvent.change(screen.getByRole('combobox',{name:'Measure'}),{target:{value:'improvement'}});
+  expect(screen.getByRole('heading',{name:'Students · Most improved'})).toBeVisible();
+  expect(screen.getByLabelText('Position 1')).toBeVisible();expect(screen.getByText('+20 points')).toBeVisible();
+  expect(screen.queryByRole('combobox',{name:'Order'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Download / print view'}));
+  fireEvent.click(screen.getByRole('button',{name:'Prepare preview'}));await screen.findByRole('link',{name:'Download PDF'});
+  expect(mockMutation.mock.calls[0][0].filters).toMatchObject({analytic_ids:'rankings',ranking_dimension:'student',ranking_measure:'improvement'});
+});
