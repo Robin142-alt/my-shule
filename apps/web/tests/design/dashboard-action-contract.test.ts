@@ -1633,8 +1633,8 @@ describe("dashboard action contract safety", () => {
     expect(dashboardApiCalls(assessmentsSource)).toEqual(expect.arrayContaining([
       { endpoint: "/admin-command/dean-academics/lock-batch", method: "POST", objectBody: true },
       { endpoint: "/exams/marks/moderate", method: "POST", objectBody: true },
-      { endpoint: "`/exams/report-cards/${encodeURIComponent(reportCard.id)}/transition`", method: "PATCH", objectBody: true },
     ]));
+    expect(dashboardApiCalls(assessmentsSource).some((call) => call.endpoint.includes("/report-cards/"))).toBe(false);
     expect(dashboardApiCalls(reportsSource)).toContainEqual({
       endpoint: "/admin-command/dean-academics/reports/generate", method: "POST", objectBody: true,
     });
