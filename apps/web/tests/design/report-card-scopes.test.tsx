@@ -28,8 +28,8 @@ function summary(params:URLSearchParams){
   const action=params.get('target_action');
   const selected=resolve(params),eligible=selected.filter(c=>action==='export'||(action==='recall'?c.status==='under_review':c.status==='draft_generated'));
   return {total_cards:selected.length,eligible_cards:eligible.length,ineligible_cards:selected.length-eligible.length,
-    preview_token:'server-token',status_counts:{under_review:selected.length-eligible.length},
-    skipped_cards:selected.filter(c=>!eligible.includes(c)).map(c=>({id:c.id,student_name:c.student_name,reason:'Already under review'}))};
+    preview_token:'server-token',status_counts:{under_review:selected.filter(c=>c.status==='under_review').length},
+    skipped_cards:selected.filter(c=>!eligible.includes(c)).map(c=>({id:c.id,student_name:c.student_name,reason:'Report inputs changed; regenerate'}))};
 }
 beforeEach(()=>{
   jest.clearAllMocks();
@@ -43,66 +43,66 @@ beforeEach(()=>{
   request.mockImplementation(async(path:string,options?:{body?:Record<string,unknown>})=>{
     if(path.includes('/scope-summary?'))return summary(new URLSearchParams(path.split('?')[1]));
     return {action:options?.body?.action,total_in_scope:3,transitioned:1,skipped:1,failed:1,
-      skipped_cards:[{id:'card-1',student_name:'Ben',reason:'Already under review'}],
+      skipped_cards:[{id:'card-1',student_name:'Ben',reason:'Report inputs changed; regenerate'}],
       failed_cards:[{id:'card-2',student_name:'Cara',reason:'Notification persistence failed; retry'}],
-      cards:[{id:'card-0',student_name:'Ada',previous_status:'draft_generated',new_status:'under_review'}]};
+      cards:[{id:'card-0',student_name:'Ada',previous_status:'draft_generated',new_status:'published'}]};
   });
 });
 
-it.each([false,true])('preserves scoped submission through the canonical and legacy entry points (legacy=%s)',async(handoff)=>{
-  const user=userEvent.setup();render(handoff?<PublishingWorkspace/>:<LiveReportCardsWorkspace audience="exams-manager"/>);
-  expect(screen.queryByRole('button',{name:/Publish|Unpublish/i})).not.toBeInTheDocument();
+it('preserves scoped Principal release with server eligibility and delivery failures',async()=>{
+  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="principal"/>);
+  expect(screen.queryByRole('button',{name:/Submit|Approve/i})).not.toBeInTheDocument();
   await user.click(screen.getByRole('button',{name:/^Grade 8/}));
   await user.click(screen.getByRole('button',{name:/^North 2 cards/}));
-  await user.click(screen.getByRole('button',{name:/Submit all 1 eligible to Dean/}));
+  await user.click(screen.getByRole('button',{name:/Publish all 1 eligible/}));
   const dialog=await screen.findByRole('dialog');
-  expect(within(dialog).getByText('Ben: Already under review')).toBeInTheDocument();
-  await user.click(within(dialog).getByRole('button',{name:/Submit All Eligible \(1\)/}));
+  expect(within(dialog).getByText('Ben: Report inputs changed; regenerate')).toBeInTheDocument();
+  await user.click(within(dialog).getByRole('button',{name:/Publish All Eligible \(1\)/}));
   await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{
-    scope_type:'stream',class_section_id:'grade8',stream_id:'north',preview_token:'server-token',action:'submit'}}));
+    scope_type:'stream',class_section_id:'grade8',stream_id:'north',preview_token:'server-token',action:'publish'}}));
   expect(await screen.findByText('Cara: Notification persistence failed; retry')).toBeInTheDocument();
   expect(refetch).toHaveBeenCalledTimes(4);
 });
 it('All remains scope-wide when rows are selected, and confirmation uses server eligibility',async()=>{
-  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="exams-manager"/>);
+  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="principal"/>);
   await user.click(screen.getByRole('checkbox',{name:'Select Ada'}));
-  await user.click(screen.getByRole('button',{name:/Submit all 2 eligible/}));
+  await user.click(screen.getByRole('button',{name:/Publish all 2 eligible/}));
   const dialog=await screen.findByRole('dialog');
   expect(within(dialog).getByText('3')).toBeInTheDocument();expect(within(dialog).getByText('2')).toBeInTheDocument();
-  await user.click(within(dialog).getByRole('button',{name:/Submit All Eligible \(2\)/}));
-  await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{scope_type:'school',preview_token:'server-token',action:'submit'}}));
+  await user.click(within(dialog).getByRole('button',{name:/Publish All Eligible \(2\)/}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{scope_type:'school',preview_token:'server-token',action:'publish'}}));
 });
 it('Selected includes only the custom subset and keeps its class boundary',async()=>{
-  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="exams-manager"/>);
+  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="principal"/>);
   await user.click(screen.getByRole('button',{name:/^Grade 8/}));
   await user.click(screen.getByRole('checkbox',{name:'Select all visible report cards'}));
-  await user.click(screen.getByRole('button',{name:'Submit Selected'}));
-  const dialog=await screen.findByRole('dialog');expect(within(dialog).getByText('Ben: Already under review')).toBeVisible();
-  await user.click(within(dialog).getByRole('button',{name:'Submit Selected (1)'}));
-  await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{scope_type:'students',class_section_id:'grade8',report_card_ids:['card-0','card-1'],preview_token:'server-token',action:'submit'}}));
+  await user.click(screen.getByRole('button',{name:'Publish Selected'}));
+  const dialog=await screen.findByRole('dialog');expect(within(dialog).getByText('Ben: Report inputs changed; regenerate')).toBeVisible();
+  await user.click(within(dialog).getByRole('button',{name:'Publish Selected (1)'}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/bulk-transition',{method:'POST',body:{scope_type:'students',class_section_id:'grade8',report_card_ids:['card-0','card-1'],preview_token:'server-token',action:'publish'}}));
 });
 it('clears custom selection when changing scope and skips stream controls for a streamless class',async()=>{
   const user=userEvent.setup();render(<PublishingWorkspace/>);
   await user.click(screen.getByRole('checkbox',{name:'Select Ada'}));
   await user.click(screen.getByRole('button',{name:/^Grade 9/}));
-  expect(screen.queryByRole('button',{name:'Submit Selected'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Publish Selected'})).not.toBeInTheDocument();
   expect(screen.queryByText('Drill down by stream')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button',{name:'Cara'}));
   expect(queries).toHaveBeenCalledWith(expect.stringMatching(/scope_type=students.*student_ids=student-2/));
   expect(screen.getByRole('navigation',{name:'Report card scope'})).toHaveTextContent('Kibabi SchoolGrade 9Cara');
 });
 it('page navigation never limits scope-wide confirmation',async()=>{
-  const user=userEvent.setup();render(<PublishingWorkspace/>);
+  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="principal"/>);
   await user.click(screen.getByRole('button',{name:'Next page'}));
   expect(queries).toHaveBeenCalledWith(expect.stringContaining('offset=50'));
-  await user.click(screen.getByRole('button',{name:/Submit all 2 eligible/}));
+  await user.click(screen.getByRole('button',{name:/Publish all 2 eligible/}));
   await screen.findByRole('dialog');
-  expect(request).toHaveBeenCalledWith('/exams/report-cards/scope-summary?scope_type=school&target_action=submit');
+  expect(request).toHaveBeenCalledWith('/exams/report-cards/scope-summary?scope_type=school&target_action=publish');
 });
 it('does not execute an action when server preflight fails',async()=>{
   request.mockRejectedValue(new Error('Scope counts unavailable. Retry.'));
-  const user=userEvent.setup();render(<PublishingWorkspace/>);
-  await user.click(screen.getByRole('button',{name:/Submit all 2 eligible/}));
+  const user=userEvent.setup();render(<LiveReportCardsWorkspace audience="principal"/>);
+  await user.click(screen.getByRole('button',{name:/Publish all 2 eligible/}));
   expect(await screen.findByText('Scope counts unavailable. Retry.')).toBeVisible();
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();expect(request).toHaveBeenCalledTimes(1);
 });
@@ -121,7 +121,7 @@ it('recalls submitted cards in the unified workspace with a reason and server-ch
   await user.click(screen.getByRole('button',{name:/^Grade 8/}));
   expect(screen.getByRole('button',{name:'Generate class report cards'})).toBeInTheDocument();
   expect(screen.getByRole('button',{name:'Regenerate all'})).toBeInTheDocument();
-  expect(screen.getByRole('button',{name:/Submit all 1 eligible to Dean/})).toBeEnabled();
+  expect(screen.queryByRole('button',{name:/Submit all|Approve all|Publish all/})).not.toBeInTheDocument();
   expect(screen.getByRole('button',{name:'Recall all under review'})).toBeDisabled();
   await user.type(screen.getByLabelText('Reason for recall or withdrawal'),'Correct comments');
   await user.click(screen.getByRole('button',{name:'Recall all under review'}));
@@ -140,7 +140,7 @@ it('keeps existing report actions available when generation readiness fails',()=
   render(<ReportCardsWorkspace/>);
   expect(screen.getByText('Readiness unavailable')).toBeVisible();
   expect(screen.getByRole('button',{name:'Generate class report cards'})).toBeDisabled();
-  expect(screen.getByRole('button',{name:/Submit all 2 eligible to Dean/})).toBeEnabled();
+  expect(screen.queryByRole('button',{name:/Submit all|Approve all|Publish all/})).not.toBeInTheDocument();
   expect(screen.getByRole('button',{name:'Regenerate all'})).toBeEnabled();
   expect(screen.getByRole('button',{name:'Download all 3'})).toBeEnabled();
 });

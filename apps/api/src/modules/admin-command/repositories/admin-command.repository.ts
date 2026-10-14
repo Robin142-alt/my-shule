@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { reportCardIneligibilitySql } from '../../exams/report-card-scope';
 
 import { PrismaService } from '../../../database/prisma.service';
 import type { PrincipalExecutiveDashboard } from '../principal-insights.types';
@@ -1161,9 +1162,9 @@ export class AdminCommandRepository {
           to_char(series.starts_on, 'YYYY-MM-DD') AS starts_on,
           to_char(series.ends_on, 'YYYY-MM-DD') AS ends_on,
           COUNT(card.id)::int AS total_report_cards,
-          COUNT(card.id) FILTER (WHERE card.status = 'approved')::int AS approved_report_cards,
+          COUNT(card.id) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL)::int AS approved_report_cards,
           COUNT(card.id) FILTER (WHERE card.status = 'published')::int AS published_report_cards,
-          COUNT(card.id) FILTER (WHERE card.status NOT IN ('approved', 'published'))::int AS blocked_report_cards
+          COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'")}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::int AS blocked_report_cards
         FROM exam_series series
         LEFT JOIN student_report_cards card
           ON card.tenant_id = series.tenant_id
@@ -1188,9 +1189,9 @@ export class AdminCommandRepository {
           to_char(series.starts_on, 'YYYY-MM-DD') AS starts_on,
           to_char(series.ends_on, 'YYYY-MM-DD') AS ends_on,
           COUNT(card.id)::int AS total_report_cards,
-          COUNT(card.id) FILTER (WHERE card.status = 'approved')::int AS approved_report_cards,
+          COUNT(card.id) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL)::int AS approved_report_cards,
           COUNT(card.id) FILTER (WHERE card.status = 'published')::int AS published_report_cards,
-          COUNT(card.id) FILTER (WHERE card.status NOT IN ('approved', 'published'))::int AS blocked_report_cards
+          COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'")}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::int AS blocked_report_cards
         FROM exam_series series
         JOIN student_report_cards card
           ON card.tenant_id = series.tenant_id
@@ -1200,8 +1201,8 @@ export class AdminCommandRepository {
           AND lower(series.status) NOT IN ('archived', 'published')
         GROUP BY series.id, series.name, series.status, series.starts_on, series.ends_on, series.created_at
         HAVING COUNT(card.id) > 0
-           AND COUNT(card.id) FILTER (WHERE card.status = 'approved') > 0
-           AND COUNT(card.id) FILTER (WHERE card.status NOT IN ('approved', 'published')) = 0
+           AND COUNT(card.id) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL) > 0
+           AND COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'")}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL) = 0
         ORDER BY series.created_at DESC
       `,
       [tenantId],

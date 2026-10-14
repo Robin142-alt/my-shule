@@ -269,10 +269,17 @@ export class ReportCardGenerationService implements OnModuleInit {
     }, this.schoolEvents ? (card, tx) => this.schoolEvents!.recordSchoolOperation({
       event: {
         id: `${action}:${verificationCode}`, type: action, module: 'exams',
-        title: 'Report card generated', body: 'A report-card draft is ready for academic review.',
+        title: 'Report card generated', body: 'A generated report card is ready for Principal review and release.',
         entityId: card.id,
         payload: { report_card_id: card.id, student_id: input.student_id, exam_series_id: input.exam_series_id },
       },
+      notifications: [{
+        id: `report-card-ready:${verificationCode}`, schoolId: input.tenant_id,
+        audienceRoles: ['principal'], title: 'Report card ready for release',
+        body: 'The Exams Manager generated a report card. Preview it and release when ready.',
+        sourceModule: 'exams', relatedModule: 'academics', relatedRecordId: card.id,
+        priority: 'normal', read: false, createdAt: new Date().toISOString(),
+      }],
     }, tx) : undefined);
   }
 

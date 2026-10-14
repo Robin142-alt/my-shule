@@ -448,7 +448,7 @@ export class ExamsService {
       deanReviewBatches: data.deanReviewBatches.map((r: any) => ({
         id: r.id,
         title: 'Report Card Batch',
-        detail: `Sent to Dean`,
+        detail: r.status === 'draft_generated' ? 'Generated for Principal release' : 'Report generation',
         status: r.status,
         createdAt: r.created_at
       }))
@@ -495,11 +495,12 @@ export class ExamsService {
         draft_report_cards: numberValue(row.draft_report_cards),
         review_report_cards: numberValue(row.review_report_cards),
         approved_report_cards: numberValue(row.approved_report_cards),
+        releasable_report_cards: numberValue(row.releasable_report_cards),
         published_report_cards: numberValue(row.published_report_cards),
         failed_generation_batches: numberValue(row.failed_generation_batches),
       };
       const unresolvedMarks = counts.draft_marks + counts.submitted_marks + counts.reviewed_marks;
-      const finalizedCards = counts.approved_report_cards + counts.published_report_cards;
+      const finalizedCards = counts.releasable_report_cards + counts.published_report_cards;
       let stage = 'setup';
       let nextOwner = 'Exams Manager';
 
@@ -518,14 +519,11 @@ export class ExamsService {
       } else if (counts.published_report_cards > 0 && counts.published_report_cards === counts.report_cards) {
         stage = 'released';
         nextOwner = 'Released';
-      } else if (counts.approved_report_cards > 0 && finalizedCards === counts.report_cards) {
+      } else if (counts.releasable_report_cards > 0) {
         stage = 'principal_release';
         nextOwner = 'Principal';
-      } else if (counts.review_report_cards > 0) {
-        stage = 'dean_approval';
-        nextOwner = 'Dean of Academics';
-      } else if (counts.draft_report_cards > 0) {
-        stage = 'report_card_handoff';
+      } else if (counts.report_cards > counts.published_report_cards) {
+        stage = 'report_card_generation';
         nextOwner = 'Exams Manager';
       } else if (counts.expected_marks > 0 && counts.not_ready_marks === 0 && unresolvedMarks === 0) {
         stage = 'report_card_generation';
@@ -543,9 +541,8 @@ export class ExamsService {
       if (counts.submitted_marks > 0) blockers.push(`${counts.submitted_marks} marks await Dean review`);
       if (counts.reviewed_marks > 0) blockers.push(`${counts.reviewed_marks} reviewed marks await Dean lock`);
       if (counts.failed_generation_batches > 0) blockers.push('A report-card generation batch needs retry');
-      if (counts.draft_report_cards > 0) blockers.push(`${counts.draft_report_cards} report cards await Exams Manager handoff`);
-      if (counts.review_report_cards > 0) blockers.push(`${counts.review_report_cards} report cards await Dean approval`);
-      if (counts.approved_report_cards > 0) blockers.push(`${counts.approved_report_cards} report cards await Principal release`);
+      if (counts.report_cards > finalizedCards) blockers.push(`${counts.report_cards - finalizedCards} report cards need regeneration or completion before release`);
+      if (counts.releasable_report_cards > 0) blockers.push(`${counts.releasable_report_cards} report cards await Principal release`);
 
       return {
         id: row.id,
@@ -562,10 +559,10 @@ export class ExamsService {
         blockers,
         counts,
         can_generate_report_cards: counts.expected_marks > 0 && counts.not_ready_marks === 0,
-        can_submit_report_cards: counts.draft_report_cards > 0,
-        can_approve_report_cards: counts.review_report_cards > 0,
+        can_submit_report_cards: false,
+        can_approve_report_cards: false,
         can_publish_report_cards: counts.report_cards > 0
-          && counts.approved_report_cards > 0
+          && counts.releasable_report_cards > 0
           && finalizedCards === counts.report_cards,
       };
     });
@@ -593,8 +590,8 @@ export class ExamsService {
         marks_awaiting_moderation: series.reduce((sum, item) => sum + item.counts.submitted_marks, 0),
         marks_awaiting_lock: series.reduce((sum, item) => sum + item.counts.reviewed_marks, 0),
         report_cards_to_generate: series.filter((item) => item.stage === 'report_card_generation').length,
-        report_cards_awaiting_dean: series.reduce((sum, item) => sum + item.counts.review_report_cards, 0),
-        report_cards_awaiting_principal: series.reduce((sum, item) => sum + item.counts.approved_report_cards, 0),
+        report_cards_awaiting_dean: 0,
+        report_cards_awaiting_principal: series.reduce((sum, item) => sum + item.counts.releasable_report_cards, 0),
         report_cards_released: series.reduce((sum, item) => sum + item.counts.published_report_cards, 0),
       },
       series,
@@ -2116,11 +2113,11 @@ export class ExamsService {
     const totalReportCards = Number(release?.total_count ?? 0);
     const blockedReportCards = Number(release?.blocked_count ?? 0);
     if (totalReportCards === 0) {
-      throw new ConflictException('Generate, submit, and approve report cards before publishing this exam series');
+      throw new ConflictException('Generate report cards before Principal release of this exam series');
     }
     if (blockedReportCards > 0 || !release?.series_published) {
       throw new ConflictException(
-        `${blockedReportCards || totalReportCards} report card(s) have not completed Dean approval or need regeneration after input changes`,
+        `${blockedReportCards || totalReportCards} report card(s) need regeneration or completion before Principal release`,
       );
     }
     const publishedCards = Array.isArray(release.published_cards) ? release.published_cards : [];
@@ -2806,7 +2803,12 @@ export class ExamsService {
             ? this.canPublishExamResults()
             : false;
 
-    if (allowed) return;
+    if (allowed) {
+      if (action === 'approve') {
+        throw new BadRequestException('Report-card approval is no longer required. Generated cards go directly to Principal release.');
+      }
+      return;
+    }
 
     const requiredRole = action === 'submit' || action === 'regenerate'
       ? 'Exams Manager'
@@ -3134,9 +3136,9 @@ export class ExamsService {
   }): Record<string, unknown>[] {
     const definitions: Record<string, { audienceRoles: string[]; title: string; body: string; priority: string }> = {
       submit: {
-        audienceRoles: ['dean-academics'],
-        title: 'Report card awaiting academic approval',
-        body: 'The Exams Manager submitted a report card for Dean review.',
+        audienceRoles: ['principal'],
+        title: 'Report card ready for Principal release',
+        body: 'The Exams Manager prepared a report card for Principal release.',
         priority: 'high',
       },
       approve: {

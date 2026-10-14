@@ -104,39 +104,58 @@ describe("live report-card action controls", () => {
     });
   });
 
-  it("submits the selected persisted card, exposes row-local progress, and locks sibling actions while pending", async () => {
+  it("lets the Principal publish a generated card directly and locks sibling actions while pending", async () => {
     const report = reportCard();
     const transition = deferred<{ message: string }>();
     const { reportRefetch } = installQueries([report]);
     mockRequestSchoolApiProxy.mockImplementation(() => transition.promise);
     const user = userEvent.setup();
 
-    render(<LiveReportCardsWorkspace audience="exams-manager" />);
+    render(<LiveReportCardsWorkspace audience="principal" />);
 
-    await user.click(screen.getByRole("button", { name: "Submit" }));
+    await user.click(screen.getByRole("button", { name: "Publish" }));
 
-    expect(screen.getByRole("button", { name: "Submitting..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Publishing..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled();
-    expect(screen.getByText("Submitting report card...")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText(/Publish.* report card\.\.\./)).toHaveAttribute("aria-live", "polite");
     expect(mockRequestSchoolApiProxy).toHaveBeenCalledWith(
       "/exams/report-cards/report-1/transition",
       {
         method: "PATCH",
-        body: { action: "submit" },
+        body: { action: "publish" },
       },
     );
 
     await act(async () => {
-      transition.resolve({ message: "Report card submitted for Dean review." });
+      transition.resolve({ message: "Report card published to authorized portals." });
       await transition.promise;
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("Report card submitted for Dean review.")).toHaveLength(2);
+      expect(screen.getAllByText("Report card published to authorized portals.")).toHaveLength(2);
     });
     expect(reportRefetch).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled();
+  });
+
+  it.each(["exams-manager", "dean"] as const)("keeps %s report previews without submission, Dean approval or publication actions", (audience) => {
+    installQueries([reportCard(), reportCard({ id: "legacy-review", status: "under_review" })]);
+    render(<LiveReportCardsWorkspace audience={audience} />);
+
+    expect(screen.getAllByRole("button", { name: "Download" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /submit|approve|publish/i })).not.toBeInTheDocument();
+    expect(mockRequestSchoolApiProxy).not.toHaveBeenCalled();
+  });
+
+  it.each(["draft", "under_review", "approved"])("preserves Principal release for a compatible %s card", async (status) => {
+    installQueries([reportCard({ status })]);
+    mockRequestSchoolApiProxy.mockResolvedValue({ message: "Report card published." });
+    render(<LiveReportCardsWorkspace audience="principal" />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Publish" }));
+    expect(mockRequestSchoolApiProxy).toHaveBeenCalledWith("/exams/report-cards/report-1/transition", {
+      method: "PATCH", body: { action: "publish" },
+    });
   });
 
   it("sends a deterministic correction reason when regenerating from locked marks", async () => {

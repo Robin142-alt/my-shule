@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import type { LiveExamReportCard } from "@/lib/modules/exams-client";
+import { LiveReportCardsWorkspace } from "../live-report-cards-workspace";
 import { ExamWorkflowTracker } from "../exam-workflow-tracker";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -80,14 +80,6 @@ export function AssessmentsWorkspace({
     AssessmentsData | AssessmentsRecord[]
   >("/admin-command/dean-academics/assessments");
   const { refetch: refetchWorkflow } = useSchoolQuery("/exams/workflow");
-  const {
-    data: reportCards,
-    error: reportCardsError,
-    isLoading: reportCardsLoading,
-    refetch: refetchReportCards,
-  } = useSchoolQuery<LiveExamReportCard[]>(
-    "/exams/report-cards?status=under_review&limit=50",
-  );
   const items = listFromData<AssessmentsRecord>(data, "assessmentsList");
   const [isLocking, setIsLocking] = useState(false);
   const [submittingActionId, setSubmittingActionId] = useState<string | null>(
@@ -97,8 +89,6 @@ export function AssessmentsWorkspace({
     string | null
   >(null);
   const [assessmentReturnReason, setAssessmentReturnReason] = useState("");
-  const [recallId, setRecallId] = useState<string | null>(null);
-  const [recallReason, setRecallReason] = useState("");
   const [activeQueue, setActiveQueue] = useState("marks");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -278,54 +268,6 @@ export function AssessmentsWorkspace({
     }
   }
 
-  async function transitionReportCard(
-    reportCard: LiveExamReportCard,
-    action: "approve" | "recall",
-  ) {
-    const actionKey = `${reportCard.id}-${action}`;
-    const reason = recallReason.trim();
-    if (submittingActionId || isLocking || reportCardsError) return;
-    if (action === "recall" && !reason) {
-      toast.error(
-        "Enter the correction reason before returning this report card.",
-      );
-      return;
-    }
-
-    setSubmittingActionId(actionKey);
-    setActionError(null);
-    try {
-      await requestDashboardApi(
-        `/exams/report-cards/${encodeURIComponent(reportCard.id)}/transition`,
-        {
-          method: "PATCH",
-          body: {
-            action,
-            ...(action === "recall" ? { reason } : {}),
-          },
-        },
-      );
-
-      toast.success(
-        action === "approve"
-          ? "Report card approved and sent to the Principal release queue."
-          : "Report card returned to the Exams Manager with the correction reason.",
-      );
-      setRecallId(null);
-      setRecallReason("");
-      await Promise.all([refetchReportCards(), refetch(), refetchWorkflow()]);
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Report-card review could not be saved.";
-      setActionError(message);
-      toast.error(message);
-    } finally {
-      setSubmittingActionId(null);
-    }
-  }
-
   return (
     <div className={`space-y-4 ${styles.workspace}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -340,7 +282,7 @@ export function AssessmentsWorkspace({
         <button
           type="button"
           aria-label="Refresh queues"
-          onClick={() => void Promise.all([refetch(), refetchReportCards()])}
+          onClick={() => void Promise.all([refetch(), refetchWorkflow()])}
           disabled={
             isFetching || isLoading || isLocking || Boolean(submittingActionId)
           }
@@ -362,14 +304,7 @@ export function AssessmentsWorkspace({
             label: "Mark review",
             count: error || isLoading ? "—" : items.length,
           },
-          {
-            id: "reports",
-            label: "Report approval",
-            count:
-              reportCardsError || reportCardsLoading
-                ? "—"
-                : (reportCards?.length ?? 0),
-          },
+          { id: "reports", label: "Report cards", count: null },
           { id: "progress", label: "Exam progress", count: null },
         ].map((queue) => (
           <button
@@ -405,12 +340,12 @@ export function AssessmentsWorkspace({
             title={
               activeQueue === "marks"
                 ? "Teacher submissions"
-                : "Report card approvals"
+                : "Report cards"
             }
             description={
               activeQueue === "marks"
                 ? "Approve submitted marks, or return them with a correction reason. Lock reviewed marks when ready."
-                : "Review report cards before sending them to the Principal for release."
+                : "Preview generated report cards. The Principal releases them directly."
             }
             icon={ClipboardList}
             actions={
@@ -724,239 +659,14 @@ export function AssessmentsWorkspace({
                 </div>
               </>
             ) : null}
-            {activeQueue === "reports" ? (
-              <section aria-labelledby="report-card-approval-heading">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 id="report-card-approval-heading" className="sr-only">
-                      Report Card Approval Queue
-                    </h3>
-                    <p className="mt-1 text-sm text-muted">
-                      Approve complete report cards for Principal release, or
-                      return them to the Exams Manager with a correction reason.
-                    </p>
-                  </div>
-                  <StatusChip
-                    label={
-                      reportCardsError
-                        ? "Queue unavailable"
-                        : reportCardsLoading
-                          ? "Loading…"
-                          : `${reportCards?.length ?? 0} awaiting review${reportCards?.length === 50 ? " · first 50" : ""}`
-                    }
-                    tone={reportCards?.length ? "warning" : "neutral"}
-                  />
-                </div>
-
-                {reportCardsError ? (
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-bold text-danger">
-                    <span>
-                      Report-card approvals could not be loaded:{" "}
-                      {reportCardsError.message}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void refetchReportCards()}
-                      className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-black text-danger"
-                    >
-                      Retry queue
-                    </button>
-                  </div>
-                ) : null}
-
-                <div className="overflow-x-auto rounded-xl border border-border">
-                  <table className={`w-full text-left text-sm ${styles.table}`}>
-                    <thead className="bg-surface-muted text-foreground">
-                      <tr>
-                        <th className="px-4 py-3 font-bold">Learner</th>
-                        <th className="px-4 py-3 font-bold">Exam</th>
-                        <th className="px-4 py-3 font-bold">Term</th>
-                        <th className="px-4 py-3 font-bold">Submitted</th>
-                        <th className="px-4 py-3 text-right font-bold">
-                          Decision
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportCardsError ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-muted"
-                          >
-                            The approval queue is temporarily unavailable. Retry
-                            above after the connection recovers.
-                          </td>
-                        </tr>
-                      ) : reportCardsLoading ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-muted"
-                          >
-                            Loading report-card approval queue...
-                          </td>
-                        </tr>
-                      ) : !reportCards?.length ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-4 py-8 text-center text-muted"
-                          >
-                            No report cards are awaiting Dean approval. Cards
-                            appear after the Exams Manager submits generated
-                            drafts.
-                          </td>
-                        </tr>
-                      ) : (
-                        reportCards.map((reportCard) => {
-                          const recalling = recallId === reportCard.id;
-                          const approveActionId = `${reportCard.id}-approve`;
-                          const recallActionId = `${reportCard.id}-recall`;
-
-                          return (
-                            <tr
-                              key={reportCard.id}
-                              className="border-t border-border align-top hover:bg-surface-muted"
-                            >
-                              <td
-                                data-label="Learner"
-                                className="px-4 py-3 text-muted"
-                              >
-                                <div className="font-bold text-foreground">
-                                  {reportCard.student_name || "Learner"}
-                                </div>
-                                <div>
-                                  {reportCard.admission_number ||
-                                    reportCard.student_id}
-                                </div>
-                              </td>
-                              <td
-                                data-label="Exam"
-                                className="px-4 py-3 text-muted"
-                              >
-                                {reportCard.exam_series_name ||
-                                  reportCard.exam_series_id ||
-                                  "Exam series"}
-                              </td>
-                              <td
-                                data-label="Term"
-                                className="px-4 py-3 text-muted"
-                              >
-                                {[reportCard.term, reportCard.academic_year]
-                                  .filter(Boolean)
-                                  .join(" - ") || "Not assigned"}
-                              </td>
-                              <td
-                                data-label="Submitted"
-                                className="px-4 py-3 text-muted"
-                              >
-                                {reportCard.submitted_at
-                                  ? displayDate(reportCard.submitted_at)
-                                  : "Submission recorded"}
-                              </td>
-                              <td
-                                data-label="Decision"
-                                className="px-4 py-3 text-right"
-                              >
-                                {!recalling ? (
-                                  <div className="flex flex-wrap justify-end gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        transitionReportCard(
-                                          reportCard,
-                                          "approve",
-                                        )
-                                      }
-                                      disabled={Boolean(submittingActionId)}
-                                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
-                                    >
-                                      {submittingActionId === approveActionId
-                                        ? "Approving..."
-                                        : "Approve for Principal"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRecallId(reportCard.id);
-                                        setRecallReason("");
-                                      }}
-                                      disabled={Boolean(submittingActionId)}
-                                      className="rounded-lg border border-warning-border bg-warning-soft px-3 py-2 text-xs font-black text-warning disabled:opacity-50"
-                                    >
-                                      Return for correction
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="ml-auto flex max-w-sm flex-col gap-2">
-                                    <label
-                                      htmlFor={`dean-recall-${reportCard.id}`}
-                                      className="text-left text-xs font-bold text-muted-strong"
-                                    >
-                                      Required correction reason
-                                    </label>
-                                    <textarea
-                                      id={`dean-recall-${reportCard.id}`}
-                                      value={recallReason}
-                                      onChange={(event) =>
-                                        setRecallReason(event.target.value)
-                                      }
-                                      rows={2}
-                                      className="rounded-lg border border-border-strong bg-white px-3 py-2 text-sm text-foreground"
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setRecallId(null);
-                                          setRecallReason("");
-                                        }}
-                                        disabled={
-                                          submittingActionId === recallActionId
-                                        }
-                                        className="rounded-lg border border-border-strong bg-white px-3 py-2 text-xs font-black text-muted-strong"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          transitionReportCard(
-                                            reportCard,
-                                            "recall",
-                                          )
-                                        }
-                                        disabled={
-                                          Boolean(submittingActionId) ||
-                                          !recallReason.trim()
-                                        }
-                                        className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
-                                      >
-                                        {submittingActionId === recallActionId
-                                          ? "Returning..."
-                                          : "Confirm return"}
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            ) : null}
+            {activeQueue === "reports" ? <LiveReportCardsWorkspace audience="dean" /> : null}
           </Panel>
         </div>
       ) : null}
       <Modal
         open={confirmLock}
         title="Lock reviewed marks?"
-        description="Locked marks are ready for report-card generation. Later changes require the approved correction workflow."
+        description="Locked marks are ready for report-card generation. The Exams Manager can reopen selected marks for corrections."
         onClose={() => {
           if (!isLocking) setConfirmLock(false);
         }}

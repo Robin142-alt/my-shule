@@ -35,7 +35,7 @@ function entryUnavailableReason(windowTask: PendingMarksWindow) {
     case "Draft": return "The Exams Manager must select Open for marks in Exam Setup before you can enter scores.";
     case "Scheduled": return `Marks entry starts ${windowTask.opensAt ? new Date(windowTask.opensAt).toLocaleString() : "on the scheduled date"}. The Exams Manager can open it earlier from Exam Setup.`;
     case "Deadline passed": return "The deadline has passed. Ask the Exams Manager to extend the end date and open entry again.";
-    case "Locked": return "This exam is locked or published. Ask the Exams Manager to use the governed correction workflow for changes.";
+    case "Locked": return "This exam is locked or published. Ask the Exams Manager to reopen mark entry for changes.";
     default: return "Marks entry is closed. Ask the Exams Manager to open this exam for marks.";
   }
 }

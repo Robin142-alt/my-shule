@@ -44,7 +44,7 @@ describe("Principal report-card release", () => {
     expect(permissionAllows(["exams:read"], "exams:publish")).toBe(false);
   });
 
-  it("loads the canonical report-card release queue on Approvals and publishes the selected series", async () => {
+  it("loads newly generated cards directly in the Principal release queue and publishes the selected series", async () => {
     const user = userEvent.setup();
     const requestPrincipalApi = jest.fn().mockResolvedValue({ success: true });
     const refetchApprovals = jest.fn().mockResolvedValue({ data: {} });
@@ -104,6 +104,9 @@ describe("Principal report-card release", () => {
     expect(screen.getByRole("heading", { name: "Principal Report-card Release" })).toBeVisible();
     expect(screen.getByText("Term 3")).toBeVisible();
     expect(screen.getByText("Report Cards Ready to Release").parentElement).toHaveTextContent("1");
+    expect(screen.getByText(/generated report cards appear here for final Principal release/i)).toBeVisible();
+    expect(screen.getByText(/1 of 1 cards ready/i)).toBeVisible();
+    expect(screen.queryByText(/Dean.approved/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Release report cards" }));
 

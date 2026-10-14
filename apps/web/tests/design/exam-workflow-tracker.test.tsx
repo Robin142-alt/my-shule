@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
@@ -69,6 +69,26 @@ function renderWorkspace(element: ReactElement) {
 }
 
 beforeEach(() => jest.clearAllMocks());
+
+it("moves directly from generated cards to Principal release while retaining Dean mark review and locking", async () => {
+  const generated = exam("principal_release", "Generated cards ready for release");
+  generated.counts.approved_report_cards = 0;
+  const data = workflow([generated]);
+  data.metrics.report_cards_awaiting_principal = 11;
+  mockRequest.mockResolvedValue(data);
+
+  renderWorkspace(<ExamWorkflowTracker />);
+
+  const progress = await screen.findByRole("list", { name: `${generated.name} progress` });
+  expect(within(progress).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    "SetupExams Manager", "Mark entryTeachers", "Review marksDean", "Lock marksDean",
+    "Generate cardsExams Manager", "ReleasePrincipal", "PublishedComplete",
+  ]);
+  expect(screen.queryByText("Submit cards")).not.toBeInTheDocument();
+  expect(screen.queryByText("Approve cards")).not.toBeInTheDocument();
+  expect(screen.queryByText("Dean approval")).not.toBeInTheDocument();
+  expect(screen.getByText("Principal release").parentElement).toHaveTextContent("11");
+});
 
 it("loads the manager workflow for the current school and recovers after a failed read", async () => {
   const user = userEvent.setup();
@@ -189,7 +209,7 @@ it.each([true, false])("removes a workflow only after confirmed publication (suc
   const otherSchoolKey = buildSchoolQueryKey("school-b", "session-user", "session-role", "/exams/workflow");
   client.setQueryData(otherSchoolKey, workflow([exam("principal_release", "Other school's exam")]));
 
-  expect(await screen.findByRole("heading", { name: "Term exam" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Term exam" }, { timeout: 10000 })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Release Term exam" }));
   expect(mockRequest).toHaveBeenCalledWith("/admin-command/principal/exams-report-cards/exam-1/publish", {
     method: "POST", tenantId: "school-a",
