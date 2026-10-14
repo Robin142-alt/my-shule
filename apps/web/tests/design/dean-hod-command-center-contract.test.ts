@@ -53,15 +53,15 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/No academic interventions yet/);
   });
 
-  it("uses real exam moderation and report-card decision workflows on the Dean assessments screen", () => {
+  it("keeps Dean mark moderation and shared report previews without card approval", () => {
     const source = readSource("src/components/school/dean-academics/assessments-workspace.tsx");
 
     expect(source).toMatch(/\/exams\/marks\/moderate/);
     expect(source).toMatch(/mark_ids: markIds\.slice\(index, index \+ 500\)/);
     expect(source).toMatch(/action: "approve" \| "return_for_correction"/);
     expect(source).toMatch(/Required correction reason/);
-    expect(source).toMatch(/\/exams\/report-cards\?status=under_review&limit=50/);
-    expect(source).toMatch(/\/report-cards\/\$\{encodeURIComponent\(reportCard\.id\)\}\/transition/);
+    expect(source).toContain('<LiveReportCardsWorkspace audience="dean" />');
+    expect(source).not.toMatch(/reportCard\.id.*transition|Report card approvals/);
     expect(source).toMatch(/Retry queue/);
     expect(source).not.toMatch(/request_moderation/);
   });
