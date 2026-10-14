@@ -175,6 +175,12 @@ it("retains generated report previews while removing Dean card decisions", () =>
               student_id: "student1",
               student_name: "Test Learner",
               status: "draft_generated",
+              metadata: {
+                report_card: {
+                  template_fields: { learner_name: "Test Learner" },
+                  subjects: [],
+                },
+              },
             },
           ]
         : [],
@@ -182,11 +188,11 @@ it("retains generated report previews while removing Dean card decisions", () =>
   );
   const onOpenReports = jest.fn();
   renderWithProviders(<AssessmentsWorkspace onOpenReports={onOpenReports} />);
-  fireEvent.click(screen.getByRole("button", { name: "Report cards", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Report cards" }));
   fireEvent.click(screen.getByRole("button", { name: "Preview report cards" }));
   expect(onOpenReports).toHaveBeenCalled();
   expect(screen.getByText("Test Learner")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Preview", exact: true })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: /Approve|Return for correction|Recall|Publish/i })).not.toBeInTheDocument();
   expect(mockRequest).not.toHaveBeenCalled();
 });

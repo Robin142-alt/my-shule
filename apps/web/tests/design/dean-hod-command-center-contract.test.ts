@@ -62,7 +62,7 @@ describe("academic leadership command center shell contract", () => {
     expect(source).toMatch(/Required correction reason/);
     expect(source).toContain('<LiveReportCardsWorkspace audience="dean" />');
     expect(source).not.toMatch(/reportCard\.id.*transition|Report card approvals/);
-    expect(source).toMatch(/Retry queue/);
+    expect(source).toContain('<QueryNotice error={error} onRetry={() => void refetch()} />');
     expect(source).not.toMatch(/request_moderation/);
   });
 
