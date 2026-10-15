@@ -44,7 +44,7 @@ export function OpenMarkEntryPanel({ entries, unavailable, onOpened }: {
 
   return <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5" aria-label="Open mark entry">
     <h2 className="text-lg font-semibold text-slate-900">Open mark entry</h2>
-    <p className="mt-1 text-sm text-slate-600">Give a teacher, a class, or everyone access to enter outstanding marks in one exam.</p>
+    <p className="mt-1 text-sm text-slate-600">Give a teacher, a class, or everyone access to enter or correct marks in one exam, including locked or published exams.</p>
     <form onSubmit={event => void submit(event)} className="mt-4 space-y-4">
       <fieldset disabled={busy || unavailable} className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="min-w-0 space-y-1 text-sm font-medium">Exam
@@ -66,7 +66,7 @@ export function OpenMarkEntryPanel({ entries, unavailable, onOpened }: {
           <input aria-label="Mark entry deadline" type="datetime-local" required className={field} value={deadline} onChange={event => { setDeadline(event.target.value); resetFeedback(); }} />
         </label>
       </fieldset>
-      <p className="text-sm text-slate-600">{examId && (scope === "everyone" || target) ? `${windowCount} subject/class windows selected. ` : ""}Reviewed, locked and published results keep their existing protection. Opening for one teacher preserves everyone else’s access.</p>
+      <p className="text-sm text-slate-600">{examId && (scope === "everyone" || target) ? `${windowCount} subject/class windows selected. ` : ""}Selected marks reopen as drafts. Affected report cards need regeneration and Principal release. For locked or published exams, only the selected scope reopens.</p>
       {unavailable ? <p className="text-sm text-warning">Load teacher progress below before choosing who can enter marks.</p> : null}
       {feedback ? <p role={feedback.error ? "alert" : "status"} className={`rounded-lg p-3 text-sm ${feedback.error ? "bg-danger-soft text-danger" : "bg-success-soft text-success"}`}>{feedback.text}</p> : null}
       <button type="submit" disabled={busy || unavailable || !windowCount || !deadline} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Unlock className="h-4 w-4" />{busy ? "Opening…" : "Open mark entry"}</button>

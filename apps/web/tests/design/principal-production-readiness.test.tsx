@@ -898,7 +898,7 @@ describe("principal production readiness", () => {
       );
     });
 
-    await user.click(await within(commandCenter).findByRole("button", { name: "Publish approved cards" }));
+    await user.click(await within(commandCenter).findByRole("button", { name: "Publish generated cards" }));
     await waitFor(() => {
       expect(requestDashboardApiMock).toHaveBeenCalledWith(
         "/admin-command/principal/exams-report-cards/00000000-0000-4000-8000-000000000703/publish",

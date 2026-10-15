@@ -180,7 +180,7 @@ const navItems: NavItem[] = [
   {
     id: "report-cards",
     label: "Report Cards",
-    summary: "Generate, regenerate, preview and submit report cards to the Dean, or recall them for correction.",
+    summary: "Generate, regenerate and preview report cards for Principal release.",
     icon: FileSpreadsheet,
     aliases: ["drafts", "report-templates", "report-cards", "publishing", "handoff", "dean-approval"],
   },

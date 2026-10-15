@@ -203,7 +203,7 @@ export function PrincipalApprovalsWorkspace() {
               <h2 className="text-xl font-bold text-white">Principal Report-card Release</h2>
             </div>
             <p className="mt-1 text-sm text-white/70">
-              Dean-approved report cards appear here for final Principal release. Releasing publishes the persisted cards to authorized parent and student portals.
+              Generated report cards appear here for final Principal release. Releasing publishes the persisted cards to authorized parent and student portals.
             </p>
           </div>
           <Button type="button" size="sm" variant="outline" disabled={examsLoading} onClick={() => refetchExams()}>
@@ -223,7 +223,7 @@ export function PrincipalApprovalsWorkspace() {
           </div>
         ) : releaseQueue.length === 0 ? (
           <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center text-white/60">
-            No Dean-approved report cards are awaiting Principal release.
+            No generated report cards are awaiting Principal release.
           </div>
         ) : (
           <div className="mt-4 space-y-3">
@@ -232,7 +232,7 @@ export function PrincipalApprovalsWorkspace() {
                 <div>
                   <p className="font-bold text-white">{series.title}</p>
                   <p className="mt-1 text-sm text-white/65">
-                    {series.approvedReportCards} of {series.totalReportCards} cards approved
+                    {series.approvedReportCards} of {series.totalReportCards} cards ready
                     {series.blockedReportCards > 0 ? ` · ${series.blockedReportCards} blocked` : " · no blockers"}
                   </p>
                 </div>

@@ -94,7 +94,9 @@ async function run() {
    assert.ok(page.url().endsWith('/school/exams-manager/exam-workflow'));
    await page.getByText('Next: Dean of Academics',{exact:true}).waitFor();
    await page.getByText('36 marks await Dean review',{exact:true}).waitFor();
-   assert.equal(await page.getByRole('list',{name:'Term 3 End Term progress'}).getByRole('listitem').count(),9);
+   assert.equal(await page.getByRole('list',{name:'Term 3 End Term progress'}).getByRole('listitem').count(),7);
+   assert.equal(await page.getByText('Approve cards',{exact:true}).count(),0);
+   assert.equal(await page.getByText('Submit cards',{exact:true}).count(),0);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Workflow overflows at ${width}px`);
    await page.getByRole('button',{name:'Refresh',exact:true}).click();
    await page.screenshot({path:path.join(out,`workflow-${width}.png`),fullPage:true});

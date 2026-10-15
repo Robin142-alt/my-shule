@@ -85,7 +85,7 @@ const deanNavItems: DeanNavItem[] = [
     id: "assessments",
     label: "Assessments",
     description:
-      "Review submitted marks, lock reviewed batches, and approve report cards.",
+      "Review submitted marks, lock reviewed batches, and preview report cards.",
     icon: ClipboardList,
     group: "Academic office",
   },

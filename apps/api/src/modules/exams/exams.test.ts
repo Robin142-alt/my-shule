@@ -763,7 +763,7 @@ test('ExamsService enforces Exams Manager submission without Dean or Principal a
   await assert.rejects(() => service.transitionReportCard('report-card-1', 'publish'), ForbiddenException);
 });
 
-test('ExamsService enforces Dean approval and correction return without publication authority', async () => {
+test('ExamsService retires Dean card approval and preserves legacy correction return without publication authority', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const service = new ExamsService(
     {
@@ -787,9 +787,9 @@ test('ExamsService enforces Dean approval and correction return without publicat
     } as never,
   );
 
-  await service.transitionReportCard('report-card-1', 'approve');
+  await assert.rejects(() => service.transitionReportCard('report-card-1', 'approve'), /approval is no longer required/i);
   await service.transitionReportCard('report-card-2', 'recall', 'The Mathematics totals require correction');
-  assert.equal(calls[1]?.reason, 'The Mathematics totals require correction');
+  assert.equal(calls[0]?.reason, 'The Mathematics totals require correction');
   await assert.rejects(() => service.transitionReportCard('report-card-1', 'submit'), ForbiddenException);
   await assert.rejects(() => service.transitionReportCard('report-card-1', 'publish'), ForbiddenException);
 });
@@ -1374,7 +1374,7 @@ test('ExamsService refuses Principal series publication before report cards exis
 
   await assert.rejects(
     () => service.publishExamSeries('00000000-0000-0000-0000-000000000312'),
-    /generate, submit, and approve report cards/i,
+    /generate report cards before Principal release/i,
   );
 });
 
@@ -2359,7 +2359,7 @@ query: async (sql: string) => {
   assert.match(queries[0] ?? '', /WHERE current_card\.id IS NULL[\s\S]*OR EXISTS \(SELECT 1 FROM superseded\)/);
 });
 
-test('ExamsRepository finds only approved generated report cards for publication', async () => {
+test('ExamsRepository finds only eligible generated report cards for Principal publication', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
     executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
@@ -2393,7 +2393,7 @@ test('ExamsRepository finds only approved generated report cards for publication
 
   assert.equal(reportCard?.status, 'approved');
   assert.match(calls[0]!.sql, /FROM student_report_cards card/);
-  assert.match(calls[0]!.sql, /card\.status = 'approved'/);
+  assert.match(calls[0]!.sql, /WHEN 'publish' THEN ARRAY\['draft_generated','draft','under_review','approved'\]/);
   assert.match(calls[0]!.sql, /card\.report_snapshot_id = \$4/);
   assert.deepEqual(calls[0]!.params, [
     'tenant-a',
@@ -2513,7 +2513,7 @@ test('ExamsRepository edits comments only on current tenant-scoped working draft
   ]);
 });
 
-test('ExamsRepository publishes a series only when every current report card is approved', async () => {
+test('ExamsRepository publishes a series only when every current report card is ready for Principal release', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
     executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
@@ -2549,14 +2549,16 @@ test('ExamsRepository publishes a series only when every current report card is 
   });
 
   assert.equal(result?.series_published, true);
-  assert.match(calls[0]!.sql, /card\.tenant_id = \$1/);
-  assert.match(calls[0]!.sql, /card\.is_current = TRUE/);
-  assert.match(calls[0]!.sql, /blocked_count = 0/);
-  assert.match(calls[0]!.sql, /card\.status = 'approved'/);
-  assert.match(calls[0]!.sql, /INSERT INTO student_report_card_audit_logs/);
-  assert.match(calls[0]!.sql, /mark\.tenant_id = \$1/);
-  assert.match(calls[0]!.sql, /series\.tenant_id = \$1/);
-  assert.deepEqual(calls[0]!.params, [
+  assert.match(calls[0]!.sql, /FROM exam_series.*FOR UPDATE/);
+  assert.deepEqual(calls[0]!.params, ['tenant-a', '00000000-0000-0000-0000-000000000421']);
+  assert.match(calls[1]!.sql, /card\.tenant_id = \$1/);
+  assert.match(calls[1]!.sql, /card\.is_current = TRUE/);
+  assert.match(calls[1]!.sql, /blocked_count = 0/);
+  assert.match(calls[1]!.sql, /WHEN 'publish' THEN ARRAY\['draft_generated','draft','under_review','approved'\]/);
+  assert.match(calls[1]!.sql, /INSERT INTO student_report_card_audit_logs/);
+  assert.match(calls[1]!.sql, /mark\.tenant_id = \$1/);
+  assert.match(calls[1]!.sql, /series\.tenant_id = \$1/);
+  assert.deepEqual(calls[1]!.params, [
     'tenant-a',
     '00000000-0000-0000-0000-000000000421',
     '00000000-0000-0000-0000-000000000422',
@@ -4173,6 +4175,27 @@ test('ExamsController exposes the shared workflow as an exams read endpoint', ()
   const handler = ExamsController.prototype.getWorkflowOverview as unknown as Function;
   assert.equal(Reflect.getMetadata(PATH_METADATA, handler), 'workflow');
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, handler), ['exams:read']);
+});
+
+test('generated cards go directly to Principal release and incomplete cards stay with the Exams Manager', async () => {
+  const row = { id: 'exam', name: 'Term 3', assessment_count: 1, entry_window_count: 1,
+    total_marks: 2, locked_marks: 2, expected_mark_count: 2, ready_mark_count: 2,
+    not_ready_mark_count: 0, total_report_cards: 2, draft_report_cards: 2, releasable_report_cards: 2 };
+  const service = new ExamsService({ getStore: () => ({ tenant_id: 'school-a', user_id: 'manager',
+    role: 'exams_manager', permissions: ['exams:read', 'exams:write'] }) } as never,
+  { getWorkflowOverview: async () => ({ series: [row], moderation_batches: [] }) } as never);
+  const ready = await service.getWorkflowOverview();
+  assert.equal(ready.series[0].stage, 'principal_release');
+  assert.equal(ready.series[0].next_owner, 'Principal');
+  assert.equal(ready.series[0].can_publish_report_cards, true);
+  assert.equal(ready.series[0].can_approve_report_cards, false);
+  assert.equal(ready.metrics.report_cards_awaiting_principal, 2);
+  assert.equal(ready.metrics.report_cards_awaiting_dean, 0);
+  row.releasable_report_cards = 0;
+  const incomplete = (await service.getWorkflowOverview()).series[0];
+  assert.equal(incomplete.stage, 'report_card_generation');
+  assert.equal(incomplete.can_publish_report_cards, false);
+  assert.match(incomplete.blockers.join(' '), /2 report cards need regeneration or completion/);
 });
 
 test('ExamsService keeps an exam at mark entry when saved results are finalized but expected learner marks are absent', async () => {

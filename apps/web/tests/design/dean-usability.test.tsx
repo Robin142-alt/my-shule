@@ -165,15 +165,22 @@ it("splits large moderation groups at the backend limit and reports partial fail
   expect(mockRequest.mock.calls[1][1].body.mark_ids).toEqual(["m500"]);
 });
 
-it("retains report approvals, correction reasons and access to the report previews", async () => {
-  mockQuery.mockImplementation((url: string) =>
+it("retains generated report previews while removing Dean card decisions", () => {
+  mockQuery.mockImplementation((url: string | null) =>
     result(
-      url.includes("/report-cards")
+      url?.includes("/report-cards/scoped?")
         ? [
             {
               id: "card1",
+              student_id: "student1",
               student_name: "Test Learner",
-              status: "under_review",
+              status: "draft_generated",
+              metadata: {
+                report_card: {
+                  template_fields: { learner_name: "Test Learner" },
+                  subjects: [],
+                },
+              },
             },
           ]
         : [],
@@ -181,26 +188,13 @@ it("retains report approvals, correction reasons and access to the report previe
   );
   const onOpenReports = jest.fn();
   renderWithProviders(<AssessmentsWorkspace onOpenReports={onOpenReports} />);
-  fireEvent.click(screen.getByRole("button", { name: /Report approval/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Report cards" }));
   fireEvent.click(screen.getByRole("button", { name: "Preview report cards" }));
   expect(onOpenReports).toHaveBeenCalled();
-  fireEvent.click(
-    screen.getByRole("button", { name: "Return for correction" }),
-  );
-  expect(screen.getByRole("button", { name: "Confirm return" })).toBeDisabled();
-  fireEvent.change(screen.getByLabelText("Required correction reason"), {
-    target: { value: "Review the comments" },
-  });
-  fireEvent.click(screen.getByRole("button", { name: "Confirm return" }));
-  await waitFor(() =>
-    expect(mockRequest).toHaveBeenCalledWith(
-      "/exams/report-cards/card1/transition",
-      {
-        method: "PATCH",
-        body: { action: "recall", reason: "Review the comments" },
-      },
-    ),
-  );
+  expect(screen.getByText("Test Learner")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Preview" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: /Approve|Return for correction|Recall|Publish/i })).not.toBeInTheDocument();
+  expect(mockRequest).not.toHaveBeenCalled();
 });
 
 it("uses actual overview fields and navigates into the daily workspaces", () => {

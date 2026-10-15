@@ -41,7 +41,7 @@ export function ExamsReportCardsWorkspace() {
     isLoading,
     refetch,
   } = useSchoolQuery<LiveExamReportCard[]>(
-    "/exams/report-cards?status=approved,published,withdrawn&limit=50",
+    "/exams/report-cards?status=draft_generated,draft,under_review,approved,published,withdrawn&limit=50",
   );
   const [busySeriesId, setBusySeriesId] = useState<string | null>(null);
   const [withdrawSeriesId, setWithdrawSeriesId] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export function ExamsReportCardsWorkspace() {
         withdrawn: 0,
       };
       group.cards.push(card);
-      if (card.status === "approved") group.approved += 1;
+      if (["draft_generated", "draft", "under_review", "approved"].includes(card.status)) group.approved += 1;
       if (card.status === "published") group.published += 1;
       if (card.status === "withdrawn") group.withdrawn += 1;
       grouped.set(seriesId, group);
@@ -75,12 +75,12 @@ export function ExamsReportCardsWorkspace() {
     return Array.from(grouped.values());
   }, [cards]);
 
-  const approvedCards = cards.filter((card) => card.status === "approved").length;
+  const approvedCards = cards.filter((card) => ["draft_generated", "draft", "under_review", "approved"].includes(card.status)).length;
   const publishedCards = cards.filter((card) => card.status === "published").length;
   const withdrawnCards = cards.filter((card) => card.status === "withdrawn").length;
   const learnersReady = new Set(
     cards
-      .filter((card) => card.status === "approved")
+      .filter((card) => ["draft_generated", "draft", "under_review", "approved"].includes(card.status))
       .map((card) => card.student_id),
   ).size;
 
@@ -126,12 +126,12 @@ export function ExamsReportCardsWorkspace() {
   return (
     <Panel
       title="Exams & Report Cards"
-      description="Release only Dean-approved report-card series. Published records become visible through authorized parent and student portals; withdrawal requires a recorded reason."
+      description="Release only generated report-card series. Published records become visible through authorized parent and student portals; withdrawal requires a recorded reason."
       icon={Award}
     >
       <div className="mb-6 grid gap-4 md:grid-cols-4">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
-          <div className="text-sm font-semibold text-muted">Approved for release</div>
+          <div className="text-sm font-semibold text-muted">Generated for release</div>
           <div className="mt-1 text-lg font-black text-foreground">{isLoading ? "..." : approvedCards}</div>
         </div>
         <div className="rounded-xl border border-border bg-surface-muted p-4">
@@ -176,7 +176,7 @@ export function ExamsReportCardsWorkspace() {
             ) : seriesGroups.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted">
-                  No report-card series is ready for Principal action. The Exams Manager must generate and submit cards, then the Dean must approve them.
+                  No report-card series is ready for Principal action. The Exams Manager must generate cards before Principal release.
                 </td>
               </tr>
             ) : (
@@ -198,7 +198,7 @@ export function ExamsReportCardsWorkspace() {
                     </td>
                     <td className="px-4 py-3 text-muted">
                       <div>{group.cards.length} current card(s)</div>
-                      <div>{group.approved} approved, {group.published} published</div>
+                      <div>{group.approved} ready, {group.published} published</div>
                     </td>
                     <td className="px-4 py-3">
                       <StatusChip label={groupStatus(group)} tone={groupTone(group)} />
@@ -217,7 +217,7 @@ export function ExamsReportCardsWorkspace() {
                           disabled={Boolean(busySeriesId)}
                           className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
                         >
-                          {busySeriesId === group.id ? "Publishing..." : "Publish approved series"}
+                          {busySeriesId === group.id ? "Publishing..." : "Publish generated series"}
                         </button>
                       ) : group.published > 0 && !withdrawing ? (
                         <button

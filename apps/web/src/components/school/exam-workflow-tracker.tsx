@@ -10,8 +10,6 @@ type WorkflowStage =
   | "dean_review"
   | "dean_lock"
   | "report_card_generation"
-  | "report_card_handoff"
-  | "dean_approval"
   | "principal_release"
   | "released";
 
@@ -81,8 +79,6 @@ const stages: Array<{ key: WorkflowStage; short: string; owner: string }> = [
   { key: "dean_review", short: "Review marks", owner: "Dean" },
   { key: "dean_lock", short: "Lock marks", owner: "Dean" },
   { key: "report_card_generation", short: "Generate cards", owner: "Exams Manager" },
-  { key: "report_card_handoff", short: "Submit cards", owner: "Exams Manager" },
-  { key: "dean_approval", short: "Approve cards", owner: "Dean" },
   { key: "principal_release", short: "Release", owner: "Principal" },
   { key: "released", short: "Published", owner: "Complete" },
 ];
@@ -140,7 +136,7 @@ export function ExamWorkflowTracker({
         {[
           ["Active cycles", data?.metrics?.active_series ?? 0],
           ["Dean mark review", data?.metrics?.marks_awaiting_moderation ?? 0],
-          ["Dean approval", data?.metrics?.report_cards_awaiting_dean ?? 0],
+          ["Generate cards", data?.metrics?.report_cards_to_generate ?? 0],
           ["Principal release", data?.metrics?.report_cards_awaiting_principal ?? 0],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-xl border border-border bg-surface-muted p-3 sm:p-4">
@@ -180,7 +176,7 @@ export function ExamWorkflowTracker({
               </div>
 
               <div className="mt-4 overflow-x-auto pb-2">
-                <ol className={compact ? "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-9" : "grid min-w-[880px] grid-cols-9 gap-2"} aria-label={`${series.name} progress`}>
+                <ol className={compact ? "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7" : "grid min-w-[700px] grid-cols-7 gap-2"} aria-label={`${series.name} progress`}>
                   {stages.map((stage, index) => {
                     const complete = index < currentIndex || series.stage === "released";
                     const current = index === currentIndex && series.stage !== "released";

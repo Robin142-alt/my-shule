@@ -44,7 +44,7 @@ describe("academic office production readiness", () => {
     await screen.findByRole("heading", { name: /exams manager dashboard/i });
     await user.click(screen.getByRole("button", { name: /^report cards$/i }));
 
-    expect(document.body.textContent).toMatch(/only the principal can publish approved results/i);
+    expect(document.body.textContent).toMatch(/Generated cards go directly to the Principal for release/i);
     expect(screen.queryByRole("button", { name: /^publish\b/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^(unpublish|withdraw)\b/i })).not.toBeInTheDocument();
   });

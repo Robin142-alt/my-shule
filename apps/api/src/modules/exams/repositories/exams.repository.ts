@@ -210,6 +210,7 @@ export class ExamsRepository {
            COUNT(*) FILTER (WHERE card.status IN ('draft_requested', 'draft_generated', 'draft', 'regeneration_required'))::integer AS draft_report_cards,
            COUNT(*) FILTER (WHERE card.status = 'under_review')::integer AS review_report_cards,
            COUNT(*) FILTER (WHERE card.status = 'approved')::integer AS approved_report_cards,
+           COUNT(*) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL)::integer AS releasable_report_cards,
            COUNT(*) FILTER (WHERE card.status = 'published')::integer AS published_report_cards,
            COUNT(*) FILTER (WHERE card.status = 'withdrawn')::integer AS withdrawn_report_cards,
            MAX(card.updated_at)::text AS report_cards_updated_at
@@ -264,6 +265,7 @@ export class ExamsRepository {
          COALESCE(card.draft_report_cards, 0) AS draft_report_cards,
          COALESCE(card.review_report_cards, 0) AS review_report_cards,
          COALESCE(card.approved_report_cards, 0) AS approved_report_cards,
+         COALESCE(card.releasable_report_cards, 0) AS releasable_report_cards,
          COALESCE(card.published_report_cards, 0) AS published_report_cards,
          COALESCE(card.withdrawn_report_cards, 0) AS withdrawn_report_cards,
          card.report_cards_updated_at,
@@ -1581,7 +1583,7 @@ export class ExamsRepository {
           AND card.exam_series_id = $2::uuid
           AND card.student_id = $3::uuid
           AND card.report_snapshot_id = $4
-          AND card.status = 'approved'
+          AND (${reportCardIneligibilitySql("'publish'")}) IS NULL
           AND card.is_current = TRUE
         LIMIT 1
       `,
@@ -1622,7 +1624,7 @@ export class ExamsRepository {
              WHEN 'submit' THEN ARRAY['draft_generated', 'draft']::text[]
              WHEN 'approve' THEN ARRAY['under_review']::text[]
              WHEN 'recall' THEN ARRAY['under_review']::text[]
-             WHEN 'publish' THEN ARRAY['approved']::text[]
+             WHEN 'publish' THEN ARRAY['draft_generated', 'draft', 'under_review', 'approved']::text[]
              WHEN 'unpublish' THEN ARRAY['published']::text[]
              ELSE ARRAY[]::text[]
            END AS source_statuses,
@@ -4104,16 +4106,28 @@ export class ExamsRepository {
     exam_series_id: string;
     actor_user_id: string;
     actor_role: string;
-  }) {
+  }): Promise<Record<string, any> | null> {
+    if (!this.reportTransaction) {
+      return this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async tx => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId: input.tenant_id, client: tx };
+        // Reopening holds this same lock. Check readiness in a fresh statement
+        // after acquiring it so a concurrent reopen cannot release stale cards.
+        await scoped.executeSql('SELECT id FROM exam_series WHERE tenant_id = $1 AND id = $2::uuid FOR UPDATE',
+          [input.tenant_id, input.exam_series_id]);
+        return scoped.publishExamSeries(input);
+      });
+    }
     const result = await this.executeSql(
       `
         WITH readiness AS MATERIALIZED (
           SELECT
             COUNT(*)::integer AS total_count,
-            COUNT(*) FILTER (WHERE card.status = 'approved')::integer AS approved_count,
+            COUNT(*) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL)::integer AS approved_count,
             COUNT(*) FILTER (WHERE card.status = 'published')::integer AS already_published_count,
-            COUNT(*) FILTER (WHERE card.status NOT IN ('approved', 'published')
-              OR (${reportCardIneligibilitySql("'export'")}) IS NOT NULL)::integer AS blocked_count
+            COUNT(*) FILTER (WHERE (CASE WHEN card.status = 'published'
+              THEN (${reportCardIneligibilitySql("'export'")})
+              ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::integer AS blocked_count
           FROM student_report_cards card
           WHERE card.tenant_id = $1
             AND card.exam_series_id = $2::uuid
@@ -4141,7 +4155,7 @@ export class ExamsRepository {
           WHERE card.tenant_id = $1
             AND card.exam_series_id = $2::uuid
             AND card.is_current = TRUE
-            AND card.status = 'approved'
+            AND (${reportCardIneligibilitySql("'publish'")}) IS NULL
             AND EXISTS (SELECT 1 FROM release_allowed)
           RETURNING
             card.id::text,

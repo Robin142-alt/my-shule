@@ -286,7 +286,7 @@ describe("teacher exams and marks workspace", () => {
   it.each([
     ["Draft", /must select Open for marks/i], ["Scheduled", /can open it earlier/i],
     ["Closed", /Ask the Exams Manager to open/i], ["Deadline passed", /extend the end date/i],
-    ["Locked", /governed correction workflow/i],
+    ["Locked", /Ask the Exams Manager to reopen mark entry/i],
   ])("explains %s exams and blocks entry", async (entryState, reason) => {
     const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true);
     jest.mocked(fetchPendingMarksLive).mockClear();

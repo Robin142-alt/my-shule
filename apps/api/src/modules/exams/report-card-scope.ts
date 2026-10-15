@@ -96,7 +96,7 @@ export function buildScopeSqlClause(scope: ReportCardScope) {
 }
 export const REPORT_CARD_TRANSITION_SOURCE_STATUSES: Record<string, string[]> = {
   submit: ['draft_generated', 'draft'], approve: ['under_review'], recall: ['under_review'],
-  publish: ['approved'], unpublish: ['published'],
+  publish: ['draft_generated', 'draft', 'under_review', 'approved'], unpublish: ['published'],
 };
 export const REPORT_CARD_TRANSITION_TARGET_STATUS: Record<string, string> = {
   submit: 'under_review', approve: 'approved', recall: 'draft_generated', publish: 'published', unpublish: 'withdrawn',
@@ -122,24 +122,24 @@ export function reportCardIneligibilitySql(action: string): string {
     ${Object.entries(REPORT_CARD_TRANSITION_SOURCE_STATUSES).map(([key, statuses]) => `WHEN '${key}' THEN ARRAY[${statuses.map(status => `'${status}'`).join(',')}]::text[]`).join('\n')}
     ELSE ARRAY[]::text[] END) THEN CASE WHEN card.status = 'regeneration_required'
     THEN 'Regenerate this card after corrections' ELSE 'Not eligible from status: ' || card.status END
-  WHEN ${action} IN ('submit', 'export') AND (
+  WHEN ${action} IN ('submit', 'publish', 'export') AND (
     NULLIF(BTRIM(card.verification_code), '') IS NULL
     OR jsonb_typeof(card.metadata->'report_card'->'template_fields') IS DISTINCT FROM 'object'
     OR jsonb_typeof(card.metadata->'report_card'->'totals') IS DISTINCT FROM 'object'
     OR jsonb_typeof(card.metadata->'report_card'->'subjects') IS DISTINCT FROM 'array'
     OR jsonb_typeof(card.metadata->'report_card'->'generated_at') IS DISTINCT FROM 'string'
   ) THEN 'No valid generated snapshot; regenerate this card'
-  WHEN ${action} = 'submit' AND COALESCE(card.metadata->'report_card'->'subjects', '[]'::jsonb) = '[]'::jsonb
+  WHEN ${action} IN ('submit', 'publish') AND COALESCE(card.metadata->'report_card'->'subjects', '[]'::jsonb) = '[]'::jsonb
     THEN 'No subject results in the snapshot'
-  WHEN ${action} = 'submit' AND (
+  WHEN ${action} IN ('submit', 'publish') AND (
     NULLIF(BTRIM(card.metadata->'report_card'->'template_fields'->>'class_teacher_comment'), '') IS NULL
     OR NULLIF(BTRIM(card.metadata->'report_card'->'template_fields'->>'principal_comment'), '') IS NULL
   ) THEN 'Complete the class teacher and principal comments'
-  WHEN ${action} = 'submit' AND EXISTS (
+  WHEN ${action} IN ('submit', 'publish') AND EXISTS (
     SELECT 1 FROM exam_marks mark WHERE mark.tenant_id = card.tenant_id
     AND mark.exam_series_id = card.exam_series_id AND mark.student_id = card.student_id
     AND mark.status NOT IN ('locked', 'published')
-  ) THEN 'Marks must be reviewed and locked before submission'
+  ) THEN 'Marks must be reviewed and locked before release'
   ELSE NULL END`;
 }
 export function reportCardPreviewToken(scope: ReportCardScope, action: string, cards: Record<string, any>[]) {

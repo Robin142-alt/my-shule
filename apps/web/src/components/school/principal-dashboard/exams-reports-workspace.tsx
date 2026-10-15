@@ -257,7 +257,7 @@ export function PrincipalExamsReportsWorkspace() {
                 <h2 className="text-xl font-black text-white">Final Principal release required</h2>
               </div>
               <p className="mt-1 text-sm text-white/70">
-                {releaseQueue.length} approved exam series {releaseQueue.length === 1 ? "is" : "are"} ready. Release publishes the approved report cards to authorized parent and student portals.
+                {releaseQueue.length} exam series {releaseQueue.length === 1 ? "is" : "are"} ready. Release publishes the generated report cards to authorized parent and student portals.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -328,7 +328,7 @@ export function PrincipalExamsReportsWorkspace() {
         <Card className="flex h-full flex-col border border-white/10 bg-white/5 p-6">
           <div className="mb-4 border-b border-white/10 pb-4">
             <h2 className="text-xl font-bold text-white">Report-card publication</h2>
-            <p className="mt-1 text-sm text-white/60">Dean and Exams Manager review remains separate. Principal publication is enabled only when the persisted report-card batch is approved and unblocked.</p>
+            <p className="mt-1 text-sm text-white/60">The Exams Manager generates cards after marks are reviewed and locked. The Principal then previews and releases the completed cards.</p>
           </div>
 
           {results.length === 0 ? (
@@ -343,9 +343,9 @@ export function PrincipalExamsReportsWorkspace() {
                 const guidance = series.totalReportCards === 0
                   ? "Generate report cards in the Exams Manager workspace."
                   : series.blockedReportCards > 0
-                    ? `${series.blockedReportCards} report card${series.blockedReportCards === 1 ? " is" : "s are"} awaiting review or approval.`
+                    ? `${series.blockedReportCards} report card${series.blockedReportCards === 1 ? " needs" : "s need"} regeneration or completion before release.`
                     : series.approvedReportCards === 0 && !isPublished
-                      ? "No approved report cards are ready for publication."
+                      ? "No generated report cards are ready for publication."
                       : `${series.publishedReportCards} of ${series.totalReportCards} report cards published.`;
                 return (
                   <div key={series.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
@@ -362,7 +362,7 @@ export function PrincipalExamsReportsWorkspace() {
                       ) : series.canPublish && canReleaseReportCards ? (
                         <Button type="button" size="sm" disabled={publishingSeriesId === series.id} onClick={() => publishSeries(series)}>
                           {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Publish approved cards
+                          Publish generated cards
                         </Button>
                       ) : (
                         <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-200">Not ready</span>

@@ -2,7 +2,6 @@
 
 import { OfficialReportPreview } from "@/components/report-cards/official-report-preview";
 import {
-  CheckCircle2,
   ChevronRight,
   Download,
   Eye,
@@ -50,20 +49,20 @@ const audienceCopy: Record<ReportCardAudience, {
   "exams-manager": {
     eyebrow: "Exams publication desk",
     title: "Report Cards",
-    summary: "Generate and refresh reports, complete comments, submit cards to the Dean, or recall submitted cards for correction. Only the Principal can publish approved results.",
+    summary: "Generate and refresh reports and complete comments. Generated cards go directly to the Principal for release.",
     empty: "No report cards have been generated. Select a marked class and generate the first working-draft batch.",
   },
   dean: {
     eyebrow: "Academic review desk",
     title: "Report Card Review",
-    summary: "Review the exact persisted learner report, approve valid cards, or recall cards with a correction reason.",
+    summary: "Preview and download generated report cards. The Principal releases cards after Exams Manager generation.",
     empty: "No report cards are available yet. Generated cards will appear here after the Exams Manager creates them.",
   },
   principal: {
     eyebrow: "School publication desk",
     title: "Report Card Publishing",
-    summary: "Preview approved report snapshots, publish them to authorized portals, or withdraw a published card with a reason.",
-    empty: "No report cards are available yet. Approved cards will appear here after academic review.",
+    summary: "Preview generated report snapshots, publish them to authorized portals, or withdraw a published card with a reason.",
+    empty: "No report cards are available yet. Generated cards will appear here for Principal release.",
   },
 };
 
@@ -98,9 +97,9 @@ interface ActiveScope {
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
     draft: "Draft",
-    draft_generated: "Draft generated",
+    draft_generated: "Awaiting Principal release",
     regeneration_required: "Correction required",
-    under_review: "Under review",
+    under_review: "Awaiting Principal release",
     approved: "Approved",
     published: "Published",
     withdrawn: "Withdrawn",
@@ -200,8 +199,6 @@ function scopeBreadcrumbLabel(scope: ActiveScope, schoolName: string): string {
 }
 
 function bulkActionForAudience(audience: ReportCardAudience): "submit" | "approve" | "publish" | null {
-  if (audience === "exams-manager") return "submit";
-  if (audience === "dean") return "approve";
   if (audience === "principal") return "publish";
   return null;
 }
@@ -237,7 +234,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   }
   const scopeQs = buildScopeQueryString(scope, examSeriesFilter);
   const reportPath = `/exams/report-cards/scoped?limit=50&offset=${page * 50}&search=${encodeURIComponent(search)}${statusFilter === "all" ? "" : `&status=${statusFilter}`}&${scopeQs}`;
-  const summaryPath = `/exams/report-cards/scope-summary?target_action=${bulkActionForAudience(audience) ?? "submit"}${scopeQs ? `&${scopeQs}` : ""}`;
+  const summaryPath = `/exams/report-cards/scope-summary?target_action=${bulkActionForAudience(audience) ?? "export"}${scopeQs ? `&${scopeQs}` : ""}`;
   const hierarchyPath = `/exams/report-cards/scope-hierarchy?${scopeQs}`;
 
   // --- Data queries ---
@@ -620,7 +617,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
       );
       setFeedback({
         tone: "ok",
-        message: "Official comments were saved. Regenerate the report to include them, then submit it for review.",
+        message: "Official comments were saved. Regenerate the report to include them, then the Principal can release it.",
       });
       await refreshAll();
     } catch (error) {
@@ -1158,7 +1155,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
               disabled={Boolean(busyAction) || summaryQuery.isLoading || Boolean(summaryQuery.error) || counts.eligible === 0}
             >
               <Send className="h-4 w-4" />
-              {busyAction === `bulk:${primaryAction}` ? "Processing..." : `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} all ${counts.eligible} eligible${primaryAction === "submit" ? " to Dean" : ""}`}
+              {busyAction === `bulk:${primaryAction}` ? "Processing..." : `${primaryAction.charAt(0).toUpperCase()}${primaryAction.slice(1)} all ${counts.eligible} eligible${primaryAction === "submit" ? " for Principal release" : ""}`}
             </Button>
           ) : null}
           {audience === "exams-manager" ? <>
@@ -1333,7 +1330,6 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                 const reportBusy = Boolean(busyAction);
                 const needsReason =
                   (audience === "exams-manager" && status === "under_review")
-                  || (audience === "dean" && status === "under_review")
                   || (audience === "principal" && status === "published");
                 return (
                   <tr key={report.id} className="border-t border-border align-top">
@@ -1403,15 +1399,6 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                         {audience === "exams-manager" && ["draft", "draft_generated", "regeneration_required"].includes(status) ? (
                           <>
                             <Button
-                              size="sm"
-                              onClick={() => void runTransition(report, "submit")}
-                              title={report.submission_ineligible_reason ?? "Submit to Dean"}
-                              disabled={reportBusy || Boolean(report.submission_ineligible_reason)}
-                            >
-                              <Send className="h-4 w-4" />
-                              {busyAction === `${report.id}:submit` ? "Submitting..." : "Submit"}
-                            </Button>
-                            <Button
                               variant="secondary"
                               size="sm"
                               onClick={() => void regenerateReport(report)}
@@ -1433,28 +1420,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                             {busyAction === `${report.id}:recall` ? "Recalling..." : "Recall"}
                           </Button>
                         ) : null}
-                        {audience === "dean" && status === "under_review" ? (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() => void runTransition(report, "approve")}
-                              disabled={reportBusy}
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                              {busyAction === `${report.id}:approve` ? "Approving..." : "Approve"}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => void runTransition(report, "recall")}
-                              disabled={reportBusy}
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              {busyAction === `${report.id}:recall` ? "Recalling..." : "Recall"}
-                            </Button>
-                          </>
-                        ) : null}
-                        {audience === "principal" && status === "approved" ? (
+                        {audience === "principal" && ["draft_generated", "draft", "under_review", "approved"].includes(status) ? (
                           <Button
                             size="sm"
                             onClick={() => void runTransition(report, "publish")}
