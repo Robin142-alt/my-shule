@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { performance } from 'node:perf_hooks';
@@ -28,6 +29,7 @@ describe('Report generation with the production staff schema', () => {
   let artifacts: ReportCardArtifactsService;
   let failArtifact = false;
   let failOutbox = false;
+  let failNotification = false;
   let sqlReads = 0;
   const signatureReads: string[] = [];
   const ids = Object.fromEntries(['exam', 'term', 'year', 'class', 'subject', 'assessment', 'teacher', 'principal', 'actor', 'grading', 'role'].map(key => [key, randomUUID()]));
@@ -81,6 +83,9 @@ describe('Report generation with the production staff schema', () => {
         aggregate_type text,aggregate_id uuid,payload jsonb,headers jsonb,status text,attempt_count integer DEFAULT 0,
         available_at timestamptz,published_at timestamptz,last_error text,actor_user_id uuid,actor_role text,source_dashboard text,
         correlation_id uuid,created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),UNIQUE(tenant_id,event_key));
+      CREATE TABLE notifications(id uuid DEFAULT gen_random_uuid(),tenant_id text,notification_key text,recipient_user_id uuid,
+        recipient_guardian_id uuid,type text,title text,body text,status text,priority text,metadata jsonb,
+        created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),UNIQUE(tenant_id,notification_key));
     `);
     await query(REPORT_INFRASTRUCTURE_SCHEMA);
     await query(EXAM_SETUP_INTEGRITY_SCHEMA);
@@ -97,7 +102,7 @@ describe('Report generation with the production staff schema', () => {
       GRANT USAGE ON SCHEMA report_generation TO report_generation_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA report_generation TO report_generation_runtime;`);
     for (const table of ['student_report_cards', 'report_card_artifacts', 'student_report_card_audit_logs',
-      'report_card_generation_batches', 'outbox_events', 'students', 'exam_marks', 'staff_profiles','file_objects']) {
+      'report_card_generation_batches', 'outbox_events', 'notifications', 'students', 'exam_marks', 'staff_profiles','file_objects']) {
       await query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
         CREATE POLICY report_tenant ON ${table} USING (tenant_id = current_setting('app.tenant_id', true))
           WITH CHECK (tenant_id = current_setting('app.tenant_id', true));`);
@@ -115,7 +120,14 @@ describe('Report generation with the production staff schema', () => {
             sqlReads++;
             return (await client.query(sql, params)).rows;
           };
-          const result = await callback({ $queryRawUnsafe: raw });
+          const result = await callback({
+            $queryRawUnsafe: raw,
+            $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+              if (failNotification && /INSERT INTO notifications/.test(sql)) throw new Error('Injected notification failure');
+              sqlReads++;
+              return (await client.query(sql, params)).rowCount;
+            },
+          });
           await client.query('COMMIT');
           return result;
         } catch (error) { await client.query('ROLLBACK'); throw error; }
@@ -183,9 +195,9 @@ describe('Report generation with the production staff schema', () => {
   }, 60000);
   afterAll(async () => { await pool?.end(); });
   beforeEach(async () => {
-    failArtifact = false; failOutbox = false; sqlReads = 0;
+    failArtifact = false; failOutbox = false; failNotification = false; sqlReads = 0;
     signatureReads.length = 0;
-    await query('TRUNCATE student_report_cards, report_card_artifacts, student_report_card_audit_logs, report_card_generation_batches, outbox_events,file_objects,report_pdf_cache');
+    await query('TRUNCATE student_report_cards, report_card_artifacts, student_report_card_audit_logs, report_card_generation_batches, outbox_events,notifications,file_objects,report_pdf_cache');
   });
 
   async function addStudents(learners: string[]) {
@@ -247,6 +259,12 @@ describe('Report generation with the production staff schema', () => {
     expect(await count('report_card_artifacts')).toBe(1);
     expect(await count('outbox_events')).toBe(1);
     expect(await count('student_report_card_audit_logs')).toBe(1);
+    const notifications = (await query('SELECT tenant_id,status,metadata FROM notifications')).rows;
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      tenant_id: 'school-a', status: 'unread',
+      metadata: { target_roles: ['principal'], relatedRecordId: result.id },
+    });
     const saved=await artifacts.read(String(result.id));
     expect(saved.content.subarray(0,4).toString()).toBe('%PDF');
     expect((await query("SELECT retention_policy FROM file_objects WHERE retention_expires_at IS NULL")).rows[0].retention_policy).toBe('academic-record');
@@ -325,6 +343,14 @@ describe('Report generation with the production staff schema', () => {
     failOutbox = true;
     await expect(generation.generateStudentReportCard(studentInput())).rejects.toThrow('Injected outbox');
     for (const table of ['student_report_cards', 'report_card_artifacts', 'student_report_card_audit_logs', 'outbox_events']) expect(await count(table)).toBe(0);
+  });
+
+  it('rolls back the report, audit and event when the Principal notification cannot persist', async () => {
+    failNotification = true;
+    await expect(generation.generateStudentReportCard(studentInput())).rejects.toThrow('Injected notification');
+    for (const table of ['student_report_cards', 'report_card_artifacts', 'student_report_card_audit_logs', 'outbox_events', 'notifications']) {
+      expect(await count(table)).toBe(0);
+    }
   });
 
   it('serializes simultaneous duplicate generations and safely reuses cards in an interrupted batch', async () => {
@@ -412,6 +438,7 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE student_report_cards SET status='approved' WHERE tenant_id='school-a'");
     const command={tenant_id:'school-a',exam_series_id:ids.exam,actor_user_id:ids.principal,actor_role:'principal'};
     const released=await repository.publishExamSeries(command);
+    assert.ok(released, 'The fixture exam must exist in the publishing school');
     expect(Number(released.blocked_count)).toBe(0);expect(released.series_published).toBe(true);
     const card=(await query('SELECT * FROM student_report_cards WHERE student_id=$1',[students[0]])).rows[0];
     expect(card.status).toBe('published');
@@ -421,6 +448,7 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE tenants SET name='Changed branding' WHERE tenant_id='school-a'");
     expect((await generation.verifyPrintedReportCard({tenant_id:'school-a',verification_code:card.verification_code})).status).toBe('not_found');
     const rejected=await repository.publishExamSeries(command);
+    assert.ok(rejected, 'The stale fixture exam must remain visible to its school');
     expect(Number(rejected.blocked_count)).toBe(11);expect(rejected.series_published).toBe(false);
     await query("UPDATE tenants SET name='Test School' WHERE tenant_id='school-a'");
     await query("UPDATE exam_marks SET status='locked' WHERE tenant_id='school-a'");
