@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { ClassTeacherCommandController } from './class-teacher-command.controller';
 import { ClassTeacherCommandService } from './class-teacher-command.service';
 
 const TEACHER_ID = '11111111-1111-4111-8111-111111111111';
@@ -69,4 +70,8 @@ test('ClassTeacherCommandService downloads report snapshots through tenant and m
   assert.equal(reads[0].params[0], 'tenant-a');
   assert.equal(reads[0].params[1], 'snapshot-a');
   assert.equal(reads[0].params[2], TEACHER_ID);
+});
+
+test('Class Teacher dashboard API requires its active role rather than generic teacher permission', () => {
+  assert.deepEqual(Reflect.getMetadata('roles', ClassTeacherCommandController), ['class_teacher']);
 });
