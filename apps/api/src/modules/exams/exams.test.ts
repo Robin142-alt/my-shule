@@ -1024,6 +1024,7 @@ test('ExamsRepository saves and submits an explicitly opened future markbook wit
       let callIndex = 0;
       return callback({
         $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if (/FOR UPDATE/.test(sql) && !/WITH source/.test(sql)) return [];
           calls.push({ sql, params });
           callIndex += 1;
           if (callIndex === 1) return [{ id: '00000000-0000-0000-0000-000000000501' }];
@@ -1798,15 +1799,17 @@ test('ExamsService atomically saves and submits a teacher mark sheet with explic
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
       findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
       findStudentMarkEligibility: async () => ({ status: 'active' }),
-      saveTeacherMarkSheet: async (input: Record<string, unknown>) => {
+      saveTeacherMarkSheet: async (input: Record<string, unknown>, onSaved: (result: unknown, tx: unknown) => Promise<void>) => {
         calls.push({ name: 'save', input });
-        return {
+        const result = {
           saved_count: 2,
           submitted_count: 2,
           newly_submitted_count: 2,
           mark_ids: ['mark-1', 'mark-2'],
           status: 'submitted',
         };
+        await onSaved(result, {});
+        return result;
       },
     } as never,
     undefined,

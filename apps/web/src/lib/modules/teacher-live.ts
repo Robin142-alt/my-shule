@@ -153,14 +153,16 @@ export interface PendingMarksWindow {
   opensAt?: string;
 }
 
-export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false): Promise<{
+export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false, teacherUserId?: string): Promise<{
   stats: { totalWindows: number; nearingDeadline: number };
   windows: PendingMarksWindow[];
 }> {
   const query = new URLSearchParams();
   if (includeUnavailable) query.set('includeUnavailable', 'true');
   if (includeSubmitted) query.set('includeSubmitted', 'true');
-  return withSession(session, `/class-teacher/pending-marks${query.size ? `?${query}` : ""}`, {
+  if (teacherUserId) { query.delete("includeUnavailable"); query.delete("includeSubmitted"); query.set("teacherUserId", teacherUserId); }
+  const path = teacherUserId ? "/exams/assisted-marks-entry/markbooks" : "/class-teacher/pending-marks";
+  return withSession(session, `${path}${query.size ? `?${query}` : ""}`, {
     method: "GET",
   });
 }
@@ -316,6 +318,9 @@ export interface TeacherMarkSheetRow {
   remarks: string | null;
   status: string;
   entered_by_user_id: string | null;
+  updated_by_user_id?: string | null;
+  updated_by_name?: string | null;
+  assigned_teacher_user_id?: string | null;
   updated_at: string | null;
   opens_at: string;
   closes_at: string;
@@ -335,6 +340,7 @@ export async function fetchTeacherMarkSheetLive(
     subjectId: string;
     assessmentId: string;
     view?: 'active' | 'submitted';
+    teacherUserId?: string;
   },
 ): Promise<TeacherMarkSheetRow[]> {
   const query = new URLSearchParams({
@@ -345,6 +351,7 @@ export async function fetchTeacherMarkSheetLive(
     limit: "100",
   });
   if (filters.view === 'submitted') query.set('view', 'submitted');
+  if (filters.teacherUserId) query.set('teacher_user_id', filters.teacherUserId);
   // The API pages at 100 students. Submission needs the entire assigned roster,
   // including large classes, before it can ask about every missing score.
   const rows: TeacherMarkSheetRow[] = [];
@@ -369,6 +376,7 @@ export interface SaveTeacherMarksPayload extends Record<string, unknown> {
   examId: string;
   classSectionId: string;
   assessmentId?: string;
+  teacherUserId?: string;
   marks: Record<string, TeacherMarkDraftInput>;
 }
 
@@ -385,7 +393,7 @@ export async function saveExamMarksLive(
   session: LiveAuthSession,
   data: SaveTeacherMarksPayload,
 ): Promise<SaveTeacherMarksResult> {
-  return withSession(session, "/class-teacher/marks", {
+  return withSession(session, data.teacherUserId ? "/exams/assisted-marks-entry" : "/class-teacher/marks", {
     method: "POST",
     body: data,
   });

@@ -107,6 +107,11 @@ jobs:
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
+      - name: Exams Manager assisted marks entry and mobile workflow
+        run: |
+          npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks teacher-exams-marks-workspace
+          node apps/web/tests/design/teacher-marks-browser.mjs --assisted
+
       - name: School day builder and timetable interface
         run: npm --prefix apps/web run test:design -- school-day-builder school-day-editor subject-requirements-panel deputy-timetable-management deputy-timetable-class-scope smart-timetable-role-surfaces deputy-page-routes school-command-center-routing
 
@@ -252,6 +257,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Assisted marks authorization and teacher permission regression
+        run: node --test dist/apps/api/src/modules/exams/assisted-mark-entry.test.js dist/apps/api/src/modules/class-teacher/class-teacher.service.test.js
 
       - name: Legal policy, immutable evidence and authenticated acceptance
         env:

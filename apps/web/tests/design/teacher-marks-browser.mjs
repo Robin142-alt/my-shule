@@ -10,7 +10,8 @@ import bundledWebpack from 'next/dist/compiled/webpack/webpack.js';
 const require = createRequire(import.meta.url);
 const { webpack } = bundledWebpack;
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const out = path.resolve(web, '../../output/teacher-marks-ui');
+const assisted = process.argv.includes('--assisted');
+const out = path.resolve(web, assisted ? '../../output/exams-manager-marks-ui' : '../../output/teacher-marks-ui');
 fs.mkdirSync(out, { recursive: true });
 const source = value => JSON.stringify(value.replaceAll('\\', '/'));
 fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
@@ -22,20 +23,22 @@ fs.writeFileSync(path.join(out, 'live.ts'), `let submitted=false;let rows=${JSON
 export async function fetchPendingMarksLive(){return {stats:{totalWindows:1,nearingDeadline:0},windows:[{...exam,id:'old',examName:'Completed old exam',status:'Completed',canEnter:false},submitted?{...exam,status:'Submitted',canEnter:false,submittedAt:new Date().toISOString()}:exam,...extras]};}
 export async function fetchTeacherMarkSheetLive(){return rows;}
 export async function saveExamMarksLive(session,payload){window.__payload=payload; if(payload.action==='submit'){submitted=true;rows=rows.map(row=>({...row,...payload.marks[row.student_id],status:'submitted'}));}else rows=rows.map(row=>({...row,...payload.marks[row.student_id],id:row.id||row.student_id}));return {success:true};}`);
-fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {QueryClient,QueryClientProvider} from '@tanstack/react-query';import {ExamsMarksWorkspace} from ${source(path.join(web, 'src/components/school/teacher-dashboard/exams-marks-workspace'))};createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient()}><main className="mx-auto max-w-5xl p-3 sm:p-6"><ExamsMarksWorkspace onStartAction={()=>{}}/></main></QueryClientProvider>);`);
+fs.writeFileSync(path.join(out, 'api-client.ts'), `export async function requestDashboardApi(){throw new Error('Unexpected API request in isolated browser QA');}`);
+fs.writeFileSync(path.join(out, 'school-hooks.ts'), `export function useSchoolQuery(path){return {data:path.endsWith('/assignments')?{assignments:[{exam_id:'exam-1',exam_name:'End Term Exams',class_section_id:'form-4',class_name:'Form 4 Blue',subject_id:'agriculture',subject_name:'Agriculture',teacher_user_id:'teacher-1',teacher_name:'Ms Achieng'}]}:{entries:[]},refetch:async()=>{},isLoading:false,isFetching:false};}`);
+fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {QueryClient,QueryClientProvider} from '@tanstack/react-query';import {${assisted ? 'MarksEntryWorkspace' : 'ExamsMarksWorkspace'} as Workspace} from ${source(path.join(web, assisted ? 'src/components/school/exams-manager/marks-entry-workspace' : 'src/components/school/teacher-dashboard/exams-marks-workspace'))};createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient()}><main className="mx-auto max-w-5xl p-3 sm:p-6"><Workspace onStartAction={()=>{}} onOpenSetup={()=>{}}/></main></QueryClientProvider>);`);
 
 async function run() {
   await new Promise((resolve, reject) => webpack({ mode: 'development', devtool: false, entry: path.join(out, 'entry.tsx'),
     output: { path: out, filename: 'bundle.js' },
     resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(web, 'node_modules'), 'node_modules'], alias: {
-      '@/hooks/use-live-tenant-session': path.join(out, 'session.ts'), '@/lib/modules/teacher-live': path.join(out, 'live.ts'), '@': path.join(web, 'src'),
+      '@/lib/dashboard/api-client': path.join(out, 'api-client.ts'), '@/lib/data/school-hooks': path.join(out, 'school-hooks.ts'), '@/hooks/use-live-tenant-session': path.join(out, 'session.ts'), '@/lib/modules/teacher-live': path.join(out, 'live.ts'), '@': path.join(web, 'src'),
     } }, module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: [path.join(out, 'loader.cjs')] }] },
     optimization: { minimize: false },
   }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
   const postcss = require('postcss');
   const tailwind = require('@tailwindcss/postcss');
   const globalsPath = path.join(web, 'src/app/globals.css');
-  const globals = fs.readFileSync(globalsPath, 'utf8').replace('@import "tailwindcss";', `@import "tailwindcss" source(none);\n@source ${source(path.join(web, 'src/components/school/teacher-dashboard/exams-marks-workspace.tsx'))};\n@source ${source(path.join(web, 'src/components/school/teacher-dashboard/markbook-list.tsx'))};\n@source ${source(path.join(out, 'entry.tsx'))};`);
+  const globals = fs.readFileSync(globalsPath, 'utf8').replace('@import "tailwindcss";', `@import "tailwindcss" source(none);\n@source ${source(path.join(web, 'src/components/school/teacher-dashboard/exams-marks-workspace.tsx'))};\n@source ${source(path.join(web, 'src/components/school/teacher-dashboard/markbook-list.tsx'))};\n@source ${source(path.join(web, 'src/components/school/exams-manager'))};\n@source ${source(path.join(out, 'entry.tsx'))};`);
   const css = (await postcss([tailwind()]).process(globals, { from: globalsPath })).css;
   fs.writeFileSync(path.join(out, 'styles.css'), css);
   const server = http.createServer((req, res) => {
@@ -47,9 +50,20 @@ async function run() {
   try {
     for (const width of [320, 390, 768, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 844 } });
-      const errors = []; page.on('pageerror', error => errors.push(error.message));
+      const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
+      page.on('console', message => { if (message.type() === 'error') console.error(message.text()); });
       await page.goto(`http://127.0.0.1:${server.address().port}`);
-      await page.getByRole('button', { name: 'To do (4)', exact: true }).waitFor();
+      if (assisted) {
+        await page.getByRole('heading', { name: 'Enter marks for a teacher' }).waitFor();
+        await page.getByLabel('Exam', { exact: true }).selectOption('exam-1');
+        await page.getByLabel('Class / grade', { exact: true }).selectOption('form-4');
+        await page.getByLabel('Subject', { exact: true }).selectOption('agriculture');
+        await page.getByLabel('Assigned teacher', { exact: true }).selectOption('teacher-1');
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Selectors overflow at ${width}px`);
+        await page.screenshot({ path: path.join(out, `selection-${width}.png`), fullPage: true });
+        await page.getByRole('button', { name: 'Open markbooks', exact: true }).click();
+      }
+      await page.getByRole('button', { name: assisted ? 'To do (1)' : 'To do (4)', exact: true }).waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `List overflows at ${width}px`);
       await page.screenshot({ path: path.join(out, `markbooks-${width}.png`), fullPage: true });
       await page.getByRole('button', { name: /Open Agriculture Form 4 Blue/ }).click();
@@ -69,6 +83,7 @@ async function run() {
       await page.getByText(/draft saved. You can continue editing/).waitFor();
       assert.equal(await page.getByText('Reasons for missing scores').count(), 0);
       assert.equal(await page.evaluate(() => window.__payload.marks['student-0'].score), 0);
+      if (assisted) assert.equal(await page.evaluate(() => window.__payload.teacherUserId), 'teacher-1');
       await page.getByRole('button', { name: 'Submit results', exact: true }).click();
       const reason = page.getByLabel('Brian Otieno missing score reason', { exact: true });
       await reason.waitFor();
@@ -85,7 +100,7 @@ async function run() {
       assert.equal(await asha.inputValue(), '0');
       await page.getByRole('button', { name: 'Submit results', exact: true }).click();
       await page.getByRole('button', { name: 'Confirm submission', exact: true }).click();
-      await page.getByRole('button', { name: 'To do (3)', exact: true }).waitFor();
+      await page.getByRole('button', { name: assisted ? 'To do (0)' : 'To do (3)', exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__payload.marks['student-1'].score_status), 'absent');
       assert.equal(await page.getByLabel('Asha Njeri score', { exact: true }).count(), 0);
       await page.getByRole('button', { name: 'Submitted (2)', exact: true }).click();

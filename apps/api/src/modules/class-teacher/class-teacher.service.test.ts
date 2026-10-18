@@ -208,7 +208,7 @@ test('ClassTeacherService normalizes numeric marks without selected evidence to 
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
-        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$1/.test(sql)) {
+        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$2/.test(sql)) {
           return {
             rows: [{
               id: 'window-a',
@@ -273,7 +273,7 @@ test('ClassTeacherService normalizes numeric marks without selected evidence to 
   assert.match(markWindowQuery.sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);
   assert.match(markWindowQuery.sql, /tsa\.subject_id\s*=\s*w\.subject_id::text/);
   assert.match(markWindowQuery.sql, /tsa\.teacher_user_id\s*=\s*\$3/);
-  assert.match(markWindowQuery.sql, /w\.tenant_id\s*=\s*\$2/);
+  assert.match(markWindowQuery.sql, /w\.tenant_id\s*=\s*\$1/);
   assert.match(markWindowQuery.sql, /w\.opens_at\s*<=\s*NOW\(\)\s+OR\s+w\.last_action\s*=\s*'opened'/);
   assert.equal(
     queries.some((query) => /INSERT INTO exam_marks/.test(query.sql)),
@@ -288,7 +288,7 @@ test('ClassTeacherService requires evidence for blank marks and accepts an expli
   const service = new ClassTeacherService(
     {
       query: async (sql: string) => {
-        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$1/.test(sql)) {
+        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$2/.test(sql)) {
           return {
             rows: [{
               id: 'window-a',
@@ -341,6 +341,13 @@ test('ClassTeacherService requires evidence for blank marks and accepts an expli
   assert.equal(savedSheets.length, 0);
   assert.equal(submissionEvents.length, 0);
 
+  for (const score of [null, '', '   ', true]) {
+    await assert.rejects(() => service.saveMarks('tenant-a', 'teacher-a', {
+      examId: 'window-a', classSectionId: 'stream-a',
+      marks: { 'student-a': { score: score as never, score_status: 'entered' } },
+    }), /valid numeric score/);
+  }
+
   const result = await service.saveMarks('tenant-a', 'teacher-a', {
     action: 'submit',
     examId: 'window-a',
@@ -383,7 +390,7 @@ test('ClassTeacherService submits teacher marks for moderation with tenant scope
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
-        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$1/.test(sql)) {
+        if (/FROM exam_mark_entry_windows/.test(sql) && /w\.id = \$2/.test(sql)) {
           return {
             rows: [{
               id: 'window-a',
@@ -919,4 +926,19 @@ test('ClassTeacherService scopes class-mode homework reads by appointment and te
   assert.match(teacherModeQueries[0].sql, /teacher_subject_assignments/);
   assert.match(teacherModeQueries[0].sql, /effective_from <= CURRENT_DATE/);
   assert.equal(teacherModeQueries.some((query) => /academics_class_teachers/.test(query.sql)), false);
+});
+
+
+test('mark-window lookup binds the school UUID as tenant context, never the exam-window UUID', async () => {
+  const tenantId = '11111111-1111-4111-8111-111111111111';
+  const windowId = '22222222-2222-4222-8222-222222222222';
+  const scopes: string[] = [];
+  const service = new ClassTeacherService({ executeWithTenant: async (scope: string, _actor: unknown, read: (tx: unknown) => Promise<unknown>) => {
+    scopes.push(scope);
+    return read({ $queryRawUnsafe: async (_sql: string, ...params: unknown[]) => {
+      assert.equal(params[0], tenantId); assert.equal(params[1], windowId); return [];
+    } });
+  } } as never, {} as never, {} as never);
+  await assert.rejects(() => service.saveMarks(tenantId, 'teacher-a', { examId: windowId, classSectionId: 'class-a', marks: {} }), /closed, invalid/);
+  assert.deepEqual(scopes, [tenantId]);
 });

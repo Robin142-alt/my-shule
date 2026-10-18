@@ -20,6 +20,7 @@ import { markEntryHasStartedSql, markEntryAccessSql, effectiveEntryDeadlineSql }
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../exams/teacher-mark-scope';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
+import { requireAssistedMarkEntryScope } from '../exams/assisted-mark-entry-policy';
 import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
 import { STAFF_NAME_TITLES } from '../hr/staff-name-title';
 
@@ -596,6 +597,40 @@ export class ClassTeacherService {
         status: r.status,
       }))
     };
+  }
+
+  async getAssistedMarkAssignments() {
+    const { tenantId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
+    const { rows } = await this.executeSql(`SELECT DISTINCT
+        series.id::text AS exam_id, series.name AS exam_name,
+        section.id AS class_section_id, section.name AS class_name,
+        subject.id AS subject_id, subject.name AS subject_name,
+        assignment.teacher_user_id,
+        COALESCE(NULLIF(staff.display_name, ''), staff.staff_number, 'Teacher name unavailable') AS teacher_name
+      FROM exam_mark_entry_windows w
+      JOIN exam_series series ON series.tenant_id = w.tenant_id AND series.id = w.exam_series_id
+      JOIN class_sections section ON section.tenant_id = w.tenant_id AND section.id = w.class_section_id::text
+      JOIN subjects subject ON subject.tenant_id = w.tenant_id AND subject.id = w.subject_id::text
+      JOIN teacher_subject_assignments assignment ON assignment.tenant_id = w.tenant_id
+        AND assignment.class_section_id = section.id AND assignment.subject_id = subject.id
+        AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
+        AND assignment.status = 'active' AND assignment.mark_entry_allowed = TRUE
+        AND assignment.effective_from <= CURRENT_DATE
+        AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+      LEFT JOIN staff_profiles staff ON staff.tenant_id = w.tenant_id AND staff.user_id::text = assignment.teacher_user_id
+      WHERE w.tenant_id = $1 AND series.status <> 'archived'
+      ORDER BY exam_name, class_name, subject_name, teacher_name`, [tenantId]);
+    return { assignments: rows };
+  }
+
+  getAssistedMarkbooks(teacherUserId: string) {
+    const { tenantId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
+    return this.getPendingMarks(tenantId, teacherUserId, true, true);
+  }
+
+  saveAssistedMarks(teacherUserId: string, payload: SaveTeacherMarksDto) {
+    const { tenantId, actorUserId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
+    return this.saveMarks(tenantId, teacherUserId, payload, actorUserId);
   }
 
   async getPendingMarks(tenantId: string, userId: string, includeUnavailable = false, includeSubmitted = false) {
@@ -1193,7 +1228,14 @@ export class ClassTeacherService {
     tenantId: string,
     userId: string,
     payload: SaveTeacherMarksDto,
+    assistedActorUserId?: string,
   ) {
+    if (assistedActorUserId) {
+      const scope = requireAssistedMarkEntryScope(this.requestContext?.getStore());
+      if (scope.tenantId !== tenantId || scope.actorUserId !== assistedActorUserId) {
+        throw new ForbiddenException('Assisted mark entry must use the authenticated school and editor.');
+      }
+    }
     this.logger.log(`Saving marks for exam window ${payload.examId}`);
 
     if (!this.examsService) {
@@ -1252,15 +1294,15 @@ export class ClassTeacherService {
           AND ea.subject_id::text = w.subject_id::text
           AND ($5::text IS NULL OR ea.id::text = $5::text)
       ) assessment ON TRUE
-      WHERE w.id = $1
-        AND w.tenant_id = $2
+      WHERE w.id = $2
+        AND w.tenant_id = $1
         AND w.class_section_id = $4
         AND NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$3')}
         AND ${markEntryAccessSql('w', 'es', '$3')}
     `;
     const { rows: windows } = await this.executeSql(windowQuery, [
-      payload.examId,
       tenantId,
+      payload.examId,
       userId,
       payload.classSectionId,
       payload.assessmentId?.trim() || null,
@@ -1311,6 +1353,10 @@ export class ClassTeacherService {
 
       let score: number | null = null;
       if (scoreStatus === 'entered') {
+        if (!hasScore || (typeof rawScore !== 'number' && typeof rawScore !== 'string')
+          || (typeof rawScore === 'string' && !rawScore.trim())) {
+          throw new BadRequestException(`Enter a valid numeric score for learner ${studentId}.`);
+        }
         score = Number(rawScore);
         if (!Number.isFinite(score)) {
           throw new BadRequestException(
@@ -1343,6 +1389,7 @@ export class ClassTeacherService {
       rows,
       window.id,
       action === 'submit',
+      ...(assistedActorUserId ? [userId] : []),
     );
 
     if (action === 'submit') {
@@ -1353,7 +1400,7 @@ export class ClassTeacherService {
           exam_name: window.exam_name,
           class_name: window.class_name,
           stream_name: window.class_name,
-          submitted_by_user_id: userId,
+          submitted_by_user_id: assistedActorUserId ?? userId,
           submitted_at: new Date().toISOString(),
           completion_status: 'SUBMITTED',
           missing_marks_count: 0,
