@@ -77,6 +77,14 @@ export const INVOICE_WRITE_SCHEMA_SQL = `
   BEGIN
     IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'invoices'::regclass
       AND attname = 'school_id' AND NOT attisdropped) THEN
+      -- The active school registry is tenants; schools is the retired Prisma registry.
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='invoices'::regclass
+        AND conname='fk_invoices_active_school') THEN
+        ALTER TABLE invoices ADD CONSTRAINT fk_invoices_active_school
+          FOREIGN KEY (school_id) REFERENCES tenants(tenant_id) NOT VALID;
+      END IF;
+      ALTER TABLE invoices VALIDATE CONSTRAINT fk_invoices_active_school;
+      ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_school_id_fkey;
       ALTER TABLE invoices ALTER COLUMN student_id DROP NOT NULL;
       ALTER TABLE invoices ALTER COLUMN academic_year_id DROP NOT NULL;
       ALTER TABLE invoices ALTER COLUMN term_id DROP NOT NULL;

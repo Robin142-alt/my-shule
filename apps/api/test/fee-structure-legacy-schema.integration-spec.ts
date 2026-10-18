@@ -69,6 +69,8 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
       CREATE TABLE student_allocations(tenant_id text,student_id ${identifierType},class_name text,stream_name text,is_current boolean);
       CREATE TABLE academic_years(id text PRIMARY KEY,school_id text,name text);
       CREATE TABLE terms(id text PRIMARY KEY,school_id text,name text);
+      CREATE TABLE tenants(tenant_id text PRIMARY KEY);
+      CREATE TABLE schools(id text PRIMARY KEY);
       CREATE TABLE evidence(tenant_id text,event jsonb);
       GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA ${schema} TO ${role};
     `);
@@ -77,7 +79,7 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
         ALTER TABLE subscriptions DROP COLUMN last_invoice_at;
         ALTER TABLE invoices ALTER COLUMN id DROP DEFAULT;
         ALTER TABLE invoices ALTER COLUMN updated_at DROP DEFAULT;
-        ALTER TABLE invoices ADD COLUMN school_id text NOT NULL;
+        ALTER TABLE invoices ADD COLUMN school_id text NOT NULL REFERENCES schools(id);
         ALTER TABLE invoices ADD COLUMN student_id text NOT NULL REFERENCES students(id);
         ALTER TABLE invoices ADD COLUMN academic_year_id text NOT NULL REFERENCES academic_years(id);
         ALTER TABLE invoices ADD COLUMN term_id text NOT NULL REFERENCES terms(id);
@@ -88,6 +90,7 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
         ALTER TABLE invoices ADD COLUMN deleted_at timestamptz;
       `);
     }
+    await pool.query('INSERT INTO tenants VALUES($1),($2)', [school, otherSchool]);
     if (INVOICE_WRITE_SCHEMA_SQL) {
       await pool.query(INVOICE_WRITE_SCHEMA_SQL);
       await pool.query(INVOICE_WRITE_SCHEMA_SQL);

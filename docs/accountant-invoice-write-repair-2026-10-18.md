@@ -10,7 +10,7 @@ Schema inspection also found older Prisma invoice columns with required school, 
 
 - Add the nullable subscription billing timestamp and invoice ID/update defaults.
 - On installations with legacy invoice fields, synchronize school/learner identifiers, amounts, balance, due date and status in the same write transaction. Existing rows are not rewritten.
-- Preserve foreign keys and forced row-level security. Reject disagreeing school/learner references, foreign learners or academic periods, and negative amounts.
+- Replace the obsolete school-registry foreign key with a validated reference to the active tenant registry. Preserve other foreign keys and forced row-level security. Reject disagreeing school/learner references, foreign learners or academic periods, and negative amounts.
 - Permit absent academic-period relations when the fee plan supplies labels instead of database IDs; no placeholder years or terms are created. Student relations may be absent for platform subscription invoices. Student-fee services continue to require a school-owned learner.
 - Align Prisma's read model with the existing text statuses and optional relations. Parent views can use the fee plan's academic-year and term labels when relations are absent.
 - Use canonical text comparisons for invoice IDs on both UUID and text installations, preserving UUID validation and every tenant predicate. This covers retrieval, allocation and reversal after issuing an invoice.
@@ -21,7 +21,11 @@ The compatibility trigger is necessary because existing Prisma consumers and the
 
 The regression suite covers modern UUID, text identifiers and the production-style legacy invoice shape. Before repair, the legacy cases reproduced the missing-column error. After repair, 17 tests pass, including real invoice persistence, duplicate retry, event-failure rollback, tenant rejection, reads through Prisma and billing, allocation/reversal, and synchronized balances. Event behavior in this disposable suite uses a transactional test publisher; production rehearsal verifies the real outbox separately.
 
-Apply the exact expansion in a transaction with bounded lock/statement timeouts after a verified database backup. Rehearse and roll back first. Compare foreign keys, RLS and policies before and after, then commit only the schema change. No production invoice batch should be committed by the deployment script.
+The first production rollback rehearsal caught the obsolete school foreign key: Kibabi exists in `tenants`, while the retired `schools` registry contains no Kibabi row. No invoices existed in production, so the new active-school reference can be fully validated without rewriting history.
+
+The corrected production rehearsal at 19:38 UTC used the restricted runtime role and actual billing, encryption and outbox services. It generated the selected **Project Codex** batch for 13 learners, persisted 13 invoice events, read the invoices, and skipped all 13 on retry. Canonical totals were 19,500 minor units, matching KES 195 in the legacy balance fields. The transaction rolled back all invoices, events and schema changes. This was an operator database rehearsal, not an authenticated browser request or a committed school billing operation.
+
+Apply the exact expansion in a transaction with bounded lock/statement timeouts after a verified database backup. Rehearse and roll back first. Verify the replacement school foreign key, unchanged remaining foreign keys, RLS and policies before committing only the schema change. No production invoice batch should be committed by the deployment script.
 
 Rollback before commit is a normal transaction rollback. After successful use, retain the compatible additive schema when rolling back application code; do not drop populated fields or restore NOT NULL constraints over legitimate subscription/label-only invoices. The pre-change backup is reserved for disaster recovery, not a routine application rollback.
 
