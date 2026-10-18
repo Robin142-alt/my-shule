@@ -33,6 +33,7 @@ type StudentAssignment = {
   submitted_at?: string | null;
   completed_at?: string | null;
   is_complete: boolean;
+  review?: { score?: number | null; out_of?: number; feedback?: string };
 };
 
 type ReportCard = {
@@ -177,12 +178,14 @@ export function AcademicsWorkspace() {
                         ? "bg-danger-soft text-danger"
                         : "bg-warning-soft text-warning"
                   }`}>
-                    {assignment.is_complete ? "Completed" : isPastDue(assignment.due_at) ? "Overdue" : "Pending"}
+                    {assignment.submission_status === "graded" ? "Graded" : assignment.submission_status === "returned" ? "Revision requested" : assignment.is_complete ? "Completed" : isPastDue(assignment.due_at) ? "Overdue" : "Pending"}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-slate-600">
                   {assignment.subject} - {assignment.teacher || "Teacher not recorded"}
                 </p>
+                {assignment.review?.score != null && <p className="mt-2 text-sm font-semibold">Score: {assignment.review.score} / {assignment.review.out_of}</p>}
+                {assignment.review?.feedback && <p className="mt-2 text-sm text-slate-600">Teacher feedback: {assignment.review.feedback}</p>}
                 {assignment.description ? (
                   <p className="mt-1 text-sm text-slate-500">{assignment.description}</p>
                 ) : null}

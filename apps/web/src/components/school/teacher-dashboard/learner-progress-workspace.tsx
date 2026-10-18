@@ -7,8 +7,8 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 export function LearnerProgressWorkspace() {
   const liveSession = useLiveTenantSession("school");
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["teacher-learner-progress", liveSession.session?.tenantId],
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["teacher-learner-progress", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => requestDashboardApi<any>("/admin-command/teacher/learner-progress", {
       tenantId: liveSession.session!.tenantId,
       accessToken: (liveSession.session as any)?.accessToken,
@@ -28,6 +28,8 @@ export function LearnerProgressWorkspace() {
 
   return (
     <Panel title="Learner Progress" description="Track individual learner academic progress." icon={TrendingUp}>
+      <button type="button" disabled={!liveSession.session || isFetching} onClick={() => void refetch()} className="mb-4 min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Refresh</button>
+      {!liveSession.session && !liveSession.isLoading && <p className="mb-4 text-sm text-muted">{liveSession.error || "Sign in to your school account to load this workspace."}</p>}
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
         <article className="app-metric-card rounded-xl border border-border bg-white p-3">
           <p className="text-xs font-bold uppercase text-muted">Tracked Learners</p>
@@ -46,7 +48,7 @@ export function LearnerProgressWorkspace() {
         <RecordTable
           columns={["Learner","Class","Subject","Score","Trend","Status"]}
           rows={rows}
-          emptyState={isLoading ? "Loading..." : "No learner progress records yet. Enter marks, lesson coverage, or CBC assessments to build this view."}
+          emptyState={isLoading ? "Loading..." : "No learner progress records yet. Enter exam marks to build this view."}
         />
       )}
     </Panel>

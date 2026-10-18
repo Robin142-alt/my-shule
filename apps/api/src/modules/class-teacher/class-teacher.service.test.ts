@@ -153,7 +153,7 @@ test('ClassTeacherService publishes attendance counts from submitted attendance 
     {
       query: async (sql: string, params: unknown[]) => {
         queries.push({ sql, params });
-        if (/FROM teacher_subject_assignments/.test(sql)) {
+        if (/FROM academics_class_teachers/.test(sql) && !/FROM student_class_assignments/.test(sql)) {
           return { rows: [{ id: 'assignment-a' }], rowCount: 1 };
         }
         if (/FROM student_class_assignments/.test(sql)) {
@@ -181,6 +181,8 @@ test('ClassTeacherService publishes attendance counts from submitted attendance 
         attendanceEvents.push(input);
       },
     } as never,
+    undefined,
+    { getStore: () => ({ role: 'class_teacher' }) } as never,
   );
 
   const result = await service.saveAttendance('tenant-a', 'teacher-a', 'stream-a', [
@@ -462,7 +464,7 @@ test('ClassTeacherService submits teacher marks for moderation with tenant scope
   assert.equal(submissionEvents[0].missing_marks_count, 0);
 });
 
-test('ClassTeacherService calculates assigned class average attendance from attendance rows', async () => {
+test('ClassTeacherService calculates appointed class-teacher average attendance from attendance rows', async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new ClassTeacherService(
     {
@@ -488,6 +490,8 @@ test('ClassTeacherService calculates assigned class average attendance from atte
       },
     } as never,
     {} as never,
+    undefined,
+    { getStore: () => ({role:'class_teacher'}) } as never,
   );
 
   const result = await service.getMyClasses('tenant-a', 'teacher-a');
@@ -497,7 +501,7 @@ test('ClassTeacherService calculates assigned class average attendance from atte
   assert.equal(result.stats.averageAttendance, '75%');
   assert.equal(result.classes[0].subjectId, 'subject-a');
   assert.match(queries[0].sql, /academics_attendance/);
-  assert.match(queries[0].sql, /teacher_subject_assignments/);
+  assert.match(queries[0].sql, /academics_class_teachers/);
   assert.equal(queries[0].params[0], 'tenant-a');
   assert.equal(queries[0].params[1], 'teacher-a');
 });
@@ -586,7 +590,7 @@ test('ClassTeacherService atomically persists homework, audit, event, and exact 
   assert.match(insertQuery.sql, /student_guardians/);
   assert.match(insertQuery.sql, /tenant_memberships/);
   assert.match(insertQuery.sql, /recipient_user_id/);
-  assert.match(insertQuery.sql, /recipient_guardian_id/);
+  assert.match(insertQuery.sql, /guardian_link_id/);
   assert.match(insertQuery.sql, /INSERT INTO audit_logs/);
   assert.match(insertQuery.sql, /'\[\]'::jsonb/);
   assert.doesNotMatch(insertQuery.sql, /\["class_teacher","student","parent"\]/);
@@ -941,4 +945,11 @@ test('mark-window lookup binds the school UUID as tenant context, never the exam
   } } as never, {} as never, {} as never);
   await assert.rejects(() => service.saveMarks(tenantId, 'teacher-a', { examId: windowId, classSectionId: 'class-a', marks: {} }), /closed, invalid/);
   assert.deepEqual(scopes, [tenantId]);
+});
+
+test('only Class Teacher can read or write registers even with a teaching allocation', async () => {
+  for (const role of ['teacher','head_of_department','dean_of_academics','principal']) {
+    const service = new ClassTeacherService({ query: async()=>{throw new Error('Must authorize before querying');} } as never,{} as never,undefined,{getStore:()=>({role})} as never);
+    for(const call of [()=>service.getRegister('school','user','class'),()=>service.getAttendance('school','user','class'),()=>service.saveAttendance('school','user','class',[]),()=>service.getClassRegisterOverview('school','user'),()=>service.getPendingAttendance('school','user')]) await assert.rejects(call,/Only an appointed Class Teacher/);
+  }
 });

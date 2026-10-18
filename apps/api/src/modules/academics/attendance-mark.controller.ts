@@ -1,4 +1,6 @@
-import { BadRequestException, Body, Controller, Post, UnauthorizedException } from '@nestjs/common';
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from './class-teacher-appointment-scope';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { BadRequestException, ForbiddenException, Body, Controller, Post, UnauthorizedException } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { PrismaService } from '../../database/prisma.service';
@@ -13,9 +15,11 @@ export class AttendanceController {
   ) {}
 
   @Post('mark')
+  @Roles('class_teacher')
   @Permissions('academics:write')
   async markAttendance(@Body() body: any) {
     const store = this.requestContext.requireStore();
+    if (store.role !== 'class_teacher') throw new ForbiddenException('Only Class Teachers may mark attendance registers.');
     const tenantId = store.tenant_id;
     if (!tenantId) {
       throw new UnauthorizedException('Tenant ID required');
@@ -60,6 +64,8 @@ export class AttendanceController {
         throw new BadRequestException('Student or open attendance session was not found in this school');
       }
 
+      const appointment = await tx.$queryRawUnsafe<Array<{id:string}>>(`SELECT id FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment WHERE tenant_id::text=$1 AND teacher_user_id::text=$2 AND class_section_id::text=$3 AND is_active=TRUE AND status='active' AND effective_from<=CURRENT_DATE AND (effective_to IS NULL OR effective_to>=CURRENT_DATE) LIMIT 1`, tenantId, store.user_id, session.classId);
+      if (!appointment.length) throw new ForbiddenException('An active Class Teacher appointment is required for this register.');
       const [activeClass, activeStream, activeEnrollment] = await Promise.all([
         tx.class.findFirst({
           where: {

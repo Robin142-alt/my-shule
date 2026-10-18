@@ -107,6 +107,11 @@ jobs:
       - name: Exam setup configuration and deletion controls
         run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
 
+      - name: Teacher assignments, discipline and class-teacher register restrictions
+        run: |
+          npm --prefix apps/web run test:design -- --runTestsByPath tests/design/teacher-workflows.test.tsx tests/design/teacher-dashboard-routing.test.tsx tests/design/teacher-dashboard-human-workflows.test.ts tests/design/teacher-attendance-offline-role.test.ts tests/design/teacher-overview-feedback.test.tsx
+          node apps/web/tests/design/teacher-workflows-browser.mjs
+
       - name: Exams Manager assisted marks entry and mobile workflow
         run: |
           npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks teacher-exams-marks-workspace

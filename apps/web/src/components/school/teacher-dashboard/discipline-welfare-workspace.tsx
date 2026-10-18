@@ -1,164 +1,129 @@
-import { ShieldAlert, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+"use client";
+
+import { ShieldAlert } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Panel, RecordTable } from "./shared-components";
-import { TeacherAction, TeacherView } from "./types";
+import type { TeacherAction, TeacherView } from "./types";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
-import { fetchDisciplineConcernsLive, raiseDisciplineConcernLive, fetchClassRegisterOverviewLive } from "@/lib/modules/teacher-live";
-import { useQueryClient } from "@tanstack/react-query";
+import { fetchDisciplineConcernsLive, raiseDisciplineConcernLive, fetchTeacherConcernOptions, fetchTeacherConcernDetail, type DisciplineConcern } from "@/lib/modules/teacher-live";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Modal } from "@/components/ui/modal";
-import { openPrintDocument } from "@/lib/dashboard/export";
 
-function RaiseConcernModal({ onClose, liveSession }: { onClose: () => void, liveSession: any }) {
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [studentId, setStudentId] = useState("");
-  const [concernType, setConcernType] = useState("");
-  const [description, setDescription] = useState("");
-  const queryClient = useQueryClient();
+const input = "mt-1 w-full rounded-xl border border-border bg-white p-3 text-sm text-foreground";
+const primary = "min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-50";
+const secondary = "min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50";
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : "The concern could not be loaded. Please retry.";
 
-  const { data: registerData } = useQuery({
-    queryKey: ["class-register-overview", liveSession.session?.tenantId, liveSession.session?.user.user_id],
-    queryFn: () => fetchClassRegisterOverviewLive(liveSession.session!),
-    enabled: !!liveSession.session,
+function RaiseConcernModal({ onClose, onSaved }: { onClose: () => void; onSaved: (reference: string) => void }) {
+  const { session } = useLiveTenantSession("school");
+  const [form, setForm] = useState({ studentId: "", categoryId: "", title: "", description: "", severity: "medium" });
+  const options = useQuery({
+    queryKey: ["teacher-concern-options", session?.tenantId, session?.user.user_id],
+    queryFn: () => fetchTeacherConcernOptions(session!), enabled: !!session,
   });
-
-  const students = registerData?.students || [];
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      await raiseDisciplineConcernLive(liveSession.session!, {
-        studentId,
-        concernType,
-        description,
-        severity: concernType === 'welfare' ? 'high' : 'medium'
-      });
-      queryClient.invalidateQueries({ queryKey: ["discipline-concerns"] });
-      onClose();
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "The concern could not be submitted.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal title="Raise Concern / Infraction" open={true} onClose={onClose} size="md">
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {submitError ? (
-          <div role="alert" className="rounded-xl border border-danger-border bg-danger-soft p-3 text-sm font-semibold text-danger">
-            {submitError}
-          </div>
-        ) : null}
-        <div>
-          <label className="block text-sm font-bold text-foreground mb-1">Learner</label>
-          <select required value={studentId} onChange={(e) => setStudentId(e.target.value)} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
-            <option value="">Select learner...</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-foreground mb-1">Concern Type</label>
-          <select required value={concernType} onChange={(e) => setConcernType(e.target.value)} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary">
-            <option value="">Select type...</option>
-            <option value="attendance">Attendance Issue</option>
-            <option value="academic">Academic Decline</option>
-            <option value="behavior">Behavior / Minor Infraction</option>
-            <option value="welfare">Welfare / Counseling Need</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-foreground mb-1">Description</label>
-          <textarea required value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full rounded-xl border border-border p-3 text-sm outline-none focus:border-primary" placeholder="Describe the incident or concern..."></textarea>
-        </div>
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-border">
-          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm font-bold text-muted">Cancel</button>
-          <button disabled={submitting} type="submit" className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white">
-            {submitting ? "Submitting..." : "Submit Concern"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
+  const save = useMutation({
+    mutationFn: () => raiseDisciplineConcernLive(session!, { ...form, title: form.title.trim(), description: form.description.trim() }),
+    onSuccess: result => onSaved(result.reference),
+  });
+  return <Modal title="Raise Concern" open onClose={() => { if (!save.isPending) onClose(); }} size="md">
+    <form className="space-y-4" onSubmit={event => { event.preventDefault(); if (!save.isPending && form.title.trim() && form.description.trim()) save.mutate(); }}>
+      {options.isError ? <div role="alert" className="text-sm text-danger">{errorMessage(options.error)} <button type="button" className={secondary} onClick={() => void options.refetch()}>Retry learners</button></div> : null}
+      <label className="block text-sm font-bold">Learner<select className={input} required value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}>
+        <option value="">{options.isLoading ? "Loading allocated learners…" : "Select learner"}</option>
+        {options.data?.students.map(row => <option key={row.id} value={row.id}>{row.name} — {row.className} ({row.admissionNo})</option>)}
+      </select></label>
+      {!options.isLoading && !options.isError && !options.data?.students.length && <p className="text-sm text-muted">No learners are allocated to your current teaching classes or streams. Ask the Deputy Principal to review your allocations, then retry.</p>}
+      <label className="block text-sm font-bold">Concern type<select className={input} required value={form.categoryId} onChange={e => {
+        const category = options.data?.categories.find(row => row.id === e.target.value);
+        setForm({ ...form, categoryId: e.target.value, severity: category?.defaultSeverity ?? "medium" });
+      }}>
+        <option value="">Select school concern category</option>
+        {options.data?.categories.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+      </select></label>
+      <label className="block text-sm font-bold">Title<input className={input} required maxLength={200} value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
+      <label className="block text-sm font-bold">Severity<select className={input} value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value })}>
+        <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
+      </select></label>
+      <label className="block text-sm font-bold">Description<textarea className={input} required maxLength={10000} rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+      <p className="text-sm text-muted">The school discipline team receives this concern. Parent notices follow the school category settings.</p>
+      {save.isError && <p role="alert" className="text-sm text-danger">{errorMessage(save.error)}</p>}
+      <div className="flex flex-wrap justify-end gap-3">
+        <button type="button" className={secondary} disabled={save.isPending} onClick={onClose}>Cancel</button>
+        <button type="submit" className={primary} disabled={save.isPending || !session || !form.studentId || !form.categoryId || options.isError}>{save.isPending ? "Submitting…" : "Submit Concern"}</button>
+      </div>
+    </form>
+  </Modal>;
 }
 
-export function DisciplineWelfareWorkspace({
-  onStartAction,
-}: {
+function ConcernStatus({ concern, onClose }: { concern: DisciplineConcern; onClose: () => void }) {
+  const { session } = useLiveTenantSession("school");
+  const query = useQuery({
+    queryKey: ["teacher-concern", session?.tenantId, session?.user.user_id, concern.id],
+    queryFn: () => fetchTeacherConcernDetail(session!, concern.id), enabled: !!session,
+  });
+  const incident = query.data?.incident;
+  return <Modal open title={concern.reference || "Concern Status"} onClose={onClose} size="lg">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-bold">{incident?.title || concern.title} · {incident?.status || concern.status}</h3>
+        <button type="button" className={secondary} disabled={query.isFetching} onClick={() => void query.refetch()}>Refresh Status</button>
+      </div>
+      <p className="text-sm text-muted">{concern.learner} · {concern.className} · {concern.sentTo}</p>
+      <p className="whitespace-pre-wrap text-sm">{incident?.description || concern.description}</p>
+      {query.isLoading && <p role="status">Loading follow-up…</p>}
+      {query.isError && <p role="alert" className="text-sm text-danger">{errorMessage(query.error)}</p>}
+      {incident?.action_taken && <p className="text-sm"><strong>Action taken: </strong>{incident.action_taken}</p>}
+      {query.data && <>
+        <RecordTable columns={["Follow-up action", "Status", "Completion notes"]} rows={query.data.actions.map(action => [action.title, action.status, action.completion_notes || "—"])}
+          emptyState="No follow-up actions recorded yet. The school discipline team can review this concern and assign the next step." />
+        <h4 className="font-bold">Updates shared with you</h4>
+        {query.data.comments.length ? query.data.comments.map(comment => <p key={comment.id} className="rounded-xl border border-border p-3 text-sm">{comment.body}</p>)
+          : <p className="text-sm text-muted">No shared updates yet. Refresh Status to check for a response.</p>}
+      </>}
+    </div>
+  </Modal>;
+}
+
+export function DisciplineWelfareWorkspace({ onStartAction: _onStartAction }: {
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
-  const liveSession = useLiveTenantSession("school");
+  const live = useLiveTenantSession("school");
   const { hasPermission } = usePermissions();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["discipline-concerns", liveSession.session?.tenantId, liveSession.session?.user.user_id],
-    queryFn: () => fetchDisciplineConcernsLive(liveSession.session!),
-    enabled: !!liveSession.session,
+  const client = useQueryClient();
+  const [creating, setCreating] = useState(false);
+  const [selected, setSelected] = useState<DisciplineConcern | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [notice, setNotice] = useState("");
+  const query = useQuery({
+    queryKey: ["discipline-concerns", live.session?.tenantId, live.session?.user.user_id],
+    queryFn: () => fetchDisciplineConcernsLive(live.session!), enabled: !!live.session,
   });
-
-  const openConcernStatus = (concern: NonNullable<typeof data>[number]) => {
-    openPrintDocument({
-      eyebrow: "Teacher welfare",
-      title: "Concern Status",
-      subtitle: `${concern.learner} | ${concern.className}`,
-      rows: [
-        { label: "Date", value: concern.date || "-" },
-        { label: "Learner", value: concern.learner || "-" },
-        { label: "Class", value: concern.className || "-" },
-        { label: "Concern type", value: concern.type || "-" },
-        { label: "Severity", value: concern.severity || "-" },
-        { label: "Sent to", value: concern.sentTo || "-" },
-        { label: "Status", value: concern.status || "-" },
-      ],
-      footer: "Concern follow-up must remain visible to the reporting teacher and the assigned school support roles.",
-    });
-  };
-
-  const rows = data?.map(concern => [
-    concern.date,
-    concern.learner,
-    concern.className,
-    concern.type,
-    concern.severity === 'high' ? (
-      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-danger">High</span>
-    ) : concern.severity === 'medium' ? (
-      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">Medium</span>
-    ) : (
-      <span key={concern.id + 'sev'} className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-success">{concern.severity}</span>
-    ),
-    concern.sentTo,
-    <span key={concern.id + 'status'} className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">{concern.status}</span>,
-    <button key={concern.id + 'btn'} type="button" onClick={() => openConcernStatus(concern)} className="text-info hover:underline font-bold">View Status</button>
-  ]) || [];
-
-  return (
-    <Panel title="Discipline & Welfare" description="Raise incidents and concerns to the relevant authorities." icon={ShieldAlert}>
-      <div className="mb-4">
-        {hasPermission('teacher:write') && (
-          <button type="button" onClick={() => setIsModalOpen(true)} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Raise Concern</button>
-        )}
-      </div>
-      {isError ? (
-        <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
-          Failed to load concerns. Please retry.
-        </div>
-      ) : isLoading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted" /></div>
-      ) : (
-        <RecordTable
-          columns={["Date", "Learner", "Class", "Concern Type", "Severity", "Sent To", "Status", "Actions"]}
-          rows={rows}
-          emptyState="No active concerns raised by you. Use Raise Concern when a learner welfare or discipline issue needs follow-up."
-        />
-      )}
-      {isModalOpen && <RaiseConcernModal onClose={() => setIsModalOpen(false)} liveSession={liveSession} />}
-    </Panel>
-  );
+  const concerns = query.data ?? [];
+  const filtered = concerns.filter(row => `${row.title} ${row.learner} ${row.reference}`.toLowerCase().includes(search.toLowerCase())
+    && (status === "all" || (status === "open" ? !["closed", "resolved"].includes(row.status) : ["closed", "resolved"].includes(row.status))));
+  return <Panel title="Discipline & Welfare" description="Raise a concern for an allocated learner and track the school's response." icon={ShieldAlert}
+    headerEnd={<><button type="button" className={secondary} disabled={!live.session || query.isFetching} onClick={() => void query.refetch()}>Refresh</button>
+      <button type="button" className={primary} disabled={!live.session || !hasPermission("teacher:write")} onClick={() => setCreating(true)}>Raise Concern</button></>}>
+    {!live.session && <p className="mb-4 text-sm text-muted">{live.isLoading ? "Loading your school session…" : live.error || "Sign in to your school account to raise and track concerns."}</p>}
+    {notice && <p role="status" className="mb-4 text-sm text-success">{notice}</p>}
+    {query.isError && <p role="alert" className="mb-4 text-sm text-danger">{errorMessage(query.error)} Use Refresh to retry.</p>}
+    <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_200px]">
+      <label className="text-sm font-bold">Search concerns<input type="search" className={input} value={search} onChange={e => setSearch(e.target.value)} placeholder="Learner, title or reference" /></label>
+      <label className="text-sm font-bold">Status<select className={input} value={status} onChange={e => setStatus(e.target.value)}>
+        <option value="all">All concerns</option><option value="open">Open concerns</option><option value="closed">Resolved / Closed</option>
+      </select></label>
+    </div>
+    <RecordTable columns={["Reference", "Learner", "Class", "Concern", "Severity", "Sent To", "Status", "Action"]}
+      rows={filtered.map(row => [row.reference, row.learner, row.className, row.title || row.type, row.severity, row.sentTo, row.status,
+        <button key={row.id} type="button" className={secondary} onClick={() => setSelected(row)}>View Status</button>])}
+      emptyState={query.isLoading ? "Loading concerns…" : query.isError ? "Concerns are unavailable. Refresh to retry." : search || status !== "all" ? "No concerns match these filters. Clear the search or choose All concerns." : "No concerns raised yet. Use Raise Concern when a learner needs discipline or welfare follow-up."} />
+    {creating && <RaiseConcernModal onClose={() => setCreating(false)} onSaved={reference => {
+      setCreating(false); setNotice(`Concern ${reference} recorded and sent for school follow-up.`);
+      void client.invalidateQueries({ queryKey: ["discipline-concerns"] });
+      void client.invalidateQueries({ queryKey: ["teacher-dashboard-overview"] });
+    }} />}
+    {selected && <ConcernStatus concern={selected} onClose={() => setSelected(null)} />}
+  </Panel>;
 }

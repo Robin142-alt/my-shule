@@ -1,3 +1,4 @@
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { Body, Controller, Get, Post, Query, Param, Patch, Delete } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
@@ -181,6 +182,7 @@ export class AcademicsController {
   }
 
   @Post('attendance')
+  @Roles('class_teacher')
   @Permissions('academics:write')
   createAttendance(@Body() dto: CreateAttendanceDto) {
     return this.academicsService.createAttendance(dto);
@@ -229,6 +231,7 @@ export class AcademicsController {
   }
 
   @Get('my-attendance')
+  @Roles('class_teacher')
   @Permissions('academics:read')
   getMyAttendance() {
     return this.academicsService.getMyAttendance();

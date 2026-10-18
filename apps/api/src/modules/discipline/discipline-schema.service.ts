@@ -111,6 +111,12 @@ export class DisciplineSchemaService implements OnModuleInit {
         CONSTRAINT ck_offense_categories_code CHECK (btrim(code) <> '')
       );
 
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_offense_categories_tenant_code ON offense_categories(tenant_id,code);
+      ALTER TABLE offense_categories ADD COLUMN IF NOT EXISTS escalation_rules jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE offense_categories ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+      ALTER TABLE offense_categories ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+      UPDATE offense_categories SET is_active = false WHERE deleted_at IS NOT NULL AND is_active = true;
+
       CREATE TABLE IF NOT EXISTS discipline_incidents (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -200,6 +206,11 @@ export class DisciplineSchemaService implements OnModuleInit {
         CONSTRAINT ck_discipline_actions_title CHECK (btrim(title) <> '')
       );
 
+      ALTER TABLE discipline_actions ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+      ALTER TABLE discipline_actions ADD COLUMN IF NOT EXISTS approved_by_user_id uuid;
+      ALTER TABLE discipline_actions ADD COLUMN IF NOT EXISTS approved_at timestamptz;
+      ALTER TABLE discipline_actions ADD COLUMN IF NOT EXISTS completion_notes text;
+
       CREATE TABLE IF NOT EXISTS discipline_comments (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,
@@ -271,6 +282,13 @@ export class DisciplineSchemaService implements OnModuleInit {
         CONSTRAINT ck_discipline_notifications_channel CHECK (channel IN ('in_app', 'email', 'sms')),
         CONSTRAINT ck_discipline_notifications_status CHECK (status IN ('queued', 'sent', 'failed', 'cancelled'))
       );
+
+      ALTER TABLE discipline_notifications ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'queued';
+      ALTER TABLE discipline_notifications ADD COLUMN IF NOT EXISTS scheduled_for timestamptz NOT NULL DEFAULT now();
+      ALTER TABLE discipline_notifications ADD COLUMN IF NOT EXISTS sent_at timestamptz;
+      ALTER TABLE discipline_notifications ADD COLUMN IF NOT EXISTS last_error text;
+      ALTER TABLE discipline_notifications ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+      ALTER TABLE discipline_notifications ALTER COLUMN recipient_user_id DROP NOT NULL;
 
       CREATE TABLE IF NOT EXISTS behavior_points (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -466,6 +484,17 @@ export class DisciplineSchemaService implements OnModuleInit {
 
       ALTER TABLE discipline_incidents
         ADD COLUMN IF NOT EXISTS linked_counselling_referral_id uuid;
+      ALTER TABLE discipline_incidents ADD COLUMN IF NOT EXISTS reported_at timestamptz NOT NULL DEFAULT now();
+
+      -- Historical Prisma tables relied on client-generated IDs/timestamps.
+      -- The governed domain repository uses SQL and needs the same defaults.
+      ${['offense_categories', 'discipline_incidents', 'discipline_audit_logs', 'discipline_notifications', 'behavior_points'].map(table => `
+      ALTER TABLE ${table} ALTER COLUMN id SET DEFAULT gen_random_uuid();
+      `).join('\n')}
+      ALTER TABLE offense_categories ALTER COLUMN updated_at SET DEFAULT now();
+      ALTER TABLE discipline_incidents ALTER COLUMN updated_at SET DEFAULT now();
+      ALTER TABLE behavior_points ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+      ALTER TABLE behavior_points ALTER COLUMN updated_at SET DEFAULT now();
 
       CREATE INDEX IF NOT EXISTS ix_discipline_incidents_tenant_status
         ON discipline_incidents (tenant_id, status, occurred_at DESC)

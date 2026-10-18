@@ -1,3 +1,4 @@
+import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../class-teacher-appointment-scope';
 import { MULTI_HOLDER_STAFF_APPOINTMENT_CODES } from '../../../auth/staff-appointment-catalog';
 import { updateStudentCohortPosition, updateStudentCohortSubjects } from '../cohort-enrollment';
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
@@ -1324,7 +1325,12 @@ export class AcademicsRepository {
         INSERT INTO academics_attendance (
           tenant_id, class_id, attendance_date, student_id, status, submitted_by
         )
-        VALUES ($1, $2, $3::date, $4::uuid, $5, $6::uuid)
+        SELECT $1, $2, $3::date, $4::uuid, $5, $6::uuid
+        WHERE EXISTS (SELECT 1 FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
+          WHERE appointment.tenant_id::text=$1 AND appointment.teacher_user_id::text=$6::text AND appointment.class_section_id::text=$2
+            AND appointment.is_active=TRUE AND appointment.status='active' AND appointment.effective_from<=CURRENT_DATE
+            AND (appointment.effective_to IS NULL OR appointment.effective_to>=CURRENT_DATE))
+          AND EXISTS (SELECT 1 FROM student_class_assignments placement WHERE placement.tenant_id::text=$1 AND placement.class_section_id::text=$2 AND placement.student_id::text=$4::text AND placement.status='active')
         RETURNING *
       `,
       [
@@ -1338,7 +1344,12 @@ export class AcademicsRepository {
         INSERT INTO academics_attendance (
           tenant_id, class_id, attendance_date, student_id, status, submitted_by
         )
-        VALUES ($1, $2, $3::date, $4::uuid, $5, $6::uuid)
+        SELECT $1, $2, $3::date, $4::uuid, $5, $6::uuid
+        WHERE EXISTS (SELECT 1 FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
+          WHERE appointment.tenant_id::text=$1 AND appointment.teacher_user_id::text=$6::text AND appointment.class_section_id::text=$2
+            AND appointment.is_active=TRUE AND appointment.status='active' AND appointment.effective_from<=CURRENT_DATE
+            AND (appointment.effective_to IS NULL OR appointment.effective_to>=CURRENT_DATE))
+          AND EXISTS (SELECT 1 FROM student_class_assignments placement WHERE placement.tenant_id::text=$1 AND placement.class_section_id::text=$2 AND placement.student_id::text=$4::text AND placement.status='active')
         RETURNING *
       `,
       [
@@ -1506,13 +1517,23 @@ export class AcademicsRepository {
 
   async listMyAttendance(tenant_id: string, teacher_id: string) {
     const result = await this.executeSql(this.getTenantId([`
-        SELECT * FROM academics_attendance
-        WHERE tenant_id = $1 AND submitted_by = $2::uuid
+        SELECT attendance.* FROM academics_attendance attendance
+        WHERE attendance.tenant_id = $1 AND attendance.submitted_by = $2::uuid
+          AND EXISTS (SELECT 1 FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
+            WHERE appointment.tenant_id::text=$1 AND appointment.teacher_user_id::text=$2::text
+              AND appointment.class_section_id::text=attendance.class_id::text AND appointment.is_active=TRUE
+              AND appointment.status='active' AND appointment.effective_from<=CURRENT_DATE
+              AND (appointment.effective_to IS NULL OR appointment.effective_to>=CURRENT_DATE))
         ORDER BY attendance_date DESC
       `,
       [tenant_id, teacher_id]]), `
-        SELECT * FROM academics_attendance
-        WHERE tenant_id = $1 AND submitted_by = $2::uuid
+        SELECT attendance.* FROM academics_attendance attendance
+        WHERE attendance.tenant_id = $1 AND attendance.submitted_by = $2::uuid
+          AND EXISTS (SELECT 1 FROM ${CLASS_TEACHER_APPOINTMENT_SCOPE_SQL} appointment
+            WHERE appointment.tenant_id::text=$1 AND appointment.teacher_user_id::text=$2::text
+              AND appointment.class_section_id::text=attendance.class_id::text AND appointment.is_active=TRUE
+              AND appointment.status='active' AND appointment.effective_from<=CURRENT_DATE
+              AND (appointment.effective_to IS NULL OR appointment.effective_to>=CURRENT_DATE))
         ORDER BY attendance_date DESC
       `,
       [tenant_id, teacher_id]);

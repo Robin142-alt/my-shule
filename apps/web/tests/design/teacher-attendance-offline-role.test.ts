@@ -13,7 +13,7 @@ function context(overrides: Partial<AttendanceReplayContext> = {}): AttendanceRe
   return {
     tenantId: "school-alpha",
     userId: "teacher-one",
-    roleId: "teacher",
+    roleId: "class_teacher",
     ...overrides,
   };
 }
@@ -39,7 +39,7 @@ function task(overrides: Partial<OfflineAttendanceTask> = {}): OfflineAttendance
     id: "attendance-one",
     tenantId: "school-alpha",
     userId: "teacher-one",
-    roleId: "teacher",
+    roleId: "class_teacher",
     streamId: "form-one-east",
     records: [{ studentId: "learner-one", status: "present" }],
     timestamp: Date.now(),
@@ -54,14 +54,14 @@ describe("teacher attendance offline role isolation", () => {
     expect(canReplayAttendanceTask(task(), context())).toBe(true);
     expect(canReplayAttendanceTask(task(), context({ tenantId: "school-beta" }))).toBe(false);
     expect(canReplayAttendanceTask(task(), context({ userId: "teacher-two" }))).toBe(false);
-    expect(canReplayAttendanceTask(task(), context({ roleId: "class_teacher" }))).toBe(false);
+    expect(canReplayAttendanceTask(task(), context({ roleId: "teacher" }))).toBe(false);
     expect(canReplayAttendanceTask({ ...task(), roleId: undefined } as unknown as OfflineAttendanceTask, context())).toBe(false);
   });
 
   it("deduplicates only the current actor and role without overwriting shared-device work", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([
       task({ id: "other-user", userId: "teacher-two" }),
-      task({ id: "other-role", roleId: "class_teacher" }),
+      task({ id: "other-role", roleId: "teacher" }),
       task({ id: "current-old" }),
     ]));
 
@@ -72,7 +72,7 @@ describe("teacher attendance offline role isolation", () => {
     const queue = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as OfflineAttendanceTask[];
     expect(queue).toHaveLength(3);
     expect(queue.map((item) => item.id)).toEqual(expect.arrayContaining(["other-user", "other-role"]));
-    expect(queue.find((item) => item.userId === "teacher-one" && item.roleId === "teacher")?.records)
+    expect(queue.find((item) => item.userId === "teacher-one" && item.roleId === "class_teacher")?.records)
       .toEqual([{ studentId: "learner-two", status: "late" }]);
   });
 
@@ -87,7 +87,7 @@ describe("teacher attendance offline role isolation", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([
       task(),
       task({ id: "other-user", userId: "teacher-two", streamId: "form-two-east" }),
-      task({ id: "other-role", roleId: "class_teacher", streamId: "form-three-east" }),
+      task({ id: "other-role", roleId: "teacher", streamId: "form-three-east" }),
       legacyTask,
     ]));
     const sender = jest.fn().mockResolvedValue({ success: true });

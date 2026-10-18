@@ -945,6 +945,7 @@ export class GradeMasterService {
        AND learner.class_section_id::text = section.id::text
        AND learner.status = 'active'
        AND (stream.id IS NULL OR learner.stream_id::text = stream.id::text)
+       AND (assignment.stream_id IS NULL OR learner.stream_id::text = assignment.stream_id)
        AND ${this.assignmentScope('learner')}
       LEFT JOIN academics_assignment_submissions submission
         ON submission.tenant_id = assignment.tenant_id

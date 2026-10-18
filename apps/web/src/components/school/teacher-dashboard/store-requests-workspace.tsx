@@ -1,3 +1,4 @@
+import { usePermissions } from "@/components/providers/permission-context";
 import { FormEvent, useState } from "react";
 import { ShoppingBag } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -24,11 +25,13 @@ const emptyStoreRequestForm: StoreRequestForm = {
 
 export function StoreRequestsWorkspace() {
   const liveSession = useLiveTenantSession("school");
+  const { hasPermission } = usePermissions();
+  const canWrite = !!liveSession.session && hasPermission("teacher:write");
   const [form, setForm] = useState<StoreRequestForm>(emptyStoreRequestForm);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["teacher-store-requests", liveSession.session?.tenantId],
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["teacher-store-requests", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => requestDashboardApi<any>("/admin-command/teacher/store-requests", {
       tenantId: liveSession.session!.tenantId,
       accessToken: (liveSession.session as any)?.accessToken,
@@ -74,6 +77,7 @@ export function StoreRequestsWorkspace() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canWrite || createRequest.isPending) return;
     const item = form.item.trim();
     const quantity = Number(form.quantity);
     if (!item) {
@@ -99,6 +103,8 @@ export function StoreRequestsWorkspace() {
 
   return (
     <Panel title="Store Requests" description="Request supplies and track store requisitions." icon={ShoppingBag}>
+      <button type="button" className="mb-4 min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold" disabled={!liveSession.session || isFetching} onClick={() => void refetch()}>Refresh Requests</button>
+      {!canWrite && <p className="mb-3 text-sm text-muted">Teacher write permission is required to request materials.</p>}
       <form onSubmit={handleSubmit} className="mb-4 rounded-2xl border border-border bg-surface-muted p-4">
         <div className="mb-3">
           <h3 className="text-sm font-black uppercase tracking-[0.12em] text-foreground">Request teaching materials</h3>
@@ -170,7 +176,7 @@ export function StoreRequestsWorkspace() {
         <div className="mt-3 flex justify-end">
           <button
             type="submit"
-            disabled={createRequest.isPending || !liveSession.session}
+            disabled={createRequest.isPending || !canWrite}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-[#0B2B6A] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {createRequest.isPending ? "Sending..." : "Send store request"}

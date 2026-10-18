@@ -1,3 +1,4 @@
+import { usePermissions } from "@/components/providers/permission-context";
 import { MessageCircle, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -36,10 +37,12 @@ export function ParentCommunicationWorkspace({
   onStartAction: (action: TeacherAction, view: TeacherView, message: string) => void;
 }) {
   const liveSession = useLiveTenantSession("school");
+  const { hasPermission } = usePermissions();
+  const canWrite = !!liveSession.session && hasPermission("teacher:write");
   const [composerAudience, setComposerAudience] = useState<"individual_parent" | "class_parents" | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["sent-messages", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => requestDashboardApi<{ items: SentParentMessage[] }>("/admin-command/teacher/messages"),
     enabled: !!liveSession.session,
@@ -72,7 +75,7 @@ export function ParentCommunicationWorkspace({
 
   const submitMessage = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!composerAudience || isSubmitting) return;
+    if (!composerAudience || isSubmitting || !canWrite) return;
     setIsSubmitting(true);
     try {
       const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -100,8 +103,9 @@ export function ParentCommunicationWorkspace({
   return (
     <Panel title="Parent Communication" description="Controlled communication with parents of learners you teach." icon={MessageCircle}>
       <div className="mb-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => openComposer("individual_parent")} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">New Message</button>
-        <button type="button" onClick={() => openComposer("class_parents")} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground bg-white">Message Class Parents</button>
+        <button type="button" className="min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold" disabled={!liveSession.session || isFetching || recipientOptions.isFetching} onClick={() => { void refetch(); void recipientOptions.refetch(); }}>Refresh Messages</button>
+        <button type="button" disabled={!canWrite} onClick={() => openComposer("individual_parent")} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">New Message</button>
+        <button type="button" disabled={!canWrite} onClick={() => openComposer("class_parents")} className="rounded-xl border border-border px-4 py-2 text-sm font-black text-foreground bg-white">Message Class Parents</button>
       </div>
       {composerAudience ? (
         <form onSubmit={submitMessage} className="mb-5 rounded-2xl border border-border bg-surface-muted p-4">

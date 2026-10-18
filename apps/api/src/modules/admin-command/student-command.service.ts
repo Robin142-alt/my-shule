@@ -354,6 +354,11 @@ export class StudentCommandService {
             AND access.status = 'active'
             AND student.deleted_at IS NULL
             AND lower(assignment.status) IN ('published', 'open', 'active')
+            AND (assignment.stream_id IS NULL OR EXISTS (
+              SELECT 1 FROM student_class_assignments stream_scope
+              WHERE stream_scope.tenant_id = assignment.tenant_id AND stream_scope.student_id::text = student.id::text
+                AND stream_scope.class_section_id::text = assignment.class_id AND stream_scope.stream_id::text = assignment.stream_id
+                AND stream_scope.status = 'active'))
           ORDER BY assignment.due_date ASC, assignment.created_at DESC
           LIMIT 250
         `,

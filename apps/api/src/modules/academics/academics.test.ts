@@ -1235,7 +1235,7 @@ test('AcademicsService archives and audits subject teacher allocations in the ac
 test('AcademicsService delegates enterMarks to ExamsService and calls new repository methods', async () => {
   const calls: string[] = [];
   const service = new AcademicsService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1' }) } as never,
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', role: 'class_teacher' }), requireStore: () => ({ tenant_id: 'tenant-a', user_id: 'user-1', role: 'class_teacher' }) } as never,
     {
       createAttendance: async (input: Record<string, unknown>) => {
         calls.push('create-attendance');

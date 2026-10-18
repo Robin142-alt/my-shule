@@ -251,6 +251,7 @@ export class TeacherCommandService {
           resource.title,
           subject.name AS subject,
           resource.type,
+          resource.url,
           resource.created_at::text AS uploaded_at,
           INITCAP(resource.status) AS status
         FROM academics_resources resource
@@ -1216,5 +1217,28 @@ export class TeacherCommandService {
       tenantId,
       status: 'active'
     };
+  }
+
+  async generateReport() {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const [allocations, coverage, progress] = await Promise.all([
+      this.getSubjectAllocations(), this.getSyllabusCoverage(), this.getLearnerProgress(),
+    ]);
+    return this.operations.generateReportSnapshot({
+      tenantId, module: 'teacher-command', reportId: 'teacher-progress',
+      title: 'Teaching and learner progress', format: 'pdf', generatedByUserId: userId,
+      sections: { allocations, coverage, progress }, targetRoles: [],
+    });
+  }
+
+  async getReport(id: string) {
+    const { rows } = await this.executeSql(`
+      SELECT snapshot_id, title, artifact, manifest, created_at::text
+      FROM report_snapshots WHERE tenant_id = $1 AND id::text = $2 AND generated_by_user_id::text = $3
+        AND module IN ('teacher-command', 'class-teacher-command', 'exams')`,
+    [this.requireTenantId(), id, this.requireUserId()]);
+    if (!rows.length) throw new BadRequestException('Report not found for this teacher and school.');
+    return rows[0];
   }
 }
