@@ -66,7 +66,7 @@ export class PaymentAllocationService {
         WHERE tenant_id = $1
           AND status IN ('open', 'pending_payment')
           AND (
-            ($2::uuid IS NOT NULL AND id = $2::uuid)
+            ($2::uuid IS NOT NULL AND id::text = $2::uuid::text)
             OR invoice_number = $3
           )
         RETURNING id

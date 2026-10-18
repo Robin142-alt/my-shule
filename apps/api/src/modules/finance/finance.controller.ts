@@ -365,9 +365,9 @@ export class FinanceController {
         childIds,
         invoices: invoices.map((invoice) => ({
           invoiceNumber: invoice.invoiceNumber,
-          studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
-          academicYear: invoice.academicYear.name,
-          term: invoice.term.name,
+          studentName: invoice.student ? `${invoice.student.firstName} ${invoice.student.lastName}` : '',
+          academicYear: invoice.academicYear?.name ?? String((invoice.metadata as Record<string, unknown> | null)?.academic_year ?? ''),
+          term: invoice.term?.name ?? String((invoice.metadata as Record<string, unknown> | null)?.term ?? ''),
           amountDue: invoice.amountDue,
           amountPaid: invoice.amountPaid,
           balance: invoice.balance,

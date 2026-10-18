@@ -319,7 +319,7 @@ export class InvoicesRepository {
           updated_at
         FROM invoices
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         LIMIT 1
       `,
       [tenantId, invoiceId],
@@ -354,7 +354,7 @@ export class InvoicesRepository {
           updated_at
         FROM invoices
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         LIMIT 1
         FOR UPDATE
       `,
@@ -498,7 +498,7 @@ export class InvoicesRepository {
           status = 'pending_payment',
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         RETURNING
           id,
           tenant_id,
@@ -549,7 +549,7 @@ export class InvoicesRepository {
           paid_at = NOW(),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         RETURNING
           id,
           tenant_id,
@@ -625,7 +625,7 @@ export class InvoicesRepository {
           AND metadata ->> 'student_id' = $2
           AND status IN ('open', 'pending_payment')
           AND amount_paid_minor < total_amount_minor
-          AND ($3::uuid IS NULL OR id = $3::uuid)
+          AND ($3::uuid IS NULL OR id::text = $3::uuid::text)
         ORDER BY due_at ASC, issued_at ASC, created_at ASC, id ASC
         FOR UPDATE
       `,
@@ -653,7 +653,7 @@ export class InvoicesRepository {
           metadata
         FROM invoices
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
           AND status IN ('open', 'pending_payment')
           AND amount_paid_minor < total_amount_minor
         LIMIT 1
@@ -693,7 +693,7 @@ export class InvoicesRepository {
             invoice_number = $2
             OR metadata ->> 'external_reference' = $2
             OR metadata ->> 'account_reference' = $2
-            OR ($3::uuid IS NOT NULL AND id = $3::uuid)
+            OR ($3::uuid IS NOT NULL AND id::text = $3::uuid::text)
           )
           AND (status IN ('open', 'pending_payment') OR ($4::boolean AND status='paid'))
           AND ($4::boolean OR amount_paid_minor < total_amount_minor)
@@ -736,7 +736,7 @@ export class InvoicesRepository {
           paid_at = CASE WHEN $5 = 'paid' THEN NOW() ELSE paid_at END,
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         RETURNING
           id,
           tenant_id,
@@ -790,7 +790,7 @@ export class InvoicesRepository {
           ),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         RETURNING
           id,
           tenant_id,
@@ -846,7 +846,7 @@ export class InvoicesRepository {
           ),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         RETURNING
           id,
           tenant_id,
