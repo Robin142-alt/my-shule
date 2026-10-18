@@ -1,4 +1,5 @@
 import { FEE_WAIVER_INVOICE_SCHEMA_SQL } from './fee-waiver-schema';
+import { INVOICE_WRITE_SCHEMA_SQL } from './invoice-write-schema';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -603,6 +604,8 @@ export class BillingSchemaService implements OnModuleInit {
         ALTER COLUMN issued_at SET DEFAULT NOW();
       ALTER TABLE invoices
         ALTER COLUMN metadata SET DEFAULT '{}'::jsonb;
+
+      ${INVOICE_WRITE_SCHEMA_SQL}
 
       DO $$
       BEGIN

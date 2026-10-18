@@ -1,19 +1,23 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { BillingSchemaService } from '../src/modules/billing/billing-schema.service';
 import { BillingService } from '../src/modules/billing/billing.service';
 import { FeeStructuresRepository } from '../src/modules/billing/repositories/fee-structures.repository';
 import { InvoicesRepository } from '../src/modules/billing/repositories/invoices.repository';
 import { SubscriptionsRepository } from '../src/modules/billing/repositories/subscriptions.repository';
+import { INVOICE_WRITE_SCHEMA_SQL } from '../src/modules/billing/invoice-write-schema';
 
-describe.each(['uuid', 'text'] as const)('Fee billing with %s record identifiers', identifierType => {
+describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record identifiers', variant => {
+  const identifierType = variant === 'uuid' ? 'uuid' : 'text';
   const schema = `fee_schema_${randomUUID().replaceAll('-', '')}`, role = `${schema}_role`;
   const school = 'school-with-slug', otherSchool = 'other-school';
   const learner = randomUUID(), foreignLearner = randomUUID(), actor = randomUUID();
   const context = new RequestContextService(), scope = new AsyncLocalStorage<PoolClient>();
-  let pool: Pool, billing: BillingService, planId: string, foreignPlanId: string;
+  let pool: Pool, billing: BillingService, invoices: InvoicesRepository, planId: string, foreignPlanId: string;
   let failEvent = false;
   const txFor = (client: PoolClient) => ({
     $queryRawUnsafe: async (sql: string, ...args: unknown[]) => (await client.query(sql, args)).rows,
@@ -63,9 +67,34 @@ describe.each(['uuid', 'text'] as const)('Fee billing with %s record identifiers
       CREATE TABLE students(id ${identifierType} PRIMARY KEY,tenant_id text,first_name text,last_name text,
         admission_number text,primary_guardian_phone text,status text,deleted_at timestamptz);
       CREATE TABLE student_allocations(tenant_id text,student_id ${identifierType},class_name text,stream_name text,is_current boolean);
+      CREATE TABLE academic_years(id text PRIMARY KEY,school_id text,name text);
+      CREATE TABLE terms(id text PRIMARY KEY,school_id text,name text);
+      CREATE TABLE tenants(tenant_id text PRIMARY KEY);
+      CREATE TABLE schools(id text PRIMARY KEY);
       CREATE TABLE evidence(tenant_id text,event jsonb);
       GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA ${schema} TO ${role};
     `);
+    if (variant === 'legacy') {
+      await pool.query(`
+        ALTER TABLE subscriptions DROP COLUMN last_invoice_at;
+        ALTER TABLE invoices ALTER COLUMN id DROP DEFAULT;
+        ALTER TABLE invoices ALTER COLUMN updated_at DROP DEFAULT;
+        ALTER TABLE invoices ADD COLUMN school_id text NOT NULL REFERENCES schools(id);
+        ALTER TABLE invoices ADD COLUMN student_id text NOT NULL REFERENCES students(id);
+        ALTER TABLE invoices ADD COLUMN academic_year_id text NOT NULL REFERENCES academic_years(id);
+        ALTER TABLE invoices ADD COLUMN term_id text NOT NULL REFERENCES terms(id);
+        ALTER TABLE invoices ADD COLUMN amount_due double precision NOT NULL;
+        ALTER TABLE invoices ADD COLUMN amount_paid double precision NOT NULL DEFAULT 0;
+        ALTER TABLE invoices ADD COLUMN balance double precision NOT NULL;
+        ALTER TABLE invoices ADD COLUMN due_date date NOT NULL;
+        ALTER TABLE invoices ADD COLUMN deleted_at timestamptz;
+      `);
+    }
+    await pool.query('INSERT INTO tenants VALUES($1),($2)', [school, otherSchool]);
+    if (INVOICE_WRITE_SCHEMA_SQL) {
+      await pool.query(INVOICE_WRITE_SCHEMA_SQL);
+      await pool.query(INVOICE_WRITE_SCHEMA_SQL);
+    }
     for (const name of ['subscriptions', 'invoices', 'fee_structures', 'students', 'student_allocations', 'evidence']) {
       await pool.query(`ALTER TABLE ${name} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${name} FORCE ROW LEVEL SECURITY;
         CREATE POLICY school_only ON ${name} USING(tenant_id=current_setting('app.tenant_id',true))
@@ -73,8 +102,9 @@ describe.each(['uuid', 'text'] as const)('Fee billing with %s record identifiers
     }
     const encryption = { encryptNullable: (value: string | null) => value, decryptNullable: (value: string | null) => value };
     const subscriptions = new SubscriptionsRepository(db as never, encryption as never);
+    invoices = new InvoicesRepository(db as never, encryption as never);
     billing = new BillingService(context, db as never, { invalidateTenant: async () => {} } as never,
-      {} as never, {} as never, subscriptions, new InvoicesRepository(db as never, encryption as never),
+      {} as never, {} as never, subscriptions, invoices,
       undefined, undefined, new FeeStructuresRepository(db as never), {
         recordSchoolOperation: async (event: unknown) => {
           if (failEvent) throw Error('Injected event failure');
@@ -116,6 +146,10 @@ describe.each(['uuid', 'text'] as const)('Fee billing with %s record identifiers
     await expect(issue('foreign-plan', learner, foreignPlanId)).rejects.toThrow('not found');
     expect((await pool.query('SELECT tenant_id,total_amount_minor::text FROM invoices')).rows).toEqual([{ tenant_id: school, total_amount_minor: '140000' }]);
     expect((await pool.query('SELECT * FROM evidence')).rows).toHaveLength(1);
+    if (variant === 'legacy') {
+      expect((await pool.query('SELECT school_id,student_id,amount_due,amount_paid,balance,academic_year_id,term_id FROM invoices')).rows)
+        .toEqual([{ school_id: school, student_id: learner, amount_due: 1400, amount_paid: 0, balance: 1400, academic_year_id: null, term_id: null }]);
+    }
   });
   it('rolls back invoice creation if its event cannot be persisted', async () => {
     failEvent = true;
@@ -124,6 +158,55 @@ describe.each(['uuid', 'text'] as const)('Fee billing with %s record identifiers
     failEvent = false;
     expect((await issue('event-failure')).generated_count).toBe(1);
   });
+  it('reads, allocates and reverses the issued invoice without losing its learner balance', async () => {
+    const invoice = (await issue('payment')).invoices[0];
+    expect((await asSchool(() => billing.getInvoice(invoice.id))).total_amount_minor).toBe('140000');
+    expect(await asSchool(() => invoices.findById(otherSchool, invoice.id))).toBeNull();
+    expect(await asSchool(() => invoices.findStudentFeeInvoicesForAllocation({tenantId: school, studentId: learner, explicitInvoiceId: invoice.id}))).toHaveLength(1);
+    expect((await asSchool(() => invoices.findManualFeeInvoiceTargetByReference(school, invoice.id)))?.id).toBe(invoice.id);
+    await asSchool(() => invoices.applyManualFeeInvoicePayment({tenantId: school, invoiceId: invoice.id, amountMinor: '1000', nextAmountPaidMinor: '1000', nextStatus: 'pending_payment'}));
+    expect((await asSchool(() => invoices.listStudentInvoices(school, learner)))[0].amount_paid_minor).toBe('1000');
+    if (variant === 'legacy') {
+      expect((await pool.query('SELECT amount_paid,balance FROM invoices')).rows).toEqual([{amount_paid: 10, balance: 1390}]);
+    }
+    await asSchool(() => invoices.reverseManualFeeInvoicePayment({tenantId: school, invoiceId: invoice.id, amountMinor: '1000', nextStatus: 'open'}));
+    expect((await asSchool(() => invoices.findById(school, invoice.id)))?.amount_paid_minor).toBe('0');
+    if (variant === 'legacy') {
+      expect((await pool.query('SELECT amount_paid,balance FROM invoices')).rows).toEqual([{amount_paid: 0, balance: 1400}]);
+    }
+  });
+  if (variant === 'legacy') {
+    it('reads invoices with label-only academic periods through Prisma', async () => {
+      await issue('prisma-read');
+      const prisma = new PrismaClient({adapter: new PrismaPg({connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema},public`}, {schema})});
+      try {
+        const rows = await prisma.invoice.findMany({where: {schoolId: school, studentId: learner}});
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({status: 'open', academicYearId: null, termId: null, balance: 1400});
+      } finally { await prisma.$disconnect(); }
+    });
+    it('rejects conflicting school and learner columns, and preserves atomic schema rollback', async () => {
+      await issue('boundaries');
+      await expect(asSchool(() => db.query('UPDATE invoices SET school_id=$1 WHERE tenant_id=$2', [otherSchool, school]))).rejects.toThrow('school does not match');
+      await expect(asSchool(() => db.query('UPDATE invoices SET student_id=$1 WHERE tenant_id=$2', [foreignLearner, school]))).rejects.toThrow('learner references disagree');
+      await expect(asSchool(() => db.query("UPDATE invoices SET student_id=$1,metadata=jsonb_set(metadata,'{student_id}',to_jsonb($1::text)) WHERE tenant_id=$2", [foreignLearner, school]))).rejects.toThrow('must belong');
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN; ALTER TABLE subscriptions DROP COLUMN last_invoice_at;');
+        await client.query(INVOICE_WRITE_SCHEMA_SQL);
+        await client.query('ROLLBACK');
+      } finally { client.release(); }
+      expect((await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name='subscriptions' AND column_name='last_invoice_at'", [schema])).rows).toHaveLength(1);
+    });
+    it('keeps legacy major-unit updates consistent with canonical invoice statements', async () => {
+      await issue('legacy-update');
+      await asSchool(() => db.query('UPDATE invoices SET amount_paid=15 WHERE tenant_id=$1', [school]));
+      expect((await asSchool(() => invoices.listStudentInvoices(school, learner)))[0].amount_paid_minor).toBe('1500');
+      expect((await pool.query('SELECT balance FROM invoices')).rows).toEqual([{balance: 1385}]);
+      await asSchool(() => db.query('UPDATE invoices SET total_amount_minor=139000 WHERE tenant_id=$1', [school]));
+      expect((await pool.query('SELECT amount_due,balance FROM invoices')).rows).toEqual([{amount_due: 1390, balance: 1375}]);
+    });
+  }
   it('archives only the school-owned plan and prevents further billing', async () => {
     await expect(asSchool(() => billing.archiveFeeStructure(foreignPlanId))).rejects.toThrow('not found');
     expect((await asSchool(() => billing.archiveFeeStructure(planId.toUpperCase()))).status).toBe('archived');
