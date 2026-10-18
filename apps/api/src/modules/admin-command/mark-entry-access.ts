@@ -77,7 +77,7 @@ export async function openMarkEntry(operations: AdminCommandOperationsService, t
       JOIN exam_series series ON series.tenant_id = w.tenant_id AND series.id = w.exam_series_id
       WHERE mark.tenant_id = $1 AND w.id = ANY($2::uuid[])
         AND mark.status IN ('submitted', 'reviewed', 'approved', 'locked', 'published')
-        AND ($4::text IS NULL OR (mark.entered_by_user_id::text = $4
+        AND ($4::text IS NULL OR (COALESCE(mark.assigned_teacher_user_id, mark.entered_by_user_id)::text = $4
           AND ${teacherMarkStudentScopeSql('w', 'series', 'mark.student_id', '$4')}))
       FOR UPDATE OF mark
     ), changed AS (

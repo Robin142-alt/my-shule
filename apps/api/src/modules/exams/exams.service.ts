@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 
+import { requireAssistedMarkEntryScope } from './assisted-mark-entry-policy';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
 import { validateUploadedFile, type UploadFileMetadata } from '../../common/uploads/upload-policy';
@@ -1030,9 +1031,14 @@ export class ExamsService {
     rowsValue: BulkExamMarkUploadRowDto[],
     sourceWindowIdValue: string,
     submit = false,
+    teacherUserId?: string,
   ) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
+    if (teacherUserId) {
+      requireAssistedMarkEntryScope(this.requestContext.getStore());
+      if (!this.schoolEvents) throw new ServiceUnavailableException('Exam event recording is unavailable. Retry before saving marks.');
+    }
     const sourceWindowId = this.requireText(sourceWindowIdValue, 'Mark-entry window');
     const rows = this.requireBulkRows(rowsValue);
     const seenKeys = new Set<string>();
@@ -1071,7 +1077,7 @@ export class ExamsService {
           );
         }
 
-        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId);
+        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId, teacherUserId);
         validEntries.push({ row_number: rowNumber, entry });
       } catch (error) {
         validationErrors.push({
@@ -1092,6 +1098,7 @@ export class ExamsService {
     const result = await this.repository.saveTeacherMarkSheet({
       tenant_id: tenantId,
       actor_user_id: actorUserId,
+      ...(teacherUserId ? { teacher_user_id: teacherUserId } : {}),
       source_window_id: sourceWindowId,
       submit,
       rows: validEntries.map(({ row_number, entry }) => ({
@@ -1106,26 +1113,35 @@ export class ExamsService {
         score_status: entry.score_status,
         remarks: entry.dto.remarks?.trim() || null,
       })),
+    }, async (result, tx) => {
+      await this.schoolEvents?.recordSchoolOperation({ event: {
+        id: `teacher-mark-sheet-${submit ? 'submitted' : 'saved'}-${sourceWindowId}-${Date.now()}`,
+        type: submit ? 'exam.marks_submitted' : 'exam.mark_sheet_saved',
+        module: 'exams',
+        actorRole: this.requestContext.getStore()?.role || 'teacher',
+        title: submit ? 'Marks Submitted' : 'Mark Sheet Draft Saved',
+        body: submit
+          ? `${result.submitted_count} learner mark entr${result.submitted_count === 1 ? 'y' : 'ies'} submitted for review.`
+          : `${result.saved_count} learner mark entr${result.saved_count === 1 ? 'y' : 'ies'} saved as a draft.`,
+        entityId: sourceWindowId,
+        severity: 'info',
+        payload: {
+          source_window_id: sourceWindowId,
+          assigned_teacher_user_id: teacherUserId ?? actorUserId,
+          source_dashboard: teacherUserId ? 'exams-manager' : 'teacher',
+          saved_count: result.saved_count,
+          submitted_count: result.submitted_count,
+          mark_ids: result.mark_ids,
+        },
+      }, notifications: [
+        ...(submit && Number(result.submitted_count) > 0 ? this.deanMarkSubmissionNotification(tenantId) : []),
+        ...(teacherUserId && teacherUserId !== actorUserId ? [{
+          id: `assisted-marks-${randomUUID()}`, schoolId: tenantId, audienceRoles: ['teacher'], targetUserId: teacherUserId,
+          title: 'Marks updated on your behalf', body: `The Exams Manager ${submit ? 'submitted' : 'saved'} ${result.saved_count} marks on your behalf.`,
+          sourceModule: 'exams', actionUrl: '/school/teacher/exams-marks', priority: 'normal',
+        }] : []),
+      ] }, tx);
     });
-
-    await this.schoolEvents?.recordSchoolOperation({ event: {
-      id: `teacher-mark-sheet-${submit ? 'submitted' : 'saved'}-${sourceWindowId}-${Date.now()}`,
-      type: submit ? 'exam.marks_submitted' : 'exam.mark_sheet_saved',
-      module: 'exams',
-      actorRole: this.requestContext.getStore()?.role || 'teacher',
-      title: submit ? 'Marks Submitted' : 'Mark Sheet Draft Saved',
-      body: submit
-        ? `${result.submitted_count} learner mark entr${result.submitted_count === 1 ? 'y' : 'ies'} submitted for review.`
-        : `${result.saved_count} learner mark entr${result.saved_count === 1 ? 'y' : 'ies'} saved as a draft.`,
-      entityId: sourceWindowId,
-      severity: 'info',
-      payload: {
-        source_window_id: sourceWindowId,
-        saved_count: result.saved_count,
-        submitted_count: result.submitted_count,
-        mark_ids: result.mark_ids,
-      },
-    }, notifications: submit && Number(result.submitted_count) > 0 ? this.deanMarkSubmissionNotification(tenantId) : [] });
 
     return {
       success: true,
@@ -2032,7 +2048,7 @@ export class ExamsService {
         body: `${updatedMarks.length} marks ${action === 'approve' ? 'reviewed and ready for locking' : 'returned for teacher correction'}.`,
         payload: { mark_ids: updatedMarks.map(mark => mark.id), action, reason: reason ?? null, actor_user_id: actorUserId },
       },
-      notifications: action === 'approve' ? [] : [...new Set(updatedMarks.map(mark => mark.entered_by_user_id).filter(Boolean))].map(userId => ({
+      notifications: action === 'approve' ? [] : [...new Set(updatedMarks.map(mark => mark.assigned_teacher_user_id ?? mark.entered_by_user_id).filter(Boolean))].map(userId => ({
         id: `marks-returned-${randomUUID()}`, schoolId: tenantId, audienceRoles: ['teacher'], recipientUserId: String(userId),
         title: 'Marks need correction', body: reason, sourceModule: 'exams', actionUrl: '/school/teacher/exams-marks', priority: 'high',
       })),
@@ -2423,11 +2439,12 @@ export class ExamsService {
     dto: EnterExamMarkDto,
     tenantId: string,
     actorUserId: string,
+    teacherUserId?: string,
   ): Promise<ValidatedMarkEntry> {
-    if (!this.isExamsOfficer()) {
+    if (teacherUserId || !this.isExamsOfficer()) {
       const assignment = await this.repository.findTeacherAssignment({
         tenant_id: tenantId,
-        teacher_user_id: actorUserId,
+        teacher_user_id: teacherUserId ?? actorUserId,
         academic_term_id: dto.academic_term_id,
         class_section_id: dto.class_section_id,
         subject_id: dto.subject_id,
@@ -2449,7 +2466,7 @@ export class ExamsService {
 
     const markEntryWindow = await this.repository.findOpenMarkEntryWindow({
       tenant_id: tenantId,
-      teacher_user_id: actorUserId,
+      teacher_user_id: teacherUserId ?? actorUserId,
       exam_series_id: dto.exam_series_id,
       academic_term_id: dto.academic_term_id,
       class_section_id: dto.class_section_id,

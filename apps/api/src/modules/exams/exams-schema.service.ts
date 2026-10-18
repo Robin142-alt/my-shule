@@ -210,6 +210,7 @@ export class ExamsSchemaService implements OnModuleInit {
         remarks text,
         status text NOT NULL DEFAULT 'draft',
         entered_by_user_id uuid NOT NULL,
+        assigned_teacher_user_id uuid,
         updated_by_user_id uuid,
         submitted_at timestamptz,
         reviewed_at timestamptz,
@@ -238,6 +239,8 @@ export class ExamsSchemaService implements OnModuleInit {
         ),
         CONSTRAINT ck_exam_marks_status CHECK (status IN ('draft', 'submitted', 'reviewed', 'locked', 'published'))
       );
+
+      ALTER TABLE exam_marks ADD COLUMN IF NOT EXISTS assigned_teacher_user_id uuid;
 
       CREATE TABLE IF NOT EXISTS exam_mark_versions (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

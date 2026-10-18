@@ -19,8 +19,9 @@ describe('Created exams reach assigned subject teachers', () => {
   const publishedOperations: any[] = [];
   let rejectSchoolEvent = false;
   const submissions: any[] = [];
-  const teacherContext = { tenant_id: 'school-a', user_id: ids.teacher, role: 'teacher' };
-  const managerContext = { tenant_id: 'school-a', user_id: ids.manager, role: 'exams_manager', permissions: ['exams:write'] };
+  const teacherContext = { tenant_id: 'school-a', user_id: ids.teacher, role: 'teacher', is_authenticated: true, permissions: ['exams:enter-marks'] };
+  const managerContext = { tenant_id: 'school-a', user_id: ids.manager, role: 'exams_manager', permissions: ['exams:write', 'exams:enter-marks'], is_authenticated: true };
+  let activeContext = teacherContext;
   let serial = 0;
   const futureDate = (days: number) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
@@ -74,6 +75,8 @@ describe('Created exams reach assigned subject teachers', () => {
       await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id) VALUES ('school-a',$1,$2)`, [studentId, classId]);
       await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id) VALUES ('school-a',$1,$2,$3)`, [studentId, classId, ids.subject]);
     }
+    await pool.query(`CREATE TABLE staff_profiles (tenant_id text, user_id uuid, display_name text, staff_number text)`);
+    await pool.query(`INSERT INTO staff_profiles VALUES ('school-a',$1,'Subject Teacher','T001'),('school-a',$2,'Exams Manager','E001')`, [ids.teacher, ids.manager]);
     const query = async (sql: string, params: unknown[] = []) => pool.query(sql, params);
     const prisma = {
       query,
@@ -104,8 +107,8 @@ describe('Created exams reach assigned subject teachers', () => {
       events.push(input);
     } };
     repository = new ExamsRepository(prisma as never);
-    exams = new ExamsService({ getStore: () => teacherContext } as never, repository, undefined, undefined, schoolEvents as never);
-    teacher = new ClassTeacherService(prisma as never, { publishExamSubmitted: async (event: any) => { submissions.push(event); } } as never, exams);
+    exams = new ExamsService({ getStore: () => activeContext } as never, repository, undefined, undefined, schoolEvents as never);
+    teacher = new ClassTeacherService(prisma as never, { publishExamSubmitted: async (event: any) => { submissions.push(event); } } as never, exams, { getStore: () => activeContext } as never);
     manager = new ExamsManagerCommandService(
       { getStore: () => managerContext } as never,
       prisma as never,
@@ -559,4 +562,111 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await pool.query('SELECT status FROM exam_mark_entry_windows WHERE id=$1', [window.id])).rows[0].status).toBe('closed');
     expect((await pool.query(`SELECT COUNT(*)::int AS n FROM exam_mark_audit_logs WHERE exam_series_id=$1 AND action='mark_entry.opened'`, [created.exam.id])).rows[0].n).toBe(0);
   });
+  async function assist(window: any, studentId = ids.student, score = 61, teacherId = ids.teacher, action: 'draft' | 'submit' = 'draft') {
+    activeContext = managerContext;
+    try {
+      return await teacher.saveAssistedMarks(teacherId, { examId: window.id, classSectionId: window.classSectionId,
+        assessmentId: window.assessmentId, action, marks: { [studentId]: { score, score_status: 'entered' } } });
+    } finally { activeContext = teacherContext; }
+  }
+
+  it('lets a manager create and edit a teacher draft, preserving editor attribution and normal teacher submission', async () => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    await assist(window);
+    let mark = (await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows[0];
+    expect(mark).toMatchObject({ entered_by_user_id: ids.manager, updated_by_user_id: ids.manager, assigned_teacher_user_id: ids.teacher, status: 'draft' });
+    await save(window, 'draft', ids.student, 65);
+    await assist(window, ids.student, 67);
+    await save(window, 'submit', ids.student, 70);
+    mark = (await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows[0];
+    expect(mark).toMatchObject({ entered_by_user_id: ids.manager, updated_by_user_id: ids.teacher, assigned_teacher_user_id: ids.teacher, status: 'submitted' });
+    const audits = (await pool.query('SELECT * FROM exam_mark_audit_logs WHERE mark_id=$1 ORDER BY created_at', [mark.id])).rows;
+    expect(audits[0]).toMatchObject({ actor_user_id: ids.manager, metadata: expect.objectContaining({ assigned_teacher_user_id: ids.teacher, source: 'exams_manager_mark_sheet' }) });
+    expect(audits[2]).toMatchObject({ actor_user_id: ids.manager, previous_score: '65.00', new_score: '67.00' });
+    expect(submissions.at(-1).submitted_by_user_id).toBe(ids.teacher);
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ event: expect.objectContaining({
+      actorRole: 'exams_manager', payload: expect.objectContaining({ assigned_teacher_user_id: ids.teacher }),
+    }), notifications: expect.arrayContaining([expect.objectContaining({ targetUserId: ids.teacher })]) })]));
+    await expect(assist(window)).rejects.toThrow();
+  });
+
+  it('keeps a teacher as original editor when a manager edits and submits their draft', async () => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    await save(window, 'draft', ids.student, 55);
+    await assist(window, ids.student, 60, ids.teacher, 'submit');
+    expect((await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows[0])
+      .toMatchObject({ entered_by_user_id: ids.teacher, updated_by_user_id: ids.manager, assigned_teacher_user_id: ids.teacher, status: 'submitted' });
+    expect(submissions.at(-1).submitted_by_user_id).toBe(ids.manager);
+    expect((await teacher.getPendingMarks('school-a', ids.teacher, true, true)).windows.find(row => row.examSeriesId === created.exam.id)?.status).toBe('Submitted');
+    await manager.openMarksEntry({ exam_series_id: created.exam.id, scope: 'teacher', teacher_user_id: ids.teacher,
+      closes_at: new Date(Date.now() + 86400000).toISOString() });
+    await save(window, 'draft', ids.student, 62);
+  });
+
+  it('allows the assigned teacher to reopen a manager-created mark through the existing authorized workflow', async () => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    await assist(window, ids.student, 60, ids.teacher, 'submit');
+    await manager.openMarksEntry({ exam_series_id: created.exam.id, scope: 'teacher', teacher_user_id: ids.teacher,
+      closes_at: new Date(Date.now() + 86400000).toISOString() });
+    await save(window, 'draft', ids.student, 62);
+    expect((await pool.query('SELECT score::float,status FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows[0])
+      .toEqual({ score: 62, status: 'draft' });
+  });
+
+  it.each(['locked', 'published', 'archived'] as const)('denies assisted writes to %s exams', async status => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    await pool.query('UPDATE exam_series SET status=$2 WHERE id=$1', [created.exam.id, status]);
+    await expect(assist(window)).rejects.toThrow();
+    expect((await pool.query('SELECT id FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows).toHaveLength(0);
+  });
+
+  it('respects closed windows, teacher-specific extensions, score bounds and stream assignments', async () => {
+    const fixture = await protectedExam('locked');
+    await manager.openMarksEntry({ exam_series_id: fixture.examId, scope: 'teacher', teacher_user_id: ids.teacher,
+      closes_at: new Date(Date.now() + 86400000).toISOString() });
+    const window = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.find(row => row.examSeriesId === fixture.examId)!;
+    await expect(assist(window, fixture.student, 81)).rejects.toThrow();
+    await expect(assist(window, fixture.otherStreamStudent)).rejects.toThrow();
+    await expect(assist(window, fixture.otherStreamStudent, 61, ids.otherTeacher)).rejects.toThrow();
+    await assist(window, fixture.student, 61);
+    await manager.lockMarksEntry(window.id);
+    await expect(assist(window, fixture.student)).rejects.toThrow();
+  });
+
+  it('isolates assisted discovery and mutations to the authenticated school and assigned teacher', async () => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    activeContext = managerContext;
+    try {
+      const options = await teacher.getAssistedMarkAssignments();
+      expect(options.assignments).toEqual(expect.arrayContaining([expect.objectContaining({ exam_id: created.exam.id, teacher_user_id: ids.teacher })]));
+      expect((await teacher.getAssistedMarkbooks(ids.otherTeacher)).windows.some(row => row.examSeriesId === created.exam.id)).toBe(false);
+      managerContext.tenant_id = 'school-b';
+      expect((await teacher.getAssistedMarkAssignments()).assignments).toHaveLength(0);
+      expect((await teacher.getAssistedMarkbooks(ids.teacher)).windows).toHaveLength(0);
+      await expect(teacher.saveAssistedMarks(ids.teacher, { examId: window.id, classSectionId: window.classSectionId,
+        assessmentId: window.assessmentId, marks: { [ids.student]: { score: 60 } } })).rejects.toThrow();
+    } finally { managerContext.tenant_id = 'school-a'; activeContext = teacherContext; }
+    await expect(assist(window, ids.student, 60, ids.otherTeacher)).rejects.toThrow();
+    expect((await pool.query('SELECT id FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows).toHaveLength(0);
+  });
+
+  it('rejects teacher impersonation and managers missing entry permission', async () => {
+    await expect(teacher.getAssistedMarkAssignments()).rejects.toThrow('permission');
+    activeContext = managerContext;
+    const permissions = managerContext.permissions;
+    try {
+      managerContext.permissions = ['exams:write'];
+      await expect(teacher.getAssistedMarkAssignments()).rejects.toThrow('permission');
+    } finally { managerContext.permissions = permissions; activeContext = teacherContext; }
+  });
+
+  it('rolls back assisted marks and audits if event recording fails', async () => {
+    const created = await createExam(); const window = await windowFor(created.exam.id);
+    rejectSchoolEvent = true;
+    try { await expect(assist(window)).rejects.toThrow('Outbox unavailable'); }
+    finally { rejectSchoolEvent = false; }
+    expect((await pool.query('SELECT id FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows).toHaveLength(0);
+    expect((await pool.query('SELECT id FROM exam_mark_audit_logs WHERE exam_series_id=$1', [created.exam.id])).rows).toHaveLength(0);
+  });
+
 });

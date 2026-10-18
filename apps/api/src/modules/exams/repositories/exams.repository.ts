@@ -325,7 +325,7 @@ export class ExamsRepository {
         AND class_section.id = mark.class_section_id::text
        LEFT JOIN staff_profiles staff
          ON staff.tenant_id = mark.tenant_id
-        AND staff.user_id::text = mark.entered_by_user_id::text
+        AND staff.user_id::text = COALESCE(mark.assigned_teacher_user_id, mark.entered_by_user_id)::text
        WHERE mark.tenant_id = $1
          AND mark.status IN ('submitted', 'reviewed')
          AND ($2::text[] IS NULL OR subject.department_id::text = ANY($2::text[]))
@@ -572,6 +572,7 @@ export class ExamsRepository {
   async saveTeacherMarkSheet(input: {
     tenant_id: string;
     actor_user_id: string;
+    teacher_user_id?: string;
     source_window_id: string;
     submit: boolean;
     rows: Array<{
@@ -586,11 +587,18 @@ export class ExamsRepository {
       score_status: string;
       remarks: string | null;
     }>;
-  }) {
+  }, onSaved?: (result: { saved_count: number; submitted_count: number; mark_ids: string[]; status: string }, tx: Prisma.TransactionClient) => Promise<void>) {
     return this.prisma.executeWithTenant(
       input.tenant_id,
       input.actor_user_id,
       async (tx: any) => {
+        const teacherUserId = input.teacher_user_id ?? input.actor_user_id;
+        // Serialize saves with exam reopening, locking and publishing.
+        await tx.$queryRawUnsafe(`SELECT series.id FROM exam_series series
+          JOIN exam_mark_entry_windows w ON w.tenant_id = series.tenant_id AND w.exam_series_id = series.id
+          WHERE series.tenant_id = $1 AND w.id = $2::uuid FOR UPDATE OF series`, input.tenant_id, input.source_window_id);
+        await tx.$queryRawUnsafe(`SELECT id FROM exam_mark_entry_windows
+          WHERE tenant_id = $1 AND id = $2::uuid FOR UPDATE`, input.tenant_id, input.source_window_id);
         const savedResult = await tx.$queryRawUnsafe(
           `WITH source AS MATERIALIZED (
              SELECT *
@@ -622,22 +630,23 @@ export class ExamsRepository {
               AND series.locked_at IS NULL
               AND series.published_at IS NULL
               AND series.status NOT IN ('locked', 'published', 'archived')
-              AND ${markEntryAccessSql('mark_window', 'series', '$2')}
+              AND ${markEntryAccessSql('mark_window', 'series', '$5')}
              JOIN exam_assessments assessment
                ON assessment.tenant_id = mark_window.tenant_id
               AND assessment.id = source.assessment_id
               AND assessment.exam_series_id = source.exam_series_id
               AND assessment.subject_id = source.subject_id
-              AND NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$2')}
+              AND NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$5')}
              JOIN students student
                ON student.tenant_id = mark_window.tenant_id
               AND student.id::text = source.student_id::text
               AND student.status = 'active'
-             WHERE EXISTS (
+             WHERE (source.score IS NULL OR source.score BETWEEN 0 AND assessment.max_score)
+               AND EXISTS (
                SELECT 1
                FROM teacher_subject_assignments assignment
                WHERE assignment.tenant_id = mark_window.tenant_id
-                 AND assignment.teacher_user_id = $2::text
+                 AND assignment.teacher_user_id = $5::text
                  AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = source.academic_term_id::text)
                  AND assignment.class_section_id = source.class_section_id::text
                  AND assignment.subject_id = source.subject_id::text
@@ -682,11 +691,11 @@ export class ExamsRepository {
              INSERT INTO exam_marks (
                tenant_id, exam_series_id, assessment_id, academic_term_id,
                class_section_id, subject_id, student_id, score, score_status, remarks,
-               entered_by_user_id, updated_by_user_id, status
+               entered_by_user_id, updated_by_user_id, assigned_teacher_user_id, status
              )
              SELECT $1, exam_series_id, assessment_id, academic_term_id,
                class_section_id, subject_id, student_id, score, score_status, remarks,
-               $2::uuid, $2::uuid, 'draft'
+               $2::uuid, $2::uuid, $5::uuid, 'draft'
              FROM scoped
              ON CONFLICT (tenant_id, assessment_id, student_id)
              DO UPDATE SET
@@ -694,12 +703,13 @@ export class ExamsRepository {
                score_status = EXCLUDED.score_status,
                remarks = EXCLUDED.remarks,
                updated_by_user_id = EXCLUDED.updated_by_user_id,
+               assigned_teacher_user_id = EXCLUDED.assigned_teacher_user_id,
                updated_at = NOW()
              WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
                AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
                AND exam_marks.class_section_id = EXCLUDED.class_section_id
                AND exam_marks.subject_id = EXCLUDED.subject_id
-               AND exam_marks.entered_by_user_id = $2::uuid
+               AND ($2::uuid <> $5::uuid OR COALESCE(exam_marks.assigned_teacher_user_id, exam_marks.entered_by_user_id) = $5::uuid)
                AND exam_marks.status = 'draft'
              RETURNING *
            ), audits AS (
@@ -716,7 +726,10 @@ export class ExamsRepository {
                previous.previous_score,
                mark.score,
                jsonb_build_object(
-                 'source', 'teacher_mark_sheet',
+                 'source', CASE WHEN $2::uuid <> $5::uuid THEN 'exams_manager_mark_sheet' ELSE 'teacher_mark_sheet' END,
+                 'assigned_teacher_user_id', $5::text,
+                 'entered_by_user_id', mark.entered_by_user_id,
+                 'updated_by_user_id', $2::text,
                  'source_window_id', $4::text,
                  'row_number', previous.row_number,
                  'previous_score_status', previous.previous_score_status,
@@ -740,6 +753,7 @@ export class ExamsRepository {
           input.actor_user_id,
           JSON.stringify(input.rows),
           input.source_window_id,
+          teacherUserId,
         );
         const savedRows = Array.isArray(savedResult) ? savedResult : [savedResult];
 
@@ -750,12 +764,14 @@ export class ExamsRepository {
         }
 
         if (!input.submit) {
-          return {
+          const result = {
             saved_count: savedRows.length,
             submitted_count: 0,
             mark_ids: savedRows.map((row: any) => row.id),
             status: 'draft',
           };
+          await onSaved?.(result, tx);
+          return result;
         }
 
         const firstRow = input.rows[0];
@@ -764,7 +780,7 @@ export class ExamsRepository {
              COUNT(student.id)::integer AS expected_count,
              COUNT(mark.id)::integer AS evidence_count,
              COUNT(mark.id) FILTER (
-               WHERE mark.entered_by_user_id IS DISTINCT FROM $2::uuid
+               WHERE COALESCE(mark.assigned_teacher_user_id, mark.entered_by_user_id) IS DISTINCT FROM $2::uuid
              )::integer AS foreign_owner_count,
              COUNT(mark.id) FILTER (
                WHERE mark.status NOT IN ('draft', 'submitted')
@@ -813,7 +829,7 @@ export class ExamsRepository {
              AND ${markEntryAccessSql('mark_window', 'series', '$2')}
              AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')}`,
           input.tenant_id,
-          input.actor_user_id,
+          teacherUserId,
           input.source_window_id,
           firstRow.exam_series_id,
           firstRow.assessment_id,
@@ -857,7 +873,7 @@ export class ExamsRepository {
                  updated_at = NOW()
              WHERE tenant_id = $1
                AND id = ANY($3::uuid[])
-               AND entered_by_user_id = $2::uuid
+               AND COALESCE(assigned_teacher_user_id, entered_by_user_id) = $5::uuid
                AND status = 'draft'
              RETURNING *
            ), audits AS (
@@ -868,7 +884,8 @@ export class ExamsRepository {
              SELECT $1, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id,
                'grade.submitted', $2::uuid, mark.score, mark.score,
                jsonb_build_object(
-                 'source', 'teacher_mark_sheet',
+                 'source', CASE WHEN $2::uuid <> $5::uuid THEN 'exams_manager_mark_sheet' ELSE 'teacher_mark_sheet' END,
+                 'assigned_teacher_user_id', $5::text,
                  'source_window_id', $4::text,
                  'score_status', mark.score_status
                )
@@ -880,16 +897,19 @@ export class ExamsRepository {
           input.actor_user_id,
           markIds,
           input.source_window_id,
+          teacherUserId,
         );
         const newlySubmittedRows = Array.isArray(submittedResult) ? submittedResult : [submittedResult];
 
-        return {
+        const result = {
           saved_count: savedRows.length,
           submitted_count: expectedCount,
           newly_submitted_count: newlySubmittedRows.length,
           mark_ids: markIds,
           status: 'submitted',
         };
+        await onSaved?.(result, tx);
+        return result;
       },
     );
   }
@@ -5558,6 +5578,12 @@ export class ExamsRepository {
         mark.remarks,
         COALESCE(mark.status, 'draft') AS status,
         mark.entered_by_user_id::text,
+        mark.updated_by_user_id::text,
+        (SELECT COALESCE(NULLIF(editor.display_name, ''), editor.staff_number)
+          FROM staff_profiles editor WHERE editor.tenant_id = mark.tenant_id
+            AND editor.user_id::text = COALESCE(mark.updated_by_user_id, mark.entered_by_user_id)::text
+          LIMIT 1) AS updated_by_name,
+        mark.assigned_teacher_user_id::text,
         mark.updated_at::text,
         mark_window.opens_at::text,
         mark_window.closes_at::text

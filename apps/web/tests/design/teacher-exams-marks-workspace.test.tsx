@@ -414,4 +414,41 @@ describe("teacher exams and marks workspace", () => {
     expect(screen.getByText(/active class and subject allocation/)).toBeVisible();
     expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
   });
+  it("uses the selected teacher scope while keeping the manager session for reading and saving", async () => {
+    const managerSession = { ...mockSession, user: { ...mockSession.user, user_id: "manager-1", role: "exams_manager" } };
+    (useLiveTenantSession as jest.Mock).mockReturnValue({ session: managerSession, isLoading: false });
+    const onClose = jest.fn();
+    renderWithProviders(createElement(ExamsMarksWorkspace, { assistance: {
+      teacherUserId: "teacher-1", teacherName: "Teacher Robini", examSeriesId: "series-1",
+      classSectionId: "class-2-blue", subjectId: "subject-maths", onClose,
+    } }));
+    fireEvent.click(await screen.findByRole("button", { name: /Open Mathematics/ }));
+    expect(fetchPendingMarksLive).toHaveBeenCalledWith(managerSession, true, true, "teacher-1");
+    await screen.findByLabelText("Asha Njeri score");
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledWith(managerSession, expect.objectContaining({ teacherUserId: "teacher-1" }));
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "63" } });
+    fireEvent.click(screen.getByRole("button", { name: "Change teacher or exam" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/You have unsaved marks/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(managerSession, expect.objectContaining({
+      teacherUserId: "teacher-1", action: "draft", marks: expect.objectContaining({ "student-1": { score: 63, score_status: "entered" } }),
+    })));
+  });
+
+  it("shows locked markbooks without enabling assisted entry", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [{ ...result.windows[0], canEnter: false, entryState: "Locked", status: "Locked" }] });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { assistance: {
+      teacherUserId: "teacher-1", teacherName: "Teacher Robini", examSeriesId: "series-1",
+      classSectionId: "class-2-blue", subjectId: "subject-maths", onClose: jest.fn(),
+    } }));
+    fireEvent.click(await screen.findByRole("button", { name: /Open Mathematics/ }));
+    expect(await screen.findByText(/This exam is locked or published/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+  });
+
 });
