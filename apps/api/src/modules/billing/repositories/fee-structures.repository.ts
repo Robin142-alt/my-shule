@@ -215,7 +215,7 @@ export class FeeStructuresRepository {
           updated_at
         FROM fee_structures
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         LIMIT 1
       `,
       [tenantId, feeStructureId],
@@ -237,7 +237,7 @@ export class FeeStructuresRepository {
           status = 'archived',
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::uuid::text
         RETURNING
           id,
           tenant_id,
