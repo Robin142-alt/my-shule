@@ -14,8 +14,9 @@ for(const width of [320,390,1280]) test(`compact acceptance and accessible viewe
     if(failFirst){failFirst=false;await route.fulfill({status:503,json:{message:'Unable to record agreements. Please retry.'}});return;}
     accepted=true;await route.fulfill({json:{...pending,ready:true,required_documents:[]}});
   });
-  // A public destination fixture avoids forging a protected server session.
-  await page.route('**/api/legal/destination',route=>route.fulfill({json:{path:'/terms?verified=1'}}));
+  // A public destination avoids forging a protected server session.
+  // Assert the settled canonical URL because /terms redirects immediately.
+  await page.route('**/api/legal/destination',route=>route.fulfill({json:{path:'/terms'}}));
   await page.goto('/legal/accept');
   await expect(page.getByRole('heading',{name:'A moment before you begin'})).toBeVisible();
   const privacy=page.getByRole('checkbox',{name:/Privacy Policy/});const terms=page.getByRole('checkbox',{name:/Terms of Use/});
@@ -32,7 +33,7 @@ for(const width of [320,390,1280]) test(`compact acceptance and accessible viewe
   await page.getByRole('button',{name:'Agree & Continue'}).click();
   await expect(page.locator('.legal-card').getByRole('alert')).toContainText('Unable to record');await expect(privacy).toBeChecked();
   await page.getByRole('button',{name:'Agree & Continue'}).click();
-  await expect(page).toHaveURL(/verified=1/);
+  await expect(page).toHaveURL(/\/legal\/documents\/terms-1\.0$/);
   expect(submitted).toEqual({selections:pending.required_documents.map(doc=>({document_id:doc.id,checked:true}))});
   expect(errors).toEqual([]);
 });
@@ -54,10 +55,10 @@ for(const width of [390,1280]) test(`recorded acceptance skips the form on retur
   await page.route('**/api/legal/access',route=>{accessChecks++;return route.fulfill({json:{ready:true}});});
   await page.route('**/api/legal/status',route=>{statusReads++;return route.fulfill({json:{...pending,ready:true,required_documents:[]}});});
   await page.route('**/api/legal/accept',route=>{writes++;return route.abort();});
-  await page.route('**/api/legal/destination',route=>route.fulfill({json:{path:'/terms?verified=1'}}));
+  await page.route('**/api/legal/destination',route=>route.fulfill({json:{path:'/terms'}}));
   for(let visit=0;visit<2;visit++) {
     await page.goto('/legal/accept');
-    await expect(page).toHaveURL(/\/terms\?verified=1/);
+    await expect(page).toHaveURL(/\/legal\/documents\/terms-1\.0$/);
     await expect(page.getByRole('heading',{name:'Terms of Use',exact:true})).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading',{name:'Terms of Use',exact:true})).toBeVisible();
