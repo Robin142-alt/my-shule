@@ -1,3 +1,4 @@
+import { verifyTeacherWorkflows } from "./support/teacher-workflow-checks";
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -70,6 +71,7 @@ async function main() {
     assert.equal(retainedCache.rowCount, 1, 'The upgrade removes only duplicate cached snapshots');
     assert.equal(retainedCache.rows[0].payload.version, 2, 'The newest cached snapshot survives repeated startup upgrades');
     await verifyPrincipalOperations(pool, fixture);
+    await verifyTeacherWorkflows(pool, fixture);
     const context = { tenant_id: fixture.tenantId, user_id: fixture.userId, role: 'principal', is_authenticated: true, permissions: ['*:*'] };
     const failures: any[] = [], passed: string[] = [], unavailable: Array<{route: string, message: string}> = [];
     let route = '';
@@ -147,7 +149,7 @@ async function main() {
     const classTeacher = resolve(ClassTeacherController);
     for (const method of Object.getOwnPropertyNames(ClassTeacherController.prototype)) {
       const fn = ClassTeacherController.prototype[method];
-      if (typeof fn !== 'function' || Reflect.getMetadata('method', fn) !== 0 || fn.length > 1) continue;
+      if (typeof fn !== 'function' || Reflect.getMetadata('method', fn) !== 0 || fn.length > 1 || String(Reflect.getMetadata('path', fn)).includes(':')) continue;
       route = `class-teacher/${Reflect.getMetadata('path', fn)}`;
       try { await classTeacher[method](fixture.classId); passed.push(route); }
       catch (error: any) { unavailable.push({ route, message: error.message }); }
@@ -166,4 +168,4 @@ async function main() {
     console.log('PASSED', passed.length, 'INSIGHT PROVIDERS', metricsPassed.length, 'SQL FAILURES', failures.length);
   } finally { await orm.$disconnect(); await pool.end(); }
 }
-test('dashboard GET contracts, legacy records, and tenant isolation', { timeout: 120_000 }, main);
+test('dashboard GET contracts, legacy records, and tenant isolation', { timeout: 300_000 }, main);

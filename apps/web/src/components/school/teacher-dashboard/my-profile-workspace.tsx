@@ -7,8 +7,8 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 export function MyProfileWorkspace() {
   const liveSession = useLiveTenantSession("school");
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["teacher-my-profile", liveSession.session?.tenantId],
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["teacher-my-profile", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => requestDashboardApi<any>("/admin-command/teacher/profile", {
       tenantId: liveSession.session!.tenantId,
       accessToken: (liveSession.session as any)?.accessToken,
@@ -24,6 +24,8 @@ export function MyProfileWorkspace() {
 
   return (
     <Panel title="My Profile" description="View and update your profile information." icon={User}>
+      <button type="button" disabled={!liveSession.session || isFetching} onClick={() => void refetch()} className="mb-4 min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Refresh</button>
+      {!liveSession.session && !liveSession.isLoading && <p className="mb-4 text-sm text-muted">{liveSession.error || "Sign in to your school account to load this workspace."}</p>}
       <div className="grid gap-3 sm:grid-cols-1 mb-4">
         <article className="app-metric-card rounded-xl border border-border bg-white p-3">
           <p className="text-xs font-bold uppercase text-muted">Profile Completion %</p>

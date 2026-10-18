@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param, ParseUUIDPipe } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -117,6 +117,13 @@ export class TeacherCommandController {
   getReports() {
     return this.service.getReports();
   }
+
+  @Post('reports')
+  @Permissions('teacher:write')
+  generateReport() { return this.service.generateReport(); }
+
+  @Get('reports/:id')
+  getReport(@Param('id', ParseUUIDPipe) id: string) { return this.service.getReport(id); }
 
   @Get('utilities')
   getUtilities() {

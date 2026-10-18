@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ClassTeacherCommandService } from './class-teacher-command.service';
 
 @Controller('admin-command/class-teacher')
+@Roles('class_teacher')
 @RequiresModule('academics')
 @Permissions('teacher:read')
 export class ClassTeacherCommandController {

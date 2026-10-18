@@ -59,7 +59,7 @@ export function canReplayAttendanceTask(
   return Boolean(
     context.tenantId
       && context.userId
-      && context.roleId
+      && context.roleId === "class_teacher"
       && task.tenantId?.trim() === context.tenantId
       && task.userId?.trim() === context.userId
       && task.roleId?.trim() === context.roleId,
@@ -98,7 +98,7 @@ export function saveAttendanceOffline(
 ) {
   try {
     const context = normalizeReplayContext(rawContext);
-    if (!context.tenantId || !context.userId || !context.roleId) return false;
+    if (!context.tenantId || !context.userId || context.roleId !== "class_teacher") return false;
 
     const queue = readAttendanceQueue();
 
@@ -229,6 +229,7 @@ export function useOfflineAttendanceSync(session: LiveAuthSession | null) {
       const result = await syncPendingAttendanceTasks(session, withSession, replayContext);
       if (result.synced > 0) {
         checkQueue();
+        window.dispatchEvent(new Event("teacher-attendance-synced"));
       }
     } finally {
       setSyncing(false);
@@ -266,12 +267,13 @@ export function useOfflineAttendanceSync(session: LiveAuthSession | null) {
     queueCount,
     syncQueue,
     saveLocallyAndQueue: (streamId: string, records: OfflineAttendanceRecord[]) => {
-      if (!session || !replayContext) return;
-      saveAttendanceOffline(replayContext, streamId, records);
+      if (!session || !replayContext) return false;
+      if (!saveAttendanceOffline(replayContext, streamId, records)) return false;
       checkQueue();
       if (isOnline) {
         syncQueue();
       }
+      return true;
     }
   };
 }

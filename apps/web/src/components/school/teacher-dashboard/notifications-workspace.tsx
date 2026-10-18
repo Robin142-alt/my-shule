@@ -7,8 +7,8 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 export function NotificationsWorkspace() {
   const liveSession = useLiveTenantSession("school");
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["teacher-notifications", liveSession.session?.tenantId],
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["teacher-notifications", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => requestDashboardApi<any>("/admin-command/teacher/notifications", {
       tenantId: liveSession.session!.tenantId,
       accessToken: (liveSession.session as any)?.accessToken,
@@ -26,6 +26,8 @@ export function NotificationsWorkspace() {
 
   return (
     <Panel title="Notifications" description="View announcements and system notifications." icon={Bell}>
+      <button type="button" disabled={!liveSession.session || isFetching} onClick={() => void refetch()} className="mb-4 min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Refresh</button>
+      {!liveSession.session && !liveSession.isLoading && <p className="mb-4 text-sm text-muted">{liveSession.error || "Sign in to your school account to load this workspace."}</p>}
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
         <article className="app-metric-card rounded-xl border border-border bg-white p-3">
           <p className="text-xs font-bold uppercase text-muted">Unread</p>

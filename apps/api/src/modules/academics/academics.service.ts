@@ -672,8 +672,9 @@ export class AcademicsService {
     return Math.max(Math.floor(parsed), 0);
   }
 
-  createAttendance(dto: CreateAttendanceDto) {
-    return this.repository.createAttendance({
+  async createAttendance(dto: CreateAttendanceDto) {
+    if (this.requestContext.requireStore().role !== 'class_teacher') throw new ForbiddenException('Only Class Teachers may mark attendance registers.');
+    const record = await this.repository.createAttendance({
       tenant_id: this.requireTenantId(),
       class_id: this.requireText(dto.class_id, 'Class ID'),
       attendance_date: this.requireText(dto.attendance_date, 'Attendance Date'),
@@ -681,6 +682,8 @@ export class AcademicsService {
       status: this.requireText(dto.status, 'Status'),
       submitted_by: this.currentUserId(),
     });
+    if (!record) throw new ForbiddenException("Learner is outside your active Class Teacher register.");
+    return record;
   }
 
   createAssignment(dto: CreateAssignmentDto) {
@@ -751,6 +754,7 @@ export class AcademicsService {
   }
 
   getMyAttendance() {
+    if (this.requestContext.requireStore().role !== 'class_teacher') throw new ForbiddenException('Only Class Teachers may view attendance registers.');
     return this.repository.listMyAttendance(this.requireTenantId(), this.currentUserId() ?? 'unknown');
   }
 

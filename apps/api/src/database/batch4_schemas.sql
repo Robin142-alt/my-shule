@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS academics_attendance (
 CREATE TABLE IF NOT EXISTS academics_assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id tenant_key NOT NULL,
+  stream_id text,
+  max_score numeric NOT NULL DEFAULT 100 CHECK (max_score > 0 AND max_score <= 10000),
   title text NOT NULL,
   description text,
   class_id text NOT NULL,

@@ -3,6 +3,7 @@ import { withSession, type LiveAuthSession } from "@/lib/dashboard/api-client";
 export interface TeacherAssignedClass {
   id: string;
   classSectionId: string;
+  streamId?: string | null;
   subjectId: string;
   className: string;
   subjectName: string;
@@ -56,6 +57,13 @@ export interface AssignmentTask {
   subject: string;
   dueDate: string;
   status: string;
+  description?: string;
+  streamId?: string | null;
+  maxScore: number;
+  createdAt: string;
+  submitted: number;
+  graded: number;
+  total: number;
 }
 
 export async function fetchAssignmentsLive(session: LiveAuthSession, streamId?: string): Promise<AssignmentTask[]> {
@@ -64,10 +72,14 @@ export async function fetchAssignmentsLive(session: LiveAuthSession, streamId?: 
   });
 }
 
-export async function createAssignmentLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+export interface CreateTeacherAssignment {
+  title: string; classId: string; subjectId: string; streamId?: string; dueDate: string; description: string; maxScore: number;
+}
+
+export async function createAssignmentLive(session: LiveAuthSession, data: CreateTeacherAssignment): Promise<{ success: boolean; assignmentId: string }> {
   return withSession(session, `/class-teacher/homework`, {
     method: "POST",
-    body: data,
+    body: { ...data },
   });
 }
 
@@ -77,6 +89,8 @@ export interface LessonLog {
   class: string;
   subject: string;
   topics: string;
+  reason?: string;
+  notes?: string;
   status: string;
 }
 
@@ -247,6 +261,11 @@ export interface DisciplineConcern {
   severity: string;
   sentTo: string;
   status: string;
+  reference: string;
+  title: string;
+  description: string;
+  actionTaken?: string;
+  updatedAt: string;
 }
 
 export async function fetchDisciplineConcernsLive(session: LiveAuthSession): Promise<DisciplineConcern[]> {
@@ -255,12 +274,41 @@ export async function fetchDisciplineConcernsLive(session: LiveAuthSession): Pro
   });
 }
 
-export async function raiseDisciplineConcernLive(session: LiveAuthSession, data: any): Promise<{ success: boolean }> {
+export interface TeacherConcernOptions {
+  students: Array<{ id: string; name: string; admissionNo: string; className: string; classId: string }>;
+  categories: Array<{ id: string; name: string; defaultSeverity: string }>;
+}
+export const fetchTeacherConcernOptions = (session: LiveAuthSession) =>
+  withSession<TeacherConcernOptions>(session, "/class-teacher/discipline-concerns/options", { method: "GET" });
+export interface TeacherConcernDetail {
+  incident: { title: string; description: string; incident_number: string; status: string; action_taken?: string; recommendations?: string };
+  actions: Array<{ id: string; title: string; status: string; due_at?: string; completion_notes?: string }>;
+  comments: Array<{ id: string; body: string; created_at: string }>;
+}
+export const fetchTeacherConcernDetail = (session: LiveAuthSession, id: string) =>
+  withSession<TeacherConcernDetail>(session, `/class-teacher/discipline-concerns/${encodeURIComponent(id)}`, { method: "GET" });
+
+export async function raiseDisciplineConcernLive(session: LiveAuthSession, data: {
+  studentId: string; categoryId: string; title: string; description: string; severity: string;
+}): Promise<{ success: boolean; reference: string }> {
   return withSession(session, "/class-teacher/discipline-concerns", {
     method: "POST",
     body: data,
   });
 }
+
+export interface TeacherSubmission {
+  studentId: string; admissionNo: string; name: string; id: string | null; status: string;
+  submittedAt: string | null; updatedAt: string | null; score: string | null; feedback: string | null; completionMode: string | null;
+}
+export interface TeacherSubmissionReview {
+  studentId: string; status: "submitted" | "graded" | "returned"; score?: number; feedback?: string; expectedUpdatedAt?: string;
+}
+export const fetchTeacherSubmissions = (session: LiveAuthSession, id: string) =>
+  withSession<{ assignment: { id: string; title: string; description: string; maxScore: number; status: string }; students: TeacherSubmission[] }>(
+    session, `/class-teacher/homework/${encodeURIComponent(id)}/submissions`, { method: "GET" });
+export const reviewTeacherSubmission = (session: LiveAuthSession, id: string, data: TeacherSubmissionReview) =>
+  withSession<{ success: boolean }>(session, `/class-teacher/homework/${encodeURIComponent(id)}/submissions`, { method: "POST", body: { ...data } });
 
 export interface ReportComment {
   studentId: string;

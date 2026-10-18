@@ -7,8 +7,8 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 export function TeachingResourcesWorkspace() {
   const liveSession = useLiveTenantSession("school");
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["teacher-teaching-resources", liveSession.session?.tenantId],
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["teacher-teaching-resources", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => requestDashboardApi<any>("/admin-command/teacher/resources", {
       tenantId: liveSession.session!.tenantId,
       accessToken: (liveSession.session as any)?.accessToken,
@@ -22,11 +22,14 @@ export function TeachingResourcesWorkspace() {
       c.subject,
       c.type,
       c.uploaded_at,
-      c.status
+      c.status,
+      /^https?:\/\//i.test(c.url || "") ? <a key={c.id} href={c.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-bold text-brand">Open Resource</a> : "Ask your department to attach the resource link."
   ]);
 
   return (
     <Panel title="Teaching Resources" description="Access and manage teaching materials and resources." icon={FolderOpen}>
+      <button type="button" disabled={!liveSession.session || isFetching} onClick={() => void refetch()} className="mb-4 min-h-11 rounded-xl border border-border px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50">Refresh</button>
+      {!liveSession.session && !liveSession.isLoading && <p className="mb-4 text-sm text-muted">{liveSession.error || "Sign in to your school account to load this workspace."}</p>}
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
         <article className="app-metric-card rounded-xl border border-border bg-white p-3">
           <p className="text-xs font-bold uppercase text-muted">Total Resources</p>
@@ -43,7 +46,7 @@ export function TeachingResourcesWorkspace() {
         </div>
       ) : (
         <RecordTable
-          columns={["Title","Subject","Type","Uploaded","Status"]}
+          columns={["Title","Subject","Type","Uploaded","Status","Action"]}
           rows={rows}
           emptyState={isLoading ? "Loading..." : "No teaching resources yet. Add department resources or request materials from stores."}
         />

@@ -1,6 +1,6 @@
 import { CheckSquare, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Panel, RecordTable } from "./shared-components";
 import { Modal } from "@/components/ui/modal";
 import { usePermissions } from "@/components/providers/permission-context";
@@ -19,9 +19,10 @@ function AttendanceModal({
   const queryClient = useQueryClient();
   const { saveLocallyAndQueue } = useOfflineAttendanceSync(liveSession.session);
   const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
-  const { data: students, isLoading } = useQuery({
-    queryKey: ["class-register", liveSession.session?.tenantId, task.classSectionId],
+  const { data: students, isLoading, isError, refetch } = useQuery({
+    queryKey: ["class-register", liveSession.session?.tenantId, liveSession.session?.user.user_id, task.classSectionId],
     queryFn: () => fetchClassRegisterLive(liveSession.session!, task.classSectionId),
     enabled: !!liveSession.session,
   });
@@ -33,14 +34,14 @@ function AttendanceModal({
   };
 
   const markAll = (status: "present" | "absent" | "late" | "excused") => {
-    if (!students) return;
+    if (!students?.length) return;
     const newStatuses: Record<string, "present" | "absent" | "late" | "excused"> = {};
     students.forEach(s => newStatuses[s.id] = status);
     setStatuses(newStatuses);
   };
 
   const handleSubmit = async () => {
-    if (!students) return;
+    if (!students?.length || submitting) return;
     setSubmitting(true);
     
     // Default any unmarked students to present
@@ -49,9 +50,13 @@ function AttendanceModal({
       status: statuses[s.id] || "present",
     }));
 
-    saveLocallyAndQueue(task.classSectionId, records);
+    if (!saveLocallyAndQueue(task.classSectionId, records)) {
+      setSaveError("Attendance could not be saved on this device. Keep this register open and retry.");
+      setSubmitting(false);
+      return;
+    }
     
-    // Optimistically update the UI to show this task as completed
+    // Local persistence is queued; only a server refresh can confirm completion.
     queryClient.setQueryData(
       ["pending-attendance", liveSession.session?.tenantId, liveSession.session?.user.user_id],
       (oldData: any) => {
@@ -59,10 +64,10 @@ function AttendanceModal({
         return {
           stats: {
             ...oldData.stats,
-            pendingTasks: Math.max(0, oldData.stats.pendingTasks - 1),
+            pendingTasks: oldData.stats.pendingTasks,
           },
           tasks: oldData.tasks.map((t: PendingAttendanceTask) => 
-            t.id === task.id ? { ...t, status: "Completed" } : t
+            t.id === task.id ? { ...t, status: "Queued for sync" } : t
           ),
         };
       }
@@ -75,6 +80,8 @@ function AttendanceModal({
   return (
     <Modal title={`Mark Register: ${task.className}`} open={true} onClose={onClose} size="xl">
       <div className="p-6">
+        {saveError && <p role="alert" className="mb-3 text-danger">{saveError}</p>}
+        {isError && <p role="alert" className="mb-3 text-danger">The register could not load. <button type="button" onClick={() => void refetch()}>Retry register</button></p>}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-black text-foreground">{task.subjectName}</h3>
@@ -132,7 +139,7 @@ function AttendanceModal({
           <button 
             type="button" 
             onClick={handleSubmit} 
-            disabled={submitting || isLoading}
+            disabled={submitting || isLoading || isError || !students?.length}
             className="rounded-xl bg-primary px-6 py-2 text-sm font-black text-white"
           >
             {submitting ? "Saving..." : "Save Register"}
@@ -151,14 +158,20 @@ function AttendanceModal({
 export function AttendanceWorkspace() {
   const liveSession = useLiveTenantSession("school");
   const { hasPermission } = usePermissions();
-  const { isOnline, syncing, queueCount } = useOfflineAttendanceSync(liveSession.session);
+  const { isOnline, syncing, queueCount, syncQueue } = useOfflineAttendanceSync(liveSession.session);
   const [activeTask, setActiveTask] = useState<PendingAttendanceTask | null>(null);
   
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["pending-attendance", liveSession.session?.tenantId, liveSession.session?.user.user_id],
     queryFn: () => fetchPendingAttendanceLive(liveSession.session!),
     enabled: !!liveSession.session,
   });
+
+  useEffect(() => {
+    const refresh = () => { void refetch(); };
+    window.addEventListener("teacher-attendance-synced", refresh);
+    return () => window.removeEventListener("teacher-attendance-synced", refresh);
+  }, [refetch]);
 
   const stats = data?.stats || { totalTasks: 0, pendingTasks: 0 };
   const rows = data?.tasks.map(t => [
@@ -224,8 +237,12 @@ export function AttendanceWorkspace() {
       </div>
       <div className="mb-4">
         {hasPermission('teacher:write') && (
-          <button type="button" onClick={() => setActiveTask(data?.tasks?.[0] ?? null)} className="rounded-xl bg-primary px-4 py-2 text-sm font-black text-white">Mark All Present</button>
+          <button type="button" disabled={!data?.tasks?.length} onClick={() => setActiveTask(data?.tasks?.[0] ?? null)} className="min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50">Open First Register</button>
         )}
+      </div>
+      <div className="mb-4 flex flex-wrap gap-3">
+        <button type="button" className="min-h-11 text-info underline" onClick={() => void refetch()}>Refresh attendance</button>
+        {queueCount > 0 && <button type="button" disabled={!isOnline || syncing} className="min-h-11 text-info underline" onClick={() => void syncQueue()}>Retry queued attendance</button>}
       </div>
       {isError ? (
         <div className="rounded-xl border border-danger-border bg-danger-soft p-4 text-danger">
@@ -235,7 +252,7 @@ export function AttendanceWorkspace() {
         <RecordTable
           columns={["Date", "Time", "Class", "Subject", "Expected", "Status", "Actions"]}
           rows={rows}
-          emptyState={isLoading ? "Loading pending attendance..." : "No attendance tasks pending for today."}
+          emptyState={isLoading ? "Loading pending attendance..." : "No attendance tasks for today. Review My Timetable or ask the timetable administrator to publish your allocated lessons, then refresh."}
         />
       )}
       {activeTask && (

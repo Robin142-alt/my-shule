@@ -15,7 +15,7 @@ fs.mkdirSync(out, { recursive: true });
 const source = value => JSON.stringify(value.replaceAll('\\', '/'));
 fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(out, 'link.tsx'), 'export default function Link({children,...props}) {return <a {...props}>{children}</a>;}');
-fs.writeFileSync(path.join(out, 'session.ts'), 'export const useLiveTenantSession = () => ({session: {tenantId: "visual-fixture"}, isLoading: false});');
+fs.writeFileSync(path.join(out, 'session.ts'), 'export const useLiveTenantSession = () => ({session: {tenantId: "visual-fixture", user: {user_id: "visual-teacher"}}, isLoading: false});');
 fs.writeFileSync(path.join(out, 'api.ts'), `export const requestDashboardApi = async () => ({metrics: {on_track: 0, behind: 1}, items: [{id: "fixture", subject: "Mathematics", class_name: "Form 4", topic: "No lesson plan yet", coverage: 0, target: 100, status: "Behind"}]});`);
 await new Promise((resolve, reject) => bundledWebpack.webpack({
   mode: 'development', devtool: false, entry: path.join(web, 'tests/design/colour-system.fixture.tsx'),

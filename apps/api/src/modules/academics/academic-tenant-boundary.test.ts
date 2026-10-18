@@ -244,7 +244,7 @@ test('AttendanceController rejects a foreign student before attendance or event 
 
   await assert.rejects(
     requestContext.run(
-      contextState('/attendance/mark'),
+      contextState('/attendance/mark', 'class_teacher'),
       () => controller.markAttendance({
         studentId: FOREIGN_STUDENT_ID,
         attendanceSessionId: SESSION_ID,

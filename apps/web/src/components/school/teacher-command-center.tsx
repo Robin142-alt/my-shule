@@ -16,10 +16,8 @@ import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 
 // Workspaces
 import { OverviewWorkspace } from "./teacher-dashboard/overview-workspace";
-import { AttendanceWorkspace } from "./teacher-dashboard/attendance-workspace";
 import { AssignmentsWorkspace } from "./teacher-dashboard/assignments-workspace";
 import { DisciplineWelfareWorkspace } from "./teacher-dashboard/discipline-welfare-workspace";
-import { AssessmentsCatsWorkspace } from "./teacher-dashboard/assessments-cats-workspace";
 import { ClassesWorkspace } from "./teacher-dashboard/classes-workspace";
 import { ExamsMarksWorkspace } from "./teacher-dashboard/exams-marks-workspace";
 import { LessonLogWorkspace } from "./teacher-dashboard/lesson-log-workspace";
@@ -32,8 +30,6 @@ import { StoreRequestsWorkspace } from "./teacher-dashboard/store-requests-works
 import { ReportsDownloadsWorkspace } from "./teacher-dashboard/reports-downloads-workspace";
 import { NotificationsWorkspace } from "./teacher-dashboard/notifications-workspace";
 import { MyProfileWorkspace } from "./teacher-dashboard/my-profile-workspace";
-import { ClassTeacherWorkspace } from "./teacher-dashboard/class-teacher-workspace";
-import { ClubWorkspace } from "./teacher-dashboard/club-workspace";
 import { InvigilationWorkspace } from "./teacher-dashboard/invigilation-workspace";
 import { PracticalRequisitionsWorkspace } from "./teacher-dashboard/practical-requisitions-workspace";
 
@@ -44,13 +40,15 @@ function normalizeTeacherView(section?: string): TeacherView {
     academics: "exams-marks",
     communication: "parent-communication",
     "my-timetable": "timetable",
-    "teacher-attendance": "attendance",
+    "teacher-attendance": "lesson-log",
+    "attendance": "lesson-log",
     "subjects-classes": "classes",
     "lesson-plans": "lesson-log",
     "lesson-logs": "lesson-log",
     "assignments-homework": "assignments",
     "marks-entry": "exams-marks",
     exams: "exams-marks",
+    "assessments-cats": "exams-marks",
     "student-notes": "learner-progress",
     "resource-requests": "teaching-resources",
     "lab-practical-requests": "practical-requisitions",
@@ -98,13 +96,12 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
               {notice}
             </div>
           )}
+          {activeView !== "overview" && <div className="flex flex-wrap gap-2" aria-label="Related teaching actions">{(activeView === "syllabus-coverage" ? ["lesson-log"] : activeView === "teaching-resources" ? ["store-requests"] : activeView === "reports" || activeView === "learner-progress" ? ["exams-marks", "exam-analytics"] : activeView === "classes" ? ["lesson-log", "assignments"] : []).map(view => <button key={view} type="button" className="min-h-11 rounded-xl border border-border bg-white px-4 py-2 text-sm font-bold text-foreground" onClick={() => setActiveView(view as TeacherView)}>{navItems.find(item => item.id === view)?.label}</button>)}</div>}
           {activeView === "overview" && <OverviewWorkspace onViewChange={setActiveView} onStartAction={handleStartAction} />}
-          {activeView === "attendance" && <AttendanceWorkspace />}
           {activeView === "assignments" && <AssignmentsWorkspace onStartAction={handleStartAction} />}
           {activeView === "discipline-welfare" && <DisciplineWelfareWorkspace onStartAction={handleStartAction} />}
           {activeView === "classes" && <ClassesWorkspace />}
           {activeView === "lesson-log" && <LessonLogWorkspace />}
-          {activeView === "assessments-cats" && <AssessmentsCatsWorkspace />}
           {activeView === "exams-marks" && <ExamsMarksWorkspace onStartAction={handleStartAction} />}
           {activeView === "exam-analytics" && <ExamAnalyticsWorkspace scope="assignment" onOpenMarks={() => setActiveView("exams-marks")} emptyActions={[{label:"Review teaching assignments",onClick:()=>setActiveView("classes")}]}/>}
           {activeView === "parent-communication" && <ParentCommunicationWorkspace onStartAction={handleStartAction} />}
@@ -117,16 +114,14 @@ export function TeacherCommandCenter({ activeSection, routeMode }: { activeSecti
           {activeView === "reports" && <ReportsDownloadsWorkspace />}
           {activeView === "notifications" && <NotificationsWorkspace />}
           {activeView === "profile" && <MyProfileWorkspace />}
-          {activeView === "class-teacher" && <ClassTeacherWorkspace />}
-          {activeView === "club" && <ClubWorkspace />}
           {activeView === "invigilation" && <InvigilationWorkspace />}
           {/* Fallback for other workspaces */}
           {![
-            "overview", "attendance", "assignments", "discipline-welfare", "classes",
-            "lesson-log", "assessments-cats", "exams-marks", "exam-analytics", "parent-communication",
+            "overview", "assignments", "discipline-welfare", "classes",
+            "lesson-log", "exams-marks", "exam-analytics", "parent-communication",
             "timetable", "syllabus-coverage", "learner-progress", "teaching-resources",
-            "practical-requisitions", "store-requests", "reports", "notifications", "profile", "class-teacher",
-            "club", "invigilation"
+            "practical-requisitions", "store-requests", "reports", "notifications", "profile",
+            "invigilation"
           ].includes(activeView) && (
             <div className="rounded-xl bg-white border border-border p-12 text-center text-muted">
               <p className="font-bold text-foreground text-lg">Workspace Not Found</p>
@@ -209,7 +204,7 @@ function Topbar({ activeView, onViewChange }: { activeView: TeacherView; onViewC
                     <item.icon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                     {item.label}
                   </button>
-                )) : <p role="status" className="px-3 py-3 text-xs text-slate-500">No workspace matches. Try attendance, marks, or classes.</p>}
+                )) : <p role="status" className="px-3 py-3 text-xs text-slate-500">No workspace matches. Try lessons, marks, or classes.</p>}
               </div>
             ) : null}
           </div>

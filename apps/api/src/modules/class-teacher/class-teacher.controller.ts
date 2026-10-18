@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, StreamableFile, UnauthorizedException, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, Param, ParseUUIDPipe, Query, StreamableFile, UnauthorizedException, UploadedFile, UseInterceptors } from '@nestjs/common';
 
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -9,6 +9,8 @@ import type { UploadFileMetadata } from '../../common/uploads/upload-policy';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ClassTeacherService } from './class-teacher.service';
 import { SaveTeacherMarksDto } from './dto/class-teacher.dto';
+import { CreateTeacherHomeworkDto, RaiseTeacherConcernDto, ReviewTeacherSubmissionDto, RecordTeacherLessonDto } from './dto/teacher-workflow.dto';
+import { TeacherWorkflowService } from './teacher-workflow.service';
 
 @Controller('class-teacher')
 @RequiresModule('academics')
@@ -18,6 +20,7 @@ export class ClassTeacherController {
   constructor(
     private readonly classTeacherService: ClassTeacherService,
     private readonly requestContext: RequestContextService,
+    private readonly teacherWorkflows: TeacherWorkflowService,
   ) {}
 
   private currentScope(): { tenantId: string; userId: string } {
@@ -36,6 +39,7 @@ export class ClassTeacherController {
   }
 
   @Get('overview')
+  @Roles('class_teacher')
   getOverview(@Query('streamId') streamId: string) {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getOverview(tenantId, userId, streamId);
@@ -48,12 +52,14 @@ export class ClassTeacherController {
   }
 
   @Get('register')
+  @Roles('class_teacher')
   getRegister(@Query('streamId') streamId: string) {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getRegister(tenantId, userId, streamId);
   }
 
   @Get('pending-attendance')
+  @Roles('class_teacher')
   getPendingAttendance() {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getPendingAttendance(tenantId, userId);
@@ -84,22 +90,40 @@ export class ClassTeacherController {
   }
 
   @Get('register-overview')
+  @Roles('class_teacher')
   getClassRegisterOverview() {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getClassRegisterOverview(tenantId, userId);
   }
 
   @Get('discipline-concerns')
+  @RequiresModule('discipline')
   getDisciplineConcerns() {
-    const { tenantId, userId } = this.currentScope();
-    return this.classTeacherService.getDisciplineConcerns(tenantId, userId);
+    return this.teacherWorkflows.concerns();
   }
 
+  @Get('discipline-concerns/options')
+  @RequiresModule('discipline')
+  getConcernOptions() { return this.teacherWorkflows.concernOptions(); }
+
+  @Get('discipline-concerns/:id')
+  @RequiresModule('discipline')
+  getConcernDetail(@Param('id', ParseUUIDPipe) id: string) { return this.teacherWorkflows.concernDetail(id); }
+
   @Post('discipline-concerns')
+  @RequiresModule('discipline')
   @Permissions('teacher:write')
-  saveDisciplineConcern(@Body() body: any) {
-    const { tenantId, userId } = this.currentScope();
-    return this.classTeacherService.saveDisciplineConcern(tenantId, userId, body);
+  saveDisciplineConcern(@Body() body: RaiseTeacherConcernDto) {
+    return this.teacherWorkflows.raiseConcern(body);
+  }
+
+  @Get('homework/:id/submissions')
+  getHomeworkSubmissions(@Param('id', ParseUUIDPipe) id: string) { return this.teacherWorkflows.submissions(id); }
+
+  @Post('homework/:id/submissions')
+  @Permissions('teacher:write')
+  reviewHomeworkSubmission(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewTeacherSubmissionDto) {
+    return this.teacherWorkflows.reviewSubmission(id, dto);
   }
 
   @Get('report-comments')
@@ -116,12 +140,14 @@ export class ClassTeacherController {
   }
 
   @Get('attendance')
+  @Roles('class_teacher')
   getAttendance(@Query('streamId') streamId: string) {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.getAttendance(tenantId, userId, streamId);
   }
 
   @Post('attendance')
+  @Roles('class_teacher')
   @Permissions('teacher:write')
   saveAttendance(@Body() body: { streamId: string; records: any[] }) {
     const { tenantId, userId } = this.currentScope();
@@ -206,7 +232,7 @@ export class ClassTeacherController {
 
   @Post('homework')
   @Permissions('teacher:write')
-  saveHomework(@Body() body: any) {
+  saveHomework(@Body() body: CreateTeacherHomeworkDto) {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveHomework(tenantId, userId, body);
   }
@@ -219,7 +245,7 @@ export class ClassTeacherController {
 
   @Post('lesson-logs')
   @Permissions('teacher:write')
-  saveLessonLog(@Body() body: any) {
+  saveLessonLog(@Body() body: RecordTeacherLessonDto) {
     const { tenantId, userId } = this.currentScope();
     return this.classTeacherService.saveLessonLog(tenantId, userId, body);
   }

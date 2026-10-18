@@ -2,11 +2,9 @@ export type TeacherView =
   | "overview"
   | "timetable"
   | "classes"
-  | "attendance"
   | "lesson-log"
   | "syllabus-coverage"
   | "assignments"
-  | "assessments-cats"
   | "exams-marks"
   | "exam-analytics"
   | "learner-progress"
@@ -18,8 +16,6 @@ export type TeacherView =
   | "reports"
   | "notifications"
   | "profile"
-  | "class-teacher"
-  | "club"
   | "invigilation";
 
 export type TeacherAction = 

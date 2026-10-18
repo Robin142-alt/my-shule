@@ -108,6 +108,13 @@ export const SIDEBAR_WORKSPACE_SCHEMA_SQL = `
     ALTER TABLE ${table} ALTER COLUMN updated_at SET DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS ix_${table}_workspace_actor ON ${table} (tenant_id, teacher_id);
   `).join('\n')}
+  ALTER TABLE academics_assignments ADD COLUMN IF NOT EXISTS stream_id text;
+  ALTER TABLE academics_assignments ADD COLUMN IF NOT EXISTS max_score numeric NOT NULL DEFAULT 100 CHECK (max_score > 0 AND max_score <= 10000);
+  ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS subject_id text;
+  ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS stream_id text;
+  ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS lesson_status text NOT NULL DEFAULT 'taught' CHECK (lesson_status IN ('taught','not_taught'));
+  ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS student_understanding_notes text;
+  ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS challenges text;
   ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS plan_id uuid;
   ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS log_date date;
   ALTER TABLE academics_lesson_logs ADD COLUMN IF NOT EXISTS covered_topics text;

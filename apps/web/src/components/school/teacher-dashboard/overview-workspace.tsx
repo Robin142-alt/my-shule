@@ -33,7 +33,6 @@ export function OverviewWorkspace({
   const unavailableLabel = overviewPending ? "Loading…" : "Currently unavailable";
   const summaryCards: Array<[string, string | number, string]> = overview ? [
     ["Today's Lessons", overview.todaysLessons.count, overview.todaysLessons.detail],
-    ["Pending Attendance", overview.pendingAttendance.count, overview.pendingAttendance.detail],
     ["Pending Lesson Logs", overview.pendingLessonLogs.count, overview.pendingLessonLogs.detail],
     ["Open Mark Entry", overview.openMarkEntry.count, overview.openMarkEntry.detail],
     ["Assignments Due", overview.assignmentsDue.count, overview.assignmentsDue.detail],
@@ -42,7 +41,6 @@ export function OverviewWorkspace({
     ["Store Requests", overview.storeRequests.count, overview.storeRequests.detail],
   ] : [
     ["Today's Lessons", "—", unavailableLabel],
-    ["Pending Attendance", "—", unavailableLabel],
     ["Pending Lesson Logs", "—", unavailableLabel],
     ["Open Mark Entry", "—", unavailableLabel],
     ["Assignments Due", "—", unavailableLabel],
@@ -52,10 +50,9 @@ export function OverviewWorkspace({
   ];
 
   const quickActions: Array<[string, TeacherView, TeacherAction, string]> = [
-    ["Mark Today's Attendance", "attendance", "attendance", "Attendance register loaded. Select a class and submit real attendance."],
     ["Record Lesson Log", "lesson-log", "lesson-log", "Lesson coverage log loaded for your assigned lesson."],
     ["Create Assignment", "assignments", "assignment", "Assignment editor loaded for class homework publishing."],
-    ["Enter CAT Marks", "assessments-cats", "marks", "Marks entry sheet loaded for an active assessment."],
+    ["Enter Exam Marks", "exams-marks", "marks", "Select an open exam to enter marks."],
     ["Message Class", "parent-communication", "sms", "Parent communication composer loaded with class recipients."],
   ];
 

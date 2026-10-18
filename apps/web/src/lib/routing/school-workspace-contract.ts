@@ -5,6 +5,7 @@ import { isProductionReadyModule } from "@/lib/features/module-readiness";
 // Canonical IDs owned by the dedicated command centers. These are deliberately
 // role-specific: the retired generic attendance workspace stays unavailable.
 export const dedicatedSchoolWorkspaces: Record<string, readonly string[]> = {
+  "teacher": ["dashboard", "overview", "timetable", "classes", "attendance", "lesson-log", "syllabus-coverage", "assignments", "exams-marks", "exam-analytics", "learner-progress", "discipline-welfare", "parent-communication", "teaching-resources", "practical-requisitions", "store-requests", "reports", "notifications", "profile", "invigilation"],
   "class-teacher": ["dashboard", "home", "register", "attendance", "progress", "exam-analytics", "comments", "discipline", "welfare", "health", "communication", "meetings", "homework", "timetable", "documents", "requests", "reports", "notifications", "settings"],
   "grade-master": ["dashboard", "overview", "learners", "streams", "attendance", "academics", "exam-analytics", "exams", "discipline", "welfare", "communication", "meetings", "timetable", "assignments", "requests", "reports", "notifications", "teaching", "settings"],
   "exams-manager": ["dashboard", "overview", "exam-workflow", "exam-setup", "exam-timetable", "marks-entry", "moderation", "exam-analytics", "report-cards", "imports-templates", "reports"],

@@ -110,7 +110,7 @@ export class StudentPortalService {
           assignment.status,
           submission.status AS submission_status,
           submission.submitted_at::text,
-          submission.completed_at::text
+          submission.metadata AS review, assignment.max_score, submission.completed_at::text
         FROM academics_assignments assignment
         JOIN students student
           ON student.tenant_id = assignment.tenant_id
@@ -127,6 +127,11 @@ export class StudentPortalService {
          AND submission.student_id = student.id
         WHERE assignment.tenant_id = $1
           AND lower(assignment.status) IN ('published', 'open', 'active')
+          AND (assignment.stream_id IS NULL OR EXISTS (
+            SELECT 1 FROM student_class_assignments stream_scope
+            WHERE stream_scope.tenant_id = assignment.tenant_id AND stream_scope.student_id::text = student.id::text
+              AND stream_scope.class_section_id::text = assignment.class_id AND stream_scope.stream_id::text = assignment.stream_id
+              AND stream_scope.status = 'active'))
           AND (
             assignment.class_id = student.current_class_id::text
             OR EXISTS (
@@ -165,6 +170,11 @@ export class StudentPortalService {
          AND student.deleted_at IS NULL
         WHERE assignment.tenant_id = $1
           AND lower(assignment.status) IN ('published', 'open', 'active')
+          AND (assignment.stream_id IS NULL OR EXISTS (
+            SELECT 1 FROM student_class_assignments stream_scope
+            WHERE stream_scope.tenant_id = assignment.tenant_id AND stream_scope.student_id::text = student.id::text
+              AND stream_scope.class_section_id::text = assignment.class_id AND stream_scope.stream_id::text = assignment.stream_id
+              AND stream_scope.status = 'active'))
           AND (
             assignment.class_id = student.current_class_id::text
             OR EXISTS (
@@ -374,6 +384,11 @@ export class StudentPortalService {
           WHERE assignment.tenant_id = $1
             AND assignment.id::text = $2
             AND lower(assignment.status) IN ('published', 'open', 'active')
+          AND (assignment.stream_id IS NULL OR EXISTS (
+            SELECT 1 FROM student_class_assignments stream_scope
+            WHERE stream_scope.tenant_id = assignment.tenant_id AND stream_scope.student_id::text = student.id::text
+              AND stream_scope.class_section_id::text = assignment.class_id AND stream_scope.stream_id::text = assignment.stream_id
+              AND stream_scope.status = 'active'))
             AND (
               assignment.class_id = student.current_class_id::text
               OR EXISTS (
