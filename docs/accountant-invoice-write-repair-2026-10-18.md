@@ -30,3 +30,9 @@ Apply the exact expansion in a transaction with bounded lock/statement timeouts 
 Rollback before commit is a normal transaction rollback. After successful use, retain the compatible additive schema when rolling back application code; do not drop populated fields or restore NOT NULL constraints over legitimate subscription/label-only invoices. The pre-change backup is reserved for disaster recovery, not a routine application rollback.
 
 Authenticated browser interaction remains dependent on browser access; server-side and database verification must be reported separately. This repair does not certify live M-Pesa or bank provider connections.
+
+## Production schema release
+
+At 19:42 UTC, the exact rehearsed schema expansion was committed after checking the backup archive (4,760 entries, SHA-256 `818a74d4eeb2e9b41c0f11372d9a826b84a5a862ee3265c054c75bab58face44`). Applied SQL SHA-256: `903a64456992ee38194fce157132adcb8a7ede4ae346b289d61ff5793f0b73e3`.
+
+The subscription query succeeded under the configured runtime role. RLS and policies were unchanged; the school foreign key now references the active tenant registry and the other foreign keys were retained. Kibabi still had zero invoices after the schema-only commit.

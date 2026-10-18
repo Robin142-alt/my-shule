@@ -173,15 +173,18 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
     expect((await asSchool(() => invoices.findById(school, invoice.id)))?.amount_paid_minor).toBe('0');
     if (variant === 'legacy') {
       expect((await pool.query('SELECT amount_paid,balance FROM invoices')).rows).toEqual([{amount_paid: 0, balance: 1400}]);
+    }
+  });
+  if (variant === 'legacy') {
+    it('reads invoices with label-only academic periods through Prisma', async () => {
+      await issue('prisma-read');
       const prisma = new PrismaClient({adapter: new PrismaPg({connectionString: process.env.DATABASE_URL, options: `-c search_path=${schema},public`}, {schema})});
       try {
         const rows = await prisma.invoice.findMany({where: {schoolId: school, studentId: learner}});
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({status: 'open', academicYearId: null, termId: null, balance: 1400});
       } finally { await prisma.$disconnect(); }
-    }
-  });
-  if (variant === 'legacy') {
+    });
     it('rejects conflicting school and learner columns, and preserves atomic schema rollback', async () => {
       await issue('boundaries');
       await expect(asSchool(() => db.query('UPDATE invoices SET school_id=$1 WHERE tenant_id=$2', [otherSchool, school]))).rejects.toThrow('school does not match');
