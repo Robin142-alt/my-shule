@@ -488,11 +488,13 @@ export class DisciplineSchemaService implements OnModuleInit {
 
       -- Historical Prisma tables relied on client-generated IDs/timestamps.
       -- The governed domain repository uses SQL and needs the same defaults.
-      ${['offense_categories', 'discipline_incidents', 'discipline_audit_logs', 'discipline_notifications', 'behavior_points'].map(table => `
+      ${['offense_categories', 'discipline_incidents', 'discipline_actions', 'discipline_comments', 'discipline_audit_logs', 'discipline_notifications', 'behavior_points'].map(table => `
       ALTER TABLE ${table} ALTER COLUMN id SET DEFAULT gen_random_uuid();
       `).join('\n')}
       ALTER TABLE offense_categories ALTER COLUMN updated_at SET DEFAULT now();
       ALTER TABLE discipline_incidents ALTER COLUMN updated_at SET DEFAULT now();
+      ALTER TABLE discipline_actions ALTER COLUMN updated_at SET DEFAULT now();
+      ALTER TABLE discipline_comments ALTER COLUMN updated_at SET DEFAULT now();
       ALTER TABLE behavior_points ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
       ALTER TABLE behavior_points ALTER COLUMN updated_at SET DEFAULT now();
 

@@ -128,6 +128,17 @@ export async function verifyTeacherWorkflows(pool: Pool, fixture: { tenantId: st
   assert.ok(raised.reference.startsWith('DIS-'));
   assert.equal((await workflow.concerns())[0].title, concern.title);
   assert.equal((await workflow.concernDetail(raised.incidentId)).incident.description, concern.description);
+  context.role = 'discipline_master';
+  context.permissions = ['discipline:manage', 'discipline:read'];
+  await discipline.createAction(raised.incidentId, { action_type: 'parent_meeting', title: 'School support meeting', description: 'Discuss the concern with the parent.' });
+  await discipline.createComment(raised.incidentId, { visibility: 'public', body: 'School follow-up arranged.' });
+  await discipline.createComment(raised.incidentId, { visibility: 'internal', body: 'Restricted team note.' });
+  context.role = 'teacher';
+  context.permissions = ['teacher:read', 'teacher:write'];
+  const tracked = await workflow.concernDetail(raised.incidentId);
+  assert.equal(tracked.actions[0].title, 'School support meeting');
+  assert.equal(tracked.comments.length, 1);
+  assert.equal(tracked.comments[0].body, 'School follow-up arranged.');
   await pool.query("UPDATE discipline_incidents SET status='resolved',action_taken='School follow-up completed' WHERE id=$1::uuid", [raised.incidentId]);
   assert.equal((await workflow.concerns())[0].status, 'resolved');
   const before = (await query('SELECT COUNT(*)::int AS count FROM discipline_incidents WHERE tenant_id=$1', [tenantId])).rows[0].count;
