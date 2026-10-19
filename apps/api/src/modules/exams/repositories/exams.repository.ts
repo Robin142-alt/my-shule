@@ -2309,7 +2309,12 @@ export class ExamsRepository {
           student.boarding_status::text AS boarding_status,
           student.status,
           class_section.name AS class_name,
-          class_section.curriculum_model,
+          /*
+           * Read the optional curriculum metadata through the row JSON so
+           * report-card generation remains compatible with schools that were
+           * provisioned before class_sections gained curriculum_model.
+           */
+          to_jsonb(class_section) ->> 'curriculum_model' AS curriculum_model,
           stream.name AS stream_name,
           class_teacher.class_teacher_name,
           class_teacher.class_teacher_user_id,
@@ -2526,24 +2531,54 @@ export class ExamsRepository {
       ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
       : await readShared(
         `
+          WITH preferred_grading AS (
+            SELECT COALESCE(
+              (
+                SELECT NULLIF(to_jsonb(series)->>'grading_system_id', '')
+                FROM exam_series series
+                WHERE series.tenant_id = $1
+                  AND series.id = $2::uuid
+                LIMIT 1
+              ),
+              (
+                SELECT settings.grading_system_id::text
+                FROM academics_report_card_settings settings
+                WHERE settings.tenant_id = $1
+                  AND settings.is_active = TRUE
+                ORDER BY settings.updated_at DESC, settings.created_at DESC
+                LIMIT 1
+              )
+            ) AS grading_system_id
+          )
           SELECT
             system.id::text,
             system.name,
-            system.curriculum_model,
+            to_jsonb(system) ->> 'curriculum_model' AS curriculum_model,
             system.version,
             system.effective_from::text,
             system.effective_to::text,
             system.rules
           FROM academics_grading_systems system
+          CROSS JOIN preferred_grading preferred
           WHERE system.tenant_id = $1
-            AND replace(lower(system.curriculum_model), '-', '') = replace(lower($2::text), '-', '')
+            AND (
+              NULLIF($3::text, '') IS NULL
+              OR replace(lower(to_jsonb(system) ->> 'curriculum_model'), '-', '') = replace(lower($3::text), '-', '')
+            )
             AND system.is_active = TRUE
             AND (system.effective_from IS NULL OR system.effective_from <= CURRENT_DATE)
             AND (system.effective_to IS NULL OR system.effective_to >= CURRENT_DATE)
-          ORDER BY system.updated_at DESC, system.version DESC, system.created_at DESC
+            AND (
+              preferred.grading_system_id IS NULL
+              OR system.id::text = preferred.grading_system_id
+            )
+          ORDER BY
+            (system.id::text = preferred.grading_system_id) DESC,
+            system.updated_at DESC,
+            system.created_at DESC
           LIMIT 1
         `,
-        [input.tenant_id, classCurriculum],
+        [input.tenant_id, input.exam_series_id, classCurriculum],
       );
     if (gradingPolicyResult.rows.length === 0 && classCurriculum && academicGradingSystemResult.rows.length === 0) {
       throw new BadRequestException(`Save a grading policy for the class curriculum (${classCurriculum}) before generating report cards`);
