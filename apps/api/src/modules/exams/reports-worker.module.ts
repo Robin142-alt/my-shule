@@ -1,5 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { DashboardRoleService } from '../../auth/dashboard-role.service';
+import { AuthorizationRepository } from '../../auth/repositories/authorization.repository';
+import { TenantMembershipsRepository } from '../../auth/repositories/tenant-memberships.repository';
+import { UserRoleAssignmentsRepository } from '../../auth/repositories/user-role-assignments.repository';
 import configuration from '../../config/configuration';
 import { validateEnv } from '../../config/env.validation';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -59,6 +63,10 @@ class ReportWorkerSharedModule {}
   ],
   providers: [
     ExamsService,
+    DashboardRoleService,
+    AuthorizationRepository,
+    TenantMembershipsRepository,
+    UserRoleAssignmentsRepository,
     ExamsRepository,
     ReportCardTemplateService,
     ReportCardGenerationService,
