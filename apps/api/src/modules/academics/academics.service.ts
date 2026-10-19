@@ -47,6 +47,7 @@ import {
   UpdateSubjectDto,
 } from './dto/academic.dto';
 import { AcademicsRepository, type SetupDependencyResult } from './repositories/academics.repository';
+import { normalizeCurriculum } from './curriculum-grading';
 
 @Injectable()
 export class AcademicsService {
@@ -1154,6 +1155,7 @@ export class AcademicsService {
 
   async createGradingSystem(dto: CreateAcademicPolicyDto) {
     const tenantId = this.requireTenantId();
+    const curriculumModel = normalizeCurriculum(dto.curriculum_model);
     if (dto.effective_from && dto.effective_to) {
       this.requireDateRange(dto.effective_from, dto.effective_to, 'Grading policy');
     }
@@ -1163,7 +1165,7 @@ export class AcademicsService {
       this.requireText(dto.name, 'Grading system name'),
       dto.description?.trim() || null,
       { rules: dto.rules ?? [], effective_from: dto.effective_from ?? null,
-        effective_to: dto.effective_to ?? null },
+        effective_to: dto.effective_to ?? null, curriculum_model: curriculumModel },
     );
     if (!setting) throw new ConflictException('That grading policy already exists. Open and edit it instead.');
     await this.recordAcademicChange('academic.policy.updated', 'grading_system', setting, 'created', null, dto.reason);
@@ -1185,7 +1187,9 @@ export class AcademicsService {
       const cloned = await this.repository.createGradingSystem(tenantId, versionedName,
         dto.description?.trim() || previous.description || null, {
           rules: dto.rules ?? previous.rules ?? [], effective_from: dto.effective_from ?? null,
-          effective_to: dto.effective_to ?? null, based_on_id: id,
+          effective_to: dto.effective_to ?? null,
+          curriculum_model: dto.curriculum_model ? normalizeCurriculum(dto.curriculum_model) : previous.curriculum_model,
+          based_on_id: id,
         });
       if (!cloned) throw new ConflictException('A grading policy version with that name already exists.');
       await this.recordAcademicChange('academic.policy.updated', 'grading_system', cloned, 'versioned', previous, dto.reason,
@@ -1198,7 +1202,9 @@ export class AcademicsService {
       dto.name?.trim() || null,
       dto.description?.trim() || null,
       { rules: dto.rules, effective_from: dto.effective_from ?? null,
-        effective_to: dto.effective_to ?? null, expected_version: dto.expected_version ?? null },
+        effective_to: dto.effective_to ?? null,
+        curriculum_model: dto.curriculum_model ? normalizeCurriculum(dto.curriculum_model) : undefined,
+        expected_version: dto.expected_version ?? null },
     );
     if (!setting) throw new BadRequestException('Grading system was not found in this school.');
     await this.recordAcademicChange('academic.policy.updated', 'grading_system', setting, 'updated', previous, dto.reason);

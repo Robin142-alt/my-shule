@@ -2309,6 +2309,7 @@ export class ExamsRepository {
           student.boarding_status::text AS boarding_status,
           student.status,
           class_section.name AS class_name,
+          class_section.curriculum_model,
           stream.name AS stream_name,
           class_teacher.class_teacher_name,
           class_teacher.class_teacher_user_id,
@@ -2464,6 +2465,10 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
+    const studentRow = studentResult.rows[0] ?? null;
+    const classCurriculum = typeof studentRow?.curriculum_model === 'string'
+      ? studentRow.curriculum_model.trim()
+      : '';
     const gradingPolicyResult = await readShared(
       `
         SELECT
@@ -2496,6 +2501,18 @@ export class ExamsRepository {
           AND (policy.exam_series_id = $2::uuid OR policy.exam_series_id IS NULL)
           AND (policy.effective_from IS NULL OR policy.effective_from <= NOW())
           AND (policy.effective_to IS NULL OR policy.effective_to > NOW())
+          AND (
+            $3::text IS NULL
+            OR (
+              upper($3::text) IN ('CBC', 'CBE')
+              AND policy.reporting_mode IN ('cbc_competency', 'hybrid')
+            )
+            OR (
+              replace(upper($3::text), '-', '') = '844'
+              AND policy.reporting_mode = 'traditional'
+            )
+            OR upper($3::text) NOT IN ('CBC', 'CBE', '8-4-4')
+          )
         ORDER BY
           (policy.exam_series_id = $2::uuid) DESC,
           policy.version DESC,
@@ -2503,54 +2520,34 @@ export class ExamsRepository {
           policy.created_at DESC
         LIMIT 1
       `,
-      [input.tenant_id, input.exam_series_id],
+      [input.tenant_id, input.exam_series_id, classCurriculum || null],
     );
     const academicGradingSystemResult = gradingPolicyResult.rows.length > 0
       ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
       : await readShared(
         `
-          WITH preferred_grading AS (
-            SELECT COALESCE(
-              (
-                SELECT NULLIF(to_jsonb(series)->>'grading_system_id', '')
-                FROM exam_series series
-                WHERE series.tenant_id = $1
-                  AND series.id = $2::uuid
-                LIMIT 1
-              ),
-              (
-                SELECT settings.grading_system_id::text
-                FROM academics_report_card_settings settings
-                WHERE settings.tenant_id = $1
-                  AND settings.is_active = TRUE
-                ORDER BY settings.updated_at DESC, settings.created_at DESC
-                LIMIT 1
-              )
-            ) AS grading_system_id
-          )
           SELECT
             system.id::text,
             system.name,
+            system.curriculum_model,
             system.version,
             system.effective_from::text,
             system.effective_to::text,
             system.rules
           FROM academics_grading_systems system
-          CROSS JOIN preferred_grading preferred
           WHERE system.tenant_id = $1
+            AND replace(lower(system.curriculum_model), '-', '') = replace(lower($2::text), '-', '')
             AND system.is_active = TRUE
-            AND (
-              preferred.grading_system_id IS NULL
-              OR system.id::text = preferred.grading_system_id
-            )
-          ORDER BY
-            (system.id::text = preferred.grading_system_id) DESC,
-            system.updated_at DESC,
-            system.created_at DESC
+            AND (system.effective_from IS NULL OR system.effective_from <= CURRENT_DATE)
+            AND (system.effective_to IS NULL OR system.effective_to >= CURRENT_DATE)
+          ORDER BY system.updated_at DESC, system.version DESC, system.created_at DESC
           LIMIT 1
         `,
-        [input.tenant_id, input.exam_series_id],
+        [input.tenant_id, classCurriculum],
       );
+    if (gradingPolicyResult.rows.length === 0 && classCurriculum && academicGradingSystemResult.rows.length === 0) {
+      throw new BadRequestException(`Save a grading policy for the class curriculum (${classCurriculum}) before generating report cards`);
+    }
     const subjectsResult = await this.executeSql(
       `
         WITH selected_policy AS (
@@ -2561,6 +2558,18 @@ export class ExamsRepository {
             AND (policy.exam_series_id = $2::uuid OR policy.exam_series_id IS NULL)
             AND (policy.effective_from IS NULL OR policy.effective_from <= NOW())
             AND (policy.effective_to IS NULL OR policy.effective_to > NOW())
+            AND (
+              $4::text IS NULL
+              OR (
+                upper($4::text) IN ('CBC', 'CBE')
+                AND policy.reporting_mode IN ('cbc_competency', 'hybrid')
+              )
+              OR (
+                replace(upper($4::text), '-', '') = '844'
+                AND policy.reporting_mode = 'traditional'
+              )
+              OR upper($4::text) NOT IN ('CBC', 'CBE', '8-4-4')
+            )
           ORDER BY
             (policy.exam_series_id = $2::uuid) DESC,
             policy.version DESC,
@@ -2624,7 +2633,7 @@ export class ExamsRepository {
           AND mark.status IN ('locked', 'published')
         ORDER BY subject.name NULLS LAST, assessment.name
       `,
-      [input.tenant_id, input.exam_series_id, input.student_id],
+      [input.tenant_id, input.exam_series_id, input.student_id, classCurriculum || null],
     );
     const attendanceResult = await this.executeSql(
       `
@@ -2708,13 +2717,14 @@ export class ExamsRepository {
     const submittedClassTeacherComment = typeof commentRow.submitted_class_teacher_comment === 'string'
       ? commentRow.submitted_class_teacher_comment.trim()
       : '';
-    const studentRow = studentResult.rows[0] ?? null;
     const principalRow = principalResult.rows[0] ?? null;
     const includePrincipalSignature = schoolPolicyResult.rows[0]?.include_principal_signature !== false;
 
     return {
       school: schoolResult.rows[0] ?? null,
-      exam_series: seriesResult.rows[0] ?? null,
+      exam_series: seriesResult.rows[0]
+        ? { ...seriesResult.rows[0], curriculum_model: studentRow?.curriculum_model ?? null }
+        : null,
       student: studentRow,
       grading_policy: gradingPolicyResult.rows[0]
         ?? normalizeAcademicGradingPolicy(academicGradingSystem),
@@ -6313,6 +6323,7 @@ export class ExamsRepository {
 function normalizeAcademicGradingPolicy(value: Record<string, unknown> | null): Record<string, unknown> | null {
   if (!value) return null;
   const sourceId = String(value.id ?? '').trim();
+  const curriculumModel = String(value.curriculum_model ?? '').trim().toUpperCase();
   return {
     id: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceId)
       ? sourceId
@@ -6320,7 +6331,7 @@ function normalizeAcademicGradingPolicy(value: Record<string, unknown> | null): 
     source_id: sourceId || null,
     source: 'academic_setup',
     name: value.name ?? 'School grading system',
-    reporting_mode: 'traditional',
+    reporting_mode: ['CBC', 'CBE'].includes(curriculumModel) ? 'competency' : 'traditional',
     version: Number(value.version ?? 1),
     effective_from: value.effective_from ?? null,
     effective_to: value.effective_to ?? null,
@@ -6334,14 +6345,15 @@ function applyAcademicGradingRule(
   rulesValue: unknown,
 ): Record<string, unknown> {
   if (String(subject.score_status ?? 'entered').toLowerCase() !== 'entered') return subject;
-  if (String(subject.grade_label ?? '').trim()) return subject;
+  const rules = normalizeAcademicRules(rulesValue);
+  if (!rules.length && String(subject.grade_label ?? '').trim()) return subject;
 
   const percentage = subject.percentage === null || subject.percentage === undefined
     ? calculatePercentage(subject.score, subject.max_score)
     : Number(subject.percentage);
   if (!Number.isFinite(percentage)) return subject;
 
-  const rule = normalizeAcademicRules(rulesValue)
+  const rule = rules
     .map((item): Record<string, unknown> & { minimum: number } => ({
       ...item,
       minimum: Number(item.min ?? item.min_score),
