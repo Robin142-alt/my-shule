@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -47,27 +47,48 @@ function bandTable(container: HTMLElement) {
 }
 
 describe("academic policy builders", () => {
-  it("allows one policy to target multiple curricula without changing its grade bands", async () => {
+  it("shows independent curriculum bands directly from the checkboxes and preserves drafts when toggled", async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <form>
-        <AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" />
-      </form>,
+      <form><AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" /></form>,
     );
-
-    const legacy = screen.getByRole("checkbox", { name: "8-4-4" });
-    const cbc = screen.getByRole("checkbox", { name: "CBC" });
-    expect(legacy).toBeChecked();
-    expect(cbc).not.toBeChecked();
-    const startingBands = bandTable(container);
-
-    await user.click(cbc);
-
-    expect(legacy).toBeChecked();
-    expect(cbc).toBeChecked();
-    expect(bandTable(container)).toEqual(startingBands);
+    expect(screen.queryByRole("button", { name: "8-4-4" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "CBC" })).not.toBeInTheDocument();
+    const legacy = screen.getByRole("group", { name: "8-4-4 grade bands" });
+    fireEvent.change(within(legacy).getAllByLabelText("Report remark")[0], { target: { value: "School distinction" } });
+    await user.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    const cbc = screen.getByRole("group", { name: "CBC grade bands" });
+    expect(within(cbc).getAllByLabelText("Grade label")[0]).toHaveValue("EE1");
+    fireEvent.change(within(cbc).getAllByLabelText("Points")[0], { target: { value: "9" } });
+    await user.click(within(cbc).getByRole("button", { name: "Add grade band" }));
+    expect(within(cbc).getAllByLabelText("Grade label")).toHaveLength(9);
+    await user.click(within(cbc).getByRole("button", { name: "Remove grade band 9" }));
+    await user.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    expect(screen.queryByRole("group", { name: "CBC grade bands" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    const configuration = structuredValue(container, "rules_by_curriculum") as Record<string, Array<Record<string, unknown>>>;
+    expect(configuration["8-4-4"][0]).toMatchObject({ label: "A", points: 12, remark: "School distinction" });
+    expect(configuration.CBC[0]).toMatchObject({ label: "EE1", points: 9, remark: "Exceeding Expectation" });
+    expect(configuration.CBC).toHaveLength(8);
+    expect(structuredValue(container, "rules")).toEqual(configuration["8-4-4"]);
     expect(structuredValue(container, "curriculum_models")).toEqual(["8-4-4", "CBC"]);
-    expect(container.querySelector<HTMLInputElement>('input[name="curriculum_model"]')?.value).toBe("8-4-4");
+  });
+
+  it("reloads saved independent bands without losing extra rule fields", () => {
+    const secondary = [{ label: "A", min: 0, max: 100, points: 12, remark: "School legacy", is_pass: true, competency: "legacy" }];
+    const cbc = [{ label: "ME1", min: 0, max: 100, points: 6, remark: "School CBC", is_pass: true }];
+    const { container } = render(<AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" defaultValue={secondary} defaultCurricula={["8-4-4", "CBC"]} defaultRulesByCurriculum={{ "8-4-4": secondary, CBC: cbc }} />);
+    expect(structuredValue(container, "rules_by_curriculum")).toEqual({ "8-4-4": secondary, CBC: cbc });
+    expect(within(screen.getByRole("group", { name: "8-4-4 grade bands" })).getByLabelText("Report remark")).toHaveValue("School legacy");
+    expect(within(screen.getByRole("group", { name: "CBC grade bands" })).getByLabelText("Report remark")).toHaveValue("School CBC");
+  });
+
+  it("preserves legacy CBC bands in CBC when an old shared policy also selected 8-4-4", () => {
+    const savedCbc = [{ label: "ME1", min: 0, max: 100, points: 6, remark: "Existing CBC", is_pass: true }];
+    const { container } = render(<AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" defaultValue={savedCbc} defaultCurriculum="8-4-4" defaultCurricula={["8-4-4", "CBC"]} initialPreset="blank" />);
+    const configuration = structuredValue(container, "rules_by_curriculum") as Record<string, Array<Record<string, unknown>>>;
+    expect(configuration.CBC).toEqual(savedCbc);
+    expect(configuration["8-4-4"][0]).toMatchObject({ label: "A", points: 12 });
   });
 
   it("builds complete grading bands from school-friendly presets", async () => {

@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 
 export function normalizeCurriculum(value: unknown): string {
   const name = String(value ?? '').trim();
-  if (!name || name.length > 100) {
+  if (!name || name.length > 100 || ['__proto__', 'constructor', 'prototype'].includes(name.toLowerCase())) {
     throw new BadRequestException('Choose a curriculum or enter a curriculum name of up to 100 characters.');
   }
   const key = name.toLowerCase().replace(/[_\s-]/g, '');
@@ -73,6 +73,51 @@ export function validateGradingRules(value: unknown): Array<Record<string, unkno
     throw new BadRequestException('Grade bands must cover every mark from 0 to 100 without gaps or overlaps.');
   }
   return bands;
+}
+
+/** Preserve legacy bands and keep each curriculum's saved scale independent. */
+export function gradingRulesForCurriculum(system: Record<string, any>, curriculum: string): unknown[] | null {
+  const key = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
+  const configured = system.rules_by_curriculum;
+  if (configured && typeof configured === 'object' && !Array.isArray(configured)) {
+    const entry = Object.entries(configured).find(([name]) => key(name) === key(curriculum));
+    if (entry) return Array.isArray(entry[1]) ? entry[1] : null;
+  }
+  const inferred = inferLegacyGradingCurriculum(curriculum, system.rules);
+  const declared = inferred || system.curriculum_model;
+  return key(declared) === key(curriculum) && Array.isArray(system.rules) ? system.rules : null;
+}
+
+export function prepareCurriculumGrading(
+  curricula: string[], input: { rules?: unknown; rules_by_curriculum?: unknown }, previous: Record<string, any> = {},
+): { rules: unknown; rules_by_curriculum: Record<string, unknown> } {
+  const stored: Record<string, unknown> = { ...(previous.rules_by_curriculum ?? {}) };
+  const legacyCurriculum = inferLegacyGradingCurriculum(previous.curriculum_model, previous.rules) || previous.curriculum_model;
+  if (legacyCurriculum && Array.isArray(previous.rules) && previous.rules.length && !stored[legacyCurriculum]) {
+    stored[legacyCurriculum] = previous.rules;
+  }
+  if (input.rules_by_curriculum !== undefined) {
+    if (!curricula.length) throw new BadRequestException('Choose at least one curriculum before saving grade bands.');
+    if (!input.rules_by_curriculum || typeof input.rules_by_curriculum !== 'object' || Array.isArray(input.rules_by_curriculum)
+      || Object.keys(input.rules_by_curriculum).length > 10) {
+      throw new BadRequestException('Provide grade bands for each selected curriculum.');
+    }
+    const supplied = Object.fromEntries(Object.entries(input.rules_by_curriculum).map(([name, bands]) => [normalizeCurriculum(name), bands]));
+    for (const curriculum of curricula) {
+      const bands = supplied[curriculum] ?? stored[curriculum];
+      if (!bands) throw new BadRequestException(`${curriculum}: add grade bands before saving this policy.`);
+      stored[curriculum] = validateGradingRules(bands);
+    }
+    return { rules: stored[curricula[0]], rules_by_curriculum: stored };
+  }
+  // Compatibility for older clients: never replace another curriculum's saved scale.
+  if (input.rules !== undefined) {
+    const bands = validateGradingRules(input.rules);
+    const target = inferLegacyGradingCurriculum(curricula[0], bands) || curricula[0];
+    if (target) stored[target] = bands;
+    return { rules: bands, rules_by_curriculum: stored };
+  }
+  return { rules: previous.rules ?? [], rules_by_curriculum: stored };
 }
 
 /** Expressions are static SQL from repository code, never request values.

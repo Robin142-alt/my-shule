@@ -158,8 +158,8 @@ describe("live report-card action controls", () => {
     });
   });
 
-  it("sends a deterministic correction reason when regenerating from locked marks", async () => {
-    const report = reportCard({ status: "regeneration_required" });
+  it.each(["draft_requested", "draft_generated", "draft", "under_review", "approved", "published", "regeneration_required", "withdrawn"])("regenerates %s cards from the latest saved inputs", async (status) => {
+    const report = reportCard({ status });
     const regeneration = deferred<Record<string, unknown>>();
     const { reportRefetch } = installQueries([report]);
     mockRequestSchoolApiProxy.mockImplementation(() => regeneration.promise);
@@ -170,7 +170,7 @@ describe("live report-card action controls", () => {
     await user.click(screen.getByRole("button", { name: "Regenerate" }));
 
     expect(screen.getByRole("button", { name: "Regenerating..." })).toBeDisabled();
-    expect(screen.getByText("Regenerating this report card from the latest locked marks...")).toBeInTheDocument();
+    expect(screen.getByText("Regenerating this report card from the latest saved marks, grading policy and remarks...")).toBeInTheDocument();
     expect(mockRequestSchoolApiProxy).toHaveBeenCalledWith(
       "/exams/report-cards/regenerate",
       {

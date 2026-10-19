@@ -13,6 +13,7 @@ import {
   AcademicGradeBandsEditor,
   AcademicReportCardPolicyEditor,
   validateAcademicGradeBands,
+  validateCurriculumGradeBands,
   validateAttendanceConfiguration,
 } from "@/components/school/academic-policy-builders";
 import { Modal } from "@/components/ui/modal";
@@ -215,6 +216,12 @@ export function AcademicRecordManager({
         setDetailError("Choose at least one curriculum for this grading policy.");
         return;
       }
+      let configuration: unknown;
+      try { configuration = JSON.parse(String(data.get("rules_by_curriculum") ?? "{}")); }
+      catch { setDetailError("Grade bands could not be read. Review the fields and try again."); return; }
+      const gradingError = validateCurriculumGradeBands(curricula, configuration);
+      if (gradingError) { setDetailError(gradingError); return; }
+      body.rules_by_curriculum = configuration;
       body.curriculum_models = curricula;
       body.curriculum_model = curricula[0];
     }
@@ -344,6 +351,7 @@ export function AcademicRecordManager({
                       defaultValue={record[field.name]}
                       curriculumName={entityType === "grading-system" ? "curriculum_model" : undefined}
                       defaultCurriculum={typeof record.curriculum_model === "string" ? record.curriculum_model : undefined}
+                      defaultRulesByCurriculum={record.rules_by_curriculum as Record<string, unknown> | undefined}
                       defaultCurricula={Array.isArray(record.curriculum_models) ? record.curriculum_models as string[] : undefined}
                       initialPreset="blank"
                       theme="light"

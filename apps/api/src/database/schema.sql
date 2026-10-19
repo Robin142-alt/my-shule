@@ -812,6 +812,7 @@ CREATE TABLE academics_grading_systems (
   description text,
   curriculum_model text,
   curriculum_models jsonb NOT NULL DEFAULT '[]'::jsonb,
+  rules_by_curriculum jsonb NOT NULL DEFAULT '{}'::jsonb,
   is_active boolean NOT NULL DEFAULT TRUE,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW(),

@@ -47,7 +47,7 @@ import {
   UpdateSubjectDto,
 } from './dto/academic.dto';
 import { AcademicsRepository, type SetupDependencyResult } from './repositories/academics.repository';
-import { normalizeCurricula } from './curriculum-grading';
+import { normalizeCurricula, prepareCurriculumGrading } from './curriculum-grading';
 
 @Injectable()
 export class AcademicsService {
@@ -1156,6 +1156,7 @@ export class AcademicsService {
   async createGradingSystem(dto: CreateAcademicPolicyDto) {
     const tenantId = this.requireTenantId();
     const curriculumModels = normalizeCurricula(dto.curriculum_models, dto.curriculum_model);
+    const grading = prepareCurriculumGrading(curriculumModels, dto);
     if (dto.effective_from && dto.effective_to) {
       this.requireDateRange(dto.effective_from, dto.effective_to, 'Grading policy');
     }
@@ -1164,7 +1165,7 @@ export class AcademicsService {
       tenantId,
       this.requireText(dto.name, 'Grading system name'),
       dto.description?.trim() || null,
-      { rules: dto.rules ?? [], effective_from: dto.effective_from ?? null,
+      { ...grading, effective_from: dto.effective_from ?? null,
         effective_to: dto.effective_to ?? null, curriculum_model: curriculumModels[0],
         curriculum_models: curriculumModels },
     );
@@ -1182,7 +1183,13 @@ export class AcademicsService {
     if (dto.name && dto.name.trim().toLowerCase() !== String(previous.name).toLowerCase()) {
       await this.requireCreateNameAvailable(tenantId, 'academics_grading_systems', dto.name, 'grading policy');
     }
-    if (previous.status === 'published' && (dto.rules || dto.effective_from || dto.effective_to || dto.curriculum_models || dto.curriculum_model)) {
+    const selectedCurricula = dto.curriculum_models !== undefined || dto.curriculum_model !== undefined
+      ? normalizeCurricula(dto.curriculum_models, dto.curriculum_model)
+      : Array.isArray(previous.curriculum_models) && previous.curriculum_models.length
+        ? normalizeCurricula(previous.curriculum_models)
+        : previous.curriculum_model ? normalizeCurricula(undefined, previous.curriculum_model) : [];
+    const grading = prepareCurriculumGrading(selectedCurricula, dto, previous);
+    if (previous.status === 'published' && (dto.rules_by_curriculum || dto.rules || dto.effective_from || dto.effective_to || dto.curriculum_models || dto.curriculum_model)) {
       const versionedName = `${dto.name?.trim() || previous.name} v${Number(previous.version ?? 1) + 1}`;
       await this.requireCreateNameAvailable(tenantId, 'academics_grading_systems', versionedName, 'grading policy version');
       const curriculumModels = dto.curriculum_models !== undefined || dto.curriculum_model !== undefined
@@ -1194,8 +1201,8 @@ export class AcademicsService {
             : [];
       const cloned = await this.repository.createGradingSystem(tenantId, versionedName,
         dto.description?.trim() || previous.description || null, {
-          rules: dto.rules ?? previous.rules ?? [], effective_from: dto.effective_from ?? null,
-          effective_to: dto.effective_to ?? null,
+          ...grading, effective_from: dto.effective_from ?? previous.effective_from ?? null,
+          effective_to: dto.effective_to ?? previous.effective_to ?? null,
           curriculum_model: curriculumModels[0] ?? null,
           curriculum_models: curriculumModels,
           based_on_id: id,
@@ -1213,7 +1220,7 @@ export class AcademicsService {
       this.requireText(id, 'Grading system ID'),
       dto.name?.trim() || null,
       dto.description?.trim() || null,
-      { rules: dto.rules, effective_from: dto.effective_from ?? null,
+      { ...grading, effective_from: dto.effective_from ?? null,
         effective_to: dto.effective_to ?? null,
         curriculum_model: curriculumModels?.[0],
         curriculum_models: curriculumModels,

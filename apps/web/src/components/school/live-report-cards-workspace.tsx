@@ -506,7 +506,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     setFeedback(null);
     setRowFeedback((current) => ({
       ...current,
-      [report.id]: { tone: "ok", message: "Regenerating this report card from the latest locked marks..." },
+      [report.id]: { tone: "ok", message: "Regenerating this report card from the latest saved marks, grading policy and remarks..." },
     }));
     try {
       await requestSchoolApiProxy("/exams/report-cards/regenerate", {
@@ -517,7 +517,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           reason: reasonByReport[report.id]?.trim() || "Manual correction regeneration",
         },
       });
-      const message = "A new current report-card revision was generated from approved marks and personalized comments.";
+      const message = "A new current report-card revision was generated from the latest saved marks, grading policy and remarks.";
       setFeedback({ tone: "ok", message });
       setRowFeedback((current) => ({ ...current, [report.id]: { tone: "ok", message } }));
       await refreshAll();
@@ -1079,9 +1079,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           <section aria-label="Regenerate report cards" className="mt-5 border-t border-border-strong pt-4">
             <h3 className="text-lg font-black">Regenerate all report cards</h3>
             <p className="mt-2 text-sm text-muted">
-              Refresh existing drafts for {examSeriesOptions.find(exam => exam.id === examSeriesFilter)?.name ?? "a selected exam"}
+              Refresh existing reports for {examSeriesOptions.find(exam => exam.id === examSeriesFilter)?.name ?? "a selected exam"}
               {scope.classLabel ? ` / ${scope.classLabel}` : " across all classes"}{scope.streamLabel ? ` / ${scope.streamLabel}` : ""}{scope.studentLabel ? ` / ${scope.studentLabel}` : ""}.
-              This includes all pages. Unchanged cards are reused; reports under review, approved or published must follow the recall or withdrawal workflow first.
+              This includes all pages and all exam states. Each report uses the latest saved marks, grading policy and remarks. Published cards remain published; exam status and marks stay unchanged.
             </p>
             <Button className="mt-4" variant="secondary" disabled={Boolean(busyAction) || !examSeriesFilter || isLoading || Boolean(reportQuery.error || summaryQuery.error || hierarchyQuery.error || seriesQuery.error)}
               onClick={() => void requestBulkAction("regenerate", "Regenerate all")}>
@@ -1396,7 +1396,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
                         >
                           {busyAction === `${report.id}:download` ? "Downloading..." : "Download"}
                         </Button>
-                        {audience === "exams-manager" && ["draft", "draft_generated", "regeneration_required"].includes(status) ? (
+                        {audience === "exams-manager" ? (
                           <>
                             <Button
                               variant="secondary"
