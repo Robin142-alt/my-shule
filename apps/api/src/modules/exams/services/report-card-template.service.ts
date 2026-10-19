@@ -13,6 +13,7 @@ export interface ReportCardSubjectPayload {
   percentage?: number | null;
   grade_label: string | null;
   remarks: string | null;
+  manual_remarks?: string | null;
   points?: number | null;
   descriptor?: string | null;
   competency_outcome?: string | null;
@@ -89,7 +90,7 @@ export class ReportCardTemplateService {
         grade_label: boundary?.label ?? subject.grade_label,
         points: boundary?.points ?? subject.points,
         descriptor: boundary?.descriptor ?? subject.descriptor,
-        remarks: boundary?.remark ?? boundary?.descriptor ?? subject.remarks,
+        remarks: subject.manual_remarks ?? boundary?.remark ?? boundary?.descriptor ?? subject.remarks,
       };
     });
     const enteredSubjects = subjects.filter(isEnteredSubject);
@@ -477,6 +478,7 @@ export class ReportCardTemplateService {
         percentage: numberOrNull(row.percentage),
         grade_label: text(row.grade_label),
         remarks: text(row.remarks),
+        manual_remarks: text(row.manual_remarks),
         points: numberOrNull(row.points),
         descriptor: text(row.descriptor),
         competency_outcome: text(row.competency_outcome),
@@ -536,6 +538,7 @@ export class ReportCardTemplateService {
         descriptor: group.length === 1 ? first.descriptor : null,
         competency_outcome: group.length === 1 ? first.competency_outcome : null,
         remarks: uniqueRemarks.length ? uniqueRemarks.join(' | ') : null,
+        manual_remarks: group.map(subject => subject.manual_remarks).filter(Boolean).join(' | ') || null,
       };
     });
   }

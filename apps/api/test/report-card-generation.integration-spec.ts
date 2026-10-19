@@ -1,3 +1,5 @@
+import { AcademicsRepository } from '../src/modules/academics/repositories/academics.repository';
+import { AcademicsService } from '../src/modules/academics/academics.service';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -25,6 +27,7 @@ import { DatabaseFileStorageService } from '../src/common/uploads/database-file-
 describe('Report generation with the production staff schema', () => {
   let pool: Pool;
   let repository: ExamsRepository;
+  let academicRepository: AcademicsRepository;
   let generation: ReportCardGenerationService;
   let artifacts: ReportCardArtifactsService;
   let failArtifact = false;
@@ -135,6 +138,7 @@ describe('Report generation with the production staff schema', () => {
       },
     };
     repository = new ExamsRepository(prisma as never);
+    academicRepository = new AcademicsRepository(prisma as never);
     const requestContext = { requireStore: () => context, getStore: () => context } as never;
     const events = new SchoolOperationalEventsService(requestContext,
       new EventPublisherService(requestContext, new OutboxEventsRepository(prisma as never)),
@@ -191,6 +195,15 @@ describe('Report generation with the production staff schema', () => {
       VALUES ('school-a',$1,$2,$3,'open',NOW(),NOW()+INTERVAL '1 day')`, [ids.exam, ids.class, ids.subject]);
     await addStudents(students);
     await query(`INSERT INTO attendance_records VALUES ('school-a',$1,'PRESENT','2026-10-01'),('school-a',$1,'LATE','2026-10-02'),('school-a',$1,'ABSENT','2026-10-03')`, [students[0]]);
+    await query(`ALTER TABLE academics_grading_systems ADD COLUMN school_id text,
+      ADD COLUMN description text, ADD COLUMN status text DEFAULT 'draft', ADD COLUMN based_on_id text,
+      ADD COLUMN curriculum_model text, ADD COLUMN curriculum_models jsonb DEFAULT '[]',
+      ADD COLUMN rules_by_curriculum jsonb DEFAULT '{}';
+      ALTER TABLE academics_grading_systems ALTER COLUMN id SET DEFAULT gen_random_uuid();
+      ALTER TABLE academics_grading_systems ALTER COLUMN is_active SET DEFAULT TRUE;
+      ALTER TABLE academics_grading_systems ALTER COLUMN version SET DEFAULT 1;
+      CREATE UNIQUE INDEX grading_school_name ON academics_grading_systems(tenant_id,name);
+      ALTER TABLE class_sections ADD COLUMN curriculum_model text DEFAULT '8-4-4';`);
     await query(REPORT_SOURCE_TRIGGERS);
   }, 60000);
   afterAll(async () => { await pool?.end(); });
@@ -211,6 +224,41 @@ describe('Report generation with the production staff schema', () => {
   }
   const studentInput = () => ({ ...scope, student_id: students[0] });
   const count = async (table: string) => Number((await query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count);
+
+  it('persists independent school policies, preserves disabled scales and resolves the latest published-policy revision', async () => {
+    const service = new AcademicsService({ getStore: () => context } as never, academicRepository,
+      {} as never, { publish: async () => {} } as never, {} as never);
+    // Audit table belongs to the full academics schema; report audit/outbox are tested below.
+    const audit = jest.spyOn(academicRepository, 'appendAuditLog').mockResolvedValue(undefined as never);
+    const rules = {
+      '8-4-4': [{ label: 'A', min: 0, max: 100, points: 12, remark: 'Legacy saved' }],
+      CBC: [{ label: 'ME1', min: 0, max: 100, points: 6, remark: 'CBC saved' }],
+    };
+    let created: any;
+    try {
+      created = await service.createGradingSystem({ name: 'Independent persisted', curriculum_models: ['8-4-4','CBC'], rules_by_curriculum: rules });
+      expect((await academicRepository.getSetupRecord('school-a','grading-system',created.id)).rules_by_curriculum).toEqual({
+        '8-4-4': [{ ...rules['8-4-4'][0] }], CBC: [{ ...rules.CBC[0] }],
+      });
+      expect(await academicRepository.getSetupRecord('school-b','grading-system',created.id)).toBeNull();
+      expect(await academicRepository.updateGradingSystem('school-b',created.id,'Wrong school',null,{rules:[]})).toBeNull();
+      await query('UPDATE academics_report_card_settings SET grading_system_id=$1 WHERE tenant_id=$2',[created.id,'school-a']);
+      await query("UPDATE academics_grading_systems SET status='published' WHERE id=$1",[created.id]);
+      const latest = await service.updateGradingSystem(created.id,{ curriculum_models:['8-4-4','CBC'], rules_by_curriculum:{
+        ...rules, '8-4-4': [{...rules['8-4-4'][0],remark:'Latest saved legacy',points:11}],
+      }});
+      const data = await repository.loadReportCardData({...studentInput(),include_unfinalized:true});
+      expect((data.grading_policy as any).source_id).toBe(latest.id);
+      expect((data.subjects as any[])[0]).toMatchObject({points:11,descriptor:'Latest saved legacy'});
+      const onlyLegacy = await service.updateGradingSystem(latest.id,{ curriculum_models:['8-4-4'],rules_by_curriculum:{'8-4-4':rules['8-4-4']} });
+      expect((onlyLegacy.rules_by_curriculum as any).CBC[0].remark).toBe('CBC saved');
+      expect((await academicRepository.getSetupRecord('school-a','grading-system',created.id)).rules_by_curriculum).toEqual(rules);
+    } finally {
+      await query('UPDATE academics_report_card_settings SET grading_system_id=$1 WHERE tenant_id=$2',[ids.grading,'school-a']);
+      await query("DELETE FROM academics_grading_systems WHERE name LIKE 'Independent persisted%'");
+      audit.mockRestore();
+    }
+  });
 
   it('keeps a fully locked exam at report generation and reports genuine missing marks separately', async () => {
     const service = new ExamsService({ getStore: () => context } as never, repository, {} as never);
@@ -393,7 +441,7 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE tenants SET name='Test School' WHERE tenant_id='school-a'");
   });
 
-  it('regenerates a confirmed draft transactionally and rejects changed snapshots or unlocked marks', async () => {
+  it('regenerates confirmed drafts from saved marks and rejects changed snapshot confirmations', async () => {
     const first=await generation.generateStudentReportCard(studentInput());
     const read=async()=> (await query('SELECT id,updated_at::text FROM student_report_cards WHERE id=$1',[first.id])).rows[0];
     const preview=await read();
@@ -413,8 +461,35 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE student_report_cards SET status='draft_generated',updated_at=now() WHERE id=$1",[first.id]);
     const fresh=await read();
     await query("UPDATE exam_marks SET status='submitted' WHERE student_id=$1",[students[0]]);
-    await expect(generation.generateStudentReportCard({...input,expected_updated_at:fresh.updated_at})).rejects.toThrow(/moderated and locked/);
+    const submitted = await generation.generateStudentReportCard({...input,expected_updated_at:fresh.updated_at});
+    expect(submitted.status).toBe('draft_generated');
     await query("UPDATE exam_marks SET score=84,status='locked' WHERE student_id=$1",[students[0]]);
+  });
+
+  it.each(['draft', 'ongoing', 'completed', 'locked', 'published'])('regenerates published cards in %s exams from saved marks without mutating marks or exam state', async (examStatus) => {
+    const first = await generation.generateStudentReportCard(studentInput());
+    await query("UPDATE student_report_cards SET status='published',published_at=now() WHERE id=$1", [first.id]);
+    // These are production legacy text states; report generation must not depend on them.
+    await query("ALTER TABLE exam_series DROP CONSTRAINT IF EXISTS ck_exam_series_status");
+    await query('UPDATE exam_series SET status=$1 WHERE id=$2', [examStatus, ids.exam]);
+    await query("UPDATE exam_marks SET score=83,status='draft',remarks='Latest teacher remark' WHERE student_id=$1", [students[0]]);
+    const marksBefore = (await query('SELECT * FROM exam_marks WHERE student_id=$1', [students[0]])).rows;
+    const current = (await query('SELECT updated_at::text FROM student_report_cards WHERE id=$1',[first.id])).rows[0];
+    const regenerated = await generation.generateStudentReportCard({ ...studentInput(), regeneration_reason: 'Latest saved results',
+      reuse_existing: true, expected_report_card_id: first.id as string, expected_updated_at: current.updated_at });
+    expect(regenerated.status).toBe('published');
+    expect(regenerated.id).not.toBe(first.id);
+    expect(regenerated.supersedes_report_card_id).toBe(first.id);
+    expect(regenerated.revision_number).toBe(2);
+    expect(regenerated.published_at).toBeTruthy();
+    expect((regenerated.metadata as any).report_card.subjects[0]).toMatchObject({ score: 83, remarks: 'Latest teacher remark' });
+    expect((regenerated.metadata as any).report_card.totals.percentage).toBe(83);
+    expect((await query('SELECT * FROM exam_marks WHERE student_id=$1', [students[0]])).rows).toEqual(marksBefore);
+    expect((await query('SELECT status FROM exam_series WHERE id=$1', [ids.exam])).rows[0].status).toBe(examStatus);
+    expect((await query('SELECT is_current,status FROM student_report_cards WHERE id=$1', [first.id])).rows[0]).toEqual({ is_current: false, status: 'published' });
+    expect((await query("SELECT action FROM student_report_card_audit_logs WHERE report_card_id=$1", [regenerated.id])).rows).toEqual([{ action: 'report_card.regenerated' }]);
+    await query("UPDATE exam_marks SET score=84,status='locked',remarks=NULL WHERE student_id=$1", [students[0]]);
+    await query("UPDATE exam_series SET status='draft' WHERE id=$1", [ids.exam]);
   });
 
   it('migrates an identical legacy published report through class generation without changing its academic identity',async()=>{

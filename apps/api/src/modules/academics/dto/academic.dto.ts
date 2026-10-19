@@ -659,6 +659,7 @@ export class AcademicPolicyDto {
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsObject() configuration?: Record<string, unknown>;
   @IsOptional() @IsArray() @ArrayMaxSize(100) rules?: Array<Record<string, unknown>>;
+  @IsOptional() @IsObject() rules_by_curriculum?: Record<string, Array<Record<string, unknown>>>;
   @IsOptional() @IsDateString() effective_from?: string;
   @IsOptional() @IsDateString() effective_to?: string;
   @IsOptional() @IsString() grading_system_id?: string;

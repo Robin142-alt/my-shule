@@ -497,7 +497,7 @@ export class AcademicsRepository {
               ) item
             ), '[]'::jsonb) AS teacher_assignments,
             COALESCE((SELECT jsonb_agg(to_jsonb(item) ORDER BY item.name)
-              FROM (SELECT id::text, name, description, curriculum_model, curriculum_models, rules, effective_from, effective_to,
+              FROM (SELECT id::text, name, description, curriculum_model, curriculum_models, rules, rules_by_curriculum, effective_from, effective_to,
                            status, based_on_id, is_active, version, archived_at
                     FROM academics_grading_systems WHERE tenant_id = $1) item), '[]'::jsonb) AS grading_systems,
             COALESCE((SELECT jsonb_agg(to_jsonb(item) ORDER BY item.name)
@@ -2072,17 +2072,18 @@ export class AcademicsRepository {
     const result = await this.executeSql(
       tenantId,
        `INSERT INTO academics_grading_systems (
-          school_id, tenant_id, name, description, rules, curriculum_model, curriculum_models,
+          school_id, tenant_id, name, description, rules, curriculum_model, curriculum_models, rules_by_curriculum,
           effective_from, effective_to, status, based_on_id, updated_at
         )
-       VALUES ($1, $1, $2, $3, $4::jsonb, $9, $10::jsonb, $5::date, $6::date, $7, $8, NOW())
+       VALUES ($1, $1, $2, $3, $4::jsonb, $9, $10::jsonb, $11::jsonb, $5::date, $6::date, $7, $8, NOW())
        ON CONFLICT (tenant_id, name)
        DO NOTHING
        RETURNING *`,
       [tenantId, name, description, JSON.stringify(options.rules ?? []),
         options.effective_from ?? null, options.effective_to ?? null,
         options.status ?? 'draft', options.based_on_id ?? null, options.curriculum_model ?? null,
-        JSON.stringify(options.curriculum_models ?? (options.curriculum_model ? [options.curriculum_model] : []))],
+        JSON.stringify(options.curriculum_models ?? (options.curriculum_model ? [options.curriculum_model] : [])),
+        JSON.stringify(options.rules_by_curriculum ?? {})],
     );
     return result.rows[0];
   }
@@ -2099,7 +2100,8 @@ export class AcademicsRepository {
       `UPDATE academics_grading_systems
        SET name = COALESCE($3, name), description = COALESCE($4, description),
            rules = COALESCE($5::jsonb, rules), curriculum_model = COALESCE($9, curriculum_model),
-           curriculum_models = COALESCE($10::jsonb, curriculum_models), effective_from = COALESCE($6::date, effective_from),
+           curriculum_models = COALESCE($10::jsonb, curriculum_models),
+           rules_by_curriculum = COALESCE($11::jsonb, rules_by_curriculum), effective_from = COALESCE($6::date, effective_from),
            effective_to = COALESCE($7::date, effective_to),
            version = version + 1, updated_at = NOW()
        WHERE tenant_id = $1 AND id::text = $2
@@ -2109,7 +2111,8 @@ export class AcademicsRepository {
         options.rules === undefined ? null : JSON.stringify(options.rules),
         options.effective_from ?? null, options.effective_to ?? null,
         options.expected_version ?? null, options.curriculum_model ?? null,
-        options.curriculum_models === undefined ? null : JSON.stringify(options.curriculum_models)],
+        options.curriculum_models === undefined ? null : JSON.stringify(options.curriculum_models),
+        options.rules_by_curriculum === undefined ? null : JSON.stringify(options.rules_by_curriculum)],
     );
     return result.rows[0] ?? null;
   }

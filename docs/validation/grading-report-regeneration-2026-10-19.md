@@ -1,0 +1,9 @@
+# Grading policies and report regeneration
+
+Grading policies accept `rules_by_curriculum`, an object mapping canonical curriculum names to independent grade-band arrays. `curriculum_models` identifies the selected curricula; `rules` remains a compatibility projection of the first selected scale. Each selected scale is validated independently for complete, nonoverlapping 0-100 coverage. School scope, optimistic policy versions, audit records and academic policy events remain enforced. Previously saved scales, additional rule fields and disabled curriculum configurations are retained.
+
+The curriculum checkboxes directly expose their editable scales. The editor keeps every grade band horizontal on desktop and phones; small screens scroll within each curriculum panel. Adding, deleting, editing, saving and reopening use the same persisted school policy.
+
+Explicit single and scoped regeneration load current saved marks without requiring moderation, locking, recall or withdrawal. Ordinary generation and publication retain their existing permission and readiness checks. Regeneration does not write exam states or marks. Current published, approved and review cards receive a new linked revision with their existing workflow status; publication identity and historical PDFs remain traceable. Regeneration reasons, actors, artifacts, audits and school events persist transactionally.
+
+Verification includes school-scoped policy create/update/versioning in PostgreSQL, disabled-scale preservation, current policy resolution, report generation across draft/ongoing/completed/locked/published exams, published revision history, unchanged exam/mark rows, tenant isolation and failure rollback. Browser checks exercise real workspace create/edit/save/reload at 1440, 768, 390 and 320 pixels, asserting horizontal readable fields and no page overflow. Focused grading/editor, foundation and report-action suites pass; production builds and broader regressions run in CI.

@@ -25,7 +25,7 @@ import {
   AcademicAttendancePolicyEditor,
   AcademicGradeBandsEditor,
   AcademicReportCardPolicyEditor,
-  validateAcademicGradeBands,
+  validateCurriculumGradeBands,
   validateAttendanceConfiguration,
 } from "@/components/school/academic-policy-builders";
 import { AcademicAssignmentEndButton, AcademicRecordManager, AcademicTeacherReassignmentButton } from "@/components/school/academic-record-manager";
@@ -56,6 +56,7 @@ type PolicySetting = LifecycleRecord & {
   show_rank?: boolean;
   show_attendance?: boolean;
   rules?: Array<Record<string, unknown>>;
+  rules_by_curriculum?: Record<string, Array<Record<string, unknown>>>;
   configuration?: Record<string, unknown>;
   effective_from?: string | null;
   effective_to?: string | null;
@@ -629,12 +630,14 @@ export function AcademicFoundationWorkspace({
       if (kind === "grading") {
         const rules = JSON.parse(value(data, "rules") || "[]") as unknown;
         const curricula = JSON.parse(value(data, "curriculum_models") || "[]") as unknown;
-        const validation = validateAcademicGradeBands(rules);
+        const configuration = JSON.parse(value(data, "rules_by_curriculum") || "{}");
+        const validation = validateCurriculumGradeBands(curricula, configuration);
         if (validation) throw new Error(validation);
         if (!Array.isArray(curricula) || curricula.length === 0 || curricula.some((item) => typeof item !== "string" || !item.trim())) {
           throw new Error("Choose at least one curriculum for this grading policy.");
         }
         body.rules = rules;
+        body.rules_by_curriculum = configuration;
         body.curriculum_models = curricula;
         body.curriculum_model = curricula[0];
       } else if (kind === "attendance") {

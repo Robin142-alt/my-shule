@@ -265,6 +265,24 @@ function useFormReset(containerRef: RefObject<HTMLDivElement | null>, reset: () 
   }, [containerRef, reset]);
 }
 
+function inferBandCurriculum(input: unknown): string | null {
+  if (!Array.isArray(input) || !input.length) return null;
+  const labels = input.map(band => String(band?.label ?? "").trim().toUpperCase());
+  if (labels.every(label => /^[A-E][+-]?$/.test(label))) return "8-4-4";
+  if (labels.every(label => /^(EE|ME|AE|BE)[12]?$/.test(label))) return "CBC";
+  return null;
+}
+
+export function validateCurriculumGradeBands(curricula: unknown, configuration: unknown): string | null {
+  if (!Array.isArray(curricula) || !curricula.length) return "Choose at least one curriculum.";
+  const map = configuration && typeof configuration === "object" ? configuration as Record<string, unknown> : {};
+  for (const curriculum of curricula) {
+    const error = validateAcademicGradeBands(map[String(curriculum)]);
+    if (error) return `${curriculum}: ${error}`;
+  }
+  return null;
+}
+
 export function AcademicGradeBandsEditor({
   name,
   label = "Grade bands and assessment rules",
@@ -272,6 +290,7 @@ export function AcademicGradeBandsEditor({
   curriculumName,
   defaultCurriculum,
   defaultCurricula,
+  defaultRulesByCurriculum,
   initialPreset = "secondary",
   theme = "dark",
 }: {
@@ -281,35 +300,49 @@ export function AcademicGradeBandsEditor({
   curriculumName?: string;
   defaultCurriculum?: string;
   defaultCurricula?: string[];
+  defaultRulesByCurriculum?: Record<string, unknown>;
   initialPreset?: "secondary" | "cbc" | "blank";
   theme?: EditorTheme;
 }) {
-  const buildInitialRows = useCallback(
-    () => initialGradeBands(defaultValue, initialPreset),
-    [defaultValue, initialPreset],
-  );
-  const [rows, setRows] = useState<GradeBandState[]>(buildInitialRows);
   const buildInitialCurricula = useCallback(() => {
     const initial = defaultCurricula?.length
       ? defaultCurricula
       : defaultCurriculum
         ? [defaultCurriculum]
         : defaultValue
-          ? []
+          ? [inferBandCurriculum(defaultValue) || "8-4-4"]
           : [initialPreset === "cbc" ? "CBC" : "8-4-4"];
     return [...new Set(initial.map((value) => value.trim()).filter(Boolean))];
   }, [defaultCurricula, defaultCurriculum, defaultValue, initialPreset]);
   const [curricula, setCurricula] = useState<string[]>(buildInitialCurricula);
+  const buildInitialRows = useCallback(() => {
+    if (!curriculumName) return { "": initialGradeBands(defaultValue, initialPreset) };
+    const initial = buildInitialCurricula();
+    const saved: Record<string, GradeBandState[]> = Object.fromEntries(Object.entries(defaultRulesByCurriculum ?? {})
+      .map(([key, bands]) => [key, initialGradeBands(bands, "blank")]));
+    const inferred = inferBandCurriculum(defaultValue);
+    const legacy = initial.length === 1 && defaultCurriculum ? defaultCurriculum
+      : inferred === "CBC" && defaultCurriculum === "CBE" ? "CBE" : inferred || defaultCurriculum || initial[0];
+    if (legacy && Array.isArray(defaultValue) && defaultValue.length && !saved[legacy]) {
+      saved[legacy] = initialGradeBands(defaultValue, "blank");
+    }
+    for (const key of initial) {
+      saved[key] ??= initialGradeBands(undefined, key === "8-4-4" ? "secondary" : ["CBC", "CBE"].includes(key) ? "cbc" : "blank");
+    }
+    return saved;
+  }, [curriculumName, defaultValue, defaultRulesByCurriculum, defaultCurriculum, initialPreset, buildInitialCurricula]);
+  const [bandsByCurriculum, setBandsByCurriculum] = useState<Record<string, GradeBandState[]>>(buildInitialRows);
   const initialCustomCurriculum = curricula.find((value) => !["CBC", "8-4-4"].includes(value)) ?? "";
   const [customEnabled, setCustomEnabled] = useState(Boolean(initialCustomCurriculum));
   const [customCurriculum, setCustomCurriculum] = useState(initialCustomCurriculum);
   const containerRef = useRef<HTMLDivElement>(null);
   const styles = themeClasses[theme];
-  const serialized = useMemo(() => serializedGradeBands(rows), [rows]);
-  const validation = validateAcademicGradeBands(serialized);
+  const serializedByCurriculum = useMemo(() => Object.fromEntries(curricula.map(key => [key,
+    serializedGradeBands(bandsByCurriculum[key] ?? [])])), [curricula, bandsByCurriculum]);
+  const serialized = curriculumName ? serializedByCurriculum[curricula[0]] ?? [] : serializedGradeBands(bandsByCurriculum[""] ?? []);
 
   const resetRows = useCallback(() => {
-    setRows(buildInitialRows());
+    setBandsByCurriculum(buildInitialRows());
     const initial = buildInitialCurricula();
     setCurricula(initial);
     const custom = initial.find((value) => !["CBC", "8-4-4"].includes(value)) ?? "";
@@ -320,18 +353,15 @@ export function AcademicGradeBandsEditor({
   useEffect(resetRows, [resetRows]);
   useFormReset(containerRef, resetRows);
 
-  const update = (id: string, change: Partial<GradeBandState>) => {
-    setRows((current) => current.map((row) => row.id === id ? { ...row, ...change } : row));
+  const changeRows = (key: string, change: (current: GradeBandState[]) => GradeBandState[]) => {
+    setBandsByCurriculum(current => ({ ...current, [key]: change(current[key] ?? []) }));
   };
-
   const applyPreset = (preset: "secondary" | "cbc") => {
-    setRows((preset === "secondary" ? SECONDARY_GRADE_BANDS : CBC_GRADE_BANDS).map(gradeBandState));
-    if (curriculumName && !defaultValue) {
-      setCurricula([preset === "cbc" ? "CBC" : "8-4-4"]);
-      setCustomEnabled(false);
-      setCustomCurriculum("");
-    }
+    changeRows("", () => (preset === "secondary" ? SECONDARY_GRADE_BANDS : CBC_GRADE_BANDS).map(gradeBandState));
   };
+  const ensureCurriculum = (key: string) => setBandsByCurriculum(current => current[key] ? current : {
+    ...current, [key]: initialGradeBands(undefined, key === "8-4-4" ? "secondary" : ["CBC", "CBE"].includes(key) ? "cbc" : "blank"),
+  });
 
   return (
     <div ref={containerRef} className={`rounded-xl border p-3 sm:p-4 ${styles.panel}`}>
@@ -339,9 +369,10 @@ export function AcademicGradeBandsEditor({
       {curriculumName ? (
         <fieldset className="mb-4 space-y-2">
           <legend className={`text-sm font-black ${styles.label}`}>Curriculum for this grading policy</legend>
-          <p className={`text-xs ${styles.muted}`}>Select every curriculum that uses these grade bands. Reports use this policy for matching classes.</p>
+          <p className={`text-xs ${styles.muted}`}>Select curricula to edit their grade bands independently. Reports use the bands matching each class.</p>
           <input type="hidden" name={curriculumName} value={curricula[0] ?? ""} />
           <input type="hidden" name="curriculum_models" value={JSON.stringify(curricula)} />
+          <input type="hidden" name="rules_by_curriculum" value={JSON.stringify(serializedByCurriculum)} />
           <div className="flex flex-wrap gap-4">
             {["8-4-4", "CBC", "Configure another system"].map((choice) => {
               const custom = choice === "Configure another system";
@@ -357,6 +388,7 @@ export function AcademicGradeBandsEditor({
                       }
                       return;
                     }
+                    if (event.target.checked) ensureCurriculum(choice);
                     setCurricula((current) => event.target.checked
                       ? [...current.filter((value) => value !== choice), choice]
                       : current.filter((value) => value !== choice));
@@ -370,6 +402,7 @@ export function AcademicGradeBandsEditor({
             <input value={customCurriculum} onChange={(event) => {
               const value = event.target.value;
               setCustomCurriculum(value);
+              if (value.trim()) ensureCurriculum(value.trim());
               const standards = curricula.filter((item) => ["CBC", "8-4-4"].includes(item));
               setCurricula(value.trim() ? [...standards, value.trim()] : standards);
             }} maxLength={100} required placeholder="e.g. Cambridge" className={`${baseInputClass} ${styles.input}`} />
@@ -377,6 +410,13 @@ export function AcademicGradeBandsEditor({
           {!curricula.length ? <p className="text-amber-600">Choose at least one curriculum before saving this policy.</p> : null}
         </fieldset>
       ) : null}
+      {(curriculumName ? curricula : [""]).map((key) => {
+        const rows = bandsByCurriculum[key] ?? [];
+        const validation = validateAcademicGradeBands(serializedGradeBands(rows));
+        const update = (id: string, change: Partial<GradeBandState>) => changeRows(key,
+          current => current.map(row => row.id === id ? { ...row, ...change } : row));
+        return <fieldset key={key} aria-label={key ? `${key} grade bands` : undefined} className="mt-4 min-w-0 space-y-3">
+        {key ? <legend className={`text-base font-black ${styles.label}`}>{key} grade bands</legend> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className={`text-sm font-black ${styles.label}`}>{label}</p>
@@ -384,7 +424,7 @@ export function AcademicGradeBandsEditor({
             Add one row per outcome. Mark ranges must cover 0 to 100 without gaps or overlaps.
           </p>
         </div>
-        {!curriculumName || !defaultValue ? <div className="flex flex-wrap gap-2">
+        {!curriculumName ? <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => applyPreset("secondary")} className={`min-h-9 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
             8-4-4
           </button>
@@ -394,30 +434,32 @@ export function AcademicGradeBandsEditor({
         </div> : null}
       </div>
 
-      <div className="mt-4 space-y-3">
+      <p className={`text-xs sm:hidden ${styles.muted}`}>Swipe sideways to edit all grade-band fields.</p>
+      <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl pb-2" tabIndex={0} role="region" aria-label={key ? `${key} editable grade bands` : "Editable grade bands"}>
+      <div className="space-y-3" style={{ minWidth: 680 }}>
         {rows.map((row, index) => (
-          <div key={row.id} className={`grid gap-3 rounded-xl border p-3 sm:grid-cols-2 xl:grid-cols-12 ${styles.row}`}>
-            <label className={`text-xs font-bold xl:col-span-2 ${styles.label}`}>
+          <div key={row.id} className={`grid items-end gap-3 rounded-xl border p-3 ${styles.row}`} style={{ gridTemplateColumns: "minmax(70px,1fr) minmax(72px,1fr) minmax(72px,1fr) minmax(64px,0.8fr) minmax(160px,2fr) 48px" }}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Grade label
               <input value={row.label} onChange={(event) => update(row.id, { label: event.target.value })} placeholder={index === 0 ? "A or EE1" : "Grade"} className={`${baseInputClass} ${styles.input}`} required />
             </label>
-            <label className={`text-xs font-bold xl:col-span-2 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Minimum mark
               <input type="number" min="0" max="100" step="1" value={row.min} onChange={(event) => update(row.id, { min: event.target.value })} className={`${baseInputClass} ${styles.input}`} required />
             </label>
-            <label className={`text-xs font-bold xl:col-span-2 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Maximum mark
               <input type="number" min="0" max="100" step="1" value={row.max} onChange={(event) => update(row.id, { max: event.target.value })} className={`${baseInputClass} ${styles.input}`} required />
             </label>
-            <label className={`text-xs font-bold xl:col-span-2 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Points
               <input type="number" min="0" step="1" value={row.points} onChange={(event) => update(row.id, { points: event.target.value })} placeholder="Optional" className={`${baseInputClass} ${styles.input}`} />
             </label>
-            <label className={`text-xs font-bold sm:col-span-2 xl:col-span-3 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Report remark
               <input value={row.remark} onChange={(event) => update(row.id, { remark: event.target.value })} placeholder="e.g. Excellent" className={`${baseInputClass} ${styles.input}`} />
             </label>
-            <div className="flex items-end justify-between gap-2 sm:col-span-2 xl:col-span-1 xl:flex-col xl:items-stretch">
+            <div className="flex items-end justify-between gap-2 flex-col items-stretch">
               <label className={`flex min-h-10 items-center gap-2 text-xs font-bold ${styles.label}`}>
                 <input type="checkbox" checked={row.isPass} onChange={(event) => update(row.id, { isPass: event.target.checked })} />
                 Pass
@@ -426,7 +468,7 @@ export function AcademicGradeBandsEditor({
                 type="button"
                 aria-label={`Remove ${row.label || `grade band ${index + 1}`}`}
                 disabled={rows.length === 1}
-                onClick={() => setRows((current) => current.filter((item) => item.id !== row.id))}
+                onClick={() => changeRows(key, (current) => current.filter((item) => item.id !== row.id))}
                 className={`inline-flex min-h-9 items-center justify-center rounded-lg border px-2 disabled:cursor-not-allowed disabled:opacity-35 ${styles.dangerButton}`}
               >
                 <Trash2 className="h-4 w-4" />
@@ -435,15 +477,18 @@ export function AcademicGradeBandsEditor({
           </div>
         ))}
       </div>
+      </div>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <button type="button" onClick={() => setRows((current) => [...current, blankGradeBand()])} className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
+        <button type="button" onClick={() => changeRows(key, (current) => [...current, blankGradeBand()])} className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
           <Plus className="h-4 w-4" /> Add grade band
         </button>
         <p aria-live="polite" className={`text-xs font-bold ${validation ? "text-amber-300" : theme === "dark" ? "text-emerald-300" : "text-success"}`}>
           {validation ?? `${rows.length} grade bands cover every mark from 0 to 100.`}
         </p>
       </div>
+      </fieldset>;
+      })}
     </div>
   );
 }

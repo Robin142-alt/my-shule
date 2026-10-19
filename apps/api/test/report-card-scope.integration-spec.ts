@@ -206,14 +206,14 @@ describe('Report-card scopes and batch transitions', () => {
     expect((await query('SELECT * FROM student_report_card_audit_logs')).rows).toHaveLength(0);
   });
 
-  it('previews stale drafts for regeneration while excluding protected reports and other schools', async () => {
+  it('previews every current report for regeneration while excluding other schools', async () => {
     await query("UPDATE student_report_cards SET status=CASE id WHEN $1::uuid THEN 'approved' WHEN $2::uuid THEN 'published' ELSE status END,metadata='{}'::jsonb",[cards[3],cards[4]]);
     const summary=await repository.getReportCardScopeSummary({...base,target_action:'regenerate'});
     expect(summary.total_cards).toBe(6);
-    expect(summary.eligible_cards).toBe(3);
-    expect(summary.skipped_cards.map(card=>card.id).sort()).toEqual([cards[1],cards[3],cards[4]].sort());
+    expect(summary.eligible_cards).toBe(6);
+    expect(summary.skipped_cards).toEqual([]);
     const scoped=await repository.resolveReportCardScope({...base,class_section_id:'grade9',target_action:'regenerate'});
-    expect(scoped.cards.filter(card=>!card.ineligible_reason).map(card=>card.id)).toEqual([cards[5]]);
+    expect(scoped.cards.filter(card=>!card.ineligible_reason).map(card=>card.id).sort()).toEqual([cards[4],cards[5]].sort());
     await query("UPDATE student_report_cards SET status='under_review',updated_at=now() WHERE id=$1",[cards[0]]);
     expect((await repository.getReportCardScopeSummary({...base,target_action:'regenerate'})).preview_token).not.toBe(summary.preview_token);
   });

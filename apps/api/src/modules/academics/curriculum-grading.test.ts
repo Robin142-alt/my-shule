@@ -165,11 +165,15 @@ test('an untagged saved 8-4-4 policy is selected over the exam preferred CBC pol
   assert.equal((data.grading_policy as any).source_id, 'legacy-844-policy');
 });
 
-test('one grading policy applies to each explicitly selected curriculum using that class reporting mode', async () => {
+test('one grading policy uses independent saved bands for each selected class curriculum', async () => {
   const input = { tenant_id: 'school-a', exam_series_id: 'exam', student_id: 'student' };
   const gradingSystem = {
     id: 'shared-policy', name: 'Shared school policy', curriculum_model: '8-4-4',
     curriculum_models: ['8-4-4', 'CBC'], version: 3,
+    rules_by_curriculum: {
+      '8-4-4': [{ label: 'A', min: 60, max: 100, points: 12 }, { label: 'E', min: 0, max: 59, points: 1 }],
+      CBC: [{ label: 'ME1', min: 60, max: 100, points: 6 }, { label: 'BE1', min: 0, max: 59, points: 1 }],
+    },
     rules: [
       { label: 'A', min: 60, max: 100, points: 12 },
       { label: 'E', min: 0, max: 59, points: 1 },
@@ -182,6 +186,9 @@ test('one grading policy applies to each explicitly selected curriculum using th
     preferredSystemId: 'shared-policy', gradingSystem,
   }).loadReportCardData(input);
 
+  assert.equal((legacy.subjects as any[])[0].grade_label, 'A');
+  assert.equal((competency.subjects as any[])[0].grade_label, 'ME1');
+  assert.equal((competency.subjects as any[])[0].points, 6);
   assert.equal((legacy.grading_policy as any).source_id, 'shared-policy');
   assert.equal((competency.grading_policy as any).source_id, 'shared-policy');
   assert.equal((legacy.grading_policy as any).reporting_mode, 'traditional');
@@ -218,4 +225,48 @@ test('mark validation passes the class and assessment maximum to curriculum grad
   );
   const validated = await (service as any).validateMarkEntry({ ...scope, student_id: 'learner', score: 32.5 }, 'school-a', 'teacher');
   assert.equal(validated.grade_boundary.label, 'ME1');
+});
+
+
+test('independent curriculum bands are validated and persisted without mixing the compatibility rules', async () => {
+  const writes: any[] = [];
+  const service = new AcademicsService(
+    { getStore: () => ({ tenant_id: 'school-a', user_id: 'actor', role: 'deputy_principal' }) } as never,
+    { executeSql: async () => ({ rows: [] }),
+      createGradingSystem: async (_tenant: string, _name: string, _description: string, options: any) => {
+        writes.push(options); return { id: 'policy', ...options };
+      }, appendAuditLog: async () => {},
+    } as never, {} as never, { publish: async () => {} } as never, {} as never,
+  );
+  const independent = {
+    '8-4-4': [{ label: 'A', min: 60, max: 100, points: 12 }, { label: 'E', min: 0, max: 59, points: 1 }],
+    CBC: [{ label: 'ME1', min: 60, max: 100, points: 6 }, { label: 'BE1', min: 0, max: 59, points: 1 }],
+  };
+  await service.createGradingSystem({ name: 'Independent', curriculum_models: ['844', 'CBC'],
+    rules, rules_by_curriculum: independent } as any);
+  assert.deepEqual(writes[0].rules_by_curriculum, independent);
+  assert.deepEqual(writes[0].rules, independent['8-4-4']);
+  await assert.rejects(service.createGradingSystem({ name: 'Invalid', curriculum_models: ['844', 'CBC'],
+    rules_by_curriculum: { '8-4-4': independent['8-4-4'] } } as any), /CBC.*grade bands/i);
+  await assert.rejects(service.createGradingSystem({ name: 'Gap', curriculum_models: ['CBC'],
+    rules_by_curriculum: { CBC: [{ label: 'ME1', min: 1, max: 100 }] } } as any), /gaps or overlaps/i);
+  assert.equal(writes.length, 1);
+});
+
+
+test('explicit single-curriculum policies preserve school-defined labels regardless of their grade family', async () => {
+  const data = await reportRepository('CBC', { gradingSystem: { id: 'custom-cbc', name: 'School CBC',
+    curriculum_model: 'CBC', curriculum_models: ['CBC'], version: 1,
+    rules: [{ label: 'A', min: 0, max: 100, points: 8, remark: 'School CBC label' }],
+  }}).loadReportCardData({ tenant_id: 'school-a', exam_series_id: 'exam', student_id: 'student' });
+  assert.equal((data.subjects as any[])[0].grade_label, 'A');
+  assert.equal((data.grading_policy as any).reporting_mode, 'competency');
+});
+
+
+test('legacy shared competency bands cannot silently grade an 8-4-4 class', async () => {
+  await assert.rejects(reportRepository('8-4-4', { preferredSystemId: 'legacy-shared', gradingSystem: {
+    id: 'legacy-shared', name: 'Shared legacy', curriculum_model: '8-4-4', curriculum_models: ['8-4-4','CBC'], version: 1,
+    rules: [{ label: 'EE1', min: 0, max: 100, points: 8 }],
+  }}).loadReportCardData({tenant_id:'school-a',exam_series_id:'exam',student_id:'student'}), /CBC grading bands.*8-4-4/i);
 });

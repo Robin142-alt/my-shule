@@ -1,6 +1,6 @@
 import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
-import { inferLegacyGradingCurriculum } from '../../academics/curriculum-grading';
+import { gradingRulesForCurriculum, inferLegacyGradingCurriculum } from '../../academics/curriculum-grading';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 import { reportPdfIdentity } from '../services/report-artifact-identity';
 import { buildScopeSqlClause, parseReportCardScope, reportCardIneligibilitySql, reportCardPreviewToken,
@@ -1493,7 +1493,8 @@ export class ExamsRepository {
           FROM current_card
           WHERE card.tenant_id = current_card.tenant_id
             AND card.id = current_card.id
-            AND current_card.status IN ('published', 'withdrawn')
+            AND (current_card.status IN ('published', 'withdrawn')
+              OR (NULLIF($6::jsonb->>'regeneration_reason', '') IS NOT NULL AND current_card.status IN ('under_review', 'approved')))
             AND NOT EXISTS (SELECT 1 FROM updated)
           RETURNING card.id
         ), next_revision AS (
@@ -1517,7 +1518,9 @@ export class ExamsRepository {
           template_version,
           approved_result_version,
           verification_code,
+          submitted_by_user_id, submitted_at, approved_by_user_id, approved_at, approval_role,
           published_by_user_id,
+          published_at,
           metadata
         )
         SELECT
@@ -1525,7 +1528,8 @@ export class ExamsRepository {
           $2::uuid,
           $3::uuid,
           $4,
-          $7,
+          CASE WHEN NULLIF($6::jsonb->>'regeneration_reason', '') IS NOT NULL
+            AND current_card.status IN ('published','under_review','approved') THEN current_card.status ELSE $7 END,
           next_revision.revision_number,
           TRUE,
           current_card.id,
@@ -1534,7 +1538,12 @@ export class ExamsRepository {
           $11::integer,
           $12,
           $8,
-          $5::uuid,
+          current_card.submitted_by_user_id, current_card.submitted_at,
+          current_card.approved_by_user_id, current_card.approved_at, current_card.approval_role,
+          CASE WHEN NULLIF($6::jsonb->>'regeneration_reason', '') IS NOT NULL AND current_card.status = 'published'
+            THEN current_card.published_by_user_id ELSE $5::uuid END,
+          CASE WHEN NULLIF($6::jsonb->>'regeneration_reason', '') IS NOT NULL AND current_card.status = 'published'
+            THEN current_card.published_at ELSE NULL END,
           $6::jsonb
         FROM next_revision
         LEFT JOIN current_card ON TRUE
@@ -2094,12 +2103,11 @@ export class ExamsRepository {
         const expected = await scoped.executeSql(`SELECT id FROM student_report_cards
           WHERE tenant_id=$1 AND exam_series_id=$2::uuid AND student_id=$3::uuid
             AND id=$4::uuid AND updated_at=$5::timestamptz AND is_current=TRUE
-            AND status IN ('draft_requested','draft_generated','draft','regeneration_required','withdrawn')
           FOR UPDATE`, [tenantId, input.exam_series_id, input.student_id,
           input.expected_report_card_id, input.expected_updated_at]);
         if (!expected.rows.length) throw new ConflictException('This report changed after the preview. Refresh and preview regeneration again.');
       }
-      if (input.reuse_existing === true) {
+      if (input.reuse_existing === true && !((input.metadata as Record<string, unknown>)?.regeneration_reason)) {
         const protectedCard = await scoped.executeSql(
           `SELECT id FROM student_report_cards WHERE tenant_id = $1 AND exam_series_id = $2::uuid
             AND student_id = $3::uuid AND is_current = TRUE AND status IN ('under_review', 'approved', 'published')`,
@@ -2235,6 +2243,7 @@ export class ExamsRepository {
     exam_series_id: string;
     student_id: string;
     read_cache?: ReportCardReadCache;
+    include_unfinalized?: boolean;
     read_cache_version?: string;
   }): Promise<Record<string, unknown>> {
     const readShared = (sql: string, params: unknown[]) => {
@@ -2532,7 +2541,7 @@ export class ExamsRepository {
       ? { rows: [] as Record<string, unknown>[], rowCount: 0 }
       : await readShared(
         `
-          WITH preferred_grading AS (
+          WITH RECURSIVE preferred_grading AS (
             SELECT COALESCE(
               (
                 SELECT NULLIF(to_jsonb(series)->>'grading_system_id', '')
@@ -2550,12 +2559,20 @@ export class ExamsRepository {
                 LIMIT 1
               )
             ) AS grading_system_id
+          ), preferred_family AS (
+            SELECT grading_system_id AS id, ARRAY[grading_system_id] AS visited FROM preferred_grading
+            UNION ALL
+            SELECT child.id::text, family.visited || child.id::text
+            FROM academics_grading_systems child JOIN preferred_family family
+              ON to_jsonb(child)->>'based_on_id' = family.id
+            WHERE child.tenant_id = $1 AND NOT child.id::text = ANY(family.visited)
           )
           SELECT
             system.id::text,
             system.name,
             to_jsonb(system) ->> 'curriculum_model' AS curriculum_model,
             to_jsonb(system) -> 'curriculum_models' AS curriculum_models,
+            to_jsonb(system) -> 'rules_by_curriculum' AS rules_by_curriculum,
             preferred.grading_system_id AS preferred_grading_system_id,
             system.version,
             system.effective_from::text,
@@ -2594,7 +2611,7 @@ export class ExamsRepository {
                 WHERE replace(lower(btrim(selected_curriculum.value)), '-', '') = replace(lower(btrim($3::text)), '-', '')
               )
             ), FALSE) DESC,
-            (system.id::text = preferred.grading_system_id) DESC,
+            (system.id::text IN (SELECT id FROM preferred_family)) DESC,
             system.updated_at DESC,
             system.created_at DESC
         `,
@@ -2602,14 +2619,10 @@ export class ExamsRepository {
       );
     const normalizeCurriculumKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
     const gradingSystemCurriculum = (system: Record<string, unknown>) => {
-      const selectedCurricula = Array.isArray(system.curriculum_models)
-        ? system.curriculum_models.filter((value): value is string => typeof value === 'string')
-        : [];
-      if (classCurriculum && selectedCurricula.some((value) =>
-        normalizeCurriculumKey(value) === normalizeCurriculumKey(classCurriculum),
-      )) return classCurriculum;
-      const declared = typeof system.curriculum_model === 'string' ? system.curriculum_model.trim() : '';
-      return declared || inferLegacyGradingCurriculum(classCurriculum, system.rules);
+      if (classCurriculum && gradingRulesForCurriculum(system, classCurriculum)) return classCurriculum;
+      const inferred = inferLegacyGradingCurriculum(classCurriculum, system.rules);
+      return Array.isArray(system.curriculum_models) && system.curriculum_models.length > 1
+        ? inferred || system.curriculum_model : system.curriculum_model || inferred;
     };
     let academicGradingSystem = classCurriculum
       ? academicGradingSystemResult.rows.find((system) =>
@@ -2665,6 +2678,7 @@ export class ExamsRepository {
           COALESCE(subject.name, assessment.name, '') AS subject_name,
           mark.score::float AS score,
           mark.score_status,
+          mark.remarks AS manual_remarks,
           assessment.name AS assessment_name,
           assessment.weight::float AS assessment_weight,
           assessment.max_score::float AS max_score,
@@ -2713,10 +2727,10 @@ export class ExamsRepository {
         WHERE mark.tenant_id = $1
           AND mark.exam_series_id = $2::uuid
           AND mark.student_id = $3::uuid
-          AND mark.status IN ('locked', 'published')
+          AND ($5::boolean OR mark.status IN ('locked', 'published'))
         ORDER BY subject.name NULLS LAST, assessment.name
       `,
-      [input.tenant_id, input.exam_series_id, input.student_id, classCurriculum || null],
+      [input.tenant_id, input.exam_series_id, input.student_id, classCurriculum || null, input.include_unfinalized === true],
     );
     const attendanceResult = await this.executeSql(
       `
@@ -2795,9 +2809,9 @@ export class ExamsRepository {
           `The selected grading policy uses ${policyCurriculum} grading bands, but this class uses ${classCurriculum}. Select a grading policy for ${classCurriculum} before generating report cards`,
         );
       }
-      // The rules are shared, but reporting behavior (traditional vs competency)
-      // must still follow the class being regenerated when a policy covers both.
-      academicGradingSystem = { ...academicGradingSystem, curriculum_model: classCurriculum };
+      // Resolve only the saved bands for this class curriculum.
+      academicGradingSystem = { ...academicGradingSystem, curriculum_model: classCurriculum,
+        rules: gradingRulesForCurriculum(academicGradingSystem, classCurriculum) ?? [] };
     }
     const subjects = subjectsResult.rows.map((subject) =>
       applyAcademicGradingRule(subject, academicGradingSystem?.rules),
@@ -2831,6 +2845,7 @@ export class ExamsRepository {
       result_snapshot: resultSnapshotResult.rows[0]
         ? {
             ...resultSnapshotResult.rows[0],
+            ...(input.include_unfinalized ? { percentage: null, grade_label: null } : {}),
             position: schoolPolicyResult.rows[0]?.show_rank === false
               ? null
               : resultSnapshotResult.rows[0].position,

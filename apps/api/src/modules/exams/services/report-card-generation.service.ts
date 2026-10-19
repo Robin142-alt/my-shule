@@ -146,7 +146,7 @@ export class ReportCardGenerationService implements OnModuleInit {
     }
     const sourceRevision=await this.artifactStore?.sourceVersion(input.tenant_id,input.student_id);
     const sourceValidUntil=await this.artifactStore?.sourceValidUntil(input.tenant_id);
-    if (input.expected_report_card_id) {
+    if (input.expected_report_card_id && !input.regeneration_reason) {
       const readiness = await this.repository.getReportCardStudentReadiness(input);
       if (!Number(readiness?.expected_mark_count) || Number(readiness?.not_ready_mark_count) > 0) {
         throw new ConflictException('All enrolled subject marks must be entered, moderated and locked before regenerating this report.');
@@ -157,6 +157,7 @@ export class ReportCardGenerationService implements OnModuleInit {
       tenant_id: input.tenant_id,
       exam_series_id: input.exam_series_id,
       student_id: input.student_id,
+      include_unfinalized: Boolean(input.regeneration_reason),
       read_cache: input.read_cache,
       read_cache_version: sourceRevision ? JSON.stringify(JSON.parse(sourceRevision).filter(([key]:[string,string])=>key==='school')) : undefined,
     });
@@ -271,14 +272,15 @@ export class ReportCardGenerationService implements OnModuleInit {
     }, this.schoolEvents ? (card, tx) => this.schoolEvents!.recordSchoolOperation({
       event: {
         id: `${action}:${verificationCode}`, type: action, module: 'exams',
-        title: 'Report card generated', body: 'A generated report card is ready for Principal review and release.',
+        title: card.status === 'published' ? 'Published report card updated' : 'Report card generated',
+        body: card.status === 'published' ? 'A published report card has a new current revision.' : 'A generated report card is ready for Principal review and release.',
         entityId: card.id,
         payload: { report_card_id: card.id, student_id: input.student_id, exam_series_id: input.exam_series_id },
       },
       notifications: [{
         id: `report-card-ready:${verificationCode}`, schoolId: input.tenant_id,
-        audienceRoles: ['principal'], title: 'Report card ready for release',
-        body: 'The Exams Manager generated a report card. Preview it and release when ready.',
+        audienceRoles: ['principal'], title: card.status === 'published' ? 'Published report card updated' : 'Report card ready for release',
+        body: card.status === 'published' ? 'The Exams Manager regenerated a published report card using the latest saved inputs.' : 'The Exams Manager generated a report card. Preview it and release when ready.',
         sourceModule: 'exams', relatedModule: 'academics', relatedRecordId: card.id,
         priority: 'normal', read: false, createdAt: new Date().toISOString(),
       }],
@@ -441,7 +443,7 @@ export class ReportCardGenerationService implements OnModuleInit {
   private assertReportCardGradeBoundaries(payload: ReturnType<ReportCardTemplateService['buildPayload']>): void {
     if (payload.subjects.length === 0) {
       throw new BadRequestException(
-        'No locked or published marks are available for this learner and exam series',
+        'No saved marks are available for this learner and exam series',
       );
     }
 

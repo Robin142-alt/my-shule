@@ -76,7 +76,10 @@ describe("academic foundation saved-record visibility", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: preset }));
+    if (preset === "CBC") {
+      await user.click(screen.getByRole("checkbox", { name: "CBC" }));
+      await user.click(screen.getByRole("checkbox", { name: "8-4-4" }));
+    }
     await user.type(screen.getByLabelText("Policy name"), preset);
     const remark = screen.getAllByLabelText("Report remark")[0];
     await user.clear(remark);
@@ -86,12 +89,47 @@ describe("academic foundation saved-record visibility", () => {
     await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith("/academics/grading-systems", {
       method: "POST",
       tenantId: "maranda-high",
-      body: expect.objectContaining({ name: preset, curriculum_model: preset, curriculum_models: [preset], rules: expect.any(Array) }),
+      body: expect.objectContaining({ name: preset, curriculum_model: preset, curriculum_models: [preset], rules: expect.any(Array), rules_by_curriculum: { [preset]: expect.any(Array) } }),
     }));
     const savedRules = (requestDashboardApi as jest.Mock).mock.calls[0][1].body.rules;
     expect(savedRules).toHaveLength(count);
     expect(savedRules[0]).toMatchObject({ label, min, max: 100, points, remark: "School remark" });
     await waitFor(() => expect(refetch).toHaveBeenCalled());
+  });
+
+  it("saves both curricula independently and reloads them in the policy manager", async () => {
+    const user = userEvent.setup();
+    let saved: any;
+    const data = { ...foundation, gradingSystems: [] as any[] };
+    const refetch = jest.fn().mockImplementation(async () => ({ data, error: null }));
+    (useSchoolQuery as jest.Mock).mockImplementation(() => ({ data, error: null, isLoading: false, refetch }));
+    (requestDashboardApi as jest.Mock).mockImplementation(async (_path, options) => {
+      if (options?.method === "POST") {
+        saved = { id: "grading-both", status: "draft", version: 1, ...options.body };
+        data.gradingSystems = [saved];
+        return saved;
+      }
+      if (options?.method === "PATCH") { Object.assign(saved, options.body); return saved; }
+      return { record: saved, dependencies: [], total: 0, history: [] };
+    });
+    const view = render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="School" tenantId="school-a" initialTab="policies" />);
+    await user.type(screen.getByLabelText("Policy name"), "Mixed school");
+    await user.click(screen.getByRole("checkbox", { name: "CBC" }));
+    const legacy = screen.getByRole("group", { name: "8-4-4 grade bands" });
+    const cbc = screen.getByRole("group", { name: "CBC grade bands" });
+    await user.clear(within(legacy).getAllByLabelText("Report remark")[0]);
+    await user.type(within(legacy).getAllByLabelText("Report remark")[0], "Legacy distinction");
+    await user.clear(within(cbc).getAllByLabelText("Report remark")[0]);
+    await user.type(within(cbc).getAllByLabelText("Report remark")[0], "CBC distinction");
+    await user.click(screen.getByRole("button", { name: "Save grading system" }));
+    await waitFor(() => expect(saved.rules_by_curriculum.CBC[0].remark).toBe("CBC distinction"));
+    expect(saved.rules_by_curriculum["8-4-4"][0].remark).toBe("Legacy distinction");
+    view.unmount();
+    render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="School" tenantId="school-a" initialTab="policies" />);
+    await user.click(screen.getAllByRole("button", { name: /Manage/ })[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(within(dialog).getByRole("group", { name: "CBC grade bands" })).getAllByLabelText("Report remark")[0]).toHaveValue("CBC distinction");
+    expect(within(within(dialog).getByRole("group", { name: "8-4-4 grade bands" })).getAllByLabelText("Report remark")[0]).toHaveValue("Legacy distinction");
   });
 
   it("loads the complete foundation under the authenticated tenant and shows saved terms", () => {
