@@ -55,7 +55,7 @@ export function useSchoolMutation(){return {isPending:false,mutateAsync:async()=
 export function useDashboardTasks(){return {...state,tasks:[],completeTask:async()=>{}};}
 export function useApprovals(){return {...state,approvals:[],approve:async()=>{},reject:async()=>{}};}
 export function useNotifications(){return {...state,notifications:[],unreadCount:0,markAsRead:async()=>{}};}
-export function useOptionalSchoolDashboardRole(){return {liveDataEnabled:true,userLabel:'QA Dean',availableRoles:[{authorizationRoleCode:'dean-academics',roleName:'Dean of Academics',isPrimary:true},{authorizationRoleCode:'teacher',roleName:'Teacher',isTeacherMode:true}],activeAuthorizationRoleCode:'dean-academics',switchDashboardRole:async()=>{}};}
+export function useOptionalSchoolDashboardRole(){return {liveDataEnabled:true,userLabel:'QA Dean',availableRoles:[{authorizationRoleCode:'dean-academics',roleName:'Dean of Academics',isPrimary:true},{authorizationRoleCode:'teacher',roleName:'Teacher',isTeacherMode:true}],activeAuthorizationRoleCode:'dean-academics',switchDashboardRole:async()=>{},reloadDashboardRoles:async()=>{}};}
 export async function requestDashboardApi(url,options){window.__request={url,options};if(sessionStorage.getItem('scenario')==='mutation-error')throw new Error('Test action unavailable');if(options?.body?.action==='approve')rows=rows.map(r=>options.body.mark_ids.includes(r.mark_ids[0])?{...r,status:'reviewed'}:r);if(url.endsWith('/lock-batch'))rows=rows.filter(r=>!options.body.markIds.includes(r.mark_ids[0]));return {success:true,updated_count:1,locked_count:1};}
 `,
 );
