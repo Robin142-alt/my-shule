@@ -4,6 +4,10 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { DatabaseService } from '../src/database/database.service';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { ReportWorkService } from '../src/modules/exams/services/report-work.service';
+import { DashboardRoleService } from '../src/auth/dashboard-role.service';
+import { AuthorizationRepository } from '../src/auth/repositories/authorization.repository';
+import { TenantMembershipsRepository } from '../src/auth/repositories/tenant-memberships.repository';
+import { UserRoleAssignmentsRepository } from '../src/auth/repositories/user-role-assignments.repository';
 import {
   REPORT_INFRASTRUCTURE_SCHEMA,
   REPORT_SOURCE_TRIGGERS,
@@ -20,6 +24,7 @@ import Redis from 'ioredis';
 
 describe('Durable report work against PostgreSQL with forced RLS', () => {
   let pool: Pool, db: DatabaseService, work: ReportWorkService;
+  let dashboardRoles: DashboardRoleService, authorization: AuthorizationRepository;
   const context = new RequestContextService();
   const actor = randomUUID();
   const inSchool = <T>(tenant: string, fn: () => T, user = actor) =>
@@ -73,6 +78,16 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       CREATE TABLE role_permissions(tenant_id text,role_id uuid,permission_id uuid);
       CREATE TABLE tenant_memberships(tenant_id text,user_id uuid,role_id uuid,status text);
       CREATE TABLE user_roles(tenant_id text,user_id uuid,role_id uuid,status text,deleted_at timestamptz);
+      ALTER TABLE roles ADD COLUMN name text;
+      ALTER TABLE tenant_memberships ADD COLUMN id uuid DEFAULT gen_random_uuid(),
+        ADD COLUMN created_at timestamptz DEFAULT now(), ADD COLUMN updated_at timestamptz DEFAULT now();
+      ALTER TABLE user_roles ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN scope_type text DEFAULT 'SCHOOL',
+        ADD COLUMN scope_id text, ADD COLUMN created_at timestamptz DEFAULT now();
+      ALTER TABLE permissions ADD COLUMN description text, ADD COLUMN created_at timestamptz DEFAULT now(),
+        ADD COLUMN updated_at timestamptz DEFAULT now();
+      CREATE TABLE subjects(tenant_id text,id text,status text,archived_at timestamptz);
+      CREATE TABLE academics_role_appointments(id uuid DEFAULT gen_random_uuid(),tenant_id text,teacher_user_id uuid,
+        role_type text,subject_id text,status text DEFAULT 'active',effective_from date DEFAULT CURRENT_DATE,effective_to date);
       CREATE TABLE tenants(tenant_id text,settings jsonb DEFAULT '{}');
       CREATE TABLE exam_report_card_signatures(tenant_id text,signer_user_id uuid,storage_path text);
       CREATE TABLE academics_class_teachers(tenant_id text,teacher_user_id uuid);
@@ -99,18 +114,18 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
     await query("INSERT INTO users VALUES($1,'active')", [actor]);
     for (const tenant of ['school-a', 'school-b']) {
       const role = randomUUID();
-      await query("INSERT INTO roles VALUES($1,$2,'exams_manager');", [
+      await query("INSERT INTO roles(tenant_id,id,code) VALUES($1,$2,'exams_manager');", [
         tenant,
         role,
       ]);
-      await query("INSERT INTO tenant_memberships VALUES($1,$2,$3,'active')", [
+      await query("INSERT INTO tenant_memberships(tenant_id,user_id,role_id,status) VALUES($1,$2,$3,'active')", [
         tenant,
         actor,
         role,
       ]);
       for (const action of ['read', 'write']) {
         const id = randomUUID();
-        await query("INSERT INTO permissions VALUES($1,$2,'exams',$3)", [
+        await query("INSERT INTO permissions(tenant_id,id,resource,action) VALUES($1,$2,'exams',$3)", [
           tenant,
           id,
           action,
@@ -128,6 +143,8 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       { getRuntimeRoleName: () => 'report_infrastructure_runtime' } as never,
       { get: () => undefined } as never,
     );
+    authorization = new AuthorizationRepository(db);
+    dashboardRoles = new DashboardRoleService(new TenantMembershipsRepository(db), new UserRoleAssignmentsRepository(db), authorization);
     work = new ReportWorkService(
       db,
       {
@@ -142,6 +159,8 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       } as never,
       { get: () => undefined } as never,
       { findFirstMissingModule: async () => null } as never,
+      dashboardRoles,
+      authorization,
     );
   });
   beforeEach(async () => {
@@ -361,6 +380,38 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       inSchool('school-a', () => work.status(job.job_id)),
     ).rejects.toThrow(/revoked/);
   });
+
+  it.each(['deputy_principal', 'dean_academics', 'admissions_officer'])(
+    'generates reports through an Academic Foundation appointment while keeping the %s primary role', async (primaryRole) => {
+      const user = randomUUID();
+      const role = randomUUID();
+      await query("INSERT INTO users VALUES($1,'active')", [user]);
+      await query('INSERT INTO roles(tenant_id,id,code) VALUES($1,$2,$3)', ['school-a', role, primaryRole]);
+      await query("INSERT INTO tenant_memberships(tenant_id,user_id,role_id,status) VALUES('school-a',$1,$2,'active')", [user, role]);
+      await query("INSERT INTO academics_role_appointments(tenant_id,teacher_user_id,role_type) VALUES('school-a',$1,'exams_manager')", [user]);
+      const job = await inSchool('school-a', () => work.submit('generate_scope', {}, user), user);
+      work.register('generate_scope', async () => {
+        expect(context.requireStore().permissions).toContain('exams:write');
+        return { completed_students: 1 };
+      });
+      await expect(inSchool('school-a', () => work.status(job.job_id), user)).resolves.toMatchObject({state: 'queued'});
+      await work.execute(await delivery(job.job_id));
+      expect((await state(job.job_id)).state).toBe('completed');
+      expect((await query('SELECT role_id FROM tenant_memberships WHERE tenant_id=$1 AND user_id=$2', ['school-a', user])).rows[0].role_id).toBe(role);
+
+      // A role in another school never authorizes this school's report.
+      await query("UPDATE academics_role_appointments SET tenant_id='school-b' WHERE teacher_user_id=$1", [user]);
+      await expect(inSchool('school-a', () => work.status(job.job_id), user)).rejects.toThrow(/revoked/);
+      await query("UPDATE academics_role_appointments SET tenant_id='school-a' WHERE teacher_user_id=$1", [user]);
+      for (const change of ["status='ended'", "status='active',effective_from=CURRENT_DATE+1", "effective_from=CURRENT_DATE-2,effective_to=CURRENT_DATE-1"]) {
+        await query(`UPDATE academics_role_appointments SET ${change} WHERE tenant_id='school-a' AND teacher_user_id=$1`, [user]);
+        await expect(inSchool('school-a', () => work.status(job.job_id), user)).rejects.toThrow(/revoked/);
+      }
+      await query("UPDATE academics_role_appointments SET effective_from=CURRENT_DATE,effective_to=NULL WHERE tenant_id='school-a' AND teacher_user_id=$1", [user]);
+      await query("UPDATE users SET status='disabled' WHERE id=$1", [user]);
+      await expect(inSchool('school-a', () => work.status(job.job_id), user)).rejects.toThrow(/revoked/);
+    },
+  );
 
   it('invalidates marks and comments transactionally without invalidating on timestamp or publication alone', async () => {
     const student = randomUUID();
@@ -674,6 +725,8 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
         } as never,
         { get: (key: keyof typeof config) => config[key] } as never,
         { findFirstMissingModule: async () => null } as never,
+        dashboardRoles,
+        authorization,
       );
       let calls = 0;
       redisWork.register('pdf', async () => {

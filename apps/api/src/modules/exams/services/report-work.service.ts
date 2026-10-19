@@ -9,10 +9,13 @@ import {
   OnModuleDestroy,
   Optional,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue, Worker } from 'bullmq';
 import { randomUUID } from 'node:crypto';
+import { DashboardRoleService } from '../../../auth/dashboard-role.service';
+import { AuthorizationRepository } from '../../../auth/repositories/authorization.repository';
 import { DatabaseService } from '../../../database/database.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { RequestContextService } from '../../../common/request-context/request-context.service';
@@ -81,6 +84,8 @@ export class ReportWorkService
     private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly modules: ModuleAccessService,
+    private readonly dashboardRoles: DashboardRoleService,
+    private readonly authorization: AuthorizationRepository,
     @Optional() private readonly events?: SchoolOperationalEventsService,
   ) {}
 
@@ -355,20 +360,28 @@ export class ReportWorkService
   private async authorize(row: ReportWorkRow, apply = false) {
     // Never trust permissions stored when queued. Membership, role and module may
     // have been revoked while the task was waiting.
-    const access = await this.db.query<{ permission: string }>(
-      `WITH active_roles AS (
-      SELECT membership.role_id FROM tenant_memberships membership
-      WHERE membership.tenant_id=$1 AND membership.user_id=$2 AND membership.status='active'
-      UNION SELECT assignment.role_id FROM user_roles assignment WHERE assignment.tenant_id=$1
-        AND assignment.user_id=$2 AND upper(assignment.status::text)='ACTIVE' AND assignment.deleted_at IS NULL
-    ) SELECT DISTINCT permission.resource || ':' || permission.action AS permission
-      FROM active_roles active JOIN roles role ON role.tenant_id=$1 AND role.id=active.role_id AND role.code=$3
-      JOIN role_permissions rp ON rp.tenant_id=$1 AND rp.role_id=role.id
-      JOIN permissions permission ON permission.tenant_id=$1 AND permission.id=rp.permission_id
-      JOIN users account ON account.id=$2 AND account.status='active'`,
-      [row.tenant_id, row.actor_user_id, row.context.role],
+    const account = await this.db.query(
+      "SELECT id FROM users WHERE id=$1 AND status='active'",
+      [row.actor_user_id],
     );
-    const permissions = access.rows.map((value) => value.permission);
+    if (!account.rows.length || !row.context.role)
+      throw new ForbiddenException('Report permission has been revoked');
+    let roleId: string;
+    try {
+      // Use the same live assignment, effective-date and Teacher-mode rules as
+      // dashboard switching, including Academic Foundation appointments.
+      const role = await this.dashboardRoles.authorizeRole({
+        tenant_id: row.tenant_id,
+        user_id: row.actor_user_id,
+        requested_role: row.context.role,
+      });
+      roleId = role.role_id;
+    } catch (error) {
+      if (error instanceof ForbiddenException || error instanceof UnauthorizedException)
+        throw new ForbiddenException('Report permission has been revoked');
+      throw error;
+    }
+    const permissions = await this.authorization.getPermissionsByRoleId(row.tenant_id, roleId);
     const needed = row.kind.startsWith('generate')
       ? 'exams:write'
       : 'exams:read';
