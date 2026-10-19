@@ -1,6 +1,6 @@
 import { DEFAULT_ROLE_CATALOG, SCHOOL_STAFF_ROLE_CODES } from './auth.constants';
 
-// These posts retain the existing one-holder-per-scope appointment workflow.
+// Academic responsibilities use the existing academic appointment permissions.
 export const ACADEMIC_APPOINTMENT_CODES = [
   'class_teacher', 'assistant_class_teacher', 'head_of_department', 'grade_master', 'form_master',
   'dean_of_academics', 'exams_manager', 'head_of_subject', 'timetable_coordinator',
@@ -20,7 +20,7 @@ export const STAFF_APPOINTMENT_CATALOG = [
 
 export const STAFF_APPOINTMENT_CODES = STAFF_APPOINTMENT_CATALOG.map(role => role.code);
 export const MULTI_HOLDER_STAFF_APPOINTMENT_CODES = STAFF_APPOINTMENT_CODES
-  .filter(code => !(ACADEMIC_APPOINTMENT_CODES as readonly string[]).includes(code));
+  .filter(code => code === 'exams_manager' || !(ACADEMIC_APPOINTMENT_CODES as readonly string[]).includes(code));
 
 export function staffAppointmentRestriction(code: string, actorRole: string | null, permissions: readonly string[]): string | null {
   if ((ACADEMIC_APPOINTMENT_CODES as readonly string[]).includes(code)) return null;

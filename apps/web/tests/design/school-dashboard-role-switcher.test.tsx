@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { useOptionalSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 
+jest.mock("@/components/school/school-role-resources", () => ({ preloadSchoolRole: jest.fn().mockResolvedValue(undefined) }));
+
 jest.mock("@/lib/auth/school-dashboard-role-context", () => ({
   useOptionalSchoolDashboardRole: jest.fn(),
 }));
@@ -74,6 +76,7 @@ describe("SchoolDashboardRoleSwitcher", () => {
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
     expect(trigger).toHaveClass("min-h-11");
     await user.click(trigger);
+    expect(state.reloadDashboardRoles).toHaveBeenCalledTimes(1);
 
     expect(screen.getByRole("dialog", { name: "Switch dashboard" })).toBeVisible();
     expect(screen.getByRole("radiogroup", { name: "Available dashboards" })).toBeVisible();
@@ -96,8 +99,9 @@ describe("SchoolDashboardRoleSwitcher", () => {
 
     await user.click(screen.getByRole("button", { name: /dashboard access is degraded/i }));
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to load your dashboard roles.");
-    await user.click(screen.getByRole("button", { name: "Retry role access" }));
     expect(state.reloadDashboardRoles).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Retry role access" }));
+    expect(state.reloadDashboardRoles).toHaveBeenCalledTimes(2);
   });
 
   it("keeps alias-colliding authorization roles distinct and switches by raw code", async () => {
