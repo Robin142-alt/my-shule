@@ -326,6 +326,11 @@ export function AcademicGradeBandsEditor({
 
   const applyPreset = (preset: "secondary" | "cbc") => {
     setRows((preset === "secondary" ? SECONDARY_GRADE_BANDS : CBC_GRADE_BANDS).map(gradeBandState));
+    if (curriculumName && !defaultValue) {
+      setCurricula([preset === "cbc" ? "CBC" : "8-4-4"]);
+      setCustomEnabled(false);
+      setCustomCurriculum("");
+    }
   };
 
   return (
@@ -379,7 +384,7 @@ export function AcademicGradeBandsEditor({
             Add one row per outcome. Mark ranges must cover 0 to 100 without gaps or overlaps.
           </p>
         </div>
-        {!curriculumName ? <div className="flex flex-wrap gap-2">
+        {!curriculumName || !defaultValue ? <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => applyPreset("secondary")} className={`min-h-9 rounded-lg border px-3 text-xs font-bold ${styles.secondaryButton}`}>
             8-4-4
           </button>
