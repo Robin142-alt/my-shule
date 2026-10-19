@@ -41,7 +41,6 @@ export function SchoolDashboardRoleSwitcher({
   if (
     !roleState
     || !roleState.liveDataEnabled
-    || (roleState.availableRoles.length <= 1 && !roleState.error)
   ) {
     return null;
   }
@@ -65,6 +64,9 @@ export function SchoolDashboardRoleSwitcher({
           : `Switch dashboard. Working as ${activeLabel}`}
         onClick={() => {
           setOpen(true);
+          if (!roleState.isLoading && !roleState.isSwitching) {
+            void roleState.reloadDashboardRoles().catch(() => undefined);
+          }
         }}
         className={`app-role-switcher min-h-11 min-w-0 max-w-full justify-between gap-2 px-3 text-left sm:min-w-[210px] ${className}`}
         data-testid="school-dashboard-role-switcher"
@@ -105,6 +107,24 @@ export function SchoolDashboardRoleSwitcher({
           </p>
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted" role="status">
+            {roleState.isLoading ? "Checking your assigned roles…" : "Roles include your active school appointments."}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="min-h-11"
+            disabled={roleState.isLoading || roleState.isSwitching}
+            onClick={() => {
+              void roleState.reloadDashboardRoles().catch(() => undefined);
+            }}
+          >
+            {roleState.isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
+            {roleState.error ? "Retry role access" : "Refresh roles"}
+          </Button>
+        </div>
+
         <div
           role="radiogroup"
           aria-label="Available dashboards"
@@ -126,7 +146,7 @@ export function SchoolDashboardRoleSwitcher({
                 type="button"
                 role="radio"
                 aria-checked={active}
-                disabled={roleState.isSwitching}
+                disabled={roleState.isLoading || roleState.isSwitching}
                 onPointerEnter={() => { void preloadSchoolRole(option.roleCode).catch(() => undefined); }}
                 onFocus={() => { void preloadSchoolRole(option.roleCode).catch(() => undefined); }}
                 onTouchStart={() => { void preloadSchoolRole(option.roleCode).catch(() => undefined); }}
@@ -178,18 +198,6 @@ export function SchoolDashboardRoleSwitcher({
             className="mt-4 rounded-xl border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger"
           >
             <p>{roleState.error}</p>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={roleState.isLoading || roleState.isSwitching}
-              onClick={() => {
-                void roleState.reloadDashboardRoles().catch(() => undefined);
-              }}
-              className="mt-3"
-            >
-              {roleState.isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
-              Retry role access
-            </Button>
           </div>
         ) : null}
 

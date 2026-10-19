@@ -8,6 +8,7 @@ import { replaceDashboardDocument } from "@/lib/auth/dashboard-role-navigation";
 import { SchoolDashboardRoleProvider, useSchoolDashboardRole } from "@/lib/auth/school-dashboard-role-context";
 import { SESSION_VERIFICATION_TIMEOUT_MS, useExperienceSession } from "@/lib/auth/use-experience-session";
 import { SchoolDashboardSessionGate } from "@/components/school/school-dashboard-session-gate";
+import { SchoolDashboardRoleSwitcher } from "@/components/school/school-dashboard-role-switcher";
 import { routerReplaceMock } from "./router-mock";
 
 jest.mock("@/lib/auth/dashboard-role-navigation", () => ({ replaceDashboardDocument: jest.fn() }));
@@ -57,6 +58,45 @@ describe("role switch consistency", () => {
     jest.mocked(replaceDashboardDocument).mockReset();
     window.sessionStorage.clear();
     global.fetch = jest.fn();
+  });
+
+  test("a primary-only account discovers and switches to a new academic appointment without signing in again", async () => {
+    const primary = payload("teacher");
+    const appointed = payload("teacher");
+    const appointmentContext = (active: string, assigned: string[]) => normalizeDashboardRoleContext({
+      primary_role: "teacher", active_role: active, assigned_roles: assigned,
+      available_roles: assigned.map((code) => ({
+        role_code: code, role_name: code === "teacher" ? "Teacher" : "Exams Manager",
+        is_primary: code === "teacher", is_teacher_mode: code === "teacher",
+        sources: [code === "teacher" ? "primary_membership" : "additional_assignment"],
+      })), teacher_dashboard_eligible: true,
+    }, "teacher");
+    primary.session.roleContext = appointmentContext("teacher", ["teacher"]);
+    appointed.session.roleContext = appointmentContext("teacher", ["teacher", "exams_manager"]);
+    const switched = payload("exams_manager");
+    switched.roleContext = switched.session.roleContext = appointmentContext("exams_manager", ["teacher", "exams_manager"]);
+    jest.mocked(fetch)
+      .mockResolvedValueOnce(response(primary))
+      .mockResolvedValueOnce(response(appointed))
+      .mockResolvedValueOnce(response(switched));
+    render(<SchoolDashboardRoleProvider initialRole="teacher" tenantSlug="school-a" routeMode="public">
+      <Probe /><SchoolDashboardRoleSwitcher />
+    </SchoolDashboardRoleProvider>, { wrapper });
+    await waitFor(() => expect(roleState.isLoading).toBe(false));
+    expect(roleState.availableRoles).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /switch dashboard.*teacher/i }));
+    const exams = await screen.findByRole("radio", { name: /Exams Manager/i });
+    expect(roleState.primaryAuthorizationRoleCode).toBe("teacher");
+    expect(screen.getByRole("radio", { name: /Teacher/i })).toBeVisible();
+    expect(screen.queryByRole("radio", { name: /Principal/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(exams).toBeEnabled());
+    fireEvent.click(exams);
+    await waitFor(() => expect(replaceDashboardDocument).toHaveBeenCalledWith("/school/exams-manager"));
+    expect(roleState.primaryAuthorizationRoleCode).toBe("teacher");
+    expect(jest.mocked(fetch).mock.calls.filter(([url]) => String(url).startsWith("/api/auth/me"))).toHaveLength(2);
+    const switchRequest = jest.mocked(fetch).mock.calls.find(([url]) => url === "/api/auth/active-role");
+    expect(JSON.parse(String(switchRequest?.[1]?.body))).toMatchObject({ role_code: "exams_manager" });
   });
 
   test.each(["public", "hosted"] as const)("%s switches once and keeps late role reads from restoring the previous dashboard", async (routeMode) => {

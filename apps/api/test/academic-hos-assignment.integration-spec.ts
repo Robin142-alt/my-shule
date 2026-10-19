@@ -7,6 +7,7 @@ import { DashboardRoleService } from '../src/auth/dashboard-role.service';
 import { validate } from 'class-validator';
 import { AcademicRoleAppointmentDto } from '../src/modules/academics/dto/academic.dto';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../src/modules/academics/class-teacher-appointment-scope';
+import { ACADEMIC_ROLE_APPOINTMENT_INDEX_SQL } from '../src/modules/academics/academic-role-appointment-index';
 
 describe('School-wide HOS appointments and derived dashboard access', () => {
   let pool: Pool;
@@ -59,11 +60,16 @@ describe('School-wide HOS appointments and derived dashboard access', () => {
           role_type text, teacher_user_id uuid, department_id uuid, academic_year_id text, class_section_id text, stream_id text, subject_id text,
           appointment_type text, effective_from date, effective_to date, reason text, appointed_by_user_id uuid, approved_by_user_id uuid,
           ended_by_user_id uuid, status text DEFAULT 'active', version int DEFAULT 1, updated_at timestamptz DEFAULT NOW());
-        CREATE UNIQUE INDEX active_subject_head ON academics_role_appointments(tenant_id, role_type, COALESCE(subject_id,''),
+        CREATE UNIQUE INDEX ux_academics_role_appointments_staff_scope_active ON academics_role_appointments(tenant_id, role_type, COALESCE(subject_id,''),
           COALESCE(department_id::text,''), COALESCE(academic_year_id,''), COALESCE(class_section_id,''), COALESCE(stream_id,''),
-          (CASE WHEN role_type IN (${MULTI_HOLDER_STAFF_APPOINTMENT_CODES.map(code => `'${code}'`).join(', ')}) THEN teacher_user_id::text ELSE '' END)) WHERE status='active';
+          (CASE WHEN role_type IN (${MULTI_HOLDER_STAFF_APPOINTMENT_CODES.filter(code => code !== 'exams_manager').map(code => `'${code}'`).join(', ')}) THEN teacher_user_id::text ELSE '' END)) WHERE status='active';
         CREATE TABLE evidence(tenant_id text, kind text, appointment_id uuid);
       `);
+      // Exercise the actual production upgrade, including preservation and reruns.
+      await client.query("INSERT INTO academics_role_appointments(tenant_id, school_id, role_type, teacher_user_id, effective_from) VALUES ('school-a','school-a','exams_manager',$1,'2020-01-01')", [ids.first]);
+      await client.query(ACADEMIC_ROLE_APPOINTMENT_INDEX_SQL);
+      await client.query(ACADEMIC_ROLE_APPOINTMENT_INDEX_SQL);
+      expect((await client.query("SELECT teacher_user_id FROM academics_role_appointments WHERE tenant_id='school-a' AND role_type='exams_manager' AND status='active'")).rows).toEqual([{ teacher_user_id: ids.first }]);
       for (const tenant of ['school-a', 'school-b']) {
         await client.query("INSERT INTO roles VALUES ($1,$2,'librarian','Librarian'),($3,$2,'head_of_subject','Head of Subject')", [ids.primary, tenant, ids.hos]);
         await client.query("INSERT INTO tenant_memberships VALUES ($1,$2,$4,'active'),($1,$3,$4,'active')", [tenant, ids.first, ids.second, ids.primary]);
@@ -173,6 +179,32 @@ describe('School-wide HOS appointments and derived dashboard access', () => {
       expect((await roles('school-a').findActiveRolesForUser(ids.first, 'school-a')).map(role => role.role_code)).not.toContain(role_type);
       expect((await roles('school-a').findActiveRolesForUser(ids.second, 'school-a')).map(role => role.role_code)).toContain(role_type);
     }
+  });
+
+  it('keeps concurrent Exams Managers active and permits ending one without revoking the other', async () => {
+    const appoint = (teacher_user_id: string) => academics.assignAcademicRole('school-a', {
+      role_type: 'exams_manager', teacher_user_id, effective_from: '2020-01-01',
+      reason: 'Additional exams support', actor_user_id: ids.actor,
+    });
+    const [first, second] = await Promise.all([appoint(ids.first), appoint(ids.second)]);
+    expect(first.changed_holder).toBe(false);
+    expect(second.changed_holder).toBe(false);
+    const service = new DashboardRoleService({ findActiveMembership: async (user: string, tenant: string) => ({
+      user_id: user, tenant_id: tenant, role_id: ids.primary, role_code: 'librarian', role_name: 'Librarian', status: 'active',
+    }) } as never, roles('school-a'), {} as never);
+    for (const user_id of [ids.first, ids.second]) {
+      const access = await service.authorizeRole({ user_id, tenant_id: 'school-a', requested_role: 'exams_manager' });
+      expect(access.context.primary_role).toBe('librarian');
+      expect(access.context.available_roles.map(role => role.role_code)).toEqual(['librarian', 'exams_manager', 'teacher']);
+    }
+    const renewed = await appoint(ids.first);
+    expect(renewed.appointment.id).toBe(first.appointment.id);
+    await expect(scoped('school-a', client => client.query("INSERT INTO academics_role_appointments(tenant_id, school_id, role_type, teacher_user_id) VALUES ($1,$1,'exams_manager',$2)", ['school-a', ids.first]))).rejects.toMatchObject({ code: '23505' });
+    expect((await scoped('school-a', client => client.query("SELECT id FROM academics_role_appointments WHERE tenant_id=$1 AND role_type='exams_manager' AND status='active'", ['school-a']))).rows).toHaveLength(2);
+    expect(await roles('school-b').findActiveRolesForUser(ids.first, 'school-b')).toEqual([]);
+    await academics.endAcademicRole('school-a', String(first.appointment.id), { reason: 'End this duty only', actor_user_id: ids.actor });
+    await expect(service.authorizeRole({ user_id: ids.first, tenant_id: 'school-a', requested_role: 'exams_manager' })).rejects.toThrow();
+    expect((await service.authorizeRole({ user_id: ids.second, tenant_id: 'school-a', requested_role: 'exams_manager' })).role_code).toBe('exams_manager');
   });
 
   it('rejects removed coordinator types and accepts existing academic dashboard appointments', async () => {
