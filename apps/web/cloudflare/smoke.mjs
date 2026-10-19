@@ -87,4 +87,13 @@ const rejectedMutation = await read('/api/auth/login', {
 assert.equal(rejectedMutation.status, 403, 'cross-origin mutation blocked before authentication');
 await rejectedMutation.body?.cancel();
 
+// Exercise method registration in the compiled Next route, not just its helper.
+// Missing CSRF must reject this before authentication or any student mutation.
+const studentPatch = await read('/api/students/00000000-0000-4000-8000-000000000001/record', {
+  method: 'PATCH', headers: { 'content-type': 'application/json', origin }, body: '{}',
+});
+assert.equal(studentPatch.status, 403, 'student PATCH handler registered and protected by CSRF');
+assert.match(studentPatch.headers.get('cache-control') ?? '', /private.*no-store/);
+await studentPatch.body?.cancel();
+
 console.log(`Cloudflare runtime smoke passed: pages, assets, images, PWA, CSRF, unsigned tenant/API protection (${origin}).`);

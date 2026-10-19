@@ -7,6 +7,7 @@ import { getSchoolWorkspace } from "@/lib/experiences/school-data";
 import { isSchoolSection } from "@/lib/routing/experience-routes";
 
 import { renderWithProviders } from "./test-utils";
+import { record as studentRecord } from "./student-record.fixture";
 
 // Render lazy workspace imports in jsdom without Next's browser chunk runtime.
 jest.mock("next/dynamic", () => (loader: () => Promise<unknown>) => {
@@ -64,6 +65,32 @@ describe("admissions dashboard routing", () => {
       ok: true,
       json: async () => ({ ...admissionFoundation(), metrics: {}, items: [], recentActivity: [] }),
     }) as unknown as typeof fetch;
+  });
+
+  it("keeps an opened student in the current admissions shell and saves through the student browser proxy", async () => {
+    const user = userEvent.setup();
+    const fetchMock = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/students/student-1/record/options')) return { ok: true, json: async () => admissionFoundation() };
+      if (url.includes('/api/students/student-1/record')) return { ok: true, json: async () => studentRecord };
+      if (url.includes('/api/auth/csrf')) return { ok: true, json: async () => ({ token: 'fixture-csrf' }) };
+      if (url.includes('/api/school/identity')) return { ok: true, json: async () => ({ schoolName: 'Verified School' }) };
+      return { ok: true, json: async () => ({}) };
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    renderWithProviders(createElement(SchoolPages, { role: 'admissions', section: 'students', studentId: 'student-1',
+      tenantSlug: 'homabay-high', routeMode: 'public', liveDataEnabled: false }));
+    const dashboard = await screen.findByTestId('admissions-dashboard-command-center', {}, { timeout: 10000 });
+    expect(await within(dashboard).findByRole('heading', { name: 'Actual Learner' })).toBeVisible();
+    expect(within(dashboard).getByRole('heading', { name: 'Admissions Officer Dashboard' })).toBeVisible();
+    expect(within(dashboard).getByRole('link', { name: 'Admission Records', current: 'page' })).toBeVisible();
+    expect(within(dashboard).queryByText(/Built for .*clear balances/)).not.toBeInTheDocument();
+    expect(within(dashboard).queryByText('Not configured | Not configured')).not.toBeInTheDocument();
+    await user.click(within(dashboard).getByRole('button', { name: 'Edit student' }));
+    await user.type(within(dashboard).getByLabelText('Guardian phone (optional)'), '0712345678');
+    await user.type(within(dashboard).getByLabelText('Reason for changes'), 'Parent supplied phone');
+    await user.click(within(dashboard).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/students/student-1/record', expect.objectContaining({ method: 'PATCH' })));
   });
 
   it("renders the newly built admissions dashboard shell for the admissions officer home", async () => {

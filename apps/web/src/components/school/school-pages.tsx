@@ -4272,7 +4272,15 @@ function AuthorizedSchoolPagesContent(
     <SchoolTenantScopeProvider key={`${tenantId}:${roleState.userId}:${roleState.activeAuthorizationRoleCode}`} tenantId={tenantId}>
       <DashboardCommunicationProvider tenantId={tenantId}>
         <SchoolCommandIdentityProvider tenantSlug={tenantId} userLabel={props.userLabel}>
-          {!props.studentId && authorizedProps.role === "deputy-principal" ? (
+          {props.studentId && authorizedProps.role === "admissions" ? (
+            <PermissionProvider schoolId={tenantId}>
+              <AdmissionsDashboardCommandCenter
+                routeMode={props.routeMode ?? "hosted"}
+                activeSection="enrolment"
+                studentId={props.studentId}
+              />
+            </PermissionProvider>
+          ) : !props.studentId && authorizedProps.role === "deputy-principal" ? (
             <DeputyPrincipalCommandCenter
               activeSection={props.section ?? "dashboard"}
               routeMode={props.routeMode ?? "hosted"}

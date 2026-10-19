@@ -13,6 +13,7 @@ import { AdmissionsOverviewWorkspace } from "./overview-workspace";
 import { TransfersWorkspace } from "./transfers-workspace";
 import { ParentLinkingWorkspace } from "../admissions/parent-linking-workspace";
 import { ReportsWorkspace } from "../admissions/reports-workspace";
+import { StudentRecordWorkspace } from "../student-record-workspace";
 
 type AdmissionsRouteMode = "hosted" | "nested" | "public";
 
@@ -71,12 +72,14 @@ function admissionsHref(section: AdmissionsWorkspaceId, routeMode: AdmissionsRou
 export function AdmissionsDashboardCommandCenter({
   routeMode,
   activeSection,
+  studentId,
 }: {
   routeMode: AdmissionsRouteMode;
   activeSection?: string;
+  studentId?: string;
 }) {
   const router = useRouter();
-  const workspaceId = normalizeAdmissionsSection(activeSection);
+  const workspaceId = studentId ? "enrolment" : normalizeAdmissionsSection(activeSection);
   const Workspace = workspaceComponents[workspaceId];
   const activeItem =
     admissionsNavItems.find((item) => item.id === workspaceId) ?? admissionsNavItems[0];
@@ -137,11 +140,20 @@ export function AdmissionsDashboardCommandCenter({
           <IntegratedSchoolCommandHeader
             roleTitle="Admissions Officer Dashboard"
             fallbackUserLabel="Admissions Officer"
-            actions={<span className="text-sm font-semibold text-muted">{activeItem.label}</span>}
+            actions={<span className="text-sm font-semibold text-muted">{studentId ? "Student record" : activeItem.label}</span>}
           />
 
           <div className="admissions-workspace min-w-0 [&_button]:min-h-11 [&_input]:min-h-11 [&_select]:min-h-11">
-            <Workspace key={`${workspaceId}:${activeSection ?? ""}`} initialSection={activeSection} />
+            {studentId ? (
+              <StudentRecordWorkspace
+                key={studentId}
+                studentId={studentId}
+                backHref={admissionsHref("enrolment", routeMode)}
+                guardiansHref={admissionsHref("parents", routeMode)}
+              />
+            ) : (
+              <Workspace key={`${workspaceId}:${activeSection ?? ""}`} initialSection={activeSection} />
+            )}
           </div>
         </section>
       </div>
