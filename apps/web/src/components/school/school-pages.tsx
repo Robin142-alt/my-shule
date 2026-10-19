@@ -11,8 +11,7 @@ import { resolveExamAnalyticsSection } from "@/lib/routing/exam-analytics-routes
 
 import { useWorkspaceRouter as useRouter } from "@/lib/routing/workspace-navigation";
 import { SimpleListCard } from "@/components/experience/activity-list-card";
-import { StudentStatusBadge } from "@/components/modules/students/lifecycle/StudentStatusBadge";
-import { StudentLifecycleActions } from "@/components/modules/students/lifecycle/StudentLifecycleActions";
+import { StudentRecordWorkspace } from "@/components/school/student-record-workspace";
 import { DisciplineWorkspace } from "@/components/discipline/discipline-workspace";
 import { MetricGrid } from "@/components/experience/metric-grid";
 import { AdmissionsModuleScreen } from "@/components/modules/admissions/admissions-module-screen";
@@ -1507,166 +1506,6 @@ export function SchoolDashboardHome({
 }
 
 
-function StudentProfilePage({
-  role,
-  tenantSlug,
-  studentId,
-}: {
-  role: SchoolExperienceRole;
-  tenantSlug?: string | null;
-  studentId: string;
-}) {
-  const { model } = getSchoolWorkspace(role, tenantSlug);
-  const profile = model.studentProfiles.find((entry) => entry.id === studentId) ?? model.studentProfiles[0];
-  const profileDocuments = [
-    { label: "Admission form", value: "Uploaded and verified" },
-    { label: "Guardian consent", value: "Stored with learner registration" },
-  ];
-
-  function downloadDocuments() {
-    openPrintDocument({
-      eyebrow: "Student documents",
-      title: `${profile.name} document pack`,
-      subtitle: `${profile.admissionNumber} • ${profile.className}`,
-      rows: profileDocuments.map((item) => ({
-        label: item.label,
-        value: item.value,
-      })),
-      footer: "This document summary can be printed or saved as PDF for the learner file.",
-    });
-  }
-
-  return (
-    <div className="space-y-6">
-      <SchoolPageHeader
-        eyebrow="Student profile"
-        title={profile.name}
-        description={`${profile.admissionNumber} • ${profile.className} • Parent ${profile.parentName} (${profile.parentPhone})`}
-        actions={
-          <div className="flex items-center space-x-3">
-            <StudentStatusBadge status="ACTIVE" />
-            <StudentLifecycleActions studentId={studentId} status="ACTIVE" />
-            <Button variant="secondary" onClick={downloadDocuments}>
-              Download documents
-            </Button>
-          </div>
-        }
-      />
-      <MetricGrid
-        items={profile.metrics.map((metric) => ({
-          id: metric.id,
-          label: metric.label,
-          value: metric.value,
-          helper: metric.helper,
-        }))}
-      />
-      <Tabs
-        items={[
-          {
-            id: "overview",
-            label: "Overview",
-            panel: (
-              <div className="grid gap-6 lg:grid-cols-2">
-                <SimpleListCard
-                  title="Learner snapshot"
-                  subtitle="The essentials principals and admins usually confirm first."
-                  items={[
-                    { id: "balance", title: "Current balance", subtitle: "What is still outstanding this term", value: profile.balance, tone: profile.balanceTone },
-                    { id: "parent", title: "Parent contact", subtitle: profile.parentName, value: profile.parentPhone },
-                    { id: "class", title: "Class placement", subtitle: profile.className, value: profile.admissionNumber },
-                  ]}
-                />
-                <SimpleListCard
-                  title="Overview actions"
-                  subtitle="Fast follow-up actions for this learner."
-                  items={[
-                    { id: "contact", title: "Open parent contact details", subtitle: "Discuss balances or classroom updates through approved channels", value: "Available" },
-                    { id: "fee", title: "Open fee statement", subtitle: "Prepare a printable account view", value: "Ready" },
-                    { id: "academics", title: "Open report card", subtitle: "See current performance and comments", value: "Current" },
-                  ]}
-                />
-              </div>
-            ),
-          },
-          {
-            id: "fees",
-            label: "Fees",
-            panel: (
-              <div className="space-y-6">
-                <DataTable
-                  title="Fee structure"
-                  columns={[
-                    { id: "item", header: "Item", render: (row) => row.item },
-                    { id: "frequency", header: "Frequency", render: (row) => row.frequency },
-                    { id: "amount", header: "Amount", render: (row) => row.amount, className: "text-right font-semibold", headerClassName: "text-right" },
-                  ]}
-                  rows={profile.feeStructure}
-                  getRowKey={(row) => row.id}
-                />
-                <DataTable
-                  title="Payment history"
-                  columns={[
-                    { id: "date", header: "Date", render: (row) => row.date },
-                    { id: "method", header: "Method", render: (row) => row.method },
-                    { id: "reference", header: "Reference", render: (row) => row.reference },
-                    { id: "amount", header: "Amount", render: (row) => row.amount, className: "text-right font-semibold", headerClassName: "text-right" },
-                    { id: "status", header: "Status", render: (row) => <StatusPill label={row.status} tone={row.statusTone} /> },
-                  ]}
-                  rows={profile.paymentHistory}
-                  getRowKey={(row) => row.id}
-                />
-              </div>
-            ),
-          },
-          {
-            id: "academics",
-            label: "Academics",
-            panel: (
-              <DataTable
-                title="Academic performance"
-                columns={[
-                  { id: "subject", header: "Subject", render: (row) => row.subject },
-                  { id: "teacher", header: "Teacher", render: (row) => row.teacher },
-                  { id: "average", header: "Average", render: (row) => row.average, className: "text-right font-semibold", headerClassName: "text-right" },
-                  { id: "grade", header: "Grade", render: (row) => row.grade },
-                ]}
-                rows={profile.academics}
-                getRowKey={(row) => row.id}
-              />
-            ),
-          },
-          {
-            id: "discipline",
-            label: "Discipline",
-            panel: (
-              <SimpleListCard
-                title="Discipline"
-                subtitle="This space keeps pastoral notes calm and searchable."
-                items={[
-                  { id: "discipline-1", title: "No active discipline incidents", subtitle: "Learner has no unresolved concerns on file." },
-                ]}
-              />
-            ),
-          },
-          {
-            id: "documents",
-            label: "Documents",
-            panel: (
-              <SimpleListCard
-                title="Documents"
-                subtitle="Files linked to admission, transfers, and medical notes."
-                items={[
-                  { id: "doc-1", title: "Admission form", subtitle: "Uploaded and verified by admin office", value: "PDF" },
-                  { id: "doc-2", title: "Guardian consent", subtitle: "Stored with learner registration", value: "PDF" },
-                ]}
-              />
-            ),
-          },
-        ]}
-      />
-    </div>
-  );
-}
 
 function SchoolFinancePage({
   role,
@@ -4933,7 +4772,7 @@ function SchoolPagesShell({
         <ModuleDisabledPanel section={section} role={role} routeMode={routeMode} />
       ) : (
         <>
-      {studentId ? <StudentProfilePage role={role} tenantSlug={tenantSlug} studentId={studentId} /> : null}
+      {studentId ? <StudentRecordWorkspace key={studentId} studentId={studentId} backHref={buildSchoolSectionHref(role, role === "admissions" ? "enrolment" : "students", routeMode)} guardiansHref={buildSchoolSectionHref(role, role === "admissions" ? "parent-linking" : "admissions", routeMode)} /> : null}
       {!studentId && !renderRoleOperationalWorkspace && section === "students" ? (
         <SchoolStudentsPage role={role} tenantSlug={tenantSlug} routeMode={routeMode} />
       ) : null}

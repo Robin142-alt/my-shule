@@ -1515,7 +1515,7 @@ export class AdmissionsRepository {
             LIMIT 1
           ) link ON TRUE
           WHERE student.tenant_id = $1
-            AND student.id = $2::uuid
+            AND student.id::text = $2
           FOR UPDATE OF student
         `, [input.tenant_id, input.student_id]);
         const guardian = guardianRows[0];
@@ -1551,6 +1551,7 @@ export class AdmissionsRepository {
           WHERE link.tenant_id = $1
             AND link.guardian_profile_id = $2::uuid
             AND link.status = 'active'
+            AND (link.is_primary OR link.is_primary_contact)
         `, [input.tenant_id, guardian.guardian_profile_id]);
         const affectedStudentIds = linkedStudents.map((row) => row.student_id);
         const studentUserIds = linkedStudents
@@ -1585,7 +1586,7 @@ export class AdmissionsRepository {
             SET primary_guardian_phone = $3,
                 updated_by_user_id = $4::uuid,
                 updated_at = NOW()
-            WHERE tenant_id = $1 AND id = ANY($2::uuid[])
+            WHERE tenant_id = $1 AND id::text = ANY($2::text[])
           `, [
             input.tenant_id,
             affectedStudentIds,
@@ -1595,7 +1596,7 @@ export class AdmissionsRepository {
           await query(`
             UPDATE student_portal_access
             SET guardian_phone_hash = $3, updated_at = NOW()
-            WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
+            WHERE tenant_id = $1 AND student_id::text = ANY($2::text[])
           `, [input.tenant_id, affectedStudentIds, input.guardian_phone_hash]);
         }
         const credentialUserIds = [guardian.guardian_user_id, ...studentUserIds].filter(Boolean);
@@ -1605,7 +1606,7 @@ export class AdmissionsRepository {
             SET phone_number_hash = $3,
                 phone_number_last4 = $4,
                 updated_at = NOW()
-            WHERE tenant_id = $1 AND id = ANY($2::uuid[])
+            WHERE tenant_id = $1 AND id::text = ANY($2::text[])
           `, [
             input.tenant_id,
             credentialUserIds,
@@ -1616,7 +1617,7 @@ export class AdmissionsRepository {
             UPDATE parent_otp_challenges
             SET consumed_at = NOW()
             WHERE tenant_id = $1
-              AND user_id = ANY($2::uuid[])
+              AND user_id::text = ANY($2::text[])
               AND consumed_at IS NULL
           `, [input.tenant_id, credentialUserIds]);
         }
@@ -1627,11 +1628,11 @@ export class AdmissionsRepository {
           ) VALUES (
             $1, $2::uuid, 'student.guardian_phone.changed', 'guardian_profile', $3,
             jsonb_build_object(
-              'student_id', $4,
+              'student_id', $4::text,
               'affected_student_ids', $5::jsonb,
-              'previous_phone_last4', $6,
-              'phone_last4', $7,
-              'reason', $8,
+              'previous_phone_last4', $6::text,
+              'phone_last4', $7::text,
+              'reason', $8::text,
               'pending_otps_invalidated', $9::boolean
             )
           )
