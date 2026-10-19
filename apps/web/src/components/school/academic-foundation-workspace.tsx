@@ -50,6 +50,8 @@ type Department = LifecycleRecord & { name: string; code?: string; description?:
 type PolicySetting = LifecycleRecord & {
   name: string;
   description?: string | null;
+  curriculum_model?: string | null;
+  curriculum_models?: string[];
   grading_system_id?: string | null;
   show_rank?: boolean;
   show_attendance?: boolean;
@@ -626,9 +628,15 @@ export function AcademicFoundationWorkspace({
     try {
       if (kind === "grading") {
         const rules = JSON.parse(value(data, "rules") || "[]") as unknown;
+        const curricula = JSON.parse(value(data, "curriculum_models") || "[]") as unknown;
         const validation = validateAcademicGradeBands(rules);
         if (validation) throw new Error(validation);
+        if (!Array.isArray(curricula) || curricula.length === 0 || curricula.some((item) => typeof item !== "string" || !item.trim())) {
+          throw new Error("Choose at least one curriculum for this grading policy.");
+        }
         body.rules = rules;
+        body.curriculum_models = curricula;
+        body.curriculum_model = curricula[0];
       } else if (kind === "attendance") {
         const configuration = JSON.parse(value(data, "configuration") || "{}") as Record<string, unknown>;
         const validation = validateAttendanceConfiguration(configuration);
@@ -1214,12 +1222,12 @@ export function AcademicFoundationWorkspace({
                   <label className="block text-sm font-bold">Policy name<input name="name" required className={fieldClass} placeholder="e.g. 2026 CBC or 8-4-4 grading" /></label>
                   <label className="block text-sm font-bold">Description<input name="description" className={fieldClass} placeholder="Where this grading system applies" /></label>
 
-                  <div className="lg:col-span-2"><AcademicGradeBandsEditor name="rules" /></div>
+                  <div className="lg:col-span-2"><AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" /></div>
                   <button className={`${primaryButtonClass} lg:col-span-2 lg:justify-self-start`} disabled={busyAction !== null}>{busyAction === "grading-policy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save grading system</button>
                 </form>
               </SetupForm>
               <SetupForm title="Saved grading systems" description="Review or manage the grading policies available to exams and report cards.">
-                {visible(gradingSystems).length === 0 ? <EmptyState>No grading system has been saved yet. Use the guided form above to create the first one.</EmptyState> : <div className="grid gap-3 lg:grid-cols-2">{visible(gradingSystems).map((policy) => <div key={policy.id} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{policy.name}</p><p className="mt-1 text-xs font-semibold text-white/55">{policy.rules?.length ?? 0} grade bands - {statusLabel(policy)}</p><p className="mt-1 text-xs font-semibold text-white/45">{policy.description || "No description"}</p></div><AcademicRecordManager entityType="grading-system" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "description", label: "Description", type: "textarea" }, { name: "rules", label: "Grade bands and assessment rules", type: "grade-bands" }]} mergeCandidates={activeGradingSystems.map((candidate) => ({ id: candidate.id, label: candidate.name }))} onUpdated={refreshAll} /></div>)}</div>}
+                {visible(gradingSystems).length === 0 ? <EmptyState>No grading system has been saved yet. Use the guided form above to create the first one.</EmptyState> : <div className="grid gap-3 lg:grid-cols-2">{visible(gradingSystems).map((policy) => <div key={policy.id} className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-black">{policy.name}</p><p className="mt-1 text-xs font-semibold text-white/55">{policy.rules?.length ?? 0} grade bands - {statusLabel(policy)}</p><p className="mt-1 text-xs font-semibold text-cyan-100/70">{policy.curriculum_models?.length ? policy.curriculum_models.join(", ") : policy.curriculum_model || "Curriculum not assigned"}</p><p className="mt-1 text-xs font-semibold text-white/45">{policy.description || "No description"}</p></div><AcademicRecordManager entityType="grading-system" record={policy} title={policy.name} fields={[{ name: "name", label: "Policy name" }, { name: "description", label: "Description", type: "textarea" }, { name: "rules", label: "Grade bands and assessment rules", type: "grade-bands" }]} mergeCandidates={activeGradingSystems.map((candidate) => ({ id: candidate.id, label: candidate.name }))} onUpdated={refreshAll} /></div>)}</div>}
               </SetupForm>
             </>
           ) : null}

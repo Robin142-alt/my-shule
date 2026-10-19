@@ -11,6 +11,42 @@ export function normalizeCurriculum(value: unknown): string {
   return name;
 }
 
+export function normalizeCurricula(value: unknown, fallback?: unknown): string[] {
+  if (value !== undefined && !Array.isArray(value)) {
+    throw new BadRequestException('Choose one or more curricula for this grading policy.');
+  }
+  const candidates = Array.isArray(value) ? value : fallback === undefined ? [] : [fallback];
+  if (!candidates.length || candidates.length > 10) {
+    throw new BadRequestException('Choose between one and ten curricula for this grading policy.');
+  }
+  const normalized = candidates.map(normalizeCurriculum);
+  const unique = new Map(normalized.map((curriculum) => [
+    curriculum.toLowerCase().replace(/[_\s-]/g, ''),
+    curriculum,
+  ]));
+  return [...unique.values()];
+}
+
+/**
+ * Older grading systems predate curriculum_model. Infer only unmistakable
+ * Kenyan grade-band formats so an explicitly selected legacy policy can still
+ * be used safely without treating CBC competency bands as 8-4-4 grades.
+ */
+export function inferLegacyGradingCurriculum(curriculum: unknown, rulesValue: unknown): string | null {
+  const key = String(curriculum ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
+  if (!Array.isArray(rulesValue) || rulesValue.length === 0) return null;
+  const labels = rulesValue.map((rule) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return '';
+    return String((rule as Record<string, unknown>).label ?? '').trim().toUpperCase().replace(/\s+/g, '');
+  });
+  if (labels.some((label) => !label)) return null;
+  if (labels.every((label) => /^[A-E][+-]?$/.test(label))) return '8-4-4';
+  if (labels.every((label) => /^(EE|ME|AE|BE)[12]?$/.test(label))) {
+    return key === 'cbe' ? 'CBE' : 'CBC';
+  }
+  return null;
+}
+
 export function validateGradingRules(value: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(value) || !value.length || value.length > 100) {
     throw new BadRequestException('Add between 1 and 100 grade bands.');

@@ -750,6 +750,7 @@ export class AcademicsSchemaService implements OnModuleInit, OnApplicationBootst
       ALTER TABLE class_streams ADD COLUMN IF NOT EXISTS archived_by_user_id uuid;
       -- Curriculum belongs to a class. Grading policies bind to the same curriculum.
       ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS curriculum_model text;
+      ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS curriculum_models jsonb NOT NULL DEFAULT '[]'::jsonb;
       UPDATE academics_grading_systems SET curriculum_model = CASE
         WHEN upper(trim(name)) IN ('CBC', 'CBE') THEN upper(trim(name))
         WHEN regexp_replace(name, '[-_ ]', '', 'g') = '844' THEN '8-4-4'

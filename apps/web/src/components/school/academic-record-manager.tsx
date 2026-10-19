@@ -204,8 +204,19 @@ export function AcademicRecordManager({
     const data = new FormData(event.currentTarget);
     const body: Record<string, unknown> = { expected_version: Number(record.version ?? 1), reason: reason || undefined };
     if (entityType === "grading-system") {
-      body.curriculum_model = String(data.get("curriculum_model") ?? "").trim();
-      if (!body.curriculum_model) { setDetailError("Choose the curriculum for this grading policy."); return; }
+      let curricula: unknown;
+      try {
+        curricula = JSON.parse(String(data.get("curriculum_models") ?? "[]"));
+      } catch {
+        setDetailError("Choose one or more curricula for this grading policy.");
+        return;
+      }
+      if (!Array.isArray(curricula) || !curricula.length || curricula.some((value) => typeof value !== "string" || !value.trim())) {
+        setDetailError("Choose at least one curriculum for this grading policy.");
+        return;
+      }
+      body.curriculum_models = curricula;
+      body.curriculum_model = curricula[0];
     }
     for (const field of fields) {
       if (field.type === "checkbox") body[field.name] = data.get(field.name) === "on";
@@ -333,6 +344,7 @@ export function AcademicRecordManager({
                       defaultValue={record[field.name]}
                       curriculumName={entityType === "grading-system" ? "curriculum_model" : undefined}
                       defaultCurriculum={typeof record.curriculum_model === "string" ? record.curriculum_model : undefined}
+                      defaultCurricula={Array.isArray(record.curriculum_models) ? record.curriculum_models as string[] : undefined}
                       initialPreset="blank"
                       theme="light"
                     />

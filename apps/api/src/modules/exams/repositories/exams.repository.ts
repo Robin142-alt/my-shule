@@ -1,5 +1,6 @@
 import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
+import { inferLegacyGradingCurriculum } from '../../academics/curriculum-grading';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 import { reportPdfIdentity } from '../services/report-artifact-identity';
 import { buildScopeSqlClause, parseReportCardScope, reportCardIneligibilitySql, reportCardPreviewToken,
@@ -2554,6 +2555,8 @@ export class ExamsRepository {
             system.id::text,
             system.name,
             to_jsonb(system) ->> 'curriculum_model' AS curriculum_model,
+            to_jsonb(system) -> 'curriculum_models' AS curriculum_models,
+            preferred.grading_system_id AS preferred_grading_system_id,
             system.version,
             system.effective_from::text,
             system.effective_to::text,
@@ -2563,24 +2566,69 @@ export class ExamsRepository {
           WHERE system.tenant_id = $1
             AND (
               NULLIF($3::text, '') IS NULL
-              OR replace(lower(to_jsonb(system) ->> 'curriculum_model'), '-', '') = replace(lower($3::text), '-', '')
+              OR replace(lower(btrim(to_jsonb(system) ->> 'curriculum_model')), '-', '') = replace(lower(btrim($3::text)), '-', '')
+              OR EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(to_jsonb(system) -> 'curriculum_models') = 'array'
+                    THEN to_jsonb(system) -> 'curriculum_models' ELSE '[]'::jsonb END
+                ) AS selected_curriculum(value)
+                WHERE replace(lower(btrim(selected_curriculum.value)), '-', '') = replace(lower(btrim($3::text)), '-', '')
+              )
+              OR system.id::text = preferred.grading_system_id
+              OR NULLIF(btrim(to_jsonb(system) ->> 'curriculum_model'), '') IS NULL
             )
             AND system.is_active = TRUE
             AND (system.effective_from IS NULL OR system.effective_from <= CURRENT_DATE)
             AND (system.effective_to IS NULL OR system.effective_to >= CURRENT_DATE)
-            AND (
-              preferred.grading_system_id IS NULL
-              OR system.id::text = preferred.grading_system_id
-            )
           ORDER BY
+            COALESCE((
+              NULLIF($3::text, '') IS NOT NULL
+              AND replace(lower(btrim(to_jsonb(system) ->> 'curriculum_model')), '-', '') = replace(lower(btrim($3::text)), '-', '')
+              OR NULLIF($3::text, '') IS NOT NULL AND EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(to_jsonb(system) -> 'curriculum_models') = 'array'
+                    THEN to_jsonb(system) -> 'curriculum_models' ELSE '[]'::jsonb END
+                ) AS selected_curriculum(value)
+                WHERE replace(lower(btrim(selected_curriculum.value)), '-', '') = replace(lower(btrim($3::text)), '-', '')
+              )
+            ), FALSE) DESC,
             (system.id::text = preferred.grading_system_id) DESC,
             system.updated_at DESC,
             system.created_at DESC
-          LIMIT 1
         `,
         [input.tenant_id, input.exam_series_id, classCurriculum],
       );
-    if (gradingPolicyResult.rows.length === 0 && classCurriculum && academicGradingSystemResult.rows.length === 0) {
+    const normalizeCurriculumKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
+    const gradingSystemCurriculum = (system: Record<string, unknown>) => {
+      const selectedCurricula = Array.isArray(system.curriculum_models)
+        ? system.curriculum_models.filter((value): value is string => typeof value === 'string')
+        : [];
+      if (classCurriculum && selectedCurricula.some((value) =>
+        normalizeCurriculumKey(value) === normalizeCurriculumKey(classCurriculum),
+      )) return classCurriculum;
+      const declared = typeof system.curriculum_model === 'string' ? system.curriculum_model.trim() : '';
+      return declared || inferLegacyGradingCurriculum(classCurriculum, system.rules);
+    };
+    let academicGradingSystem = classCurriculum
+      ? academicGradingSystemResult.rows.find((system) =>
+        normalizeCurriculumKey(gradingSystemCurriculum(system)) === normalizeCurriculumKey(classCurriculum),
+      ) ?? null
+      : academicGradingSystemResult.rows[0] ?? null;
+    const incompatiblePreferredSystem = classCurriculum
+      ? academicGradingSystemResult.rows.find((system) =>
+        system.id === system.preferred_grading_system_id
+        && normalizeCurriculumKey(gradingSystemCurriculum(system)) !== normalizeCurriculumKey(classCurriculum),
+      ) ?? null
+      : null;
+    if (gradingPolicyResult.rows.length === 0 && classCurriculum && !academicGradingSystem) {
+      if (incompatiblePreferredSystem) {
+        const policyCurriculum = gradingSystemCurriculum(incompatiblePreferredSystem) || 'unclassified';
+        throw new BadRequestException(
+          `The selected grading policy uses ${policyCurriculum} grading bands, but this class uses ${classCurriculum}. Select a grading policy for ${classCurriculum} before generating report cards`,
+        );
+      }
       throw new BadRequestException(`Save a grading policy for the class curriculum (${classCurriculum}) before generating report cards`);
     }
     const subjectsResult = await this.executeSql(
@@ -2738,7 +2786,19 @@ export class ExamsRepository {
     const termHistory = await this.loadReportCardTrend(input.tenant_id, input.exam_series_id, input.student_id);
     const subjectHistory = await this.loadReportCardComparison(input.tenant_id, input.exam_series_id, input.student_id);
 
-    const academicGradingSystem = academicGradingSystemResult.rows[0] ?? null;
+    if (academicGradingSystem && classCurriculum) {
+      const inferredCurriculum = gradingSystemCurriculum(academicGradingSystem);
+      const curriculumKey = (value: string) => value.trim().toLowerCase().replace(/[_\s-]/g, '');
+      if (!inferredCurriculum || curriculumKey(inferredCurriculum) !== curriculumKey(classCurriculum)) {
+        const policyCurriculum = inferredCurriculum || 'unclassified';
+        throw new BadRequestException(
+          `The selected grading policy uses ${policyCurriculum} grading bands, but this class uses ${classCurriculum}. Select a grading policy for ${classCurriculum} before generating report cards`,
+        );
+      }
+      // The rules are shared, but reporting behavior (traditional vs competency)
+      // must still follow the class being regenerated when a policy covers both.
+      academicGradingSystem = { ...academicGradingSystem, curriculum_model: classCurriculum };
+    }
     const subjects = subjectsResult.rows.map((subject) =>
       applyAcademicGradingRule(subject, academicGradingSystem?.rules),
     );

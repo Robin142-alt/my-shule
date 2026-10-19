@@ -271,6 +271,7 @@ export function AcademicGradeBandsEditor({
   defaultValue,
   curriculumName,
   defaultCurriculum,
+  defaultCurricula,
   initialPreset = "secondary",
   theme = "dark",
 }: {
@@ -279,6 +280,7 @@ export function AcademicGradeBandsEditor({
   defaultValue?: unknown;
   curriculumName?: string;
   defaultCurriculum?: string;
+  defaultCurricula?: string[];
   initialPreset?: "secondary" | "cbc" | "blank";
   theme?: EditorTheme;
 }) {
@@ -287,9 +289,20 @@ export function AcademicGradeBandsEditor({
     [defaultValue, initialPreset],
   );
   const [rows, setRows] = useState<GradeBandState[]>(buildInitialRows);
-  const initialCurriculum = defaultCurriculum ?? (defaultValue ? "" : initialPreset === "cbc" ? "CBC" : "8-4-4");
-  const [curriculum, setCurriculum] = useState(initialCurriculum);
-  const [customCurriculum, setCustomCurriculum] = useState(!["", "CBC", "8-4-4"].includes(initialCurriculum) ? initialCurriculum : "");
+  const buildInitialCurricula = useCallback(() => {
+    const initial = defaultCurricula?.length
+      ? defaultCurricula
+      : defaultCurriculum
+        ? [defaultCurriculum]
+        : defaultValue
+          ? []
+          : [initialPreset === "cbc" ? "CBC" : "8-4-4"];
+    return [...new Set(initial.map((value) => value.trim()).filter(Boolean))];
+  }, [defaultCurricula, defaultCurriculum, defaultValue, initialPreset]);
+  const [curricula, setCurricula] = useState<string[]>(buildInitialCurricula);
+  const initialCustomCurriculum = curricula.find((value) => !["CBC", "8-4-4"].includes(value)) ?? "";
+  const [customEnabled, setCustomEnabled] = useState(Boolean(initialCustomCurriculum));
+  const [customCurriculum, setCustomCurriculum] = useState(initialCustomCurriculum);
   const containerRef = useRef<HTMLDivElement>(null);
   const styles = themeClasses[theme];
   const serialized = useMemo(() => serializedGradeBands(rows), [rows]);
@@ -297,9 +310,12 @@ export function AcademicGradeBandsEditor({
 
   const resetRows = useCallback(() => {
     setRows(buildInitialRows());
-    setCurriculum(initialCurriculum);
-    setCustomCurriculum(!["", "CBC", "8-4-4"].includes(initialCurriculum) ? initialCurriculum : "");
-  }, [buildInitialRows, initialCurriculum]);
+    const initial = buildInitialCurricula();
+    setCurricula(initial);
+    const custom = initial.find((value) => !["CBC", "8-4-4"].includes(value)) ?? "";
+    setCustomEnabled(Boolean(custom));
+    setCustomCurriculum(custom);
+  }, [buildInitialRows, buildInitialCurricula]);
 
   useEffect(resetRows, [resetRows]);
   useFormReset(containerRef, resetRows);
@@ -318,30 +334,42 @@ export function AcademicGradeBandsEditor({
       {curriculumName ? (
         <fieldset className="mb-4 space-y-2">
           <legend className={`text-sm font-black ${styles.label}`}>Curriculum for this grading policy</legend>
-          <p className={`text-xs ${styles.muted}`}>Choose one. These bands apply to subjects in classes using this curriculum.</p>
-          <input type="hidden" name={curriculumName} value={["CBC", "8-4-4"].includes(curriculum) ? curriculum : customCurriculum.trim()} />
+          <p className={`text-xs ${styles.muted}`}>Select every curriculum that uses these grade bands. Reports use this policy for matching classes.</p>
+          <input type="hidden" name={curriculumName} value={curricula[0] ?? ""} />
+          <input type="hidden" name="curriculum_models" value={JSON.stringify(curricula)} />
           <div className="flex flex-wrap gap-4">
             {["8-4-4", "CBC", "Configure another system"].map((choice) => {
               const custom = choice === "Configure another system";
               return <label key={choice} className={`flex min-h-10 items-center gap-2 text-sm font-bold ${styles.label}`}>
-                <input type="checkbox" checked={custom ? Boolean(curriculum) && !["CBC", "8-4-4"].includes(curriculum) : curriculum === choice}
-                  onChange={() => {
-                    if (custom ? curriculum && !["CBC", "8-4-4"].includes(curriculum) : curriculum === choice) return;
-                    setCurriculum(custom ? "custom" : choice);
-                    // Binding a legacy saved policy must preserve its edited bands.
-                    if (!curriculum && defaultValue) return;
-                    if (custom) setRows([blankGradeBand()]);
-                    else applyPreset(choice === "CBC" ? "cbc" : "secondary");
+                <input type="checkbox"
+                  checked={custom ? customEnabled : curricula.includes(choice)}
+                  onChange={(event) => {
+                    if (custom) {
+                      setCustomEnabled(event.target.checked);
+                      if (!event.target.checked) {
+                        setCustomCurriculum("");
+                        setCurricula((current) => current.filter((value) => ["CBC", "8-4-4"].includes(value)));
+                      }
+                      return;
+                    }
+                    setCurricula((current) => event.target.checked
+                      ? [...current.filter((value) => value !== choice), choice]
+                      : current.filter((value) => value !== choice));
                   }} />
                 {choice}
               </label>;
             })}
           </div>
-          {curriculum && !["CBC", "8-4-4"].includes(curriculum) ? <label className={`block text-sm font-bold ${styles.label}`}>
+          {customEnabled ? <label className={`block text-sm font-bold ${styles.label}`}>
             Curriculum name
-            <input value={customCurriculum} onChange={(event) => setCustomCurriculum(event.target.value)} maxLength={100} required placeholder="e.g. Cambridge" className={`${baseInputClass} ${styles.input}`} />
+            <input value={customCurriculum} onChange={(event) => {
+              const value = event.target.value;
+              setCustomCurriculum(value);
+              const standards = curricula.filter((item) => ["CBC", "8-4-4"].includes(item));
+              setCurricula(value.trim() ? [...standards, value.trim()] : standards);
+            }} maxLength={100} required placeholder="e.g. Cambridge" className={`${baseInputClass} ${styles.input}`} />
           </label> : null}
-          {!curriculum ? <p className="text-amber-600">Choose the curriculum before saving this policy.</p> : null}
+          {!curricula.length ? <p className="text-amber-600">Choose at least one curriculum before saving this policy.</p> : null}
         </fieldset>
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
