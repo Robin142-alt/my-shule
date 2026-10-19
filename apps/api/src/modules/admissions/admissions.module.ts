@@ -8,6 +8,8 @@ import { AgpModule } from '../../common/platform-governance/agp.module';
 import { StudentsModule } from '../students/students.module';
 import { CommunicationModule } from '../communication/communication.module';
 import { AdmissionsController } from './admissions.controller';
+import { StudentRecordsController } from './student-records.controller';
+import { StudentRecordsService } from './student-records.service';
 import { AdmissionsSchemaService } from './admissions-schema.service';
 import { AdmissionsService } from './admissions.service';
 import { CohortPromotionService } from './cohort-promotion.service';
@@ -23,11 +25,12 @@ import { AdmissionDocumentStorageService } from './storage/local-document-storag
     CommunicationModule,
     forwardRef(() => StudentsModule),
   ],
-  controllers: [AdmissionsController],
+  controllers: [AdmissionsController, StudentRecordsController],
   providers: [
     ...Object.values(moduleConsumers),
     AdmissionsSchemaService,
     AdmissionsService,
+    StudentRecordsService,
     CohortPromotionService,
     AdmissionsRepository,
     AdmissionDocumentStorageService,

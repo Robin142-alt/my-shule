@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { StudentRecordsService } from '../src/modules/admissions/student-records.service';
 import 'reflect-metadata';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -24,6 +26,11 @@ describe('Complete admission on the upgraded legacy database', () => {
   let service: AdmissionsService;
   let publisher: EventPublisherService;
   let schema: AdmissionsSchemaService;
+  let records: StudentRecordsService;
+  let recordContext: any;
+  let db: any;
+  let agp: AgpExecutionService;
+  const scope = new AsyncLocalStorage<any>();
   const school = 'admission-regression-school';
   const actor = randomUUID();
   const classId = randomUUID();
@@ -41,16 +48,17 @@ describe('Complete admission on the upgraded legacy database', () => {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     await pool.query(readFileSync('apps/api/test/fixtures/sidebar-legacy-schema.sql', 'utf8').replace(/^\\.*$/gm, ''));
     await pool.query('SET search_path TO public');
-    const query = async (sql: string, params: any[] = []) => { queryCount++; return pool.query(sql, params); };
-    const db: any = { query, runSchemaBootstrap: (sql: string) => pool.query(sql),
+    const query = async (sql: string, params: any[] = []) => { queryCount++; return (scope.getStore()?.client ?? pool).query(sql, params); };
+    db = { query, runSchemaBootstrap: (sql: string) => pool.query(sql),
       executeWithTenant: async (tenant: string, user: string | null, callback: (tx: any) => Promise<any>) => {
+        if (scope.getStore()) return callback(scope.getStore().tx);
         const client = await pool.connect();
         try {
           await client.query('BEGIN');
           await client.query("SELECT set_config('app.tenant_id',$1,true),set_config('app.user_id',$2,true)", [tenant, user ?? '']);
           const tx = { $queryRawUnsafe: async (sql: string, ...params: any[]) => { queryCount++; return (await client.query(sql, params)).rows; },
             $executeRawUnsafe: async (sql: string, ...params: any[]) => { queryCount++; return (await client.query(sql, params)).rowCount; } };
-          const result = await callback(tx);
+          const result = await scope.run({ client, tx }, () => callback(tx));
           await client.query('COMMIT');
           return result;
         } catch (error) { await client.query('ROLLBACK'); throw error; }
@@ -94,12 +102,14 @@ describe('Complete admission on the upgraded legacy database', () => {
       (tenant_id,class_name,academic_year,term_name,description,amount_minor)
       VALUES ($1,'Grade 7','2026','Term 3','Tuition',100000)`, [school]);
     const context: any = { requireStore: () => ({ tenant_id: school, user_id: actor, role: 'admissions_officer',
-      permissions: ['admissions:write'], is_authenticated: true, request_id: randomUUID() }) };
+      permissions: ['admissions:write', 'students:read', 'students:write'], is_authenticated: true, request_id: randomUUID() }) };
     context.getStore = context.requireStore;
     publisher = new EventPublisherService(context, new OutboxEventsRepository(db));
-    const agp = new AgpExecutionService(context, publisher, new AuditTrailService(db), new SelfHealingAgentService(publisher));
+    agp = new AgpExecutionService(context, publisher, new AuditTrailService(db), new SelfHealingAgentService(publisher));
     service = new AdmissionsService(context, db, new AdmissionsRepository(db), {} as any, {} as any, undefined,
       publisher, agp, undefined, undefined, authorization);
+    recordContext = context;
+    records = new StudentRecordsService(context, db, new AdmissionsRepository(db), service, publisher, agp);
   });
 
   afterAll(async () => { await pool?.end(); });
@@ -194,4 +204,122 @@ describe('Complete admission on the upgraded legacy database', () => {
       WHERE link.tenant_id=$1 AND student.admission_number='NAME-ONLY'`, [school])).rows)
       .toEqual([{ relationship: null, relationship_type: null }]);
   });
+  test('opens a real student and saves contact and personal details across the school', async () => {
+    const admission = await service.createManualAdmission({ ...dto('EDIT-CONTACT'), guardian_name: undefined, guardian_relationship: undefined });
+    const id = admission.student.id;
+    const record = await records.get(id);
+    expect(record.student).toMatchObject({ id, class_section_id: classId, guardian_name: null });
+    expect(record.subjects).toHaveLength(10);
+    const saved = await records.update(id, { expected_updated_at: record.student.updated_at, reason: 'Parent supplied missing contact',
+      first_name: 'Updated', guardian_name: 'New Parent', guardian_relationship: 'mother', guardian_phone: '0723456789' });
+    expect(saved.student).toMatchObject({ first_name: 'Updated', guardian_phone: '+254723456789', guardian_name: 'New Parent', guardian_relationship: 'mother' });
+    expect((await pool.query('SELECT full_name,guardian_name,guardian_phone,guardian_relationship FROM admission_applications WHERE tenant_id=$1 AND admitted_student_id=$2', [school,id])).rows[0])
+      .toEqual({full_name:'Updated Learner',guardian_name:'New Parent',guardian_phone:'+254723456789',guardian_relationship:'mother'});
+    const contact = (await pool.query(`SELECT profile.normalized_phone,parent.phone,link.relationship_type,access.guardian_phone_hash,account.phone_number_hash,account.full_name
+      FROM student_guardians link JOIN guardian_profiles profile ON profile.id=link.guardian_profile_id
+      JOIN parent_guardians parent ON parent.id=link.guardian_id
+      JOIN student_portal_access access ON access.tenant_id=link.tenant_id AND access.student_id=link.student_id
+      JOIN users account ON account.id=access.user_id WHERE link.tenant_id=$1 AND link.student_id=$2`, [school,id])).rows[0];
+    expect(contact).toMatchObject({normalized_phone:'+254723456789',phone:'+254723456789',relationship_type:'MOTHER',full_name:'Updated Learner'});
+    expect(contact.guardian_phone_hash).toBe(contact.phone_number_hash);
+    expect((await pool.query("SELECT * FROM outbox_events WHERE tenant_id=$1 AND aggregate_id=$2::uuid AND event_name='student.record.updated'",[school,id])).rowCount).toBe(1);
+    await expect(records.update(id, {expected_updated_at: record.student.updated_at, reason:'Stale edit attempt',last_name:'Overwrite'})).rejects.toThrow(/updated by someone else/);
+  });
+
+  test('changes class and subjects together while retaining fees and dropped subject history', async () => {
+    const admission = await service.createManualAdmission(dto('EDIT-CLASS'));
+    const id = admission.student.id;
+    const before = await records.get(id);
+    const destination = randomUUID();
+    await pool.query(`INSERT INTO class_sections (id,tenant_id,academic_year_id,academic_level_id,name,grade_level,curriculum_model)
+      SELECT $1,tenant_id,academic_year_id,NULL,'Grade 7 West',grade_level,curriculum_model FROM class_sections WHERE tenant_id=$2 AND id=$3`,[destination,school,classId]);
+    const selected = before.subjects.slice(0,3).map((subject:any)=>subject.id);
+    await db.executeWithTenant(school,actor,async(tx:any)=>{
+      const [placement] = await ensureCohortContexts(tx,school,destination);
+      for(const subject of selected) await tx.$queryRawUnsafe(`INSERT INTO class_subject_assignments
+        (tenant_id,class_section_id,subject_id,cohort_id,cohort_placement_id,is_compulsory) VALUES($1,$2,$3,$4,$5,FALSE)`,school,destination,subject,placement.cohort_id,placement.id);
+    });
+    const feeBefore = (await pool.query('SELECT * FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2',[school,id])).rows;
+    const saved = await records.update(id,{expected_updated_at:before.student.updated_at,reason:'Move learner to west class',class_section_id:destination,stream_id:'',subject_ids:selected});
+    expect(saved.student.class_section_id).toBe(destination);
+    expect((await pool.query('SELECT academic_level_id FROM class_sections WHERE tenant_id=$1 AND id=$2',[school,destination])).rows[0].academic_level_id).toBeTruthy();
+    expect(saved.subjects.map((subject:any)=>subject.id).sort()).toEqual([...selected].sort());
+    for(const table of ['student_class_assignments','student_academic_enrollments','student_subject_enrollments']) {
+      const rows=(await pool.query(`SELECT DISTINCT class_section_id FROM ${table} WHERE tenant_id=$1 AND student_id=$2 AND status='active'`,[school,id])).rows;
+      expect(rows).toEqual([{class_section_id:destination}]);
+    }
+    expect((await pool.query('SELECT class_name FROM student_allocations WHERE tenant_id=$1 AND student_id=$2 AND is_current',[school,id])).rows).toEqual([{class_name:'Grade 7 West'}]);
+    expect((await pool.query("SELECT * FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='dropped'",[school,id])).rowCount).toBe(7);
+    expect((await pool.query('SELECT * FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2',[school,id])).rows).toEqual(feeBefore);
+  });
+
+  test('rejects foreign references, missing permissions, and invalid subjects without partial edits', async () => {
+    const admission = await service.createManualAdmission(dto('EDIT-SAFE'));
+    const id = admission.student.id;
+    const before = await records.get(id);
+    const base = {expected_updated_at:before.student.updated_at,reason:'Check school boundaries',first_name:'Should not save'};
+    await expect(records.update(id,{...base,class_section_id:foreignClassId})).rejects.toThrow(/active class/);
+    await expect(records.update(id,{...base,subject_ids:[randomUUID()]})).rejects.toThrow(/configured/);
+    expect((await records.get(id)).student.first_name).toBe('Test');
+    const deniedContext:any={requireStore:()=>({...recordContext.requireStore(),permissions:['students:read']})};
+    const denied=new StudentRecordsService(deniedContext,db,new AdmissionsRepository(db),service,publisher,agp);
+    expect((await denied.get(id)).can_edit).toBe(false);
+    await expect(denied.update(id,base)).rejects.toThrow(/access/);
+    const other:any={requireStore:()=>({...recordContext.requireStore(),tenant_id:school+'-foreign'})};
+    await expect(new StudentRecordsService(other,db,new AdmissionsRepository(db),service,publisher,agp).get(id)).rejects.toThrow(/not found/);
+  });
+
+  test('rolls edits and guardian changes back when the update event cannot persist', async () => {
+    const admission = await service.createManualAdmission(dto('EDIT-ROLLBACK'));
+    const id=admission.student.id;
+    const before=await records.get(id);
+    const publish=publisher.publish.bind(publisher);
+    const spy=jest.spyOn(publisher,'publish').mockImplementation((input:any,tx:any)=>{
+      if(input.event_name==='student.record.updated')throw new Error('Record event unavailable');
+      return publish(input,tx);
+    });
+    await expect(records.update(id,{expected_updated_at:before.student.updated_at,reason:'Parent corrects record',first_name:'Unsaved',guardian_phone:'0734567890'})).rejects.toThrow('Record event unavailable');
+    spy.mockRestore();
+    const after=await records.get(id);
+    expect(after.student).toEqual(before.student);
+    expect((await pool.query('SELECT phone FROM student_guardians WHERE tenant_id=$1 AND student_id=$2',[school,id])).rows[0].phone).toBeNull();
+  });
+
+  test('updates a shared guardian and sibling records together without changing their relationship', async () => {
+    const first = await service.createManualAdmission(dto('EDIT-SIBLING-1','0745678901'));
+    const second = await service.createManualAdmission({...dto('EDIT-SIBLING-2','0745678901'),guardian_relationship:'Guardian'});
+    const before=await records.get(first.student.id);
+    const started=performance.now();
+    await records.update(first.student.id,{expected_updated_at:before.student.updated_at,reason:'Parent corrected family contact',guardian_name:'Corrected Parent',guardian_phone:'0756789012',guardian_relationship:'father'});
+    console.log(JSON.stringify({student_record_update_ms:Math.round(performance.now()-started)}));
+    const sibling=await records.get(second.student.id);
+    expect(sibling.student).toMatchObject({guardian_name:'Corrected Parent',guardian_phone:'+254756789012',guardian_relationship:'guardian'});
+    const contacts=(await pool.query('SELECT guardian_name,guardian_phone FROM admission_applications WHERE tenant_id=$1 AND admitted_student_id=ANY($2::text[])',[school,[first.student.id,second.student.id]])).rows;
+    expect(contacts).toEqual(Array(2).fill({guardian_name:'Corrected Parent',guardian_phone:'+254756789012'}));
+  });
+
+  test('allows phone-only details and rejects removal of a compulsory subject', async () => {
+    const admission=await service.createManualAdmission({...dto('EDIT-PARTIAL'),guardian_name:undefined,guardian_relationship:undefined});
+    const before=await records.get(admission.student.id);
+    const saved=await records.update(admission.student.id,{expected_updated_at:before.student.updated_at,reason:'Contact supplied before parent name',guardian_phone:'0767890123'});
+    expect(saved.student).toMatchObject({guardian_name:null,guardian_phone:'+254767890123'});
+    const compulsory=before.subjects[0].id;
+    await pool.query('UPDATE class_subject_assignments SET is_compulsory=TRUE WHERE tenant_id=$1 AND class_section_id=$2 AND subject_id=$3',[school,classId,compulsory]);
+    await expect(records.update(admission.student.id,{expected_updated_at:saved.student.updated_at,reason:'Remove compulsory subject',subject_ids:before.subjects.slice(1).map((row:any)=>row.id)})).rejects.toThrow(/Compulsory/);
+    const foundation:any=await records.options(admission.student.id);
+    expect(foundation.classes.some((row:any)=>row.id===classId)).toBe(true);
+    expect(foundation.classes.some((row:any)=>row.id===foreignClassId)).toBe(false);
+  });
+
+  test('limits teachers to assigned learners on the shared profile route', async () => {
+    const id=(await pool.query("SELECT id FROM students WHERE tenant_id=$1 AND admission_number='EDIT-SAFE'",[school])).rows[0].id;
+    const teacherContext:any={requireStore:()=>({...recordContext.requireStore(),role:'teacher',permissions:['students:read']})};
+    const teacher=new StudentRecordsService(teacherContext,db,new AdmissionsRepository(db),service,publisher,agp);
+    await expect(teacher.get(id)).rejects.toThrow(/outside your assigned/);
+    const subject=(await records.get(id)).subjects[0].id;
+    await pool.query(`INSERT INTO teacher_subject_assignments (tenant_id,teacher_user_id,class_section_id,subject_id,status,effective_from)
+      VALUES($1,$2::uuid,$3,$4,'active','2026-01-01')`,[school,actor,classId,subject]);
+    expect((await teacher.get(id)).can_edit).toBe(false);
+  });
+
 });

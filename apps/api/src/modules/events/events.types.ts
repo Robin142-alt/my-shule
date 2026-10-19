@@ -1,4 +1,5 @@
 export type SupportedDomainEventName =
+  | 'student.record.updated'
   | 'auth.session.revoked'
   | 'student.created'
   | 'student.lifecycle.enrolled'
@@ -511,6 +512,8 @@ export interface AcademicSetupChangedPayload {
 }
 
 export interface DomainEventPayloadMap {
+  'student.record.updated': { tenant_id: string; student_id: string; changed_fields: string[]; reason: string;
+    previous_class_id: string | null; class_id: string | null; subject_ids: Array<string | null> };
   'auth.session.revoked': { session_id: string; user_id: string; reason: 'logout' | 'device_revocation' };
   'student.created': StudentCreatedPayload;
   'student.lifecycle.enrolled': StudentLifecycleEnrolledPayload;
