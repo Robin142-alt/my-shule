@@ -48,6 +48,7 @@ test('AcademicsSchemaService creates academic lifecycle tables with tenant RLS',
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ALTER COLUMN assigned_by_user_id DROP NOT NULL/);
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments ADD COLUMN IF NOT EXISTS created_by_user_id uuid/);
   assert.match(schemaSql, /CBE/);
+  assert.ok(schemaSql.includes("ALTER TABLE academics_grading_systems ADD COLUMN IF NOT EXISTS curriculum_models jsonb NOT NULL DEFAULT '[]'::jsonb"));
   assert.match(schemaSql, /ALTER TABLE teacher_subject_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE student_class_assignments FORCE ROW LEVEL SECURITY/);
   assert.match(schemaSql, /ALTER TABLE academics_assignment_submissions FORCE ROW LEVEL SECURITY/);
@@ -174,7 +175,9 @@ test('AcademicsRepository writes settings across legacy UUID and current text sc
     },
   } as never);
 
-  await repository.createGradingSystem('maranda-high', 'CBC', null);
+  await repository.createGradingSystem('maranda-high', 'CBC', null, {
+    curriculum_model: 'CBC', curriculum_models: ['CBC', '8-4-4'],
+  });
   await repository.createAttendanceSetting('maranda-high', 'Daily register', null);
   await repository.createReportCardSetting(
     'maranda-high',
@@ -188,6 +191,8 @@ test('AcademicsRepository writes settings across legacy UUID and current text sc
   await repository.archiveReportCardSetting('maranda-high', 'report-1');
 
   assert.equal(calls.length, 6);
+  assert.match(calls[0], /curriculum_models/);
+  assert.match(calls[0], /\$10::jsonb/);
   for (const sql of calls.slice(0, 3)) {
     assert.match(sql, /updated_at/);
     assert.match(sql, /NOW\(\)/);
@@ -195,6 +200,7 @@ test('AcademicsRepository writes settings across legacy UUID and current text sc
   for (const sql of calls.slice(3)) {
     assert.match(sql, /id::text = \$2/);
   }
+  assert.match(calls[3], /curriculum_models = COALESCE/);
 });
 
 test('AcademicsRepository updates subject departments across legacy text and current UUID schemas', async () => {
@@ -940,6 +946,7 @@ test('AcademicsRepository loads the complete academic foundation in one tenant t
   assert.match(observedSql, /FROM class_subject_assignments/);
   assert.match(observedSql, /FROM class_streams/);
   assert.match(observedSql, /FROM teacher_subject_assignments/);
+  assert.match(observedSql, /curriculum_model, curriculum_models, rules/);
   assert.match(observedSql, /FROM tenant_memberships membership/);
   assert.match(observedSql, /JOIN roles role/);
   assert.match(observedSql, /role\.code = ANY/);

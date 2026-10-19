@@ -47,6 +47,29 @@ function bandTable(container: HTMLElement) {
 }
 
 describe("academic policy builders", () => {
+  it("allows one policy to target multiple curricula without changing its grade bands", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <form>
+        <AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" />
+      </form>,
+    );
+
+    const legacy = screen.getByRole("checkbox", { name: "8-4-4" });
+    const cbc = screen.getByRole("checkbox", { name: "CBC" });
+    expect(legacy).toBeChecked();
+    expect(cbc).not.toBeChecked();
+    const startingBands = bandTable(container);
+
+    await user.click(cbc);
+
+    expect(legacy).toBeChecked();
+    expect(cbc).toBeChecked();
+    expect(bandTable(container)).toEqual(startingBands);
+    expect(structuredValue(container, "curriculum_models")).toEqual(["8-4-4", "CBC"]);
+    expect(container.querySelector<HTMLInputElement>('input[name="curriculum_model"]')?.value).toBe("8-4-4");
+  });
+
   it("builds complete grading bands from school-friendly presets", async () => {
     const user = userEvent.setup();
     const { container } = render(

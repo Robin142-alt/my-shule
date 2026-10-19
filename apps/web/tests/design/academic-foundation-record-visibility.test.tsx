@@ -86,7 +86,7 @@ describe("academic foundation saved-record visibility", () => {
     await waitFor(() => expect(requestDashboardApi).toHaveBeenCalledWith("/academics/grading-systems", {
       method: "POST",
       tenantId: "maranda-high",
-      body: expect.objectContaining({ name: preset, rules: expect.any(Array) }),
+      body: expect.objectContaining({ name: preset, curriculum_model: preset, curriculum_models: [preset], rules: expect.any(Array) }),
     }));
     const savedRules = (requestDashboardApi as jest.Mock).mock.calls[0][1].body.rules;
     expect(savedRules).toHaveLength(count);

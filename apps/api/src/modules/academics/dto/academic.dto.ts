@@ -653,6 +653,7 @@ export class UpdateAcademicCalendarPeriodDto {
 
 export class AcademicPolicyDto {
   @IsOptional() @IsString() @MaxLength(100) curriculum_model?: string;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(10) @ArrayUnique() @IsString({ each: true }) @MaxLength(100, { each: true }) curriculum_models?: string[];
   @IsOptional() @IsString() name?: string;
 
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
