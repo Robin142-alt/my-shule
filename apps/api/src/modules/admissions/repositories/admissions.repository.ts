@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 
-function normalizeAcademicSystemType(value: unknown) {
+export function normalizeAcademicSystemType(value: unknown) {
   const normalized = String(value ?? '').trim().toLowerCase();
 
   if (normalized === 'cbc') return 'CBC';

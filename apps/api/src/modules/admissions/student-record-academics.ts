@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { CohortTx, ensureCohortContexts, ensureCohortMigration } from '../academics/cohort-configuration';
 import { UpdateStudentRecordDto } from './dto/update-student-record.dto';
+import { normalizeAcademicSystemType } from './repositories/admissions.repository';
 
 export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor: string, student: any, dto: UpdateStudentRecordDto) {
   const query = (sql: string, ...values: unknown[]): Promise<any[]> => tx.$queryRawUnsafe(sql, ...values);
@@ -54,7 +55,18 @@ export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor:
   if (enrollments.length !== 1) throw new ConflictException('The student needs one active academic enrolment before changing class or subjects.');
   const enrollment = enrollments[0];
   if (moving) {
-    if (!section.academic_level_id) throw new BadRequestException('The destination class needs an academic level in school setup.');
+    if (!section.academic_level_id) {
+      // Legacy classes derive this link on first use, as they do during direct admission.
+      await query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text', `academic-level:${tenant}`);
+      let [level] = await query(`SELECT id FROM academic_levels WHERE tenant_id=$1 AND lower(btrim(name))=lower(btrim($2))
+        ORDER BY is_active DESC,order_index,id LIMIT 1 FOR UPDATE`, tenant, section.name);
+      if (level) await query('UPDATE academic_levels SET is_active=TRUE,updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2', tenant, level.id);
+      else [level] = await query(`INSERT INTO academic_levels (tenant_id,system_type,name,order_index,is_active)
+        SELECT $1,$2,$3,COALESCE(MAX(order_index),0)+1,TRUE FROM academic_levels WHERE tenant_id=$1 RETURNING id`,
+      tenant, normalizeAcademicSystemType(section.curriculum_model), section.name);
+      section.academic_level_id = level.id;
+      await query('UPDATE class_sections SET academic_level_id=$3,updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2', tenant, classId, level.id);
+    }
     await query(`UPDATE student_class_assignments SET status='completed',updated_at=NOW()
       WHERE tenant_id=$1 AND student_id::text=$2 AND status='active'`, tenant, student.id);
     await query(`INSERT INTO student_class_assignments (tenant_id,school_id,student_id,class_section_id,stream_id,academic_year_id,

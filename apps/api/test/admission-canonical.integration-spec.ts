@@ -232,7 +232,7 @@ describe('Complete admission on the upgraded legacy database', () => {
     const before = await records.get(id);
     const destination = randomUUID();
     await pool.query(`INSERT INTO class_sections (id,tenant_id,academic_year_id,academic_level_id,name,grade_level,curriculum_model)
-      SELECT $1,tenant_id,academic_year_id,academic_level_id,'Grade 7 West',grade_level,curriculum_model FROM class_sections WHERE tenant_id=$2 AND id=$3`,[destination,school,classId]);
+      SELECT $1,tenant_id,academic_year_id,NULL,'Grade 7 West',grade_level,curriculum_model FROM class_sections WHERE tenant_id=$2 AND id=$3`,[destination,school,classId]);
     const selected = before.subjects.slice(0,3).map((subject:any)=>subject.id);
     await db.executeWithTenant(school,actor,async(tx:any)=>{
       const [placement] = await ensureCohortContexts(tx,school,destination);
@@ -242,6 +242,7 @@ describe('Complete admission on the upgraded legacy database', () => {
     const feeBefore = (await pool.query('SELECT * FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2',[school,id])).rows;
     const saved = await records.update(id,{expected_updated_at:before.student.updated_at,reason:'Move learner to west class',class_section_id:destination,stream_id:'',subject_ids:selected});
     expect(saved.student.class_section_id).toBe(destination);
+    expect((await pool.query('SELECT academic_level_id FROM class_sections WHERE tenant_id=$1 AND id=$2',[school,destination])).rows[0].academic_level_id).toBeTruthy();
     expect(saved.subjects.map((subject:any)=>subject.id).sort()).toEqual([...selected].sort());
     for(const table of ['student_class_assignments','student_academic_enrollments','student_subject_enrollments']) {
       const rows=(await pool.query(`SELECT DISTINCT class_section_id FROM ${table} WHERE tenant_id=$1 AND student_id=$2 AND status='active'`,[school,id])).rows;
