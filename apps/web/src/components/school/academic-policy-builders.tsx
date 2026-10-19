@@ -433,30 +433,32 @@ export function AcademicGradeBandsEditor({
         </div> : null}
       </div>
 
-      <div className="mt-4 space-y-3">
+      <p className={`text-xs sm:hidden ${styles.muted}`}>Swipe sideways to edit all grade-band fields.</p>
+      <div className="mt-4 max-w-full overflow-x-auto overscroll-x-contain rounded-xl pb-2" tabIndex={0} role="region" aria-label={key ? `${key} editable grade bands` : "Editable grade bands"}>
+      <div className="space-y-3" style={{ minWidth: 680 }}>
         {rows.map((row, index) => (
-          <div key={row.id} className={`grid gap-3 rounded-xl border p-3 sm:grid-cols-2 2xl:grid-cols-12 ${styles.row}`}>
-            <label className={`text-xs font-bold 2xl:col-span-2 ${styles.label}`}>
+          <div key={row.id} className={`grid items-end gap-3 rounded-xl border p-3 ${styles.row}`} style={{ gridTemplateColumns: "minmax(70px,1fr) minmax(72px,1fr) minmax(72px,1fr) minmax(64px,0.8fr) minmax(160px,2fr) 48px" }}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Grade label
               <input value={row.label} onChange={(event) => update(row.id, { label: event.target.value })} placeholder={index === 0 ? "A or EE1" : "Grade"} className={`${baseInputClass} ${styles.input}`} required />
             </label>
-            <label className={`text-xs font-bold 2xl:col-span-2 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Minimum mark
               <input type="number" min="0" max="100" step="1" value={row.min} onChange={(event) => update(row.id, { min: event.target.value })} className={`${baseInputClass} ${styles.input}`} required />
             </label>
-            <label className={`text-xs font-bold 2xl:col-span-2 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Maximum mark
               <input type="number" min="0" max="100" step="1" value={row.max} onChange={(event) => update(row.id, { max: event.target.value })} className={`${baseInputClass} ${styles.input}`} required />
             </label>
-            <label className={`text-xs font-bold 2xl:col-span-2 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Points
               <input type="number" min="0" step="1" value={row.points} onChange={(event) => update(row.id, { points: event.target.value })} placeholder="Optional" className={`${baseInputClass} ${styles.input}`} />
             </label>
-            <label className={`text-xs font-bold sm:col-span-2 2xl:col-span-3 ${styles.label}`}>
+            <label className={`min-w-0 text-xs font-bold ${styles.label}`}>
               Report remark
               <input value={row.remark} onChange={(event) => update(row.id, { remark: event.target.value })} placeholder="e.g. Excellent" className={`${baseInputClass} ${styles.input}`} />
             </label>
-            <div className="flex items-end justify-between gap-2 sm:col-span-2 2xl:col-span-1 2xl:flex-col 2xl:items-stretch">
+            <div className="flex items-end justify-between gap-2 flex-col items-stretch">
               <label className={`flex min-h-10 items-center gap-2 text-xs font-bold ${styles.label}`}>
                 <input type="checkbox" checked={row.isPass} onChange={(event) => update(row.id, { isPass: event.target.checked })} />
                 Pass
@@ -473,6 +475,7 @@ export function AcademicGradeBandsEditor({
             </div>
           </div>
         ))}
+      </div>
       </div>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

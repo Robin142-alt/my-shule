@@ -77,8 +77,8 @@ describe("academic foundation saved-record visibility", () => {
     );
 
     if (preset === "CBC") {
-      await user.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
-      await user.click(screen.getByRole("checkbox", { name: "8-4-4", exact: true }));
+      await user.click(screen.getByRole("checkbox", { name: "CBC" }));
+      await user.click(screen.getByRole("checkbox", { name: "8-4-4" }));
     }
     await user.type(screen.getByLabelText("Policy name"), preset);
     const remark = screen.getAllByLabelText("Report remark")[0];
@@ -114,7 +114,7 @@ describe("academic foundation saved-record visibility", () => {
     });
     const view = render(<AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName="School" tenantId="school-a" initialTab="policies" />);
     await user.type(screen.getByLabelText("Policy name"), "Mixed school");
-    await user.click(screen.getByRole("checkbox", { name: "CBC", exact: true }));
+    await user.click(screen.getByRole("checkbox", { name: "CBC" }));
     const legacy = screen.getByRole("group", { name: "8-4-4 grade bands" });
     const cbc = screen.getByRole("group", { name: "CBC grade bands" });
     await user.clear(within(legacy).getAllByLabelText("Report remark")[0]);

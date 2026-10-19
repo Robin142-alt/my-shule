@@ -74,6 +74,10 @@ async function run() {
       await page.getByRole('checkbox',{name:'CBC',exact:true}).uncheck();
       await page.getByRole('checkbox',{name:'CBC',exact:true}).check();
       assert.equal(await cbc.getByLabel('Points',{exact:true}).first().inputValue(),'9');
+      const row=legacy.locator('input').first().locator('..').locator('..');
+      const rowInputs=await row.locator('input:not([type="checkbox"])').evaluateAll(elements=>elements.map(el=>({top:el.getBoundingClientRect().top,width:el.getBoundingClientRect().width})));
+      assert.ok(rowInputs.every(input=>Math.abs(input.top-rowInputs[0].top)<2),`Fields must stay horizontal at ${width}px`);
+      assert.ok(rowInputs.every(input=>input.width>=60),`Fields must remain readable at ${width}px`);
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Grading overflows at ${width}px`);
       await legacy.scrollIntoViewIfNeeded();
       await page.screenshot({path:path.join(out,`grading-${width}.png`),fullPage:true});
