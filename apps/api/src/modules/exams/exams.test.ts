@@ -31,6 +31,29 @@ import { Reflector } from '@nestjs/core';
 import { PRINCIPAL_SIGNATURE_ROLES } from './services/report-card-signature-policy';
 import { signaturePng } from './services/testing/signature-image.fixture';
 
+test('explicit regeneration checks the current curriculum policy instead of returning a cached card', async () => {
+  const input = { tenant_id: 'school-a', actor_user_id: 'manager', exam_series_id: 'exam', student_id: 'student', reuse_existing: true };
+  const cachedCard = { id: 'old-cbc-card', status: 'draft_generated', reused: true };
+  let cacheReads = 0;
+  let currentInputReads = 0;
+  const generation = new ReportCardGenerationService({
+    loadReportCardData: async (scope: Record<string, unknown>) => {
+      assert.equal(scope.tenant_id, input.tenant_id);
+      currentInputReads++;
+      throw new Error('The current curriculum policy requires correction');
+    },
+  } as never, {} as never, undefined, undefined, undefined, {
+    reusableSnapshot: async () => { cacheReads++; return cachedCard; },
+    sourceVersion: async () => '[]',
+    sourceValidUntil: async () => null,
+  } as never);
+
+  assert.equal(await generation.generateStudentReportCard(input), cachedCard);
+  await assert.rejects(generation.generateStudentReportCard({ ...input, regeneration_reason: 'Use the corrected 8-4-4 policy' }), /current curriculum policy requires correction/);
+  assert.equal(cacheReads, 1);
+  assert.equal(currentInputReads, 1);
+});
+
 test('bulk regeneration validates the role, selected exam, reason and fresh preview before freezing school-scoped targets', async () => {
   const context = { tenant_id: 'school-a', user_id: 'manager', role: 'exams_manager', permissions: ['exams:read', 'exams:write'] };
   const queued: any[] = [];

@@ -138,7 +138,9 @@ export class ReportCardGenerationService implements OnModuleInit {
   }
 
   async generateStudentReportCard(input: GenerateStudentReportCardInput): Promise<Record<string, unknown>> {
-    if(input.reuse_existing && this.artifactStore) {
+    // Explicit regeneration must reload current curriculum and policy inputs.
+    // Retries can still reuse an identical newly generated snapshot below.
+    if(input.reuse_existing && !input.regeneration_reason && this.artifactStore) {
       const reusable=await this.artifactStore.reusableSnapshot(input.tenant_id,input.exam_series_id,input.student_id,true);
       if(reusable)return reusable;
     }
