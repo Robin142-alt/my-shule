@@ -91,6 +91,13 @@ describe("academic policy builders", () => {
     expect(configuration["8-4-4"][0]).toMatchObject({ label: "A", points: 12 });
   });
 
+  it("preserves explicit single-curriculum custom labels when opening a saved policy", () => {
+    const saved = [{ label: "A", min: 0, max: 100, points: 8, remark: "School CBC label", is_pass: true }];
+    const { container } = render(<AcademicGradeBandsEditor name="rules" curriculumName="curriculum_model" defaultValue={saved} defaultCurriculum="CBC" defaultCurricula={["CBC"]} />);
+    expect(structuredValue(container, "rules_by_curriculum")).toEqual({ CBC: saved });
+    expect(within(screen.getByRole("group", { name: "CBC grade bands" })).getByLabelText("Grade label")).toHaveValue("A");
+  });
+
   it("builds complete grading bands from school-friendly presets", async () => {
     const user = userEvent.setup();
     const { container } = render(

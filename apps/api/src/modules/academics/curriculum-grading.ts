@@ -78,13 +78,17 @@ export function validateGradingRules(value: unknown): Array<Record<string, unkno
 /** Preserve legacy bands and keep each curriculum's saved scale independent. */
 export function gradingRulesForCurriculum(system: Record<string, any>, curriculum: string): unknown[] | null {
   const key = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
+  const selected = Array.isArray(system.curriculum_models) && system.curriculum_models.length
+    ? system.curriculum_models : system.curriculum_model ? [system.curriculum_model] : [];
+  if (selected.length && !selected.some((name: unknown) => key(name) === key(curriculum))) return null;
   const configured = system.rules_by_curriculum;
   if (configured && typeof configured === 'object' && !Array.isArray(configured)) {
     const entry = Object.entries(configured).find(([name]) => key(name) === key(curriculum));
     if (entry) return Array.isArray(entry[1]) ? entry[1] : null;
   }
   const inferred = inferLegacyGradingCurriculum(curriculum, system.rules);
-  const declared = inferred || system.curriculum_model;
+  const sharedLegacy = Array.isArray(system.curriculum_models) && system.curriculum_models.length > 1;
+  const declared = sharedLegacy ? inferred || system.curriculum_model : system.curriculum_model || inferred;
   return key(declared) === key(curriculum) && Array.isArray(system.rules) ? system.rules : null;
 }
 
@@ -92,7 +96,9 @@ export function prepareCurriculumGrading(
   curricula: string[], input: { rules?: unknown; rules_by_curriculum?: unknown }, previous: Record<string, any> = {},
 ): { rules: unknown; rules_by_curriculum: Record<string, unknown> } {
   const stored: Record<string, unknown> = { ...(previous.rules_by_curriculum ?? {}) };
-  const legacyCurriculum = inferLegacyGradingCurriculum(previous.curriculum_model, previous.rules) || previous.curriculum_model;
+  const inferred = inferLegacyGradingCurriculum(previous.curriculum_model, previous.rules);
+  const legacyCurriculum = Array.isArray(previous.curriculum_models) && previous.curriculum_models.length > 1
+    ? inferred || previous.curriculum_model : previous.curriculum_model || inferred;
   if (legacyCurriculum && Array.isArray(previous.rules) && previous.rules.length && !stored[legacyCurriculum]) {
     stored[legacyCurriculum] = previous.rules;
   }
@@ -113,7 +119,7 @@ export function prepareCurriculumGrading(
   // Compatibility for older clients: never replace another curriculum's saved scale.
   if (input.rules !== undefined) {
     const bands = validateGradingRules(input.rules);
-    const target = inferLegacyGradingCurriculum(curricula[0], bands) || curricula[0];
+    const target = curricula.length === 1 ? curricula[0] : inferLegacyGradingCurriculum(curricula[0], bands) || curricula[0];
     if (target) stored[target] = bands;
     return { rules: bands, rules_by_curriculum: stored };
   }

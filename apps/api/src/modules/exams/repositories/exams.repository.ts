@@ -2620,7 +2620,9 @@ export class ExamsRepository {
     const normalizeCurriculumKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
     const gradingSystemCurriculum = (system: Record<string, unknown>) => {
       if (classCurriculum && gradingRulesForCurriculum(system, classCurriculum)) return classCurriculum;
-      return inferLegacyGradingCurriculum(classCurriculum, system.rules) || system.curriculum_model;
+      const inferred = inferLegacyGradingCurriculum(classCurriculum, system.rules);
+      return Array.isArray(system.curriculum_models) && system.curriculum_models.length > 1
+        ? inferred || system.curriculum_model : system.curriculum_model || inferred;
     };
     let academicGradingSystem = classCurriculum
       ? academicGradingSystemResult.rows.find((system) =>

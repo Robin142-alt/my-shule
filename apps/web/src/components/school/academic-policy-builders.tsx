@@ -321,7 +321,8 @@ export function AcademicGradeBandsEditor({
     const saved: Record<string, GradeBandState[]> = Object.fromEntries(Object.entries(defaultRulesByCurriculum ?? {})
       .map(([key, bands]) => [key, initialGradeBands(bands, "blank")]));
     const inferred = inferBandCurriculum(defaultValue);
-    const legacy = inferred === "CBC" && defaultCurriculum === "CBE" ? "CBE" : inferred || defaultCurriculum || initial[0];
+    const legacy = initial.length === 1 && defaultCurriculum ? defaultCurriculum
+      : inferred === "CBC" && defaultCurriculum === "CBE" ? "CBE" : inferred || defaultCurriculum || initial[0];
     if (legacy && Array.isArray(defaultValue) && defaultValue.length && !saved[legacy]) {
       saved[legacy] = initialGradeBands(defaultValue, "blank");
     }
