@@ -47,7 +47,7 @@ export function SmartOverview({onNavigate}:{onNavigate:(view:string)=>void}) {
 export function SmartCirculation({mode}:{mode:"issue"|"return"}) {
   const identity=useSchoolCommandIdentity();
   const [borrower,setBorrower]=useState<LibraryRow|null>(null),[basket,setBasket]=useState<LibraryRow[]>([]),[receipt,setReceipt]=useState<LibraryRow|null>(null);
-  const [due,setDue]=useState(()=>new Date(Date.now()+14*86400000).toISOString().slice(0,10));
+  const [due,setDue]=useState(()=>dateText(new Date(Date.now()+14*86400000).toISOString()));
   const [condition,setCondition]=useState("good"),[reason,setReason]=useState("");
   const [pendingScans,setPendingScans]=useState(0);
   const scanned=useRef(new Set<string>()),command=useCommand();

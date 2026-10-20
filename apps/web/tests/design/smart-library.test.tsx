@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ScannerInput } from "@/components/library/smart-library-shared";
+import { dateText, ScannerInput } from "@/components/library/smart-library-shared";
 import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords } from "@/components/library/smart-library-workspaces";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
@@ -10,6 +10,11 @@ const request=jest.mocked(requestDashboardApi);
 const borrower={subject_id:"student-1",borrower_type:"student",name:"Brian Otieno",identifier:"2451"};
 const book=(code:string)=>({id:code,title:`Book ${code}`,barcode:code,status:"available"});
 beforeEach(()=>{request.mockReset();localStorage.clear();});
+it("shows issue and return dates in Nairobi while preserving date-only due dates",()=>{
+  expect(dateText("2026-10-19T23:30:00.000Z")).toBe("2026-10-20");
+  expect(dateText("2026-10-19")).toBe("2026-10-19");
+  expect(dateText(null)).toBe("—");
+});
 it("consumes Enter only in its own field, preserves leading zeros and serializes continuous scans",async()=>{
   const processed:string[]=[];let finish:()=>void=()=>{};
   const handler=jest.fn(async(code:string)=>{processed.push(code);if(code==="000001")await new Promise<void>(r=>{finish=r;});});

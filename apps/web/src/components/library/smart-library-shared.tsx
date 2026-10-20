@@ -10,7 +10,13 @@ export type LibraryRow = Record<string, any>;
 export const inputClass = "min-h-11 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-primary";
 export const api = <T,>(path: string, body?: LibraryRow) => requestDashboardApi<T>(path.startsWith("/api/")?path:`/api/library/smart/${path}`,
   body ? { method:"POST",body,timeoutMs:120000 } : undefined);
-export const dateText = (value: unknown) => value ? String(value).slice(0,10) : "—";
+export const dateText = (value: unknown) => {
+  if(!value)return "—";
+  const source=String(value);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(source))return source;
+  const date=new Date(source);
+  return Number.isNaN(date.getTime())?"—":new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Nairobi",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
+};
 export const newRequest = () => crypto.randomUUID();
 export const errorText = (error: unknown) => error instanceof Error ? error.message : "The library request failed. Please retry.";
 export function useLibraryData<T>(path: string | null) {

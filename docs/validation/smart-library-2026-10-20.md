@@ -36,9 +36,10 @@ links and supplies the columns needed by physical-copy circulation.
   collisions, replay-safe commands, permanent ownership, multiple copies,
   borrower search/history, batch issue, partial returns, concurrency,
   transactional event failures, configured fines, incidents and stocktaking.
-- 128 frontend tests passed across six suites covering the new scanner and
+- 130 frontend tests passed across six suites covering the new scanner and
   circulation workspaces, existing library behavior, routing, permissions and
-  dashboard action contracts.
+  dashboard action contracts, exact-recipient overdue reminders and Nairobi
+  calendar dates.
 - Headless Chromium exercised the shipped workspaces at 320, 390, 768 and
   1440 pixels: issue three books, return two, register a copy, prepare 1,000
   labels, scan stocktake records without losing focus, and test scanner input.
@@ -57,5 +58,5 @@ requires sign-off using the school's equipment.
 
 ## Release verification
 
-Release identifiers and deployment checks are recorded below after CI and
-production rollout. No production barcode allocations are made for smoke tests.
+The release PR records the final CI and deployment checks. No production
+barcode allocations are made for smoke tests.
