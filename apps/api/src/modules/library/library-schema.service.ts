@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
+import { SMART_LIBRARY_SCHEMA_SQL } from './smart-library-schema';
 
 const LIBRARY_TABLES = [
   'library_catalog_items',
@@ -226,6 +227,7 @@ export class LibrarySchemaService implements OnModuleInit {
       `).join('\n')}
     `);
 
-    this.logger.log('Library schema verified');
+    await this.prisma.runSchemaBootstrap(SMART_LIBRARY_SCHEMA_SQL);
+    this.logger.log('Library schema and permanent global barcode registry verified');
   }
 }

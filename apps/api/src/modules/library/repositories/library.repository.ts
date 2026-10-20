@@ -148,7 +148,7 @@ export class LibraryRepository {
     const result = await this.executeSql(
       `
         WITH next_position AS (
-          SELECT COALESCE(MAX(queue_position), 0) + 1 AS queue_position
+          SELECT COALESCE(MAX(queue_position::integer), 0) + 1 AS queue_position
           FROM library_reservations
           WHERE tenant_id = $1
             AND catalog_item_id = $2::uuid
@@ -162,7 +162,7 @@ export class LibraryRepository {
         )
         SELECT $1, $2::uuid, $3::uuid, queue_position
         FROM next_position
-        RETURNING id::text, queue_position
+        RETURNING id::text, queue_position::integer
       `,
       [input.tenant_id, input.catalog_item_id, input.borrower_id],
     );
@@ -248,12 +248,12 @@ export class LibraryRepository {
           FROM selected_borrower borrower
           INNER JOIN student_portal_access portal
             ON portal.tenant_id = $1
-           AND portal.student_id = borrower.subject_id
+           AND portal.student_id::text = borrower.subject_id::text
            AND LOWER(portal.status) = 'active'
            AND portal.user_id IS NOT NULL
           INNER JOIN tenant_memberships membership
             ON membership.tenant_id = portal.tenant_id
-           AND membership.user_id = portal.user_id
+           AND membership.user_id::text = portal.user_id::text
            AND LOWER(membership.status) = 'active'
           WHERE LOWER(borrower.borrower_type) = 'student'
 
@@ -266,12 +266,12 @@ export class LibraryRepository {
           FROM selected_borrower borrower
           INNER JOIN student_guardians guardian
             ON guardian.tenant_id = $1
-           AND guardian.student_id = borrower.subject_id
+           AND guardian.student_id::text = borrower.subject_id::text
            AND LOWER(guardian.status) = 'active'
            AND guardian.user_id IS NOT NULL
           INNER JOIN tenant_memberships membership
             ON membership.tenant_id = guardian.tenant_id
-           AND membership.user_id = guardian.user_id
+           AND membership.user_id::text = guardian.user_id::text
            AND LOWER(membership.status) = 'active'
           WHERE LOWER(borrower.borrower_type) = 'student'
 
@@ -284,12 +284,12 @@ export class LibraryRepository {
           FROM selected_borrower borrower
           INNER JOIN staff_profiles staff
             ON staff.tenant_id = $1
-           AND staff.id = borrower.subject_id
+           AND staff.id::text = borrower.subject_id::text
            AND LOWER(staff.status) = 'active'
            AND staff.user_id IS NOT NULL
           INNER JOIN tenant_memberships membership
             ON membership.tenant_id = staff.tenant_id
-           AND membership.user_id = staff.user_id
+           AND membership.user_id::text = staff.user_id::text
            AND LOWER(membership.status) = 'active'
           WHERE LOWER(borrower.borrower_type) = 'staff'
         )
@@ -453,7 +453,7 @@ export class LibraryRepository {
         [tenantId]
       ),
       this.executeSql(
-        `SELECT COUNT(*) as count FROM library_loans WHERE tenant_id = $1 AND status = 'active'`,
+        `SELECT COUNT(*) as count FROM library_copy_loans WHERE tenant_id = $1 AND returned_at IS NULL`,
         [tenantId]
       ),
       this.executeSql(
@@ -484,9 +484,9 @@ export class LibraryRepository {
           b.subject_id as borrower_id,
           c.title as item_title
        FROM library_circulation_ledger l
-       LEFT JOIN library_copies cp ON l.copy_id = cp.id
-       LEFT JOIN library_catalog_items c ON cp.catalog_item_id = c.id
-       LEFT JOIN library_borrowers b ON l.borrower_id = b.id
+       LEFT JOIN library_copies cp ON l.copy_id = cp.id AND cp.tenant_id = l.tenant_id
+       LEFT JOIN library_catalog_items c ON cp.catalog_item_id = c.id AND c.tenant_id = l.tenant_id
+       LEFT JOIN library_borrowers b ON l.borrower_id = b.id AND b.tenant_id = l.tenant_id
        WHERE l.tenant_id = $1
        ORDER BY l.created_at DESC
        LIMIT 5`,

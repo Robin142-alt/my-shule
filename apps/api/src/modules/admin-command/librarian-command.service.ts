@@ -1009,7 +1009,7 @@ export class LibrarianCommandService {
   async updateFineStatus(id: string, status: 'paid' | 'waived') {
     const tenantId = this.requireTenantId();
     const result = await this.operations.writeSql(
-      `UPDATE library_fines SET billing_reference = $3 WHERE tenant_id = $1 AND id = $2::uuid RETURNING *`,
+      `UPDATE library_fines SET billing_reference = $3 WHERE tenant_id = $1 AND id::text = $2 RETURNING *`,
       [tenantId, id, status],
     );
     if (!result.rows[0]) throw new NotFoundException('Library fine was not found');

@@ -8,8 +8,14 @@ describe("librarian human workflow controls", () => {
   );
 
   it("uses tenant-scoped circulation options instead of raw borrower, catalogue, or staff IDs", () => {
+    const shared = fs.readFileSync(path.join(process.cwd(), "src/components/library/smart-library-shared.tsx"), "utf8");
+    const workspaces = fs.readFileSync(path.join(process.cwd(), "src/components/library/smart-library-workspaces.tsx"), "utf8");
     expect(source).toMatch(/admin-command\/librarian\/circulation-options/);
-    expect(source).toMatch(/<select name="borrower_id"/);
+    expect(shared).toMatch(/borrowers\?search=/);
+    expect(shared).toMatch(/Find a borrower/);
+    expect(shared).toMatch(/onClick=\{\(\)=>onSelect\(p\)\}/);
+    expect(workspaces).toMatch(/subject_id:borrower\?\.subject_id/);
+    expect(workspaces).toMatch(/Find an existing title/);
     expect(source).toMatch(/<select name="catalog_item_id"/);
     expect(source).toMatch(/<select name="staff_identifier"/);
 

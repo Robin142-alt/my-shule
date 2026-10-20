@@ -2,12 +2,13 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { LibrarianCommandService } from './librarian-command.service';
+import { SmartLibraryService } from '../library/smart-library.service';
 
 @Controller('admin-command/librarian')
 @RequiresModule('library')
 @Permissions('library:read')
 export class LibrarianCommandController {
-  constructor(private readonly service: LibrarianCommandService) {}
+  constructor(private readonly service: LibrarianCommandService, private readonly smartLibrary: SmartLibraryService) {}
 
   @Get('overview')
   getOverview() {
@@ -22,13 +23,13 @@ export class LibrarianCommandController {
   @Post('books')
   @Permissions('library:write')
   addBook(@Body() dto: any) {
-    return this.service.addBook(dto);
+    return this.smartLibrary.legacyAdd(dto);
   }
 
   @Delete('books/:id')
   @Permissions('library:write')
   deleteBook(@Param('id') id: string) {
-    return this.service.deleteBook(id);
+    return this.smartLibrary.retireTitle(id);
   }
 
   @Get('borrowers')
@@ -60,13 +61,13 @@ export class LibrarianCommandController {
   @Post('issue-book')
   @Permissions('library:write')
   issueBook(@Body() dto: any) {
-    return this.service.issueBook(dto);
+    return this.smartLibrary.legacyIssue(dto);
   }
 
   @Post('department-issues')
   @Permissions('library:write')
   issueDepartmentResource(@Body() dto: any) {
-    return this.service.issueDepartmentResource(dto);
+    return this.smartLibrary.legacyDepartmentIssue(dto);
   }
 
   @Get('return-book')
@@ -77,7 +78,7 @@ export class LibrarianCommandController {
   @Post('return-book')
   @Permissions('library:write')
   returnBook(@Body() dto: any) {
-    return this.service.returnBook(dto);
+    return this.smartLibrary.legacyReturn(dto);
   }
 
   @Get('overdue-books')

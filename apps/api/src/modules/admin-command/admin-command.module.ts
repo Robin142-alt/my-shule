@@ -58,9 +58,10 @@ import { EventsModule } from '../events/events.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { CommunicationModule } from '../communication/communication.module';
 import { AcademicsModule } from '../academics/academics.module';
+import { LibraryModule } from '../library/library.module';
 
 @Module({
-  imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule, CommunicationModule],
+  imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule, CommunicationModule, LibraryModule],
   controllers: [
     AdminCommandController,
     DeputyCommandController,

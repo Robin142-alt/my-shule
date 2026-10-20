@@ -738,8 +738,11 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/ComposeLibraryNoticeModal/);
     expect(source).toMatch(/handleSendLibraryNotice/);
     expect(source).toMatch(/admin-command\/librarian\/notices/);
-    expect(source).toMatch(/catalogueSearchTerm/);
-    expect(source).toMatch(/filteredCatalogue/);
+    expect(source).toMatch(/activeViewState === "catalogue" && <SmartCatalogue/);
+    const catalogueSource = fs.readFileSync(path.join(process.cwd(), "src/components/library/smart-library-workspaces.tsx"), "utf8");
+    expect(catalogueSource).toMatch(/catalogue\?\$\{searchQuery\(search,offset\)\}/);
+    expect(catalogueSource).toMatch(/Find an existing title/);
+    expect(catalogueSource).toMatch(/setSearch\(e.target.value\);setOffset\(0\)/);
     expect(source).toMatch(/dataKeys: \["reservations"\]/);
     expect(source).toMatch(/columns: \["borrower_name", "book_title", "requested_date", "expiry_date", "status"\]/);
     expect(source).not.toMatch(/Catalogue filters recorded/);

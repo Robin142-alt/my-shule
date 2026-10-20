@@ -10,6 +10,7 @@ import {
   ReturnLibraryCopyDto,
 } from './dto/library.dto';
 import { LibraryService } from './library.service';
+import { SmartLibraryService } from './smart-library.service';
 
 @Controller('library')
 @RequiresModule('library')
@@ -22,20 +23,20 @@ export class LibraryController {
   @Post('loans')
   @Permissions('library:write')
   createLoan(@Body() dto: any) {
-    return this.libraryService.createLoan(dto);
+    return this.smartLibrary.legacyIssue(dto);
   }
-  constructor(private readonly libraryService: LibraryService) {}
+  constructor(private readonly libraryService: LibraryService, private readonly smartLibrary: SmartLibraryService) {}
 
   @Post('issues')
   @Permissions('library:write')
   issueCopy(@Body() dto: IssueLibraryCopyDto) {
-    return this.libraryService.issueCopy(dto);
+    return this.smartLibrary.legacyIssue(dto);
   }
 
   @Post('circulation/issue')
   @Permissions('library:write')
   issueByScan(@Body() dto: IssueLibraryByScanDto) {
-    return this.libraryService.issueByScan(dto);
+    return this.smartLibrary.legacyIssue(dto);
   }
 
   @Post('reservations')
@@ -47,13 +48,13 @@ export class LibraryController {
   @Post('returns')
   @Permissions('library:write')
   returnCopy(@Body() dto: ReturnLibraryCopyDto) {
-    return this.libraryService.returnCopy(dto);
+    return this.smartLibrary.legacyReturn(dto);
   }
 
   @Post('circulation/return')
   @Permissions('library:write')
   returnByScan(@Body() dto: ReturnLibraryByScanDto) {
-    return this.libraryService.returnByScan(dto);
+    return this.smartLibrary.legacyReturn(dto);
   }
 
   @Get('circulation')
@@ -102,13 +103,13 @@ export class LibraryController {
   @Post('scan-issue')
   @Permissions('library:write')
   scanIssue(@Body() body: any) {
-    return this.libraryService.issueByScan(body);
+    return this.smartLibrary.legacyIssue(body);
   }
 
   @Post('scan-return')
   @Permissions('library:write')
   scanReturn(@Body() body: any) {
-    return this.libraryService.returnByScan(body);
+    return this.smartLibrary.legacyReturn(body);
   }
 
   @Get('books')
@@ -126,7 +127,7 @@ export class LibraryController {
   @Post('issue')
   @Permissions('library:write')
   issueBook(@Body() body: any) {
-    return this.libraryService.issueCopy(body);
+    return this.smartLibrary.legacyIssue(body);
   }
 
   @Get('borrowings')

@@ -1,0 +1,109 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { dateText, ScannerInput } from "@/components/library/smart-library-shared";
+import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords } from "@/components/library/smart-library-workspaces";
+import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
+jest.mock("@/lib/dashboard/api-client",()=>({requestDashboardApi:jest.fn()}));
+jest.mock("@/components/providers/permission-context",()=>({usePermissions:()=>({hasPermission:()=>true})}));
+jest.mock("@/lib/dashboard/export",()=>({downloadCsvFile:jest.fn(),openPrintDocument:jest.fn()}));
+const request=jest.mocked(requestDashboardApi);
+const borrower={subject_id:"student-1",borrower_type:"student",name:"Brian Otieno",identifier:"2451"};
+const book=(code:string)=>({id:code,title:`Book ${code}`,barcode:code,status:"available"});
+beforeEach(()=>{request.mockReset();localStorage.clear();});
+it("shows issue and return dates in Nairobi while preserving date-only due dates",()=>{
+  expect(dateText("2026-10-19T23:30:00.000Z")).toBe("2026-10-20");
+  expect(dateText("2026-10-19")).toBe("2026-10-19");
+  expect(dateText(null)).toBe("—");
+});
+it("consumes Enter only in its own field, preserves leading zeros and serializes continuous scans",async()=>{
+  const processed:string[]=[];let finish:()=>void=()=>{};
+  const handler=jest.fn(async(code:string)=>{processed.push(code);if(code==="000001")await new Promise<void>(r=>{finish=r;});});
+  render(<><input aria-label="Unrelated notes"/><ScannerInput onScan={handler}/></>);
+  fireEvent.keyDown(screen.getByLabelText("Unrelated notes"),{key:"Enter"});
+  expect(handler).not.toHaveBeenCalled();
+  const field=screen.getByLabelText("Scan barcode"),form=field.closest("form")!;
+  fireEvent.change(field,{target:{value:"000001"}});fireEvent.submit(form);
+  await waitFor(()=>expect(handler).toHaveBeenCalledTimes(1));
+  fireEvent.change(field,{target:{value:"000001"}});fireEvent.submit(form);
+  fireEvent.change(field,{target:{value:"000002"}});fireEvent.submit(form);
+  expect(handler).toHaveBeenCalledTimes(1);finish();
+  await waitFor(()=>expect(handler).toHaveBeenCalledTimes(2));
+  expect(processed).toEqual(["000001","000002"]);
+});
+it("keeps the selected borrower for multiple scans and submits one atomic issue command",async()=>{
+  request.mockImplementation(async(path,options)=>{
+    if(path.includes("/borrowers?"))return [borrower];
+    if(path.includes("/history?"))return {outstanding:0,overdue:0,max_active_loans:5};
+    if(path.includes("/scan?"))return book(new URL(`https://example.test${path}`).searchParams.get("barcode")!);
+    if(path.endsWith("/issue"))return {transaction_id:"transaction-1",loans:[{id:"1"},{id:"2"}]};
+    return {};
+  });
+  render(<SmartCirculation mode="issue"/>);
+  fireEvent.click(await screen.findByRole("button",{name:/Brian Otieno/}));
+  await waitFor(()=>expect(screen.getByLabelText("Scan a book")).toHaveFocus());
+  for(const barcode of ["000001","000002"]){
+    fireEvent.change(screen.getByLabelText("Scan a book"),{target:{value:barcode}});
+    fireEvent.click(screen.getByRole("button",{name:"Add scan"}));
+    await screen.findByText(`Book ${barcode}`);
+  }
+  fireEvent.click(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith("/api/library/smart/issue",expect.objectContaining({
+    method:"POST",body:expect.objectContaining({barcodes:["000001","000002"],subject_id:"student-1",borrower_type:"student",request_id:expect.any(String)}),
+  })));
+  expect(screen.getByText("Brian Otieno")).toBeInTheDocument();
+});
+it("returns only scanned books and retains the pending list on a server error",async()=>{
+  request.mockImplementation(async(path)=>{
+    if(path.includes("/scan?"))return {...book("000001"),loan:{borrower_name:"Brian Otieno",borrower_number:"2451",due_on:"2026-10-30"}};
+    if(path.endsWith("/return"))throw new Error("Network unavailable; retry this return.");
+    return {};
+  });
+  render(<SmartCirculation mode="return"/>);
+  fireEvent.change(screen.getByLabelText("Scan a book"),{target:{value:"000001"}});
+  fireEvent.click(screen.getByRole("button",{name:"Add scan"}));await screen.findByText("Book 000001");
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm return of 1 book(s)"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Confirm return of 1 book(s)"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Network unavailable");
+  expect(screen.getByText("Book 000001")).toBeInTheDocument();
+  const first=(request.mock.calls.find(([path])=>path.endsWith("/return"))![1]!.body as Record<string,unknown>).request_id;
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm return of 1 book(s)"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Confirm return of 1 book(s)"}));
+  await waitFor(()=>expect(request.mock.calls.filter(([path])=>path.endsWith("/return"))).toHaveLength(2));
+  const next=(request.mock.calls.filter(([path])=>path.endsWith("/return"))[1][1]!.body as Record<string,unknown>).request_id;
+  expect(next).toBe(first);
+});
+it("shows 1,000 labels as 11 sheets and offers an explicit calibration path",()=>{
+  request.mockResolvedValue([]);
+  render(<SmartBarcodeWorkspace/>);
+  fireEvent.change(screen.getByLabelText("Custom quantity"),{target:{value:"1000"}});
+  expect(screen.getByText(/11 sheet\(s\) · 56 empty positions/)).toBeInTheDocument();
+  expect(screen.getByRole("button",{name:"Print test sheet"})).toBeEnabled();
+});
+it("shows independent current and returned borrower records",async()=>{
+  request.mockImplementation(async path=>{
+    if(path.includes("/borrowers?"))return [borrower];
+    return {outstanding:1,overdue:0,loans:[
+      {id:"1",title:"Mathematics",barcode:"000001",borrower_name:"Brian Otieno",due_on:"2026-10-30"},
+      {id:"2",title:"English",barcode:"000002",borrower_name:"Brian Otieno",returned_at:"2026-10-19",return_condition:"good"},
+    ]};
+  });
+  render(<SmartBorrowerRecords/>);fireEvent.click(await screen.findByRole("button",{name:/Brian Otieno/}));
+  expect(await screen.findByText("Currently borrowed")).toBeInTheDocument();
+  expect(await screen.findByText("Returned 2026-10-19 (good)")).toBeInTheDocument();
+});
+it("allows direct navigation to every integrated librarian workspace",()=>{
+  for(const section of ["barcode_print","barcodes","scan","scanner_settings","stocktake","issue","return","borrowers","catalogue","add_books"]){
+    expect(isSchoolWorkspaceSection("librarian",section)).toBe(true);
+  }
+});
+it("preserves the existing exact-recipient overdue reminder action",async()=>{
+  request.mockImplementation(async path=>{
+    if(path.includes("/loans?"))return [{id:"loan-1",title:"Mathematics",barcode:"000001",overdue:true,borrower_name:"Brian Otieno",due_on:"2026-10-01"}];
+    return {recipientCount:1};
+  });
+  render(<SmartBorrowerRecords loansOnly/>);
+  fireEvent.click(await screen.findByRole("button",{name:"Send overdue reminder"}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith("/api/admin-command/librarian/overdue-books/loan-1/remind",
+    expect.objectContaining({method:"POST",body:expect.objectContaining({request_id:expect.any(String)})})));
+  expect(await screen.findByText(/Overdue reminder queued for the exact active/)).toBeInTheDocument();
+});
