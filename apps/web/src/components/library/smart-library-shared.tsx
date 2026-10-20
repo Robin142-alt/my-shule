@@ -73,14 +73,17 @@ export function soundFeedback(success:boolean) {
   }catch{/* Visual feedback remains available if browser audio is disabled. */}
 }
 /** Only this focused field consumes Enter. No global keyboard interception. */
-export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,onPendingChange}:{onScan:(code:string)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;onPendingChange?:(pending:number)=>void}) {
+export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,focusKey,onPendingChange}:{onScan:(code:string)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;focusKey?:string;onPendingChange?:(pending:number)=>void}) {
   const [value,setValue]=useState(""),[error,setError]=useState(""),[pending,setPending]=useState(0);
   const field=useRef<HTMLInputElement>(null),queue=useRef(Promise.resolve()),inFlight=useRef(new Set<string>()),handler=useRef(onScan);
   useEffect(()=>{handler.current=onScan;},[onScan]);
+  // Focus only on workspace activation, becoming enabled, or an explicit title
+  // selection. Ordinary form edits and background refreshes never steal focus.
+  useEffect(()=>{if(autoFocus&&!disabled)field.current?.focus();},[autoFocus,disabled,focusKey]);
   useEffect(()=>{onPendingChange?.(pending);},[pending,onPendingChange]);
   const scan=(event:FormEvent)=>{
     event.preventDefault();if(!value||disabled)return;
-    const code=value.replace(/[\r\n]+$/,"");setValue("");
+    const code=value.replace(/[\r\n]+$/,"");setValue("");field.current?.focus();
     if(inFlight.current.has(code)){setError(`${code} is already being processed.`);return;}
     inFlight.current.add(code);setPending(n=>n+1);
     queue.current=queue.current.then(async()=>{

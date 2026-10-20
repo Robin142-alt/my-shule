@@ -76,7 +76,7 @@ export function SmartCirculation({mode}:{mode:"issue"|"return"}) {
     {receipt&&<div className="mb-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={printReceipt}><Printer size={16}/> Preview / print slip</Button><Button variant="secondary" onClick={()=>downloadCsvFile({filename:`library-${mode}-${receipt.transaction_id}.csv`,headers:["Book","Barcode","Borrower"],rows:receipt.books.map((b:LibraryRow)=>[b.title,b.barcode,receipt.borrower?.name??b.loan?.borrower_name??""])})}><Download size={16}/> Download slip</Button></div>}
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"><div className="space-y-5">
       {mode==="issue"&&<BorrowerPicker key={receipt?.transaction_id??"pending"} selected={borrower} onSelect={person=>{if(!command.busy&&pendingScans===0){setBorrower(person);setReceipt(null);}}}/>}
-      <ScannerInput key={mode} onScan={scan} onPendingChange={setPendingScans} disabled={command.busy||(mode==="issue"&&!borrower)} label="Scan a book"/>
+      <ScannerInput key={mode} autoFocus onScan={scan} onPendingChange={setPendingScans} disabled={command.busy||(mode==="issue"&&!borrower)} label="Scan a book"/>
       {mode==="issue"?<Field label="Due date for this issue"><input type="date" required className={inputClass} value={due} onChange={e=>setDue(e.target.value)} disabled={command.busy}/></Field>:<>
         <Field label="Condition of selected returned books"><select className={inputClass} value={condition} onChange={e=>setCondition(e.target.value)} disabled={command.busy}><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option><option value="lost">Lost — close loan and record loss</option></select></Field>
         {["damaged","lost"].includes(condition)&&<Field label="Incident notes (required)"><textarea className={inputClass} value={reason} onChange={e=>setReason(e.target.value)}/></Field>}
@@ -118,7 +118,7 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
         {!data.data?.length&&<p className="py-5 text-sm text-muted">No matching titles. Create the title once, then register its physical copies.</p>}</div><Pager offset={offset} setOffset={setOffset} count={data.data?.length??0}/></LoadState>
       <WriteButton variant="secondary" className="mt-3" onClick={()=>{setCreating(true);setTitle(null);}}>Create a new title</WriteButton>
     </div><div className="rounded-xl border border-border p-4">
-      <ScannerInput label="Scan a sticker to register" onScan={register}/>
+      <ScannerInput label="Scan a sticker to register" autoFocus={!creating} focusKey={title?.id} onScan={register}/>
       <p className="my-3 text-sm text-muted">{barcode&&!title&&!creating?`Sticker ${barcode} is ready. Select or create its book title below.`:"With a title selected, each scan saves the next physical copy automatically."}</p>
       <h3 className="mb-3 font-bold">{title?title.title:creating?"New title":"Select a title to register copies"}</h3>
       {(title||creating)&&<><form onSubmit={submit} className="space-y-3">
@@ -257,7 +257,7 @@ export function SmartStocktake() {
     <LoadState resource={sessions}><Field label="Open or previous session"><select className={inputClass} disabled={pendingScans>0||command.busy} value={id} onChange={e=>{setId(e.target.value);setOffset(0);}}><option value="">Select a stocktaking session</option>{sessions.data?.map(s=><option value={s.id} key={s.id}>{s.name} · {s.status} · {s.verified}/{s.expected} seen</option>)}</select></Field></LoadState>
     {id&&<div className="mt-5 space-y-4"><LoadState resource={report}>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[["total","In snapshot"],["verified","Verified"],["issued","Expected with borrowers"],["missing","Expected on site, not seen"]].map(([key,label])=><div key={key} className="rounded-xl bg-surface-muted p-4"><span className="text-sm">{label}</span><strong className="block text-2xl">{report.data?.[key]??0}</strong></div>)}</div>
-      <ScannerInput onPendingChange={setPendingScans} disabled={command.busy||report.data?.session.status!=="open"} onScan={async barcode=>{const result=await api<LibraryRow>(`stocktakes/${id}/scan`,{barcode});setFeedback(`${barcode}: ${result.duplicate?"already scanned":result.outcome.replaceAll("_"," ")}`);report.refresh();sessions.refresh();}}/>
+      <ScannerInput autoFocus onPendingChange={setPendingScans} disabled={command.busy||report.data?.session.status!=="open"} onScan={async barcode=>{const result=await api<LibraryRow>(`stocktakes/${id}/scan`,{barcode});setFeedback(`${barcode}: ${result.duplicate?"already scanned":result.outcome.replaceAll("_"," ")}`);report.refresh();sessions.refresh();}}/>
       <p role="status" className="text-sm">{feedback}</p>
       <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={exporting} onClick={()=>void exportAll()}>{exporting?"Preparing report…":"Download complete stocktake CSV"}</Button>
         <Button variant="secondary" onClick={()=>openPrintDocument({eyebrow:identity.schoolName,logoUrl:identity.logoUrl,title:report.data?.session.name??"Library stocktake",subtitle:`Stocktake ${id} · ${dateText(report.data?.session.created_at)}`,
@@ -278,7 +278,7 @@ export function SmartScannerSettings() {
   return <LibraryPanel title="Scanner settings & test" description="Use a USB scanner in keyboard / HID mode with Code 128 enabled. No MyShule driver or extension is needed.">
     <ol className="mb-5 list-decimal space-y-2 pl-5 text-sm"><li>Plug the scanner into the computer.</li><li>Configure its keyboard layout to match the computer and use an Enter suffix.</li><li>Click the test field, then scan a Code 128 sticker.</li><li>Check that every character, including leading zeros, matches the printed value.</li></ol>
     <label className="mb-5 flex items-center gap-3 text-sm"><input type="checkbox" checked={sound} onChange={e=>{setSound(e.target.checked);localStorage.setItem("myshule-library-scanner-sound",String(e.target.checked));}}/> Optional sound feedback on this device</label>
-    <ScannerInput onScan={async code=>{setLast(code);}} label="Test your scanner"/>
+    <ScannerInput autoFocus onScan={async code=>{setLast(code);}} label="Test your scanner"/>
     {last&&<p role="status" className="mt-4 rounded-xl bg-success-soft p-4">Received exactly: <code className="break-all">{last}</code> ({last.length} characters). This test does not register or issue a book.</p>}
     <p className="mt-5 text-sm text-muted">Scanning works in the active barcode field only. When editing another field, click “Focus scanner” before scanning. Continuous scans are queued and duplicate pending scans are rejected.</p>
   </LibraryPanel>;

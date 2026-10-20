@@ -40,6 +40,7 @@ it("keeps the selected borrower for multiple scans and submits one atomic issue 
   });
   render(<SmartCirculation mode="issue"/>);
   fireEvent.click(await screen.findByRole("button",{name:/Brian Otieno/}));
+  await waitFor(()=>expect(screen.getByLabelText("Scan a book")).toHaveFocus());
   for(const barcode of ["000001","000002"]){
     fireEvent.change(screen.getByLabelText("Scan a book"),{target:{value:barcode}});
     fireEvent.click(screen.getByRole("button",{name:"Add scan"}));

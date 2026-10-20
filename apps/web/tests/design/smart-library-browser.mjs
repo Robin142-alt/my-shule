@@ -64,7 +64,7 @@ async function run(){
    page.on('pageerror',e=>errors.push(e.message));
    await page.goto(`http://127.0.0.1:${server.address().port}`);
    const check=async name=>{assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} overflows ${width}px`);await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});};
-   const scan=async code=>{await page.getByLabel('Scan a book',{exact:true}).fill(code);await page.getByLabel('Scan a book',{exact:true}).press('Enter');};
+   const scan=async code=>{await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Scan a book');await page.keyboard.type(code);await page.keyboard.press('Enter');};
    await page.getByRole('button',{name:/Brian Otieno/}).click();
    await scan('000001');await scan('000002');await scan('000003');
    await page.getByText('Biology',{exact:true}).waitFor();await check('issue');
@@ -79,7 +79,8 @@ async function run(){
    await page.getByRole('button',{name:'register',exact:true}).click();
    await page.getByRole('button',{name:/Mathematics/}).click();
    const registration=page.getByLabel('Scan a sticker to register',{exact:true});
-   await registration.fill('000004');await registration.press('Enter');
+   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Scan a sticker to register');
+   await page.keyboard.type('000004');await page.keyboard.press('Enter');
    await page.getByText(/Physical copy registered/).waitFor();
    assert.equal(await registration.evaluate(e=>e===document.activeElement),true);
    await check('registration');
