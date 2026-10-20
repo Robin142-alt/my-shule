@@ -186,16 +186,19 @@ export function SmartBarcodeWorkspace({management=false}:{management?:boolean}) 
 
 export function SmartBorrowerRecords({loansOnly=false}:{loansOnly?:boolean}) {
   const [selected,setSelected]=useState<LibraryRow|null>(null),[status,setStatus]=useState(""),[search,setSearch]=useState(""),[offset,setOffset]=useState(0);
+  const command=useCommand();
   const path=loansOnly?`loans?${searchQuery(search,offset)}&status=${status}`:selected?`history?subject_id=${selected.subject_id}&borrower_type=${selected.borrower_type}&status=${status}&offset=${offset}`:null;
   const data=useLibraryData<LibraryRow|LibraryRow[]>(path);
   const rows:LibraryRow[]=Array.isArray(data.data)?data.data:data.data?.loans??[];
   return <LibraryPanel title={loansOnly?"Loans & overdue books":"Borrower book history"} description="See the exact copies each student or staff member holds, with independent issue dates, due dates and returns.">
+    <Feedback error={command.error} success={command.success}/>
     {!loansOnly&&<BorrowerPicker includeInactive selected={selected} onSelect={p=>{setSelected(p);setOffset(0);}}/>}
     {(selected||loansOnly)&&<><div className="my-4 grid gap-3 sm:grid-cols-2">{loansOnly&&<Field label="Search loans"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} placeholder="Borrower, admission number, barcode or title"/></Field>}
       <Field label="Loan status"><select className={inputClass} value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">All history</option><option value="active">Currently borrowed</option><option value="overdue">Overdue</option><option value="returned">Returned</option></select></Field></div>
       <LoadState resource={data}><div className="space-y-2">{rows.map(row=><div key={row.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border p-4">
         <div><strong className="block">{row.title}</strong><code>{row.barcode||row.accession_number}</code><p className="mt-1 text-sm text-muted">{row.borrower_name} · {row.borrower_number}</p></div>
-        <div className="text-sm"><p>Issued {dateText(row.issued_at)} · Due {dateText(row.due_on)}</p><p className={row.overdue?"font-semibold text-danger":"text-muted"}>{row.returned_at?`Returned ${dateText(row.returned_at)} (${row.return_condition||"recorded"})`:row.overdue?"Overdue — still with borrower":"Currently borrowed"}</p></div>
+        <div className="text-sm"><p>Issued {dateText(row.issued_at)} · Due {dateText(row.due_on)}</p><p className={row.overdue?"font-semibold text-danger":"text-muted"}>{row.returned_at?`Returned ${dateText(row.returned_at)} (${row.return_condition||"recorded"})`:row.overdue?"Overdue — still with borrower":"Currently borrowed"}</p>
+          {row.overdue&&!row.returned_at&&<WriteButton variant="secondary" className="mt-2" disabled={command.busy} onClick={()=>void command.run(`/api/admin-command/librarian/overdue-books/${encodeURIComponent(row.id)}/remind`,{},()=>data.refresh(),"Overdue reminder queued for the exact active borrower or linked guardian accounts.")}>{command.busy?"Queuing reminder…":"Send overdue reminder"}</WriteButton>}</div>
       </div>)}{!rows.length&&<p className="p-5 text-sm text-muted">No matching loans. Use Issue Books to record a borrower’s first loan.</p>}</div><Pager offset={offset} setOffset={setOffset} count={rows.length}/></LoadState></>}
   </LibraryPanel>;
 }

@@ -8,7 +8,7 @@ import { usePermissions } from "@/components/providers/permission-context";
 
 export type LibraryRow = Record<string, any>;
 export const inputClass = "min-h-11 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-primary";
-export const api = <T,>(path: string, body?: LibraryRow) => requestDashboardApi<T>(`/api/library/smart/${path}`,
+export const api = <T,>(path: string, body?: LibraryRow) => requestDashboardApi<T>(path.startsWith("/api/")?path:`/api/library/smart/${path}`,
   body ? { method:"POST",body,timeoutMs:120000 } : undefined);
 export const dateText = (value: unknown) => value ? String(value).slice(0,10) : "—";
 export const newRequest = () => crypto.randomUUID();

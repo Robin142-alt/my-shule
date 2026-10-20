@@ -90,3 +90,14 @@ it("allows direct navigation to every integrated librarian workspace",()=>{
     expect(isSchoolWorkspaceSection("librarian",section)).toBe(true);
   }
 });
+it("preserves the existing exact-recipient overdue reminder action",async()=>{
+  request.mockImplementation(async path=>{
+    if(path.includes("/loans?"))return [{id:"loan-1",title:"Mathematics",barcode:"000001",overdue:true,borrower_name:"Brian Otieno",due_on:"2026-10-01"}];
+    return {recipientCount:1};
+  });
+  render(<SmartBorrowerRecords loansOnly/>);
+  fireEvent.click(await screen.findByRole("button",{name:"Send overdue reminder"}));
+  await waitFor(()=>expect(request).toHaveBeenCalledWith("/api/admin-command/librarian/overdue-books/loan-1/remind",
+    expect.objectContaining({method:"POST",body:expect.objectContaining({request_id:expect.any(String)})})));
+  expect(await screen.findByText(/Overdue reminder queued for the exact active/)).toBeInTheDocument();
+});

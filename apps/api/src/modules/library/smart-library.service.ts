@@ -128,7 +128,7 @@ export class SmartLibraryService {
         ON CONFLICT(barcode) DO NOTHING RETURNING barcode`, [tenant,batch.id,actor,codes]);
       const found = new Set(inserted.map(r => r.barcode));
       const conflicts = codes.filter(code => !found.has(code));
-      if (conflicts.length) throw new ConflictException({ message: 'Some barcodes are already reserved. Nothing was imported.', barcodes: conflicts });
+      if (conflicts.length) throw new ConflictException({ message: `Some barcodes are already reserved: ${conflicts.slice(0,10).join(', ')}${conflicts.length>10?` (and ${conflicts.length-10} more)`:''}. Nothing was imported.`, barcodes: conflicts });
       await this.audit('library.barcodes_imported',batch.id,{ quantity: codes.length });
       return batch;
     });
