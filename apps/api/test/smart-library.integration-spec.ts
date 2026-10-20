@@ -215,6 +215,12 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     expect(issueResult.loans).toHaveLength(1);
     await run(()=>service.legacyReturn({loan_id:issueResult.id}));
     expect((await run(()=>service.history({subject_id:student,borrower_type:'student'}))).outstanding).toBe(0);
+    const departmentIssue=await run(()=>service.legacyDepartmentIssue({
+      catalog_item_id:created.id,staff_identifier:staff,department:'Sciences',due_date:'2099-12-31',
+    }));
+    expect((await run(()=>service.history({subject_id:staff,borrower_type:'staff'}))).outstanding).toBe(1);
+    await run(()=>service.legacyReturn({loan_id:departmentIssue.id}));
+    expect(()=>service.legacyDepartmentIssue({catalog_item_id:created.id,staff_identifier:staff})).toThrow('Department');
     await run(()=>service.retireTitle(created.id));
     expect((await run(()=>service.summary())).retired_copies).toBe(2);
   });

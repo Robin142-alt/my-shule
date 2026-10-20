@@ -67,7 +67,7 @@ export class LibrarianCommandController {
   @Post('department-issues')
   @Permissions('library:write')
   issueDepartmentResource(@Body() dto: any) {
-    return this.smartLibrary.legacyIssue(dto);
+    return this.smartLibrary.legacyDepartmentIssue(dto);
   }
 
   @Get('return-book')

@@ -441,6 +441,9 @@ export class SmartLibraryService {
   }
 
   /** Existing API aliases share the same governed physical-copy commands. */
+  legacyDepartmentIssue(input: Input) {
+    return this.legacyIssue({...input,department:text(input.department,'Department')});
+  }
   private async legacyCopy(code: unknown, available = false) {
     const {tenant}=this.scope();const value=text(code,'Book identifier');
     return this.one(`SELECT c.* FROM library_copies c JOIN library_catalog_items i ON i.tenant_id=c.tenant_id AND i.id=c.catalog_item_id
@@ -473,7 +476,7 @@ export class SmartLibraryService {
         }
       }
       const codes=input.barcodes??(Array.isArray(input.books)?input.books.map((b:Input)=>b.barcode):[
-        input.copy_id??input.book_id??input.book_scan_code??input.book_isbn??input.copy_code??input.book_title]);
+        input.copy_id??input.catalog_item_id??input.book_id??input.book_scan_code??input.book_isbn??input.copy_code??input.book_title]);
       if(!Array.isArray(codes)||!codes.length||codes.length>1000)throw new BadRequestException('Select physical books to issue.');
       const barcodes:string[]=[];
       for(const code of codes)barcodes.push(await this.ensureBarcode(await this.legacyCopy(code,true)));
