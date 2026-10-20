@@ -20,17 +20,18 @@ duplicate active loans. The three older library tables also contained no
 records. The migration still supports existing catalogue/circulation data and
 stops on conflicting identifiers instead of modifying history.
 
-The deployed database uses text student IDs and the original Prisma fines
-table. The integration fixture reproduces these types, mandatory finance
-columns and the fine-status enum. The compatibility migration retains old
-links and supplies the columns needed by physical-copy circulation.
+The deployed database uses text student IDs and the original Prisma fines,
+circulation and reservation tables. The integration fixture reproduces these
+types, mandatory finance and timestamp columns, text queue positions and the
+fine-status enum. The compatibility migration retains old links and supplies
+the defaults and columns needed by physical-copy circulation and reservations.
 
 ## Automated verification
 
 - Backend TypeScript compilation passed.
 - 163 Node tests passed across barcode/PDF, permission enforcement, existing
   library behavior and admin-command regressions.
-- 15 PostgreSQL integration tests passed with a restricted runtime role and
+- 16 PostgreSQL integration tests passed with a restricted runtime role and
   forced RLS. Coverage includes concurrent global allocation, exact large
   identifiers above JavaScript's safe-integer range, purchased-number
   collisions, replay-safe commands, permanent ownership, multiple copies,

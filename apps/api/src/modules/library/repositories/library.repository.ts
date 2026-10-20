@@ -148,7 +148,7 @@ export class LibraryRepository {
     const result = await this.executeSql(
       `
         WITH next_position AS (
-          SELECT COALESCE(MAX(queue_position), 0) + 1 AS queue_position
+          SELECT COALESCE(MAX(queue_position::integer), 0) + 1 AS queue_position
           FROM library_reservations
           WHERE tenant_id = $1
             AND catalog_item_id = $2::uuid
@@ -162,7 +162,7 @@ export class LibraryRepository {
         )
         SELECT $1, $2::uuid, $3::uuid, queue_position
         FROM next_position
-        RETURNING id::text, queue_position
+        RETURNING id::text, queue_position::integer
       `,
       [input.tenant_id, input.catalog_item_id, input.borrower_id],
     );

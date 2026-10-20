@@ -24,7 +24,7 @@ try{
   `);
   const columns=await client.query(`SELECT table_name,column_name,data_type,is_nullable,column_default
     FROM information_schema.columns WHERE table_schema='public' AND table_name=ANY($1::text[])
-    ORDER BY table_name,ordinal_position`,[['library_catalog_items','library_copies','library_borrowers','library_circulation_ledger','library_fines','staff_profiles','students','student_allocations']]);
+    ORDER BY table_name,ordinal_position`,[['library_catalog_items','library_copies','library_borrowers','library_circulation_ledger','library_fines','library_audit_logs','library_borrower_limits','library_reservations','library_renewals','library_fine_rules','staff_profiles','students','student_allocations']]);
   const counts=result.rows[0];
   const legacy={};
   for(const table of ['library_books','library_book_copies','library_loans']){

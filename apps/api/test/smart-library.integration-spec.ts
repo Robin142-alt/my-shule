@@ -5,6 +5,7 @@ import { RequestContextService } from '../src/common/request-context/request-con
 import { LibrarySchemaService } from '../src/modules/library/library-schema.service';
 import { SmartLibraryService } from '../src/modules/library/smart-library.service';
 import { SMART_LIBRARY_SCHEMA_SQL } from '../src/modules/library/smart-library-schema';
+import { LibraryRepository } from '../src/modules/library/repositories/library.repository';
 
 describe('Smart library: real PostgreSQL transactions and RLS',()=>{
   const schema=`library_${randomUUID().replaceAll('-','')}`,role=`${schema}_runtime`;
@@ -48,8 +49,15 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     pool=new Pool({connectionString:url.toString(),options:`-c search_path=${schema},public`,max:12});
     await pool.query(`CREATE SCHEMA ${schema};CREATE ROLE ${role};GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
     // Exercise the actual deployed Prisma-era shape, including text IDs and
-    // mandatory finance columns. Migration must also work on fresh installs.
+    // mandatory finance and ledger timestamps. Migration must also work on fresh installs.
     await pool.query(`
+      CREATE TABLE library_circulation_ledger(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,copy_id uuid NOT NULL,borrower_id uuid NOT NULL,
+        action text NOT NULL,metadata jsonb NOT NULL,
+        created_at timestamp NOT NULL DEFAULT now(),updated_at timestamp NOT NULL);
+      CREATE TABLE library_reservations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id text NOT NULL,catalog_item_id uuid NOT NULL,borrower_id uuid NOT NULL,
+        queue_position text NOT NULL,created_at timestamp NOT NULL DEFAULT now(),updated_at timestamp NOT NULL);
       CREATE TYPE "LibraryFineStatus" AS ENUM ('UNPAID','PAID','WAIVED','CANCELLED');
       CREATE TABLE library_fines(id text PRIMARY KEY,school_id text NOT NULL,tenant_id text,
         library_loan_id text NOT NULL,student_id text NOT NULL,amount double precision NOT NULL,
@@ -208,6 +216,17 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     const {barcodes}=await register();await issue(barcodes);const before=await run(()=>service.summary());
     await pool.query(SMART_LIBRARY_SCHEMA_SQL);
     expect(await run(()=>service.summary())).toEqual(before);
+  });
+  it('preserves legacy reservation numbering and required timestamps',async()=>{
+    const {barcodes,title}=await register(1);await issue(barcodes);
+    const loan=(await run(()=>service.history({subject_id:student,borrower_type:'student'}))).loans[0];
+    const repository=new LibraryRepository(db as never);
+    const first=await run(()=>repository.createReservation({tenant_id:school,catalog_item_id:title!,borrower_id:loan.borrower_id}));
+    const second=await run(()=>repository.createReservation({tenant_id:school,catalog_item_id:title!,borrower_id:loan.borrower_id}));
+    expect(first.queue_position).toBe(1);expect(second.queue_position).toBe(2);
+    const rows=(await pool.query('SELECT status,updated_at FROM library_reservations WHERE tenant_id=$1',[school])).rows;
+    expect(rows).toHaveLength(2);expect(rows.every(r=>r.status==='waiting'&&r.updated_at instanceof Date)).toBe(true);
+    expect((await pool.query('SELECT updated_at FROM library_circulation_ledger WHERE id=$1',[loan.id])).rows[0].updated_at).toBeInstanceOf(Date);
   });
   it('legacy endpoints route through the same loan and inventory records',async()=>{
     const created=await run(()=>service.legacyAdd({title:'Legacy entry',copies:2}));

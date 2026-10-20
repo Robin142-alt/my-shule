@@ -46,6 +46,9 @@ ledger events, using the issue event's ID as the loan ID. An insert trigger
 maintains it for all circulation writes. A partial unique index permits only
 one open loan per physical copy. Old routes are adapters to the same new
 transactional commands. Catalogue deletion retires copies and preserves history.
+Compatibility defaults support the deployed ledger's required timestamps and
+the older reservation table's missing status field and text queue positions.
+Existing transaction timestamps and reservation values are preserved.
 
 ## Transactions and retries
 

@@ -40,6 +40,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_library_copy_scope ON library_copies(tenant
 CREATE UNIQUE INDEX IF NOT EXISTS ux_library_borrower_scope ON library_borrowers(tenant_id,id);
 CREATE INDEX IF NOT EXISTS ix_library_borrower_subject ON library_borrowers(tenant_id,borrower_type,subject_id);
 
+-- Prisma-era ledgers require updated_at without a database default. Supply
+-- future inserts while preserving the append-only history and existing values.
+ALTER TABLE library_circulation_ledger ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+ALTER TABLE library_circulation_ledger ALTER COLUMN updated_at SET DEFAULT now();
+ALTER TABLE library_reservations
+  ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'waiting',
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+ALTER TABLE library_reservations ALTER COLUMN updated_at SET DEFAULT now();
+
 -- Production has the original Prisma fine table, while newer installations
 -- have the circulation table. Extend both without discarding old finance links.
 ALTER TABLE library_fines
