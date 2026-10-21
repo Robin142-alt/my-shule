@@ -149,7 +149,8 @@ export { isLiveRoleCommandCenterRole } from "@/lib/routing/live-school-roles";
 type LiveRole = LiveSchoolRole | PortalViewer;
 
 type WorkspaceProps = { onNavigate: (section: string) => void };
-type WorkspaceComponent = ComponentType<WorkspaceProps> & { preload?: () => Promise<ComponentType<WorkspaceProps>> };
+type WorkspaceView = ComponentType | ComponentType<WorkspaceProps>;
+type WorkspaceComponent = WorkspaceView & { preload?: () => Promise<WorkspaceView> };
 
 type RoleCommandConfig = {
   roleTitle: string;
