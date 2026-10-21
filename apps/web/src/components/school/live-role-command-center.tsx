@@ -58,14 +58,22 @@ const LaboratoryOverviewWorkspace = workspaceResource(() => import("@/components
 const LaboratoryReportsWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/reports-workspace").then((module) => module.ReportsWorkspace));
 const SafetyIncidentsWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/safety-incidents-workspace").then((module) => module.SafetyIncidentsWorkspace));
 const LaboratoryStocktakeWorkspace = workspaceResource(() => import("@/components/school/laboratory-technician/stocktake-workspace").then((module) => module.StocktakeWorkspace));
-const BooksWorkspace = workspaceResource(() => import("@/components/school/librarian/books-workspace").then((module) => module.BooksWorkspace));
-const BorrowersWorkspace = workspaceResource(() => import("@/components/school/librarian/borrowers-workspace").then((module) => module.BorrowersWorkspace));
+const BooksWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.CatalogueWorkspace));
+const RegisterBooksWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.RegisterBooksWorkspace));
+const BorrowersWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.BorrowerRecordsWorkspace));
 const FinesLostDamagedWorkspace = workspaceResource(() => import("@/components/school/librarian/fines-lost-damaged-workspace").then((module) => module.FinesLostDamagedWorkspace));
-const IssueBookWorkspace = workspaceResource(() => import("@/components/school/librarian/issue-book-workspace").then((module) => module.IssueBookWorkspace));
-const LibrarianOverviewWorkspace = workspaceResource(() => import("@/components/school/librarian/overview-workspace").then((module) => module.OverviewWorkspace));
-const OverdueBooksWorkspace = workspaceResource(() => import("@/components/school/librarian/overdue-books-workspace").then((module) => module.OverdueBooksWorkspace));
+const IssueBookWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.IssueBooksWorkspace));
+const LibrarianOverviewWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.SmartOverview));
+const OverdueBooksWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.LoansWorkspace));
 const LibrarianReportsWorkspace = workspaceResource(() => import("@/components/school/librarian/reports-workspace").then((module) => module.ReportsWorkspace));
-const ReturnBookWorkspace = workspaceResource(() => import("@/components/school/librarian/return-book-workspace").then((module) => module.ReturnBookWorkspace));
+const ReturnBookWorkspace = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.ReturnBooksWorkspace));
+const LibraryBarcodePrinting = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.BarcodePrintingWorkspace));
+const LibraryBarcodeManagement = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.BarcodeManagementWorkspace));
+const LibraryScanBook = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.SmartScanBook));
+const LibraryInventory = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.InventoryWorkspace));
+const LibraryLostDamaged = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.LostDamagedWorkspace));
+const LibraryStocktake = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.SmartStocktake));
+const LibraryScannerSettings = workspaceResource(() => import("@/components/school/librarian/smart-workspaces").then((module) => module.SmartScannerSettings));
 const DispensingLogWorkspace = workspaceResource(() => import("@/components/school/nurse/dispensing-log-workspace").then((module) => module.DispensingLogWorkspace));
 const HealthReportsWorkspace = workspaceResource(() => import("@/components/school/nurse/health-reports-workspace").then((module) => module.HealthReportsWorkspace));
 const MedicineInventoryWorkspace = workspaceResource(() => import("@/components/school/nurse/medicine-inventory-workspace").then((module) => module.MedicineInventoryWorkspace));
@@ -140,7 +148,9 @@ export { isLiveRoleCommandCenterRole } from "@/lib/routing/live-school-roles";
 
 type LiveRole = LiveSchoolRole | PortalViewer;
 
-type WorkspaceComponent = ComponentType & { preload?: () => Promise<ComponentType> };
+type WorkspaceProps = { onNavigate: (section: string) => void };
+type WorkspaceView = ComponentType | ComponentType<WorkspaceProps>;
+type WorkspaceComponent = WorkspaceView & { preload?: () => Promise<WorkspaceView> };
 
 type RoleCommandConfig = {
   roleTitle: string;
@@ -153,6 +163,7 @@ type RoleCommandConfig = {
   primaryAction: string;
   icon: LucideIcon;
   workspaces: Record<string, WorkspaceComponent>;
+  sectionAliases?: Record<string, string>;
 };
 
 const SUPPORT_SECTIONS = new Set([
@@ -189,7 +200,7 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
     roleTitle: "Librarian Dashboard",
     roleLabel: "Librarian",
     eyebrow: "Library command",
-    subtitle: "Catalogue, circulation, borrowers, overdue books, fines, and reports",
+    subtitle: "Barcode stickers, physical books, borrowing, returns and stocktaking",
     liveLabel: "Live library operations",
     defaultSection: "overview",
     primarySection: "books",
@@ -198,12 +209,25 @@ const LIVE_ROLE_CONFIG: Record<LiveRole, RoleCommandConfig> = {
     workspaces: {
       overview: LibrarianOverviewWorkspace,
       books: BooksWorkspace,
+      "register-books": RegisterBooksWorkspace,
+      "barcode-printing": LibraryBarcodePrinting,
+      barcodes: LibraryBarcodeManagement,
+      scan: LibraryScanBook,
+      inventory: LibraryInventory,
+      stocktake: LibraryStocktake,
+      "lost-damaged": LibraryLostDamaged,
+      "scanner-settings": LibraryScannerSettings,
       "issue-book": IssueBookWorkspace,
       "return-book": ReturnBookWorkspace,
       borrowers: BorrowersWorkspace,
       "overdue-books": OverdueBooksWorkspace,
       "fines-lost-damaged": FinesLostDamagedWorkspace,
       reports: LibrarianReportsWorkspace,
+    },
+    sectionAliases: {
+      catalogue: "books", add_books: "register-books", barcode_print: "barcode-printing",
+      issue: "issue-book", return: "return-book", loans: "overdue-books",
+      lost_damaged: "lost-damaged", fines: "fines-lost-damaged", scanner_settings: "scanner-settings",
     },
   },
   storekeeper: {
@@ -473,7 +497,8 @@ function sectionDescription(label: string) {
 }
 
 function normalizeSection(config: RoleCommandConfig, section?: string) {
-  const normalized = String(section || config.defaultSection).trim().toLowerCase();
+  const requested = String(section || config.defaultSection).trim().toLowerCase();
+  const normalized = config.sectionAliases?.[requested] ?? requested;
   if (config.workspaces[normalized] || SUPPORT_SECTIONS.has(normalized)) {
     return normalized;
   }
@@ -554,7 +579,7 @@ export function LiveRoleCommandCenter({
       defaultView={activeWorkspace as "support-new-ticket" | "support-my-tickets" | "support-knowledge-base" | "support-system-status"}
     />
   ) : ActiveWorkspace ? (
-    <ActiveWorkspace />
+    <ActiveWorkspace onNavigate={navigateTo} />
   ) : (
     <div className="rounded-xl border border-warning-border bg-warning-soft p-5 text-sm font-bold text-amber-900">
       This workspace is not available for the current role. Return to the role overview and retry.

@@ -122,7 +122,7 @@ jobs:
 
       - name: Smart library circulation, scanner and responsive workspaces
         run: |
-          npm --prefix apps/web run test:design -- --runTestsByPath tests/design/smart-library.test.tsx tests/design/librarian-human-workflows.test.ts tests/design/library-workspace.test.tsx tests/design/library-module-access.test.ts
+          npm --prefix apps/web run test:design -- --runTestsByPath tests/design/smart-library.test.tsx tests/design/librarian-live-workspaces.test.tsx tests/design/librarian-human-workflows.test.ts tests/design/library-workspace.test.tsx tests/design/library-module-access.test.ts
           node apps/web/tests/design/smart-library-browser.mjs
 
   cloudflare-build:

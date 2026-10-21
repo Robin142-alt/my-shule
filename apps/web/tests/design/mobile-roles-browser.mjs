@@ -76,6 +76,14 @@ const server=http.createServer((req,res)=>{
  else if(req.url==='/fonts/InterVariable.woff2'){res.setHeader('Content-Type','font/woff2');res.end(fs.readFileSync(path.join(web,'public/fonts/InterVariable.woff2')));}
  else if(req.url?.startsWith('/_next/image?')||req.url?.startsWith('/brand/')){res.setHeader('Content-Type','image/png');res.end(fs.readFileSync(path.join(web,'public/brand/myshule-mark-512.png')));}
  else if(req.url?.startsWith('/api/billing/reconciliation?')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({data:{rows:[],method_summaries:[],totals:{cleared_amount_minor:'0',pending_amount_minor:'0',exception_amount_minor:'0',transaction_count:0}}}));}
+ else if(req.url?.startsWith('/api/library/smart/')){
+  res.setHeader('Content-Type','application/json');
+  if(req.method!=='GET'){res.statusCode=405;res.end(JSON.stringify({message:'Read-only visual fixture'}));return;}
+  const route=new URL(req.url,'http://localhost').pathname.split('/').pop();
+  const data=route==='summary'?{total_copies:4,available_copies:3,issued_copies:1}:
+   route==='catalogue'?[{id:'qa-book',title:'A comprehensive guide to Mathematics and practical problem solving',author:'QA Library Author',isbn:'9780000000000',category:'Mathematics',total_copies:4,available_copies:3}]:[];
+  res.end(JSON.stringify({data,meta:{request_id:'visual-library-fixture'}}));
+ }
  else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:process.argv.includes('--contrast')&&req.url.startsWith('/api/permissions/me')?['*:*']:[]}));}
  else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });
@@ -135,6 +143,7 @@ try{
    const errors=[];const handler=error=>errors.push(error.message);page.on('pageerror',handler);
    await page.goto(`http://127.0.0.1:${server.address().port}/school/${role}/${section}`);
    await page.locator('.authenticated-app').waitFor({timeout:10000}).catch(()=>{});
+   if(role==='librarian'&&section==='books')await page.getByText('A comprehensive guide to Mathematics and practical problem solving',{exact:true}).waitFor();
    if(section==='exam-analytics'||(role==='head-of-subject'&&section==='overview'))await page.getByRole('heading',{name:'Exam Analytics',exact:true,level:2}).waitFor();
    await page.evaluate(()=>document.fonts.ready);
    await page.evaluate(()=>new Promise(requestAnimationFrame));
@@ -261,7 +270,9 @@ try{
    results.push({role,section,width,height,passed,...metrics,errors});
    if(width===390||width===1440||role==='principal'&&width===320||!passed)await page.screenshot({path:path.join(out,`${role}-${section}-${width}.png`),fullPage:true});
    console.log(`${passed?'PASS':'FAIL'} ${role}/${section} ${width}${passed?'':' '+JSON.stringify({errors,metrics})}`);
-   if(role==='librarian'&&section==='books'&&width===320){
+   // The library catalogue now uses copy-registration cards. Keep the shared
+   // record-table print contract covered on the nurse's populated visit table.
+   if(role==='nurse'&&section==='visits'&&width===320){
     await page.emulateMedia({media:'print'});
     assert.equal(await page.locator('.app-record-table tbody tr').first().evaluate(el=>getComputedStyle(el).display),'table-row','Print must keep tabular records');
     assert.equal(await page.locator('.app-cell-label').first().evaluate(el=>getComputedStyle(el).display),'none','Print must not duplicate column labels');

@@ -13,7 +13,12 @@ const out=path.resolve(web,'../../output/smart-library-ui');
 fs.mkdirSync(out,{recursive:true});
 const source=v=>JSON.stringify(v.replaceAll('\\','/'));
 fs.writeFileSync(path.join(out,'loader.cjs'),`const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
-fs.writeFileSync(path.join(out,'identity.ts'),`export function useSchoolCommandIdentity(){return {schoolName:'Library QA School',userLabel:'QA Librarian',logoUrl:null};}`);
+fs.writeFileSync(path.join(out,'identity.tsx'),`
+export function useSchoolCommandIdentity(){return {schoolName:'Library QA School',userLabel:'QA Librarian',logoUrl:null};}
+export function IntegratedSchoolCommandHeader({actions}){return <header className="flex flex-wrap items-center justify-between gap-3 p-3"><strong>Library QA School</strong>{actions}</header>;}
+export function SchoolCommandSidebarIdentity({title,subtitle}){return <div className="mb-5 p-3"><strong>{title}</strong><p className="mt-2 text-sm">{subtitle}</p></div>;}
+`);
+fs.writeFileSync(path.join(out,'routes.ts'),`export function buildSchoolSectionHref(role,section,mode){return mode==='public'?'/school/'+role+'/'+section:'/'+section;}`);
 fs.writeFileSync(path.join(out,'permissions.ts'),`export function usePermissions(){return {hasPermission:()=>true};}`);
 fs.writeFileSync(path.join(out,'api.ts'),`
 const books=['000001','000002','000003'].map((barcode,i)=>({id:barcode,barcode,title:['Mathematics','English','Biology'][i],status:'available',condition:'good'}));
@@ -30,6 +35,7 @@ export async function requestDashboardApi(path,options={}){
   if(route==='stocktakes/stock-1/scan'){const duplicate=seen.has(options.body.barcode);seen.add(options.body.barcode);return {duplicate,outcome:'verified'};}
  }
  if(route==='borrowers')return [person];
+ if(route==='summary')return {total_copies:3,available_copies:books.filter(b=>!b.loan).length,issued_copies:books.filter(b=>b.loan).length};
  if(route==='history')return {person,outstanding:books.filter(b=>b.loan).length,overdue:0,max_active_loans:5,loans:books.filter(b=>b.loan)};
  if(route==='scan'){const b=books.find(b=>b.barcode===u.searchParams.get('barcode'));if(!b)throw Error('Barcode not found in this school.');return structuredClone(b);}
  if(route==='catalogue')return [{id:'title-1',title:'Mathematics',total_copies:3,available_copies:2}];
@@ -41,42 +47,50 @@ export async function requestDashboardApi(path,options={}){
  return {};
 }`);
 fs.writeFileSync(path.join(out,'entry.tsx'),`
-import {createRoot} from 'react-dom/client';import {useState} from 'react';
-import {SmartCirculation,SmartCatalogue,SmartBarcodeWorkspace,SmartStocktake,SmartScannerSettings} from ${source(path.join(web,'src/components/library/smart-library-workspaces'))};
-function App(){const [page,setPage]=useState('issue');return <main className="mx-auto max-w-7xl space-y-5 p-3 sm:p-6"><nav className="flex flex-wrap gap-2">{['issue','return','register','labels','stocktake','scanner'].map(v=><button key={v} className="rounded-lg border p-2" onClick={()=>setPage(v)}>{v}</button>)}</nav>
-{page==='issue'&&<SmartCirculation key="issue" mode="issue"/>}{page==='return'&&<SmartCirculation key="return" mode="return"/>}{page==='register'&&<SmartCatalogue registration/>}{page==='labels'&&<SmartBarcodeWorkspace/>}{page==='stocktake'&&<SmartStocktake/>}{page==='scanner'&&<SmartScannerSettings/>}</main>}createRoot(document.getElementById('root')).render(<App/>);
+import {createRoot} from 'react-dom/client';
+import {LiveRoleCommandCenter} from ${source(path.join(web,'src/components/school/live-role-command-center'))};
+createRoot(document.getElementById('root')).render(<LiveRoleCommandCenter role="librarian" routeMode="public" activeSection={location.pathname.split('/').pop()||'overview'}/>);
 `);
 async function run(){
  await new Promise((resolve,reject)=>bundledWebpack.webpack({mode:'development',devtool:false,entry:path.join(out,'entry.tsx'),output:{path:out,filename:'bundle.js'},resolve:{extensions:['.tsx','.ts','.js'],modules:[path.join(web,'node_modules'),'node_modules'],alias:{
-  '@/components/school/integrated-school-command-header':path.join(out,'identity.ts'),
+  '@/components/school/integrated-school-command-header':path.join(out,'identity.tsx'),
+  './school-pages$':path.join(out,'routes.ts'),
+  '@/components/school/school-pages':path.join(out,'routes.ts'),
   '@/components/providers/permission-context':path.join(out,'permissions.ts'),
   '@/lib/dashboard/api-client':path.join(out,'api.ts'),'@':path.join(web,'src')
- }},plugins:[new bundledWebpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],module:{rules:[{test:/\.tsx?$/,exclude:/node_modules/,use:[path.join(out,'loader.cjs')]}]},optimization:{minimize:false}},(error,stats)=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));
+ }},plugins:[{apply(compiler){compiler.hooks.compilation.tap('LibraryBrowserStyles',compilation=>{bundledWebpack.webpack.NormalModule.getCompilationHooks(compilation).loader.tap('LibraryBrowserStyles',context=>{context.currentTraceSpan=require('next/dist/trace').trace('library-browser-styles');});});}},new bundledWebpack.webpack.DefinePlugin({'process.env':JSON.stringify({NODE_ENV:'development'})})],module:{rules:[{test:/\.tsx?$/,exclude:/node_modules/,use:[path.join(out,'loader.cjs')]},{test:/\.css$/,use:[require.resolve('next/dist/build/webpack/loaders/next-style-loader'),{loader:require.resolve('next/dist/build/webpack/loaders/css-loader/src'),options:{modules:{auto:true,getLocalIdent:require('next/dist/build/webpack/config/blocks/css/loaders/getCssModuleLocalIdent').getCssModuleLocalIdent},postcss:async()=>({postcss:require('postcss')})}}]}]},optimization:{minimize:false}},(error,stats)=>error||stats.hasErrors()?reject(error||Error(stats.toString({all:false,errors:true}))):resolve()));
  const globalsPath=path.join(web,'src/app/globals.css');
- const globals=fs.readFileSync(globalsPath,'utf8').replace('@import "tailwindcss";',`@import "tailwindcss" source(none);\n@source ${source(path.join(web,'src/components/library'))};\n@source ${source(path.join(web,'src/components/ui'))};\n@source ${source(path.join(out,'entry.tsx'))};`);
+ const globals=fs.readFileSync(globalsPath,'utf8').replace('@import "tailwindcss";',`@import "tailwindcss" source(none);\n@source ${source(path.join(web,'src/components/library'))};\n@source ${source(path.join(web,'src/components/ui'))};\n@source ${source(path.join(web,'src/components/shared'))};\n@source ${source(path.join(web,'src/components/school/live-role-command-center.tsx'))};\n@source ${source(path.join(out,'entry.tsx'))};`);
  const css=(await require('postcss')([require('@tailwindcss/postcss')()]).process(globals,{from:globalsPath})).css;
- const server=http.createServer((req,res)=>{if(req.url==='/bundle.js'){res.setHeader('Content-Type','application/javascript');res.end(fs.readFileSync(path.join(out,'bundle.js')));}else{res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}});
+ const server=http.createServer((req,res)=>{const file=path.basename((req.url||'').split('?')[0]);if(file.endsWith('.js')&&fs.existsSync(path.join(out,file))){res.setHeader('Content-Type','application/javascript');res.end(fs.readFileSync(path.join(out,file)));}else{res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  const browser=await chromium.launch({headless:true});
  try{
   for(const width of [320,390,768,1440]){
    const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];
    page.on('pageerror',e=>errors.push(e.message));
-   await page.goto(`http://127.0.0.1:${server.address().port}`);
+   await page.goto(`http://127.0.0.1:${server.address().port}/school/librarian/overview`);
+   const navigate=async label=>{
+    if(width<1280){await page.getByRole('button',{name:'Open Librarian workspace sidebar'}).click();await page.getByRole('dialog').getByRole('button',{name:label,exact:true}).click();}
+    else await page.getByRole('navigation',{name:'Librarian workspace navigation'}).getByRole('button',{name:label,exact:true}).click();
+   };
    const check=async name=>{assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} overflows ${width}px`);await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});};
    const scan=async code=>{await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Scan a book');await page.keyboard.type(code);await page.keyboard.press('Enter');};
+   await page.getByRole('heading',{name:'Library overview',exact:true}).waitFor();
+   await page.getByRole('button',{name:'Registered copies 3',exact:true}).waitFor();await check('overview');
+   await navigate('Issue Books');
    await page.getByRole('button',{name:/Brian Otieno/}).click();
    await scan('000001');await scan('000002');await scan('000003');
    await page.getByText('Biology',{exact:true}).waitFor();await check('issue');
    await page.getByRole('button',{name:'Confirm issue of 3 book(s)'}).click();
    await page.getByText('3 book(s) issued successfully.',{exact:true}).waitFor();
    assert.equal((await page.evaluate(()=>window.__libraryCommands.filter(c=>c.route==='issue'))).length,1);
-   await page.getByRole('button',{name:'return',exact:true}).click();
+   await navigate('Return Books');
    await scan('000001');await scan('000002');await page.getByText('English',{exact:true}).waitFor();
    await check('return');await page.getByRole('button',{name:'Confirm return of 2 book(s)'}).click();
    await page.getByText('2 book(s) returned successfully.',{exact:true}).waitFor();
    assert.deepEqual((await page.evaluate(()=>window.__libraryCommands.find(c=>c.route==='return').body.barcodes)),['000001','000002']);
-   await page.getByRole('button',{name:'register',exact:true}).click();
+   await navigate('Register Books');
    await page.getByRole('button',{name:/Mathematics/}).click();
    const registration=page.getByLabel('Scan a sticker to register',{exact:true});
    await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Scan a sticker to register');
@@ -84,15 +98,16 @@ async function run(){
    await page.getByText(/Physical copy registered/).waitFor();
    assert.equal(await registration.evaluate(e=>e===document.activeElement),true);
    await check('registration');
-   await page.getByRole('button',{name:'labels',exact:true}).click();
-   await page.getByLabel('Custom quantity').fill('1000');await page.getByText(/11 sheet\(s\) · 56 empty/).waitFor();await check('labels');
-   await page.getByRole('button',{name:'stocktake',exact:true}).click();
+   await navigate('Barcode Generator & Printing');
+   await page.getByLabel('Custom quantity').fill('1000');await page.getByText(/11 sheet\(s\) · 56 empty/).waitFor();
+   await page.getByText('No batches yet. Generate the number of stickers you need.',{exact:true}).waitFor();await check('labels');
+   await navigate('Inventory & Stocktaking');
    await page.getByLabel('Open or previous session').selectOption('stock-1');
    const field=page.getByLabel('Scan barcode',{exact:true});
    await field.fill('000001');await field.press('Enter');await page.getByText('000001: verified',{exact:true}).waitFor();
    await page.waitForTimeout(250);assert.equal(await field.evaluate(e=>e===document.activeElement),true,'Refresh must preserve scanner focus');
    await field.fill('000002');await field.press('Enter');await page.getByText('000002: verified',{exact:true}).waitFor();await check('stocktake');
-   await page.getByRole('button',{name:'scanner',exact:true}).click();
+   await navigate('Scanner Settings');
    await page.getByLabel('Test your scanner',{exact:true}).fill('000001');
    await page.getByLabel('Test your scanner',{exact:true}).press('Enter');
    await page.getByText(/Received exactly/).waitFor();await check('scanner');
