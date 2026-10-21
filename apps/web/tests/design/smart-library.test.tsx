@@ -46,6 +46,7 @@ it("keeps the selected borrower for multiple scans and submits one atomic issue 
     fireEvent.click(screen.getByRole("button",{name:"Add scan"}));
     await screen.findByText(`Book ${barcode}`);
   }
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"})).toBeEnabled());
   fireEvent.click(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"}));
   await waitFor(()=>expect(request).toHaveBeenCalledWith("/api/library/smart/issue",expect.objectContaining({
     method:"POST",body:expect.objectContaining({barcodes:["000001","000002"],subject_id:"student-1",borrower_type:"student",request_id:expect.any(String)}),

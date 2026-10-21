@@ -1,4 +1,4 @@
-import { LayoutGrid, Settings, Building2, GraduationCap, BookOpenCheck, Users, CalendarDays, FileSpreadsheet, CircleDollarSign, ShieldAlert, MessageSquareText, ClipboardList, Stethoscope, BusFront, Activity, Boxes, Library, FlaskConical } from "lucide-react";
+import { LayoutGrid, Settings, Building2, GraduationCap, BookOpenCheck, Users, CalendarDays, FileSpreadsheet, CircleDollarSign, ShieldAlert, MessageSquareText, ClipboardList, Stethoscope, BusFront, Activity, Boxes, Library, FlaskConical, ScanBarcode, Printer, BookPlus } from "lucide-react";
 
 import { buildSchoolErpModel } from "@/lib/dashboard/erp-model";
 import { buildDashboardSnapshot } from "@/lib/dashboard/empty-data";
@@ -246,12 +246,20 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   ],
   "librarian": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
-    { id: "books", label: "Books", href: toSchoolPath("books"), icon: Library },
-    { id: "issue-book", label: "Issue Book", href: toSchoolPath("issue-book"), icon: ClipboardList },
-    { id: "return-book", label: "Return Book", href: toSchoolPath("return-book"), icon: ClipboardList },
-    { id: "borrowers", label: "Borrowers", href: toSchoolPath("borrowers"), icon: Users },
-    { id: "overdue-books", label: "Overdue Books", href: toSchoolPath("overdue-books"), icon: ShieldAlert },
-    { id: "fines-lost-damaged", label: "Fines/Lost/Damaged", href: toSchoolPath("fines-lost-damaged"), icon: CircleDollarSign },
+    { id: "books", label: "Book Catalogue", href: toSchoolPath("books"), icon: Library },
+    { id: "register-books", label: "Register Books", href: toSchoolPath("register-books"), icon: BookPlus },
+    { id: "barcode-printing", label: "Barcode Generator & Printing", href: toSchoolPath("barcode-printing"), icon: Printer },
+    { id: "scan", label: "Scan Book", href: toSchoolPath("scan"), icon: ScanBarcode },
+    { id: "issue-book", label: "Issue Books", href: toSchoolPath("issue-book"), icon: ClipboardList },
+    { id: "return-book", label: "Return Books", href: toSchoolPath("return-book"), icon: ClipboardList },
+    { id: "borrowers", label: "Borrower Records", href: toSchoolPath("borrowers"), icon: Users },
+    { id: "overdue-books", label: "Loans & Overdue Books", href: toSchoolPath("overdue-books"), icon: ShieldAlert },
+    { id: "inventory", label: "Physical Inventory", href: toSchoolPath("inventory"), icon: Boxes },
+    { id: "stocktake", label: "Inventory & Stocktaking", href: toSchoolPath("stocktake"), icon: ClipboardList },
+    { id: "barcodes", label: "Barcode Management", href: toSchoolPath("barcodes"), icon: ScanBarcode },
+    { id: "lost-damaged", label: "Lost & Damaged Books", href: toSchoolPath("lost-damaged"), icon: ShieldAlert },
+    { id: "fines-lost-damaged", label: "Fines & Penalties", href: toSchoolPath("fines-lost-damaged"), icon: CircleDollarSign },
+    { id: "scanner-settings", label: "Scanner Settings", href: toSchoolPath("scanner-settings"), icon: Settings },
     { id: "reports", label: "Reports", href: toSchoolPath("reports"), icon: FileSpreadsheet },
     ...supportSidebarItems,
   ],
