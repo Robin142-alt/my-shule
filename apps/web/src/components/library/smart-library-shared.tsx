@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ScanBarcode, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -89,11 +89,31 @@ export async function soundFeedback(success:boolean,force=false):Promise<boolean
     return true;
   }catch{return false;}
 }
-export type ScanCompletion="enter"|"button";
-/** Only this focused field consumes Enter. No global keyboard interception. */
+const scannerCompletionStorage="myshule-library-scanner-completion";
+const scannerSettingsEvent="myshule-scanner-settings-changed";
+type ScannerCompletionKey="enter"|"tab";
+function readScannerCompletion():ScannerCompletionKey {
+  try{return localStorage.getItem(scannerCompletionStorage)==="tab"?"tab":"enter";}catch{return "enter";}
+}
+function subscribeScannerCompletion(notify:()=>void) {
+  const storage=(event:StorageEvent)=>{if(event.key===scannerCompletionStorage||event.key===null)notify();};
+  window.addEventListener("storage",storage);window.addEventListener(scannerSettingsEvent,notify);
+  return()=>{window.removeEventListener("storage",storage);window.removeEventListener(scannerSettingsEvent,notify);};
+}
+export function useScannerCompletionKey() {
+  return useSyncExternalStore(subscribeScannerCompletion,readScannerCompletion,():ScannerCompletionKey=>"enter");
+}
+export function saveScannerCompletionKey(key:ScannerCompletionKey) {
+  localStorage.setItem(scannerCompletionStorage,key);
+  window.dispatchEvent(new Event(scannerSettingsEvent));
+}
+export type ScanCompletion="enter"|"tab"|"button";
+/** Keyboard/HID input is transport- and brand-independent. Only this field
+ * consumes configured suffixes; unrelated inputs keep normal navigation. */
 export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,focusKey,onPendingChange,submitLabel="Add scan",focusLabel="Focus scanner"}:{onScan:(code:string,completion:ScanCompletion)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;focusKey?:string;onPendingChange?:(pending:number)=>void;submitLabel?:string;focusLabel?:string}) {
   const [value,setValue]=useState(""),[error,setError]=useState(""),[pending,setPending]=useState(0),[focused,setFocused]=useState(false);
   const hintId=useId();
+  const completionKey=useScannerCompletionKey();
   const field=useRef<HTMLInputElement>(null),queue=useRef(Promise.resolve()),inFlight=useRef(new Set<string>()),handler=useRef(onScan);
   useEffect(()=>{handler.current=onScan;},[onScan]);
   // Focus only on workspace activation, becoming enabled, or an explicit title
@@ -129,10 +149,14 @@ export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFoc
   <form onSubmit={event=>{event.preventDefault();scan("button");}} className="flex flex-wrap items-end gap-2">
     <label className="min-w-0 flex-1 basis-full text-sm font-medium sm:basis-0"><span className="mb-1 flex items-center gap-2"><ScanBarcode size={18}/>{label}</span>
       <input ref={field} autoFocus={autoFocus} aria-label={label} aria-describedby={hintId} value={value} onChange={e=>setValue(e.target.value)} disabled={disabled}
-        onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} onKeyDown={e=>{if(e.key==="Enter"&&!e.nativeEvent.isComposing){e.preventDefault();scan("enter");}}}
-        className={`${inputClass} font-mono`} autoComplete="off" spellCheck={false} placeholder="Scan or type the exact barcode, then Enter"/></label>
+        onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} onKeyDown={e=>{
+          if(e.nativeEvent.isComposing||e.altKey||e.ctrlKey||e.metaKey||e.shiftKey)return;
+          if(e.key==="Enter"){e.preventDefault();scan("enter");}
+          else if(e.key==="Tab"&&completionKey==="tab"&&field.current?.value){e.preventDefault();scan("tab");}
+        }}
+        className={`${inputClass} font-mono`} autoComplete="off" spellCheck={false} placeholder={`Scan or type the exact barcode, then ${completionKey==="tab"?"Tab or Enter":"Enter"}`}/></label>
     <Button type="submit" disabled={disabled||!value}>{submitLabel}</Button><Button variant="secondary" disabled={disabled} onClick={()=>field.current?.focus()}>{focusLabel}</Button>
-  </form><p id={hintId} className="text-xs text-muted">{value?`${value.length} characters received. Press Enter or choose “${submitLabel}”. If a scan stops here, configure an Enter suffix on the scanner.`:"USB keyboard mode · Enter suffix · Manual entry supported"}{pending>0?` · ${pending} scan(s) processing`:""}</p>
+  </form><p id={hintId} className="text-xs text-muted">{value?`${value.length} characters received. Press ${completionKey==="tab"?"Tab or Enter":"Enter"} or choose “${submitLabel}”. If a scan stops here, match its suffix in Scanner Settings.`:`Keyboard / HID mode · ${completionKey==="tab"?"Tab or Enter":"Enter"} suffix · Manual entry supported`}{pending>0?` · ${pending} scan(s) processing`:""}</p>
   <Feedback error={error}/></div>;
 }
 

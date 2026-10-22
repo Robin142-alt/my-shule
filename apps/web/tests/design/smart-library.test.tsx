@@ -78,6 +78,9 @@ it("reports blocked settings storage and offers a non-mutating troubleshooting p
     expect(screen.getByRole("alert")).toHaveTextContent(/could not save/i);
     expect(screen.getByText(/Notepad/)).toBeInTheDocument();
     expect(screen.getByText(/cannot detect a connected keyboard-mode scanner/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Scanner completion key"),{target:{value:"tab"}});
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not save scanner settings/i);
+    expect(screen.getByLabelText("Scanner completion key")).toHaveValue("enter");
     expect(request).not.toHaveBeenCalled();
   } finally {save.mockRestore();}
 });
@@ -91,6 +94,38 @@ it("persists sound preferences and reports unavailable audio without claiming a 
   expect(await screen.findByText(/Sound is unavailable/)).toBeInTheDocument();
   expect(screen.getByRole("button",{name:"Test sound"})).toBeEnabled();
   expect(request).not.toHaveBeenCalled();
+});
+it("supports a saved Tab suffix across scanner desks without changing default keyboard navigation",async()=>{
+  const handler=jest.fn(async()=>{});
+  const first=render(<ScannerInput onScan={handler}/>);
+  fireEvent.change(screen.getByLabelText("Scan barcode"),{target:{value:"000001"}});
+  fireEvent.keyDown(screen.getByLabelText("Scan barcode"),{key:"Tab"});
+  expect(handler).not.toHaveBeenCalled();
+  first.unmount();
+  const settings=render(<SmartScannerSettings/>);
+  fireEvent.change(screen.getByLabelText("Scanner completion key"),{target:{value:"tab"}});
+  expect(localStorage.getItem("myshule-library-scanner-completion")).toBe("tab");
+  fireEvent.change(screen.getByLabelText("Test your scanner"),{target:{value:"000001"}});
+  fireEvent.keyDown(screen.getByLabelText("Test your scanner"),{key:"Tab"});
+  expect(await screen.findByText(/Completed tests: 1/)).toHaveTextContent("Tab received");
+  settings.unmount();
+  render(<ScannerInput autoFocus onScan={handler}/>);
+  fireEvent.change(screen.getByLabelText("Scan barcode"),{target:{value:"000002"}});
+  fireEvent.keyDown(screen.getByLabelText("Scan barcode"),{key:"Tab"});
+  await waitFor(()=>expect(handler).toHaveBeenCalledWith("000002","tab"));
+  expect(screen.getByLabelText("Scan barcode")).toHaveFocus();
+  fireEvent.change(screen.getByLabelText("Scan barcode"),{target:{value:"000003"}});
+  fireEvent.keyDown(screen.getByLabelText("Scan barcode"),{key:"Tab",shiftKey:true});
+  expect(handler).toHaveBeenCalledTimes(1);
+  expect(request).not.toHaveBeenCalled();
+});
+it("keeps large barcode strings exact and accepts CR/LF endings without numeric conversion",async()=>{
+  const handler=jest.fn(async()=>{});
+  render(<ScannerInput onScan={handler}/>);
+  const code="00009007199254740993";
+  fireEvent.change(screen.getByLabelText("Scan barcode"),{target:{value:code+"\r\n"}});
+  fireEvent.keyDown(screen.getByLabelText("Scan barcode"),{key:"Enter"});
+  await waitFor(()=>expect(handler).toHaveBeenCalledWith(code,"enter"));
 });
 it("releases the sound-test button when the browser never resumes audio",async()=>{
   jest.useFakeTimers();

@@ -7,7 +7,7 @@ import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { useSchoolCommandIdentity } from "@/components/school/integrated-school-command-header";
 import {
   api, BorrowerPicker, dateText, errorText, Feedback, Field, inputClass, LibraryPanel,
-  LoadState, newRequest, Pager, ScannerInput, soundFeedback, useLibraryData, WriteButton, type LibraryRow, type ScanCompletion,
+  LoadState, newRequest, Pager, ScannerInput, saveScannerCompletionKey, soundFeedback, useScannerCompletionKey, useLibraryData, WriteButton, type LibraryRow, type ScanCompletion,
 } from "./smart-library-shared";
 
 function useCommand() {
@@ -274,6 +274,7 @@ export function SmartStocktake() {
 
 export function SmartScannerSettings() {
   const [sound,setSound]=useState(false),[storageError,setStorageError]=useState(""),[audioMessage,setAudioMessage]=useState(""),[testingSound,setTestingSound]=useState(false);
+  const completionKey=useScannerCompletionKey();
   const [last,setLast]=useState<{code:string;completion:ScanCompletion;count:number}|null>(null);
   useEffect(()=>{
     try{setSound(localStorage.getItem("myshule-library-scanner-sound")==="true");}
@@ -283,16 +284,22 @@ export function SmartScannerSettings() {
     try{localStorage.setItem("myshule-library-scanner-sound",String(enabled));setSound(enabled);setStorageError("");}
     catch{setStorageError("This browser could not save sound settings. Allow site storage, then try again. Scanning still works.");}
   };
-  return <LibraryPanel title="Scanner settings & test" description="Test keyboard input from your USB scanner before registering or lending books. Nothing in this test changes library records.">
+  return <LibraryPanel title="Scanner settings & test" description="Test keyboard input from your scanner before registering or lending books. Nothing in this test changes library records.">
     <div className="mb-5 rounded-xl border border-info-border bg-info-soft p-4 text-sm">
-      <p className="font-semibold">Connect a USB scanner in keyboard / HID mode.</p>
-      <p className="mt-1">MyShule cannot detect a connected keyboard-mode scanner or change its hardware settings. Enable Code 128 and an Enter suffix using the scanner’s manual.</p>
+      <p className="font-semibold">Use a 1D or 2D scanner that reads Code 128 in keyboard / HID mode.</p>
+      <p className="mt-1">USB cables, USB wireless receivers and Bluetooth keyboard-mode connections use the same input. No brand-specific MyShule driver is needed.</p>
+      <p className="mt-1">MyShule cannot detect a connected keyboard-mode scanner or change its hardware settings. Enable Code 128 and set the output mode using its manual. Library stickers remain 1D Code 128.</p>
     </div>
+    <div className="mb-5 max-w-lg"><Field label="Scanner completion key"><select className={inputClass} value={completionKey} onChange={e=>{
+      try{saveScannerCompletionKey(e.target.value==="tab"?"tab":"enter");setStorageError("");}
+      catch{setStorageError("This browser could not save scanner settings. Allow site storage, then try again. Enter and manual completion still work.");}
+    }}><option value="enter">Enter / Return (CR or CR/LF)</option><option value="tab">Tab (Enter also works)</option></select></Field>
+      <p className="mt-2 text-xs text-muted">Match the scanner’s suffix. This preference saves in this browser and applies to every library scan field. Scanners without a suffix can use the completion button. Tab remains normal navigation outside a barcode field.</p></div>
     <ScannerInput autoFocus onScan={async(code,completion)=>setLast(previous=>({code,completion,count:(previous?.count??0)+1}))}
       label="Test your scanner" submitLabel="Complete test" focusLabel="Start scanner test"/>
     {last?<div role="status" className="mt-4 rounded-xl border border-success-border bg-success-soft p-4 text-sm">
       <p>Received exactly: <code className="break-all font-bold">{last.code}</code> ({last.code.length} characters).</p>
-      <p className="mt-1">Completed tests: {last.count} · {last.completion==="enter"?"Enter received":"Completed with button — an Enter suffix was not tested"}.</p>
+      <p className="mt-1">Completed tests: {last.count} · {last.completion==="button"?"Completed with button — a suffix was not tested":`${last.completion==="tab"?"Tab":"Enter"} received`}.</p>
       <p className="mt-1">Compare this value with your sticker, including leading zeros. Typed or pasted text tests the page; only a physical scan tests the device.</p>
     </div>:<p className="my-4 text-sm text-muted">No completed tests yet. Scan a sticker, or type its value and press Enter to check the page input.</p>}
     <div className="mt-6 grid gap-5 lg:grid-cols-2">
@@ -310,8 +317,8 @@ export function SmartScannerSettings() {
       </section>
       <section className="rounded-xl border border-border p-4"><h3 className="font-semibold">Nothing appears when you scan?</h3>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm"><li>Choose “Start scanner test”, then scan a printed Code 128 sticker.</li>
-          <li>If no characters arrive, scan into a blank Notepad document. If that is also empty, check the cable or receiver, USB port, keyboard / HID mode and Code 128 support.</li>
-          <li>If text arrives but the test does not finish, enable an Enter suffix on the scanner. “Complete test” lets you check the received value manually.</li>
+          <li>If no characters arrive, scan into a blank Notepad document. If that is also empty, check the cable, receiver or Bluetooth pairing, keyboard / HID mode and Code 128 support.</li>
+          <li>If text arrives but the test does not finish, match the completion key above to the scanner’s Enter or Tab suffix. “Complete test” works when the scanner has no suffix.</li>
           <li>If characters differ from the sticker, match the scanner’s keyboard layout to the computer.</li></ol>
       </section>
     </div>

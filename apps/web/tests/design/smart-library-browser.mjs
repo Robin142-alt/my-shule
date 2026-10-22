@@ -129,8 +129,20 @@ async function run(){
    await page.getByRole('button',{name:'Complete test',exact:true}).click();
    await page.getByText(/Completed tests: 2 · Completed with button/).waitFor();
    assert.equal(await testField.evaluate(e=>e===document.activeElement),true);
+   await page.getByLabel('Scanner completion key').selectOption('tab');
+   await page.getByRole('button',{name:'Start scanner test',exact:true}).click();
+   await page.keyboard.type('000001');await page.keyboard.press('Tab');
+   await page.getByText('Completed tests: 3 · Tab received.',{exact:true}).waitFor();
+   assert.equal(await testField.evaluate(e=>e===document.activeElement),true);
    assert.equal(await page.evaluate(()=>window.__libraryCommands.length),commandsBeforeTest,'Scanner diagnostics must not write library data');
    await page.getByText(/Notepad/).waitFor();await check('scanner');
+   await navigate('Issue Books');
+   await page.getByRole('button',{name:/Brian Otieno/}).click();
+   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')==='Scan a book');
+   await page.keyboard.type('000001');await page.keyboard.press('Tab');
+   await page.getByText('Mathematics',{exact:true}).waitFor();
+   assert.equal(await page.getByLabel('Scan a book',{exact:true}).evaluate(e=>e===document.activeElement),true,'Saved Tab preference applies at the issue desk');
+   assert.equal(await page.evaluate(()=>window.__libraryCommands.length),commandsBeforeTest,'Scanning a pending issue is not a confirmed issue');
    assert.deepEqual(errors,[]);await page.close();console.log(`Smart library ${width}px: multi-issue, partial return, registration, labels, stocktake focus and scanner passed`);
   }
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

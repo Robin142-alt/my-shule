@@ -119,13 +119,27 @@ buffers on the server. The browser can keep working in other workspaces.
 
 ## Scanner, inventory and stocktaking
 
-Keyboard/HID scanners need Code 128 enabled, the correct keyboard layout and
-an Enter suffix. Only an explicitly focused barcode input handles scans.
+Compatibility is based on the input protocol, not a scanner brand or model.
+Both 1D and 2D readers work through the same input path when they decode Code 128
+and send keyboard/HID text. This includes wired USB, USB wireless receivers and
+Bluetooth keyboard-mode devices. Printed library stickers remain 1D Code 128;
+a 2D-capable reader does not require QR labels. Serial/USB-CDC or proprietary
+SDK-only output is not a browser keyboard input: configure a supported
+keyboard/HID mode using that scanner's own manual.
+
+Use the computer's keyboard layout and disable additional model-specific
+prefixes so the transmitted text exactly matches the reserved identifier.
+Enter/Return (including CR/LF scanner output) is the default completion key.
+Scanner Settings can enable Tab completion; the saved browser preference applies
+to registration, issue, return, lookup and stocktake fields. Enter still works
+with Tab selected. Empty-field Tab, Shift+Tab and unrelated inputs keep ordinary
+keyboard navigation. A scanner with no suffix can use the completion button.
+Only an explicitly focused barcode input handles scans.
 Completed scans queue serially, pending duplicates are rejected, and unrelated
 inputs retain normal keyboard behavior. Manual entry and optional device-local
 sound are available. Scanner settings include a non-mutating test field showing
 focus readiness, arriving character count, the exact completed value, the number
-of completed tests and whether Enter or the manual button completed the test.
+of completed tests and whether Enter, Tab or the manual button completed the test.
 Repeating the same sticker is allowed after its previous test finishes.
 
 Sound preferences save automatically in this browser. Storage or audio failures
@@ -137,8 +151,8 @@ When no characters arrive, first select **Start scanner test**, then try the
 same sticker in a blank Notepad document. If Notepad is also empty, check the
 USB cable/receiver and port, and use the scanner manufacturer's manual to enable
 USB keyboard/HID mode and Code 128. The website cannot change these device
-settings. If characters arrive without completion, configure an Enter suffix;
-**Complete test** can inspect that value but does not verify an Enter suffix.
+settings. If characters arrive without completion, match the configured Enter
+or Tab suffix; **Complete test** can inspect a value without verifying a suffix.
 Match the scanner and computer keyboard layouts if the characters differ.
 
 Stocktaking snapshots copies and their status when the session starts.
@@ -150,7 +164,10 @@ stocktaking is visible. The complete snapshot can be downloaded as CSV.
 
 ## Hardware acceptance checklist (requires real equipment)
 
-- Use a representative USB HID scanner and the school's actual printer.
+- Use each representative 1D/2D keyboard-HID scanner, connection type (USB,
+  wireless receiver or Bluetooth), and the school's actual printer. Record the
+  manufacturer/model, firmware, OS, layout and chosen suffix; simulated keyboard
+  tests alone do not certify a physical device.
 - Print the calibration PDF on A4 at Actual size / 100%; disable fit, scaling,
   duplex, booklet mode and printer-driver enlargement.
 - Measure page dimensions, the 100 mm rule, 32 × 15 mm outlines, 1 mm gaps,
@@ -161,7 +178,7 @@ stocktaking is visible. The complete snapshot can be downloaded as CSV.
 - Scan stickers from all corners and centre of a page, including odd-length
   identifiers and the longest supported production identifier.
 - Compare the received text exactly, including leading zeros, against the label.
-- Scan at least 100 books consecutively; check focus, Enter suffix, feedback,
+- Scan at least 100 books consecutively; check focus, Enter/Tab suffix, feedback,
   duplicates, manual entry, scanner disconnect and browser audio restrictions.
 - In an approved test school, issue three labelled copies to one borrower,
   return two, confirm the third remains issued, and run a stocktake.
