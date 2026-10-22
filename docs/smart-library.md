@@ -52,6 +52,13 @@ Existing transaction timestamps and reservation values are preserved.
 
 ## Transactions and retries
 
+The PostgreSQL workflow tests use the production `PrismaService` and pg adapter,
+including the runtime role and tenant transaction context. Keep this boundary
+real: a direct pg substitute accepts PostgreSQL `void` results that Prisma
+rejects. Advisory-lock queries cast their result to text without changing lock
+ownership or lifetime. Allocation and borrower-lock regressions must exercise
+this production client, concurrent requests and idempotent retries.
+
 All writes run in the existing tenant transaction context. Issue commands lock
 the authoritative borrower and physical copies; limits include all legacy
 borrower references for that person. Returns lock copies and open loans. Each

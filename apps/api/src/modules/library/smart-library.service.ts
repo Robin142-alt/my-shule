@@ -78,7 +78,9 @@ export class SmartLibraryService {
     const key = uuid(input.request_id, 'Request ID');
     const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
     return this.db.executeWithTenant(tenant, actor, async () => {
-      await this.rows(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, [`library:${tenant}:${key}`]);
+      // Prisma cannot deserialize PostgreSQL void; retain the transaction lock
+      // while returning a supported scalar from this side-effecting query.
+      await this.rows(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`, [`library:${tenant}:${key}`]);
       const previous = (await this.rows(`SELECT * FROM library_commands WHERE tenant_id=$1 AND request_id=$2::uuid`, [tenant,key]))[0];
       if (previous) {
         if (previous.kind !== kind || previous.request_hash !== hash) throw new ConflictException('This request ID was already used for different library details.');
@@ -239,7 +241,7 @@ export class SmartLibraryService {
     if (!['student','staff'].includes(type)) throw new BadRequestException('Choose a student or staff borrower.');
     uuid(subject,'Borrower');
     // Lock the authoritative subject, including all legacy duplicate borrower references.
-    await this.rows(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,[`library-borrower:${tenant}:${type}:${subject}`]);
+    await this.rows(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`,[`library-borrower:${tenant}:${type}:${subject}`]);
     const person = type === 'student'
       ? await this.one(`SELECT id,admission_number AS identifier,status FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`,[tenant,subject])
       : await this.one(`SELECT id,staff_number AS identifier,status FROM staff_profiles WHERE tenant_id=$1 AND id::text=$2`,[tenant,subject]);

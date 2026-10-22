@@ -1,6 +1,6 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
+import { PrismaService } from '../src/database/prisma.service';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { LibrarySchemaService } from '../src/modules/library/library-schema.service';
 import { SmartLibraryService } from '../src/modules/library/smart-library.service';
@@ -9,25 +9,10 @@ import { LibraryRepository } from '../src/modules/library/repositories/library.r
 
 describe('Smart library: real PostgreSQL transactions and RLS',()=>{
   const schema=`library_${randomUUID().replaceAll('-','')}`,role=`${schema}_runtime`;
-  const context=new RequestContextService(),active=new AsyncLocalStorage<PoolClient>();
+  const context=new RequestContextService();
+  let db:PrismaService;
   let pool:Pool,service:SmartLibraryService,school:string,other:string,student:string,staff:string;
   const actor=randomUUID();let failEvent=false;
-  const txFor=(client:PoolClient)=>({$queryRawUnsafe:async(sql:string,...params:unknown[])=>(await client.query(sql,params)).rows});
-  const transaction=async<T>(tenant:string,_actor:unknown,work:(tx:ReturnType<typeof txFor>)=>Promise<T>):Promise<T>=>{
-    if(active.getStore())return work(txFor(active.getStore()!));
-    const client=await pool.connect();
-    try{
-      await client.query('BEGIN');await client.query(`SET LOCAL ROLE ${role}`);
-      await client.query("SELECT set_config('app.tenant_id',$1,true)",[tenant]);
-      const result=await active.run(client,()=>work(txFor(client)));
-      await client.query('COMMIT');return result;
-    }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
-  };
-  const db={
-    executeWithTenant:transaction,
-    getActiveTransaction:()=>active.getStore()?txFor(active.getStore()!):undefined,
-    query:(sql:string,args:unknown[])=>transaction(context.requireStore().tenant_id!,actor,()=>active.getStore()!.query(sql,args)),
-  };
   const run=<T>(work:()=>Promise<T>,tenant=school)=>context.run({tenant_id:tenant,user_id:actor,role:'librarian',is_authenticated:true} as never,work);
   const allocate=(quantity=3,tenant=school,key=randomUUID())=>run(()=>service.allocate({quantity,request_id:key}),tenant);
   const register=async(count=3,tenant=school)=>{
@@ -48,6 +33,14 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     if(process.env.MYSHULE_DISPOSABLE_POSTGRES!=='1'||!['localhost','127.0.0.1'].includes(url.hostname)||!url.pathname.startsWith('/my_shule_disposable_'))throw Error('Disposable PostgreSQL required');
     pool=new Pool({connectionString:url.toString(),options:`-c search_path=${schema},public`,max:12});
     await pool.query(`CREATE SCHEMA ${schema};CREATE ROLE ${role};GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
+    // Use the production Prisma adapter and transaction scoping. A pg-only
+    // substitute accepts result types which Prisma cannot deserialize.
+    const originalDatabaseUrl=process.env.DATABASE_URL;
+    url.searchParams.set('options',`-c search_path=${schema},public`);
+    process.env.DATABASE_URL=url.toString();
+    try { db=new PrismaService(context,{getRuntimeRoleName:()=>role} as never); }
+    finally { process.env.DATABASE_URL=originalDatabaseUrl; }
+    await db.$connect();
     // Exercise the actual deployed Prisma-era shape, including text IDs and
     // mandatory finance and ledger timestamps. Migration must also work on fresh installs.
     await pool.query(`
@@ -89,10 +82,19 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     await pool.query(`INSERT INTO students VALUES($1,$2,'Brian','Otieno','2451','active',NULL)`,[student,school]);
     await pool.query(`INSERT INTO staff_profiles VALUES($1,$2,'Amina Teacher','STAFF-1','active',$3)`,[staff,school,actor]);
   });
-  afterAll(async()=>{if(pool){try{await pool.query(`DROP SCHEMA ${schema} CASCADE;DROP ROLE ${role}`);}finally{await pool.end();}}});
+  afterAll(async()=>{
+    if(db)await db.$disconnect();
+    if(pool){try{await pool.query(`DROP SCHEMA ${schema} CASCADE;DROP ROLE ${role}`);}finally{await pool.end();}}
+  });
   it('allocates globally unique strings under concurrent schools and idempotent retries',async()=>{
     const key=randomUUID();
-    const [a,retry,b,c]=await Promise.all([allocate(96,school,key),allocate(96,school,key),allocate(96,other),allocate(96)]);
+    const attempts=await Promise.allSettled([allocate(96,school,key),allocate(96,school,key),allocate(96,other),allocate(96)]);
+    // Drain concurrent work before asserting so a regression cannot leave a
+    // transaction running while the fixture closes its database connections.
+    const [a,retry,b,c]=attempts.map(result=>{
+      if(result.status==='rejected')throw result.reason;
+      return result.value;
+    });
     expect(a.id).toBe(retry.id);
     const all=(await pool.query('SELECT barcode FROM library_barcode_registry WHERE tenant_id=ANY($1::text[])',[[school,other]])).rows;
     expect(all).toHaveLength(288);expect(new Set(all.map(r=>r.barcode)).size).toBe(288);
