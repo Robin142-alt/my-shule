@@ -123,7 +123,23 @@ Keyboard/HID scanners need Code 128 enabled, the correct keyboard layout and
 an Enter suffix. Only an explicitly focused barcode input handles scans.
 Completed scans queue serially, pending duplicates are rejected, and unrelated
 inputs retain normal keyboard behavior. Manual entry and optional device-local
-sound are available. Scanner settings include a non-mutating test field.
+sound are available. Scanner settings include a non-mutating test field showing
+focus readiness, arriving character count, the exact completed value, the number
+of completed tests and whether Enter or the manual button completed the test.
+Repeating the same sticker is allowed after its previous test finishes.
+
+Sound preferences save automatically in this browser. Storage or audio failures
+show a recovery message and cannot stop subsequent scans. The sound-test button
+tests browser audio only; a scanner's own beep is controlled by its hardware.
+No browser result claims that a physical scanner is connected or working.
+
+When no characters arrive, first select **Start scanner test**, then try the
+same sticker in a blank Notepad document. If Notepad is also empty, check the
+USB cable/receiver and port, and use the scanner manufacturer's manual to enable
+USB keyboard/HID mode and Code 128. The website cannot change these device
+settings. If characters arrive without completion, configure an Enter suffix;
+**Complete test** can inspect that value but does not verify an Enter suffix.
+Match the scanner and computer keyboard layouts if the characters differ.
 
 Stocktaking snapshots copies and their status when the session starts.
 Scans are unique per session/barcode and retain unknown/discrepant observations.

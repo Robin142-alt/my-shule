@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { dateText, ScannerInput } from "@/components/library/smart-library-shared";
-import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords } from "@/components/library/smart-library-workspaces";
+import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords, SmartScannerSettings } from "@/components/library/smart-library-workspaces";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
 jest.mock("@/lib/dashboard/api-client",()=>({requestDashboardApi:jest.fn()}));
@@ -29,6 +29,86 @@ it("consumes Enter only in its own field, preserves leading zeros and serializes
   expect(handler).toHaveBeenCalledTimes(1);finish();
   await waitFor(()=>expect(handler).toHaveBeenCalledTimes(2));
   expect(processed).toEqual(["000001","000002"]);
+});
+it("shows scanner focus, received characters and completion without writing library records",async()=>{
+  render(<SmartScannerSettings/>);
+  const field=screen.getByLabelText("Test your scanner");
+  expect(field).toHaveFocus();
+  expect(screen.getByText(/Ready for scanner input/)).toBeInTheDocument();
+  expect(screen.getByText(/No completed tests yet/)).toBeInTheDocument();
+  fireEvent.change(field,{target:{value:"000001"}});
+  expect(screen.getByText(/6 characters received/)).toBeInTheDocument();
+  fireEvent.keyDown(field,{key:"Enter"});
+  expect(await screen.findByText(/Received exactly:/)).toHaveTextContent("000001");
+  expect(screen.getByText(/Completed tests: 1/)).toHaveTextContent("Enter received");
+  await waitFor(()=>expect(screen.queryByText(/scan\(s\) processing/)).not.toBeInTheDocument());
+  fireEvent.change(field,{target:{value:"000001"}});
+  fireEvent.click(screen.getByRole("button",{name:"Complete test"}));
+  expect(await screen.findByText(/Completed tests: 2/)).toHaveTextContent("Completed with button");
+  expect(request).not.toHaveBeenCalled();
+});
+it("makes a lost focus visible and restores it without submitting the barcode",async()=>{
+  const handler=jest.fn(async()=>{});
+  render(<><input aria-label="Unrelated notes"/><ScannerInput autoFocus onScan={handler}/></>);
+  fireEvent.change(screen.getByLabelText("Scan barcode"),{target:{value:"000001"}});
+  act(()=>screen.getByLabelText("Unrelated notes").focus());
+  expect(await screen.findByText(/Scanner input is not focused/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button",{name:"Focus scanner"}));
+  expect(screen.getByLabelText("Scan barcode")).toHaveFocus();
+  expect(handler).not.toHaveBeenCalled();
+});
+it("keeps continuous scanning operational when browser storage is blocked",async()=>{
+  const get=jest.spyOn(Storage.prototype,"getItem").mockImplementation(()=>{throw new DOMException("Storage blocked","SecurityError");});
+  const handler=jest.fn(async()=>{});
+  try {
+    render(<ScannerInput onScan={handler}/>);
+    for(const code of ["000001","000002"]){
+      fireEvent.change(screen.getByLabelText("Scan barcode"),{target:{value:code}});
+      fireEvent.click(screen.getByRole("button",{name:"Add scan"}));
+    }
+    await waitFor(()=>expect(handler).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  } finally {get.mockRestore();}
+});
+it("reports blocked settings storage and offers a non-mutating troubleshooting path",()=>{
+  render(<SmartScannerSettings/>);
+  const save=jest.spyOn(Storage.prototype,"setItem").mockImplementation(()=>{throw new DOMException("Storage blocked","SecurityError");});
+  try {
+    fireEvent.click(screen.getByRole("checkbox",{name:/Optional sound/}));
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not save/i);
+    expect(screen.getByText(/Notepad/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot detect a connected keyboard-mode scanner/)).toBeInTheDocument();
+    expect(request).not.toHaveBeenCalled();
+  } finally {save.mockRestore();}
+});
+it("persists sound preferences and reports unavailable audio without claiming a device passed",async()=>{
+  const {unmount}=render(<SmartScannerSettings/>);
+  fireEvent.click(screen.getByRole("checkbox",{name:/Optional sound/}));
+  expect(localStorage.getItem("myshule-library-scanner-sound")).toBe("true");
+  unmount();render(<SmartScannerSettings/>);
+  expect(screen.getByRole("checkbox",{name:/Optional sound/})).toBeChecked();
+  fireEvent.click(screen.getByRole("button",{name:"Test sound"}));
+  expect(await screen.findByText(/Sound is unavailable/)).toBeInTheDocument();
+  expect(screen.getByRole("button",{name:"Test sound"})).toBeEnabled();
+  expect(request).not.toHaveBeenCalled();
+});
+it("releases the sound-test button when the browser never resumes audio",async()=>{
+  jest.useFakeTimers();
+  const original=Object.getOwnPropertyDescriptor(window,"AudioContext");
+  const context={state:"suspended",resume:jest.fn(()=>new Promise<void>(()=>{}))};
+  Object.defineProperty(window,"AudioContext",{configurable:true,value:jest.fn(()=>context)});
+  try {
+    render(<SmartScannerSettings/>);
+    fireEvent.click(screen.getByRole("button",{name:"Test sound"}));
+    expect(screen.getByRole("button",{name:"Testing sound…"})).toBeDisabled();
+    await act(async()=>{await jest.advanceTimersByTimeAsync(2000);});
+    expect(screen.getByText(/Sound is unavailable/)).toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"Test sound"})).toBeEnabled();
+  } finally {
+    context.state="closed";
+    if(original)Object.defineProperty(window,"AudioContext",original);else Reflect.deleteProperty(window,"AudioContext");
+    jest.useRealTimers();
+  }
 });
 it("keeps the selected borrower for multiple scans and submits one atomic issue command",async()=>{
   request.mockImplementation(async(path,options)=>{
