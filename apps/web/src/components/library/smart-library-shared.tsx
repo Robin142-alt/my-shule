@@ -28,7 +28,7 @@ export function useCommand() {
     const fingerprint=JSON.stringify({path,body});
     const requestId=requests.current.get(fingerprint)??newRequest();requests.current.set(fingerprint,requestId);
     try{const result=await api<LibraryRow>(path,{...body,request_id:requestId});requests.current.delete(fingerprint);setSuccess(message);onSuccess(result);}
-    catch(e){setError(errorText(e));if(propagate)throw e;}
+    catch(e){if(propagate)throw e;setError(errorText(e));}
     finally{pending.current=false;setBusy(false);}
   };
   return {busy,error,success,run};
@@ -124,12 +124,17 @@ export function saveScannerCompletionKey(key:ScannerCompletionKey) {
 export type ScanCompletion="enter"|"tab"|"button";
 /** Keyboard/HID input is transport- and brand-independent. Only this field
  * consumes configured suffixes; unrelated inputs keep normal navigation. */
-export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,focusKey,onPendingChange,submitLabel="Add scan",focusLabel="Focus scanner"}:{onScan:(code:string,completion:ScanCompletion)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;focusKey?:string;onPendingChange?:(pending:number)=>void;submitLabel?:string;focusLabel?:string}) {
-  const [value,setValue]=useState(""),[error,setError]=useState(""),[pending,setPending]=useState(0),[focused,setFocused]=useState(false);
+export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,focusKey,onPendingChange,submitLabel="Add scan",focusLabel="Focus scanner",errorDurationMs}:{onScan:(code:string,completion:ScanCompletion)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;focusKey?:string;onPendingChange?:(pending:number)=>void;submitLabel?:string;focusLabel?:string;errorDurationMs?:number}) {
+  const [value,setValue]=useState(""),[error,setError]=useState<{message:string}|null>(null),[pending,setPending]=useState(0),[focused,setFocused]=useState(false);
   const hintId=useId();
   const completionKey=useScannerCompletionKey();
   const field=useRef<HTMLInputElement>(null),queue=useRef(Promise.resolve()),inFlight=useRef(new Set<string>()),handler=useRef(onScan);
   useEffect(()=>{handler.current=onScan;},[onScan]);
+  useEffect(()=>{
+    if(!error||!errorDurationMs)return;
+    const timer=setTimeout(()=>setError(null),errorDurationMs);
+    return()=>clearTimeout(timer);
+  },[error,errorDurationMs]);
   // Focus only on workspace activation, becoming enabled, or an explicit title
   // selection. Ordinary form edits and background refreshes never steal focus.
   useEffect(()=>{if(autoFocus&&!disabled)field.current?.focus();},[autoFocus,disabled,focusKey]);
@@ -142,15 +147,15 @@ export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFoc
   const scan=(completion:ScanCompletion)=>{
     if(disabled)return;
     const code=(field.current?.value??value).replace(/[\r\n]+$/,"");if(!code)return;
-    setValue("");field.current?.focus();
+    setValue("");setError(null);field.current?.focus();
     // Unlock audio during the input gesture, before a queued network request.
     // Audio and browser-storage failures must never reject the scan queue.
     void prepareScannerAudio();
-    if(inFlight.current.has(code)){setError(`${code} is already being processed.`);return;}
+    if(inFlight.current.has(code)){setError({message:`${code} is already being processed.`});return;}
     inFlight.current.add(code);setPending(n=>n+1);
     queue.current=queue.current.then(async()=>{
-      try{await handler.current(code,completion);setError("");void soundFeedback(true);}
-      catch(e){setError(errorText(e));void soundFeedback(false);}
+      try{await handler.current(code,completion);setError(null);void soundFeedback(true);}
+      catch(e){setError({message:`${code} · ${errorText(e)}`});void soundFeedback(false);}
       finally{inFlight.current.delete(code);setPending(n=>n-1);}
       // Let React commit title/profile changes before the next queued scan.
       await new Promise(resolve=>setTimeout(resolve,0));
@@ -171,7 +176,7 @@ export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFoc
         className={`${inputClass} font-mono`} autoComplete="off" spellCheck={false} placeholder={`Scan or type the exact barcode, then ${completionKey==="tab"?"Tab or Enter":"Enter"}`}/></label>
     <Button type="submit" disabled={disabled||!value}>{submitLabel}</Button><Button variant="secondary" disabled={disabled} onClick={()=>field.current?.focus()}>{focusLabel}</Button>
   </form><p id={hintId} className="text-xs text-muted">{value?`${value.length} characters received. Press ${completionKey==="tab"?"Tab or Enter":"Enter"} or choose “${submitLabel}”. If a scan stops here, match its suffix in Scanner Settings.`:`Keyboard / HID mode · ${completionKey==="tab"?"Tab or Enter":"Enter"} suffix · Manual entry supported`}{pending>0?` · ${pending} scan(s) processing`:""}</p>
-  <Feedback error={error}/></div>;
+  <Feedback error={error?.message}/></div>;
 }
 
 export function BorrowerPicker({selected,onSelect,includeInactive=false}:{selected:LibraryRow|null;onSelect:(person:LibraryRow|null)=>void;includeInactive?:boolean}) {

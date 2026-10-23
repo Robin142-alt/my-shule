@@ -52,12 +52,11 @@ it("retries an interrupted new-title scan with its original payload after anothe
   fireEvent.change(screen.getByLabelText("Book title"),{target:{value:"General book"}});
   const field=screen.getByLabelText("Scan a sticker to register");
   fireEvent.change(field,{target:{value:"000001"}});fireEvent.keyDown(field,{key:"Enter"});
-  await screen.findByText("Scans needing attention");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Connection interrupted");
   await waitFor(()=>expect(screen.getByRole("button",{name:"Create a new title"})).toBeEnabled());
   fireEvent.change(field,{target:{value:"000002"}});fireEvent.keyDown(field,{key:"Enter"});
   await screen.findByText("1 registered this session");
-  await waitFor(()=>expect(screen.getByRole("button",{name:"Retry 000001"})).toBeEnabled());
-  fireEvent.click(screen.getByRole("button",{name:"Retry 000001"}));
+  fireEvent.change(field,{target:{value:"000001"}});fireEvent.keyDown(field,{key:"Enter"});
   await screen.findByText("2 registered this session");
   const calls=request.mock.calls.filter(([path])=>String(path).endsWith("/register"));
   expect(calls).toHaveLength(3);expect(calls[2][1]?.body).toEqual(calls[0][1]?.body);
@@ -65,6 +64,48 @@ it("retries an interrupted new-title scan with its original payload after anothe
   fireEvent.click(screen.getByRole("button",{name:"Edit title details"}));
   expect(screen.getByLabelText("Category (optional)")).toHaveValue("General");
   expect(screen.getByLabelText("Language (optional)")).toHaveValue("English");
+});
+it("shows only the latest registration scan failure, expires it and keeps scanning",async()=>{
+  jest.useFakeTimers();
+  try {
+    request.mockImplementation(async(path,options)=>{
+      if(String(path).includes("/catalogue?"))return [{id:"title-1",title:"Mathematics",total_copies:0,available_copies:0}];
+      if(String(path).endsWith("/classifications"))return {subjects:[],classes:[]};
+      if(String(path).endsWith("/register")){
+        const body=options?.body as Record<string,unknown>;
+        if(body.barcode!=="000003")throw new Error("Connection interrupted. Scan again to retry.");
+        return {id:body.barcode,catalog_item_id:"title-1",title:"Mathematics"};
+      }
+      return [];
+    });
+    render(<SmartCatalogue registration/>);
+    await act(async()=>{await jest.advanceTimersByTimeAsync(200);});
+    fireEvent.click(screen.getByRole("button",{name:/Mathematics/}));
+    const field=screen.getByLabelText("Scan a sticker to register");
+    const scan=async(code:string)=>{await act(async()=>{
+      fireEvent.change(field,{target:{value:code}});fireEvent.keyDown(field,{key:"Enter"});
+      await jest.advanceTimersByTimeAsync(1);
+    });};
+    await scan("000001");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("000001");
+    expect(screen.queryByText("Scans needing attention")).not.toBeInTheDocument();
+    await act(async()=>{await jest.advanceTimersByTimeAsync(4000);});
+    await scan("000002");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("000002");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("000001");
+    await act(async()=>{await jest.advanceTimersByTimeAsync(4000);});
+    expect(screen.getByRole("alert")).toHaveTextContent("000002");
+    await act(async()=>{await jest.advanceTimersByTimeAsync(4000);});
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("0 registered this session")).toBeInTheDocument();
+    await scan("000001");
+    expect(screen.getByRole("alert")).toHaveTextContent("000001");
+    await scan("000003");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("1 registered this session")).toBeInTheDocument();
+  } finally {jest.useRealTimers();}
 });
 it("saves a library-only subject and multiple classes without academic mutations",async()=>{
   request.mockImplementation(async(path,options)=>{
