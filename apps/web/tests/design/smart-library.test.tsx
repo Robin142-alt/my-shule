@@ -36,6 +36,33 @@ it("keeps one title selected across rapid registrations and counts only saved co
   expect(calls.map(([,options])=>(options?.body as Record<string,unknown>).barcode)).toEqual(["000001","000002"]);
   expect(calls.every(([,options])=>(options?.body as Record<string,unknown>).catalog_item_id==="title-1")).toBe(true);
 });
+it("retries an interrupted new-title scan with its original payload after another copy saves",async()=>{
+  let failed=false;
+  request.mockImplementation(async(path,options)=>{
+    if(String(path).endsWith("/classifications"))return {subjects:[],classes:[]};
+    if(String(path).endsWith("/register")){
+      const body=options?.body as Record<string,unknown>;
+      if(body.barcode==="000001"&&!failed){failed=true;throw new Error("Connection interrupted");}
+      return {id:body.barcode,catalog_item_id:"title-1",title:"General book",catalogue:{id:"title-1",title:"General book",subjects:[],classes:[]}};
+    }
+    return [];
+  });
+  render(<SmartCatalogue registration/>);
+  fireEvent.click(screen.getByRole("button",{name:"Create a new title"}));
+  fireEvent.change(screen.getByLabelText("Book title"),{target:{value:"General book"}});
+  const field=screen.getByLabelText("Scan a sticker to register");
+  fireEvent.change(field,{target:{value:"000001"}});fireEvent.keyDown(field,{key:"Enter"});
+  await screen.findByText("Scans needing attention");
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Create a new title"})).toBeEnabled());
+  fireEvent.change(field,{target:{value:"000002"}});fireEvent.keyDown(field,{key:"Enter"});
+  await screen.findByText("1 registered this session");
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Retry 000001"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Retry 000001"}));
+  await screen.findByText("2 registered this session");
+  const calls=request.mock.calls.filter(([path])=>String(path).endsWith("/register"));
+  expect(calls).toHaveLength(3);expect(calls[2][1]?.body).toEqual(calls[0][1]?.body);
+  expect(screen.queryByText("Scans needing attention")).not.toBeInTheDocument();
+});
 it("saves a library-only subject and multiple classes without academic mutations",async()=>{
   request.mockImplementation(async(path,options)=>{
     if(String(path).endsWith("/classifications"))return {subjects:[{id:"s1",name:"Fiction",source:"library"}],classes:[{id:"c1",name:"Grade 9"},{id:"c2",name:"Grade 10"}]};

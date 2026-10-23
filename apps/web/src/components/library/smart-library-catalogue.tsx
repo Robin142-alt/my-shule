@@ -10,6 +10,7 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
   const {hasPermission}=usePermissions();const writable=hasPermission("library:write");
   const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[title,setTitle]=useState<LibraryRow|null>(null);
   const selected=useRef<LibraryRow|null>(null);
+  const scanPayloads=useRef(new Map<string,LibraryRow>());
   const [creating,setCreating]=useState(false),[editing,setEditing]=useState(false),[fields,setFields]=useState(initial);
   const [barcode,setBarcode]=useState(""),[count,setCount]=useState(0),[pending,setPending]=useState(0);
   const [failed,setFailed]=useState<Record<string,string>>({});
@@ -26,12 +27,15 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
     setSubjects((item?.subjects??[]).map((s:LibraryRow)=>s.id));setClasses((item?.classes??[]).map((c:LibraryRow)=>c.id));
   };
   const details=()=>({...fields,subject_ids:subjects,class_ids:classes,acquisition,...(selected.current?{catalog_item_id:selected.current.id}:{})});
-  const save=async(code:string,propagate=false)=>command.run("register",{...details(),barcode:code},result=>{
+  const save=async(code:string,propagate=false)=>{
+    const payload=scanPayloads.current.get(code)??{...details(),barcode:code};scanPayloads.current.set(code,payload);
+    return command.run("register",payload,result=>{
     const newTitle=!selected.current;
     const item=result.catalogue??{...fields,...selected.current,id:result.catalog_item_id,title:result.title};selected.current=item;setTitle(item);setCreating(false);setEditing(false);setBarcode("");setCount(n=>n+1);setFailed(previous=>{const next={...previous};delete next[code];return next;});data.refresh();
     if(result.catalogue){setSubjects(item.subjects.map((s:LibraryRow)=>s.id));setClasses(item.classes.map((c:LibraryRow)=>c.id));}
-    if(newTitle)options.refresh();
+    scanPayloads.current.delete(code);if(newTitle)options.refresh();
   },"Physical copy registered. Ready for the next sticker.",propagate);
+  };
   const scan=async(code:string)=>{
     setBarcode(code);
     if(selected.current||(creating&&fields.title.trim())){await save(code,true);return;}
@@ -64,7 +68,7 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
             <fieldset className="mt-3"><legend className="text-sm font-medium">Suitable classes — choose any</legend><div className="mt-2 flex max-h-40 flex-wrap gap-2 overflow-auto">{options.data?.classes?.map((c:LibraryRow)=><label key={c.id} className="flex items-center gap-2 rounded border border-border p-2 text-sm"><input type="checkbox" disabled={locked} checked={classes.includes(c.id)} onChange={()=>toggle(c.id,classes,setClasses)}/>{c.name}</label>)}</div></fieldset>
           </LoadState></details>
         <details><summary className="cursor-pointer text-sm font-medium">Edition, ISBN & other title details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">{(["edition","isbn","publisher","category","language"] as const).map(key=><Field key={key} label={key==="isbn"?"Publisher ISBN (optional)":`${key[0].toUpperCase()+key.slice(1)} (optional)`}><input className={inputClass} disabled={locked} value={fields[key]} onChange={e=>setFields({...fields,[key]:e.target.value})}/></Field>)}</div><p className="mt-2 text-xs text-muted">The publisher ISBN describes the edition. Each physical copy still needs its own MyShule barcode.</p></details>
-        {editing&&<div className="flex gap-2"><WriteButton disabled={locked||!fields.title.trim()} onClick={()=>void command.run("catalogue",details(),result=>{selected.current={...title,...result};setTitle(selected.current);setEditing(false);data.refresh();options.refresh();},"Title details updated.")}>Save title details</WriteButton><Button variant="secondary" disabled={locked} onClick={()=>{if(title)choose(title);}}>Cancel</Button></div>}
+        {editing&&<div className="flex gap-2"><WriteButton disabled={locked||!fields.title.trim()} onClick={()=>void command.run("catalogue",details(),result=>{selected.current={...title,...result};setTitle(selected.current);setSubjects(result.subjects.map((s:LibraryRow)=>s.id));setClasses(result.classes.map((c:LibraryRow)=>c.id));setEditing(false);data.refresh();options.refresh();},"Title details updated.")}>Save title details</WriteButton><Button variant="secondary" disabled={locked} onClick={()=>{if(title)choose(title);}}>Cancel</Button></div>}
       </div>}
       {(title||creating)&&<details><summary className="cursor-pointer text-sm font-medium">Copy condition, shelf & acquisition details</summary><div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label="Condition"><select className={inputClass} disabled={locked} value={fields.condition} onChange={e=>setFields({...fields,condition:e.target.value})}><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option></select></Field>
