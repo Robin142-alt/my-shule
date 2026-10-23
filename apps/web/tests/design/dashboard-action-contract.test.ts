@@ -739,8 +739,10 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/handleSendLibraryNotice/);
     expect(source).toMatch(/admin-command\/librarian\/notices/);
     expect(source).toMatch(/activeViewState === "catalogue" && <SmartCatalogue/);
-    const catalogueSource = fs.readFileSync(path.join(process.cwd(), "src/components/library/smart-library-workspaces.tsx"), "utf8");
-    expect(catalogueSource).toMatch(/catalogue\?\$\{searchQuery\(search,offset\)\}/);
+    const workspaceSource = fs.readFileSync(path.join(process.cwd(), "src/components/library/smart-library-workspaces.tsx"), "utf8");
+    expect(workspaceSource).toMatch(/export \{ SmartCatalogue \} from "\.\/smart-library-catalogue"/);
+    const catalogueSource = fs.readFileSync(path.join(process.cwd(), "src/components/library/smart-library-catalogue.tsx"), "utf8");
+    expect(catalogueSource).toMatch(/catalogue\?search=\$\{encodeURIComponent\(search\)\}&offset=\$\{offset\}/);
     expect(catalogueSource).toMatch(/Find an existing title/);
     expect(catalogueSource).toMatch(/setSearch\(e.target.value\);setOffset\(0\)/);
     expect(source).toMatch(/dataKeys: \["reservations"\]/);

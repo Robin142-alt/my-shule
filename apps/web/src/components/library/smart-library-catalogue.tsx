@@ -28,7 +28,9 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
   const details=()=>({...fields,subject_ids:subjects,class_ids:classes,acquisition,...(selected.current?{catalog_item_id:selected.current.id}:{})});
   const save=async(code:string,propagate=false)=>command.run("register",{...details(),barcode:code},result=>{
     const newTitle=!selected.current;
-    const item={...fields,...selected.current,id:result.catalog_item_id,title:result.title};selected.current=item;setTitle(item);setCreating(false);setEditing(false);setBarcode("");setCount(n=>n+1);setFailed(previous=>{const next={...previous};delete next[code];return next;});data.refresh();if(newTitle)options.refresh();
+    const item=result.catalogue??{...fields,...selected.current,id:result.catalog_item_id,title:result.title};selected.current=item;setTitle(item);setCreating(false);setEditing(false);setBarcode("");setCount(n=>n+1);setFailed(previous=>{const next={...previous};delete next[code];return next;});data.refresh();
+    if(result.catalogue){setSubjects(item.subjects.map((s:LibraryRow)=>s.id));setClasses(item.classes.map((c:LibraryRow)=>c.id));}
+    if(newTitle)options.refresh();
   },"Physical copy registered. Ready for the next sticker.",propagate);
   const scan=async(code:string)=>{
     setBarcode(code);

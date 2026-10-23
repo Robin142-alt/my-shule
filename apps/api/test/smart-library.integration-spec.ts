@@ -284,6 +284,7 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     const batch=await allocate(4),codes=(await pool.query('SELECT barcode FROM library_barcode_registry WHERE batch_id=$1 ORDER BY ordinal',[batch.id])).rows.map(r=>r.barcode);
     const input={title:'A School Book',edition:'Second edition',isbn:'ISBN-2',subject_ids:[subject.id,`academic:${academic}`],class_ids:[classA,classB]};
     const a=await run(()=>service.register({...input,barcode:codes[0],request_id:randomUUID()}));
+    expect(a.catalogue.subjects).toHaveLength(2);expect(a.catalogue.subjects.every((s:any)=>!s.id.startsWith('academic:'))).toBe(true);
     const b=await run(()=>service.register({...input,title:' A  School Book ',barcode:codes[1],request_id:randomUUID()}));
     expect(a.catalog_item_id).toBe(b.catalog_item_id);expect(b.reused_title).toBe(true);
     const next=await run(()=>service.register({...input,edition:'Third edition',isbn:'ISBN-3',barcode:codes[2],request_id:randomUUID()}));

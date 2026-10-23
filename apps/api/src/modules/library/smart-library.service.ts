@@ -194,7 +194,8 @@ export class SmartLibraryService {
       WHERE i.tenant_id=$1 AND ($2='' OR i.title ILIKE '%'||$2||'%' OR i.isbn=$2 OR i.author ILIKE '%'||$2||'%')
       AND ($5='' OR EXISTS(SELECT 1 FROM library_catalog_subjects l WHERE l.tenant_id=i.tenant_id AND l.catalog_item_id=i.id AND l.subject_id::text=$5))
       AND ($6='' OR EXISTS(SELECT 1 FROM library_catalog_classes l WHERE l.tenant_id=i.tenant_id AND l.catalog_item_id=i.id AND l.class_id=$6))
-      GROUP BY i.id ORDER BY i.title,i.id LIMIT $3 OFFSET $4`, [tenant,String(q.search ?? ''),limit,offset,String(q.subject_id??''),String(q.class_id??'')]);
+      AND ($7::uuid IS NULL OR i.id=$7::uuid)
+      GROUP BY i.id ORDER BY i.title,i.id LIMIT $3 OFFSET $4`, [tenant,String(q.search ?? ''),limit,offset,String(q.subject_id??''),String(q.class_id??''),q.id?uuid(q.id,'Book title'):null]);
   }
   async classifications() {
     const {tenant}=this.scope();
@@ -259,7 +260,7 @@ export class SmartLibraryService {
     await this.classifyTitle(item.id,input);return item;
   }
   async updateTitle(input:Input) {
-    return this.command('title.update',input,async()=>{const item=await this.saveTitle(input,true);await this.audit('library.catalogue_updated',item.id,{title:item.title});return item;});
+    return this.command('title.update',input,async()=>{const item=await this.saveTitle(input,true);await this.audit('library.catalogue_updated',item.id,{title:item.title});return (await this.catalogue({id:item.id}))[0];});
   }
   private copyDetails(input:Input) {
     const condition=String(input.condition??'good');
@@ -279,9 +280,12 @@ export class SmartLibraryService {
       VALUES($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9::jsonb) RETURNING *`,[tenant,item.id,barcode,input.accession_number?text(input.accession_number,'Accession number'):barcode,condition,condition==='damaged'?'damaged':'available',input.shelf_location?text(input.shelf_location,'Shelf'):null,lendable,JSON.stringify(acquisition)]);
     await this.audit('library.copy_registered',copy.id,{barcode,catalog_item_id:item.id});return {...copy,title:item.title,reused_title:!!item.reused_title};
   }
-  async register(input: Input) {
+  async register(input: Input): Promise<Input> {
     const barcode = assertBarcode(input.barcode);
-    return this.command('copy.register',input,async()=>this.registerCopy(barcode,await this.saveTitle(input),input));
+    return this.command('copy.register',input,async()=>{
+      const item=await this.saveTitle(input),copy=await this.registerCopy(barcode,item,input);
+      return input.catalog_item_id?copy:{...copy,catalogue:(await this.catalogue({id:item.id}))[0]};
+    });
   }
   async registrationRange(input:Input) {
     const {tenant}=this.scope();const batch=uuid(input.batch_id,'Barcode batch');
