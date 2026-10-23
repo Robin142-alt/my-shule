@@ -242,8 +242,8 @@ export class LibraryRepository {
           LIMIT 1
         ), recipient_candidates AS (
           SELECT
-            portal.user_id,
-            NULL::uuid AS guardian_id,
+            portal.user_id::text AS user_id,
+            NULL::text AS guardian_id,
             'student'::text AS recipient_kind
           FROM selected_borrower borrower
           INNER JOIN student_portal_access portal
@@ -260,8 +260,8 @@ export class LibraryRepository {
           UNION ALL
 
           SELECT
-            guardian.user_id,
-            guardian.id AS guardian_id,
+            guardian.user_id::text AS user_id,
+            guardian.id::text AS guardian_id,
             'guardian'::text AS recipient_kind
           FROM selected_borrower borrower
           INNER JOIN student_guardians guardian
@@ -278,8 +278,8 @@ export class LibraryRepository {
           UNION ALL
 
           SELECT
-            staff.user_id,
-            NULL::uuid AS guardian_id,
+            staff.user_id::text AS user_id,
+            NULL::text AS guardian_id,
             'staff'::text AS recipient_kind
           FROM selected_borrower borrower
           INNER JOIN staff_profiles staff
