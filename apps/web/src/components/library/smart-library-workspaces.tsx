@@ -82,13 +82,19 @@ export function SmartCirculation({mode}:{mode:"issue"|"return"}) {
 export { SmartCatalogue } from "./smart-library-catalogue";
 
 export function SmartBarcodeWorkspace({management=false}:{management?:boolean}) {
+  const pageSize=10;
   const [quantity,setQuantity]=useState(96),[offset,setOffset]=useState(0),[batchOffset,setBatchOffset]=useState(0),[batchId,setBatchId]=useState("");
   const [search,setSearch]=useState(""),[status,setStatus]=useState(""),[external,setExternal]=useState(""),[selected,setSelected]=useState<string[]>([]);
   const [guides,setGuides]=useState(true),[preview,setPreview]=useState(""),[pdfError,setPdfError]=useState(""),[pdfBusy,setPdfBusy]=useState(false);
-  const batches=useLibraryData<LibraryRow[]>(`batches?offset=${batchOffset}`),barcodes=useLibraryData<LibraryRow[]>(`barcodes?${searchQuery(search,offset)}&status=${status}&batch_id=${batchId}`);
+  const batches=useLibraryData<LibraryRow[]>(`batches?offset=${batchOffset}&limit=${pageSize}`),barcodes=useLibraryData<LibraryRow[]>(management?`barcodes?${searchQuery(search,offset)}&status=${status}&batch_id=${batchId}&limit=${pageSize}`:null);
+  const previewHeading=useRef<HTMLHeadingElement>(null),previewTrigger=useRef<HTMLElement|null>(null);
   const command=useCommand();
   useEffect(()=>()=>{if(preview)URL.revokeObjectURL(preview);},[preview]);
+  useEffect(()=>{
+    if(pdfBusy||preview){previewHeading.current?.focus({preventScroll:true});previewHeading.current?.scrollIntoView({block:"start"});}
+  },[pdfBusy,preview]);
   const showPdf=async(calibration=false,selection=false)=>{
+    previewTrigger.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
     setPdfBusy(true);setPdfError("");setPreview("");
     try{
       const query=selection?`selected=${encodeURIComponent(JSON.stringify(selected))}`:`batch_id=${batchId}`;
@@ -99,6 +105,15 @@ export function SmartBarcodeWorkspace({management=false}:{management?:boolean}) 
   };
   return <LibraryPanel title={management?"Barcode management":"Barcode generator & A4 printing"} description="Permanent school-owned identifiers. Six columns × sixteen rows; exactly 96 positions per A4 sheet. Each sticker is 32 × 15 mm.">
     <Feedback error={command.error||pdfError} success={command.success}/>
+    {(preview||pdfBusy)&&<section aria-label="Barcode PDF preview" aria-busy={pdfBusy} className="mb-6 space-y-3 rounded-xl border border-border bg-surface-muted p-3 sm:p-4">
+      <h3 ref={previewHeading} tabIndex={-1} className="scroll-mt-24 font-bold focus:outline-none">Barcode PDF preview</h3>
+      {pdfBusy?<p role="status">Preparing your A4 sheets…</p>:<>
+        <div className="flex flex-wrap gap-3"><a className="app-button rounded-lg border border-border px-4 py-2 text-sm" href={preview} download="myshule-library-barcodes.pdf">Download PDF</a>
+          <a className="app-button rounded-lg bg-primary px-4 py-2 text-sm text-white" href={preview} target="_blank" rel="noreferrer">Open PDF & print barcodes</a><Button variant="ghost" onClick={()=>{setPreview("");previewTrigger.current?.focus();}}>Close preview</Button></div>
+        <p className="text-sm text-muted">A4 · Actual size / 100% · Disable Fit to page.</p>
+        <iframe title="A4 barcode sheet preview" src={preview} className="h-[620px] max-h-[70vh] w-full rounded-xl border border-border bg-surface"/>
+      </>}
+    </section>}
     <div className="grid gap-6 lg:grid-cols-[minmax(220px,.7fr)_minmax(0,1.5fr)]"><div className="space-y-5">
       <form onSubmit={e=>{e.preventDefault();void command.run("batches",{quantity},result=>{setBatchId(result.id);batches.refresh();barcodes.refresh();},`${quantity} barcodes reserved in ${Math.ceil(quantity/96)} A4 sheet(s).`);}} className="space-y-3 rounded-xl border border-border p-4">
         <Field label="Custom quantity"><input className={inputClass} type="number" min={1} max={100000} required value={quantity} onChange={e=>setQuantity(Number(e.target.value))}/></Field>
@@ -116,20 +131,19 @@ export function SmartBarcodeWorkspace({management=false}:{management?:boolean}) 
       <h3 className="font-bold">Previous batches</h3><LoadState resource={batches}><div className="grid gap-2 sm:grid-cols-2">{batches.data?.map(batch=><button key={batch.id} className={`rounded-xl border p-3 text-left ${batchId===batch.id?"border-primary bg-info-soft":"border-border"}`} onClick={()=>{setBatchId(batch.id);setOffset(0);setSelected([]);}}>
         <span className="block font-semibold">{batch.quantity.toLocaleString()} barcodes · {batch.pages} sheet(s)</span><span className="text-xs text-muted">{dateText(batch.created_at)} · {batch.source} · {batch.id.slice(0,8)}</span></button>)}</div>
         {!batches.data?.length&&<p className="text-sm text-muted">No batches yet. Generate the number of stickers you need.</p>}</LoadState>
-      <Pager offset={batchOffset} setOffset={setBatchOffset} count={batches.data?.length??0}/>
+      <Pager offset={batchOffset} setOffset={setBatchOffset} count={batches.data?.length??0} pageSize={pageSize}/>
       <div className="flex flex-wrap gap-2"><Button disabled={!batchId||pdfBusy} onClick={()=>void showPdf()}><Barcode size={16}/>{pdfBusy?"Preparing PDF…":"Preview / reprint batch"}</Button>
         {selected.length>0&&<Button variant="secondary" disabled={pdfBusy} onClick={()=>void showPdf(false,true)}>Print {selected.length} selected</Button>}</div>
-      {management&&<><div className="grid gap-3 sm:grid-cols-2"><Field label="Barcode search"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}}/></Field>
+      {management&&<section aria-label="Individual barcodes" className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">Individual barcodes</h3><span className="text-sm text-muted">10 per page</span></div>
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Barcode search"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}}/></Field>
         <Field label="Assignment"><select className={inputClass} value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">All barcodes</option><option value="unused">Unassigned</option><option value="assigned">Assigned</option></select></Field></div>
-        {batchId&&<Button variant="ghost" onClick={()=>setBatchId("")}>Show all school barcodes</Button>}
-        <LoadState resource={barcodes}><div className="space-y-1">{barcodes.data?.map(row=><label key={row.barcode} className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm">
+        {batchId&&<Button variant="ghost" onClick={()=>{setBatchId("");setOffset(0);}}>Show all school barcodes</Button>}
+        <LoadState resource={barcodes}><div className="divide-y divide-border rounded-lg border border-border">{barcodes.data?.map(row=><label key={row.barcode} className="flex min-h-11 items-start gap-3 px-3 py-2 text-sm">
           <input type="checkbox" checked={selected.includes(row.barcode)} onChange={e=>setSelected(s=>e.target.checked?[...s,row.barcode]:s.filter(v=>v!==row.barcode))}/>
-          <code className="break-all">{row.barcode}</code><span className="ml-auto">{row.title||"Unassigned"} · {row.retired_at?"Retired":row.status||"Unused"}<small className="block text-muted">Reserved {dateText(row.created_at)}{row.assigned_at?` · Assigned ${dateText(row.assigned_at)}`:""}</small></span></label>)}</div></LoadState>
-      <Pager offset={offset} setOffset={setOffset} count={barcodes.data?.length??0}/></>}
+          <span className="flex min-w-0 flex-1 flex-wrap justify-between gap-x-3 gap-y-1"><code className="break-all">{row.barcode}</code><span className="min-w-0 break-words">{row.title||"Unassigned"} · {row.retired_at?"Retired":row.status||"Unused"}<small className="block text-muted">Reserved {dateText(row.created_at)}{row.assigned_at?` · Assigned ${dateText(row.assigned_at)}`:""}</small></span></span></label>)}</div>
+          {!barcodes.data?.length&&<p className="text-sm text-muted">No matching barcodes. Adjust the filters or generate a new batch.</p>}</LoadState>
+      <Pager offset={offset} setOffset={setOffset} count={barcodes.data?.length??0} pageSize={pageSize}/></section>}
     </div></div>
-    {preview&&<div className="mt-6 space-y-3"><div className="flex flex-wrap gap-3"><a className="app-button rounded-lg border border-border px-4 py-2 text-sm" href={preview} download="myshule-library-barcodes.pdf">Download PDF</a>
-      <a className="app-button rounded-lg bg-primary px-4 py-2 text-sm text-white" href={preview} target="_blank" rel="noreferrer">Open PDF & print barcodes</a><Button variant="ghost" onClick={()=>setPreview("")}>Close preview</Button></div>
-      <iframe title="A4 barcode sheet preview" src={preview} className="h-[620px] w-full rounded-xl border border-border"/></div>}
   </LibraryPanel>;
 }
 

@@ -44,7 +44,10 @@ export async function requestDashboardApi(path,options={}){
  if(route==='history')return {person,outstanding:books.filter(b=>b.loan).length,overdue:0,max_active_loans:5,loans:books.filter(b=>b.loan)};
  if(route==='scan'){const b=books.find(b=>b.barcode===u.searchParams.get('barcode'));if(!b)throw Error('Barcode not found in this school.');return structuredClone(b);}
  if(route==='catalogue')return [{id:'title-1',title:'Mathematics',total_copies:3,available_copies:2}];
- if(route==='barcodes')return [{barcode:'000004',copy_id:null}];
+ if(route==='barcodes'){
+  const offset=Number(u.searchParams.get('offset')||0),limit=Number(u.searchParams.get('limit')||50);
+  return Array.from({length:96},(_,i)=>({barcode:String(i+1).padStart(6,'0'),copy_id:null,created_at:'2026-10-23'})).slice(offset,offset+limit);
+ }
  if(route==='batches')return [{id:'batch-1',quantity:1000,pages:11,source:'generated',created_at:'2026-10-20'}];
  if(route==='inventory')return books;
  if(route==='stocktakes')return [{id:'stock-1',name:'Term 3 shelf check',status:'open',expected:3,verified:seen.size}];
@@ -162,7 +165,10 @@ async function run(){
    const previewPdf=async button=>{
     await page.getByRole('button',{name:button,exact:true}).click();
     await page.getByTitle('A4 barcode sheet preview').waitFor();
-    await page.getByTitle('A4 barcode sheet preview').scrollIntoViewIfNeeded();
+    const heading=page.getByRole('heading',{name:'Barcode PDF preview',exact:true});
+    await page.waitForFunction(()=>document.activeElement?.textContent==='Barcode PDF preview');
+    const position=await heading.boundingBox();
+    assert.ok(position&&position.y>=0&&position.y<200,'Preview opens in view without manually scrolling past records');
     await verifyPdf(page);
     assert.deepEqual(await page.evaluate(()=>window.__cspViolations),[],'PDF preview must not violate production policy');
    };
@@ -177,7 +183,19 @@ async function run(){
    await previewPdf('Print test sheet');assert.equal(pdfRequests.at(-1).path,'/api/library/smart/barcodes/calibration');
    await page.getByRole('button',{name:'Close preview',exact:true}).click();
    await navigate('Barcode Management');
+   const registry=page.getByRole('region',{name:'Individual barcodes'});
+   await registry.getByText('000010',{exact:true}).waitFor();
+   assert.equal(await registry.getByRole('checkbox').count(),10);
+   await registry.getByRole('button',{name:'Next',exact:true}).click();
+   await registry.getByText('000011',{exact:true}).waitFor();
+   await registry.getByRole('button',{name:'Previous',exact:true}).click();
+   await registry.getByText('000004',{exact:true}).waitFor();await check('barcode-management');
    await page.getByRole('checkbox',{name:/000004/}).check();await previewPdf('Print 1 selected');
+   assert.ok(await page.getByRole('region',{name:'Barcode PDF preview'}).evaluate((preview)=>{
+    const registry=document.querySelector('[aria-label="Individual barcodes"]');
+    return Boolean(registry&&(preview.compareDocumentPosition(registry)&Node.DOCUMENT_POSITION_FOLLOWING));
+   }),'Management preview stays above the barcode list');
+   await check('management-pdf-preview');
    assert.deepEqual(JSON.parse(pdfRequests.at(-1).query.selected),['000004']);
    assert.ok(pdfRequests.every(request=>request.method==='GET'),'Reprints and calibration must not allocate barcodes');
    assert.equal(await page.evaluate(()=>window.__libraryCommands.filter(command=>command.route==='batches').length),0);

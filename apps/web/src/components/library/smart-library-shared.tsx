@@ -67,10 +67,10 @@ export function LoadState({resource,empty,children}:{resource:{loading:boolean;e
 export function Field({label,children}:{label:string;children:ReactNode}) {
   return <label className="block min-w-0 space-y-1 text-sm font-medium text-foreground"><span>{label}</span>{children}</label>;
 }
-export function Pager({offset,setOffset,count}:{offset:number;setOffset:(v:number)=>void;count:number}) {
+export function Pager({offset,setOffset,count,pageSize=50}:{offset:number;setOffset:(v:number)=>void;count:number;pageSize?:number}) {
   return <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-muted"><span>Showing {count ? offset+1 : 0}–{offset+count}</span>
-    <div className="flex gap-2"><Button variant="secondary" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</Button>
-      <Button variant="secondary" disabled={count<50} onClick={()=>setOffset(offset+50)}>Next</Button></div></div>;
+    <div className="flex gap-2"><Button variant="secondary" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-pageSize))}>Previous</Button>
+      <Button variant="secondary" disabled={count<pageSize} onClick={()=>setOffset(offset+pageSize)}>Next</Button></div></div>;
 }
 export function WriteButton(props: React.ComponentProps<typeof Button>) {
   const {hasPermission}=usePermissions();const allowed=hasPermission("library:write");
