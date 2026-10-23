@@ -13,7 +13,6 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
   const scanPayloads=useRef(new Map<string,LibraryRow>());
   const [creating,setCreating]=useState(false),[editing,setEditing]=useState(false),[fields,setFields]=useState(initial);
   const [barcode,setBarcode]=useState(""),[count,setCount]=useState(0),[pending,setPending]=useState(0);
-  const [failed,setFailed]=useState<Record<string,string>>({});
   const [subjects,setSubjects]=useState<string[]>([]),[classes,setClasses]=useState<string[]>([]),[subjectSearch,setSubjectSearch]=useState("");
   const [filterSubject,setFilterSubject]=useState(""),[filterClass,setFilterClass]=useState("");
   const [acquisition,setAcquisition]=useState({source:"",acquired_on:"",price:"",notes:""});
@@ -31,7 +30,7 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
     const payload=scanPayloads.current.get(code)??{...details(),barcode:code};scanPayloads.current.set(code,payload);
     return command.run("register",payload,result=>{
     const newTitle=!selected.current;
-    const item=result.catalogue??{...fields,...selected.current,id:result.catalog_item_id,title:result.title};selected.current=item;setTitle(item);setCreating(false);setEditing(false);setBarcode("");setCount(n=>n+1);setFailed(previous=>{const next={...previous};delete next[code];return next;});data.refresh();
+    const item=result.catalogue??{...fields,...selected.current,id:result.catalog_item_id,title:result.title};selected.current=item;setTitle(item);setCreating(false);setEditing(false);setBarcode("");setCount(n=>n+1);data.refresh();
     if(result.catalogue){
       setFields(current=>({...current,...Object.fromEntries(["title","author","isbn","edition","publisher","category","language"].map(key=>[key,item[key]??""]))}));
       setSubjects(item.subjects.map((s:LibraryRow)=>s.id));setClasses(item.classes.map((c:LibraryRow)=>c.id));
@@ -46,7 +45,7 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
     if(!found.some(r=>r.barcode===code&&!r.copy_id&&!r.retired_at))throw new Error("Use an unused sticker reserved for this school. Generate or import it in Barcode Management.");
   };
   const toggle=(value:string,values:string[],set:(v:string[])=>void)=>set(values.includes(value)?values.filter(v=>v!==value):[...values,value]);
-  return <LibraryPanel title={registration?"Register physical books":"Book catalogue & registration"} description="Select a title once, then scan each copy. Only a title and its copy barcode are required.">
+  return <LibraryPanel title={registration?"Register physical books":"Book catalogue & registration"} description="Select a title once, then scan each copy. Only a title and its copy barcode are required." actions={<WriteButton variant="secondary" disabled={locked} onClick={()=>choose(null)}>Create a new title</WriteButton>}>
     <Feedback error={command.error} success={command.success}/>
     <div className="grid gap-5 xl:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]"><div className="min-w-0 space-y-3">
       <Field label="Find an existing title"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} placeholder="Title, author or ISBN"/></Field>
@@ -58,7 +57,6 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
         <strong className="block">{item.title}{item.edition?` · ${item.edition}`:""}</strong><span className="text-sm text-muted">{item.author?`${item.author} · `:""}{item.available_copies} available / {item.total_copies} copies</span>
         {!!item.subjects?.length&&<span className="block text-xs text-muted">{item.subjects.map((s:LibraryRow)=>s.name).join(", ")}</span>}
       </button>)}{!data.data?.length&&<p className="py-3 text-sm text-muted">No matching titles. Add a title to register its first copy.</p>}</div><Pager offset={offset} setOffset={setOffset} count={data.data?.length??0}/></LoadState>
-      <WriteButton variant="secondary" disabled={locked} onClick={()=>choose(null)}>Create a new title</WriteButton>
     </div><div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">{title?title.title:creating?"New title":"Select a title"}</h3><span role="status" className="text-sm text-success">{count} registered this session</span></div>
       {title&&!editing&&<div className="flex flex-wrap gap-2 text-sm"><span>{title.edition||"Edition not specified"}</span><WriteButton variant="ghost" disabled={locked} onClick={()=>setEditing(true)}>Edit title details</WriteButton></div>}
@@ -79,8 +77,7 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={locked} checked={fields.lendable} onChange={e=>setFields({...fields,lendable:e.target.checked})}/>May leave the library on loan</label>
         {(["source","acquired_on","price","notes"] as const).map(key=><Field key={key} label={{source:"Source / donor",acquired_on:"Acquired on",price:"Price (KES)",notes:"Acquisition notes"}[key]}><input className={inputClass} disabled={locked} type={key==="acquired_on"?"date":"text"} value={acquisition[key]} onChange={e=>setAcquisition({...acquisition,[key]:e.target.value})}/></Field>)}
       </div></details>}
-      <ScannerInput label="Scan a sticker to register" autoFocus={!creating} focusKey={title?.id} disabled={editing||!writable} onPendingChange={setPending} onScan={async code=>{try{await scan(code);}catch(e){setFailed(previous=>({...previous,[code]:errorText(e)}));throw e;}}}/>
-      {Object.keys(failed).length>0&&<div className="space-y-2 rounded-lg border border-warning-border p-3 text-sm"><strong>Scans needing attention</strong>{Object.entries(failed).map(([code,message])=><div key={code}><code>{code}</code> · {message}<WriteButton variant="ghost" disabled={locked||!title} onClick={()=>void save(code)}>Retry {code}</WriteButton></div>)}</div>}
+      <ScannerInput label="Scan a sticker to register" autoFocus={!creating} focusKey={title?.id} disabled={editing||!writable} onPendingChange={setPending} onScan={scan} errorDurationMs={8000}/>
       {barcode&&<div className="flex flex-wrap items-center gap-2 text-sm"><code>{barcode}</code><WriteButton disabled={locked||editing||(!title&&!fields.title.trim())} onClick={()=>void save(barcode)}>Register this physical copy</WriteButton>{!title&&!creating&&<span>Select or create its title first.</span>}</div>}
       {title&&<details><summary className="cursor-pointer text-sm font-medium">Register a reserved batch range</summary><p className="my-2 text-xs text-muted">Use this only when every selected sticker will label a copy of {title.title}. Positions follow the printed batch order.</p>
         <LoadState resource={batches}><Field label="Reserved barcode batch"><select className={inputClass} value={batchId} disabled={locked} onChange={e=>{setBatchId(e.target.value);setRange(null);}}><option value="">Choose a batch</option>{batches.data?.map(b=><option key={b.id} value={b.id}>{b.quantity} labels · {b.id.slice(0,8)}</option>)}</select></Field></LoadState>
