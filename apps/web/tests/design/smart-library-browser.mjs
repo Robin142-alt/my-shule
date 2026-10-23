@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
 import bundledWebpack from 'next/dist/compiled/webpack/webpack.js';
 const require=createRequire(import.meta.url);
+const PDFDocument=require('pdfkit');
 const web=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const out=path.resolve(web,'../../output/smart-library-ui');
 fs.mkdirSync(out,{recursive:true});
@@ -40,7 +41,7 @@ export async function requestDashboardApi(path,options={}){
  if(route==='scan'){const b=books.find(b=>b.barcode===u.searchParams.get('barcode'));if(!b)throw Error('Barcode not found in this school.');return structuredClone(b);}
  if(route==='catalogue')return [{id:'title-1',title:'Mathematics',total_copies:3,available_copies:2}];
  if(route==='barcodes')return [{barcode:'000004',copy_id:null}];
- if(route==='batches')return [];
+ if(route==='batches')return [{id:'batch-1',quantity:1000,pages:11,source:'generated',created_at:'2026-10-20'}];
  if(route==='inventory')return books;
  if(route==='stocktakes')return [{id:'stock-1',name:'Term 3 shelf check',status:'open',expected:3,verified:seen.size}];
  if(route==='stocktakes/stock-1')return {session:{id:'stock-1',name:'Term 3 shelf check',status:'open'},total:3,verified:seen.size,issued:1,missing:Math.max(0,2-seen.size),items:[],exceptions:[]};
@@ -62,13 +63,42 @@ async function run(){
  const globalsPath=path.join(web,'src/app/globals.css');
  const globals=fs.readFileSync(globalsPath,'utf8').replace('@import "tailwindcss";',`@import "tailwindcss" source(none);\n@source ${source(path.join(web,'src/components/library'))};\n@source ${source(path.join(web,'src/components/ui'))};\n@source ${source(path.join(web,'src/components/shared'))};\n@source ${source(path.join(web,'src/components/school/live-role-command-center.tsx'))};\n@source ${source(path.join(out,'entry.tsx'))};`);
  const css=(await require('postcss')([require('@tailwindcss/postcss')()]).process(globals,{from:globalsPath})).css;
- const server=http.createServer((req,res)=>{const file=path.basename((req.url||'').split('?')[0]);if(file.endsWith('.js')&&fs.existsSync(path.join(out,file))){res.setHeader('Content-Type','application/javascript');res.end(fs.readFileSync(path.join(out,file)));}else{res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}});
+ // Exercise production policy, not a permissive dev server. Missing frame-src
+ // previously passed every UI check but blocked generated blob PDFs in Chrome.
+ const policySource=fs.readFileSync(path.join(web,'src/middleware.ts'),'utf8').match(/const csp = `([\s\S]*?)`/);
+ assert.ok(policySource,'Production CSP is available to the browser fixture');
+ let csp=policySource[1].replace(/\s{2,}/g,' ').trim();
+ if(process.env.LIBRARY_CSP_URL){
+  const response=await fetch(process.env.LIBRARY_CSP_URL);
+  csp=response.headers.get('content-security-policy');await response.body?.cancel();
+  assert.ok(csp,'Published page sends its security policy');
+  assert.equal(response.headers.get('x-frame-options'),'DENY');
+ }
+ assert.match(csp,/frame-ancestors 'none'/,'Other sites must not embed school pages');
+ const document=new PDFDocument({size:'A4'}),chunks=[];
+ document.on('data',chunk=>chunks.push(chunk));
+ const finished=new Promise(resolve=>document.on('end',resolve));
+ document.text('Library PDF preview fixture');document.addPage().text('Second sheet');document.end();
+ await finished;const pdf=Buffer.concat(chunks),pdfRequests=[];
+ const server=http.createServer((req,res)=>{
+  res.setHeader('Content-Security-Policy',csp);res.setHeader('X-Frame-Options','DENY');
+  const url=new URL(req.url,'http://localhost');
+  if(url.pathname.startsWith('/api/library/smart/barcodes/')){
+   pdfRequests.push({method:req.method,path:url.pathname,query:Object.fromEntries(url.searchParams)});
+   res.setHeader('Content-Type','application/pdf');res.setHeader('Cache-Control','private, no-store');res.end(pdf);return;
+  }
+  const file=path.basename(url.pathname);
+  if(file.endsWith('.js')&&fs.existsSync(path.join(out,file))){res.setHeader('Content-Type','application/javascript');res.end(fs.readFileSync(path.join(out,file)));}
+  else{res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
+ });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
- const browser=await chromium.launch({headless:true});
+ // Full Chromium includes the native PDF viewer; headless-shell does not.
+ const browser=await chromium.launch({headless:true,channel:'chromium'});
  try{
   for(const width of [320,390,768,1440]){
    const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];
    page.on('pageerror',e=>errors.push(e.message));
+   await page.addInitScript(()=>{window.__cspViolations=[];document.addEventListener('securitypolicyviolation',event=>window.__cspViolations.push(event.effectiveDirective));});
    await page.goto(`http://127.0.0.1:${server.address().port}/school/librarian/overview`);
    const navigate=async label=>{
     if(width<1280){await page.getByRole('button',{name:'Open Librarian workspace sidebar'}).click();await page.getByRole('dialog').getByRole('button',{name:label,exact:true}).click();}
@@ -100,7 +130,44 @@ async function run(){
    await check('registration');
    await navigate('Barcode Generator & Printing');
    await page.getByLabel('Custom quantity').fill('1000');await page.getByText(/11 sheet\(s\) · 56 empty/).waitFor();
-   await page.getByText('No batches yet. Generate the number of stickers you need.',{exact:true}).waitFor();await check('labels');
+   await page.getByRole('button',{name:/1,000 barcodes/}).click();await check('labels');
+   const verifyPdf=async target=>{
+    let viewer;
+    for(let attempt=0;attempt<100&&!viewer;attempt++){
+     viewer=target.frames().find(frame=>frame.url().startsWith('chrome-extension://'));
+     if(!viewer)await target.waitForTimeout(100);
+    }
+    assert.ok(viewer,'Native PDF viewer must load under production CSP');
+    try {await viewer.waitForFunction(()=>document.querySelector('pdf-viewer')?.documentDimensions?.pageDimensions.length===2);}
+    catch(error){
+     await target.screenshot({path:path.join(out,`pdf-render-failure-${width}.png`),fullPage:true});
+     console.error('PDF renderer state',await viewer.evaluate(()=>({dimensions:document.querySelector('pdf-viewer')?.documentDimensions,body:document.body.innerText})));
+     throw error;
+    }
+   };
+   const previewPdf=async button=>{
+    await page.getByRole('button',{name:button,exact:true}).click();
+    await page.getByTitle('A4 barcode sheet preview').waitFor();
+    await page.getByTitle('A4 barcode sheet preview').scrollIntoViewIfNeeded();
+    await verifyPdf(page);
+    assert.deepEqual(await page.evaluate(()=>window.__cspViolations),[],'PDF preview must not violate production policy');
+   };
+   await previewPdf('Preview / reprint batch');
+   assert.equal(pdfRequests.at(-1).query.batch_id,'batch-1');
+   const downloadReady=page.waitForEvent('download');await page.getByRole('link',{name:'Download PDF',exact:true}).click();
+   const download=await downloadReady;assert.equal(download.suggestedFilename(),'myshule-library-barcodes.pdf');
+   assert.deepEqual(fs.readFileSync(await download.path()),pdf,'Download retains the original PDF bytes');
+   const popupReady=page.waitForEvent('popup');await page.getByRole('link',{name:'Open PDF & print barcodes',exact:true}).click();
+   const popup=await popupReady;await verifyPdf(popup);await popup.close();
+   await check('pdf-preview');await page.getByRole('button',{name:'Close preview',exact:true}).click();
+   await previewPdf('Print test sheet');assert.equal(pdfRequests.at(-1).path,'/api/library/smart/barcodes/calibration');
+   await page.getByRole('button',{name:'Close preview',exact:true}).click();
+   await navigate('Barcode Management');
+   await page.getByRole('checkbox',{name:/000004/}).check();await previewPdf('Print 1 selected');
+   assert.deepEqual(JSON.parse(pdfRequests.at(-1).query.selected),['000004']);
+   assert.ok(pdfRequests.every(request=>request.method==='GET'),'Reprints and calibration must not allocate barcodes');
+   assert.equal(await page.evaluate(()=>window.__libraryCommands.filter(command=>command.route==='batches').length),0);
+   await page.getByRole('button',{name:'Close preview',exact:true}).click();
    await navigate('Inventory & Stocktaking');
    await page.getByLabel('Open or previous session').selectOption('stock-1');
    const field=page.getByLabel('Scan barcode',{exact:true});
@@ -143,7 +210,13 @@ async function run(){
    await page.getByText('Mathematics',{exact:true}).waitFor();
    assert.equal(await page.getByLabel('Scan a book',{exact:true}).evaluate(e=>e===document.activeElement),true,'Saved Tab preference applies at the issue desk');
    assert.equal(await page.evaluate(()=>window.__libraryCommands.length),commandsBeforeTest,'Scanning a pending issue is not a confirmed issue');
-   assert.deepEqual(errors,[]);await page.close();console.log(`Smart library ${width}px: multi-issue, partial return, registration, labels, stocktake focus and scanner passed`);
+   assert.deepEqual(errors,[]);
+   await page.evaluate(()=>{
+    const frame=document.createElement('iframe');frame.src='https://external.invalid/';document.body.append(frame);
+    const object=document.createElement('object');object.data=URL.createObjectURL(new Blob(['blocked plugin'],{type:'text/plain'}));document.body.append(object);
+   });
+   await page.waitForFunction(()=>window.__cspViolations.includes('frame-src')&&window.__cspViolations.includes('object-src'));
+   await page.close();console.log(`Smart library ${width}px: circulation, scanner, PDF preview/download/print view, calibration, reprint and security restrictions passed`);
   }
  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
