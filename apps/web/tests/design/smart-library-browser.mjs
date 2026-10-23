@@ -135,7 +135,7 @@ async function run(){
    await page.getByText('3 registered this session',{exact:true}).waitFor();
    assert.equal((await page.evaluate(()=>window.__libraryCommands.filter(c=>c.route==='register').every(c=>c.body.catalog_item_id==='title-1'))),true);
    await page.getByText('Register a reserved batch range',{exact:true}).click();
-   await page.getByLabel('Reserved barcode batch',{exact:true}).selectOption('batch-1');
+   await page.getByRole('combobox',{name:/Reserved barcode batch/}).selectOption('batch-1');
    await page.getByLabel('First label position',{exact:true}).fill('1');await page.getByLabel('Last label position',{exact:true}).fill('2');
    await page.getByRole('button',{name:'Preview reserved range',exact:true}).click();
    await page.getByRole('button',{name:'Confirm registration of 2 copies',exact:true}).click();
