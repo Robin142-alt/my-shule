@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ScanBarcode, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -63,43 +63,100 @@ export function WriteButton(props: React.ComponentProps<typeof Button>) {
   return <Button {...props} disabled={props.disabled||!allowed} title={!allowed?"Library write permission is required":props.title}/>;
 }
 
-export function soundFeedback(success:boolean) {
-  if(localStorage.getItem("myshule-library-scanner-sound")!=="true")return;
+let scannerAudio:AudioContext|undefined;
+async function prepareScannerAudio(force=false) {
   try {
-    const context=new AudioContext(),oscillator=context.createOscillator(),gain=context.createGain();
+    if(!force&&localStorage.getItem("myshule-library-scanner-sound")!=="true")return;
+    if(!scannerAudio||scannerAudio.state==="closed")scannerAudio=new AudioContext();
+    if(scannerAudio.state==="suspended"){
+      // Some browsers leave resume pending while sound is blocked. Do not
+      // leave the test button waiting indefinitely for an optional feature.
+      let timer:ReturnType<typeof setTimeout>|undefined;
+      try{await Promise.race([scannerAudio.resume(),new Promise<void>(resolve=>{timer=setTimeout(resolve,2000);})]);}
+      finally{clearTimeout(timer);}
+    }
+    return scannerAudio.state==="running"?scannerAudio:undefined;
+  }catch{return;}
+}
+export async function soundFeedback(success:boolean,force=false):Promise<boolean> {
+  try {
+    const context=await prepareScannerAudio(force);
+    if(!context)return false;
+    const oscillator=context.createOscillator(),gain=context.createGain();
     oscillator.frequency.value=success?880:240;gain.gain.value=.06;
     oscillator.connect(gain);gain.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+.1);
-    oscillator.onended=()=>{void context.close();};
-  }catch{/* Visual feedback remains available if browser audio is disabled. */}
+    oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
+    return true;
+  }catch{return false;}
 }
-/** Only this focused field consumes Enter. No global keyboard interception. */
-export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,focusKey,onPendingChange}:{onScan:(code:string)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;focusKey?:string;onPendingChange?:(pending:number)=>void}) {
-  const [value,setValue]=useState(""),[error,setError]=useState(""),[pending,setPending]=useState(0);
+const scannerCompletionStorage="myshule-library-scanner-completion";
+const scannerSettingsEvent="myshule-scanner-settings-changed";
+type ScannerCompletionKey="enter"|"tab";
+function readScannerCompletion():ScannerCompletionKey {
+  try{return localStorage.getItem(scannerCompletionStorage)==="tab"?"tab":"enter";}catch{return "enter";}
+}
+function subscribeScannerCompletion(notify:()=>void) {
+  const storage=(event:StorageEvent)=>{if(event.key===scannerCompletionStorage||event.key===null)notify();};
+  window.addEventListener("storage",storage);window.addEventListener(scannerSettingsEvent,notify);
+  return()=>{window.removeEventListener("storage",storage);window.removeEventListener(scannerSettingsEvent,notify);};
+}
+export function useScannerCompletionKey() {
+  return useSyncExternalStore(subscribeScannerCompletion,readScannerCompletion,():ScannerCompletionKey=>"enter");
+}
+export function saveScannerCompletionKey(key:ScannerCompletionKey) {
+  localStorage.setItem(scannerCompletionStorage,key);
+  window.dispatchEvent(new Event(scannerSettingsEvent));
+}
+export type ScanCompletion="enter"|"tab"|"button";
+/** Keyboard/HID input is transport- and brand-independent. Only this field
+ * consumes configured suffixes; unrelated inputs keep normal navigation. */
+export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFocus=false,focusKey,onPendingChange,submitLabel="Add scan",focusLabel="Focus scanner"}:{onScan:(code:string,completion:ScanCompletion)=>Promise<void>;disabled?:boolean;label?:string;autoFocus?:boolean;focusKey?:string;onPendingChange?:(pending:number)=>void;submitLabel?:string;focusLabel?:string}) {
+  const [value,setValue]=useState(""),[error,setError]=useState(""),[pending,setPending]=useState(0),[focused,setFocused]=useState(false);
+  const hintId=useId();
+  const completionKey=useScannerCompletionKey();
   const field=useRef<HTMLInputElement>(null),queue=useRef(Promise.resolve()),inFlight=useRef(new Set<string>()),handler=useRef(onScan);
   useEffect(()=>{handler.current=onScan;},[onScan]);
   // Focus only on workspace activation, becoming enabled, or an explicit title
   // selection. Ordinary form edits and background refreshes never steal focus.
   useEffect(()=>{if(autoFocus&&!disabled)field.current?.focus();},[autoFocus,disabled,focusKey]);
   useEffect(()=>{onPendingChange?.(pending);},[pending,onPendingChange]);
-  const scan=(event:FormEvent)=>{
-    event.preventDefault();if(!value||disabled)return;
-    const code=value.replace(/[\r\n]+$/,"");setValue("");field.current?.focus();
+  useEffect(()=>{
+    const blur=()=>setFocused(false),focus=()=>setFocused(document.activeElement===field.current);
+    window.addEventListener("blur",blur);window.addEventListener("focus",focus);
+    return()=>{window.removeEventListener("blur",blur);window.removeEventListener("focus",focus);};
+  },[]);
+  const scan=(completion:ScanCompletion)=>{
+    if(disabled)return;
+    const code=(field.current?.value??value).replace(/[\r\n]+$/,"");if(!code)return;
+    setValue("");field.current?.focus();
+    // Unlock audio during the input gesture, before a queued network request.
+    // Audio and browser-storage failures must never reject the scan queue.
+    void prepareScannerAudio();
     if(inFlight.current.has(code)){setError(`${code} is already being processed.`);return;}
     inFlight.current.add(code);setPending(n=>n+1);
     queue.current=queue.current.then(async()=>{
-      try{await handler.current(code);setError("");soundFeedback(true);}
-      catch(e){setError(errorText(e));soundFeedback(false);}
+      try{await handler.current(code,completion);setError("");void soundFeedback(true);}
+      catch(e){setError(errorText(e));void soundFeedback(false);}
       finally{inFlight.current.delete(code);setPending(n=>n-1);}
       // Let React commit title/profile changes before the next queued scan.
       await new Promise(resolve=>setTimeout(resolve,0));
     });
   };
-  return <div className="space-y-2"><form onSubmit={scan} className="flex flex-wrap items-end gap-2">
+  // Reserve two lines so losing focus cannot move a clicked control between
+  // pointer-down and pointer-up on narrow screens.
+  return <div className="space-y-2"><p role="status" className={`min-h-10 text-sm ${focused&&!disabled?"text-success":"text-muted"}`}>
+    {disabled?"Scanner input is paused.":focused?"Ready for scanner input.":"Scanner input is not focused."}</p>
+  <form onSubmit={event=>{event.preventDefault();scan("button");}} className="flex flex-wrap items-end gap-2">
     <label className="min-w-0 flex-1 basis-full text-sm font-medium sm:basis-0"><span className="mb-1 flex items-center gap-2"><ScanBarcode size={18}/>{label}</span>
-      <input ref={field} autoFocus={autoFocus} aria-label={label} value={value} onChange={e=>setValue(e.target.value)} disabled={disabled}
-        className={`${inputClass} font-mono`} autoComplete="off" spellCheck={false} placeholder="Scan or type the exact barcode, then Enter"/></label>
-    <Button type="submit" disabled={disabled||!value}>Add scan</Button><Button variant="secondary" onClick={()=>field.current?.focus()}>Focus scanner</Button>
-  </form><p className="text-xs text-muted">USB keyboard mode · Enter suffix · Manual entry supported{pending>0?` · ${pending} scan(s) processing`:""}</p>
+      <input ref={field} autoFocus={autoFocus} aria-label={label} aria-describedby={hintId} value={value} onChange={e=>setValue(e.target.value)} disabled={disabled}
+        onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} onKeyDown={e=>{
+          if(e.nativeEvent.isComposing||e.altKey||e.ctrlKey||e.metaKey||e.shiftKey)return;
+          if(e.key==="Enter"){e.preventDefault();scan("enter");}
+          else if(e.key==="Tab"&&completionKey==="tab"&&field.current?.value){e.preventDefault();scan("tab");}
+        }}
+        className={`${inputClass} font-mono`} autoComplete="off" spellCheck={false} placeholder={`Scan or type the exact barcode, then ${completionKey==="tab"?"Tab or Enter":"Enter"}`}/></label>
+    <Button type="submit" disabled={disabled||!value}>{submitLabel}</Button><Button variant="secondary" disabled={disabled} onClick={()=>field.current?.focus()}>{focusLabel}</Button>
+  </form><p id={hintId} className="text-xs text-muted">{value?`${value.length} characters received. Press ${completionKey==="tab"?"Tab or Enter":"Enter"} or choose “${submitLabel}”. If a scan stops here, match its suffix in Scanner Settings.`:`Keyboard / HID mode · ${completionKey==="tab"?"Tab or Enter":"Enter"} suffix · Manual entry supported`}{pending>0?` · ${pending} scan(s) processing`:""}</p>
   <Feedback error={error}/></div>;
 }
 
