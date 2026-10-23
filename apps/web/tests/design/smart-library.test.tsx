@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { dateText, ScannerInput, useCommand } from "@/components/library/smart-library-shared";
 import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords, SmartScannerSettings } from "@/components/library/smart-library-workspaces";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
@@ -278,6 +278,54 @@ it("shows 1,000 labels as 11 sheets and offers an explicit calibration path",()=
   fireEvent.change(screen.getByLabelText("Custom quantity"),{target:{value:"1000"}});
   expect(screen.getByText(/11 sheet\(s\) · 56 empty positions/)).toBeInTheDocument();
   expect(screen.getByRole("button",{name:"Print test sheet"})).toBeEnabled();
+});
+it("pages barcode records in tens while preserving selections for reprinting above the list",async()=>{
+  const records=Array.from({length:23},(_,i)=>({barcode:String(i+1).padStart(6,"0"),created_at:"2026-10-23"}));
+  request.mockImplementation(async path=>{
+    const url=new URL(path,"https://example.test");
+    if(url.pathname.endsWith("/batches"))return [];
+    const offset=Number(url.searchParams.get("offset")),limit=Number(url.searchParams.get("limit"));
+    return records.filter(row=>row.barcode.includes(url.searchParams.get("search")??"")).slice(offset,offset+limit);
+  });
+  const originalFetch=global.fetch,originalCreate=URL.createObjectURL,originalRevoke=URL.revokeObjectURL;
+  const originalScroll=HTMLElement.prototype.scrollIntoView;
+  global.fetch=jest.fn().mockResolvedValue({ok:true,blob:async()=>new Blob(["pdf"],{type:"application/pdf"})});
+  URL.createObjectURL=jest.fn(()=>"blob:barcode-preview");URL.revokeObjectURL=jest.fn();
+  HTMLElement.prototype.scrollIntoView=jest.fn();
+  try{
+    render(<SmartBarcodeWorkspace management/>);
+    const registry=screen.getByRole("region",{name:"Individual barcodes"}),list=within(registry);
+    await list.findByText("000001");
+    expect(list.getAllByRole("checkbox")).toHaveLength(10);
+    fireEvent.click(list.getByRole("checkbox",{name:/000001/}));
+    fireEvent.click(list.getByRole("button",{name:"Next"}));
+    await list.findByText("000011");
+    fireEvent.click(list.getByRole("checkbox",{name:/000011/}));
+    fireEvent.click(list.getByRole("button",{name:"Next"}));
+    await list.findByText("000023");
+    expect(list.getAllByRole("checkbox")).toHaveLength(3);
+    expect(list.getByRole("button",{name:"Next"})).toBeDisabled();
+    fireEvent.click(list.getByRole("button",{name:"Previous"}));
+    expect(await list.findByRole("checkbox",{name:/000011/})).toBeChecked();
+    const print=screen.getByRole("button",{name:"Print 2 selected"});print.focus();fireEvent.click(print);
+    await screen.findByTitle("A4 barcode sheet preview");
+    const preview=screen.getByRole("region",{name:"Barcode PDF preview"});
+    expect(preview.compareDocumentPosition(registry)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("heading",{name:"Barcode PDF preview"})).toHaveFocus();
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+    const url=new URL(jest.mocked(global.fetch).mock.calls[0][0] as string,"https://example.test");
+    expect(JSON.parse(url.searchParams.get("selected")!)).toEqual(["000001","000011"]);
+    expect(screen.getByRole("link",{name:"Download PDF"})).toHaveAttribute("href","blob:barcode-preview");
+    fireEvent.click(screen.getByRole("button",{name:"Close preview"}));
+    expect(print).toHaveFocus();expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:barcode-preview");
+    fireEvent.change(list.getByLabelText("Barcode search"),{target:{value:"000023"}});
+    await list.findByText("Showing 1–1");
+    expect(list.getByText("000023")).toBeInTheDocument();
+    expect(request.mock.calls.some(([,options])=>options?.method==="POST")).toBe(false);
+  }finally{
+    global.fetch=originalFetch;URL.createObjectURL=originalCreate;URL.revokeObjectURL=originalRevoke;
+    HTMLElement.prototype.scrollIntoView=originalScroll;
+  }
 });
 it("shows independent current and returned borrower records",async()=>{
   request.mockImplementation(async path=>{
