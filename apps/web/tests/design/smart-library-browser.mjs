@@ -33,11 +33,13 @@ export async function requestDashboardApi(path,options={}){
   if(route==='issue'){options.body.barcodes.forEach(code=>{const b=books.find(b=>b.barcode===code);b.status='issued';b.loan={borrower_name:person.name,borrower_number:'2451',due_on:options.body.due_on};});return {transaction_id:'issue-1',loans:options.body.barcodes.map(id=>({id,due_on:options.body.due_on}))};}
   if(route==='return'){options.body.barcodes.forEach(code=>{const b=books.find(b=>b.barcode===code);b.status='available';b.loan=null;});return {transaction_id:'return-1',returns:options.body.barcodes.map(id=>({id,returned_at:'2026-10-20'}))};}
   if(route==='register')return {id:options.body.barcode,catalog_item_id:'title-1',title:'Mathematics'};
+  if(route==='register-batch')return {count:2,catalog_item_id:'title-1'};
   if(route==='stocktakes/stock-1/scan'){const duplicate=seen.has(options.body.barcode);seen.add(options.body.barcode);return {duplicate,outcome:'verified'};}
  }
  if(route==='borrowers')return [person];
  if(route==='policies')return [];
  if(route==='classifications')return {subjects:[{id:'fiction',name:'Fiction',source:'library'}],classes:[{id:'class-1',name:'Grade 9'},{id:'class-2',name:'Grade 10'}]};
+ if(route==='registration-range')return {count:2,barcodes:['000007','000008']};
  if(route==='summary')return {total_copies:3,available_copies:books.filter(b=>!b.loan).length,issued_copies:books.filter(b=>b.loan).length};
  if(route==='history')return {person,outstanding:books.filter(b=>b.loan).length,overdue:0,max_active_loans:5,loans:books.filter(b=>b.loan)};
  if(route==='scan'){const b=books.find(b=>b.barcode===u.searchParams.get('barcode'));if(!b)throw Error('Barcode not found in this school.');return structuredClone(b);}
@@ -132,6 +134,13 @@ async function run(){
    for(const code of ['000005','000006']){await page.keyboard.type(code);await page.keyboard.press('Enter');}
    await page.getByText('3 registered this session',{exact:true}).waitFor();
    assert.equal((await page.evaluate(()=>window.__libraryCommands.filter(c=>c.route==='register').every(c=>c.body.catalog_item_id==='title-1'))),true);
+   await page.getByText('Register a reserved batch range',{exact:true}).click();
+   await page.getByLabel('Reserved barcode batch',{exact:true}).selectOption('batch-1');
+   await page.getByLabel('First label position',{exact:true}).fill('1');await page.getByLabel('Last label position',{exact:true}).fill('2');
+   await page.getByRole('button',{name:'Preview reserved range',exact:true}).click();
+   await page.getByRole('button',{name:'Confirm registration of 2 copies',exact:true}).click();
+   await page.getByText('5 registered this session',{exact:true}).waitFor();
+   assert.deepEqual(await page.evaluate(()=>{const b=window.__libraryCommands.find(c=>c.route==='register-batch').body;return [b.catalog_item_id,b.batch_id,b.start,b.end];}),['title-1','batch-1',1,2]);
    await check('registration');
    await navigate('Barcode Generator & Printing');
    await page.getByLabel('Custom quantity').fill('1000');await page.getByText(/11 sheet\(s\) · 56 empty/).waitFor();
