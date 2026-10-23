@@ -61,12 +61,15 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     await pool.query(`
       CREATE TABLE students(id text PRIMARY KEY,tenant_id text,first_name text,last_name text,admission_number text,status text,deleted_at timestamptz);
       CREATE TABLE staff_profiles(id uuid PRIMARY KEY,tenant_id text,display_name text,staff_number text,status text,user_id uuid);
+      CREATE TABLE student_portal_access(tenant_id text,student_id text,user_id uuid,status text);
+      CREATE TABLE student_guardians(id text PRIMARY KEY,tenant_id text,student_id text,user_id text,status text);
+      CREATE TABLE tenant_memberships(tenant_id text,user_id text,status text);
       CREATE TABLE student_allocations(tenant_id text,student_id text,class_name text,stream_name text,is_current boolean);
       CREATE TABLE evidence(tenant_id text,event jsonb);
       GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role};
       GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO ${role};
     `);
-    for(const table of ['students','staff_profiles','student_allocations','evidence'])await pool.query(`
+    for(const table of ['students','staff_profiles','student_portal_access','student_guardians','tenant_memberships','student_allocations','evidence'])await pool.query(`
       ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
       CREATE POLICY school_scope ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
     `);
@@ -75,7 +78,7 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
         expect(tx).toBeDefined();if(failEvent)throw Error('Injected outbox failure');
         await db.query('INSERT INTO evidence VALUES($1,$2::jsonb)',[context.requireStore().tenant_id,JSON.stringify(event)]);
       },
-    } as never,{listActiveNotificationRecipientsForBorrower:async()=>[]} as never);
+    } as never,new LibraryRepository(db));
   },60000);
   beforeEach(async()=>{
     failEvent=false;school=randomUUID();other=randomUUID();student=randomUUID();staff=randomUUID();
@@ -157,6 +160,32 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     expect(history.outstanding).toBe(3);expect(history.loans.filter((l:any)=>l.returned_at)).toHaveLength(2);
     const summary=await run(()=>service.summary());expect(summary.available_copies).toBe(2);expect(summary.issued_copies).toBe(3);
     await expect(run(()=>service.returns({...input,request_id:randomUUID()}))).rejects.toThrow('no active loan');
+  });
+  it('issues and returns with mixed UUID/text recipient IDs while excluding inactive and other-school accounts',async()=>{
+    const pupil=randomUUID(),guardian=randomUUID(),inactive=randomUUID(),outsider=randomUUID();
+    await pool.query(`INSERT INTO student_portal_access VALUES($1,$2,$3,'active')`,[school,student,pupil]);
+    await pool.query(`INSERT INTO student_guardians VALUES
+      ('parent-link',$1,$2,$3,'active'),('inactive-link',$1,$2,$4,'active'),
+      ('foreign-link',$5,$2,$6,'active')`,[school,student,guardian,inactive,other,outsider]);
+    await pool.query(`INSERT INTO tenant_memberships VALUES
+      ($1,$2,'active'),($1,$3,'active'),($1,$4,'suspended'),($5,$6,'active'),($1,$7,'active')`,
+      [school,pupil,guardian,inactive,other,outsider,actor]);
+    const {barcodes}=await register(3);
+    const input={request_id:randomUUID(),barcodes:barcodes.slice(0,2),borrower_type:'student',subject_id:student,due_on:'2099-12-31'};
+    const issued=await run(()=>service.issue(input));
+    expect(issued.loans).toHaveLength(2);
+    await run(()=>service.issue(input));
+    await run(()=>service.returns({request_id:randomUUID(),barcodes:[barcodes[0]]}));
+    const events=(await pool.query(`SELECT event FROM evidence WHERE tenant_id=$1 AND event->'event'->>'type' IN ('library.book_issued','library.book_returned')`,[school])).rows;
+    expect(events).toHaveLength(3);
+    for(const {event} of events){
+      expect(event.notifications.map((n:any)=>n.targetUserId).sort()).toEqual([pupil,guardian].sort());
+      expect(event.notifications.find((n:any)=>n.targetUserId===guardian).recipientGuardianId).toBe('parent-link');
+    }
+    await issue([barcodes[2]],{borrower_type:'staff',subject_id:staff});
+    const staffEvent=(await pool.query(`SELECT event FROM evidence WHERE tenant_id=$1 AND event->'event'->>'type'='library.book_issued' ORDER BY ctid DESC LIMIT 1`,[school])).rows[0].event;
+    expect(staffEvent.notifications.map((n:any)=>n.targetUserId)).toEqual([actor]);
+    expect((await run(()=>service.history({subject_id:student,borrower_type:'student'}))).outstanding).toBe(1);
   });
   it('enforces staff identity, borrower limits and concurrent issue protection',async()=>{
     const {barcodes}=await register(3);
