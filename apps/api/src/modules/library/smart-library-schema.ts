@@ -32,7 +32,35 @@ CREATE TABLE IF NOT EXISTS library_commands (
   PRIMARY KEY(tenant_id,request_id)
 );
 ALTER TABLE library_catalog_items ADD COLUMN IF NOT EXISTS publisher text;
+ALTER TABLE library_catalog_items ADD COLUMN IF NOT EXISTS edition text;
+ALTER TABLE library_catalog_items ADD COLUMN IF NOT EXISTS language text;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_library_catalog_scope ON library_catalog_items(tenant_id,id);
+CREATE INDEX IF NOT EXISTS ix_library_catalog_title_edition ON library_catalog_items(tenant_id,lower(title),lower(COALESCE(edition,'')));
+CREATE TABLE IF NOT EXISTS library_subjects (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text NOT NULL,name text NOT NULL,
+  academic_subject_id text,created_by uuid NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id,id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_library_subject_name ON library_subjects(tenant_id,lower(name));
+CREATE TABLE IF NOT EXISTS library_catalog_subjects (
+  tenant_id text NOT NULL,catalog_item_id uuid NOT NULL,subject_id uuid NOT NULL,
+  PRIMARY KEY(tenant_id,catalog_item_id,subject_id),
+  FOREIGN KEY(tenant_id,catalog_item_id) REFERENCES library_catalog_items(tenant_id,id),
+  FOREIGN KEY(tenant_id,subject_id) REFERENCES library_subjects(tenant_id,id)
+);
+CREATE TABLE IF NOT EXISTS library_catalog_classes (
+  tenant_id text NOT NULL,catalog_item_id uuid NOT NULL,class_id text NOT NULL,class_name text NOT NULL,
+  PRIMARY KEY(tenant_id,catalog_item_id,class_id),
+  FOREIGN KEY(tenant_id,catalog_item_id) REFERENCES library_catalog_items(tenant_id,id)
+);
+CREATE INDEX IF NOT EXISTS ix_library_catalog_class ON library_catalog_classes(tenant_id,class_id,catalog_item_id);
+ALTER TABLE library_renewals ADD COLUMN IF NOT EXISTS previous_due_on date;
+ALTER TABLE library_renewals ADD COLUMN IF NOT EXISTS due_on date;
+ALTER TABLE library_renewals ADD COLUMN IF NOT EXISTS reason text;
+CREATE INDEX IF NOT EXISTS ix_library_renewals_loan ON library_renewals(tenant_id,loan_id);
 ALTER TABLE library_copies ADD COLUMN IF NOT EXISTS condition text NOT NULL DEFAULT 'good';
+ALTER TABLE library_copies ADD COLUMN IF NOT EXISTS lendable boolean NOT NULL DEFAULT true;
+ALTER TABLE library_copies ADD COLUMN IF NOT EXISTS acquisition jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE library_copies DROP CONSTRAINT IF EXISTS library_copies_status_check;
 ALTER TABLE library_copies ADD CONSTRAINT library_copies_status_check
   CHECK(status IN ('available','issued','reserved','lost','damaged','retired'));
@@ -186,6 +214,12 @@ BEGIN
       AND (NEW.metadata->>'loan_id' IS NULL OR id::text=NEW.metadata->>'loan_id');
     GET DIAGNOSTICS affected = ROW_COUNT;
     IF affected <> 1 THEN RAISE EXCEPTION 'No single active loan exists for this return'; END IF;
+  ELSIF NEW.action='renew' THEN
+    UPDATE library_copy_loans SET due_on=(NEW.metadata->>'due_on')::date
+    WHERE tenant_id=NEW.tenant_id AND copy_id=NEW.copy_id AND borrower_id=NEW.borrower_id
+      AND id::text=NEW.metadata->>'loan_id' AND returned_at IS NULL;
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 1 THEN RAISE EXCEPTION 'No single active loan exists for this renewal'; END IF;
   END IF;
   RETURN NEW;
 END $fn$;
@@ -213,6 +247,8 @@ CREATE TABLE IF NOT EXISTS library_stocktake_scans (
   UNIQUE(tenant_id,session_id,barcode),
   FOREIGN KEY(tenant_id,session_id) REFERENCES library_stocktakes(tenant_id,id)
 );
+ALTER TABLE library_stocktake_items ADD COLUMN IF NOT EXISTS expected_shelf text;
+ALTER TABLE library_stocktake_scans ADD COLUMN IF NOT EXISTS observed_shelf text;
 CREATE TABLE IF NOT EXISTS library_copy_incidents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
   copy_id uuid NOT NULL, action text NOT NULL, reason text NOT NULL,
@@ -222,7 +258,7 @@ CREATE TABLE IF NOT EXISTS library_copy_incidents (
   FOREIGN KEY(tenant_id,replacement_copy_id) REFERENCES library_copies(tenant_id,id)
 );
 CREATE INDEX IF NOT EXISTS ix_library_incident_copy ON library_copy_incidents(tenant_id,copy_id,created_at);
-${['library_barcode_batches','library_barcode_registry','library_commands','library_copy_loans',
+${['library_subjects','library_catalog_subjects','library_catalog_classes','library_barcode_batches','library_barcode_registry','library_commands','library_copy_loans',
   'library_stocktakes','library_stocktake_items','library_stocktake_scans','library_copy_incidents'].map(table => `
 ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;

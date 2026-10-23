@@ -670,8 +670,8 @@ export function LiveRoleCommandCenter({
             />
           </div>
 
-          <section className="app-workspace-surface rounded-2xl bg-primary p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5">
-            <div className="app-workspace-heading mb-5 hidden lg:block">
+          <section className={role === "librarian" ? "min-w-0" : "app-workspace-surface rounded-2xl bg-primary p-4 shadow-[0_24px_70px_rgba(7,29,73,0.18)] md:p-5"}>
+            {role === "librarian" ? <h1 className="sr-only">{activeItem?.label ?? config.roleLabel}</h1> : <div className="app-workspace-heading mb-5 hidden lg:block">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">
                 {config.liveLabel}
               </p>
@@ -679,7 +679,7 @@ export function LiveRoleCommandCenter({
               <p className="mt-1 text-sm font-semibold text-white/62">
                 {sectionDescription(activeItem?.label ?? config.roleLabel)}
               </p>
-            </div>
+            </div>}
             {workspace}
           </section>
         </main>

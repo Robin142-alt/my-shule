@@ -13,7 +13,7 @@ test('all library mutations, including legacy routes, reject readers and anonymo
   const context=new RequestContextService();
   const guard=new RbacGuard(new Reflector(),context);
   for(const [controller,names] of [
-    [SmartLibraryController,['allocate','import','register','issue','returns','incident','startStocktake','stocktakeScan','complete']],
+    [SmartLibraryController,['allocate','import','register','registerBatch','createSubject','updateTitle','updateCopy','savePolicy','renew','issue','returns','incident','startStocktake','stocktakeScan','complete']],
     [LibraryController,['createLoan','issueCopy','issueByScan','returnCopy','returnByScan','scanIssue','scanReturn','issueBook']],
     [LibrarianCommandController,['addBook','deleteBook','issueBook','issueDepartmentResource','returnBook']],
   ] as const){
@@ -33,7 +33,7 @@ test('all library mutations, including legacy routes, reject readers and anonymo
 });
 test('read and export endpoints require permission and a school context',()=>{
   const context=new RequestContextService(),guard=new RbacGuard(new Reflector(),context);
-  for(const name of ['summary','catalogue','inventory','scan','borrowers','history','loans','batches','barcodes','stocktakes','stocktake','pdf','calibration']){
+  for(const name of ['summary','catalogue','classifications','registrationRange','policies','inventory','scan','borrowers','history','loans','batches','barcodes','stocktakes','stocktake','pdf','calibration']){
     const execution={getClass:()=>SmartLibraryController,getHandler:()=>(SmartLibraryController.prototype as any)[name]} as never;
     context.run({tenant_id:'school',is_authenticated:true,permissions:[]} as never,()=>assert.throws(()=>guard.canActivate(execution),/Permission-based/));
   }

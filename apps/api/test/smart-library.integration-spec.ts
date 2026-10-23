@@ -64,12 +64,14 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
       CREATE TABLE student_portal_access(tenant_id text,student_id text,user_id uuid,status text);
       CREATE TABLE student_guardians(id text PRIMARY KEY,tenant_id text,student_id text,user_id text,status text);
       CREATE TABLE tenant_memberships(tenant_id text,user_id text,status text);
+      CREATE TABLE subjects(id text PRIMARY KEY,tenant_id text,name text,status text);
+      CREATE TABLE class_sections(id text PRIMARY KEY,tenant_id text,name text,grade_level text,stream text,is_active boolean,status text);
       CREATE TABLE student_allocations(tenant_id text,student_id text,class_name text,stream_name text,is_current boolean);
       CREATE TABLE evidence(tenant_id text,event jsonb);
       GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role};
       GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO ${role};
     `);
-    for(const table of ['students','staff_profiles','student_portal_access','student_guardians','tenant_memberships','student_allocations','evidence'])await pool.query(`
+    for(const table of ['students','staff_profiles','student_portal_access','student_guardians','tenant_memberships','subjects','class_sections','student_allocations','evidence'])await pool.query(`
       ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
       CREATE POLICY school_scope ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
     `);
@@ -273,5 +275,62 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     expect(()=>service.legacyDepartmentIssue({catalog_item_id:created.id,staff_identifier:staff})).toThrow('Department');
     await run(()=>service.retireTitle(created.id));
     expect((await run(()=>service.summary())).retired_copies).toBe(2);
+  });
+  it('keeps library classifications separate from academics and matches titles without merging editions',async()=>{
+    const academic=randomUUID(),classA=randomUUID(),classB=randomUUID();
+    await pool.query(`INSERT INTO subjects VALUES($1,$2,'Mathematics','active')`,[academic,school]);
+    await pool.query(`INSERT INTO class_sections VALUES($1,$3,'Grade 9','9','',true,'active'),($2,$3,'Grade 10','10','',true,'active')`,[classA,classB,school]);
+    const subject=await run(()=>service.createSubject({name:'Fiction',request_id:randomUUID()}));
+    const batch=await allocate(4),codes=(await pool.query('SELECT barcode FROM library_barcode_registry WHERE batch_id=$1 ORDER BY ordinal',[batch.id])).rows.map(r=>r.barcode);
+    const input={title:'A School Book',edition:'Second edition',isbn:'ISBN-2',subject_ids:[subject.id,`academic:${academic}`],class_ids:[classA,classB]};
+    const a=await run(()=>service.register({...input,barcode:codes[0],request_id:randomUUID()}));
+    const b=await run(()=>service.register({...input,title:' A  School Book ',barcode:codes[1],request_id:randomUUID()}));
+    expect(a.catalog_item_id).toBe(b.catalog_item_id);expect(b.reused_title).toBe(true);
+    const next=await run(()=>service.register({...input,edition:'Third edition',isbn:'ISBN-3',barcode:codes[2],request_id:randomUUID()}));
+    expect(next.catalog_item_id).not.toBe(a.catalog_item_id);
+    const novel=await run(()=>service.register({title:'Unrestricted novel',barcode:codes[3],request_id:randomUUID()}));
+    const catalogue=await run(()=>service.catalogue({class_id:classA}));expect(catalogue).toHaveLength(2);
+    expect(catalogue[0].subjects).toHaveLength(2);expect(catalogue[0].classes).toHaveLength(2);
+    expect((await run(()=>service.catalogue({search:'Unrestricted'})))[0].subjects).toEqual([]);
+    await expect(run(()=>service.updateTitle({...input,catalog_item_id:novel.catalog_item_id,request_id:randomUUID()}),other)).rejects.toThrow('not found');
+    expect((await pool.query('SELECT count(*)::int n FROM subjects WHERE tenant_id=$1',[school])).rows[0].n).toBe(1);
+    expect(await run(()=>service.classifications(),other)).toEqual({subjects:[],classes:[]});
+    await run(()=>service.updateTitle({...input,title:'Corrected title',catalog_item_id:a.catalog_item_id,request_id:randomUUID()}));
+    expect((await run(()=>service.scan(codes[0]))).title).toBe('Corrected title');
+  });
+  it('registers 1000 reserved copies atomically with retries, rejects occupied ranges and honours copy restrictions',async()=>{
+    const original=await register(1),batch=await allocate(1000);
+    const input={request_id:randomUUID(),catalog_item_id:original.title,batch_id:batch.id,start:1,end:1000,lendable:false,shelf_location:'Reference'};
+    const range=await run(()=>service.registrationRange(input));expect(range.count).toBe(1000);
+    expect((await run(()=>service.registerBatch(input))).count).toBe(1000);
+    expect((await run(()=>service.registerBatch(input))).count).toBe(1000);
+    expect((await run(()=>service.summary())).total_copies).toBe(1001);
+    await expect(run(()=>service.registerBatch({...input,request_id:randomUUID()}))).rejects.toThrow('assigned');
+    await expect(issue([range.barcodes[0]])).rejects.toThrow('not available');
+    const copy=await run(()=>service.scan(range.barcodes[0]));
+    await run(()=>service.updateCopy({copy_id:copy.id,lendable:true,shelf_location:'Shelf A',reason:'Moved to lending stock',request_id:randomUUID()}));
+    const stock=await run(()=>service.startStocktake({name:'Shelf verification',request_id:randomUUID()}));
+    expect((await run(()=>service.stocktakeScan(stock.id,{barcode:copy.barcode,observed_shelf:'Shelf B'}))).outcome).toBe('misplaced');
+    await issue([copy.barcode]);
+    await expect(run(()=>service.registrationRange(input),other)).rejects.toThrow('range');
+    expect((await pool.query('SELECT count(*)::int n FROM library_copy_loans WHERE tenant_id=$1',[school])).rows[0].n).toBe(1);
+  },60000);
+  it('renews the same loan with policy, idempotency, concurrency and history intact',async()=>{
+    const {barcodes}=await register(2);const issued=await issue(barcodes,{due_on:'2098-01-01'});
+    await run(()=>service.savePolicy({borrower_type:'student',max_active_loans:5,max_renewals:1,request_id:randomUUID()}));
+    const loan=issued.loans[0],input={loan_id:loan.id,due_on:'2099-01-01',request_id:randomUUID()};
+    const attempts=await Promise.allSettled([run(()=>service.renew(input)),run(()=>service.renew({...input,request_id:randomUUID()}))]);
+    expect(attempts.filter(a=>a.status==='fulfilled')).toHaveLength(1);
+    const winner=attempts[0].status==='fulfilled'?input:null;if(winner)await run(()=>service.renew(winner));
+    expect((await pool.query('SELECT count(*)::int n FROM library_copy_loans WHERE tenant_id=$1',[school])).rows[0].n).toBe(2);
+    expect((await pool.query('SELECT count(*)::int n FROM library_renewals WHERE tenant_id=$1',[school])).rows[0].n).toBe(1);
+    const history=await run(()=>service.history({subject_id:student,borrower_type:'student'}));
+    expect(history.loans.find((l:any)=>l.id===loan.id)?.renewal_count).toBe(1);
+    await expect(run(()=>service.renew({...input,due_on:'2099-02-01',request_id:randomUUID()}),other)).rejects.toThrow('not found');
+    await pool.query(`UPDATE students SET status='graduated' WHERE id=$1`,[student]);
+    await expect(run(()=>service.renew({loan_id:issued.loans[1].id,due_on:'2099-01-01',request_id:randomUUID()}))).rejects.toThrow('eligible');
+    await run(()=>service.returns({barcodes:[loan.barcode],request_id:randomUUID()}));
+    await expect(run(()=>service.renew({...input,request_id:randomUUID()}))).rejects.toThrow('active loan');
+    expect((await run(()=>service.history({subject_id:student,borrower_type:'student'}))).outstanding).toBe(1);
   });
 });

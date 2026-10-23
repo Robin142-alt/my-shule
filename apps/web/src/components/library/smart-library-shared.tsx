@@ -19,6 +19,20 @@ export const dateText = (value: unknown) => {
 };
 export const newRequest = () => crypto.randomUUID();
 export const errorText = (error: unknown) => error instanceof Error ? error.message : "The library request failed. Please retry.";
+export function useCommand() {
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[success,setSuccess]=useState("");
+  const pending=useRef(false),requests=useRef(new Map<string,string>());
+  const run=async(path:string,body:LibraryRow,onSuccess:(result:LibraryRow)=>void,message:string,propagate=false)=>{
+    if(pending.current){if(propagate)throw new Error("Wait for the previous library action to finish.");return;}
+    pending.current=true;setBusy(true);setError("");setSuccess("");
+    const fingerprint=JSON.stringify({path,body});
+    const requestId=requests.current.get(fingerprint)??newRequest();requests.current.set(fingerprint,requestId);
+    try{const result=await api<LibraryRow>(path,{...body,request_id:requestId});requests.current.delete(fingerprint);setSuccess(message);onSuccess(result);}
+    catch(e){setError(errorText(e));if(propagate)throw e;}
+    finally{pending.current=false;setBusy(false);}
+  };
+  return {busy,error,success,run};
+}
 export function useLibraryData<T>(path: string | null) {
   const [data,setData]=useState<T|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
   const previousPath=useRef(path);

@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { dateText, ScannerInput } from "@/components/library/smart-library-shared";
 import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords, SmartScannerSettings } from "@/components/library/smart-library-workspaces";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { SmartCatalogue } from "@/components/library/smart-library-catalogue";
+import { RenewLoan } from "@/components/library/smart-library-tools";
 import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
 jest.mock("@/lib/dashboard/api-client",()=>({requestDashboardApi:jest.fn()}));
 jest.mock("@/components/providers/permission-context",()=>({usePermissions:()=>({hasPermission:()=>true})}));
@@ -10,6 +12,49 @@ const request=jest.mocked(requestDashboardApi);
 const borrower={subject_id:"student-1",borrower_type:"student",name:"Brian Otieno",identifier:"2451"};
 const book=(code:string)=>({id:code,title:`Book ${code}`,barcode:code,status:"available"});
 beforeEach(()=>{request.mockReset();localStorage.clear();});
+it("keeps one title selected across rapid registrations and counts only saved copies",async()=>{
+  request.mockImplementation(async(path,options)=>{
+    if(String(path).includes("/catalogue?"))return [{id:"title-1",title:"Mathematics",total_copies:0,available_copies:0}];
+    if(String(path).endsWith("/register")){const body=options?.body as Record<string,unknown>;return {id:body.barcode,catalog_item_id:"title-1",title:"Mathematics"};}
+    if(String(path).endsWith("/classifications"))return {subjects:[],classes:[]};return [];
+  });
+  render(<SmartCatalogue registration/>);
+  fireEvent.click(await screen.findByRole("button",{name:/Mathematics/}));
+  const field=screen.getByLabelText("Scan a sticker to register");
+  for(const code of ["000001","000002"]){fireEvent.change(field,{target:{value:code}});fireEvent.keyDown(field,{key:"Enter"});}
+  await screen.findByText("2 registered this session");
+  const calls=request.mock.calls.filter(([path])=>String(path).endsWith("/register"));
+  expect(calls.map(([,options])=>(options?.body as Record<string,unknown>).barcode)).toEqual(["000001","000002"]);
+  expect(calls.every(([,options])=>(options?.body as Record<string,unknown>).catalog_item_id==="title-1")).toBe(true);
+});
+it("saves a library-only subject and multiple classes without academic mutations",async()=>{
+  request.mockImplementation(async(path,options)=>{
+    if(String(path).endsWith("/classifications"))return {subjects:[{id:"s1",name:"Fiction",source:"library"}],classes:[{id:"c1",name:"Grade 9"},{id:"c2",name:"Grade 10"}]};
+    if(String(path).endsWith("/subjects"))return {id:"s2",name:"Astronomy"};
+    if(String(path).endsWith("/register"))return {id:"copy",catalog_item_id:"title",title:(options?.body as Record<string,unknown>).title};
+    return [];
+  });
+  render(<SmartCatalogue registration/>);
+  fireEvent.click(screen.getByRole("button",{name:"Create a new title"}));
+  fireEvent.change(screen.getByLabelText("Book title"),{target:{value:"Sky stories"}});
+  fireEvent.click(screen.getByText("Subjects & suitable classes (optional)"));
+  fireEvent.click(await screen.findByLabelText("Fiction"));fireEvent.click(screen.getByLabelText("Grade 9"));fireEvent.click(screen.getByLabelText("Grade 10"));
+  fireEvent.change(screen.getByLabelText("Find or add a subject"),{target:{value:"Astronomy"}});
+  fireEvent.click(screen.getByRole("button",{name:"Add library-only subject"}));
+  await screen.findByText("Library subject saved. Academic settings are unchanged.");
+  const field=screen.getByLabelText("Scan a sticker to register");fireEvent.change(field,{target:{value:"000010"}});fireEvent.keyDown(field,{key:"Enter"});
+  await screen.findByText("1 registered this session");
+  const body=request.mock.calls.find(([path])=>String(path).endsWith("/register"))?.[1]?.body;
+  expect(body).toMatchObject({title:"Sky stories",subject_ids:["s1","s2"],class_ids:["c1","c2"],barcode:"000010"});
+  expect(request.mock.calls.every(([path])=>!String(path).includes("/academics"))).toBe(true);
+});
+it("renews an existing loan through the guarded command and refreshes its history",async()=>{
+  request.mockResolvedValue({loan_id:"loan-1",due_on:"2099-12-31"});const refresh=jest.fn();
+  render(<RenewLoan loan={{id:"loan-1",barcode:"000001",due_on:"2098-12-31",renewal_count:0}} onSaved={refresh}/>);
+  fireEvent.click(screen.getByRole("button",{name:"Renew loan"}));fireEvent.change(screen.getByLabelText("New due date for 000001"),{target:{value:"2099-12-31"}});
+  fireEvent.click(screen.getByRole("button",{name:"Confirm renewal"}));await waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1));
+  expect(request).toHaveBeenCalledWith("/api/library/smart/renew",expect.objectContaining({method:"POST",body:expect.objectContaining({loan_id:"loan-1",due_on:"2099-12-31"})}));
+});
 it("shows issue and return dates in Nairobi while preserving date-only due dates",()=>{
   expect(dateText("2026-10-19T23:30:00.000Z")).toBe("2026-10-20");
   expect(dateText("2026-10-19")).toBe("2026-10-19");

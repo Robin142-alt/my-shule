@@ -36,6 +36,8 @@ export async function requestDashboardApi(path,options={}){
   if(route==='stocktakes/stock-1/scan'){const duplicate=seen.has(options.body.barcode);seen.add(options.body.barcode);return {duplicate,outcome:'verified'};}
  }
  if(route==='borrowers')return [person];
+ if(route==='policies')return [];
+ if(route==='classifications')return {subjects:[{id:'fiction',name:'Fiction',source:'library'}],classes:[{id:'class-1',name:'Grade 9'},{id:'class-2',name:'Grade 10'}]};
  if(route==='summary')return {total_copies:3,available_copies:books.filter(b=>!b.loan).length,issued_copies:books.filter(b=>b.loan).length};
  if(route==='history')return {person,outstanding:books.filter(b=>b.loan).length,overdue:0,max_active_loans:5,loans:books.filter(b=>b.loan)};
  if(route==='scan'){const b=books.find(b=>b.barcode===u.searchParams.get('barcode'));if(!b)throw Error('Barcode not found in this school.');return structuredClone(b);}
@@ -127,6 +129,9 @@ async function run(){
    await page.keyboard.type('000004');await page.keyboard.press('Enter');
    await page.getByText(/Physical copy registered/).waitFor();
    assert.equal(await registration.evaluate(e=>e===document.activeElement),true);
+   for(const code of ['000005','000006']){await page.keyboard.type(code);await page.keyboard.press('Enter');}
+   await page.getByText('3 registered this session',{exact:true}).waitFor();
+   assert.equal((await page.evaluate(()=>window.__libraryCommands.filter(c=>c.route==='register').every(c=>c.body.catalog_item_id==='title-1'))),true);
    await check('registration');
    await navigate('Barcode Generator & Printing');
    await page.getByLabel('Custom quantity').fill('1000');await page.getByText(/11 sheet\(s\) · 56 empty/).waitFor();
