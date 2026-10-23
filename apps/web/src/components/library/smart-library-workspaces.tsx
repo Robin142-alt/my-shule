@@ -1,31 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Barcode, BookOpen, Download, Printer, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { useSchoolCommandIdentity } from "@/components/school/integrated-school-command-header";
+import { BorrowingPolicies, CopyDetails, LibraryExport, RenewLoan } from "./smart-library-tools";
 import {
   api, BorrowerPicker, dateText, errorText, Feedback, Field, inputClass, LibraryPanel,
-  LoadState, newRequest, Pager, ScannerInput, saveScannerCompletionKey, soundFeedback, useScannerCompletionKey, useLibraryData, WriteButton, type LibraryRow, type ScanCompletion,
+  LoadState, Pager, ScannerInput, saveScannerCompletionKey, soundFeedback, useScannerCompletionKey, useLibraryData, useCommand, WriteButton, type LibraryRow, type ScanCompletion,
 } from "./smart-library-shared";
 
-function useCommand() {
-  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[success,setSuccess]=useState("");
-  const pending=useRef(false),request=useRef<{fingerprint:string;id:string}|null>(null);
-  const run=async(path:string,body:LibraryRow,onSuccess:(result:LibraryRow)=>void,message:string,propagate=false)=>{
-    if(pending.current)return;
-    pending.current=true;setBusy(true);setError("");setSuccess("");
-    const fingerprint=JSON.stringify({path,body});
-    if(request.current?.fingerprint!==fingerprint)request.current={fingerprint,id:newRequest()};
-    try{
-      const result=await api<LibraryRow>(path,{...body,request_id:request.current.id});
-      request.current=null;setSuccess(message);onSuccess(result);
-    }catch(e){setError(errorText(e));if(propagate)throw e;}
-    finally{pending.current=false;setBusy(false);}
-  };
-  return {busy,error,success,run};
-}
 const searchQuery=(search:string,offset:number)=>`search=${encodeURIComponent(search)}&offset=${offset}`;
 const statuses=["available","issued","lost","damaged","retired"];
 
@@ -41,6 +26,7 @@ export function SmartOverview({onNavigate}:{onNavigate:(view:string)=>void}) {
       {[["issue","Issue books","Select one borrower, then scan their books."],["return","Return books","Scan just the books being returned."],["add_books","Register copies","Attach a sticker and connect it to a title."]].map(([id,title,copy])=><button key={id} onClick={()=>onNavigate(id)} className="rounded-xl border border-border p-5 text-left hover:bg-surface-muted"><BookOpen className="mb-2 text-primary" size={22}/><strong>{title}</strong><p className="mt-1 text-sm text-muted">{copy}</p></button>)}
     </div>
     {!data.loading&&!data.error&&data.data?.total_copies===0&&<div className="mt-5 rounded-xl border border-info-border bg-info-soft p-4 text-sm">Start by generating barcode stickers. Print a calibration sheet, attach stickers, then register your books. <Button className="mt-3" onClick={()=>onNavigate("barcode_print")}>Generate barcodes</Button></div>}
+    <BorrowingPolicies/>
   </LibraryPanel>;
 }
 
@@ -93,44 +79,7 @@ export function SmartCirculation({mode}:{mode:"issue"|"return"}) {
   </LibraryPanel>;
 }
 
-export function SmartCatalogue({registration=false}:{registration?:boolean}) {
-  const [search,setSearch]=useState(""),[offset,setOffset]=useState(0),[title,setTitle]=useState<LibraryRow|null>(null);
-  const [creating,setCreating]=useState(false),[barcode,setBarcode]=useState(""),[fields,setFields]=useState({title:"",author:"",isbn:"",category:"",publisher:"",condition:"good",shelf_location:""});
-  const data=useLibraryData<LibraryRow[]>(`catalogue?${searchQuery(search,offset)}`),command=useCommand();
-  const saveCopy=(code:string,propagate=false)=>command.run("register",{barcode:code,...fields,...(title?{catalog_item_id:title.id}:{})},result=>{
-    setTitle({id:result.catalog_item_id,title:result.title});setCreating(false);setBarcode("");data.refresh();
-  },"Physical copy registered. Keep the same title selected to scan the next copy.",propagate);
-  const register=async(code:string)=>{
-    setBarcode(code);
-    const list=await api<LibraryRow[]>(`barcodes?search=${encodeURIComponent(code)}&exact=true`);
-      const reserved=list.find(r=>r.barcode===code);
-      if(!reserved)throw new Error("This barcode is not reserved for your school. Generate or import it in Barcode Management.");
-      if(reserved.copy_id||reserved.retired_at)throw new Error("This sticker is already assigned or retired.");
-    if(title||(creating&&fields.title.trim()))await saveCopy(code,true);
-  };
-  const submit=(event:FormEvent)=>{event.preventDefault();void saveCopy(barcode);};
-  return <LibraryPanel title={registration?"Register physical books":"Book catalogue & registration"} description="Keep one title record and give every physical copy its own barcode. Existing catalogue records are preserved.">
-    <Feedback error={command.error} success={command.success}/>
-    <div className="grid gap-6 xl:grid-cols-2"><div>
-      <Field label="Find an existing title"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} placeholder="Title, author or ISBN"/></Field>
-      <LoadState resource={data}><div className="mt-3 space-y-2">{data.data?.map(item=><button key={item.id} onClick={()=>{setTitle(item);setCreating(false);}} className={`w-full rounded-xl border p-3 text-left ${title?.id===item.id?"border-primary bg-info-soft":"border-border hover:bg-surface-muted"}`}>
-        <strong className="block">{item.title}</strong><span className="text-sm text-muted">{item.author||"Author not recorded"} · {item.available_copies} available / {item.total_copies} copies</span></button>)}
-        {!data.data?.length&&<p className="py-5 text-sm text-muted">No matching titles. Create the title once, then register its physical copies.</p>}</div><Pager offset={offset} setOffset={setOffset} count={data.data?.length??0}/></LoadState>
-      <WriteButton variant="secondary" className="mt-3" onClick={()=>{setCreating(true);setTitle(null);}}>Create a new title</WriteButton>
-    </div><div className="rounded-xl border border-border p-4">
-      <ScannerInput label="Scan a sticker to register" autoFocus={!creating} focusKey={title?.id} onScan={register}/>
-      <p className="my-3 text-sm text-muted">{barcode&&!title&&!creating?`Sticker ${barcode} is ready. Select or create its book title below.`:"With a title selected, each scan saves the next physical copy automatically."}</p>
-      <h3 className="mb-3 font-bold">{title?title.title:creating?"New title":"Select a title to register copies"}</h3>
-      {(title||creating)&&<><form onSubmit={submit} className="space-y-3">
-        {creating&&<div className="grid gap-3 sm:grid-cols-2">{(["title","author","isbn","category","publisher"] as const).map(key=><Field key={key} label={key==="isbn"?"ISBN (optional)":`${key[0].toUpperCase()+key.slice(1)}${key==="title"?" *":" (optional)"}`}><input className={inputClass} required={key==="title"} value={fields[key]} onChange={e=>setFields({...fields,[key]:e.target.value})}/></Field>)}</div>}
-        <div className="grid gap-3 sm:grid-cols-2"><Field label="Condition"><select className={inputClass} value={fields.condition} onChange={e=>setFields({...fields,condition:e.target.value})}><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option></select></Field>
-          <Field label="Shelf location (optional)"><input className={inputClass} value={fields.shelf_location} onChange={e=>setFields({...fields,shelf_location:e.target.value})}/></Field></div>
-        <Field label="Scanned barcode"><input className={`${inputClass} font-mono`} required value={barcode} onChange={e=>setBarcode(e.target.value)} autoComplete="off"/></Field>
-        <WriteButton type="submit" disabled={command.busy||!barcode}>{command.busy?"Registering…":"Register this physical copy"}</WriteButton>
-      </form></>}
-    </div></div>
-  </LibraryPanel>;
-}
+export { SmartCatalogue } from "./smart-library-catalogue";
 
 export function SmartBarcodeWorkspace({management=false}:{management?:boolean}) {
   const [quantity,setQuantity]=useState(96),[offset,setOffset]=useState(0),[batchOffset,setBatchOffset]=useState(0),[batchId,setBatchId]=useState("");
@@ -195,9 +144,10 @@ export function SmartBorrowerRecords({loansOnly=false}:{loansOnly?:boolean}) {
     {!loansOnly&&<BorrowerPicker includeInactive selected={selected} onSelect={p=>{setSelected(p);setOffset(0);}}/>}
     {(selected||loansOnly)&&<><div className="my-4 grid gap-3 sm:grid-cols-2">{loansOnly&&<Field label="Search loans"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} placeholder="Borrower, admission number, barcode or title"/></Field>}
       <Field label="Loan status"><select className={inputClass} value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">All history</option><option value="active">Currently borrowed</option><option value="overdue">Overdue</option><option value="returned">Returned</option></select></Field></div>
+      {path&&<LibraryExport key={path} path={path} title={loansOnly?"Library loans":"Borrower book history"} kind="loans"/>}
       <LoadState resource={data}><div className="space-y-2">{rows.map(row=><div key={row.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border p-4">
         <div><strong className="block">{row.title}</strong><code>{row.barcode||row.accession_number}</code><p className="mt-1 text-sm text-muted">{row.borrower_name} · {row.borrower_number}</p></div>
-        <div className="text-sm"><p>Issued {dateText(row.issued_at)} · Due {dateText(row.due_on)}</p><p className={row.overdue?"font-semibold text-danger":"text-muted"}>{row.returned_at?`Returned ${dateText(row.returned_at)} (${row.return_condition||"recorded"})`:row.overdue?"Overdue — still with borrower":"Currently borrowed"}</p>
+        <div className="text-sm"><p>Issued {dateText(row.issued_at)} · Due {dateText(row.due_on)}</p><p className={row.overdue?"font-semibold text-danger":"text-muted"}>{row.returned_at?`Returned ${dateText(row.returned_at)} (${row.return_condition||"recorded"})`:row.overdue?"Overdue — still with borrower":"Currently borrowed"}</p><RenewLoan loan={row} onSaved={data.refresh}/>
           {row.overdue&&!row.returned_at&&<WriteButton variant="secondary" className="mt-2" disabled={command.busy} onClick={()=>void command.run(`/api/admin-command/librarian/overdue-books/${encodeURIComponent(row.id)}/remind`,{},()=>data.refresh(),"Overdue reminder queued for the exact active borrower or linked guardian accounts.")}>{command.busy?"Queuing reminder…":"Send overdue reminder"}</WriteButton>}</div>
       </div>)}{!rows.length&&<p className="p-5 text-sm text-muted">No matching loans. Use Issue Books to record a borrower’s first loan.</p>}</div><Pager offset={offset} setOffset={setOffset} count={rows.length}/></LoadState></>}
   </LibraryPanel>;
@@ -221,8 +171,9 @@ export function SmartInventory({incidents=false}:{incidents?:boolean}) {
     <Feedback error={command.error} success={command.success}/>
     <div className="mb-4 grid gap-3 sm:grid-cols-2"><Field label="Find a book"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} placeholder="Title or barcode"/></Field>
       <Field label="Availability"><select className={inputClass} value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">All copies</option>{statuses.map(s=><option key={s}>{s}</option>)}</select></Field></div>
+    <LibraryExport key={`${search}:${status}`} path={`inventory?search=${encodeURIComponent(search)}&status=${status}`} title={incidents?"Lost and damaged books":"Library inventory"} kind="inventory"/>
     <LoadState resource={data}><div className="space-y-2">{data.data?.map(c=><div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"><div><strong>{c.title}</strong><p className="text-sm text-muted">{c.barcode||c.accession_number} · {c.status} · {c.condition}</p></div>
-      <WriteButton variant="secondary" disabled={c.status==="issued"||c.status==="retired"} onClick={()=>{setSelected(c);setReason("");}}>Update condition</WriteButton></div>)}
+      <div className="flex flex-wrap gap-2"><CopyDetails copy={c} onSaved={data.refresh}/><WriteButton variant="secondary" disabled={c.status==="issued"||c.status==="retired"} onClick={()=>{setSelected(c);setReason("");}}>Update condition</WriteButton></div></div>)}
       {!data.data?.length&&<p className="py-6 text-sm text-muted">No matching physical copies. Register books or change the status filter.</p>}</div><Pager offset={offset} setOffset={setOffset} count={data.data?.length??0}/></LoadState>
     {selected&&<div className="mt-5 space-y-3 rounded-xl bg-surface-muted p-4"><form className="space-y-3" onSubmit={e=>{e.preventDefault();void command.run("incidents",{copy_id:selected.id,status:nextStatus,reason,...(replacement?{replacement_copy_id:replacement}:{})},()=>{setSelected(null);data.refresh();},"Condition change recorded with its history.");}}>
       <h3 className="font-bold">Update {selected.title} · {selected.barcode}</h3>
@@ -238,15 +189,16 @@ export function SmartStocktake() {
   const identity=useSchoolCommandIdentity();
   const [id,setId]=useState(""),[name,setName]=useState(""),[offset,setOffset]=useState(0),[feedback,setFeedback]=useState("");
   const [pendingScans,setPendingScans]=useState(0),[exporting,setExporting]=useState(false);
+  const [observedShelf,setObservedShelf]=useState("");
   const sessions=useLibraryData<LibraryRow[]>("stocktakes"),report=useLibraryData<LibraryRow>(id?`stocktakes/${id}?offset=${offset}`:null),command=useCommand();
   const exportAll=async()=>{
     let all:LibraryRow[]=[],exceptions:LibraryRow[]=[];let position=0;
     setExporting(true);
     try{
       while(true){const data=await api<LibraryRow>(`stocktakes/${id}?offset=${position}&limit=100`);all=all.concat(data.items);exceptions=exceptions.concat(data.exceptions);if(data.items.length<100&&data.exceptions.length<100)break;position+=100;}
-      downloadCsvFile({filename:`library-stocktake-${id}.csv`,headers:["Barcode","Accession","Title","Expected status","Current status","Verified / discrepancy"],
-        rows:[...all.map(r=>[r.barcode,r.accession_number,r.title,r.expected_status,r.current_status,r.verified_at??"Not seen"]),
-          ...exceptions.map(r=>[r.barcode,"","","","",r.outcome])].map(row=>row.map(v=>String(v??"")))});
+      downloadCsvFile({filename:`library-stocktake-${id}.csv`,headers:["Barcode","Accession","Title","Expected status","Current status","Expected shelf","Current / observed shelf","Verified / discrepancy"],
+        rows:[...all.map(r=>[r.barcode,r.accession_number,r.title,r.expected_status,r.current_status,r.expected_shelf,r.current_shelf,r.verified_at??"Not seen"]),
+          ...exceptions.map(r=>[r.barcode,"","","","","",r.observed_shelf,r.outcome])].map(row=>row.map(v=>String(v??"")))});
     }catch(e){setFeedback(errorText(e));}finally{setExporting(false);}
   };
   return <LibraryPanel title="Inventory & barcode stocktaking" description="Take a snapshot of expected books, then scan the shelves. Issued books are counted separately from books expected on site.">
@@ -257,7 +209,8 @@ export function SmartStocktake() {
     <LoadState resource={sessions}><Field label="Open or previous session"><select className={inputClass} disabled={pendingScans>0||command.busy} value={id} onChange={e=>{setId(e.target.value);setOffset(0);}}><option value="">Select a stocktaking session</option>{sessions.data?.map(s=><option value={s.id} key={s.id}>{s.name} · {s.status} · {s.verified}/{s.expected} seen</option>)}</select></Field></LoadState>
     {id&&<div className="mt-5 space-y-4"><LoadState resource={report}>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[["total","In snapshot"],["verified","Verified"],["issued","Expected with borrowers"],["missing","Expected on site, not seen"]].map(([key,label])=><div key={key} className="rounded-xl bg-surface-muted p-4"><span className="text-sm">{label}</span><strong className="block text-2xl">{report.data?.[key]??0}</strong></div>)}</div>
-      <ScannerInput autoFocus onPendingChange={setPendingScans} disabled={command.busy||report.data?.session.status!=="open"} onScan={async barcode=>{const result=await api<LibraryRow>(`stocktakes/${id}/scan`,{barcode});setFeedback(`${barcode}: ${result.duplicate?"already scanned":result.outcome.replaceAll("_"," ")}`);report.refresh();sessions.refresh();}}/>
+      <Field label="Shelf being checked (optional)"><input className={inputClass} disabled={pendingScans>0} value={observedShelf} onChange={e=>setObservedShelf(e.target.value)} placeholder="Use the shelf label to detect misplaced copies"/></Field>
+      <ScannerInput autoFocus onPendingChange={setPendingScans} disabled={command.busy||report.data?.session.status!=="open"} onScan={async barcode=>{const result=await api<LibraryRow>(`stocktakes/${id}/scan`,{barcode,observed_shelf:observedShelf});setFeedback(`${barcode}: ${result.duplicate?"already scanned":result.outcome.replaceAll("_"," ")}`);report.refresh();sessions.refresh();}}/>
       <p role="status" className="text-sm">{feedback}</p>
       <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={exporting} onClick={()=>void exportAll()}>{exporting?"Preparing report…":"Download complete stocktake CSV"}</Button>
         <Button variant="secondary" onClick={()=>openPrintDocument({eyebrow:identity.schoolName,logoUrl:identity.logoUrl,title:report.data?.session.name??"Library stocktake",subtitle:`Stocktake ${id} · ${dateText(report.data?.session.created_at)}`,

@@ -12,6 +12,17 @@ export class SmartLibraryController {
   constructor(private readonly library: SmartLibraryService, private readonly context: RequestContextService) {}
   @Get('summary') summary() { return this.library.summary(); }
   @Get('catalogue') catalogue(@Query() q: Record<string,string>) { return this.library.catalogue(q); }
+  @Get('classifications') classifications() { return this.library.classifications(); }
+  @Get('registration-range') registrationRange(@Query() q: Record<string,string>) { return this.library.registrationRange(q); }
+  @Get('policies') policies() { return this.library.policies(); }
+  @Post('policies') @Permissions('library:write')
+  savePolicy(@Body() b: Record<string,unknown>) { return this.library.savePolicy(b); }
+  @Post('subjects') @Permissions('library:write')
+  createSubject(@Body() b: Record<string,unknown>) { return this.library.createSubject(b); }
+  @Post('catalogue') @Permissions('library:write')
+  updateTitle(@Body() b: Record<string,unknown>) { return this.library.updateTitle(b); }
+  @Post('copies/details') @Permissions('library:write')
+  updateCopy(@Body() b: Record<string,unknown>) { return this.library.updateCopy(b); }
   @Get('inventory') inventory(@Query() q: Record<string,string>) { return this.library.inventory(q); }
   @Get('scan') scan(@Query('barcode') barcode: string) { return this.library.scan(barcode); }
   @Get('borrowers') borrowers(@Query() q: Record<string,string>) { return this.library.borrowers(q); }
@@ -25,6 +36,10 @@ export class SmartLibraryController {
   import(@Body() b: Record<string,unknown>) { return this.library.importBarcodes(b); }
   @Post('register') @Permissions('library:write')
   register(@Body() b: Record<string,unknown>) { return this.library.register(b); }
+  @Post('register-batch') @Permissions('library:write')
+  registerBatch(@Body() b: Record<string,unknown>) { return this.library.registerBatch(b); }
+  @Post('renew') @Permissions('library:write')
+  renew(@Body() b: Record<string,unknown>) { return this.library.renew(b); }
   @Post('issue') @Permissions('library:write')
   issue(@Body() b: Record<string,unknown>) { return this.library.issue(b); }
   @Post('return') @Permissions('library:write')

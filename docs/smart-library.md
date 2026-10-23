@@ -162,6 +162,47 @@ closes scans without rewriting inventory or automatically declaring books lost.
 Current status is displayed alongside snapshot status so circulation during
 stocktaking is visible. The complete snapshot can be downloaded as CSV.
 
+## Catalogue and circulation refinements
+
+Registration still requires only a title and the exact reserved copy barcode.
+Select an existing title once and scan continuously; the selected title and copy
+defaults remain in place, with a counter of successfully saved copies. Failed
+requests keep the barcode and idempotency key available for a safe retry.
+
+Optional subjects are selected from the school's academic subjects or created
+as library-only classifications. Creating or selecting a library subject never
+writes to academic subjects, classes, exams or timetables. Suitable classes are
+optional, can be multiple, and describe suitability rather than blocking loans.
+Unclassified novels and general books remain valid. ISBN, edition, publisher,
+language, condition, location, borrowing restrictions and acquisition details
+are progressively disclosed. Duplicate normalized title/author/ISBN/publisher/
+edition combinations reuse the existing title under a transaction lock; distinct
+editions remain separate. Existing duplicate catalogue records are not merged or
+deleted automatically. Catalogue corrections preserve copy IDs and loan history.
+
+An existing title can register up to 1,000 unused labels from a reserved batch in
+one atomic request. Preview the first/last printed positions, then confirm that
+every label is for that title. Positions follow stored batch order, not arithmetic
+on barcode strings. The server revalidates ownership and locks every reserved
+identifier before a set-based copy insert. Occupied, retired or out-of-range
+labels reject the entire request. Retried requests return the original result.
+Larger holdings use additional ranges; printing and global allocation are unchanged.
+
+Renewals extend the same active loan, append a ledger event and renewal history,
+and retain its original issue date. Returned copies, former/restricted borrowers,
+reference-only copies, waiting reservations and exhausted school renewal limits
+are rejected. Concurrent return/renewal requests lock the physical copy first.
+The overview exposes existing student/staff borrowing rules for explicit editing;
+no new fine policy or default limit is imposed. Shelf/lending corrections require
+a reason and an audit event. Stocktaking can record the shelf being checked and
+flag misplaced books without silently moving them.
+
+Inventory and borrower/loan screens export every page matching the filters.
+Prepare the report before downloading CSV or opening the branded print/PDF view;
+the preview states its total and whether only the first 25 rows are displayed.
+Original label sizes, global reservations, borrower links and historical records
+remain unchanged by these refinements.
+
 ## Hardware acceptance checklist (requires real equipment)
 
 - Use each representative 1D/2D keyboard-HID scanner, connection type (USB,
