@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { dateText, ScannerInput } from "@/components/library/smart-library-shared";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { dateText, ScannerInput, useCommand } from "@/components/library/smart-library-shared";
 import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords, SmartScannerSettings } from "@/components/library/smart-library-workspaces";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { SmartCatalogue } from "@/components/library/smart-library-catalogue";
@@ -12,6 +12,15 @@ const request=jest.mocked(requestDashboardApi);
 const borrower={subject_id:"student-1",borrower_type:"student",name:"Brian Otieno",identifier:"2451"};
 const book=(code:string)=>({id:code,title:`Book ${code}`,barcode:code,status:"available"});
 beforeEach(()=>{request.mockReset();localStorage.clear();});
+it("retains the failed scan request ID even after another registration succeeds",async()=>{
+  request.mockRejectedValueOnce(new Error("Connection interrupted")).mockResolvedValue({id:"copy"});
+  const {result}=renderHook(()=>useCommand()),saved=jest.fn();
+  await act(async()=>{await result.current.run("register",{barcode:"000001",catalog_item_id:"title"},saved,"Saved");});
+  await act(async()=>{await result.current.run("register",{barcode:"000002",catalog_item_id:"title"},saved,"Saved");});
+  await act(async()=>{await result.current.run("register",{barcode:"000001",catalog_item_id:"title"},saved,"Saved");});
+  expect((request.mock.calls[0][1]?.body as Record<string,unknown>).request_id).toBe((request.mock.calls[2][1]?.body as Record<string,unknown>).request_id);
+  expect(saved).toHaveBeenCalledTimes(2);
+});
 it("keeps one title selected across rapid registrations and counts only saved copies",async()=>{
   request.mockImplementation(async(path,options)=>{
     if(String(path).includes("/catalogue?"))return [{id:"title-1",title:"Mathematics",total_copies:0,available_copies:0}];

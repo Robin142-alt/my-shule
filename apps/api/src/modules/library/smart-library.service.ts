@@ -267,7 +267,7 @@ export class SmartLibraryService {
     if(input.lendable!==undefined&&typeof input.lendable!=='boolean')throw new BadRequestException('Choose whether this copy can be borrowed.');
     const acquisition:Input={};
     for(const key of ['source','acquired_on','price','notes'])if(input.acquisition?.[key]!==undefined&&input.acquisition[key]!=='')acquisition[key]=text(String(input.acquisition[key]),key,500);
-    if(acquisition.acquired_on&&(!DATE.test(acquisition.acquired_on)||Number.isNaN(Date.parse(acquisition.acquired_on))))throw new BadRequestException('Use a valid acquisition date.');
+    if(acquisition.acquired_on&&(!DATE.test(acquisition.acquired_on)||Number.isNaN(Date.parse(acquisition.acquired_on))||new Date(acquisition.acquired_on).toISOString().slice(0,10)!==acquisition.acquired_on))throw new BadRequestException('Use a valid acquisition date.');
     if(acquisition.price&&!/^\d+(\.\d{1,2})?$/.test(acquisition.price))throw new BadRequestException('Price must be a positive amount with up to two decimal places.');
     return {condition,lendable:input.lendable??true,acquisition};
   }
@@ -401,7 +401,7 @@ export class SmartLibraryService {
   }
   async savePolicy(input:Input) {
     const {tenant}=this.scope();const type=String(input.borrower_type);
-    if(!['student','staff'].includes(type)||!Number.isSafeInteger(input.max_active_loans)||input.max_active_loans<1||!Number.isSafeInteger(input.max_renewals)||input.max_renewals<0)throw new BadRequestException('Set a positive borrowing limit and zero or more renewals for students or staff.');
+    if(!['student','staff'].includes(type)||!Number.isSafeInteger(input.max_active_loans)||input.max_active_loans<1||input.max_active_loans>2147483647||!Number.isSafeInteger(input.max_renewals)||input.max_renewals<0||input.max_renewals>2147483647)throw new BadRequestException('Set a positive borrowing limit and zero or more renewals, within the supported whole-number range, for students or staff.');
     return this.command('policy.update',input,async()=>{
       await this.rows(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`,[`library-policy:${tenant}:${type}`]);
       const updated=await this.rows(`UPDATE library_borrower_limits SET max_active_loans=$3,max_renewals=$4 WHERE tenant_id=$1 AND borrower_type=$2 RETURNING id`,[tenant,type,input.max_active_loans,input.max_renewals]);
