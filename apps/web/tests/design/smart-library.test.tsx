@@ -43,7 +43,7 @@ it("retries an interrupted new-title scan with its original payload after anothe
     if(String(path).endsWith("/register")){
       const body=options?.body as Record<string,unknown>;
       if(body.barcode==="000001"&&!failed){failed=true;throw new Error("Connection interrupted");}
-      return {id:body.barcode,catalog_item_id:"title-1",title:"General book",catalogue:{id:"title-1",title:"General book",subjects:[],classes:[]}};
+      return {id:body.barcode,catalog_item_id:"title-1",title:"General book",catalogue:{id:"title-1",title:"General book",category:"General",language:"English",subjects:[],classes:[]}};
     }
     return [];
   });
@@ -62,6 +62,9 @@ it("retries an interrupted new-title scan with its original payload after anothe
   const calls=request.mock.calls.filter(([path])=>String(path).endsWith("/register"));
   expect(calls).toHaveLength(3);expect(calls[2][1]?.body).toEqual(calls[0][1]?.body);
   expect(screen.queryByText("Scans needing attention")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button",{name:"Edit title details"}));
+  expect(screen.getByLabelText("Category (optional)")).toHaveValue("General");
+  expect(screen.getByLabelText("Language (optional)")).toHaveValue("English");
 });
 it("saves a library-only subject and multiple classes without academic mutations",async()=>{
   request.mockImplementation(async(path,options)=>{

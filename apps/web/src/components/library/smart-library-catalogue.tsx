@@ -32,7 +32,10 @@ export function SmartCatalogue({registration=false}:{registration?:boolean}) {
     return command.run("register",payload,result=>{
     const newTitle=!selected.current;
     const item=result.catalogue??{...fields,...selected.current,id:result.catalog_item_id,title:result.title};selected.current=item;setTitle(item);setCreating(false);setEditing(false);setBarcode("");setCount(n=>n+1);setFailed(previous=>{const next={...previous};delete next[code];return next;});data.refresh();
-    if(result.catalogue){setSubjects(item.subjects.map((s:LibraryRow)=>s.id));setClasses(item.classes.map((c:LibraryRow)=>c.id));}
+    if(result.catalogue){
+      setFields(current=>({...current,...Object.fromEntries(["title","author","isbn","edition","publisher","category","language"].map(key=>[key,item[key]??""]))}));
+      setSubjects(item.subjects.map((s:LibraryRow)=>s.id));setClasses(item.classes.map((c:LibraryRow)=>c.id));
+    }
     scanPayloads.current.delete(code);if(newTitle)options.refresh();
   },"Physical copy registered. Ready for the next sticker.",propagate);
   };
