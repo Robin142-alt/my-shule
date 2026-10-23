@@ -21,6 +21,7 @@ function applySecurityHeaders(response: NextResponse) {
     img-src 'self' blob: data:;
     font-src 'self';
     object-src 'none';
+    frame-src 'self' blob:;
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'none';

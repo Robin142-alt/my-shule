@@ -12,6 +12,11 @@ async function read(path, init = {}) {
 // Test the actual compiled Worker and its asset bindings, never `next start`.
 const homepage = await read('/');
 assert.equal(homepage.status, 200, 'homepage');
+const csp=homepage.headers.get('content-security-policy') ?? '';
+assert.match(csp, /frame-src 'self' blob:/, 'local PDF preview frames allowed');
+assert.match(csp, /object-src 'none'/, 'plugin embedding remains blocked');
+assert.match(csp, /frame-ancestors 'none'/, 'external embedding remains blocked');
+assert.equal(homepage.headers.get('x-frame-options'), 'DENY');
 const html = await homepage.text();
 assert.match(html, /MyShule/);
 const asset = html.match(/(?:src|href)="([^" ]*\/_next\/static\/[^" ]+\.js)"/)?.[1];
