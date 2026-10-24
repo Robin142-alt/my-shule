@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
+import { ReportsWorkspace as LibraryReportsWorkspace } from "./librarian/reports-workspace";
 import {
   AlertTriangle,
   Banknote,
@@ -521,45 +522,7 @@ function RequestsApprovalsWorkspace() {
 }
 
 function ReportsDownloadsWorkspace() {
-  const { data: reportsResponse = [], isLoading } = useSchoolQuery<Array<Record<string, unknown>>>("/api/admin-command/librarian/reports");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const reports = Array.isArray(reportsResponse) ? reportsResponse : [];
-
-  const generateReport = async (format: string) => {
-    setIsGenerating(true);
-    try {
-      await requestDashboardApi("/api/admin-command/librarian/reports/generate", {
-        method: "POST",
-        body: { title: "Library operations report", format },
-      });
-      toast.success("Library report compiled", { description: "The report snapshot was generated from live library records." });
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to generate library report");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  return (
-    <Panel title="Reports & Downloads" description="Generate, preview, and export tenant-scoped library reports." icon={FileText} actions={
-      <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={isGenerating} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white disabled:opacity-50" onClick={() => generateReport("pdf")}>
-          {isGenerating ? "Generating..." : "Generate PDF"}
-        </button>
-        <button type="button" disabled={isGenerating} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground disabled:opacity-50" onClick={() => generateReport("csv")}>
-          Generate CSV
-        </button>
-      </div>
-    }>
-      <EndpointTable
-        isLoading={isLoading}
-        rows={reports}
-        emptyText="No library reports have been generated yet. Generate a report to compile live catalogue, loan, overdue, and fine records."
-        columns={["reportName", "type", "status", "generatedDate", "snapshotId"]}
-        title="Library reports"
-      />
-    </Panel>
-  );
+  return <LibraryReportsWorkspace />;
 }
 
 type LibraryWorkspaceContract = {

@@ -126,6 +126,12 @@ export class LibrarianCommandController {
     return this.service.generateReport(dto);
   }
 
+  @Post('reports/:id/download')
+  @Permissions('library:read')
+  downloadReport(@Param('id') id: string) {
+    return this.service.downloadReport(id);
+  }
+
   @Post('notices')
   @Permissions('library:write')
   sendNotice(@Body() dto: any) {

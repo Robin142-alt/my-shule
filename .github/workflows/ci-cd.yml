@@ -124,6 +124,8 @@ jobs:
         run: |
           npm --prefix apps/web run test:design -- --runTestsByPath tests/design/smart-library.test.tsx tests/design/librarian-live-workspaces.test.tsx tests/design/librarian-human-workflows.test.ts tests/design/library-workspace.test.tsx tests/design/library-module-access.test.ts
           node apps/web/tests/design/smart-library-browser.mjs
+          npm --prefix apps/web run test:design -- --runTestsByPath tests/design/librarian-reports.test.tsx tests/design/report-artifact-download.test.ts
+          npm run test:library-reports:browser
 
   cloudflare-build:
     runs-on: ubuntu-latest
@@ -278,6 +280,7 @@ jobs:
         run: |
           node --test dist/apps/api/src/modules/library/barcode-print.test.js dist/apps/api/src/modules/library/smart-library-permissions.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/smart-library.integration-spec.ts --testTimeout=60000
+          PG_BIN_DIR="$(pg_config --bindir)" npm run test:library-reports
 
       - name: Legal policy, immutable evidence and authenticated acceptance
         env:

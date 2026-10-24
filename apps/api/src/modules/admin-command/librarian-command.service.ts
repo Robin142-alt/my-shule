@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { LIBRARY_REPORT_TITLES, LIBRARY_SNAPSHOT_TYPES, libraryActivityReport, libraryReportPeriod } from './library-report-data';
 
 const LIBRARY_WORKFLOW_TARGET_ROLES = new Set([
   'librarian',
@@ -403,7 +405,7 @@ export class LibrarianCommandService {
       book_title: row.book_title ?? 'Library item',
       fine_type: this.formatFineType(row.fine_type),
       amount: Number(row.amount_minor ?? 0) / 100,
-      date_created: String(row.date_created).slice(0, 10),
+      date_created: new Date(row.date_created).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi' }),
       status: row.fine_status === 'waived' || row.billing_reference === 'waived' ? 'Waived' : row.fine_status === 'paid' || row.billing_reference === 'paid' ? 'Paid' : 'Pending',
       notes: row.notes,
     }));
@@ -420,32 +422,90 @@ export class LibrarianCommandService {
 
   async getReports() {
     const tenantId = this.requireTenantId();
-    return this.operations.listReportSnapshots(tenantId, 'librarian-command');
+    const { rows: reports } = await this.executeSql(`
+      SELECT snapshot.id::text, snapshot.title AS report_name, snapshot.format AS file_format,
+        COALESCE(snapshot.filters->>'report_type', 'library-operations') AS report_type,
+        COALESCE(snapshot.filters->>'period', 'Not recorded') AS period,
+        COALESCE(NULLIF(actor.display_name, ''), snapshot.generated_by_user_id, 'Not recorded') AS generated_by,
+        snapshot.created_at::text AS generated_at,
+        CASE WHEN length(COALESCE(snapshot.artifact->>'content_base64', '')) > 0 THEN 'Ready' ELSE 'Failed' END AS status
+      FROM report_snapshots snapshot
+      LEFT JOIN users actor ON actor.tenant_id = snapshot.tenant_id AND actor.id::text = snapshot.generated_by_user_id
+      WHERE snapshot.tenant_id = $1 AND snapshot.module = 'librarian-command'
+      ORDER BY snapshot.created_at DESC, snapshot.id DESC
+    `, [tenantId]);
+    const month = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit' });
+    return {
+      metrics: { total_reports: reports.length, this_month: reports.filter((report) =>
+        new Date(report.generated_at).toLocaleDateString('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit' }) === month).length, pending: 0 },
+      reports,
+    };
   }
 
   async generateReport(dto: any) {
     const tenantId = this.requireTenantId();
-    const userId = this.operations.uuidOrNull(this.requestContext.getStore()?.user_id);
-    const [overview, books, borrowers, issueBook, returnBook, overdueBooks, finesLostDamaged] = await Promise.all([
-      this.getOverview(),
-      this.getBooks(),
-      this.getBorrowers(),
-      this.getIssueBook(),
-      this.getReturnBook(),
-      this.getOverdueBooks(),
-      this.getFinesLostDamaged(),
-    ]);
-    return this.operations.generateReportSnapshot({
-      tenantId,
-      module: 'librarian-command',
-      reportId: 'library-operations',
-      title: String(dto?.name || dto?.title || 'Library operations report'),
-      format: dto?.format,
-      generatedByUserId: userId,
-      sections: { overview, books, borrowers, issueBook, returnBook, overdueBooks, finesLostDamaged },
-      filters: { requested_from: 'librarian-dashboard' },
-      targetRoles: ['principal', 'librarian'],
+    const userId = this.requireUserId();
+    const type = String(dto?.report_type ?? 'circulation');
+    if (!Object.hasOwn(LIBRARY_REPORT_TITLES, type)) throw new BadRequestException('Select a valid library report type.');
+    const format = String(dto?.format ?? 'pdf');
+    if (!['csv', 'xlsx', 'pdf'].includes(format)) throw new BadRequestException('Select PDF, CSV or Excel format.');
+    const period = LIBRARY_SNAPSHOT_TYPES.has(type) ? 'current' : String(dto?.period ?? 'this_month');
+    const query = (sql: string, params: unknown[]) => this.executeSql(sql, params);
+    const range = period === 'current' ? null : await libraryReportPeriod(query, tenantId, period);
+    let records: unknown[];
+    if (type === 'inventory') records = (await this.getBooks()).books;
+    else if (type === 'stock_status') records = (await this.executeSql(`
+      SELECT copy.status, COUNT(*)::int AS copies FROM library_copies copy
+      WHERE copy.tenant_id = $1 GROUP BY copy.status ORDER BY copy.status
+    `, [tenantId])).rows;
+    else if (type === 'overdue') records = (await this.getOverdueBooks()).overdue_books;
+    else if (type === 'fines') records = (await this.getFinesLostDamaged()).fines.filter((fine: any) =>
+      fine.date_created >= range!.start_date && fine.date_created < range!.end_date);
+    else records = await libraryActivityReport(query, tenantId, type, range!);
+    const { rows: schools } = await this.executeSql('SELECT name FROM tenants WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+    const { rows: actors } = await this.executeSql('SELECT display_name FROM users WHERE tenant_id = $1 AND id::text = $2 LIMIT 1', [tenantId, userId]);
+    const filters = { report_type: type, period, ...range, document_number: `LIB-${randomUUID()}`,
+      ...(type === 'fines' ? { scope: 'Fines created in this period, with their current settlement status.' } : {}) };
+    return this.prisma.withRequestTransaction(async () => {
+      const result = await this.operations.generateReportSnapshot({
+        tenantId,
+        module: 'librarian-command',
+        reportId: `library-${type.replaceAll('_', '-')}`,
+        title: LIBRARY_REPORT_TITLES[type],
+        format,
+        generatedByUserId: userId,
+        sections: { school: { name: schools[0]?.name ?? tenantId, generated_by: actors[0]?.display_name ?? userId },
+          [type]: { total_records: records.length, ...(records.length ? {} : { note: 'No matching school records for this report.' }), records } },
+        filters,
+        targetRoles: ['principal', 'librarian'],
+      });
+      await this.operations.recordWorkflowAction({ tenantId, actorUserId: userId,
+        sourceRole: this.requestContext.getStore()?.role ?? 'librarian', targetRoles: ['principal', 'librarian'],
+        eventType: 'library.report.generated', entityType: 'report_snapshot', entityId: result.snapshotId,
+        title: `${LIBRARY_REPORT_TITLES[type]} generated`, payload: { snapshot_id: result.snapshotId, ...filters } });
+      return result;
     });
+  }
+
+  async downloadReport(id: string) {
+    const tenantId = this.requireTenantId();
+    const userId = this.requireUserId();
+    const { rows } = await this.executeSql(`
+      SELECT id::text, snapshot_id AS "snapshotId", title, format, artifact, manifest, created_at::text AS "generatedDate"
+      FROM report_snapshots WHERE tenant_id = $1 AND module = 'librarian-command'
+        AND (id::text = $2 OR snapshot_id = $2) LIMIT 1
+    `, [tenantId, this.operations.requiredText(id, 'Report ID')]);
+    const report = rows[0];
+    if (!report) throw new NotFoundException('Library report was not found in this school.');
+    const artifact = report.artifact;
+    const content = Buffer.from(artifact?.content_base64 ?? '', 'base64');
+    if (!content.length || content.length !== Number(artifact?.byte_length)
+      || createHash('sha256').update(content).digest('hex') !== artifact?.checksum_sha256) {
+      throw new ConflictException('The saved file is missing or damaged. Generate this report again.');
+    }
+    await this.operations.recordAudit(tenantId, 'library.report.accessed', 'report_snapshot', report.id,
+      { snapshot_id: report.snapshotId, checksum_sha256: artifact.checksum_sha256 }, userId);
+    return { success: true, report };
   }
 
   async recordAction(dto: any) {

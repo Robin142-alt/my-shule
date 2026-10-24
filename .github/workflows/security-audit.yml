@@ -38,6 +38,9 @@ jobs:
       - name: Dependency vulnerability scan
         run: npm run security:deps
 
+      - name: Frontend dependency vulnerability scan
+        run: npm --prefix apps/web audit --omit=dev --audit-level=high
+
       - name: Upload security artifacts
         if: always()
         uses: actions/upload-artifact@v4

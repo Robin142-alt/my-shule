@@ -716,7 +716,9 @@ describe("dashboard action contract safety", () => {
     expect(source).toMatch(/admin-command\/librarian\/borrowers/);
     expect(source).toMatch(/admin-command\/librarian\/overdue-books/);
     expect(source).toMatch(/admin-command\/librarian\/fines-lost-damaged/);
-    expect(source).toMatch(/admin-command\/librarian\/reports\/generate/);
+    expect(source).toMatch(/<LibraryReportsWorkspace/);
+    const reportsSource = fs.readFileSync(path.join(process.cwd(), "src/components/school/librarian/reports-workspace.tsx"), "utf8");
+    expect(reportsSource).toMatch(/admin-command\/librarian\/reports\/generate/);
     expect(source).toMatch(/persistLibraryWorkflowAction/);
     expect(source).toMatch(/admin-command\/librarian\/actions/);
     expect(source).toMatch(/CreateLibraryReservationModal/);
