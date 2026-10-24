@@ -1,6 +1,9 @@
 // Isolated fixture: real report UI and stylesheet, local test responses, no school connections.
-const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), assert = require('node:assert/strict');
-const { createRequire } = require('node:module');
+import fs from 'node:fs';
+import path from 'node:path';
+import http from 'node:http';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 const web = path.resolve('apps/web'), req = createRequire(path.join(web, 'package.json'));
 const { webpack } = req('next/dist/compiled/webpack/webpack.js');
 const { chromium } = req('@playwright/test');
