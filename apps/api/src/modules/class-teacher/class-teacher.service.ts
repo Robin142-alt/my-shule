@@ -582,40 +582,6 @@ export class ClassTeacherService {
     return this.saveMarks(tenantId, teacherUserId, payload, actorUserId);
   }
 
-  async getAssistedMarkAssignments() {
-    const { tenantId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
-    const { rows } = await this.executeSql(`SELECT DISTINCT
-        series.id::text AS exam_id, series.name AS exam_name,
-        section.id AS class_section_id, section.name AS class_name,
-        subject.id AS subject_id, subject.name AS subject_name,
-        assignment.teacher_user_id,
-        COALESCE(NULLIF(staff.display_name, ''), staff.staff_number, 'Teacher name unavailable') AS teacher_name
-      FROM exam_mark_entry_windows w
-      JOIN exam_series series ON series.tenant_id = w.tenant_id AND series.id = w.exam_series_id
-      JOIN class_sections section ON section.tenant_id = w.tenant_id AND section.id = w.class_section_id::text
-      JOIN subjects subject ON subject.tenant_id = w.tenant_id AND subject.id = w.subject_id::text
-      JOIN teacher_subject_assignments assignment ON assignment.tenant_id = w.tenant_id
-        AND assignment.class_section_id = section.id AND assignment.subject_id = subject.id
-        AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
-        AND assignment.status = 'active' AND assignment.mark_entry_allowed = TRUE
-        AND assignment.effective_from <= CURRENT_DATE
-        AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
-      LEFT JOIN staff_profiles staff ON staff.tenant_id = w.tenant_id AND staff.user_id::text = assignment.teacher_user_id
-      WHERE w.tenant_id = $1 AND series.status <> 'archived'
-      ORDER BY exam_name, class_name, subject_name, teacher_name`, [tenantId]);
-    return { assignments: rows };
-  }
-
-  getAssistedMarkbooks(teacherUserId: string) {
-    const { tenantId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
-    return this.getPendingMarks(tenantId, teacherUserId, true, true);
-  }
-
-  saveAssistedMarks(teacherUserId: string, payload: SaveTeacherMarksDto) {
-    const { tenantId, actorUserId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
-    return this.saveMarks(tenantId, teacherUserId, payload, actorUserId);
-  }
-
   async getPendingMarks(tenantId: string, userId: string, includeUnavailable = false, includeSubmitted = false) {
     const query = `
       SELECT DISTINCT

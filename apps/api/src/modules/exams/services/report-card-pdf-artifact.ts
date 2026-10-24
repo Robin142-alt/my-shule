@@ -166,10 +166,10 @@ function drawPaperDetails(document: PDFKit.PDFDocument, payload: ReportCardPaylo
     for (const paper of getReportCardAssessmentComponents(subject)) {
       if (y > 735) {
         document.addPage({ size: 'A4', margin: 0 });
-        drawHeader(document, payload, verificationCode);
-        drawStudentInformation(document, payload);
-        document.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('PAPER RESULTS — OUT OF 100', MARGIN, 225);
-        drawFooter(document, verificationCode, generatedAt); y = 255;
+        const headerBottom = drawHeader(document, payload, verificationCode);
+        const informationBottom = drawStudentInformation(document, payload, headerBottom + 8);
+        document.font('MyShule-Bold').fontSize(11).fillColor(NAVY).text('PAPER RESULTS — OUT OF 100', MARGIN, informationBottom + 16);
+        drawFooter(document, verificationCode, generatedAt); y = informationBottom + 46;
       }
       const label = `${subject.subject_name} — ${paper.name}`;
       const result = paper.percentage === null ? scoreStatus(paper.score_status) : `${formatNumber(paper.percentage)}%`;
@@ -539,27 +539,28 @@ function drawTermTrendChart(
   y: number,
   width: number,
   height: number,
-  history: Array<{ exam_series_id: string; label: string; percentage: number }>,
+  history: Array<{ exam_series_id: string; label: string; percentage: number | null }>,
 ) {
   document.roundedRect(x, y, width, height, 5).fillAndStroke('#fbfdff', LINE);
   document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text('Term Performance Trend', x + 5, y + 7, { width: width - 10, align: 'center', lineBreak: false });
   const labelHeight = Math.max(16, ...history.map(entry => document.font('MyShule-Regular').fontSize(6).heightOfString(entry.label, { width: (width - 8) / history.length })));
   const plot = { x: x + 24, y: y + 24, width: width - 34, height: height - 35 - labelHeight };
   drawChartAxes(document, plot.x, plot.y, plot.width, plot.height);
-  const points = history.map((entry, index) => ({
+  const points = history.map((entry, index) => entry.percentage === null ? null : ({
     ...entry,
+    percentage: entry.percentage,
     x: plot.x + 8 + (((plot.width - 16) * index) / Math.max(1, history.length - 1)),
     y: plot.y + plot.height - ((Math.max(0, Math.min(100, entry.percentage)) / 100) * plot.height),
   }));
-  if (points.length > 1) {
-    document.moveTo(points[0]?.x ?? plot.x, points[0]?.y ?? plot.y);
-    points.slice(1).forEach((point) => document.lineTo(point.x, point.y));
-    document.lineWidth(1.4).strokeColor(GOLD).stroke();
-  }
   points.forEach((point, index) => {
+    if (!point) return;
+    const previous = points[index - 1];
+    if (previous) document.moveTo(previous.x, previous.y).lineTo(point.x, point.y).lineWidth(1.4).strokeColor(GOLD).stroke();
     document.circle(point.x, point.y, 3.2).fill(GOLD);
     document.font('MyShule-Bold').fontSize(5.2).fillColor(NAVY).text(`${formatNumber(point.percentage)}%`, point.x - 15, Math.max(plot.y - 1, point.y - 10), { width: 30, align: 'center', lineBreak: false });
-    document.font('MyShule-Regular').fontSize(6).fillColor(MUTED).text(point.label, x + 4 + (index * (width - 8) / history.length), plot.y + plot.height + 5, { width: (width - 8) / history.length, align: 'center' });
+  });
+  history.forEach((entry, index) => {
+    document.font('MyShule-Regular').fontSize(6).fillColor(MUTED).text(entry.label, x + 4 + (index * (width - 8) / history.length), plot.y + plot.height + 5, { width: (width - 8) / history.length, align: 'center' });
   });
 }
 
