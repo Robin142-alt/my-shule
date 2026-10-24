@@ -147,7 +147,7 @@ DO $$ DECLARE tbl text; BEGIN
   EXECUTE format('ALTER FUNCTION myshule_report_signer_changed() SET search_path TO %I, pg_temp',current_schema());
   FOREACH tbl IN ARRAY ARRAY[
     'tenants','students','student_class_assignments','student_subject_enrollments','exam_marks',
-    'exam_assessments','exam_assessment_components','exam_grading_policies','exam_grading_policy_boundaries',
+    'exam_assessments','exam_assessment_components','exam_grading_policies','exam_grading_policy_boundaries','exam_subject_weightings',
     'exam_grade_boundaries','academics_grading_systems','academics_report_card_settings','exam_settings',
     'exam_report_card_signatures','academics_class_teachers','staff_profiles','report_card_comments',
     'attendance_records','exam_result_snapshots','academic_terms','academic_years','class_sections','class_streams',

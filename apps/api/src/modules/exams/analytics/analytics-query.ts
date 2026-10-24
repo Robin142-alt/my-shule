@@ -1,3 +1,4 @@
+import { examGradeOverrideSql, paperClassScopeSql } from '../exam-result-policy';
 import { analyticsScopeSql, type ExamAnalyticsScopeLevel } from './analytics-scope';
 
 /** One tenant-bound read model: aggregate assessments before returning data to the engine.
@@ -32,6 +33,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     JOIN exam_context series ON series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
     JOIN exam_assessments assessment ON assessment.tenant_id = mark_window.tenant_id
       AND assessment.exam_series_id = mark_window.exam_series_id AND assessment.subject_id = mark_window.subject_id
+      AND ${paperClassScopeSql('assessment', 'mark_window.class_section_id')}
     JOIN student_subject_enrollments enrollment ON enrollment.tenant_id = mark_window.tenant_id
       AND enrollment.class_section_id::text = mark_window.class_section_id::text AND enrollment.subject_id::text = mark_window.subject_id::text
       AND enrollment.academic_year_id::text = series.academic_year_id
@@ -44,7 +46,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
         AND placement.student_id::text = enrollment.student_id::text AND placement.class_section_id::text = enrollment.class_section_id::text
         AND placement.academic_year_id::text = series.academic_year_id AND placement.status IN ('active','completed','transferred'))
   ), evidence AS (
-    SELECT key.*, assessment.subject_id::text, assessment.max_score, assessment.weight,
+    SELECT key.*, assessment.subject_id::text, assessment.max_score, COALESCE(assessment.weight,assessment.max_score) AS weight,
       series.name AS exam_name, series.status AS exam_status, series.starts_on::text AS exam_date, series.ends_on, series.academic_term_id::text,
       series.academic_year_id, series.term_name, series.year_name,
       subject.name AS subject_name, subject.department_id::text, department.name AS department_name,
@@ -58,11 +60,13 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     FROM evidence_keys key
     JOIN exam_context series ON series.tenant_id = key.tenant_id AND series.id = key.exam_series_id
     JOIN exam_assessments assessment ON assessment.tenant_id = key.tenant_id AND assessment.id = key.assessment_id
+      AND assessment.exam_series_id=key.exam_series_id AND ${paperClassScopeSql('assessment','key.class_section_id')}
     JOIN subjects subject ON subject.tenant_id = key.tenant_id AND subject.id::text = assessment.subject_id::text
     JOIN class_sections section ON section.tenant_id = key.tenant_id AND section.id::text = key.class_section_id
     JOIN students student ON student.tenant_id = key.tenant_id AND student.id::text = key.student_id
     LEFT JOIN academics_departments department ON department.tenant_id = key.tenant_id AND department.id::text = subject.department_id::text
     LEFT JOIN exam_marks mark ON mark.tenant_id = key.tenant_id AND mark.assessment_id = key.assessment_id AND mark.student_id::text = key.student_id
+      AND mark.exam_series_id=key.exam_series_id AND mark.class_section_id::text=key.class_section_id
     LEFT JOIN LATERAL (
       SELECT p.stream_id, to_jsonb(p)->>'cohort_id' AS cohort_id FROM student_class_assignments p WHERE p.tenant_id = key.tenant_id AND p.student_id::text = key.student_id
         AND p.class_section_id::text = key.class_section_id AND p.academic_year_id::text = series.academic_year_id
@@ -91,13 +95,14 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     SELECT tenant_id, exam_series_id::text, exam_name, exam_status, exam_date, ends_on, academic_term_id, academic_year_id, term_name, year_name,
       student_id, student_name, admission_number, subject_id, subject_name, department_id, department_name,
       class_section_id, class_name, grade_level, stream_id, stream_name, cohort_id, report_status, grading_policy_id, grading_policy_version, grading_snapshot,
-      SUM(score / NULLIF(max_score,0) * 100 * weight) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score)
-        / NULLIF(SUM(weight) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score),0) AS average,
+      ${examGradeOverrideSql('score_status')} AS subject_override,
+      CASE WHEN ${examGradeOverrideSql('score_status')} IS NULL AND BOOL_AND(finalized OR score_status='exempt') THEN SUM(score / NULLIF(max_score,0) * 100 * weight) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score)
+        / NULLIF(SUM(weight) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score),0) END AS average,
       COUNT(*)::int AS expected,
       COUNT(*) FILTER (WHERE mark_id IS NOT NULL)::int AS recorded,
       COUNT(*) FILTER (WHERE finalized AND score_status = 'entered' AND score BETWEEN 0 AND max_score)::int AS numeric_count,
       COUNT(*) FILTER (WHERE score_status = 'absent')::int AS absent,
-      COUNT(*) FILTER (WHERE score_status IN ('missing','not_assessed','incomplete'))::int AS missing,
+      COUNT(*) FILTER (WHERE score_status IN ('missing','not_assessed','incomplete','X'))::int AS missing,
       COUNT(*) FILTER (WHERE score_status <> 'entered' AND mark_id IS NOT NULL)::int AS explicit_count,
       COUNT(*) FILTER (WHERE score_status = 'entered' AND (score IS NULL OR score < 0 OR score > max_score))::int AS invalid,
       COUNT(*) FILTER (WHERE mark_status = 'draft')::int AS draft,
@@ -110,7 +115,11 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
       student_id, student_name, admission_number, subject_id, subject_name, department_id, department_name,
       class_section_id, class_name, grade_level, stream_id, stream_name, cohort_id, report_status, grading_policy_id, grading_policy_version, grading_snapshot
   )
-  SELECT result.*, policy.id::text AS policy_id, CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END AS reporting_mode,
+  SELECT result.*, (SELECT ${examGradeOverrideSql('all_evidence.score_status')} FROM evidence all_evidence
+      WHERE all_evidence.tenant_id=result.tenant_id AND all_evidence.exam_series_id::text=result.exam_series_id AND all_evidence.student_id=result.student_id) AS overall_override,
+    COALESCE((SELECT weighting.weight::float FROM exam_subject_weightings weighting WHERE weighting.tenant_id=result.tenant_id
+      AND weighting.grading_policy_id=policy.id AND weighting.subject_id::text=result.subject_id),1) AS subject_weight,
+    policy.id::text AS policy_id, CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END AS reporting_mode,
     COALESCE((SELECT settings.show_rank FROM academics_report_card_settings settings
       WHERE settings.tenant_id = result.tenant_id AND settings.is_active = TRUE AND settings.archived_at IS NULL
       ORDER BY settings.updated_at DESC, settings.id DESC LIMIT 1),FALSE) AND (CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END) = 'traditional' AS ranking_enabled,

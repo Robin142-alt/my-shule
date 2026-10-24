@@ -13,6 +13,7 @@ import type {
   ReportCardPayload,
   ReportCardSubjectPayload,
 } from './report-card-template.service';
+import { getReportCardAssessmentComponents } from './report-card-template.service';
 
 const NAVY = '#08265f';
 const GOLD = '#f2a900';
@@ -75,6 +76,8 @@ export async function createBulkReportCardPdfFile(entries: AsyncIterable<BulkRep
   // Attach immediately: disk errors must not become unhandled rejections during rendering.
   void written.catch(() => undefined);
   let count = 0;
+  let pageCount = 0;
+  document.on('pageAdded', () => { if (++pageCount > limits.maxPages) throw new Error('Report export exceeds its page limit; select a smaller scope'); });
   const started=Date.now();
   try {
     registerReportFonts(document);
@@ -151,6 +154,31 @@ function renderReportCardPageContent(
   const analyticsBottom = drawAnalyticsAndOverview(document, payload, performanceBottom + 8);
   drawCommentsAndSignatures(document, payload, analyticsBottom + 8);
   drawFooter(document, verificationCode, generatedAt);
+  drawPaperDetails(document, payload, verificationCode, generatedAt);
+}
+
+// Keep the established report page intact. Multi-paper results get a readable, paginated supplement.
+function drawPaperDetails(document: PDFKit.PDFDocument, payload: ReportCardPayload, verificationCode: string, generatedAt: string) {
+  const subjects = payload.subjects.filter(subject => getReportCardAssessmentComponents(subject).length > 1);
+  if (!subjects.length) return;
+  let y = PAGE_HEIGHT;
+  for (const subject of subjects) {
+    for (const paper of getReportCardAssessmentComponents(subject)) {
+      if (y > 735) {
+        document.addPage({ size: 'A4', margin: 0 });
+        drawHeader(document, payload, verificationCode);
+        drawStudentInformation(document, payload);
+        document.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('PAPER RESULTS — OUT OF 100', MARGIN, 225);
+        drawFooter(document, verificationCode, generatedAt); y = 255;
+      }
+      const label = `${subject.subject_name} — ${paper.name}`;
+      const result = paper.percentage === null ? scoreStatus(paper.score_status) : `${formatNumber(paper.percentage)}%`;
+      document.font('Helvetica').fontSize(9).fillColor(INK).text(label, MARGIN + 8, y, { width: CONTENT_WIDTH - 95 });
+      const height = Math.max(25, document.heightOfString(label, { width: CONTENT_WIDTH - 95 }) + 10);
+      document.font('Helvetica-Bold').fontSize(10).text(result, PAGE_WIDTH - MARGIN - 75, y, { width: 65, align: 'right' });
+      y += height;
+    }
+  }
 }
 
 function renderReportCardPdf(
@@ -338,12 +366,12 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
   const enteredSubjects = payload.subjects.filter(isEntered);
   const totals = asRecord(payload.totals);
   const summary: Array<[string, string]> = [];
-  if (enteredSubjects.length) summary.push(['Average', `${formatNumber(payload.totals.percentage)}%`]);
+  if (enteredSubjects.length && payload.totals.percentage !== null) summary.push(['Average', `${formatNumber(payload.totals.percentage)}%`]);
   const overallGrade = recordText(totals, 'overall_grade', 'grade_label');
   if (overallGrade) summary.push(['Overall Grade', overallGrade]);
   const classPosition = recordText(totals, 'class_position', 'position');
   if (classPosition) summary.push(['Class Position', classPosition]);
-  else if (payload.totals.total_max_score > 0) summary.push(['Total Score', `${formatNumber(payload.totals.total_score)} / ${formatNumber(payload.totals.total_max_score)}`]);
+  else if (payload.totals.total_score !== null && payload.totals.total_max_score !== null && payload.totals.total_max_score > 0) summary.push(['Total Score', `${formatNumber(payload.totals.total_score)} / ${formatNumber(payload.totals.total_max_score)}`]);
   const summaryHeight = summary.length ? 23 : 0;
   const examName = recordText(payload.template_fields, 'exam_series')
     ?? recordText(payload.exam_series, 'name') ?? 'Assessment';

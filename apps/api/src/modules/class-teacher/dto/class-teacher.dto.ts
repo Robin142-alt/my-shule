@@ -1,4 +1,4 @@
-import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
 import type { ExamScoreStatus } from '../../exams/dto/exams.dto';
 
@@ -6,6 +6,8 @@ export interface TeacherMarkInput {
   score?: number | string | null;
   score_status?: ExamScoreStatus;
   remarks?: string;
+  category_scores?: Record<string, number | null | "X" | "Y">;
+  expected_updated_at?: string | null;
 }
 
 export class SaveTeacherMarksDto {
@@ -23,6 +25,10 @@ export class SaveTeacherMarksDto {
   @IsOptional()
   @IsString()
   assessmentId?: string;
+
+  @IsOptional()
+  @IsInt()
+  paperConfigVersion?: number;
 
   @IsOptional()
   @IsObject()

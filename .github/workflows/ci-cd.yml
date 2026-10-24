@@ -116,6 +116,7 @@ jobs:
         run: |
           npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks teacher-exams-marks-workspace
           node apps/web/tests/design/teacher-marks-browser.mjs --assisted
+          node apps/web/tests/design/teacher-marks-browser.mjs --papers
 
       - name: School day builder and timetable interface
         run: npm --prefix apps/web run test:design -- school-day-builder school-day-editor subject-requirements-panel deputy-timetable-management deputy-timetable-class-scope smart-timetable-role-surfaces deputy-page-routes school-command-center-routing
@@ -331,6 +332,7 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: |
+          node --test dist/apps/api/src/modules/exams/exam-result-policy.test.js dist/apps/api/src/modules/exams/flexible-exam-papers.test.js
           node --test dist/apps/api/src/modules/exams/report-card-scope.test.js dist/apps/api/src/modules/exams/services/report-card-bulk-pdf.test.js dist/apps/api/src/modules/exams/services/report-card-export.test.js dist/apps/api/src/modules/exams/services/report-card-artifact-design.test.js dist/apps/api/src/modules/exams/services/report-card-signatures.test.js dist/apps/api/src/modules/exams/services/report-card-comparison.test.js dist/apps/api/src/modules/exams/services/report-card-preview.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-scope.integration-spec.ts apps/api/test/report-card-comparison.integration-spec.ts
 

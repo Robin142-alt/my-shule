@@ -299,7 +299,7 @@ export class ExamsManagerCommandService {
           subject.id::uuid,
           CONCAT(subject.name, ' Main Paper'),
           $4::numeric,
-          100,
+          NULL,
           $5::uuid,
           NOW(),
           NOW()
@@ -308,7 +308,7 @@ export class ExamsManagerCommandService {
           AND subject.id::text = ANY($3::text[])
           AND NOT EXISTS (SELECT 1 FROM exam_assessments existing
             WHERE existing.tenant_id = $1 AND existing.exam_series_id = $2::uuid AND existing.subject_id = subject.id::uuid)
-        ON CONFLICT (tenant_id, exam_series_id, subject_id, name) DO NOTHING
+        ON CONFLICT DO NOTHING
         RETURNING id::text, subject_id::text
       `,
       [tenantId, examSeriesId, subjectIds, maxMarks, actorUserId],
@@ -316,7 +316,7 @@ export class ExamsManagerCommandService {
 
     // Keep custom papers and their weights; only update the overall maximum on unmarked papers.
     if (updateMaxScores) await this.operations.writeSql(`UPDATE exam_assessments assessment SET max_score = $3::numeric, updated_at = NOW()
-      WHERE assessment.tenant_id = $1 AND assessment.exam_series_id = $2::uuid
+      WHERE assessment.tenant_id = $1 AND assessment.exam_series_id = $2::uuid AND assessment.class_section_id IS NULL
         AND NOT EXISTS (SELECT 1 FROM exam_marks mark WHERE mark.tenant_id = assessment.tenant_id AND mark.assessment_id = assessment.id)
         AND (SELECT COUNT(*) FROM exam_assessments paper WHERE paper.tenant_id = assessment.tenant_id
           AND paper.exam_series_id = assessment.exam_series_id AND paper.subject_id = assessment.subject_id) = 1`,

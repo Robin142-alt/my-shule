@@ -143,6 +143,7 @@ export async function fetchClassRegisterLive(session: LiveAuthSession, streamId:
 }
 
 export interface PendingMarksWindow {
+  paperConfigVersion?: number;
   id: string;
   sheetId?: string;
   streamNames?: string | null;
@@ -340,11 +341,16 @@ export const EXAM_SCORE_STATUSES = [
   "withheld",
   "medical_exception",
   "transfer_student",
+  "X",
+  "Y",
 ] as const;
 
 export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
 
 export interface TeacherMarkSheetRow {
+  category_scores?: Record<string, number | null | 'X' | 'Y'>;
+  categories?: Array<{ id: string; name: string; max_score: number }>;
+  paper_config_version?: number;
   id: string | null;
   mark_entry_window_id: string;
   exam_series_id: string;
@@ -414,12 +420,15 @@ export async function fetchTeacherMarkSheetLive(
 }
 
 export interface TeacherMarkDraftInput {
+  category_scores?: Record<string, number | null | 'X' | 'Y'>;
+  expected_updated_at?: string | null;
   score?: number | null;
   score_status: ExamScoreStatus;
   remarks?: string;
 }
 
 export interface SaveTeacherMarksPayload extends Record<string, unknown> {
+  paperConfigVersion?: number;
   action: "draft" | "submit";
   examId: string;
   classSectionId: string;
@@ -435,6 +444,18 @@ export interface SaveTeacherMarksResult {
   savedCount: number;
   submittedCount: number;
   markIds: string[];
+}
+
+export interface PaperConfiguration {
+  version: number;
+  papers: Array<{ id?: string; name: string; max_score: number; weight?: number | null;
+    categories?: Array<{ id?: string; name: string; max_score: number }> }>;
+}
+export function fetchPaperConfiguration(session: LiveAuthSession, windowId: string): Promise<PaperConfiguration> {
+  return withSession(session, `/exams/markbooks/${encodeURIComponent(windowId)}/papers`, { method: 'GET' });
+}
+export function savePaperConfiguration(session: LiveAuthSession, windowId: string, data: PaperConfiguration): Promise<PaperConfiguration> {
+  return withSession(session, `/exams/markbooks/${encodeURIComponent(windowId)}/papers`, { method: 'POST', body: { ...data } });
 }
 
 export async function saveExamMarksLive(

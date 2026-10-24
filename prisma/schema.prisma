@@ -4076,7 +4076,10 @@ model ExamAssessments {
   subject_id         String   @db.Uuid
   tenant_id          String   @db.Uuid
   updated_at         DateTime @updatedAt
-  weight             Decimal
+  weight             Decimal?
+  class_section_id   String? @db.Uuid
+  uses_categories    Boolean @default(false)
+  paper_order        Int @default(0)
 
   @@index([tenant_id])
   @@map("exam_assessments")
@@ -4117,6 +4120,7 @@ model ExamMarkEntryWindows {
   class_section_id String   @db.Uuid
   opens_at         DateTime
   closes_at        DateTime
+  paper_config_version Int @default(1)
   status           String
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
@@ -4134,7 +4138,9 @@ model ExamMarks {
   exam_series_id     String    @db.Uuid
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   remarks            String
-  score              Decimal
+  score              Decimal?
+  score_status       String @default("entered")
+  category_scores    Json @default("{}")
   student_id         String    @db.Uuid
   subject_id         String    @db.Uuid
   tenant_id          String    @db.Uuid

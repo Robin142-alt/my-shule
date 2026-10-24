@@ -1,3 +1,6 @@
+import { FLEXIBLE_EXAM_PAPERS_SCHEMA } from '../src/modules/exams/flexible-exam-papers-schema';
+import { EXAM_RESULT_REFRESH_SCHEMA, examResultCtes } from '../src/modules/exams/exam-result-query';
+import { ExamPaperConfigurationService } from '../src/modules/exams/exam-paper-configuration.service';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { ExamsManagerCommandService } from '../src/modules/admin-command/exams-manager-command.service';
@@ -12,6 +15,7 @@ describe('Created exams reach assigned subject teachers', () => {
   let manager: ExamsManagerCommandService;
   let teacher: ClassTeacherService;
   let exams: ExamsService;
+  let paperConfiguration: ExamPaperConfigurationService;
   let repository: ExamsRepository;
   const ids = Object.fromEntries(['term', 'class', 'secondClass', 'subject', 'teacher', 'otherTeacher', 'manager', 'student', 'secondStudent'].map(key => [key, randomUUID()]));
   const operations: any[] = [];
@@ -36,7 +40,7 @@ describe('Created exams reach assigned subject teachers', () => {
     await pool.query('CREATE SCHEMA teacher_visibility');
     let bootstrap = '';
     await new ExamsSchemaService({ runSchemaBootstrap: async (sql: string) => { bootstrap += sql; } } as never).onModuleInit();
-    for (const table of ['exam_series', 'exam_assessments', 'exam_mark_entry_windows', 'exam_grade_boundaries', 'exam_marks', 'exam_mark_audit_logs', 'exam_timetable_slots', 'exam_assessment_components', 'student_report_cards', 'student_report_card_audit_logs']) {
+    for (const table of ['exam_series', 'exam_assessments', 'exam_mark_entry_windows', 'exam_grade_boundaries', 'exam_marks', 'exam_mark_audit_logs', 'exam_timetable_slots', 'exam_assessment_components', 'student_report_cards', 'student_report_card_audit_logs', 'exam_result_snapshots', 'report_card_generation_batches', 'exam_mark_import_batches', 'exam_mark_import_batch_items', 'exam_grading_policies', 'exam_grading_policy_boundaries', 'exam_subject_weightings']) {
       const sql = bootstrap.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n      \\);`))?.[0];
       if (!sql) throw new Error(`Missing production schema for ${table}`);
       await pool.query(sql);
@@ -50,6 +54,8 @@ describe('Created exams reach assigned subject teachers', () => {
       CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text,
         curriculum_model text, rules jsonb, is_active boolean DEFAULT TRUE, archived_at timestamptz,
         effective_from date, effective_to date, updated_at timestamptz DEFAULT NOW(), version integer DEFAULT 1);
+      CREATE TABLE academics_report_card_settings (tenant_id text,grading_system_id uuid,is_active boolean,
+        updated_at timestamptz DEFAULT NOW(),created_at timestamptz DEFAULT NOW());
       INSERT INTO academics_grading_systems(tenant_id,curriculum_model,rules) VALUES
         ('school-a','CBC','[{"label":"EE","min":0,"max":100,"points":4}]');
       CREATE TABLE subjects (id text PRIMARY KEY, tenant_id text, name text);
@@ -96,6 +102,7 @@ describe('Created exams reach assigned subject teachers', () => {
         } finally { client.release(); }
       },
     };
+    paperConfiguration = new ExamPaperConfigurationService(prisma as never, {getStore:()=>activeContext} as never, {recordSchoolOperation:async(input:any)=>{if(rejectSchoolEvent)throw new Error('Outbox unavailable');events.push(input);}} as never);
     const realSchoolEvents = new SchoolOperationalEventsService(
       { requireStore: () => managerContext } as never,
       { publish: async (input: any) => { publishedOperations.push(input); return { id: randomUUID(), event_key: input.event_key }; } } as never,
@@ -669,4 +676,165 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await pool.query('SELECT id FROM exam_mark_audit_logs WHERE exam_series_id=$1', [created.exam.id])).rows).toHaveLength(0);
   });
 
+  describe('class-scoped flexible papers', () => {
+    beforeAll(async () => { await pool.query(FLEXIBLE_EXAM_PAPERS_SCHEMA); await pool.query(EXAM_RESULT_REFRESH_SCHEMA); });
+
+    it('imports and rolls back categories atomically and rejects concurrent stale imports', async () => {
+      const created = await createExam();
+      const window = await windowFor(created.exam.id);
+      const before = await paperConfiguration.read(window.id);
+      const configured = await paperConfiguration.save(window.id, { version: before.version, papers: [
+        { id: before.papers[0].id, name: 'Oral', max_score: 40,
+          categories: [{ name: 'Speech', max_score: 20 }, { name: 'Listening', max_score: 20 }] },
+      ] });
+      const paper = configured.papers[0];
+      const categories = Object.fromEntries(paper.categories.map((category: { id: string }) => [category.id, 10]));
+      await teacher.saveMarks('school-a', ids.teacher, { examId: window.id, classSectionId: ids.class,
+        assessmentId: paper.id, action: 'draft', marks: { [ids.student]: { score: 20, category_scores: categories } } });
+      const mark = (await pool.query('SELECT *, updated_at::text AS exact_updated_at FROM exam_marks WHERE assessment_id=$1', [paper.id])).rows[0];
+      const imported = { ...categories, [paper.categories[0].id]: 'Y' };
+      const command = { tenant_id: 'school-a', actor_user_id: ids.teacher, file_name: 'oral.csv', preview_token: 'checked', rows: [{
+        row_number: 2, exam_series_id: created.exam.id, assessment_id: paper.id, academic_term_id: ids.term,
+        class_section_id: ids.class, subject_id: ids.subject, student_id: ids.student, score: null, score_status: 'Y',
+        category_scores: imported, has_expected_version: true, expected_updated_at: mark.exact_updated_at,
+        paper_config_version: configured.version,
+      }] };
+      const writes = await Promise.allSettled([repository.commitBulkMarkImport(command), repository.commitBulkMarkImport(command)]);
+      expect(writes.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      expect(writes.filter(result => result.status === 'rejected')).toHaveLength(1);
+      const saved = (writes.find(result => result.status === 'fulfilled') as PromiseFulfilledResult<any>).value;
+      expect((await pool.query('SELECT score,score_status,category_scores FROM exam_marks WHERE id=$1', [mark.id])).rows[0])
+        .toMatchObject({ score: null, score_status: 'Y', category_scores: imported });
+      const rollback = await repository.rollbackMarkImportBatch({ tenant_id: 'school-a', actor_user_id: ids.manager,
+        batch_id: saved.batch_id, reason: 'Restore category evidence' });
+      expect(rollback).toMatchObject({ restored_rows: 1, conflict_count: 0 });
+      expect((await pool.query('SELECT score,score_status,category_scores FROM exam_marks WHERE id=$1', [mark.id])).rows[0])
+        .toMatchObject({ score: '20.00', score_status: 'entered', category_scores: categories });
+      const batchCount = (await pool.query('SELECT COUNT(*) FROM exam_mark_import_batches')).rows[0].count;
+      await expect(repository.commitBulkMarkImport({ ...command, rows: command.rows.map(row => ({ ...row, has_expected_version: false })) },
+        async () => { throw new Error('Outbox unavailable'); })).rejects.toThrow('Outbox unavailable');
+      expect((await pool.query('SELECT COUNT(*) FROM exam_mark_import_batches')).rows[0].count).toBe(batchCount);
+      expect((await pool.query('SELECT category_scores FROM exam_marks WHERE id=$1', [mark.id])).rows[0].category_scores).toEqual(categories);
+      await paperConfiguration.save(window.id, { ...configured, papers: configured.papers.map((value: any) => ({ ...value, name: 'Oral assessment' })) });
+      await expect(repository.commitBulkMarkImport({ ...command, rows: command.rows.map(row => ({ ...row, has_expected_version: false })) }))
+        .rejects.toThrow('Marks changed after the import preview');
+      const csvRow = { exam_series_id: created.exam.id, assessment_id: paper.id, academic_term_id: ids.term,
+        class_section_id: ids.class, subject_id: ids.subject, student_id: ids.student,
+        score: 20, score_status: 'entered' as const, category_scores: categories };
+      const preview = await exams.bulkUploadMarks({ mode: 'preview', rows: [csvRow] });
+      expect(preview.valid_rows).toBe(1);
+      const newer = { ...categories, [paper.categories[0].id]: 12 };
+      await teacher.saveMarks('school-a', ids.teacher, { examId: window.id, classSectionId: ids.class,
+        assessmentId: paper.id, action: 'draft', marks: { [ids.student]: { score: 22, category_scores: newer } } });
+      await expect(exams.bulkUploadMarks({ mode: 'commit', rows: [csvRow], preview_token: preview.preview_token }))
+        .rejects.toThrow('must be previewed');
+      expect((await pool.query('SELECT score FROM exam_marks WHERE id=$1', [mark.id])).rows[0].score).toBe('22.00');
+    });
+
+    it('keeps another class unchanged and calculates category totals without double counting', async () => {
+      const created = await createExam('submitted', [ids.class, ids.secondClass]);
+      const window = await windowFor(created.exam.id);
+      const before = await paperConfiguration.read(window.id);
+      const saved = await paperConfiguration.save(window.id, { version: before.version, papers: [
+        { id: before.papers[0].id, name: 'Paper 1', max_score: 20, categories: [{ name: 'Reading', max_score: 12 }, { name: 'Writing', max_score: 8 }] },
+        { name: 'Practical', max_score: 80 },
+      ] });
+      expect(saved.papers.map((paper: any) => [paper.name,paper.max_score])).toEqual([['Paper 1',20],['Practical',80]]);
+      expect(await windowFor(created.exam.id,ids.secondClass)).toMatchObject({outOf:80});
+      const windows = (await teacher.getPendingMarks('school-a',ids.teacher,true)).windows.filter(w=>w.examSeriesId===created.exam.id);
+      expect(windows.filter(w=>w.classSectionId===ids.class)).toHaveLength(2);
+      expect(windows.filter(w=>w.classSectionId===ids.secondClass)).toHaveLength(1);
+      const paper = saved.papers[0];
+      const values = Object.fromEntries(paper.categories.map((c: any,i: number)=>[c.id,i===0?9:6]));
+      await teacher.saveMarks('school-a',ids.teacher,{examId:window.id,classSectionId:ids.class,assessmentId:paper.id,paperConfigVersion:saved.version,
+        action:'draft',marks:{[ids.student]:{score:15,score_status:'entered',category_scores:values,expected_updated_at:null}}});
+      const mark=(await pool.query('SELECT * FROM exam_marks WHERE assessment_id=$1',[paper.id])).rows[0];
+      expect(Number(mark.score)).toBe(15); expect(mark.category_scores).toEqual(values);
+      await expect(teacher.saveMarks('school-a',ids.teacher,{examId:window.id,classSectionId:ids.class,assessmentId:paper.id,paperConfigVersion:saved.version,
+        action:'draft',marks:{[ids.student]:{score:1,score_status:'entered',expected_updated_at:null}}})).rejects.toThrow(/changed|closed/);
+      expect(Number((await pool.query('SELECT score FROM exam_marks WHERE id=$1',[mark.id])).rows[0].score)).toBe(15);
+      await expect(paperConfiguration.save(window.id,{version:before.version,papers:[{name:'Stale',max_score:100}]})).rejects.toThrow(/Another teacher/);
+      await expect(paperConfiguration.save(window.id,{version:saved.version,papers:[{name:'Delete existing',max_score:100}]})).rejects.toThrow(/saved marks/);
+    });
+
+    it('preserves X/Y and valid category marks and restores a numeric paper when resolved', async () => {
+      const created=await createExam(); const window=await windowFor(created.exam.id);
+      const before=await paperConfiguration.read(window.id);
+      const configured=await paperConfiguration.save(window.id,{version:before.version,papers:[{id:before.papers[0].id,name:'Oral',max_score:40,categories:[{name:'Speech',max_score:20},{name:'Listening',max_score:20}]}]});
+      const paper=configured.papers[0]; const [speech,listening]=paper.categories;
+      const saveCategories=async (value: number|'X'|'Y') => teacher.saveMarks('school-a',ids.teacher,{examId:window.id,classSectionId:ids.class,assessmentId:paper.id,
+        action:'draft',marks:{[ids.student]:{score:value==='X'||value==='Y'?null:10+value,score_status:typeof value==='number'?'entered':value,
+          category_scores:{[speech.id]:10,[listening.id]:value}}}});
+      await saveCategories('Y');
+      expect((await pool.query('SELECT score,score_status,category_scores FROM exam_marks WHERE assessment_id=$1',[paper.id])).rows[0])
+        .toMatchObject({score:null,score_status:'Y',category_scores:{[speech.id]:10,[listening.id]:'Y'}});
+      await saveCategories('X');
+      await saveCategories(20);
+      expect((await pool.query('SELECT score,score_status FROM exam_marks WHERE assessment_id=$1',[paper.id])).rows[0]).toMatchObject({score:'30.00',score_status:'entered'});
+      await expect(saveCategories(21)).rejects.toThrow(/invalid/);
+      await pool.query(`UPDATE exam_marks SET status='submitted' WHERE assessment_id=$1`,[paper.id]);
+      await expect(paperConfiguration.save(window.id,{...configured,papers:configured.papers})).rejects.toThrow(/Return submitted/);
+    });
+
+    it('denies foreign-school and unassigned configuration and rolls back on event failure', async () => {
+      const created=await createExam(); const window=await windowFor(created.exam.id); const before=await paperConfiguration.read(window.id);
+      const originalUser=teacherContext.user_id; const originalTenant=teacherContext.tenant_id;
+      try {
+        teacherContext.user_id=ids.otherTeacher;
+        await expect(paperConfiguration.read(window.id)).rejects.toThrow(/assigned/);
+        teacherContext.user_id=originalUser;teacherContext.tenant_id='school-b';
+        await expect(paperConfiguration.save(window.id,{version:1,papers:[{name:'Other school',max_score:10}]})).rejects.toThrow(/not found/);
+      } finally {teacherContext.user_id=originalUser;teacherContext.tenant_id=originalTenant;}
+      rejectSchoolEvent=true;
+      try {await expect(paperConfiguration.save(window.id,{version:before.version,papers:[{name:'Must roll back',max_score:60}]})).rejects.toThrow(/Outbox unavailable/);}
+      finally {rejectSchoolEvent=false;}
+      expect(await paperConfiguration.read(window.id)).toEqual(before);
+    });
+
+    it('processes unequal papers and suppresses overall scores and ranks for X and Y', async () => {
+      const created=await createExam(); const window=await windowFor(created.exam.id); const before=await paperConfiguration.read(window.id);
+      const configured=await paperConfiguration.save(window.id,{version:before.version,papers:[{id:before.papers[0].id,name:'Paper 1',max_score:20},{name:'Paper 2',max_score:80}]});
+      for (const [index,paper] of configured.papers.entries()) {
+        await teacher.saveMarks('school-a',ids.teacher,{examId:window.id,classSectionId:ids.class,assessmentId:paper.id,action:'submit',marks:{[ids.student]:{score:index===0?10:60,score_status:'entered'}}});
+      }
+      await pool.query(`UPDATE exam_marks SET status='locked' WHERE exam_series_id=$1`,[created.exam.id]);
+      const batch=(await pool.query(`INSERT INTO report_card_generation_batches(tenant_id,exam_series_id,class_section_id,status,requested_by_user_id) VALUES ('school-a',$1,$2,'draft_generated',$3) RETURNING id`,[created.exam.id,ids.class,ids.manager])).rows[0];
+      const process=async()=>{
+        await repository.processResultBatch({tenant_id:'school-a',actor_user_id:ids.manager,batch_id:batch.id,mode:'rankings'});
+        return (await pool.query('SELECT * FROM exam_result_snapshots WHERE batch_id=$1 AND student_id=$2',[batch.id,ids.student])).rows[0];
+      };
+      expect(await process()).toMatchObject({average_percentage:'70.00',class_rank:1});
+      const refreshed=async()=>(await pool.query('SELECT * FROM exam_result_snapshots WHERE batch_id=$1 AND student_id=$2',[batch.id,ids.student])).rows[0];
+      await pool.query(`UPDATE exam_marks SET score=NULL,score_status='X' WHERE assessment_id=$1`,[configured.papers[0].id]);
+      expect(await refreshed()).toMatchObject({average_percentage:null,raw_total:null,grade_label:'X',class_rank:null});
+      await pool.query(`UPDATE exam_marks SET score=NULL,score_status='Y' WHERE assessment_id=$1`,[configured.papers[1].id]);
+      const evidence=(await pool.query(`WITH ${examResultCtes('$1','$2',"'rankings'")} SELECT * FROM ranked`,['school-a',batch.id])).rows;
+      expect(evidence).toEqual(expect.arrayContaining([expect.objectContaining({grade_label:'Y'})]));
+      expect(await refreshed()).toMatchObject({average_percentage:null,grade_label:'Y',class_rank:null});
+      await pool.query(`UPDATE exam_marks SET score=CASE WHEN assessment_id=$1 THEN 10 ELSE 60 END,score_status='entered' WHERE exam_series_id=$2`,[configured.papers[0].id,created.exam.id]);
+      expect(await refreshed()).toMatchObject({average_percentage:'70.00',class_rank:1});
+      const beforePublish=await refreshed();
+      await pool.query(`UPDATE exam_marks SET status='published',published_at=NOW() WHERE exam_series_id=$1`,[created.exam.id]);
+      expect((await refreshed()).processed_at).toEqual(beforePublish.processed_at);
+    });
+
+    it('serializes concurrent first entries and configuration edits without losing a score',async()=>{
+      const created=await createExam();const window=await windowFor(created.exam.id);const before=await paperConfiguration.read(window.id);
+      const writes=await Promise.allSettled([40,50].map(score=>teacher.saveMarks('school-a',ids.teacher,{
+        examId:window.id,classSectionId:ids.class,assessmentId:window.assessmentId,action:'draft',paperConfigVersion:before.version,
+        marks:{[ids.student]:{score,score_status:'entered',expected_updated_at:null}}
+      })));
+      expect(writes.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+      expect(writes.filter(result=>result.status==='rejected')).toHaveLength(1);
+      const configs=await Promise.allSettled(['Written','Oral'].map(name=>paperConfiguration.save(window.id,{
+        version:before.version,papers:[{id:before.papers[0].id,name,max_score:80}]
+      })));
+      expect(configs.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+      expect(configs.filter(result=>result.status==='rejected')).toHaveLength(1);
+      const marks=(await pool.query('SELECT score FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows;
+      expect(marks).toHaveLength(1);expect([40,50]).toContain(Number(marks[0].score));
+      await pool.query(FLEXIBLE_EXAM_PAPERS_SCHEMA);await pool.query(EXAM_RESULT_REFRESH_SCHEMA);
+      expect((await paperConfiguration.read(window.id)).version).toBe(before.version+1);
+    });
+  });
 });

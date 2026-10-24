@@ -6,25 +6,29 @@ describe('Report comparison chronology and school isolation', () => {
   let pool: Pool;
   const ids = Array.from({ length: 8 }, () => randomUUID());
   const [old, previous, current, future, learner, subject, paper1, paper2] = ids;
+  const classroom = randomUUID();
   beforeAll(async () => {
     const url = new URL(process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL!);
     if (!['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.includes('disposable')) throw new Error('Use disposable local PostgreSQL');
     pool = new Pool({ connectionString: url.toString(), options: '-c search_path=report_comparison,public' });
     await pool.query(`CREATE SCHEMA report_comparison;
-      CREATE TABLE exam_series(tenant_id text,id uuid,name text,starts_on date,created_at timestamptz);
+      CREATE TABLE exam_series(tenant_id text,id uuid,name text,starts_on date,created_at timestamptz,academic_term_id uuid);
       CREATE TABLE subjects(tenant_id text,id text,name text);
-      CREATE TABLE exam_assessments(tenant_id text,id uuid,name text,max_score numeric,weight numeric);
-      CREATE TABLE exam_result_snapshots(tenant_id text,exam_series_id uuid,student_id uuid,average_percentage numeric,processed_at timestamptz);
+      CREATE TABLE exam_assessments(tenant_id text,id uuid,name text,max_score numeric,weight numeric,exam_series_id uuid,subject_id uuid,class_section_id uuid);
+      CREATE TABLE exam_result_snapshots(tenant_id text,exam_series_id uuid,student_id uuid,average_percentage numeric,processed_at timestamptz,grade_label text);
+      CREATE TABLE exam_mark_entry_windows(tenant_id text,exam_series_id uuid,subject_id uuid,class_section_id uuid);
+      CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,subject_id text,class_section_id text,status text);
+      CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,status text);
       CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,student_id uuid,subject_id uuid,assessment_id uuid,
-        status text,score_status text,score numeric,updated_at timestamptz DEFAULT '2099-01-01');`);
+        status text,score_status text,score numeric,updated_at timestamptz DEFAULT '2099-01-01',class_section_id uuid);`);
     for (const tenant of ['school-a', 'school-b']) {
       for (const [index, exam] of [old, previous, current, future].entries()) {
         await pool.query('INSERT INTO exam_series VALUES($1,$2,$3,$4,$5)', [tenant, exam, ['CAT 1', 'Mid Term 3', 'End Term 3', 'Next Exam'][index], ['2026-09-01', '2026-10-01', '2026-10-01', '2026-11-01'][index], `2026-08-0${index + 1}`]);
       }
       await pool.query('INSERT INTO subjects VALUES($1,$2,$3)', [tenant, subject, 'Integrated Science']);
-      await pool.query('INSERT INTO exam_assessments VALUES($1,$2,$3,100,25),($1,$4,$5,100,75)', [tenant, paper1, 'Theory', paper2, 'Practical']);
       for (const exam of [old, previous, current, future]) {
-        await pool.query("INSERT INTO exam_marks VALUES($1,$2,$3,$4,$5,'locked','entered',$6,DEFAULT),($1,$2,$3,$4,$7,'locked','entered',$8,DEFAULT)", [tenant, exam, learner, subject, paper1, tenant === 'school-a' ? 20 : 100, paper2, tenant === 'school-a' ? 80 : 100]);
+        await pool.query('INSERT INTO exam_assessments VALUES($1,$2,$3,100,25,$6,$7,NULL),($1,$4,$5,100,75,$6,$7,NULL)', [tenant, paper1, 'Theory', paper2, 'Practical', exam, subject]);
+        await pool.query("INSERT INTO exam_marks VALUES($1,$2,$3,$4,$5,'locked','entered',$6,DEFAULT,$9),($1,$2,$3,$4,$7,'locked','entered',$8,DEFAULT,$9)", [tenant, exam, learner, subject, paper1, tenant === 'school-a' ? 20 : 100, paper2, tenant === 'school-a' ? 80 : 100, classroom]);
       }
     }
   });
@@ -64,5 +68,25 @@ describe('Report comparison chronology and school isolation', () => {
     const absent = (await pool.query(REPORT_COMPARISON_SQL, ['school-a', current, learner])).rows;
     expect(absent.map(row => row.label)).toEqual(['Mid Term 3', 'End Term 3']);
     expect(absent[0].percentage).toBeNull();
+  });
+
+  it('combines unequal maxima and detects a required paper with no saved mark', async () => {
+    await pool.query('BEGIN');
+    try {
+      await pool.query('UPDATE exam_assessments SET weight=NULL,max_score=CASE WHEN id=$2 THEN 20 ELSE 80 END WHERE tenant_id=$1 AND exam_series_id=$3', ['school-a', paper1, current]);
+      await pool.query('UPDATE exam_marks SET score=CASE WHEN assessment_id=$2 THEN 10 ELSE 60 END WHERE tenant_id=$1 AND exam_series_id=$3', ['school-a', paper1, current]);
+      expect((await pool.query(REPORT_COMPARISON_SQL, ['school-a', current, learner])).rows.at(-1).percentage).toBe(70);
+      await pool.query('DELETE FROM exam_marks WHERE tenant_id=$1 AND exam_series_id=$2 AND assessment_id=$3', ['school-a', current, paper2]);
+      expect((await pool.query(REPORT_COMPARISON_SQL, ['school-a', current, learner])).rows.at(-1)).toMatchObject({ percentage: null, override_grade: 'X' });
+      expect((await pool.query(REPORT_TREND_SQL, ['school-a', current, learner])).rows[0].percentage).toBeNull();
+    } finally { await pool.query('ROLLBACK'); }
+  });
+
+  it.each(['X', 'Y'])('never falls back to a numerical trend for a %s overall snapshot', async status => {
+    await pool.query('BEGIN');
+    try {
+      await pool.query('UPDATE exam_result_snapshots SET average_percentage=NULL,grade_label=$1 WHERE tenant_id=$2 AND exam_series_id=$3', [status, 'school-a', current]);
+      expect((await pool.query(REPORT_TREND_SQL, ['school-a', current, learner])).rows[0].percentage).toBeNull();
+    } finally { await pool.query('ROLLBACK'); }
   });
 });

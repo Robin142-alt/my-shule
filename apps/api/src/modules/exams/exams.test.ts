@@ -1789,6 +1789,7 @@ test('ExamsService allows an assigned teacher to enter subject-scoped marks with
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
       findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
+      findAssessmentScope: async () => ({ id:'assessment-1',exam_series_id:'series-1',academic_term_id:'term-1',class_section_id:'class-1',subject_id:'subject-1',max_score:100 }),
       upsertMark: async (input: Record<string, unknown>) => {
         calls.push('mark');
         return { id: 'mark-1', score: input.score };
@@ -1821,6 +1822,7 @@ test('ExamsService atomically saves and submits a teacher mark sheet with explic
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
       findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
+      findAssessmentScope: async () => ({ id:'assessment-1',exam_series_id:'series-1',academic_term_id:'term-1',class_section_id:'class-1',subject_id:'subject-1',max_score:100 }),
       findStudentMarkEligibility: async () => ({ status: 'active' }),
       saveTeacherMarkSheet: async (input: Record<string, unknown>, onSaved: (result: unknown, tx: unknown) => Promise<void>) => {
         calls.push({ name: 'save', input });
@@ -1894,6 +1896,7 @@ test('ExamsService atomically saves and submits a teacher mark sheet with explic
         score: 87,
         score_status: 'entered',
         remarks: null,
+        category_scores: {}, has_expected_version: false, expected_updated_at: null, paper_config_version: undefined,
       },
       {
         row_number: 2,
@@ -1906,6 +1909,7 @@ test('ExamsService atomically saves and submits a teacher mark sheet with explic
         score: null,
         score_status: 'absent',
         remarks: 'Absent with guardian notification recorded',
+        category_scores: {}, has_expected_version: false, expected_updated_at: null, paper_config_version: undefined,
       },
     ],
   });
@@ -1923,6 +1927,7 @@ test('ExamsService rejects a teacher mark sheet when a learner is outside the ac
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'draft', locked_at: null, published_at: null }),
       findOpenMarkEntryWindow: async () => ({ id: 'window-1', status: 'open' }),
+      findAssessmentScope: async () => ({ id:'assessment-1',exam_series_id:'series-1',academic_term_id:'term-1',class_section_id:'class-1',subject_id:'subject-1',max_score:100 }),
       findStudentMarkEligibility: async () => null,
       saveTeacherMarkSheet: async () => {
         persisted = true;
@@ -4021,7 +4026,7 @@ query: async (text: string, values: unknown[]) => {
 
   const studentsQuery = queries[0]?.text ?? '';
   assert.doesNotMatch(studentsQuery, /LIMIT 1000/);
-  assert.match(studentsQuery, /FROM exam_marks mark/);
+  assert.match(studentsQuery, /FROM exam_assessments paper/);
   assert.match(studentsQuery, /mark\.status IN \('locked', 'published'\)/);
   assert.match(studentsQuery, /LIMIT \$5::integer/);
   assert.match(studentsQuery, /OFFSET \$6::integer/);
@@ -4060,9 +4065,9 @@ test('ExamsRepository checks complete finalized report-card readiness inside one
   });
 
   assert.equal(readiness.not_ready_mark_count, 0);
-  assert.match(queries[0]?.text ?? '', /WHERE mark\.tenant_id = \$1/);
+  assert.match(queries[0]?.text ?? '', /WHERE paper\.tenant_id = \$1/);
   assert.match(queries[0]?.text ?? '', /exam_series_id = \$2::uuid/);
-  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = expected\.exam_series_id/);
+  assert.match(queries[0]?.text ?? '', /mark\.exam_series_id = paper\.exam_series_id/);
   assert.match(queries[0]?.text ?? '', /mark\.status IN \('locked', 'published'\)/);
   assert.deepEqual(queries[0]?.values, [
     'tenant-a',

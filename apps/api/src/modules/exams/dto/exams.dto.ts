@@ -22,6 +22,8 @@ export const EXAM_SCORE_STATUSES = [
   'withheld',
   'medical_exception',
   'transfer_student',
+  'X',
+  'Y',
 ] as const;
 
 export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
@@ -195,6 +197,9 @@ export class CreateExamAssessmentDto {
 }
 
 export class EnterExamMarkDto {
+  @IsOptional() @IsObject() category_scores?: Record<string, number | null | "X" | "Y">;
+  @IsOptional() @IsString() expected_updated_at?: string | null;
+  @IsOptional() @IsInt() paper_config_version?: number;
   @IsString()
   exam_series_id!: string;
 
@@ -228,6 +233,9 @@ export class EnterExamMarkDto {
 }
 
 export class BulkExamMarkUploadRowDto {
+  @IsOptional() @IsObject() category_scores?: Record<string, number | null | "X" | "Y">;
+  @IsOptional() @IsString() expected_updated_at?: string | null;
+  @IsOptional() @IsInt() paper_config_version?: number;
   @IsOptional()
   @IsInt()
   row_number?: number;

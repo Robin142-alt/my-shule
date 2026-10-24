@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { combinePapers, examGradeOverride } from '../exam-result-policy';
 
 import type { ReportArtifactInput, ReportArtifactValue } from '../../../common/reports/report-artifact';
 
@@ -7,6 +8,7 @@ export interface ReportCardSubjectPayload {
   subject_name: string;
   assessment_name?: string | null;
   assessment_weight?: number | null;
+  subject_weight?: number | null;
   score: number | null;
   score_status: string;
   max_score: number;
@@ -38,10 +40,10 @@ export interface ReportCardPayload {
     subject_history: Array<{ exam_series_id: string; label: string; subject_id: string; subject_name: string; percentage: number }>;
   };
   totals: {
-    total_score: number;
-    total_max_score: number;
-    mean_score: number;
-    percentage: number;
+    total_score: number | null;
+    total_max_score: number | null;
+    mean_score: number | null;
+    percentage: number | null;
     overall_grade?: string | null;
     class_position?: string | null;
     improvement?: string | null;
@@ -96,11 +98,12 @@ export class ReportCardTemplateService {
     const enteredSubjects = subjects.filter(isEnteredSubject);
     const totalScore = enteredSubjects.reduce((sum, subject) => sum + subject.score, 0);
     const totalMaxScore = enteredSubjects.reduce((sum, subject) => sum + subject.max_score, 0);
-    const derivedPercentage = totalMaxScore > 0
-      ? Number(((totalScore / totalMaxScore) * 100).toFixed(2))
-      : 0;
-    const snapshotPercentage = numberOrNull(resultSnapshot.percentage);
-    const percentage = snapshotPercentage ?? derivedPercentage;
+    const subjectWeight = enteredSubjects.reduce((sum, subject) => sum + (subject.subject_weight ?? 1), 0);
+    const derivedPercentage = subjectWeight > 0
+      ? Number((enteredSubjects.reduce((sum, subject) => sum + subject.score * (subject.subject_weight ?? 1), 0) / subjectWeight).toFixed(2))
+      : null;
+    const override = examGradeOverride(subjects.map(subject => subject.score_status));
+    const percentage = override ? null : derivedPercentage;
     const meanScore = percentage;
     const school = asRecord(data.school) ?? {};
     const student = asRecord(data.student) ?? {};
@@ -111,9 +114,11 @@ export class ReportCardTemplateService {
     const analytics = asRecord(data.analytics) ?? {};
     const termHistory = normalizeTermHistory(analytics.term_history);
     const subjectHistory = normalizeSubjectHistory(analytics.subject_history);
-    const position = numberOrNull(resultSnapshot.position);
+    const position = override ? null : numberOrNull(resultSnapshot.position);
     const cohortSize = numberOrNull(resultSnapshot.cohort_size);
-    const overallGrade = resolveOverallGrade(gradingPolicy, percentage) ?? text(resultSnapshot.grade_label);
+    const snapshotGrade = text(resultSnapshot.grade_label);
+    const overallGrade = override ?? (percentage === null ? null : resolveOverallGrade(gradingPolicy, percentage)
+      ?? (examGradeOverride([snapshotGrade]) ? null : snapshotGrade));
     const persistedImprovement = text(analytics.improvement) ?? text(analytics.improvement_percentage);
     const derivedImprovement = termHistory.length > 1
       ? `${termHistory[0]!.percentage - termHistory[1]!.percentage >= 0 ? '+' : ''}${formatNumber(termHistory[0]!.percentage - termHistory[1]!.percentage)}%`
@@ -145,15 +150,15 @@ export class ReportCardTemplateService {
         subject_history: subjectHistory,
       },
       totals: {
-        total_score: totalScore,
-        total_max_score: totalMaxScore,
+        total_score: override ? null : totalScore,
+        total_max_score: override ? null : totalMaxScore,
         mean_score: meanScore,
         percentage,
         overall_grade: overallGrade,
         class_position: position !== null
           ? `${Math.trunc(position)}${cohortSize !== null ? ` of ${Math.trunc(cohortSize)}` : ''}`
           : null,
-        improvement: persistedImprovement ?? derivedImprovement,
+        improvement: override ? null : persistedImprovement ?? derivedImprovement,
       },
       template_fields: {
         school_name: text(school.name) ?? '',
@@ -232,15 +237,16 @@ export class ReportCardTemplateService {
         entered ? subject.grade_label ?? '' : '',
         entered ? subject.descriptor ?? subject.remarks ?? '' : scoreEvidenceLabel(subject),
       ];
-      return `
-        <tr>${values.map((value) => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
-      `;
+      const papers = getReportCardAssessmentComponents(subject);
+      const paperDetails = papers.length > 1 ? `<div style="font-size:7pt;font-weight:normal">${papers.map(paper =>
+        `${escapeHtml(paper.name)}: ${paper.percentage === null ? escapeHtml(scoreStatusLabel(paper.score_status)) : formatPercentage(paper.percentage)}`).join('<br>')}</div>` : '';
+      return `<tr>${values.map((value, index) => `<td>${escapeHtml(value)}${index === 0 ? paperDetails : ''}</td>`).join('')}</tr>`;
     }).join('');
     const contactItems = [fields.school_address, fields.school_email, fields.school_phone].filter((item): item is string => Boolean(item));
     const summaryItems: Array<[string, string | null]> = [
-      ['Average', enteredSubjects.length ? formatPercentage(payload.totals.percentage) : null],
+      ['Average', payload.totals.percentage !== null && enteredSubjects.length ? formatPercentage(payload.totals.percentage) : null],
       ['Overall Grade', overallGrade],
-      [classPosition ? 'Class Position' : 'Total Score', classPosition ?? (payload.totals.total_max_score > 0 ? `${formatNumber(payload.totals.total_score)} / ${formatNumber(payload.totals.total_max_score)}` : null)],
+      [classPosition ? 'Class Position' : 'Total Score', classPosition ?? (payload.totals.total_score !== null && payload.totals.total_max_score !== null && payload.totals.total_max_score > 0 ? `${formatNumber(payload.totals.total_score)} / ${formatNumber(payload.totals.total_max_score)}` : null)],
     ];
     const overviewItems: Array<[string, string | null]> = [
       ['Attendance', attendancePercentage],
@@ -426,11 +432,13 @@ export class ReportCardTemplateService {
       ['Term', fields.term],
       ['Academic Year', fields.academic_year],
       ['Verification Code', verificationCode],
-      ['Total', `${payload.totals.total_score}/${payload.totals.total_max_score}`],
+      ['Total', payload.totals.total_score === null ? null : `${payload.totals.total_score}/${payload.totals.total_max_score}`],
       ['Mean', payload.totals.mean_score],
-      ['Percentage', `${payload.totals.percentage}%`],
+      ['Percentage', payload.totals.percentage === null ? null : `${payload.totals.percentage}%`],
+      ['Overall Grade', payload.totals.overall_grade ?? null],
       ...payload.subjects.map((subject) => [
-        subject.subject_name,
+        subject.subject_name + (getReportCardAssessmentComponents(subject).length > 1
+          ? ` (${getReportCardAssessmentComponents(subject).map(paper => `${paper.name}: ${paper.percentage === null ? scoreStatusLabel(paper.score_status) : formatPercentage(paper.percentage)}`).join('; ')})` : ''),
         scoreEvidenceLabel(subject),
         subject.score_status === 'entered' ? subject.max_score : null,
         subject.grade_label,
@@ -472,6 +480,7 @@ export class ReportCardTemplateService {
         subject_name: text(row.subject_name) ?? '',
         assessment_name: text(row.assessment_name),
         assessment_weight: numberOrNull(row.assessment_weight),
+        subject_weight: numberOrNull(row.subject_weight),
         score: scoreStatus === 'entered' ? score : null,
         score_status: scoreStatus,
         max_score: Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100,
@@ -503,25 +512,8 @@ export class ReportCardTemplateService {
         percentage: reportSubjectPercentage(subject),
         score_status: subject.score_status,
       }));
-      const complete = components.length > 0 && components.every((component) => (
-        component.score_status === 'entered'
-        && component.score !== null
-        && component.percentage !== null
-      ));
-      const entered = components.filter((component) => component.percentage !== null);
-      const hasCompleteWeights = entered.every((component) => component.weight !== null && component.weight > 0);
-      const weightTotal = entered.reduce((sum, component) => (
-        sum + (component.weight !== null && component.weight > 0 ? component.weight : 0)
-      ), 0);
-      const percentage = complete
-        ? Number((hasCompleteWeights && weightTotal > 0
-          ? entered.reduce((sum, component) => (
-              sum + (Number(component.percentage) * (component.weight !== null && component.weight > 0 ? component.weight : 0))
-            ), 0) / weightTotal
-          : entered.reduce((sum, component) => sum + Number(component.percentage), 0) / entered.length
-        ).toFixed(2))
-        : null;
-      const firstIncomplete = components.find((component) => component.score_status !== 'entered');
+      const combined = combinePapers(components);
+      const percentage = combined.percentage;
       const uniqueRemarks = [...new Set(group.map((subject) => subject.remarks).filter((remark): remark is string => Boolean(remark)))];
 
       return {
@@ -532,8 +524,8 @@ export class ReportCardTemplateService {
         score: percentage,
         max_score: 100,
         percentage,
-        score_status: complete ? 'entered' : firstIncomplete?.score_status ?? 'incomplete',
-        grade_label: group.length === 1 ? first.grade_label : null,
+        score_status: combined.status,
+        grade_label: combined.status === 'X' || combined.status === 'Y' ? combined.status : group.length === 1 ? first.grade_label : null,
         points: group.length === 1 ? first.points : null,
         descriptor: group.length === 1 ? first.descriptor : null,
         competency_outcome: group.length === 1 ? first.competency_outcome : null,
@@ -547,11 +539,17 @@ export class ReportCardTemplateService {
 export function buildPersonalizedReportCardComments(input: {
   student: Record<string, unknown>;
   subjects: ReportCardSubjectPayload[];
-  percentage: number;
+  percentage: number | null;
   overallGrade?: string | null;
   termHistory: ReportCardPayload['analytics']['term_history'];
   attendance?: Record<string, unknown> | null;
 }): { classTeacher: string | null; principal: string | null } {
+  if (input.percentage === null || input.overallGrade === 'X' || input.overallGrade === 'Y') {
+    const message = input.overallGrade === 'Y'
+      ? 'Overall grade Y: examination irregularity requires resolution. Valid individual results remain available.'
+      : 'Overall grade X: required marks are missing. Complete the outstanding papers to calculate the overall result.';
+    return { classTeacher: message, principal: message };
+  }
   const enteredSubjects = input.subjects
     .map((subject) => ({ subject, percentage: reportSubjectPercentage(subject) }))
     .filter((entry): entry is { subject: ReportCardSubjectPayload; percentage: number } => entry.percentage !== null)
@@ -937,12 +935,12 @@ function renderTermHistoryChart(payload: ReportCardPayload): string {
   const persisted = payload.analytics?.term_history ?? [];
   const history = persisted.length
     ? [...persisted].reverse()
-    : payload.totals.total_max_score > 0
+    : (payload.totals.total_max_score ?? 0) > 0
       ? [{
           exam_series_id: recordText(payload.exam_series, 'id') ?? 'current',
           label: payload.template_fields.term ?? payload.template_fields.exam_series ?? '',
           percentage: payload.totals.percentage,
-        }].filter((entry) => entry.label)
+        }].filter((entry): entry is typeof entry & { percentage: number } => Boolean(entry.label) && entry.percentage !== null)
       : [];
   if (!history.length) return '';
   const points = history.map((entry, index) => ({

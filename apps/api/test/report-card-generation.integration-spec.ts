@@ -9,6 +9,8 @@ import { writeFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { ExamsSchemaService } from '../src/modules/exams/exams-schema.service';
 import { EXAM_SETUP_INTEGRITY_SCHEMA } from '../src/modules/exams/exam-setup-integrity-schema';
+import { FLEXIBLE_EXAM_PAPERS_SCHEMA } from '../src/modules/exams/flexible-exam-papers-schema';
+import { EXAM_RESULT_REFRESH_SCHEMA } from '../src/modules/exams/exam-result-query';
 import { ExamsService } from '../src/modules/exams/exams.service';
 import { DeanAcademicsCommandService } from '../src/modules/admin-command/dean-academics-command.service';
 import { HrSchemaService } from '../src/modules/hr/hr-schema.service';
@@ -205,6 +207,8 @@ describe('Report generation with the production staff schema', () => {
       CREATE UNIQUE INDEX grading_school_name ON academics_grading_systems(tenant_id,name);
       ALTER TABLE class_sections ADD COLUMN curriculum_model text DEFAULT '8-4-4';`);
     await query(REPORT_SOURCE_TRIGGERS);
+    await query(FLEXIBLE_EXAM_PAPERS_SCHEMA);
+    await query(EXAM_RESULT_REFRESH_SCHEMA);
   }, 60000);
   afterAll(async () => { await pool?.end(); });
   beforeEach(async () => {
@@ -492,6 +496,26 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE exam_series SET status='draft' WHERE id=$1", [ids.exam]);
   });
 
+  it('regenerates real PDF artifacts for X and Y and restores the grade after resolution', async () => {
+    try {
+      for (const status of ['X', 'Y', 'entered']) {
+        await query(`UPDATE exam_marks SET score=$2,score_status=$3 WHERE tenant_id='school-a' AND student_id=$1`,
+          [students[0], status === 'entered' ? 84 : null, status]);
+        const card = await generation.generateStudentReportCard({ ...studentInput(), reuse_existing: true });
+        const totals = (card.metadata as any).report_card.totals;
+        expect(totals.overall_grade).toBe(status === 'entered' ? 'A' : status);
+        expect(totals.percentage).toBe(status === 'entered' ? 84 : null);
+        if (status !== 'entered') {
+          expect(totals.class_position).toBeNull();
+          expect(totals.total_score).toBeNull();
+        }
+        expect((await artifacts.read(String(card.id))).content.subarray(0, 4).toString()).toBe('%PDF');
+      }
+    } finally {
+      await query(`UPDATE exam_marks SET score=84,score_status='entered' WHERE tenant_id='school-a' AND student_id=$1`, [students[0]]);
+    }
+  });
+
   it('migrates an identical legacy published report through class generation without changing its academic identity',async()=>{
     const first=await generation.generateStudentReportCard(studentInput());
     await query(`UPDATE student_report_cards SET status='published',published_at=now(),
@@ -543,6 +567,7 @@ describe('Report generation with the production staff schema', () => {
   });
 
   it('measures a complete 100-learner batch with real PDF generation and PostgreSQL persistence', async () => {
+    await query(`UPDATE exam_series SET status='draft',locked_at=NULL,published_at=NULL WHERE tenant_id='school-a' AND id=$1`,[ids.exam]);
     await addStudents(Array.from({ length: 89 }, () => randomUUID()));
     for (let index = 0; index < 6; index++) {
       const subject = randomUUID(); const assessment = randomUUID();

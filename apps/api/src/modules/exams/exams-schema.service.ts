@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
+import { FLEXIBLE_EXAM_PAPERS_SCHEMA } from './flexible-exam-papers-schema';
+import { EXAM_RESULT_REFRESH_SCHEMA } from './exam-result-query';
 import { EXAM_SETUP_INTEGRITY_SCHEMA } from './exam-setup-integrity-schema';
 
 @Injectable()
@@ -61,14 +63,15 @@ export class ExamsSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         exam_series_id uuid NOT NULL,
         subject_id uuid NOT NULL,
+        class_section_id uuid,
+        uses_categories boolean NOT NULL DEFAULT FALSE,
         name text NOT NULL,
         max_score numeric(8,2) NOT NULL DEFAULT 100,
-        weight numeric(8,4) NOT NULL DEFAULT 1,
+        weight numeric(8,4),
         created_by_user_id uuid,
         created_at timestamptz NOT NULL DEFAULT NOW(),
         updated_at timestamptz NOT NULL DEFAULT NOW(),
         CONSTRAINT uq_exam_assessments_tenant_id_id UNIQUE (tenant_id, id),
-        CONSTRAINT uq_exam_assessments_scope UNIQUE (tenant_id, exam_series_id, subject_id, name),
         CONSTRAINT ck_exam_assessments_max_score CHECK (max_score > 0),
         CONSTRAINT ck_exam_assessments_weight CHECK (weight > 0)
       );
@@ -78,6 +81,7 @@ export class ExamsSchemaService implements OnModuleInit {
         tenant_id text NOT NULL,
         exam_series_id uuid NOT NULL,
         subject_id uuid NOT NULL,
+        paper_config_version integer NOT NULL DEFAULT 1,
         class_section_id uuid NOT NULL,
         opens_at timestamptz NOT NULL,
         closes_at timestamptz NOT NULL,
@@ -207,6 +211,7 @@ export class ExamsSchemaService implements OnModuleInit {
         student_id uuid NOT NULL,
         score numeric(8,2),
         score_status text NOT NULL DEFAULT 'entered',
+        category_scores jsonb NOT NULL DEFAULT '{}'::jsonb,
         remarks text,
         status text NOT NULL DEFAULT 'draft',
         entered_by_user_id uuid NOT NULL,
@@ -230,7 +235,7 @@ export class ExamsSchemaService implements OnModuleInit {
             'incomplete',
             'withheld',
             'medical_exception',
-            'transfer_student'
+            'transfer_student', 'X', 'Y'
           )
         ),
         CONSTRAINT ck_exam_marks_score_evidence CHECK (
@@ -494,7 +499,7 @@ export class ExamsSchemaService implements OnModuleInit {
             'incomplete',
             'withheld',
             'medical_exception',
-            'transfer_student'
+            'transfer_student', 'X', 'Y'
           )
         ),
         CONSTRAINT ck_academic_intervention_updates_score_evidence CHECK (
@@ -780,7 +785,7 @@ export class ExamsSchemaService implements OnModuleInit {
           'incomplete',
           'withheld',
           'medical_exception',
-          'transfer_student'
+          'transfer_student', 'X', 'Y'
         )
       );
       ALTER TABLE exam_marks
@@ -1055,9 +1060,9 @@ export class ExamsSchemaService implements OnModuleInit {
         exam_series_id uuid NOT NULL,
         class_section_id uuid,
         student_id uuid NOT NULL,
-        raw_total numeric(12,2) NOT NULL,
+        raw_total numeric(12,2),
         assessment_count integer NOT NULL,
-        average_percentage numeric(8,2) NOT NULL,
+        average_percentage numeric(8,2),
         grade_label text,
         class_rank integer,
         processed_by_user_id uuid NOT NULL,
@@ -1387,14 +1392,14 @@ export class ExamsSchemaService implements OnModuleInit {
       ADD CONSTRAINT ck_exam_mark_versions_original_score_status CHECK (
         original_score_status IN (
           'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
-          'withheld', 'medical_exception', 'transfer_student'
+          'withheld', 'medical_exception', 'transfer_student', 'X', 'Y'
         )
       );
       ALTER TABLE exam_mark_versions
       ADD CONSTRAINT ck_exam_mark_versions_correction_score_status CHECK (
         correction_score_status IN (
           'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
-          'withheld', 'medical_exception', 'transfer_student'
+          'withheld', 'medical_exception', 'transfer_student', 'X', 'Y'
         )
       );
       ALTER TABLE exam_mark_versions
@@ -1417,11 +1422,11 @@ export class ExamsSchemaService implements OnModuleInit {
       ADD CONSTRAINT ck_exam_mark_import_batch_items_score_status CHECK (
         (previous_score_status IS NULL OR previous_score_status IN (
           'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
-          'withheld', 'medical_exception', 'transfer_student'
+          'withheld', 'medical_exception', 'transfer_student', 'X', 'Y'
         ))
         AND imported_score_status IN (
           'entered', 'absent', 'exempt', 'not_assessed', 'incomplete',
-          'withheld', 'medical_exception', 'transfer_student'
+          'withheld', 'medical_exception', 'transfer_student', 'X', 'Y'
         )
       );
       ALTER TABLE exam_mark_import_batch_items
@@ -1441,8 +1446,13 @@ export class ExamsSchemaService implements OnModuleInit {
         ON exam_marks (tenant_id, exam_series_id, academic_term_id, class_section_id, subject_id);
       CREATE UNIQUE INDEX IF NOT EXISTS uq_exam_marks_scope
         ON exam_marks (tenant_id, assessment_id, student_id);
+      ALTER TABLE exam_assessments ADD COLUMN IF NOT EXISTS class_section_id uuid;
+      ALTER TABLE exam_assessments DROP CONSTRAINT IF EXISTS uq_exam_assessments_scope;
+      DROP INDEX IF EXISTS ux_exam_assessments_scope;
       CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_assessments_scope
-        ON exam_assessments (tenant_id, exam_series_id, subject_id, name);
+        ON exam_assessments (tenant_id, exam_series_id, subject_id, name) WHERE class_section_id IS NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_assessments_class_scope
+        ON exam_assessments (tenant_id, exam_series_id, subject_id, class_section_id, name) WHERE class_section_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS ux_exam_mark_entry_windows_scope
         ON exam_mark_entry_windows (tenant_id, exam_series_id, subject_id, class_section_id);
       CREATE INDEX IF NOT EXISTS ix_exam_marks_student
@@ -1699,6 +1709,8 @@ export class ExamsSchemaService implements OnModuleInit {
     `);
 
     await this.prisma.runSchemaBootstrap(EXAM_SETUP_INTEGRITY_SCHEMA);
+    await this.prisma.runSchemaBootstrap(FLEXIBLE_EXAM_PAPERS_SCHEMA);
+    await this.prisma.runSchemaBootstrap(EXAM_RESULT_REFRESH_SCHEMA);
     this.logger.log('Exams schema and RLS policies verified');
   }
 }

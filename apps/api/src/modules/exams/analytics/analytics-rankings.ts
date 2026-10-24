@@ -3,6 +3,8 @@ import type { RankingDimension, RankingMeasure } from './analytics-contract';
 
 const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const average = (values: number[]) => round(values.reduce((a, b) => a + b, 0) / values.length);
+const learnerAverage = (rows: SubjectEvidence[]) => round(rows.reduce((sum, row) => sum + numeric(row.average)! * (row.subject_weight ?? 1), 0)
+  / rows.reduce((sum, row) => sum + (row.subject_weight ?? 1), 0));
 function group<T>(rows: T[], key: (row: T) => string) {
   const groups = new Map<string, T[]>();
   for (const row of rows) { const id = key(row); const list = groups.get(id) ?? []; list.push(row); groups.set(id, list); }
@@ -11,7 +13,7 @@ function group<T>(rows: T[], key: (row: T) => string) {
 export const rankingAllowed = (r: SubjectEvidence) => r.ranking_enabled === true && r.reporting_mode === 'traditional';
 export function completeRankEvidence(r: SubjectEvidence) {
   const score = numeric(r.average);
-  return rankingAllowed(r) && score !== null && score >= 0 && score <= 100 && Number(r.expected) > 0
+  return rankingAllowed(r) && !r.overall_override && score !== null && score >= 0 && score <= 100 && Number(r.expected) > 0
     && Number(r.numeric_count) === Number(r.expected) && !Number(r.missing) && !Number(r.absent) && !Number(r.invalid);
 }
 
@@ -74,12 +76,12 @@ export function buildRankings(current: SubjectEvidence[], previous: SubjectEvide
     const excluded = population - selected.size;
     excludedLearners += excluded;
     if (!selected.size) continue;
-    const mean = average([...selected.values()].map(rs => average(rs.map(r => numeric(r.average)!))));
+    const mean = average([...selected.values()].map(learnerAverage));
     // A performance comparison requires the whole same population in both exams.
     // Progress rankings explicitly use only complete matched learners instead.
     const canCompare = measure !== 'average' || (matched.size === currentLearners.size && excluded === 0
       && priorLearners.size === currentLearners.size && new Set(priorRows.map(r => r.student_id)).size === currentLearners.size);
-    const old = canCompare ? average([...selected.keys()].map(student => average(priorLearners.get(student)!.map(r => numeric(r.average)!)))) : null;
+    const old = canCompare ? average([...selected.keys()].map(student => learnerAverage(priorLearners.get(student)!))) : null;
     const change = old === null ? null : round(mean - old);
     if (measure === 'improvement' && !(change !== null && change > 0) || measure === 'decline' && !(change !== null && change < 0)) continue;
     const first = entity(rows[0], dimension);
