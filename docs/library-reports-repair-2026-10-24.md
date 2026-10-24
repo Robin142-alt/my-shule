@@ -25,6 +25,8 @@ Reproduce database checks with `npm run test:library-reports`, browser checks wi
 
 ## Rollout
 
+Cloudflare runtime testing also caught the old OpenNext adapter omitting Next.js 16.4's preview-props manifest. OpenNext 1.20.13 includes the upstream fix (opennextjs/opennextjs-cloudflare#1356). Its pinned Glob dependency is overridden to the compatible patched 10.5.0 release.
+
 The release branch is based on production main at `4c467a28`, preserving the smart-library changes. API type checking, six report unit tests, 11 disposable PostgreSQL tests and 133 web regressions passed on that branch, including the broader dashboard action contract. CI now runs the library report database and browser regressions.
 
 The initial release gate found newly published dependency advisories. The release updates body-parser, multer, Next.js (and its matching ESLint configuration), Zod and Undici to patched versions, preserving existing dependency overrides. Development-only Handlebars and fast-uri are also patched. Both API and frontend dependency audits are clean. The security workflow now checks frontend production dependencies as well as the API.
