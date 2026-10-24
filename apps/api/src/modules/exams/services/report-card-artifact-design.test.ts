@@ -246,7 +246,7 @@ test('unsigned HTML and PDF reports leave space for manual signing with no place
   assert.match(renderedText, /Class Teacher Signature/);
   assert.match(renderedText, /Principal Signature/);
   assert.doesNotMatch(renderedText, /No saved signature|Upload and regenerate|Not signed/i);
-  assert.equal(images.mock.callCount(), 0);
+  assert.equal(images.mock.callCount(), 1, 'only the MyShule brand image is rendered; signatures stay blank');
 });
 
 test('HTML signatures use the same physical image bounds and alignment as the PDF', async (t) => {
@@ -257,8 +257,8 @@ test('HTML signatures use the same physical image bounds and alignment as the PD
   assert.match(html, /\.signature-line img \{[^}]*object-fit:contain; object-position:center bottom;/);
   const images = t.mock.method(PDFDocument.prototype, 'image');
   await createReportCardPdfArtifact(payload, 'RC-SIZING');
-  assert.equal(images.mock.callCount(), 1);
-  assert.deepEqual(images.mock.calls[0].arguments[3], { fit: [130, 32], align: 'center', valign: 'bottom' });
+  assert.equal(images.mock.callCount(), 2, 'the brand and one saved signature are rendered');
+  assert.deepEqual(images.mock.calls[1].arguments[3], { fit: [130, 32], align: 'center', valign: 'bottom' });
 });
 
 for (const withHistory of [false, true]) {
