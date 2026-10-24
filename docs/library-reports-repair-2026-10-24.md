@@ -1,6 +1,6 @@
 # Library reports repair — 24 October 2026
 
-Status: implemented and verified locally; not deployed to myshule.online.
+Status: implemented and verified; production release in progress via PR #110.
 
 ## Cause and repair
 
@@ -24,5 +24,9 @@ Reports, generation audits, workflow events and leadership/librarian notificatio
 Reproduce database checks with `npm run test:library-reports`, browser checks with `npm run test:library-reports:browser`, and UI checks with `npm --prefix apps/web run test:design -- librarian-reports report-artifact-download librarian-human-workflows library-workspace library-module-access`.
 
 ## Rollout
+
+The release branch is based on production main at `4c467a28`, preserving the smart-library changes. API type checking, six report unit tests, 11 disposable PostgreSQL tests and 133 web regressions passed on that branch, including the broader dashboard action contract. CI now runs the library report database and browser regressions.
+
+The initial release gate found newly published dependency advisories. The release updates body-parser, multer, Next.js (and its matching ESLint configuration), Zod and Undici to patched versions, preserving existing dependency overrides. Development-only Handlebars and fast-uri are also patched. Both API and frontend dependency audits are clean. The security workflow now checks frontend production dependencies as well as the API.
 
 Deploy the API and web changes together. Verify the signed-in librarian's existing reports first, then generate one report and open its preview/download. Production report history was not inspected or modified during this repair. No report deletion, regeneration or backfill is needed to correct the list contract. Previously generated generic reports cannot retrospectively recover the type or period selections that the old server ignored.
