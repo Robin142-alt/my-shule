@@ -1,4 +1,4 @@
-import { examStudentEligibleSql, recordedMarkSql, markSheetStatusSql } from '../exams/exam-mark-roster';
+import { examRosterSql, examStudentEligibleSql, recordedMarkSql, markSheetStatusSql } from '../exams/exam-mark-roster';
 import { randomUUID } from 'node:crypto';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../academics/class-teacher-appointment-scope';
 import {
@@ -556,6 +556,7 @@ export class ClassTeacherService {
         section.id AS class_section_id, section.name AS class_name,
         subject.id AS subject_id, subject.name AS subject_name,
         paper.id::text AS assessment_id, paper.name AS paper_name, w.id::text AS window_id,
+        roster.stream_id, stream.name AS stream_name,
         assignment.teacher_user_id,
         COALESCE(NULLIF(staff.display_name, ''), staff.staff_number, 'Unassigned') AS teacher_name
       FROM exam_mark_entry_windows w
@@ -564,8 +565,12 @@ export class ClassTeacherService {
       JOIN subjects subject ON subject.tenant_id = w.tenant_id AND subject.id = w.subject_id::text
       JOIN exam_assessments paper ON paper.tenant_id=w.tenant_id AND paper.exam_series_id=w.exam_series_id
         AND paper.subject_id=w.subject_id AND ${paperClassScopeSql('paper','w.class_section_id')}
+      LEFT JOIN LATERAL (SELECT DISTINCT member.stream_id FROM (${examRosterSql('w','series')}) member) roster ON TRUE
+      LEFT JOIN class_streams stream ON stream.tenant_id=w.tenant_id AND stream.class_section_id=section.id
+        AND stream.id=roster.stream_id
       LEFT JOIN teacher_subject_assignments assignment ON assignment.tenant_id = w.tenant_id
         AND assignment.class_section_id = section.id AND assignment.subject_id = subject.id
+        AND (assignment.stream_id IS NULL OR assignment.stream_id=roster.stream_id)
         AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = series.academic_term_id::text)
         AND assignment.status = 'active' AND assignment.mark_entry_allowed = TRUE
         AND assignment.effective_from <= CURRENT_DATE
@@ -576,17 +581,17 @@ export class ClassTeacherService {
     return { assignments: rows };
   }
 
-  getAssistedMarkbooks(teacherUserId?: string) {
+  getAssistedMarkbooks(teacherUserId?: string, streamIds?: string[]) {
     const { tenantId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
-    return this.getPendingMarks(tenantId, teacherUserId ?? null, true, true);
+    return this.getPendingMarks(tenantId, teacherUserId ?? null, true, true, streamIds);
   }
 
-  saveAssistedMarks(teacherUserId: string | undefined, payload: SaveTeacherMarksDto) {
+  saveAssistedMarks(teacherUserId: string | undefined, payload: SaveTeacherMarksDto, streamIds?: string[]) {
     const { tenantId, actorUserId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
-    return this.saveMarks(tenantId, teacherUserId ?? null, payload, actorUserId);
+    return this.saveMarks(tenantId, teacherUserId ?? null, payload, actorUserId, streamIds);
   }
 
-  async getPendingMarks(tenantId: string, userId: string | null, includeUnavailable = false, includeSubmitted = false) {
+  async getPendingMarks(tenantId: string, userId: string | null, includeUnavailable = false, includeSubmitted = false, streamIds?: string[]) {
     const query = `WITH sheets AS (
       SELECT DISTINCT
         w.id as window_id, w.last_action, es.status AS exam_status,
@@ -602,16 +607,17 @@ export class ClassTeacherService {
         assessment.id as assessment_id,
         w.paper_config_version,
         COALESCE(assessment.name, 'Main Paper') as paper_name,
+        assessment.paper_count,
         COALESCE(assessment.max_score, 100) as out_of,
         ${effectiveEntryDeadlineSql('w', '$2')} as deadline,
-        ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')} AS is_submitted,
+        ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2', '$5')} AS is_submitted,
         (
           SELECT COUNT(DISTINCT em.student_id) FROM exam_marks em
           WHERE em.tenant_id = w.tenant_id AND em.exam_series_id = w.exam_series_id
             AND em.assessment_id = assessment.id AND em.class_section_id = w.class_section_id
             AND em.subject_id = w.subject_id
             AND ($2::text IS NULL OR ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')})
-            AND ${examStudentEligibleSql('w','es','em.student_id')}
+            AND ${examStudentEligibleSql('w','es','em.student_id','$5')}
         ) AS saved_count,
         (
           SELECT MAX(em.submitted_at) FROM exam_marks em
@@ -619,20 +625,15 @@ export class ClassTeacherService {
             AND em.assessment_id = assessment.id AND em.class_section_id = w.class_section_id
             AND em.subject_id = w.subject_id
             AND ($2::text IS NULL OR ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')})
-            AND ${examStudentEligibleSql('w','es','em.student_id')}
+            AND ${examStudentEligibleSql('w','es','em.student_id','$5')}
         ) AS submitted_at,
         (
           SELECT STRING_AGG(DISTINCT stream.name, ', ' ORDER BY stream.name)
-          FROM class_streams stream
-          JOIN teacher_subject_assignments assigned ON assigned.tenant_id = stream.tenant_id
-            AND assigned.class_section_id = stream.class_section_id
-            AND (assigned.stream_id IS NULL OR assigned.stream_id = stream.id)
-          WHERE stream.tenant_id = w.tenant_id AND stream.class_section_id = w.class_section_id::text
-            AND assigned.teacher_user_id = $2 AND assigned.subject_id = w.subject_id::text
-            AND (assigned.academic_term_id IS NULL OR assigned.academic_term_id = es.academic_term_id::text)
-            AND assigned.status = 'active' AND assigned.mark_entry_allowed = TRUE
-            AND assigned.effective_from <= CURRENT_DATE
-            AND (assigned.effective_to IS NULL OR assigned.effective_to >= CURRENT_DATE)
+          FROM (${examRosterSql('w','es')}) member
+          JOIN class_streams stream ON stream.tenant_id = w.tenant_id
+            AND stream.class_section_id = w.class_section_id::text AND stream.id = member.stream_id
+          WHERE ($5::text[] IS NULL OR COALESCE(member.stream_id,'')=ANY($5::text[]))
+            AND ($2::text IS NULL OR ${teacherMarkStudentScopeSql('w','es','member.student_id','$2')})
         ) AS stream_names,
         (
           SELECT COUNT(*) 
@@ -644,13 +645,13 @@ export class ClassTeacherService {
             AND em.subject_id::text = w.subject_id::text
             AND ${recordedMarkSql('em')}
             AND ($2::text IS NULL OR ${teacherMarkStudentScopeSql('w', 'es', 'em.student_id', '$2')})
-            AND ${examStudentEligibleSql('w','es','em.student_id')}
+            AND ${examStudentEligibleSql('w','es','em.student_id','$5')}
         ) as entered_count,
         (
           SELECT COUNT(*)
           FROM students student
           WHERE student.tenant_id::text = w.tenant_id::text
-            AND ${examStudentEligibleSql('w','es','student.id')}
+            AND ${examStudentEligibleSql('w','es','student.id','$5')}
             AND ($2::text IS NULL OR ${teacherMarkStudentScopeSql('w', 'es', 'student.id', '$2')})
         ) as total_students,
         w.status as window_status,
@@ -670,7 +671,7 @@ export class ClassTeacherService {
       JOIN class_sections cs ON cs.id = w.class_section_id::text AND cs.tenant_id::text = w.tenant_id::text
       JOIN subjects s ON s.id = w.subject_id::text AND s.tenant_id::text = w.tenant_id::text
       JOIN LATERAL (
-        SELECT ea.id, ea.name, ea.max_score
+        SELECT ea.id, ea.name, ea.max_score, COUNT(*) OVER ()::int AS paper_count
         FROM exam_assessments ea
         WHERE ea.tenant_id::text = w.tenant_id::text
           AND ea.exam_series_id::text = w.exam_series_id::text
@@ -687,7 +688,7 @@ export class ClassTeacherService {
         AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       WHERE w.tenant_id::text = $1::text
         AND ($2::text IS NULL OR tsa.teacher_user_id = $2)
-        AND ($4::boolean OR NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2')})
+        AND ($4::boolean OR NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2', '$5')})
         AND ($3::boolean OR (
           ${markEntryAccessSql('w', 'es', '$2')}
           AND es.locked_at IS NULL AND es.published_at IS NULL
@@ -696,7 +697,7 @@ export class ClassTeacherService {
       ) SELECT sheets.*, ${markSheetStatusSql({total:'total_students',recorded:'entered_count',submitted:'is_submitted',examStatus:'exam_status',started:'has_started',closed:"entry_state IN ('Closed','Locked','Published','Deadline passed')",teacher:'scope_teacher',lastAction:'last_action'})} AS sheet_status
       FROM sheets ORDER BY deadline ASC
     `;
-    const { rows: result } = await this.executeSql(query, [tenantId, userId, includeUnavailable, includeSubmitted]);
+    const { rows: result } = await this.executeSql(query, [tenantId, userId, includeUnavailable, includeSubmitted, streamIds ?? null]);
     
     return {
       stats: {
@@ -716,6 +717,7 @@ export class ClassTeacherService {
         assessmentId: r.assessment_id,
         paperConfigVersion: r.paper_config_version,
         paperName: r.paper_name,
+        paperCount: Number(r.paper_count),
         streamNames: r.stream_names || null,
         savedCount: Number(r.saved_count),
         submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null,
@@ -1178,6 +1180,7 @@ export class ClassTeacherService {
     userId: string | null,
     payload: SaveTeacherMarksDto,
     assistedActorUserId?: string,
+    streamIds?: string[],
   ) {
     if (assistedActorUserId) {
       const scope = requireAssistedMarkEntryScope(this.requestContext?.getStore());
@@ -1343,7 +1346,8 @@ export class ClassTeacherService {
       rows,
       window.id,
       action === 'submit',
-      ...(assistedActorUserId ? [userId] : []),
+      assistedActorUserId ? userId : undefined,
+      assistedActorUserId ? streamIds : undefined,
     );
 
     if (action === 'submit') {

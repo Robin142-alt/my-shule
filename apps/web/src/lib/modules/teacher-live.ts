@@ -158,6 +158,7 @@ export interface PendingMarksWindow {
   subjectName: string;
   assessmentId: string;
   paperName: string;
+  paperCount?: number;
   outOf: number;
   deadline: string;
   enteredCount: number;
@@ -168,7 +169,7 @@ export interface PendingMarksWindow {
   opensAt?: string;
 }
 
-export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false, teacherUserId?: string | null): Promise<{
+export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false, teacherUserId?: string | null, streamIds?: Array<string | null>): Promise<{
   stats: { totalWindows: number; nearingDeadline: number };
   windows: PendingMarksWindow[];
 }> {
@@ -176,6 +177,7 @@ export async function fetchPendingMarksLive(session: LiveAuthSession, includeUna
   if (includeUnavailable) query.set('includeUnavailable', 'true');
   if (includeSubmitted) query.set('includeSubmitted', 'true');
   if (teacherUserId !== undefined) { query.delete("includeUnavailable"); query.delete("includeSubmitted"); if(teacherUserId) query.set("teacherUserId", teacherUserId); }
+  if (teacherUserId !== undefined) streamIds?.forEach(id => query.append('streamIds',id ?? ''));
   const path = teacherUserId !== undefined ? "/exams/assisted-marks-entry/markbooks" : "/class-teacher/pending-marks";
   return withSession(session, `${path}${query.size ? `?${query}` : ""}`, {
     method: "GET",
@@ -348,6 +350,7 @@ export const EXAM_SCORE_STATUSES = [
 export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
 
 export interface TeacherMarkSheetRow {
+  stream_id?: string | null;
   can_edit?: boolean;
   category_scores?: Record<string, number | null | 'X' | 'Y'>;
   categories?: Array<{ id: string; name: string; max_score: number }>;
@@ -429,6 +432,7 @@ export interface TeacherMarkDraftInput {
 }
 
 export interface SaveTeacherMarksPayload extends Record<string, unknown> {
+  streamIds?: string[];
   paperConfigVersion?: number;
   action: "draft" | "submit";
   examId: string;

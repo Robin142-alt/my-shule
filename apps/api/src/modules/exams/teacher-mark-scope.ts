@@ -20,15 +20,15 @@ export function teacherMarkStudentScopeSql(window: string, series: string, stude
 
 // Each stream is submitted independently. An unresolved blank in a submitted
 // stream stays protected, while a different stream with no marks remains open.
-export function teacherMarkSheetSubmittedSql(window: string, series: string, assessmentId: string, teacherId: string): string {
-  return submittedStreamsSql(window, series, assessmentId, teacherId);
+export function teacherMarkSheetSubmittedSql(window: string, series: string, assessmentId: string, teacherId: string, streamIds?: string): string {
+  return submittedStreamsSql(window, series, assessmentId, teacherId, undefined, streamIds);
 }
 
 export function markStreamSubmittedSql(window: string, series: string, assessmentId: string, studentId: string): string {
   return submittedStreamsSql(window, series, assessmentId, 'NULL', studentId);
 }
 
-function submittedStreamsSql(window: string, series: string, assessmentId: string, teacherId: string, studentId?: string): string {
+function submittedStreamsSql(window: string, series: string, assessmentId: string, teacherId: string, studentId?: string, streamIds?: string): string {
   return `(WITH sheet_roster AS MATERIALIZED (${examRosterSql(window, series)})
     SELECT COALESCE(BOOL_AND(stream_state.submitted), FALSE) FROM (
       SELECT COALESCE(BOOL_OR(completed_mark.status IN ('submitted','reviewed','approved','locked','published')),FALSE)
@@ -41,6 +41,7 @@ function submittedStreamsSql(window: string, series: string, assessmentId: strin
         AND completed_mark.assessment_id=${assessmentId}
         AND completed_mark.student_id::text=member.student_id
       WHERE (${teacherId}::text IS NULL OR ${teacherMarkStudentScopeSql(window, series, 'member.student_id', teacherId)})
+        ${streamIds ? `AND (${streamIds}::text[] IS NULL OR COALESCE(member.stream_id,'')=ANY(${streamIds}::text[]))` : ''}
         ${studentId ? `AND member.stream_id IS NOT DISTINCT FROM (SELECT target.stream_id FROM sheet_roster target WHERE target.student_id=${studentId}::text)` : ''}
       GROUP BY member.stream_id
     ) stream_state)`;

@@ -28,7 +28,7 @@ export async function saveExamMarksLive(session,payload){window.__payload=payloa
 export async function fetchPaperConfiguration(){return {version:1,papers:[{id:'paper-1',name:'Main Paper',max_score:100,weight:null,categories:[]}]};}
 export async function savePaperConfiguration(session,id,data){window.__config=data;exam.outOf=data.papers[0].max_score;exam.paperName=data.papers[0].name;exam.paperConfigVersion=2;rows=rows.map(row=>({...row,id:null,score:null,score_status:'not_assessed',category_scores:{},categories:data.papers[0].categories.map((c,i)=>({...c,id:'category-'+i})),paper_config_version:2}));return {...data,version:2};}`);
 fs.writeFileSync(path.join(out, 'api-client.ts'), `export async function requestDashboardApi(){throw new Error('Unexpected API request in isolated browser QA');}`);
-fs.writeFileSync(path.join(out, 'school-hooks.ts'), `export function useSchoolQuery(path){return {data:path.endsWith('/assignments')?{assignments:[{exam_id:'exam-1',exam_name:'End Term Exams',class_section_id:'form-4',class_name:'Form 4 Blue',subject_id:'agriculture',subject_name:'Agriculture',assessment_id:'paper-1',paper_name:'Main Paper',window_id:'window-1',teacher_user_id:'teacher-1',teacher_name:'Ms Achieng'}]}:{entries:[]},refetch:async()=>{},isLoading:false,isFetching:false};}`);
+fs.writeFileSync(path.join(out, 'school-hooks.ts'), `export function useSchoolQuery(path){return {data:path.endsWith('/assignments')?{assignments:[{exam_id:'exam-1',exam_name:'End Term Exams',class_section_id:'form-4',class_name:'Form 4 Blue',subject_id:'agriculture',subject_name:'Agriculture',assessment_id:'paper-1',paper_name:'Main Paper',window_id:'window-1',teacher_user_id:${unassigned ? 'null' : "'teacher-1'"},teacher_name:${unassigned ? "'Unassigned'" : "'Ms Achieng'"}}]}:{entries:[]},refetch:async()=>{},isLoading:false,isFetching:false};}`);
 fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {QueryClient,QueryClientProvider} from '@tanstack/react-query';import {${assisted ? 'MarksEntryWorkspace' : 'ExamsMarksWorkspace'} as Workspace} from ${source(path.join(web, assisted ? 'src/components/school/exams-manager/marks-entry-workspace' : 'src/components/school/teacher-dashboard/exams-marks-workspace'))};createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient()}><main className="mx-auto max-w-5xl p-3 sm:p-6"><Workspace onStartAction={()=>{}} onOpenSetup={()=>{}}/></main></QueryClientProvider>);`);
 
 async function run() {
@@ -62,7 +62,8 @@ async function run() {
         await page.getByLabel('Exam', { exact: true }).selectOption('exam-1');
         await page.getByLabel('Class / grade', { exact: true }).selectOption('form-4');
         await page.getByLabel('Subject', { exact: true }).selectOption('agriculture');
-        await page.getByLabel('Paper', { exact: true }).selectOption('paper-1');
+        if (await page.getByLabel('Paper', { exact: true }).count()) await page.getByLabel('Paper', { exact: true }).selectOption('paper-1');
+        if (unassigned) await page.getByLabel('Assigned teacher', { exact: true }).selectOption('unassigned');
         if (!unassigned) await page.getByLabel('Assigned teacher', { exact: true }).selectOption('teacher-1');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Selectors overflow at ${width}px`);
         await page.screenshot({ path: path.join(out, `selection-${width}.png`), fullPage: true });
@@ -110,6 +111,8 @@ async function run() {
         assert.deepEqual(errors,[]);await page.close();console.log(`Paper configuration, categories and Y ${width}px: passed`);continue;
       }
       assert.equal(await page.getByRole('option', { name: /Completed old exam/ }).count(), 0);
+      assert.equal(await page.getByText(/Main Paper/i).count(), 0);
+      assert.equal(await page.getByRole('option', { name: /End Term Exams.*Agriculture/ }).count(), 1);
       assert.equal(await page.getByText(/evidence|remarks|policy result|validation/i).count(), 0);
       const bounds = await asha.boundingBox();
       assert.ok(bounds.height >= 44 && bounds.x >= 0 && bounds.x + bounds.width <= width, `Input does not fit at ${width}px`);
@@ -124,6 +127,7 @@ async function run() {
       assert.equal(await page.getByText('Reasons for missing scores').count(), 0);
       assert.equal(await page.evaluate(() => window.__payload.marks['student-0'].score), 0);
       if (assisted) assert.equal(await page.evaluate(() => window.__payload.teacherUserId), unassigned ? null : 'teacher-1');
+      if (unassigned) assert.deepEqual(await page.evaluate(() => window.__payload.streamIds), ['']);
       await page.getByRole('button', { name: 'Submit results', exact: true }).click();
       const reason = page.getByLabel('Brian Otieno missing score reason', { exact: true });
       await reason.waitFor();

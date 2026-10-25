@@ -581,6 +581,7 @@ export class ExamsRepository {
     actor_user_id: string;
     teacher_user_id?: string;
     manager_entry?: boolean;
+    stream_ids?: string[];
     source_window_id: string;
     submit: boolean;
     rows: Array<{
@@ -662,7 +663,7 @@ export class ExamsRepository {
 
              WHERE (source.score IS NULL OR source.score BETWEEN 0 AND assessment.max_score)
                AND ($5::text IS NULL OR ${teacherMarkStudentScopeSql('mark_window','series','source.student_id','$5')})
-               AND ${examStudentEligibleSql('mark_window','series','source.student_id')}
+               AND ${examStudentEligibleSql('mark_window','series','source.student_id','$6')}
                AND NOT ${markStreamSubmittedSql('mark_window','series','assessment.id','source.student_id')}
            ), previous AS MATERIALIZED (
              SELECT scoped.*,
@@ -752,6 +753,7 @@ export class ExamsRepository {
           JSON.stringify(input.rows),
           input.source_window_id,
           teacherUserId,
+          input.manager_entry ? input.stream_ids ?? null : null,
         );
         const savedRows = Array.isArray(savedResult) ? savedResult : [savedResult];
 
@@ -794,7 +796,7 @@ export class ExamsRepository {
             AND series.id = mark_window.exam_series_id
            JOIN students student
              ON student.tenant_id = mark_window.tenant_id
-            AND ${examStudentEligibleSql('mark_window','series','student.id')}
+            AND ${examStudentEligibleSql('mark_window','series','student.id','$8')}
            LEFT JOIN exam_marks mark
              ON mark.tenant_id = mark_window.tenant_id
             AND mark.exam_series_id = mark_window.exam_series_id
@@ -817,6 +819,7 @@ export class ExamsRepository {
           firstRow.assessment_id,
           firstRow.class_section_id,
           firstRow.subject_id,
+          input.manager_entry ? input.stream_ids ?? null : null,
         );
         const sheetState = (Array.isArray(stateResult) ? stateResult[0] : stateResult) ?? {};
         const expectedCount = Number(sheetState.expected_count ?? 0);
@@ -5633,6 +5636,7 @@ export class ExamsRepository {
         COALESCE(subject.name, mark_window.subject_id::text) AS subject_name,
         student.id::text AS student_id,
         student.admission_number,
+        roster.stream_id,
         NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
         mark.score::float AS score,
         mark.category_scores, mark_window.paper_config_version,
@@ -5664,9 +5668,10 @@ export class ExamsRepository {
        AND assessment.exam_series_id = mark_window.exam_series_id
        AND assessment.subject_id = mark_window.subject_id
        AND ${paperClassScopeSql('assessment', 'mark_window.class_section_id')}
+      JOIN LATERAL (${examRosterSql('mark_window','series')}) roster ON TRUE
       JOIN students student
         ON student.tenant_id = mark_window.tenant_id
-       AND ${examStudentEligibleSql('mark_window','series','student.id')}
+       AND student.id::text = roster.student_id
       LEFT JOIN class_sections class_section
         ON class_section.tenant_id = mark_window.tenant_id
        AND class_section.id = mark_window.class_section_id::text

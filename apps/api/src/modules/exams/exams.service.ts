@@ -1033,6 +1033,7 @@ export class ExamsService {
     sourceWindowIdValue: string,
     submit = false,
     teacherUserId?: string | null,
+    streamIds?: string[],
   ) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
@@ -1101,6 +1102,7 @@ export class ExamsService {
       actor_user_id: actorUserId,
       ...(teacherUserId ? { teacher_user_id: teacherUserId } : {}),
       manager_entry: teacherUserId !== undefined,
+      stream_ids: teacherUserId !== undefined ? streamIds : undefined,
       source_window_id: sourceWindowId,
       submit,
       rows: validEntries.map(({ row_number, entry }) => ({

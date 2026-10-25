@@ -13,6 +13,7 @@ import {
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { MarkbookList, sheetKey, isSubmitted, markbookDate, type MarkbookView } from "./markbook-list";
 import { PaperSettings } from './paper-settings';
+import { markbookPaperLabel } from '@/lib/modules/markbook-labels';
 
 type MarkDraft = { score: string; scoreStatus: ExamScoreStatus | ""; remarks: string; categories?: Record<string, string> };
 type DraftsByStudent = Record<string, MarkDraft>;
@@ -64,6 +65,7 @@ function reasonLabel(draft: MarkDraft) {
 export type MarkEntryAssistance = {
   teacherUserId: string | null; teacherName: string; examSeriesId: string;
   classSectionId: string; subjectId: string; assessmentId?: string; windowId?: string; onClose: () => void;
+  streamIds?: Array<string | null>;
 };
 
 export function ExamsMarksWorkspace({ onStartAction, assistance }: {
@@ -80,7 +82,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   onStartAction?: (action: TeacherAction, view: TeacherView, message: string) => void;
   assistance?: MarkEntryAssistance;
 }) {
-  const viewerScope = assistance ? `${liveSession.session?.user.user_id}:assisting:${assistance.teacherUserId}` : liveSession.session?.user.user_id;
+  const viewerScope = assistance ? `${liveSession.session?.user.user_id}:assisting:${assistance.teacherUserId}${assistance.streamIds ? `:streams:${JSON.stringify(assistance.streamIds)}` : ''}` : liveSession.session?.user.user_id;
   const [exitRequested, setExitRequested] = useState(false);
   const queryClient = useQueryClient();
   const [activeWindowId, setActiveWindowId] = useState<string | null>(assistance?.windowId && assistance.assessmentId ? `${assistance.windowId}:${assistance.assessmentId}` : null);
@@ -100,7 +102,9 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const initiallyOpenedSheet = useRef<string | null>(null);
   const pendingMarksQuery = useQuery({
     queryKey: pendingKey,
-    queryFn: () => fetchPendingMarksLive(liveSession.session!, true, true, ...(assistance ? [assistance.teacherUserId] : [])),
+    queryFn: () => assistance?.streamIds
+      ? fetchPendingMarksLive(liveSession.session!,true,true,assistance.teacherUserId,assistance.streamIds)
+      : fetchPendingMarksLive(liveSession.session!, true, true, ...(assistance ? [assistance.teacherUserId] : [])),
     enabled: !!liveSession.session, retry: false, refetchInterval: 30_000,
   });
   const sheets = (pendingMarksQuery.data?.windows ?? EMPTY_WINDOWS).filter(sheet => !assistance
@@ -115,6 +119,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   }, [assistance?.assessmentId, firstAssistedSheet]);
   const windows = sheets.filter(sheet => view === "submitted" ? isSubmitted(sheet) : !isSubmitted(sheet));
   const activeWindow = windows.find(windowTask => sheetKey(windowTask) === activeWindowId) ?? null;
+  const activePaperLabel = activeWindow ? markbookPaperLabel(activeWindow.subjectName,activeWindow.paperName,activeWindow.paperCount) : '';
   const submittedView = !!activeWindow && isSubmitted(activeWindow);
   const reviewing = !!activeWindow && !submittedView && reviewWindowId === sheetKey(activeWindow);
   useEffect(() => { if (reviewing) reviewHeading.current?.focus(); }, [reviewing]);
@@ -141,7 +146,8 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       && activeWindow.subjectId && activeWindow.assessmentId),
     retry: false,
   });
-  const markRows = markSheetQuery.data ?? EMPTY_ROWS;
+  const markRows = (markSheetQuery.data ?? EMPTY_ROWS).filter(row => !assistance?.streamIds
+    || assistance.streamIds.includes(row.stream_id ?? null));
   const activeDrafts = Object.fromEntries(markRows.map(row => [row.student_id,
     (!submittedView && activeWindow && (draftMarks[sheetKey(activeWindow)]?.[row.student_id]
       || savedDrafts[sheetKey(activeWindow)]?.[row.student_id])) || draftFromRow(row),
@@ -206,6 +212,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
         classSectionId: activeWindow.classSectionId, marks,
         paperConfigVersion: markRows[0]?.paper_config_version ?? activeWindow.paperConfigVersion,
         ...(assistance ? { teacherUserId: assistance.teacherUserId } : {}),
+        ...(assistance?.streamIds ? { streamIds: assistance.streamIds.map(id => id ?? '') } : {}),
       });
       if (!result.success) throw new Error("Marks were not saved. Please retry.");
       if (action === "submit") {
@@ -247,7 +254,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
         setSavedDrafts(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
       }
       setDraftMarks(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
-      const label = `${assistance?.teacherName ? `On behalf of ${assistance.teacherName}: ` : ""}${activeWindow.subjectName} · ${activeWindow.className} · ${activeWindow.paperName}`;
+      const label = `${assistance?.teacherName ? `On behalf of ${assistance.teacherName}: ` : ""}${[activeWindow.subjectName,activeWindow.className,activePaperLabel].filter(Boolean).join(' · ')}`;
       const message = action === "submit" ? `${label}: submitted for moderation. Choose your next markbook below.` : `${label}: draft saved. You can continue editing or return later.`;
       setNotice(message); toast.success(message);
       onStartAction?.("marks", "exams-marks", message);
@@ -274,7 +281,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   function printSheet() {
     if (!activeWindow) return;
     openPrintDocument({ eyebrow: "Teacher markbook", title: activeWindow.examName,
-      subtitle: `${activeWindow.className} | ${activeWindow.subjectName} | ${activeWindow.paperName}`,
+      subtitle: [activeWindow.className,activeWindow.subjectName,activePaperLabel].filter(Boolean).join(' | '),
       rows: markRows.map(row => ({ label: `${row.admission_number ?? "-"} - ${row.student_name ?? "Unnamed student"}`,
         value: activeDrafts[row.student_id].score.trim() ? `${activeDrafts[row.student_id].score} / ${activeWindow.outOf}` : reasonLabel(activeDrafts[row.student_id]),
       })), footer: submittedView ? "Submitted markbook. Results are subject to moderation and publication." : "Draft markbook. Results are subject to moderation and publication.",
@@ -319,13 +326,13 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
               Exam / class / subject
               <select aria-label="Exam / class / subject" value={sheetKey(activeWindow)} onChange={event => switchWindow(event.target.value)} disabled={isSaving}
                 className="min-h-12 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-base font-normal focus:outline-blue-600 disabled:opacity-60">
-                {windows.map(windowTask => <option key={sheetKey(windowTask)} value={sheetKey(windowTask)}>{windowTask.examName} · {windowTask.className}{windowTask.streamNames ? ` · ${windowTask.streamNames}` : ""} · {windowTask.subjectName} · {windowTask.paperName}{windowTask.canEnter === false ? ` (${windowTask.entryState})` : ""}</option>)}
+                {windows.map(windowTask => <option key={sheetKey(windowTask)} value={sheetKey(windowTask)}>{[windowTask.examName,windowTask.className,windowTask.streamNames,windowTask.subjectName,markbookPaperLabel(windowTask.subjectName,windowTask.paperName,windowTask.paperCount)].filter(Boolean).join(' · ')}{windowTask.canEnter === false ? ` (${windowTask.entryState})` : ""}</option>)}
               </select>
             </label>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
               <div className="min-w-0 break-words">
                 <p className="mb-1 font-medium text-slate-700 sm:hidden">{activeWindow.className} · {activeWindow.subjectName}</p>
-                <p>{activeWindow.paperName} <span className="mx-1">·</span> Out of <strong className="font-semibold text-slate-700">{activeWindow.outOf}</strong>{activeWindow.deadline && <> <span className="mx-1">·</span> Due {markbookDate(activeWindow.deadline)}</>}</p>
+                <p>{activePaperLabel && <>{activePaperLabel} <span className="mx-1">·</span> </>}Out of <strong className="font-semibold text-slate-700">{activeWindow.outOf}</strong>{activeWindow.deadline && <> <span className="mx-1">·</span> Due {markbookDate(activeWindow.deadline)}</>}</p>
               </div>
               <div className="flex gap-2">
                 <button type="button" aria-label="Download CSV" onClick={downloadMarkbook} disabled={exportUnavailable} className={buttonClass}><Download className="h-4 w-4" /><span><span className="hidden sm:inline">Download </span>CSV</span></button>

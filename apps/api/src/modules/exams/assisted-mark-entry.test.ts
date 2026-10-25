@@ -19,7 +19,7 @@ test('assisted routes enforce the exams module, manager role and both entry perm
     const route = { getHandler: () => ExamsManagerMarksController.prototype[action], getClass: () => ExamsManagerMarksController } as never;
     store = { ...context };
     assert.equal(guard.canActivate(route), true);
-    for (const role of ['teacher', 'class_teacher', 'dean_of_academics', 'parent']) {
+    for (const role of ['teacher', 'class_teacher', 'dean_of_academics', 'parent', 'bursar', 'accountant']) {
       store = { ...context, role };
       assert.throws(() => guard.canActivate(route), /Role-based/);
       assert.throws(() => requireAssistedMarkEntryScope(store as never), /permission/);

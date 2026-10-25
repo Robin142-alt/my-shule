@@ -181,6 +181,19 @@ describe("teacher exams and marks workspace", () => {
     await screen.findByLabelText("Asha Njeri score");
   }
 
+  it('shows only the selected unassigned stream and never saves another stream', async()=>{
+    const rows=await jest.mocked(fetchTeacherMarkSheetLive)(mockSession,{examSeriesId:'series-1',classSectionId:'class-2-blue',subjectId:'subject-maths',assessmentId:'assessment-paper-1'});
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map((row,index)=>({...row,stream_id:index===0?'white':'blue'})));
+    renderWithProviders(<ExamsMarksWorkspace assistance={{teacherUserId:null,teacherName:'',examSeriesId:'series-1',
+      classSectionId:'class-2-blue',subjectId:'subject-maths',assessmentId:'assessment-paper-1',windowId:'window-1',streamIds:['white'],onClose:jest.fn()}}/>);
+    fireEvent.change(await screen.findByLabelText('Asha Njeri score'),{target:{value:'0'}});
+    expect(screen.queryByLabelText('Brian Otieno score')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'Save draft'}));
+    await waitFor(()=>expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession,expect.objectContaining({teacherUserId:null,streamIds:['white'],
+      marks:{'student-1':expect.objectContaining({score:0})}})));
+    expect(fetchPendingMarksLive).toHaveBeenCalledWith(mockSession,true,true,null,['white']);
+  });
+
   it("shows one compact score input per student without evidence, remarks, policy or validation panels", async () => {
     await openWorkspace();
     expect(fetchPendingMarksLive).toHaveBeenCalledWith(mockSession, true, true);
