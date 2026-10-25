@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, BookOpenCheck, Search } from "lucide-react";
 import type { PendingMarksWindow } from "@/lib/modules/teacher-live";
 import { cn } from "./shared-components";
+import { markbookPaperLabel } from "@/lib/modules/markbook-labels";
 
 export type MarkbookView = "active" | "drafts" | "submitted";
 export const sheetKey = (sheet: PendingMarksWindow) => sheet.sheetId ?? `${sheet.id}:${sheet.assessmentId}`;
@@ -64,7 +65,7 @@ export function MarkbookList({ sheets, drafts, view, onView, onOpen }: {
         <div className="min-w-0 flex-1 basis-56">
           <p className="text-xs font-medium text-slate-500">{sheet.examName}</p>
           <h3 className="mt-1 break-words text-base font-semibold text-foreground">{sheet.subjectName} <span className="font-normal text-slate-600">· {sheet.className}{sheet.streamNames ? ` · ${sheet.streamNames}` : ""}</span></h3>
-          <p className="mt-1 text-sm text-slate-500">{sheet.paperName} · {sheet.totalStudents} students · Out of {sheet.outOf}</p>
+          <p className="mt-1 text-sm text-slate-500">{markbookPaperLabel(sheet.subjectName,sheet.paperName,sheet.paperCount) && <>{markbookPaperLabel(sheet.subjectName,sheet.paperName,sheet.paperCount)} · </>}{sheet.totalStudents} students · Out of {sheet.outOf}</p>
         </div>
         <div className="min-w-0 text-sm">
           <p className={cn("font-medium", isSubmitted(sheet) ? "text-success" : "text-slate-700")}>
@@ -73,7 +74,7 @@ export function MarkbookList({ sheets, drafts, view, onView, onOpen }: {
           <p className="mt-1 text-xs text-slate-500">{sheet.enteredCount} / {sheet.totalStudents} recorded · {Math.max(0, sheet.totalStudents - sheet.enteredCount)} blank{sheet.canEnter === false && sheet.entryState ? ` · ${sheet.entryState}` : ""}</p>
           <p className="mt-1 text-xs text-slate-500">{isSubmitted(sheet) ? `Submitted ${markbookDate(sheet.submittedAt)}` : `Due ${markbookDate(sheet.deadline)}`}</p>
         </div>
-        <button type="button" aria-label={`Open ${sheet.subjectName} ${sheet.className} ${sheet.paperName} ${sheet.examName}`} onClick={() => onOpen(sheetKey(sheet))}
+        <button type="button" aria-label={`Open ${[sheet.subjectName,sheet.className,markbookPaperLabel(sheet.subjectName,sheet.paperName,sheet.paperCount),sheet.examName].filter(Boolean).join(' ')}`} onClick={() => onOpen(sheetKey(sheet))}
           className={cn(control, "inline-flex w-full items-center justify-center gap-2 font-medium sm:w-auto")}>
           {isSubmitted(sheet) ? "View submission" : sheet.canEnter === false ? "View details" : hasDraft(sheet) ? "Continue editing" : "Enter marks"}<ArrowRight className="h-4 w-4" />
         </button>

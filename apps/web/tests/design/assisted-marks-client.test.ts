@@ -6,6 +6,12 @@ const session = { tenantId: "school-a", user: { user_id: "manager-a" } } as Para
 
 beforeEach(() => jest.clearAllMocks());
 
+it('preserves the selected stream scope without changing the actor or inventing a teacher',async()=>{
+  jest.mocked(withSession).mockResolvedValue({windows:[]});
+  await fetchPendingMarksLive(session,true,true,null,['white',null]);
+  expect(withSession).toHaveBeenCalledWith(session,'/exams/assisted-marks-entry/markbooks?streamIds=white&streamIds=',{method:'GET'});
+});
+
 it("loads assisted markbooks through the existing exams proxy without changing the session", async () => {
   jest.mocked(withSession).mockResolvedValue({ windows: [] });
   await fetchPendingMarksLive(session, true, true, "teacher-a");
@@ -33,7 +39,7 @@ it("routes a manager without a teacher through the protected manager endpoints",
   jest.mocked(withSession).mockResolvedValue({windows:[]});
   await fetchPendingMarksLive(session,true,true,null);
   expect(withSession).toHaveBeenLastCalledWith(session,"/exams/assisted-marks-entry/markbooks",{method:"GET"});
-  const payload={action:"draft" as const,examId:"window-a",classSectionId:"class-a",assessmentId:"paper-a",teacherUserId:null,marks:{}};
+  const payload={action:"draft" as const,examId:"window-a",classSectionId:"class-a",assessmentId:"paper-a",teacherUserId:null,streamIds:['white',''],marks:{}};
   await saveExamMarksLive(session,payload);
   expect(withSession).toHaveBeenLastCalledWith(session,"/exams/assisted-marks-entry",{method:"POST",body:payload});
 });

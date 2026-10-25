@@ -22,6 +22,39 @@ function response(entries: TeacherMarkSheet[], extra = {}) {
 describe("Teacher mark entry follow-up", () => {
   beforeEach(() => { jest.clearAllMocks(); response([sheet()]); });
 
+  it("displays a subject once, suppresses generated main-paper labels and keeps the exam", () => {
+    response([sheet({subject:'CHEMISTRY',paper:'CHEMISTRY Main Paper'})]);
+    render(<TeacherMarksProgress/>);
+    expect(screen.getByText('CHEMISTRY')).toBeVisible();
+    expect(within(screen.getByRole('listitem')).getByText('End term')).toBeVisible();
+    expect(screen.queryByText(/Main Paper/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:/Details for/})).not.toHaveAccessibleName(/Main Paper/);
+  });
+
+  it("hides paper names for a single-paper subject and retains configured names for multiple papers", () => {
+    response([sheet({paper:'Paper 1',paper_count:1})]);
+    const view=render(<TeacherMarksProgress/>);
+    expect(screen.queryByText(/Paper 1/)).not.toBeInTheDocument();
+    response([sheet({assessment_id:'p1',paper:'Mathematics Paper 1',paper_count:2}),sheet({id:'sheet-2',assessment_id:'p2',paper:'Paper 2',paper_count:2})]);
+    view.rerender(<TeacherMarksProgress/>);
+    expect(screen.getByText('· Paper 1')).toBeVisible();
+    expect(screen.getByText('· Paper 2')).toBeVisible();
+    expect(screen.queryByText('Mathematics Paper 1')).not.toBeInTheDocument();
+  });
+
+  it("opens an unassigned sheet directly with its exact exam, paper and stream", () => {
+    const unassigned = sheet({teacher_id:null,teacher:'Unassigned',status:'Unassigned',
+      class_section_id:'class-1',subject_id:'maths',assessment_id:'paper-1',stream_id:'white'});
+    response([unassigned]);
+    const open = jest.fn();
+    render(<TeacherMarksProgress onOpenMarkbook={open}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Unassigned'}));
+    fireEvent.click(screen.getByRole('button',{name:/Details for Unassigned/}));
+    fireEvent.click(screen.getByRole('button',{name:'Open markbook'}));
+    expect(open).toHaveBeenCalledWith(unassigned);
+    expect(screen.queryByText(/Assign a subject teacher.*Academic Setup/)).not.toBeInTheDocument();
+  });
+
   it("shows named outstanding teachers first and excludes completed and future sheets", () => {
     response([sheet(), sheet({ id: "draft", teacher: "Brian Kamau", status: "Awaiting submission", recorded: 30, entered: 30, missing: 0 }),
       sheet({ id: "done", teacher: "Completed Teacher", submitted: 30, status: "Completed" }),

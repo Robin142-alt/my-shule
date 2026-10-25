@@ -9,7 +9,10 @@ export type TeacherMarkProgress = {
   exam_id: string;
   exam_name: string;
   subject: string;
+  subject_id: string;
+  stream_id: string | null;
   paper: string;
+  paper_count: number;
   class_name: string;
   stream: string | null;
   teacher_id: string | null;
@@ -33,8 +36,11 @@ export type TeacherMarkProgress = {
 // unassigned streams must remain visible. Each paper has its own submission.
 export const TEACHER_MARK_PROGRESS_SQL = `
   WITH progress AS (
-    SELECT w.id AS window_id, w.class_section_id, series.id AS exam_id, series.name AS exam_name,
+    SELECT w.id AS window_id, w.class_section_id, w.subject_id, series.id AS exam_id, series.name AS exam_name,
       series.status AS exam_status, assessment.id AS assessment_id, assessment.name AS paper,
+      (SELECT COUNT(*)::int FROM exam_assessments configured WHERE configured.tenant_id=w.tenant_id
+        AND configured.exam_series_id=w.exam_series_id AND configured.subject_id=w.subject_id
+        AND ${paperClassScopeSql('configured','w.class_section_id')}) AS paper_count,
       subject.name AS subject, section.name AS class_name,
       roster.stream_id, stream.name AS stream, owner.teacher_user_id AS teacher_id,
       COALESCE(MAX(NULLIF(staff.display_name, '')), MAX(staff.staff_number),
@@ -84,7 +90,7 @@ export const TEACHER_MARK_PROGRESS_SQL = `
       roster.stream_id, stream.name, owner.teacher_user_id
   )
   SELECT CONCAT(window_id, ':', assessment_id, ':', COALESCE(teacher_id::text, 'unassigned'), ':', COALESCE(stream_id, 'class')) AS id,
-    assessment_id::text, window_id::text, class_section_id::text, exam_id::text, exam_name, subject, paper, class_name, stream,
+    assessment_id::text, window_id::text, class_section_id::text, subject_id::text, stream_id, exam_id::text, exam_name, subject, paper, paper_count, class_name, stream,
     teacher_id::text, teacher, total_students, entered, recorded, submitted,
     (total_students - recorded)::int AS missing, deadline::text, window_closed, last_activity, COALESCE(is_submitted,FALSE) AS is_submitted,
     (total_students > 0 AND NOT COALESCE(is_submitted,FALSE) AND exam_status <> 'draft' AND has_started) AS outstanding,

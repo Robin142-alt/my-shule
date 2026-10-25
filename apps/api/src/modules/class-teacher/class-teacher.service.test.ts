@@ -73,7 +73,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.equal(result.windows[0].status, 'In progress');
   assert.equal(result.windows[0].missingCount, 26);
   assert.equal(result.windows[0].canEnter, true);
-  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false, false]);
+  assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false, false, null]);
   assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);
   assert.match(queries[0].sql, /s\.id\s*=\s*w\.subject_id::text/);
   assert.match(queries[0].sql, /tsa\.class_section_id\s*=\s*w\.class_section_id::text/);

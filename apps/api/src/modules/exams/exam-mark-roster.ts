@@ -39,9 +39,10 @@ export function examRosterSql(window: string, series: string): string {
       membership.stream_id NULLS LAST`;
 }
 
-export function examStudentEligibleSql(window: string, series: string, student: string): string {
+export function examStudentEligibleSql(window: string, series: string, student: string, streamIds?: string): string {
   return `EXISTS (SELECT 1 FROM (${examRosterSql(window, series)}) exam_roster
-    WHERE exam_roster.student_id = ${student}::text)`;
+    WHERE exam_roster.student_id = ${student}::text
+    ${streamIds ? `AND (${streamIds}::text[] IS NULL OR COALESCE(exam_roster.stream_id,'')=ANY(${streamIds}::text[]))` : ''})`;
 }
 
 export function recordedMarkSql(mark: string): string {

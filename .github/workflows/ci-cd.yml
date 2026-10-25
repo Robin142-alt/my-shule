@@ -114,7 +114,7 @@ jobs:
 
       - name: Exams Manager assisted marks entry and mobile workflow
         run: |
-          npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks teacher-exams-marks-workspace
+          npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks exams-manager-teacher-progress teacher-exams-marks-workspace markbook-labels
           node apps/web/tests/design/teacher-marks-browser.mjs --assisted
           node apps/web/tests/design/teacher-marks-browser.mjs --unassigned
           node apps/web/tests/design/teacher-marks-browser.mjs --papers

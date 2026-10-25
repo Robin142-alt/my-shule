@@ -597,6 +597,80 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await pool.query('SELECT count(*)::int AS count,min(entered_by_user_id::text) AS original FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0]).toEqual({count:1,original:ids.manager});
   });
 
+  it('discovers an unassigned stream beside an assigned stream and preserves its exact roster identity', async () => {
+    const classId=randomUUID(), subjectId=randomUUID(), white=randomUUID(), blue=randomUUID();
+    await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Mixed allocation class')`,[classId]);
+    await pool.query(`INSERT INTO subjects VALUES ($1,'school-a','Unallocated subject')`,[subjectId]);
+    await pool.query(`INSERT INTO class_streams VALUES ('white','school-a',$1,'White'),('blue','school-a',$1,'Blue')`,[classId]);
+    for(const [studentId,stream] of [[white,'white'],[blue,'blue']]) {
+      await pool.query(`INSERT INTO students(id,tenant_id,first_name) VALUES ($1,'school-a','Stream learner')`,[studentId]);
+      await pool.query(`INSERT INTO student_class_assignments VALUES ('school-a',$1,$2,$3,'active')`,[studentId,classId,stream]);
+      await pool.query(`INSERT INTO student_subject_enrollments VALUES ('school-a',$1,$2,$3,'active')`,[studentId,classId,subjectId]);
+    }
+    await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id,stream_id) VALUES ('school-a',$1,$2,$3,'blue')`,[classId,subjectId,ids.teacher]);
+    const created=await manager.createExamSetup({name:`Unassigned stream ${++serial}`,academic_term_id:ids.term,
+      starts_on:futureDate(0),ends_on:futureDate(7),status:'submitted',subject_ids:[subjectId],class_section_ids:[classId],max_marks:80});
+    activeContext=managerContext;
+    try {
+      const choices=(await teacher.getAssistedMarkAssignments()).assignments.filter(row=>row.exam_id===created.exam.id);
+      expect(choices).toEqual(expect.arrayContaining([
+        expect.objectContaining({teacher_user_id:null,stream_id:'white'}),
+        expect.objectContaining({teacher_user_id:ids.teacher,stream_id:'blue'}),
+      ]));
+      const progress=(await manager.getTeacherMarkProgress()).entries.filter(row=>row.exam_id===created.exam.id);
+      expect(progress).toEqual(expect.arrayContaining([expect.objectContaining({teacher_id:null,subject_id:subjectId,stream_id:'white',total_students:1})]));
+      const rows=await repository.getMarks('school-a',{exam_series_id:created.exam.id,view:'all'});
+      expect(rows).toEqual(expect.arrayContaining([expect.objectContaining({student_id:white,stream_id:'white'}),expect.objectContaining({student_id:blue,stream_id:'blue'})]));
+      const book=(await teacher.getAssistedMarkbooks(undefined,['white'])).windows.find(row=>row.examSeriesId===created.exam.id)!;
+      expect(book).toMatchObject({totalStudents:1,enteredCount:0,paperCount:1,canEnter:true});
+      await expect(teacher.saveAssistedMarks(undefined,{examId:book.id,classSectionId:classId,assessmentId:book.assessmentId,
+        action:'submit',marks:{[blue]:{score:50,score_status:'entered'}}},['white'])).rejects.toThrow();
+      expect((await pool.query('SELECT count(*)::int AS n FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].n).toBe(0);
+      await teacher.saveAssistedMarks(undefined,{examId:book.id,classSectionId:classId,assessmentId:book.assessmentId,
+        action:'submit',marks:{[white]:{score:0,score_status:'entered'}}},['white']);
+      expect((await teacher.getAssistedMarkbooks(undefined,['white'])).windows.find(row=>row.examSeriesId===created.exam.id))
+        .toMatchObject({totalStudents:1,enteredCount:1,status:'Submitted',canEnter:false});
+      expect((await teacher.getAssistedMarkbooks(ids.teacher,['blue'])).windows.find(row=>row.examSeriesId===created.exam.id))
+        .toMatchObject({totalStudents:1,enteredCount:0,status:'Not started',canEnter:true});
+    } finally {activeContext=teacherContext;}
+  });
+
+  it.each(['open','draft','closed','submitted-sheet','locked','published'] as const)('saves and submits a never-assigned subject after authorized opening from %s', async state => {
+    const classId=randomUUID(),subjectId=randomUUID(),studentId=randomUUID();
+    await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Never assigned class')`,[classId]);
+    await pool.query(`INSERT INTO subjects VALUES ($1,'school-a','Never assigned subject')`,[subjectId]);
+    await pool.query(`INSERT INTO students(id,tenant_id,first_name) VALUES ($1,'school-a','Unassigned learner')`,[studentId]);
+    await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id) VALUES ('school-a',$1,$2)`,[studentId,classId]);
+    await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id) VALUES ('school-a',$1,$2,$3)`,[studentId,classId,subjectId]);
+    const created=await manager.createExamSetup({name:`Never assigned ${state} ${++serial}`,academic_term_id:ids.term,
+      starts_on:futureDate(0),ends_on:futureDate(7),status:state==='draft'?'draft':'submitted',subject_ids:[subjectId],class_section_ids:[classId],max_marks:80});
+    activeContext=managerContext;
+    try {
+      let book=(await teacher.getAssistedMarkbooks()).windows.find(row=>row.examSeriesId===created.exam.id)!;
+      const payload={examId:book.id,classSectionId:classId,assessmentId:book.assessmentId,action:'draft' as 'draft'|'submit',marks:{[studentId]:{score:0,score_status:'entered' as const}}};
+      if(state==='submitted-sheet') await teacher.saveAssistedMarks(undefined,{...payload,action:'submit'});
+      if(state==='closed') await pool.query(`UPDATE exam_mark_entry_windows SET status='closed' WHERE id=$1`,[book.id]);
+      if(state==='locked'||state==='published') await pool.query(`UPDATE exam_series SET status=$2,locked_at=NOW(),published_at=CASE WHEN $2='published' THEN NOW() END WHERE id=$1`,[created.exam.id,state]);
+      if(state!=='open') {
+        await expect(teacher.saveAssistedMarks(undefined,payload)).rejects.toThrow();
+        if(state==='draft') await manager.configureExamSetup(created.exam.id,{name:`Opened draft ${serial}`,status:'submitted',
+          starts_on:futureDate(0),ends_on:futureDate(7),subject_ids:[subjectId],class_section_ids:[classId],max_marks:80});
+        await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'class',class_section_id:classId,closes_at:new Date(Date.now()+86400000).toISOString()});
+      }
+      await teacher.saveAssistedMarks(undefined,payload);
+      await teacher.saveAssistedMarks(undefined,{...payload,marks:{[studentId]:{score:64,score_status:'entered'}}});
+      await teacher.saveAssistedMarks(undefined,{...payload,action:'submit',marks:{[studentId]:{score:64,score_status:'entered'}}});
+      book=(await teacher.getAssistedMarkbooks()).windows.find(row=>row.examSeriesId===created.exam.id)!;
+      expect(book).toMatchObject({status:'Submitted',enteredCount:1,totalStudents:1,canEnter:false});
+      expect((await repository.getMarks('school-a',{exam_series_id:created.exam.id,view:'all'}))).toEqual([
+        expect.objectContaining({score:64,status:'submitted',entered_by_user_id:ids.manager,updated_by_user_id:ids.manager,assigned_teacher_user_id:null}),
+      ]);
+      expect((await pool.query(`SELECT COUNT(*)::int AS n FROM teacher_subject_assignments WHERE tenant_id='school-a' AND class_section_id=$1`,[classId])).rows[0].n).toBe(0);
+      expect((await manager.getTeacherMarkProgress()).entries.find(row=>row.exam_id===created.exam.id)).toMatchObject({recorded:1,missing:0,is_submitted:true,status:'Submitted'});
+      await expect(teacher.saveAssistedMarks(undefined,payload)).rejects.toThrow();
+    } finally {activeContext=teacherContext;}
+  });
+
   it('serves unassigned markbooks and persists manager drafts through the guarded HTTP API', async () => {
     const created = await createExam('submitted',[ids.secondClass]);
     const window = await windowFor(created.exam.id,ids.secondClass);

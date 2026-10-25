@@ -7,10 +7,13 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { lockMarksEntry } from "./api-client";
 import { StatusChip, type Tone } from "./shared";
 import { OpenMarkEntryPanel } from "./open-mark-entry-panel";
+import { markbookPaperLabel } from "@/lib/modules/markbook-labels";
 
 export type TeacherMarkSheet = {
   id: string; window_id: string; exam_id: string; exam_name: string;
   class_section_id?: string;
+  subject_id?: string; assessment_id?: string; stream_id?: string | null;
+  paper_count?: number;
   teacher_id: string | null; teacher: string; subject: string; paper: string;
   class_name: string; stream: string | null; total_students: number;
   entered: number; recorded: number; submitted: number; missing: number;
@@ -42,8 +45,8 @@ function tone(sheet: TeacherMarkSheet): Tone {
   return sheet.status === "In progress" ? "info" : "neutral";
 }
 
-export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }: {
-  showWindowControls?: boolean; onOpenSetup?: () => void;
+export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup, onOpenMarkbook }: {
+  showWindowControls?: boolean; onOpenSetup?: () => void; onOpenMarkbook?: (sheet: TeacherMarkSheet) => void;
 }) {
   const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<ProgressData>(
     "/admin-command/exams-manager/teacher-mark-progress", { refetchInterval: 60_000 },
@@ -127,16 +130,18 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }
               <li key={sheet.id} className="px-4 py-4 sm:px-5">
                 <div className="grid min-w-0 grid-cols-2 items-start gap-3 xl:grid-cols-[1.35fr_1.3fr_1fr_1fr_auto] xl:items-center xl:gap-4">
                   <div className="min-w-0"><p className={`break-words text-sm font-semibold ${sheet.teacher_id ? "text-slate-900" : "text-warning"}`}>{sheet.teacher}</p><p className="mt-1 text-xs text-slate-500">{sheet.class_name}{sheet.stream ? ` · ${sheet.stream}` : ""}</p></div>
-                  <div className="min-w-0"><p className="break-words text-sm font-medium text-slate-800">{sheet.subject} <span className="font-normal text-slate-500">· {sheet.paper}</span></p><p className="mt-1 text-xs text-slate-500">{sheet.exam_name}</p></div>
+                  <div className="min-w-0"><p className="break-words text-sm font-medium text-slate-800">{sheet.subject}{markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count) && <span className="font-normal text-slate-500"> · {markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count)}</span>}</p><p className="mt-1 text-xs text-slate-500">{sheet.exam_name}</p></div>
                   <div><p className="text-sm tabular-nums text-slate-700">{sheet.recorded}<span className="text-slate-400"> / {sheet.total_students}</span> recorded</p><p className={`mt-1 text-xs ${sheet.missing ? "font-medium text-danger" : "text-slate-500"}`}>{sheet.missing ? `${sheet.missing} missing` : `${sheet.submitted} submitted`}</p></div>
                   <div className="col-span-2 sm:col-span-1"><StatusChip label={sheet.status} tone={tone(sheet)} /><p className={`mt-1 text-xs ${sheet.overdue ? "font-medium text-danger" : "text-slate-500"}`}>{sheet.overdue ? "Overdue · " : "Due "}{dateLabel(sheet.deadline)}</p></div>
-                  <button type="button" aria-label={`Details for ${sheet.teacher}, ${sheet.subject}, ${sheet.paper}, ${sheet.class_name}${sheet.stream ? ` ${sheet.stream}` : ""}`} aria-expanded={expandedId === sheet.id} onClick={() => { setExpandedId(expandedId === sheet.id ? null : sheet.id); setConfirmWindow(null); }} className={`${control} col-span-2 xl:col-span-1`}><span className="xl:sr-only">Details</span><ChevronDown className={`h-4 w-4 ${expandedId === sheet.id ? "rotate-180" : ""}`} /></button>
+                  <button type="button" aria-label={`Details for ${[sheet.teacher, sheet.subject, markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count), sheet.class_name, sheet.stream].filter(Boolean).join(', ')}`} aria-expanded={expandedId === sheet.id} onClick={() => { setExpandedId(expandedId === sheet.id ? null : sheet.id); setConfirmWindow(null); }} className={`${control} col-span-2 xl:col-span-1`}><span className="xl:sr-only">Details</span><ChevronDown className={`h-4 w-4 ${expandedId === sheet.id ? "rotate-180" : ""}`} /></button>
                 </div>
                 {expandedId === sheet.id ? (
                   <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     <p><strong className="font-medium text-slate-800">{sheet.is_submitted || sheet.status === "Submitted" ? "Sheet submitted." : `${sheet.total_students - sheet.submitted} awaiting submission.`}</strong> {sheet.entered} scores entered; {sheet.recorded - sheet.entered} absence or other recorded outcomes. Missing and incomplete entries still need attention.</p>
                     <p>Last activity: {dateLabel(sheet.last_activity, true)}. Deadline: {dateLabel(sheet.deadline, true)} (East Africa Time).</p>
                     {!sheet.teacher_id ? <p className="text-warning">No subject teacher is assigned. An Exams Manager can use Enter Marks above; a teacher can be assigned later.</p> : null}
+                    {onOpenMarkbook && sheet.class_section_id && sheet.subject_id && sheet.assessment_id ?
+                      <button type="button" className={control} onClick={() => onOpenMarkbook(sheet)}>Open markbook</button> : null}
                     {sheet.window_closed ? <p className="text-warning">This mark-entry window is locked. Outstanding work needs an authorized review before it can continue.</p> : null}
                     {showWindowControls ? confirmWindow === sheet.window_id ? (
                       <div className="space-y-3"><p className="font-medium text-amber-900">Lock all papers and teachers for {sheet.subject}, {sheet.class_name} in {sheet.exam_name}? This closes the whole class window, including any unfinished sheets.</p><div className="flex flex-wrap gap-2"><button className={control} disabled={Boolean(lockingWindow)} onClick={() => void handleLock(sheet.window_id)}>{lockingWindow ? "Locking…" : "Confirm lock"}</button><button className={control} disabled={Boolean(lockingWindow)} onClick={() => setConfirmWindow(null)}>Cancel</button></div></div>
