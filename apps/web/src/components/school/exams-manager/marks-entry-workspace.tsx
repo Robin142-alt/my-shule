@@ -31,7 +31,8 @@ function AssistedMarksEntry({ onOpenSetup, onOpen }: { onOpenSetup: () => void; 
   const teachers = papers.filter(row => row.assessment_id === selectedPaper);
   const matching = teachers.filter(row => !teacher || (teacher === "unassigned" ? !row.teacher_user_id : row.teacher_user_id === teacher));
   const selected = matching[0];
-  const options = (rows: Assignment[], key: keyof Assignment, label: keyof Assignment) =>
+  const options = (rows: Assignment[], key: "exam_id" | "class_section_id" | "subject_id" | "teacher_user_id",
+    label: "exam_name" | "class_name" | "subject_name" | "teacher_name") =>
     Array.from(new Map(rows.map(row => [row[key] ?? "", row[label] ?? ""]))).map(([id, name]) => <option key={id} value={id}>{name}</option>);
 
   return <section aria-label="Enter Marks" className="min-w-0 space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
