@@ -1,5 +1,6 @@
 import type { ReportCardScopeQuery } from './report-card-scope';
 import { requiresPublishedExamAnalytics } from './analytics/analytics-scope';
+import { categoryResult } from './exam-result-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -1112,6 +1113,10 @@ export class ExamsService {
         score: entry.score,
         score_status: entry.score_status,
         remarks: entry.dto.remarks?.trim() || null,
+        category_scores: entry.dto.category_scores ?? {},
+        has_expected_version: entry.dto.expected_updated_at !== undefined,
+        expected_updated_at: entry.dto.expected_updated_at ?? null,
+        paper_config_version: entry.dto.paper_config_version,
       })),
     }, async (result, tx) => {
       await this.schoolEvents?.recordSchoolOperation({ event: {
@@ -1253,7 +1258,21 @@ export class ExamsService {
           score: entry.score,
           score_status: entry.score_status,
           remarks: entry.dto.remarks?.trim() || null,
+          category_scores: entry.dto.category_scores ?? {},
+          has_expected_version: entry.dto.expected_updated_at !== undefined,
+          expected_updated_at: entry.dto.expected_updated_at ?? null,
+          paper_config_version: entry.dto.paper_config_version,
         })),
+      }, async (saved, tx) => {
+        await this.schoolEvents?.recordSchoolOperation({ event: {
+          id: `mark-import-committed-${saved.batch_id}`,
+          type: 'exam.mark_import_committed', module: 'exams',
+          actorRole: this.requestContext.getStore()?.role || 'teacher',
+          title: 'Exam Mark Import Committed',
+          body: `${saved.committed_rows} mark row${saved.committed_rows === 1 ? '' : 's'} imported from ${fileName}.`,
+          entityId: saved.batch_id, severity: 'info',
+          payload: { batch_id: saved.batch_id, file_name: fileName, committed_rows: saved.committed_rows },
+        }}, tx);
       });
 
       if (!importBatch) {
@@ -1264,17 +1283,6 @@ export class ExamsService {
         row.status = 'committed';
       }
 
-      await this.schoolEvents?.recordSchoolOperation({ event: {
-        id: `mark-import-committed-${importBatch.batch_id}`,
-        type: 'exam.mark_import_committed',
-        module: 'exams',
-        actorRole: this.requestContext.getStore()?.role || 'teacher',
-        title: 'Exam Mark Import Committed',
-        body: `${importBatch.committed_rows} mark row${importBatch.committed_rows === 1 ? '' : 's'} imported from ${fileName}.`,
-        entityId: importBatch.batch_id,
-        severity: 'info',
-        payload: { batch_id: importBatch.batch_id, file_name: fileName, committed_rows: importBatch.committed_rows },
-      }});
     }
 
     return {
@@ -1328,6 +1336,15 @@ export class ExamsService {
       actor_user_id: actorUserId,
       batch_id: batchId,
       reason,
+    }, async (saved, tx) => {
+      await this.schoolEvents?.recordSchoolOperation({ event: {
+        id: `mark-import-rolled-back-${batchId}`, type: 'exam.mark_import_rolled_back', module: 'exams',
+        actorRole: this.requestContext.getStore()?.role || 'exams_officer',
+        title: 'Exam Mark Import Rolled Back',
+        body: `${Number(saved.restored_rows) + Number(saved.deleted_rows)} mark row(s) were rolled back.`,
+        entityId: batchId, severity: 'warning',
+        payload: { batch_id: batchId, restored_rows: saved.restored_rows, deleted_rows: saved.deleted_rows, reason },
+      }}, tx);
     });
     if (!result) {
       throw new NotFoundException('Imported mark batch was not found for this school or was already rolled back');
@@ -1335,23 +1352,6 @@ export class ExamsService {
     if (Number(result.conflict_count) > 0) {
       throw new ConflictException(`${result.conflict_count} imported mark row(s) changed after import; review them before rollback`);
     }
-
-    await this.schoolEvents?.recordSchoolOperation({ event: {
-      id: `mark-import-rolled-back-${batchId}`,
-      type: 'exam.mark_import_rolled_back',
-      module: 'exams',
-      actorRole: this.requestContext.getStore()?.role || 'exams_officer',
-      title: 'Exam Mark Import Rolled Back',
-      body: `${Number(result.restored_rows) + Number(result.deleted_rows)} mark row(s) were rolled back.`,
-      entityId: batchId,
-      severity: 'warning',
-      payload: {
-        batch_id: batchId,
-        restored_rows: result.restored_rows,
-        deleted_rows: result.deleted_rows,
-        reason,
-      },
-    }});
 
     return { success: true, message: 'Mark import rolled back', data: result };
   }
@@ -1471,6 +1471,7 @@ export class ExamsService {
       reason,
       metadata: {
         correction: true,
+        previous_category_scores: existing.category_scores ?? {},
         previous_score_status: existing.score_status ?? 'entered',
         new_score_status: scoreEvidence.score_status,
         published_report_card_ids: publishedReportCards.map((card) => card.id),
@@ -2507,6 +2508,28 @@ export class ExamsService {
     };
     const assessmentScope = await this.findAssessmentScopeForMark(dto);
 
+    if (dto.category_scores && Object.keys(dto.category_scores).length) {
+      if (!assessmentScope?.uses_categories) throw new BadRequestException('This paper does not use categories.');
+      try {
+        const calculated = categoryResult(dto.category_scores, assessmentScope.categories as Array<{ id: string; max_score: number }>);
+        if (scoreEvidence.score_status !== 'exempt') Object.assign(scoreEvidence, calculated);
+        Object.assign(normalizedDto, scoreEvidence);
+      } catch (error) { throw new BadRequestException(errorMessage(error)); }
+    }
+
+    if (!assessmentScope) throw new BadRequestException('Paper was not found in this class. Refresh the markbook.');
+    if (assessmentScope.paper_config_version != null) {
+      const version = Number(assessmentScope.paper_config_version);
+      if (dto.paper_config_version !== undefined && dto.paper_config_version !== version) {
+        throw new ConflictException('Paper settings changed. Refresh the markbook before saving.');
+      }
+      normalizedDto.paper_config_version = version;
+    }
+    // Bind CSV previews to the saved evidence even when the uploaded file has no version columns.
+    if (dto.expected_updated_at === undefined && 'mark_updated_at' in assessmentScope) {
+      normalizedDto.expected_updated_at = assessmentScope.mark_updated_at as string | null;
+    }
+    this.assertAssessmentScopeMatchesMark(assessmentScope, dto);
     if (assessmentScope && scoreEvidence.score !== null) {
       this.assertAssessmentScopeMatchesMark(assessmentScope, dto);
       const maxScore = Number(assessmentScope.max_score ?? Number.POSITIVE_INFINITY);
@@ -2547,7 +2570,10 @@ export class ExamsService {
       score: validated.score,
       score_status: validated.score_status,
       remarks: validated.dto.remarks?.trim() || null,
+      category_scores: validated.dto.category_scores ?? {},
     });
+
+    if (!mark) throw new ConflictException('These marks were submitted or changed. Refresh the markbook before editing.');
 
     await this.repository.appendMarkAuditLog({
       tenant_id: tenantId,
@@ -2563,6 +2589,7 @@ export class ExamsService {
         subject_id: validated.dto.subject_id,
         score_status: validated.score_status,
         grade_boundary_label: textValue(validated.grade_boundary?.label),
+        category_scores: validated.dto.category_scores ?? {},
         ...extraMetadata,
       },
     });
@@ -2745,6 +2772,9 @@ export class ExamsService {
       score: scoreEvidence.score,
       score_status: scoreEvidence.score_status,
       remarks: row.remarks?.trim() || undefined,
+      category_scores: row.category_scores,
+      expected_updated_at: row.expected_updated_at,
+      paper_config_version: row.paper_config_version,
     };
   }
 
@@ -2779,6 +2809,9 @@ export class ExamsService {
           score: entry.score,
           score_status: entry.score_status,
           remarks: entry.dto.remarks?.trim() || null,
+          category_scores: entry.dto.category_scores ?? {},
+          expected_updated_at: entry.dto.expected_updated_at,
+          paper_config_version: entry.dto.paper_config_version,
         })),
       }))
       .digest('hex');
@@ -3015,7 +3048,7 @@ export class ExamsService {
     scoreStatusValue: unknown,
   ): { score: number | null; score_status: ExamScoreStatus | null } {
     const normalizedStatus = typeof scoreStatusValue === 'string'
-      ? scoreStatusValue.trim().toLowerCase()
+      ? /^[xy]$/i.test(scoreStatusValue.trim()) ? scoreStatusValue.trim().toUpperCase() : scoreStatusValue.trim().toLowerCase()
       : '';
     const hasScore = scoreValue !== undefined && scoreValue !== null && scoreValue !== '';
     if (!hasScore && !normalizedStatus) {
@@ -3333,7 +3366,8 @@ export class ExamsService {
     const normalizedStatus = typeof scoreStatusValue === 'string'
       ? scoreStatusValue.trim().toLowerCase()
       : '';
-    const scoreStatus = (normalizedStatus || 'entered') as ExamScoreStatus;
+    const scoreStatus = (normalizedStatus === 'x' || normalizedStatus === 'y'
+      ? normalizedStatus.toUpperCase() : normalizedStatus || 'entered') as ExamScoreStatus;
 
     if (!EXAM_SCORE_STATUS_SET.has(scoreStatus)) {
       throw new BadRequestException('Unsupported score status');
@@ -3405,6 +3439,7 @@ export class ExamsService {
         tenant_id: string;
         assessment_id: string;
         class_section_id?: string;
+        student_id?: string;
       }) => Promise<Record<string, unknown> | null>;
     };
 
@@ -3416,6 +3451,7 @@ export class ExamsService {
       tenant_id: this.requireTenantId(),
       assessment_id: dto.assessment_id,
       class_section_id: dto.class_section_id,
+      student_id: dto.student_id,
     });
   }
 

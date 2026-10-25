@@ -227,7 +227,7 @@ describe("reference report-card layout", () => {
     expect(getReportSection("footer")).toHaveTextContent(/generated securely by myshule/i);
   });
 
-  it.each(["End Term 1", "Mid Term", "End Term 3", "CAT 1"])("uses %s as the sole score column without exposing subject papers", (examName) => {
+  it.each(["End Term 1", "Mid Term", "End Term 3", "CAT 1"])("keeps %s as the score column and shows paper percentages within each subject", (examName) => {
     const report = {
       ...referenceReport,
       academic: { ...referenceReport.academic, reportingPeriod: examName },
@@ -246,10 +246,10 @@ describe("reference report-card layout", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent)))
       .toEqual([
-        ["Mathematics", "85%", "A", "Exceeding Expectation"],
-        ["English", "82%", "A-", "Exceeding Expectation"],
+        ["MathematicsMATHEMATICS Main Paper: 90%MATHEMATICS Practical: 70%", "85%", "A", "Exceeding Expectation"],
+        ["EnglishENGLISH Main Paper: 90%ENGLISH Practical: 70%", "82%", "A-", "Exceeding Expectation"],
       ]);
-    expect(table).not.toHaveTextContent(/Main Paper|Practical|Final %|CAT %|Exam %/);
+    expect(table).not.toHaveTextContent(/Final %|CAT %|Exam %/);
     expect(getReportSection("academic-performance")).toHaveTextContent("Average: 82.6%");
     expect(getReportSection("academic-performance")).toHaveTextContent("Overall Grade: A-");
     expect(getReportSection("academic-performance")).toHaveTextContent("Class Position: 5 of 42");

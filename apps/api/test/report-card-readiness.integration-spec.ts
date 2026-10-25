@@ -27,7 +27,8 @@ describe('Exam-specific report-card readiness', () => {
       CREATE TABLE class_streams(tenant_id text,id text,name text);
       CREATE TABLE class_sections(tenant_id text,id text,name text,custom_label text);
       CREATE TABLE subjects(tenant_id text,id text,name text);
-      CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,class_section_id uuid,subject_id uuid,student_id uuid,status text);`);
+      CREATE TABLE exam_assessments(tenant_id text,id uuid,exam_series_id uuid,subject_id uuid,class_section_id uuid);
+      CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,class_section_id uuid,subject_id uuid,student_id uuid,status text,assessment_id uuid DEFAULT '${ids.subject}');`);
     repository = new ExamsRepository({ executeWithTenant: async (tenant: string, actor: unknown, callback: (tx: unknown) => unknown) => {
       expect(tenant).toMatch(/^school-[ab]$/);
       return callback({ $queryRawUnsafe: async (sql: string, ...values: unknown[]) => (await query(sql, values)).rows });
@@ -37,16 +38,17 @@ describe('Exam-specific report-card readiness', () => {
 
   beforeEach(async () => {
     await query(`TRUNCATE exam_series,exam_mark_entry_windows,students,student_class_assignments,
-      student_subject_enrollments,class_streams,class_sections,subjects,exam_marks`);
+      student_subject_enrollments,class_streams,class_sections,subjects,exam_marks,exam_assessments`);
     await query(`INSERT INTO exam_series VALUES ('school-a',$1,'END TERM 3'),('school-a',$2,'MID TERM 3'),('school-b',$1,'Private exam');
       `, [ids.exam, ids.otherExam]);
     await query(`INSERT INTO class_sections VALUES ('school-a',$1,'Form 4',NULL),('school-a',$2,'Form 3',NULL)`, [ids.class, ids.otherClass]);
+    await query(`INSERT INTO exam_assessments VALUES ('school-a',$1,$2,$1,NULL),('school-a',$1,$3,$1,NULL)`,[ids.subject,ids.exam,ids.otherExam]);
     await query(`INSERT INTO subjects VALUES ('school-a',$1,'Mathematics'),('school-a',$2,'Biology')`, [ids.subject, ids.otherSubject]);
     await query(`INSERT INTO exam_mark_entry_windows VALUES ('school-a',$1,$2,$3)`, [ids.exam, ids.class, ids.subject]);
     await query(`INSERT INTO students SELECT 'school-a',id,'active' FROM unnest($1::text[]) id`, [students]);
     await query(`INSERT INTO student_class_assignments SELECT 'school-a',id,$2,NULL,'active' FROM unnest($1::text[]) id`, [students, ids.class]);
     await query(`INSERT INTO student_subject_enrollments SELECT 'school-a',id,$2,$3,'active' FROM unnest($1::text[]) id`, [students, ids.class, ids.subject]);
-    await query(`INSERT INTO exam_marks VALUES ('school-a',$1,$2,$3,$4,'locked')`, [ids.exam, ids.class, ids.subject, students[0]]);
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) VALUES ('school-a',$1,$2,$3,$4,'locked')`, [ids.exam, ids.class, ids.subject, students[0]]);
   });
 
   it('reports the screenshot case as 49 missing marks and rejects generation before any writes', async () => {
@@ -64,7 +66,7 @@ describe('Exam-specific report-card readiness', () => {
   it('keeps a completed exam ready while another exam, class and school have incomplete marks', async () => {
     await query(`INSERT INTO exam_mark_entry_windows VALUES ('school-a',$1,$2,$3),('school-a',$1,$4,$3),('school-b',$5,$2,$3)`,
       [ids.otherExam, ids.class, ids.subject, ids.otherClass, ids.exam]);
-    await query(`INSERT INTO exam_marks SELECT 'school-a',$1,$2,$3,id::uuid,'published' FROM unnest($4::text[]) id`,
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) SELECT 'school-a',$1,$2,$3,id::uuid,'published' FROM unnest($4::text[]) id`,
       [ids.otherExam, ids.class, ids.subject, students]);
     // Subject enrollment alone does not add a subject outside the chosen exam.
     await query(`INSERT INTO student_subject_enrollments SELECT 'school-a',id,$2,$3,'active' FROM unnest($1::text[]) id`, [students, ids.class, ids.otherSubject]);
@@ -79,22 +81,22 @@ describe('Exam-specific report-card readiness', () => {
   });
 
   it('does not let foreign-school marks satisfy missing marks, even when record IDs coincide', async () => {
-    await query(`INSERT INTO exam_marks SELECT 'school-b',$1,$2,$3,id::uuid,'locked' FROM unnest($4::text[]) id`, [ids.exam, ids.class, ids.subject, students]);
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) SELECT 'school-b',$1,$2,$3,id::uuid,'locked' FROM unnest($4::text[]) id`, [ids.exam, ids.class, ids.subject, students]);
     expect(await repository.getReportCardBatchReadiness(scope)).toMatchObject({ ready_mark_count: 1, not_ready_mark_count: 49 });
   });
 
   it('distinguishes missing, draft, submitted and reviewed marks and becomes ready only after locking', async () => {
     for (const [index, status] of ['draft', 'submitted', 'reviewed'].entries()) {
-      await query(`INSERT INTO exam_marks VALUES ('school-a',$1,$2,$3,$4,$5)`, [ids.exam, ids.class, ids.subject, students[index + 1], status]);
+      await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) VALUES ('school-a',$1,$2,$3,$4,$5)`, [ids.exam, ids.class, ids.subject, students[index + 1], status]);
     }
     expect((await repository.listReportCardGenerationScopes({ tenant_id: 'school-a' }))[0].blockers[0])
       .toMatchObject({ missing_mark_count: 46, draft_mark_count: 1, submitted_mark_count: 1, reviewed_mark_count: 1 });
-    await query(`INSERT INTO exam_marks SELECT 'school-a',$1,$2,$3,id::uuid,'locked' FROM unnest($4::text[]) id`, [ids.exam, ids.class, ids.subject, students.slice(4)]);
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) SELECT 'school-a',$1,$2,$3,id::uuid,'locked' FROM unnest($4::text[]) id`, [ids.exam, ids.class, ids.subject, students.slice(4)]);
     await query(`UPDATE exam_marks SET status='locked' WHERE tenant_id='school-a'`);
     expect((await repository.listReportCardGenerationScopes({ tenant_id: 'school-a' }))[0]).toMatchObject({ ready: true, blockers: [] });
     expect(await repository.getReportCardBatchReadiness(scope)).toMatchObject({ not_ready_mark_count: 0 });
     // One finalized paper must not conceal another entered paper awaiting review.
-    await query(`INSERT INTO exam_marks VALUES ('school-a',$1,$2,$3,$4,'submitted')`, [ids.exam, ids.class, ids.subject, students[0]]);
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) VALUES ('school-a',$1,$2,$3,$4,'submitted')`, [ids.exam, ids.class, ids.subject, students[0]]);
     expect((await repository.listReportCardGenerationScopes({ tenant_id: 'school-a' }))[0]).toMatchObject({ ready: false, not_ready_mark_count: 1 });
   });
 

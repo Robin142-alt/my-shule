@@ -18,6 +18,7 @@ import {
 } from '../exams/dto/exams.dto';
 import { ExamsService } from '../exams/exams.service';
 import { markEntryHasStartedSql, markEntryAccessSql, effectiveEntryDeadlineSql } from '../exams/mark-entry-window-policy';
+import { paperClassScopeSql } from '../exams/exam-result-policy';
 import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../exams/teacher-mark-scope';
 import type { SaveTeacherMarksDto, TeacherMarkInput } from './dto/class-teacher.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -593,6 +594,7 @@ export class ClassTeacherService {
         w.subject_id,
         s.name as subject_name,
         assessment.id as assessment_id,
+        w.paper_config_version,
         COALESCE(assessment.name, 'Main Paper') as paper_name,
         COALESCE(assessment.max_score, 100) as out_of,
         ${effectiveEntryDeadlineSql('w', '$2')} as deadline,
@@ -681,6 +683,7 @@ export class ClassTeacherService {
         WHERE ea.tenant_id::text = w.tenant_id::text
           AND ea.exam_series_id::text = w.exam_series_id::text
           AND ea.subject_id::text = w.subject_id::text
+          AND ${paperClassScopeSql('ea', 'w.class_section_id')}
       ) assessment ON TRUE
       JOIN teacher_subject_assignments tsa ON tsa.class_section_id = w.class_section_id::text
         AND tsa.subject_id = w.subject_id::text
@@ -718,11 +721,12 @@ export class ClassTeacherService {
         subjectId: r.subject_id,
         subjectName: r.subject_name,
         assessmentId: r.assessment_id,
+        paperConfigVersion: r.paper_config_version,
         paperName: r.paper_name,
         streamNames: r.stream_names || null,
         savedCount: Number(r.saved_count),
         submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : null,
-        outOf: parseInt(r.out_of),
+        outOf: Number(r.out_of),
         deadline: new Date(r.deadline).toISOString(),
         enteredCount: parseInt(r.entered_count),
         totalStudents: parseInt(r.total_students),
@@ -1216,7 +1220,7 @@ export class ClassTeacherService {
         assessment.id AS assessment_id,
         (SELECT COUNT(*) FROM exam_assessments paper
           WHERE paper.tenant_id = w.tenant_id AND paper.exam_series_id = w.exam_series_id
-            AND paper.subject_id = w.subject_id) AS assessment_count,
+            AND paper.subject_id = w.subject_id AND ${paperClassScopeSql('paper', 'w.class_section_id')}) AS assessment_count,
         COALESCE(assessment.max_score, 100) AS out_of
       FROM exam_mark_entry_windows w
       JOIN exam_series es
@@ -1244,6 +1248,7 @@ export class ClassTeacherService {
         WHERE ea.tenant_id::text = w.tenant_id::text
           AND ea.exam_series_id::text = w.exam_series_id::text
           AND ea.subject_id::text = w.subject_id::text
+          AND ${paperClassScopeSql('ea', 'w.class_section_id')}
           AND ($5::text IS NULL OR ea.id::text = $5::text)
       ) assessment ON TRUE
       WHERE w.id = $2
@@ -1328,6 +1333,9 @@ export class ClassTeacherService {
         score,
         score_status: scoreStatus,
         remarks: entry.remarks?.trim() || undefined,
+        ...(entry.category_scores !== undefined ? {category_scores:entry.category_scores} : {}),
+        ...(entry.expected_updated_at !== undefined ? {expected_updated_at:entry.expected_updated_at} : {}),
+        ...(payload.paperConfigVersion !== undefined ? {paper_config_version:payload.paperConfigVersion} : {}),
       });
     }
 

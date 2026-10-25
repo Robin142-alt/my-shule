@@ -11,6 +11,21 @@ const old=(r:ReturnType<typeof evidence>,extra:Parameters<typeof evidence>[0]={}
 const scope={level:'school' as const,role:'principal',actor_user_id:'qa'};
 const build=(rows:ReturnType<typeof evidence>[],filters:Record<string,string>={},report=false)=>buildAcademicIntelligence(rows,scope,parseAnalyticsFilters({analytics_mode:'library',analytic_ids:'rankings',...filters}),['school'],undefined,report);
 
+test('X/Y excludes a learner even when filtered subjects are complete and preserves valid marks', () => {
+  const rows = [row('missing', 99, { overall_override: 'X' }), row('irregular', 100, { overall_override: 'Y' }), row('complete', 70)];
+  assert.deepEqual(buildRankings(rows, [], 'student').rows.map(r => [r.id, r.position]), [['complete', 1]]);
+  const learner = build(rows).learners.items.find(r => r.student_id === 'missing')!;
+  assert.equal(learner.positions?.class, null);
+  assert.equal(learner.average, null);
+  assert.equal(rows[0].average, 99);
+  assert.deepEqual(buildRankings(rows.map(r => ({ ...r, overall_override: null })), [], 'student').rows.map(r => r.id), ['irregular', 'missing', 'complete']);
+});
+
+test('rankings retain configured subject weightings', () => {
+  const rows = [row('one', 50, { subject_weight: 1 }), row('one', 100, { subject_id: 'english', subject_weight: 3 }), row('two', 80)];
+  assert.deepEqual(buildRankings(rows, [], 'student').rows.map(r => [r.id, r.average]), [['one', 87.5], ['two', 80]]);
+});
+
 test('competition ranks use displayed precision, skip incomplete or protected evidence, and keep zero',()=>{
   const rows=[row('first',90),row('tie-a',80.001),row('tie-b',80.002),row('zero',0),row('partial',99,{expected:2,missing:1}),row('absent',95,{absent:1}),row('disabled',100,{ranking_enabled:false}),row('cbc',100,{reporting_mode:'cbc_competency'}),row('missing',null,{numeric_count:0})];
   const ranked=buildRankings(rows,[],'student');

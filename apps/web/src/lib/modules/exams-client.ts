@@ -190,6 +190,8 @@ export const EXAM_SCORE_STATUSES = [
   "withheld",
   "medical_exception",
   "transfer_student",
+  "X",
+  "Y",
 ] as const;
 
 export type ExamScoreStatus = typeof EXAM_SCORE_STATUSES[number];

@@ -23,7 +23,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         CREATE TABLE academic_years(tenant_id text,id text,name text);
         CREATE TABLE academic_terms(tenant_id text,id text,name text,academic_year_id text);
         CREATE TABLE exam_series(tenant_id text,id uuid,academic_term_id uuid,name text,starts_on date,ends_on date,status text DEFAULT 'locked');
-        CREATE TABLE exam_assessments(tenant_id text,id uuid,exam_series_id uuid,subject_id uuid,max_score numeric,weight numeric);
+        CREATE TABLE exam_assessments(tenant_id text,id uuid,exam_series_id uuid,subject_id uuid,max_score numeric,weight numeric,class_section_id uuid);
         CREATE TABLE exam_mark_entry_windows(tenant_id text,exam_series_id uuid,class_section_id uuid,subject_id uuid);
         CREATE TABLE exam_marks(tenant_id text,id uuid,exam_series_id uuid,assessment_id uuid,student_id uuid,class_section_id uuid,score numeric,score_status text,status text);
         CREATE TABLE subjects(tenant_id text,id text,name text,department_id uuid);
@@ -36,6 +36,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         CREATE TABLE student_report_cards(tenant_id text,exam_series_id uuid,student_id uuid,is_current boolean,status text,grading_policy_id uuid,grading_policy_version int);
         CREATE TABLE exam_grading_policies(tenant_id text,id uuid,exam_series_id uuid,reporting_mode text,version int,status text,effective_from timestamptz,effective_to timestamptz);
         CREATE TABLE exam_grading_policy_boundaries(tenant_id text,grading_policy_id uuid,label text,min_score numeric,max_score numeric,points numeric,is_pass boolean);
+        CREATE TABLE exam_subject_weightings(tenant_id text,grading_policy_id uuid,subject_id uuid,weight numeric);
         CREATE TABLE teacher_subject_assignments(tenant_id text,teacher_user_id text,class_section_id text,subject_id text,academic_term_id text,stream_id text,status text,effective_from date,effective_to date);
         CREATE TABLE academics_class_teachers(tenant_id text,teacher_user_id uuid,class_section_id text,academic_year_id text,is_active boolean,status text,effective_from date,effective_to date);
         CREATE TABLE academics_department_hod_appointments(tenant_id text,teacher_user_id uuid,department_id uuid,status text,effective_from date,effective_to date);
@@ -62,7 +63,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
           await c.query('INSERT INTO exam_series(tenant_id,id,academic_term_id,name,starts_on,ends_on) VALUES ($1,$2,$3,$4,$5,$6)',[tenant,ids[exam],ids.term,exam,exam==='old'?'2026-01-01':'2026-03-01',exam==='old'?'2026-01-10':'2026-03-10']);
           for(const subject of ['math','bio']) {
             const assessment=randomUUID();
-            await c.query('INSERT INTO exam_assessments VALUES ($1,$2,$3,$4,100,1)',[tenant,assessment,ids[exam],ids[subject]]);
+            await c.query('INSERT INTO exam_assessments(tenant_id,id,exam_series_id,subject_id,max_score,weight) VALUES ($1,$2,$3,$4,100,1)',[tenant,assessment,ids[exam],ids[subject]]);
             await c.query('INSERT INTO exam_mark_entry_windows VALUES ($1,$2,$3,$4)',[tenant,ids[exam],ids.class,ids[subject]]);
             for(const who of ['learner','second']) {
               const score=tenant==='school-b'?99:exam==='old'?50:who==='learner'?(subject==='math'?80:20):(subject==='math'?40:90);
@@ -128,6 +129,26 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     expect(teacher.performance.mean).toBeNull();expect(teacher.options.subjects.map(s=>s.id)).toEqual([ids.math]);
     const denied=await read('subject','hos',{analytics_mode:'library',student_id:'foreign',analytic_ids:'student-profiles'});
     expect(denied.library!.items[0].total).toBe(0);
+  });
+  it('propagates X and Y across hidden subjects and restores results after correction under RLS',async()=>{
+    const biology=(await repository.executeSql(`SELECT mark.* FROM exam_marks mark JOIN exam_assessments paper
+      ON paper.tenant_id=mark.tenant_id AND paper.id=mark.assessment_id WHERE mark.tenant_id=$1
+        AND mark.student_id=$2::uuid AND mark.exam_series_id=$3::uuid AND paper.subject_id=$4::uuid`,
+      ['school-a',ids.learner,ids.exam,ids.bio])).rows[0];
+    expect(biology).toBeTruthy();
+    try {
+      for(const status of ['X','Y']) {
+        await repository.executeSql('UPDATE exam_marks SET score=NULL,score_status=$3 WHERE tenant_id=$1 AND id=$2::uuid RETURNING id',['school-a',biology.id,status]);
+        const data=await read('assignment','teacher',{exam_series_id:ids.exam});
+        const learner=data.learners.items.find(item=>item.student_id===ids.learner)!;
+        expect(learner.average).toBeNull();expect(learner.mean_grade).toBe(status);
+        expect(learner.subjects.find(subject=>subject.subject_id===ids.math)?.average).toBe(80);
+        expect(learner.positions?.class??null).toBeNull();expect(learner.high_performer).toBe(false);
+      }
+    } finally {
+      await repository.executeSql('UPDATE exam_marks SET score=$3,score_status=$4 WHERE tenant_id=$1 AND id=$2::uuid RETURNING id',['school-a',biology.id,biology.score,biology.score_status]);
+    }
+    expect((await read('assignment','teacher',{exam_series_id:ids.exam})).performance.mean).toBe(80);
   });
   it.each([
     ['assignment','teacher',1,80], ['subject','hos',2,60], ['department','hod',2,57.5],

@@ -18,6 +18,7 @@ export interface SubjectEvidence {
   report_status: string | null; policy_id: string | null; reporting_mode: string | null; boundaries: Boundary[];
   teachers: { id: string; name: string }[]; interventions: InterventionEvidence[];
   heads_of_subject?: { id: string; name: string }[];
+  subject_override?: string | null; overall_override?: string | null; subject_weight?: number;
   cohort_id?: string | null; ranking_enabled?: boolean;
   exam_status?: string; ends_on?: string | Date;
   grading_snapshot?: { id?: string; source_id?: string; source?: string; version?: number; reporting_mode?: string; rules?: unknown } | null;
@@ -103,7 +104,12 @@ function consistency(values: number[]) {
 }
 export function summarize(rows: SubjectEvidence[]) {
   const learners = [...group(rows,r=>r.student_id).values()];
-  const learnerMeans = learners.map(subjects => mean(subjects.map(r=>numeric(r.average)).filter((n): n is number=>n!==null)));
+  const learnerMeans = learners.map(subjects => {
+    if (subjects.some(r=>r.overall_override==='X'||r.overall_override==='Y')) return null;
+    const scored=subjects.filter(r=>numeric(r.average)!==null);
+    const weights=sum(scored.map(r=>r.subject_weight??1));
+    return weights ? round(sum(scored.map(r=>Number(r.average)*(r.subject_weight??1)))/weights) : null;
+  });
   const grades = rows.map(r=>gradeFor(numeric(r.average),r.boundaries));
   const assessed = grades.filter((g): g is Boundary => g!==null&&typeof g.is_pass==='boolean');
   const passed = assessed.filter(g=>g.is_pass).length;
@@ -111,9 +117,10 @@ export function summarize(rows: SubjectEvidence[]) {
   const stats = statistics(learnerMeans);
   const policyIds = new Set(rows.filter(r=>numeric(r.average)!==null).map(r=>r.policy_id));
   const scoredPolicy=policyIds.size===1?[...policyIds][0]:null;
-  const meanGrade = scoredPolicy ? gradeFor(stats.mean,rows.find(r=>r.policy_id===scoredPolicy&&numeric(r.average)!==null)?.boundaries ?? [])?.label ?? null : null;
+  const override = learners.length === 1 ? rows.some(r=>r.overall_override==='Y') ? 'Y' : rows.some(r=>r.overall_override==='X') ? 'X' : null : null;
+  const meanGrade = override ?? (scoredPolicy ? gradeFor(stats.mean,rows.find(r=>r.policy_id===scoredPolicy&&numeric(r.average)!==null)?.boundaries ?? [])?.label ?? null : null);
   return { ...stats, mean_grade: meanGrade, expected_learners: learners.length, learners_examined: stats.count,
-    learners_passing_all: learners.filter(rs=>rs.length>0&&rs.every(r=>gradeFor(numeric(r.average),r.boundaries)?.is_pass===true)).length,
+    learners_passing_all: learners.filter(rs=>rs.length>0&&rs.every(r=>!r.overall_override&&gradeFor(numeric(r.average),r.boundaries)?.is_pass===true)).length,
     learners_failing_any: learners.filter(rs=>rs.some(r=>gradeFor(numeric(r.average),r.boundaries)?.is_pass===false)).length,
     learners_absent: learners.filter(rs=>rs.some(r=>r.absent>0)).length,
     attendance_rate: rate(sum(rows.map(r=>r.numeric_count)),sum(rows.map(r=>r.numeric_count+r.absent))),
@@ -192,7 +199,7 @@ function buildCoreAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnal
     const change=delta(average,previousAverage);
     const trajectory=consistency([...history.map(h=>h.average),average].filter((n):n is number=>n!==null));
     const subjectRows=subjects.map(r=>{ const old=ownPrevious.find(p=>p.subject_id===r.subject_id); const boundary=gradeFor(r.average,r.boundaries);
-      return {subject_id:r.subject_id,subject_name:r.subject_name,average:r.average,grade:boundary?.label??null,points:r.reporting_mode==='cbc_competency'?null:boundary?.points??null,
+      return {subject_id:r.subject_id,subject_name:r.subject_name,average:r.average,grade:r.subject_override??boundary?.label??null,points:r.reporting_mode==='cbc_competency'?null:boundary?.points??null,
         is_pass:boundary?.is_pass??null,previous_average:numeric(old?.average),change:delta(r.average,numeric(old?.average)),missing:r.missing,absent:r.absent}; });
     const failed=subjectRows.filter(r=>r.is_pass===false).length;
     const repeated=subjects.filter(r=>gradeFor(r.average,r.boundaries)?.is_pass===false && ownPrevious.some(p=>p.subject_id===r.subject_id && gradeFor(numeric(p.average),p.boundaries)?.is_pass===false)).length;
@@ -203,16 +210,16 @@ function buildCoreAcademicIntelligence(input: SubjectEvidence[], scope: ExamAnal
     const previousRisk=historicalRisk(ownPrevious,(allByStudent.get(first.student_id)??[]).filter(r=>comparison&&r.exam_date<comparison.date));
     const sortedSubjects=subjectRows.filter(r=>r.average!==null).sort((a,b)=>b.average!-a.average!);
     const interventions=[...new Map(subjects.flatMap(r=>r.interventions).map(i=>[i.id,i])).values()];
-    const high=subjects.length>0 && subjects.every(r=>r.average!==null && gradeFor(r.average,r.boundaries)?.label===[...r.boundaries].sort((a,b)=>b.min-a.min)[0]?.label && r.boundaries.length>0);
+    const high=average!==null && subjects.length>0 && subjects.every(r=>r.average!==null && gradeFor(r.average,r.boundaries)?.label===[...r.boundaries].sort((a,b)=>b.min-a.min)[0]?.label && r.boundaries.length>0);
     const consistentlyHigh=high&&history.length>=2&&[...group(ownHistory,r=>r.exam_series_id).values()].sort((a,b)=>a[0].exam_date.localeCompare(b[0].exam_date)).slice(-2).every(rs=>rs.every(r=>numeric(r.average)!==null&&r.boundaries.length>0&&gradeFor(numeric(r.average),r.boundaries)?.label===[...r.boundaries].sort((a,b)=>b.min-a.min)[0]?.label));
     const currentPosition=currentPositions.get(first.student_id)??null,priorPosition=priorPositions.get(first.student_id)??null;
     return {student_id:first.student_id,student_name:first.student_name,admission_number:first.admission_number,class_section_id:first.class_section_id,class_name:first.class_name,
       average,mean_grade:summarize(subjects).mean_grade,previous_average:previousAverage,change,subjects:subjectRows,subjects_passed:subjectRows.filter(r=>r.is_pass===true).length,subjects_failed:failed,
       subjects_improved:subjectRows.filter(r=>(r.change??0)>0).length,subjects_declined:subjectRows.filter(r=>(r.change??0)<0).length,
       strongest_subject:sortedSubjects[0]?.subject_name??null,weakest_subject:sortedSubjects.at(-1)?.subject_name??null,
-      total_points:subjectRows.length && subjectRows.every(r=>r.points!==null)?round(sum(subjectRows.map(r=>Number(r.points)))):null,
+      total_points:average!==null && subjectRows.length && subjectRows.every(r=>r.points!==null)?round(sum(subjectRows.map(r=>Number(r.points)))):null,
       missing,absent,assessments_taken:sum(subjects.map(r=>r.numeric_count)),risk,previous_risk:previousRisk,trend:trendStatus(change),consistency:trajectory,history,
-      historical_average:baseline,target:targetResult(average,null),high_performer:high,consistently_high:consistentlyHigh,passing_all_subjects:subjectRows.length>0&&subjectRows.every(r=>r.is_pass===true),interventions,
+      historical_average:baseline,target:targetResult(average,null),high_performer:high,consistently_high:consistentlyHigh,passing_all_subjects:average!==null&&subjectRows.length>0&&subjectRows.every(r=>r.is_pass===true),interventions,
       positions:currentPosition,previous_positions:priorPosition,position_movement:delta(priorPosition?.class??null,currentPosition?.class??null)};
   }).sort((a,b)=>a.student_name.localeCompare(b.student_name)||a.student_id.localeCompare(b.student_id));
   const risks = ['Low','Moderate','High','Critical'].map(level=>({level,count:learnerRows.filter(l=>l.risk.level===level).length}));

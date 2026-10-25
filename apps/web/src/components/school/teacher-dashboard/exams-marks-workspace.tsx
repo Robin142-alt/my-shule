@@ -12,11 +12,14 @@ import {
 } from "@/lib/modules/teacher-live";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { MarkbookList, sheetKey, isSubmitted, markbookDate, type MarkbookView } from "./markbook-list";
+import { PaperSettings } from './paper-settings';
 
-type MarkDraft = { score: string; scoreStatus: ExamScoreStatus | ""; remarks: string };
+type MarkDraft = { score: string; scoreStatus: ExamScoreStatus | ""; remarks: string; categories?: Record<string, string> };
 type DraftsByStudent = Record<string, MarkDraft>;
 type MissingMarkReason = Exclude<ExamScoreStatus, "entered">;
 const REASONS: Array<{ value: MissingMarkReason; label: string }> = [
+  { value: "X", label: "X — Missing marks" },
+  { value: "Y", label: "Y — Examination irregularity" },
   { value: "absent", label: "Absent" },
   { value: "exempt", label: "Exempt" },
   { value: "not_assessed", label: "Not assessed" },
@@ -40,14 +43,18 @@ function entryUnavailableReason(windowTask: PendingMarksWindow) {
   }
 }
 function draftFromRow(row: TeacherMarkSheetRow): MarkDraft {
-  return { score: row.score === null ? "" : String(row.score), scoreStatus: row.id ? row.score_status : "", remarks: row.remarks ?? "" };
+  return { score: row.score === null ? ['X', 'Y'].includes(row.score_status) ? row.score_status : "" : String(row.score), scoreStatus: row.id ? row.score_status : "", remarks: row.remarks ?? "",
+    categories: Object.fromEntries(Object.entries(row.category_scores ?? {}).map(([id, value]) => [id, value === null ? '' : String(value)])) };
 }
 function scoreError(draft: MarkDraft, outOf: number) {
   if (!draft.score.trim()) return "";
+  if (['X','Y'].includes(draft.score.trim().toUpperCase())) return '';
   const score = Number(draft.score);
   return !Number.isFinite(score) || score < 0 || score > outOf ? `Enter 0 to ${outOf}.` : "";
 }
 function scoreStatus(draft: MarkDraft): ExamScoreStatus | "" {
+  if (draft.score.trim().toUpperCase() === 'X') return 'X';
+  if (draft.score.trim().toUpperCase() === 'Y') return 'Y';
   return draft.score.trim() ? "entered" : draft.scoreStatus === "entered" ? "" : draft.scoreStatus;
 }
 function reasonLabel(draft: MarkDraft) {
@@ -131,7 +138,8 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       || savedDrafts[sheetKey(activeWindow)]?.[row.student_id])) || draftFromRow(row),
   ])) as DraftsByStudent;
   const blankRows = markRows.filter(row => !activeDrafts[row.student_id].score.trim());
-  const invalidRows = markRows.filter(row => scoreError(activeDrafts[row.student_id], activeWindow?.outOf ?? 100));
+  const invalidRows = markRows.filter(row => scoreError(activeDrafts[row.student_id], activeWindow?.outOf ?? 100)
+    || row.categories?.some(c => scoreError({ score: activeDrafts[row.student_id].categories?.[c.id] ?? '', scoreStatus: '', remarks: '' }, Number(c.max_score))));
   const enteredCount = markRows.length - blankRows.length;
   const readOnly = submittedView || activeWindow?.canEnter === false || markRows.some(row => row.id && row.status !== "draft");
   const exportUnavailable = !activeWindow || !markRows.length || isSaving || markSheetQuery.isError || markSheetQuery.isLoading;
@@ -172,6 +180,11 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       if (!status) return [];
       return [[row.student_id, { score: status === "entered" ? Number(draft.score) : null,
         score_status: status, ...(draft.remarks.trim() ? { remarks: draft.remarks.trim() } : {}),
+        ...(row.updated_at !== undefined ? {expected_updated_at:row.updated_at} : {}),
+        ...(draft.categories && Object.keys(draft.categories).length ? { category_scores: Object.fromEntries((row.categories ?? []).map((c): [string, number | null | 'X' | 'Y'] => {
+          const value = draft.categories?.[c.id]?.trim().toUpperCase() ?? '';
+          return [c.id, value === '' ? null : value === 'X' || value === 'Y' ? value : Number(value)];
+        })) } : {}),
       }]];
     }));
     if (!Object.keys(marks).length) { setActionError("Enter at least one score before saving a draft."); return; }
@@ -180,6 +193,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       const result = await saveExamMarksLive(liveSession.session, {
         action, examId: activeWindow.id, assessmentId: activeWindow.assessmentId,
         classSectionId: activeWindow.classSectionId, marks,
+        paperConfigVersion: markRows[0]?.paper_config_version ?? activeWindow.paperConfigVersion,
         ...(assistance ? { teacherUserId: assistance.teacherUserId } : {}),
       });
       if (!result.success) throw new Error("Marks were not saved. Please retry.");
@@ -308,6 +322,9 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
               </div>
             </div>
           </div>
+          {!submittedView && liveSession.session && <div className="px-3 pt-3 sm:px-6"><PaperSettings key={activeWindow.id} session={liveSession.session} windowId={activeWindow.id}
+            disabled={readOnly || hasUnsavedChanges || isSaving} onSaved={() => { setDraftMarks({}); setSavedDrafts({}); switchWindow(null); setNotice('Paper settings saved. Choose a markbook to continue entering scores.'); }} /></div>}
+          <p className="px-4 pt-3 text-xs text-slate-500 sm:px-6">Enter a score, X for missing marks, or Y for examination irregularity. Any required X/Y sets the overall exam grade; Y takes priority.</p>
           {actionError && <p role="alert" className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{actionError}</p>}
           {activeWindow.canEnter === false && !submittedView ? (
             <div role="status" className="m-4 rounded-lg border border-warning-border bg-warning-soft p-4"><h3 className="font-semibold">{activeWindow.entryState || "Entry unavailable"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{entryUnavailableReason(activeWindow)}</p></div>
@@ -358,12 +375,32 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
                       <div role="cell" className="min-w-0"><label htmlFor={`score-${row.student_id}`} className="block break-words text-sm font-medium leading-5">{row.student_name ?? "Unnamed student"}</label><p className="mt-1 text-xs text-slate-500 sm:hidden">{row.admission_number ?? "No admission number"}</p>{row.updated_by_name && <p className="mt-1 break-words text-xs text-slate-500">Last saved by {row.updated_by_name}{row.updated_at ? ` · ${markbookDate(row.updated_at)}` : ""}</p>}</div>
                       <span role="cell" className="hidden text-sm text-slate-500 sm:block">{row.admission_number ?? "-"}</span>
                       <div role="cell"><input id={`score-${row.student_id}`} ref={element => { scoreInputs.current[row.student_id] = element; }} aria-label={`${row.student_name ?? "Student"} score`}
-                        type="text" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={draft.score} disabled={readOnly || isSaving}
+                        type="text" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={draft.score} disabled={readOnly || isSaving} readOnly={Boolean(row.categories?.length)}
                         aria-invalid={!!error} aria-describedby={error ? `error-${row.student_id}` : undefined}
                         onChange={event => updateDraft(row.student_id, { score: event.target.value, scoreStatus: event.target.value.trim() ? "entered" : "" })}
                         onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); const next = visibleRows[visibleRows.indexOf(row) + 1]; if (next) scoreInputs.current[next.student_id]?.focus(); } }}
                         className={cn("min-h-12 w-full rounded-lg border bg-white px-2 text-center text-base tabular-nums focus:outline-2 focus:outline-blue-600 disabled:bg-slate-50", error ? "border-red-400 text-danger" : "border-slate-300")} />
                       </div>
+                      {Boolean(row.categories?.length) && <div className="col-span-full grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-3">
+                        {row.categories!.map(category => <label key={category.id} className="grid gap-1 text-xs text-slate-600">{category.name} / {category.max_score}
+                          <input aria-label={`${row.student_name} ${category.name} score`} className="min-h-11 min-w-0 rounded-lg border border-slate-300 px-2 text-base" inputMode="decimal" value={draft.categories?.[category.id] ?? ''} disabled={readOnly || isSaving}
+                            aria-invalid={Boolean(scoreError({score:draft.categories?.[category.id] ?? '',scoreStatus:'',remarks:''},Number(category.max_score)))}
+                            onChange={event => {
+                              const categories = { ...draft.categories, [category.id]: event.target.value };
+                              const values = row.categories!.map(c => categories[c.id]?.trim().toUpperCase() ?? '');
+                              const score = values.includes('Y') ? 'Y' : values.some(v => v === '' || v === 'X') ? 'X' : String(values.reduce((sum, v) => sum + Number(v), 0));
+                              updateDraft(row.student_id, { categories, score, scoreStatus: score === 'X' || score === 'Y' ? score : 'entered' });
+                            }} />
+                          {scoreError({score:draft.categories?.[category.id] ?? '',scoreStatus:'',remarks:''},Number(category.max_score)) && <span role="alert" className="text-red-700">Enter 0 to {category.max_score}, X or Y.</span>}
+                        </label>)}
+                        <label className="col-span-full flex min-h-11 items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={draft.scoreStatus==='exempt'} disabled={readOnly || isSaving}
+                          onChange={event=>{
+                            const values=row.categories!.map(c=>draft.categories?.[c.id]?.trim().toUpperCase()??'');
+                            const score=event.target.checked?'':values.includes('Y')?'Y':values.some(v=>!v||v==='X')?'X':String(values.reduce((sum,v)=>sum+Number(v),0));
+                            updateDraft(row.student_id,{score,scoreStatus:event.target.checked?'exempt':score==='X'||score==='Y'?score:'entered'});
+                          }} />Exempt from this paper</label>
+                        <p className="col-span-full text-xs text-slate-500">Paper total is calculated automatically. Blank categories remain missing, never zero.</p>
+                      </div>}
                       {error && <p id={`error-${row.student_id}`} className="col-span-full text-right text-xs text-danger">{error}</p>}
                     </div>;
                   })}

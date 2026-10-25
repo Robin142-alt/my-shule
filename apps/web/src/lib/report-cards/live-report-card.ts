@@ -12,6 +12,8 @@ export type ReportCardAudience = "exams-manager" | "dean" | "principal";
 type UnknownRecord = Record<string, unknown>;
 
 const scoreStatusLabels: Record<string, string> = {
+  x: "X",
+  y: "Y",
   absent: "Absent",
   exempt: "Exempt",
   not_assessed: "Not assessed",
@@ -289,6 +291,10 @@ export function mapPersistedReportCardDocument(
   const analyticsRecord = asRecord(reportCard.analytics);
   const attendanceRecord = asRecord(reportCard.attendance);
   const subjects = asRecords(reportCard.subjects);
+  const statuses=subjects.flatMap(subject=>[subject.score_status,...asRecords(subject.assessment_components).map(paper=>paper.score_status)])
+    .map(status=>String(status??'').toLowerCase());
+  const overallOverride=statuses.some(status=>['y','irregularity'].includes(status))?'Y':
+    statuses.some(status=>['x','missing','absent','not_assessed','incomplete','withheld','medical_exception','transfer_student'].includes(status))?'X':null;
   const reporting = reportingConfiguration({ metadata, reportCard, subjects });
   const enteredSubjects = subjects
     .map((subject) => ({
@@ -322,10 +328,10 @@ export function mapPersistedReportCardDocument(
     integerValue(attendanceRecord.late_arrivals),
     attendancePercentage,
   ].some((value) => value !== undefined && value !== null);
-  const totalScore = numberValue(totals.total_score);
-  const totalMaxScore = numberValue(totals.total_max_score);
-  const meanScore = numberValue(totals.mean_score);
-  const overallPercentage = numberValue(totals.percentage);
+  const totalScore = overallOverride?null:numberValue(totals.total_score);
+  const totalMaxScore = overallOverride?null:numberValue(totals.total_max_score);
+  const meanScore = overallOverride?null:numberValue(totals.mean_score);
+  const overallPercentage = overallOverride?null:numberValue(totals.percentage);
   const generatedAt = text(reportCard.generated_at, text(metadata.generated_at, text(card.created_at, text(card.updated_at))));
   const verificationCode = text(card.verification_code);
   const termHistory = asRecords(analyticsRecord.term_history).map((row) => ({
@@ -385,7 +391,7 @@ export function mapPersistedReportCardDocument(
     analytics: {
       attendancePercentage: formatPercentage(attendancePercentage),
       bestSubject: enteredSubjects[0]?.name || undefined,
-      improvement: text(totals.improvement) || undefined,
+      improvement: overallOverride?undefined:text(totals.improvement) || undefined,
       conduct: text(fields.conduct_summary) || undefined,
       termHistory,
       subjectHistory,
@@ -460,15 +466,15 @@ export function mapPersistedReportCardDocument(
             teacherName: text(subject.teacher_name) || undefined,
           };
         }),
-    academicSummary: enteredSubjects.length
+    academicSummary: enteredSubjects.length || overallOverride || ['X','Y'].includes(text(totals.overall_grade))
       ? {
           totalScore: totalScore !== null
             ? `${formatNumber(totalScore)}${totalMaxScore !== null ? ` / ${formatNumber(totalMaxScore)}` : ""}`
             : undefined,
           meanScore: formatNumber(meanScore),
           percentage: formatPercentage(overallPercentage),
-          overallGrade: text(totals.overall_grade, text(totals.grade_label)) || undefined,
-          classPosition: text(totals.class_position, text(totals.position)) || undefined,
+          overallGrade: overallOverride ?? (text(totals.overall_grade, text(totals.grade_label)) || undefined),
+          classPosition: overallOverride?undefined:text(totals.class_position, text(totals.position)) || undefined,
         }
       : undefined,
     coreCompetencies: asRecords(reportCard.core_competencies).map((row) => ({

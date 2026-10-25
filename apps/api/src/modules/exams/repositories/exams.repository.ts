@@ -1,6 +1,8 @@
 import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
+import { examResultCtes } from '../exam-result-query';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
 import { gradingRulesForCurriculum, inferLegacyGradingCurriculum } from '../../academics/curriculum-grading';
+import { paperClassScopeSql, examGradeOverrideSql } from '../exam-result-policy';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 import { reportPdfIdentity } from '../services/report-artifact-identity';
 import { buildScopeSqlClause, parseReportCardScope, reportCardIneligibilitySql, reportCardPreviewToken,
@@ -523,7 +525,7 @@ export class ExamsRepository {
           score_status,
           remarks,
           entered_by_user_id,
-          updated_by_user_id
+          updated_by_user_id, category_scores
         )
         VALUES (
           $1,
@@ -537,10 +539,11 @@ export class ExamsRepository {
           $9,
           $10,
           $11::uuid,
-          $11::uuid
+          $11::uuid, $12::jsonb
         )
         ON CONFLICT (tenant_id, assessment_id, student_id)
         DO UPDATE SET
+          category_scores = EXCLUDED.category_scores,
           score = EXCLUDED.score,
           score_status = EXCLUDED.score_status,
           remarks = EXCLUDED.remarks,
@@ -550,6 +553,7 @@ export class ExamsRepository {
           AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
           AND exam_marks.class_section_id = EXCLUDED.class_section_id
           AND exam_marks.subject_id = EXCLUDED.subject_id
+          AND exam_marks.status = 'draft'
         RETURNING *
       `,
       [
@@ -564,6 +568,7 @@ export class ExamsRepository {
         input.score_status ?? 'entered',
         input.remarks ?? null,
         input.actor_user_id,
+        JSON.stringify(input.category_scores ?? {}),
       ],
     );
 
@@ -587,6 +592,10 @@ export class ExamsRepository {
       score: number | null;
       score_status: string;
       remarks: string | null;
+      category_scores?: Record<string, number | null | "X" | "Y">;
+      has_expected_version?: boolean;
+      expected_updated_at?: string | null;
+      paper_config_version?: number;
     }>;
   }, onSaved?: (result: { saved_count: number; submitted_count: number; mark_ids: string[]; status: string }, tx: Prisma.TransactionClient) => Promise<void>) {
     return this.prisma.executeWithTenant(
@@ -613,7 +622,7 @@ export class ExamsRepository {
                student_id uuid,
                score numeric,
                score_status text,
-               remarks text
+               remarks text, category_scores jsonb, has_expected_version boolean, expected_updated_at timestamptz, paper_config_version integer
              )
            ), scoped AS MATERIALIZED (
              SELECT source.*
@@ -637,6 +646,8 @@ export class ExamsRepository {
               AND assessment.id = source.assessment_id
               AND assessment.exam_series_id = source.exam_series_id
               AND assessment.subject_id = source.subject_id
+              AND ${paperClassScopeSql('assessment', 'source.class_section_id')}
+              AND (source.paper_config_version IS NULL OR source.paper_config_version = mark_window.paper_config_version)
               AND NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$5')}
              JOIN students student
                ON student.tenant_id = mark_window.tenant_id
@@ -682,7 +693,8 @@ export class ExamsRepository {
                mark.id AS previous_mark_id,
                mark.score AS previous_score,
                mark.score_status AS previous_score_status,
-               mark.status AS previous_status
+               mark.category_scores AS previous_category_scores,
+               mark.status AS previous_status, mark.updated_at AS previous_updated_at
              FROM scoped
              LEFT JOIN exam_marks mark
                ON mark.tenant_id = $1
@@ -692,12 +704,12 @@ export class ExamsRepository {
              INSERT INTO exam_marks (
                tenant_id, exam_series_id, assessment_id, academic_term_id,
                class_section_id, subject_id, student_id, score, score_status, remarks,
-               entered_by_user_id, updated_by_user_id, assigned_teacher_user_id, status
+               entered_by_user_id, updated_by_user_id, assigned_teacher_user_id, status, category_scores
              )
              SELECT $1, exam_series_id, assessment_id, academic_term_id,
                class_section_id, subject_id, student_id, score, score_status, remarks,
-               $2::uuid, $2::uuid, $5::uuid, 'draft'
-             FROM scoped
+               $2::uuid, $2::uuid, $5::uuid, 'draft', COALESCE(category_scores, '{}'::jsonb)
+             FROM previous WHERE has_expected_version IS NOT TRUE OR expected_updated_at IS NOT DISTINCT FROM previous_updated_at
              ON CONFLICT (tenant_id, assessment_id, student_id)
              DO UPDATE SET
                score = EXCLUDED.score,
@@ -705,6 +717,7 @@ export class ExamsRepository {
                remarks = EXCLUDED.remarks,
                updated_by_user_id = EXCLUDED.updated_by_user_id,
                assigned_teacher_user_id = EXCLUDED.assigned_teacher_user_id,
+               category_scores = EXCLUDED.category_scores,
                updated_at = NOW()
              WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
                AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
@@ -734,6 +747,8 @@ export class ExamsRepository {
                  'source_window_id', $4::text,
                  'row_number', previous.row_number,
                  'previous_score_status', previous.previous_score_status,
+                 'previous_category_scores', previous.previous_category_scores,
+                 'category_scores', mark.category_scores,
                  'new_score_status', mark.score_status
                )
              FROM upserted mark
@@ -915,8 +930,31 @@ export class ExamsRepository {
     );
   }
 
-  async commitBulkMarkImport(input: Record<string, unknown>) {
+  async commitBulkMarkImport(
+    input: Record<string, unknown>,
+    onSaved?: (result: Record<string, any>, tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<Record<string, any> | null> {
     const rows = Array.isArray(input.rows) ? input.rows : [];
+    if (!this.reportTransaction) {
+      const tenantId = String(input.tenant_id);
+      return this.prisma.executeWithTenant(tenantId, String(input.actor_user_id), async (tx) => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId, client: tx };
+        // Acquire the same lock as marks entry and configuration before reading old marks.
+        // A lock in the INSERT trigger alone would leave the statement's snapshot stale.
+        const series = await scoped.executeSql(
+          `SELECT id, status, locked_at, published_at FROM exam_series
+           WHERE tenant_id = $1 AND id = ANY($2::uuid[]) ORDER BY id FOR UPDATE`,
+          [tenantId, [...new Set(rows.map(row => row.exam_series_id))]],
+        );
+        if (series.rows.some(row => ['locked', 'published', 'archived'].includes(row.status) || row.locked_at || row.published_at)) {
+          throw new ConflictException('The examination is locked; use the existing correction workflow');
+        }
+        const result = await scoped.commitBulkMarkImport(input);
+        if (result) await onSaved?.(result, tx);
+        return result;
+      });
+    }
     const result = await this.executeSql(
       `WITH source AS MATERIALIZED (
          SELECT *
@@ -930,7 +968,7 @@ export class ExamsRepository {
            student_id uuid,
            score numeric,
            score_status text,
-           remarks text
+           remarks text, category_scores jsonb, has_expected_version boolean, expected_updated_at timestamptz, paper_config_version integer
          )
        ), previous AS MATERIALIZED (
          SELECT source.*,
@@ -938,6 +976,8 @@ export class ExamsRepository {
            mark.score AS previous_score,
            mark.score_status AS previous_score_status,
            mark.remarks AS previous_remarks,
+           mark.category_scores AS previous_category_scores,
+           mark.updated_at AS previous_updated_at,
            mark.status AS previous_status
          FROM source
          LEFT JOIN exam_marks mark
@@ -948,13 +988,18 @@ export class ExamsRepository {
          INSERT INTO exam_marks (
            tenant_id, exam_series_id, assessment_id, academic_term_id,
            class_section_id, subject_id, student_id, score, score_status, remarks,
-           entered_by_user_id, updated_by_user_id
+           entered_by_user_id, updated_by_user_id, category_scores
          )
          SELECT $1, exam_series_id, assessment_id, academic_term_id,
-           class_section_id, subject_id, student_id, score, score_status, remarks, $2::uuid, $2::uuid
-         FROM source
+           class_section_id, subject_id, student_id, score, score_status, remarks, $2::uuid, $2::uuid, COALESCE(category_scores, '{}'::jsonb)
+         FROM previous WHERE (has_expected_version IS NOT TRUE OR expected_updated_at IS NOT DISTINCT FROM previous_updated_at)
+           AND (paper_config_version IS NULL OR EXISTS (SELECT 1 FROM exam_mark_entry_windows entry_window
+             WHERE entry_window.tenant_id=$1 AND entry_window.exam_series_id=previous.exam_series_id
+               AND entry_window.class_section_id=previous.class_section_id AND entry_window.subject_id=previous.subject_id
+               AND entry_window.paper_config_version=previous.paper_config_version))
          ON CONFLICT (tenant_id, assessment_id, student_id)
          DO UPDATE SET
+           category_scores = EXCLUDED.category_scores,
            score = EXCLUDED.score,
            score_status = EXCLUDED.score_status,
            remarks = EXCLUDED.remarks,
@@ -962,9 +1007,9 @@ export class ExamsRepository {
            updated_at = NOW()
          WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
            AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
+           AND exam_marks.status = 'draft'
            AND exam_marks.class_section_id = EXCLUDED.class_section_id
            AND exam_marks.subject_id = EXCLUDED.subject_id
-           AND exam_marks.status = 'draft'
          RETURNING *
        ), batch AS (
          INSERT INTO exam_mark_import_batches (
@@ -973,7 +1018,7 @@ export class ExamsRepository {
            metadata
          )
          SELECT $1, $3, 'imported', source_count, source_count, 0, 0,
-           CASE WHEN committed_count = source_count THEN committed_count ELSE NULL END,
+           committed_count,
            $5, $2::uuid, jsonb_build_object('source', 'marks_bulk_upload', 'source_rows', $4::jsonb)
          FROM (SELECT COUNT(*)::integer AS source_count FROM source) source_totals
          CROSS JOIN (SELECT COUNT(*)::integer AS committed_count FROM upserted) committed_totals
@@ -982,12 +1027,12 @@ export class ExamsRepository {
          INSERT INTO exam_mark_import_batch_items (
            tenant_id, batch_id, mark_id, row_number, previous_exists,
            previous_score, previous_score_status, previous_remarks, previous_status,
-           imported_score, imported_score_status, imported_remarks, imported_status
+           imported_score, imported_score_status, imported_remarks, imported_status, previous_category_scores, imported_category_scores
          )
          SELECT $1, batch.id, mark.id, previous.row_number,
            previous.previous_mark_id IS NOT NULL,
            previous.previous_score, previous.previous_score_status, previous.previous_remarks, previous.previous_status,
-           mark.score, mark.score_status, mark.remarks, mark.status
+           mark.score, mark.score_status, mark.remarks, mark.status, previous.previous_category_scores, mark.category_scores
          FROM batch
          JOIN upserted mark ON TRUE
          JOIN previous
@@ -1006,6 +1051,8 @@ export class ExamsRepository {
              'batch_id', batch.id,
              'row_number', previous.row_number,
              'previous_score_status', previous.previous_score_status,
+             'previous_category_scores', previous.previous_category_scores,
+             'category_scores', mark.category_scores,
              'new_score_status', mark.score_status
            )
          FROM batch
@@ -1027,7 +1074,11 @@ export class ExamsRepository {
         input.preview_token,
       ],
     );
-    return result.rows[0] ?? null;
+    const imported = result.rows[0] ?? null;
+    if (!imported || Number(imported.committed_rows) !== rows.length) {
+      throw new ConflictException('Marks changed after the import preview. Refresh and preview the file again.');
+    }
+    return imported;
   }
 
   async listMarkImportBatches(input: Record<string, unknown>) {
@@ -1106,7 +1157,31 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async rollbackMarkImportBatch(input: Record<string, unknown>) {
+  async rollbackMarkImportBatch(
+    input: Record<string, unknown>,
+    onSaved?: (result: Record<string, any>, tx: Prisma.TransactionClient) => Promise<unknown>,
+  ): Promise<Record<string, any> | null> {
+    if (!this.reportTransaction) {
+      const tenantId = String(input.tenant_id);
+      return this.prisma.executeWithTenant(tenantId, String(input.actor_user_id), async (tx) => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId, client: tx };
+        const series = await scoped.executeSql(
+          `SELECT series.id, series.status, series.locked_at, series.published_at FROM exam_series series
+           WHERE series.tenant_id = $1 AND EXISTS (
+             SELECT 1 FROM exam_mark_import_batch_items item JOIN exam_marks mark
+               ON mark.tenant_id = item.tenant_id AND mark.id = item.mark_id
+             WHERE item.tenant_id = $1 AND item.batch_id = $2::uuid AND mark.exam_series_id = series.id
+           ) ORDER BY series.id FOR UPDATE`, [tenantId, input.batch_id],
+        );
+        if (series.rows.some(row => ['locked', 'published', 'archived'].includes(row.status) || row.locked_at || row.published_at)) {
+          throw new ConflictException('The examination is locked; use the existing correction workflow');
+        }
+        const result = await scoped.rollbackMarkImportBatch(input);
+        if (result && !Number(result.conflict_count)) await onSaved?.(result, tx);
+        return result;
+      });
+    }
     const result = await this.executeSql(
       `WITH target AS MATERIALIZED (
          SELECT * FROM exam_mark_import_batches
@@ -1124,9 +1199,11 @@ export class ExamsRepository {
             OR mark.score_status IS DISTINCT FROM item.imported_score_status
             OR mark.remarks IS DISTINCT FROM item.imported_remarks
             OR mark.status IS DISTINCT FROM item.imported_status
+            OR mark.category_scores IS DISTINCT FROM item.imported_category_scores
        ), restored AS (
          UPDATE exam_marks mark
-         SET score = item.previous_score,
+         SET category_scores = COALESCE(item.previous_category_scores, '{}'::jsonb),
+             score = item.previous_score,
              score_status = item.previous_score_status,
              remarks = item.previous_remarks,
              status = item.previous_status,
@@ -1209,7 +1286,7 @@ export class ExamsRepository {
     const result = await this.executeSql(
       `
         UPDATE exam_marks
-        SET score = $3::numeric,
+        SET category_scores = '{}'::jsonb, score = $3::numeric,
             score_status = $4,
             remarks = COALESCE($5, remarks),
             updated_by_user_id = $6::uuid,
@@ -2681,6 +2758,7 @@ export class ExamsRepository {
           mark.remarks AS manual_remarks,
           assessment.name AS assessment_name,
           assessment.weight::float AS assessment_weight,
+          COALESCE(weighting.weight,1)::float AS subject_weight,
           assessment.max_score::float AS max_score,
           CASE
             WHEN mark.score_status = 'entered' AND assessment.max_score > 0
@@ -2705,6 +2783,8 @@ export class ExamsRepository {
           ON subject.tenant_id = mark.tenant_id
          AND subject.id = mark.subject_id::text
         LEFT JOIN selected_policy policy ON TRUE
+        LEFT JOIN exam_subject_weightings weighting ON weighting.tenant_id=mark.tenant_id
+          AND weighting.grading_policy_id=policy.id AND weighting.subject_id=mark.subject_id
         LEFT JOIN LATERAL (
           SELECT boundary.*
           FROM exam_grading_policy_boundaries boundary
@@ -3291,7 +3371,7 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async findAssessmentScope(input: { tenant_id: string; assessment_id: string; class_section_id?: string }) {
+  async findAssessmentScope(input: { tenant_id: string; assessment_id: string; class_section_id?: string; student_id?: string }) {
     const result = await this.executeSql(
       `
         SELECT
@@ -3300,7 +3380,10 @@ export class ExamsRepository {
           series.academic_term_id::text,
           assessment.subject_id::text,
           COALESCE(entry_window.class_section_id::text, '') AS class_section_id,
-          assessment.max_score::text
+          assessment.max_score::text, assessment.uses_categories, entry_window.paper_config_version,
+          (SELECT mark.updated_at::text FROM exam_marks mark WHERE mark.tenant_id=assessment.tenant_id
+            AND mark.assessment_id=assessment.id AND mark.student_id=$4::uuid) AS mark_updated_at,
+          COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'max_score',c.max_score)) FROM exam_assessment_components c WHERE c.tenant_id=assessment.tenant_id AND c.assessment_id=assessment.id), '[]'::jsonb) AS categories
         FROM exam_assessments assessment
         JOIN exam_series series
           ON series.tenant_id = assessment.tenant_id
@@ -3312,10 +3395,11 @@ export class ExamsRepository {
          AND ($3::uuid IS NULL OR entry_window.class_section_id = $3::uuid)
         WHERE assessment.tenant_id = $1
           AND assessment.id = $2::uuid
+          AND ($3::uuid IS NULL OR ${paperClassScopeSql('assessment', '$3')})
         ORDER BY entry_window.created_at DESC NULLS LAST
         LIMIT 1
       `,
-      [input.tenant_id, input.assessment_id, input.class_section_id ?? null],
+      [input.tenant_id, input.assessment_id, input.class_section_id ?? null, input.student_id ?? null],
     );
 
     return result.rows[0] ?? null;
@@ -3829,38 +3913,7 @@ export class ExamsRepository {
 
   async processResultBatch(input: { tenant_id: string; actor_user_id: string; batch_id: string; mode: 'aggregates' | 'rankings' }) {
     const result = await this.executeSql(
-      `WITH batch_scope AS (
-         SELECT id, exam_series_id, class_section_id
-         FROM report_card_generation_batches
-         WHERE tenant_id = $1 AND id = $3::uuid
-       ), scores AS (
-         SELECT
-           batch_scope.id AS batch_id,
-           batch_scope.exam_series_id,
-           batch_scope.class_section_id,
-           mark.student_id,
-           ROUND(SUM(mark.score)::numeric, 2) AS raw_total,
-           COUNT(*)::integer AS assessment_count,
-           ROUND(AVG((mark.score / assessment.max_score) * 100)::numeric, 2) AS average_percentage
-         FROM batch_scope
-         INNER JOIN exam_marks mark
-           ON mark.tenant_id = $1
-          AND mark.exam_series_id = batch_scope.exam_series_id
-          AND (batch_scope.class_section_id IS NULL OR mark.class_section_id = batch_scope.class_section_id)
-          AND mark.status IN ('reviewed', 'locked', 'published')
-         INNER JOIN exam_assessments assessment
-           ON assessment.tenant_id = mark.tenant_id
-          AND assessment.id = mark.assessment_id
-          AND assessment.max_score > 0
-         GROUP BY batch_scope.id, batch_scope.exam_series_id, batch_scope.class_section_id, mark.student_id
-       ), ranked AS (
-         SELECT scores.*,
-           CASE WHEN $4 = 'rankings'
-             THEN DENSE_RANK() OVER (ORDER BY average_percentage DESC, raw_total DESC)::integer
-             ELSE NULL
-           END AS class_rank
-         FROM scores
-       ), removed AS (
+      `WITH ${examResultCtes('$1', '$3', '$4')}, removed AS (
          DELETE FROM exam_result_snapshots
          WHERE tenant_id = $1 AND batch_id = $3::uuid
          RETURNING id
@@ -3872,19 +3925,10 @@ export class ExamsRepository {
          )
          SELECT
            $1, ranked.batch_id, ranked.exam_series_id, ranked.class_section_id, ranked.student_id,
-           ranked.raw_total, ranked.assessment_count, ranked.average_percentage, boundary.label,
+           ranked.raw_total, ranked.assessment_count, ranked.average_percentage, ranked.grade_label,
            ranked.class_rank, $2::uuid
          FROM ranked
          CROSS JOIN (SELECT COUNT(*) FROM removed) cleanup
-         LEFT JOIN LATERAL (
-           SELECT label
-           FROM exam_grade_boundaries
-           WHERE tenant_id = $1
-             AND exam_series_id = ranked.exam_series_id
-             AND ranked.average_percentage BETWEEN min_score AND max_score
-           ORDER BY min_score DESC
-           LIMIT 1
-         ) boundary ON TRUE
          RETURNING id, class_rank
        ), summary AS (
          SELECT COUNT(*)::integer AS aggregate_count, COUNT(class_rank)::integer AS ranked_count
@@ -5694,6 +5738,8 @@ export class ExamsRepository {
         student.admission_number,
         NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
         mark.score::float AS score,
+        mark.category_scores, mark_window.paper_config_version,
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'name',c.component_name,'max_score',c.max_score) ORDER BY c.component_code) FROM exam_assessment_components c WHERE c.tenant_id=assessment.tenant_id AND c.assessment_id=assessment.id AND assessment.uses_categories), '[]'::jsonb) AS categories,
         COALESCE(mark.score_status, 'not_assessed') AS score_status,
         mark.remarks,
         COALESCE(mark.status, 'draft') AS status,
@@ -5715,6 +5761,7 @@ export class ExamsRepository {
         ON assessment.tenant_id = mark_window.tenant_id
        AND assessment.exam_series_id = mark_window.exam_series_id
        AND assessment.subject_id = mark_window.subject_id
+       AND ${paperClassScopeSql('assessment', 'mark_window.class_section_id')}
       JOIN students student
         ON student.tenant_id = mark_window.tenant_id
        AND student.status = 'active'

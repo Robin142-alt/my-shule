@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { examGradeOverride } from '../exam-result-policy';
 import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { DatabaseService } from '../../../database/database.service';
 import { RequestContextService } from '../../../common/request-context/request-context.service';
@@ -76,6 +77,13 @@ export class ReportCardArtifactsService implements OnModuleInit {
       !card.verification_code
     )
       throw new ConflictException('Regenerate this report before downloading');
+    const payload=extractPersistedReportCardPayload(card.metadata)!;
+    const override=examGradeOverride(payload.subjects.flatMap(subject=>[subject.score_status,
+      ...(subject.assessment_components??[]).map(paper=>paper.score_status)]));
+    if(override && (payload.totals.overall_grade!==override || payload.totals.percentage!==null
+      || payload.totals.mean_score!==null || payload.totals.total_score!==null || payload.totals.class_position!=null)) {
+      throw new ConflictException('Required papers contain X or Y. Regenerate this report and complete its review to apply the overall grade override.');
+    }
     if (allowLegacy && !card.metadata?.source_revision) return;
     if (
       card.metadata?.source_valid_until &&

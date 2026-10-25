@@ -5490,7 +5490,7 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
   assert.match(writes[1].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
   assert.match(writes[1].sql, /NOT EXISTS/i);
   assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
-  assert.match(writes[1].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, name\)\s*DO NOTHING/i);
+  assert.match(writes[1].sql, /ON CONFLICT\s*DO NOTHING/i);
   assert.match(writes[1].sql, /created_at,\s*updated_at/i);
   assert.match(writes[1].sql, /NOW\(\),\s*NOW\(\)/i);
   assert.match(writes[2].sql, /UPDATE exam_assessments/i);

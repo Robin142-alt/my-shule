@@ -176,7 +176,11 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
             const displayScore = scorePercentage === null ? result ?? row.score : `${scorePercentage}%`;
             return (
               <tr key={`${row.subjectName}-${index}`} className="even:bg-slate-50/60">
-                <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.subjectName}</td>
+                <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.subjectName}
+                  {(row.assessmentComponents?.length ?? 0) > 1 && <div className="mt-1 space-y-0.5 font-normal text-slate-600">
+                    {row.assessmentComponents!.map((paper, i) => <p key={i}>{paper.name}: {paper.percentage ?? paper.status}</p>)}
+                  </div>}
+                </td>
                 <td className="border border-slate-200 px-1 py-[3px] text-center font-bold">{displayScore}</td>
                 <td className="border border-slate-200 px-1 py-[3px] text-center font-black text-foreground">{row.grade}</td>
                 <td className="border border-slate-200 px-2 py-[3px] text-center">{row.achievementLevel ?? row.teacherComment}</td>

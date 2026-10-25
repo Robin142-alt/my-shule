@@ -5,6 +5,8 @@ import { ExamsController } from './exams.controller';
 import { ReportCardDownloadController } from './report-card-download.controller';
 import { ExamsSchemaService } from './exams-schema.service';
 import { ExamsService } from './exams.service';
+import { ExamPaperConfigurationService } from './exam-paper-configuration.service';
+import { ExamPaperConfigurationController } from './exam-paper-configuration.controller';
 import { ExamsRepository } from './repositories/exams.repository';
 import { ReportCardGenerationService } from './services/report-card-generation.service';
 import { ReportCardTemplateService } from './services/report-card-template.service';
@@ -18,11 +20,12 @@ import { ReportRetentionService } from './services/report-retention.service';
 
 @Module({
   imports: [EventsModule],
-  controllers: [ExamsController, ReportCardDownloadController, AnalyticsReportController],
+  controllers: [ExamsController, ReportCardDownloadController, AnalyticsReportController, ExamPaperConfigurationController],
   providers: [
     ...Object.values(moduleConsumers),
     ExamsSchemaService,
     ExamsService,
+    ExamPaperConfigurationService,
     AnalyticsReportService,
     ExamsRepository,
     ReportCardGenerationService,

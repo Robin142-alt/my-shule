@@ -1,3 +1,4 @@
+import { paperClassScopeSql } from './exam-result-policy';
 // Shared by the generation preflight and the report-card selector. Do not derive
 // readiness from paginated mark sheets: missing learner marks have no row there.
 // Parameters: school, optional exam, optional class, optional stream name.
@@ -43,15 +44,16 @@ export function reportCardReadinessCtes(options: {
     COALESCE(evidence.mark_state, 0) AS mark_state
   FROM expected
   LEFT JOIN LATERAL (
-    SELECT BOOL_AND(mark.status IN ('locked', 'published')) AS is_ready,
+    SELECT BOOL_AND(COALESCE(mark.status IN ('locked', 'published'), FALSE)) AS is_ready,
       MIN(CASE mark.status WHEN 'draft' THEN 1 WHEN 'submitted' THEN 2
         WHEN 'reviewed' THEN 3 WHEN 'locked' THEN 4 WHEN 'published' THEN 4 ELSE 0 END) AS mark_state
-    FROM exam_marks mark
-    WHERE mark.tenant_id = $1
-      AND mark.exam_series_id = expected.exam_series_id
+    FROM exam_assessments paper
+    LEFT JOIN exam_marks mark ON mark.tenant_id = paper.tenant_id AND mark.assessment_id = paper.id
+      AND mark.exam_series_id = paper.exam_series_id AND mark.subject_id = paper.subject_id
       AND mark.student_id::text = expected.student_id
       AND mark.class_section_id = expected.class_section_id
-      AND mark.subject_id = expected.subject_id
+    WHERE paper.tenant_id = $1 AND paper.exam_series_id = expected.exam_series_id
+      AND paper.subject_id = expected.subject_id AND ${paperClassScopeSql('paper', 'expected.class_section_id')}
   ) evidence ON TRUE
 )`;
 }

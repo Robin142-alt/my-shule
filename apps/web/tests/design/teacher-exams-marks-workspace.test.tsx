@@ -7,6 +7,8 @@ import {
   fetchPendingMarksLive,
   fetchTeacherMarkSheetLive,
   saveExamMarksLive,
+  fetchPaperConfiguration,
+  savePaperConfiguration,
 } from "@/lib/modules/teacher-live";
 
 import { renderWithProviders } from "./test-utils";
@@ -19,6 +21,8 @@ jest.mock("@/lib/modules/teacher-live", () => ({
   fetchPendingMarksLive: jest.fn(),
   fetchTeacherMarkSheetLive: jest.fn(),
   saveExamMarksLive: jest.fn(),
+  fetchPaperConfiguration: jest.fn(),
+  savePaperConfiguration: jest.fn(),
 }));
 
 const mockSession = {
@@ -35,6 +39,48 @@ const mockSession = {
 };
 
 describe("teacher exams and marks workspace", () => {
+  it('keeps paper settings optional, persists custom papers and sums category maxima',async()=>{
+    jest.mocked(fetchPaperConfiguration).mockResolvedValue({version:2,papers:[{id:'paper-1',name:'Paper 1',max_score:80,weight:null,categories:[]}]});
+    jest.mocked(savePaperConfiguration).mockResolvedValue({version:3,papers:[]});
+    await openWorkspace();
+    expect(fetchPaperConfiguration).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Papers & maximum marks'));
+    expect(await screen.findByLabelText('Paper 1 name')).toHaveValue('Paper 1');
+    fireEvent.change(screen.getByLabelText('Paper 1 maximum'),{target:{value:'20'}});
+    fireEvent.click(screen.getByText('Categories / sections (optional)'));
+    fireEvent.click(screen.getByRole('button',{name:'Add category'}));
+    fireEvent.change(screen.getByLabelText('Paper 1 category 1 maximum'),{target:{value:'12'}});
+    fireEvent.click(screen.getByRole('button',{name:'Add category'}));
+    fireEvent.change(screen.getByLabelText('Paper 1 category 2 maximum'),{target:{value:'8'}});
+    expect(screen.getByLabelText('Paper 1 maximum')).toHaveValue(20);
+    fireEvent.click(screen.getByRole('button',{name:'Add paper'}));
+    fireEvent.change(screen.getByLabelText('Paper 2 name'),{target:{value:'Practical'}});
+    fireEvent.change(screen.getByLabelText('Paper 2 maximum'),{target:{value:'80'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save paper settings'}));
+    await waitFor(()=>expect(savePaperConfiguration).toHaveBeenCalledWith(mockSession,'window-1',expect.objectContaining({version:2,papers:[
+      expect.objectContaining({name:'Paper 1',max_score:20,categories:[{name:'Section 1',max_score:12},{name:'Section 2',max_score:8}]}),
+      expect.objectContaining({name:'Practical',max_score:80,weight:null})
+    ]})));
+  });
+
+  it('calculates categories, retains zero, sends Y evidence and prevents invalid category marks',async()=>{
+    const rows=await jest.mocked(fetchTeacherMarkSheetLive)(mockSession,{examSeriesId:'series-1',classSectionId:'class-2-blue',subjectId:'subject-maths',assessmentId:'assessment-paper-1'});
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map(row=>({...row,categories:[{id:'speech',name:'Speech',max_score:12},{id:'listening',name:'Listening',max_score:8}],paper_config_version:3})));
+    await openWorkspace();
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveAttribute('readonly');
+    fireEvent.change(screen.getByLabelText('Asha Njeri Speech score'),{target:{value:'0'}});
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveValue('X');
+    fireEvent.change(screen.getByLabelText('Asha Njeri Listening score'),{target:{value:'9'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save draft'}));
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Asha Njeri Listening score'),{target:{value:'Y'}});
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveValue('Y');
+    fireEvent.click(screen.getByRole('button',{name:'Save draft'}));
+    await waitFor(()=>expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession,expect.objectContaining({paperConfigVersion:3,marks:{'student-1':{
+      score:null,score_status:'Y',expected_updated_at:null,category_scores:{speech:0,listening:'Y'}
+    }}})));
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     (useLiveTenantSession as jest.Mock).mockReturnValue({
@@ -146,7 +192,7 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "74" } });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
-      action: "draft", examId: "window-1", marks: { "student-1": { score: 74, score_status: "entered" } },
+      action: "draft", examId: "window-1", marks: { "student-1": { score: 74, score_status: "entered", expected_updated_at: null } },
     })));
     expect(screen.queryByText("Reasons for missing scores")).not.toBeInTheDocument();
   });
@@ -158,7 +204,7 @@ describe("teacher exams and marks workspace", () => {
     jest.mocked(fetchPendingMarksLive).mockResolvedValue({ stats: { totalWindows: 0, nearingDeadline: 0 }, windows: [] });
     fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
-      action: "submit", marks: { "student-1": { score: 0, score_status: "entered" }, "student-2": { score: 68.5, score_status: "entered" } },
+      action: "submit", marks: { "student-1": { score: 0, score_status: "entered", expected_updated_at: null }, "student-2": { score: 68.5, score_status: "entered", expected_updated_at: null } },
     })));
     expect(await screen.findByText("No exams awaiting marks")).toBeVisible();
     expect(screen.queryByLabelText("Asha Njeri score")).not.toBeInTheDocument();
@@ -173,7 +219,7 @@ describe("teacher exams and marks workspace", () => {
     expect(screen.queryByLabelText("Asha Njeri missing score reason")).not.toBeInTheDocument();
     const reason = screen.getByLabelText("Brian Otieno missing score reason") as HTMLSelectElement;
     expect(Array.from(reason.options).map(option => option.text)).toEqual([
-      "Select a reason", "Absent", "Exempt", "Not assessed", "Incomplete", "Withheld", "Medical exception", "Transfer student",
+      "Select a reason", "X — Missing marks", "Y — Examination irregularity", "Absent", "Exempt", "Not assessed", "Incomplete", "Withheld", "Medical exception", "Transfer student",
     ]);
     expect(saveExamMarksLive).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Confirm submission" }));
@@ -182,7 +228,7 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.change(reason, { target: { value: "absent" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm submission" }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
-      action: "submit", marks: { "student-1": { score: 74, score_status: "entered" }, "student-2": { score: null, score_status: "absent" } },
+      action: "submit", marks: { "student-1": { score: 74, score_status: "entered", expected_updated_at: null }, "student-2": { score: null, score_status: "absent", expected_updated_at: null } },
     })));
   });
 
@@ -197,7 +243,7 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.change(screen.getByLabelText("Brian Otieno score"), { target: { value: "62" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit results" }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
-      marks: expect.objectContaining({ "student-2": { score: 62, score_status: "entered" } }),
+      marks: expect.objectContaining({ "student-2": { score: 62, score_status: "entered", expected_updated_at: null } }),
     })));
   });
 
@@ -337,7 +383,7 @@ describe("teacher exams and marks workspace", () => {
     expect(await screen.findByLabelText('Asha Njeri score')).toHaveValue('35');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
-      examId: 'window-1', assessmentId: 'assessment-paper-1', action: 'draft', marks: { 'student-1': { score: 35, score_status: 'entered' } },
+      examId: 'window-1', assessmentId: 'assessment-paper-1', action: 'draft', marks: { 'student-1': { score: 35, score_status: 'entered', expected_updated_at:null } },
     })));
   });
 
@@ -365,7 +411,7 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.change(screen.getByLabelText('Asha Njeri score'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenLastCalledWith(mockSession, expect.objectContaining({
-      action: 'draft', marks: { 'student-1': { score: null, score_status: 'incomplete' } },
+      action: 'draft', marks: { 'student-1': { score: null, score_status: 'incomplete', expected_updated_at:null } },
     })));
   });
 
@@ -433,7 +479,7 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(managerSession, expect.objectContaining({
-      teacherUserId: "teacher-1", action: "draft", marks: expect.objectContaining({ "student-1": { score: 63, score_status: "entered" } }),
+      teacherUserId: "teacher-1", action: "draft", marks: expect.objectContaining({ "student-1": { score: 63, score_status: "entered", expected_updated_at: null } }),
     })));
   });
 

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 
 // Bump whenever PDF layout, fonts, or snapshot interpretation changes.
-export const REPORT_RENDERER_VERSION = 'pdfkit-report-card-7';
-export const COMPATIBLE_REPORT_RENDERER_VERSIONS: readonly string[] = [REPORT_RENDERER_VERSION, 'pdfkit-report-card-6', 'pdfkit-report-card-5', 'pdfkit-report-card-4'];
+export const REPORT_RENDERER_VERSION = 'pdfkit-report-card-8';
+export const COMPATIBLE_REPORT_RENDERER_VERSIONS: readonly string[] = [REPORT_RENDERER_VERSION, 'pdfkit-report-card-7', 'pdfkit-report-card-6', 'pdfkit-report-card-5', 'pdfkit-report-card-4'];
 // Presentation upgrades preserve approved current marks. Earlier snapshots retain
 // their academic/review validity; the new PDF identity forces a fresh render.
 export function isCompatibleReportRenderer(version: unknown): boolean {
