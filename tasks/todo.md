@@ -13,3 +13,18 @@
 - [ ] Migrate any school still using only legacy student_invoices with audited opening balances.
 - [ ] Add governed automatic reallocation of existing credits to future invoices, if required for rollout.
 - [ ] Certify real merchant onboarding/callback gateway, browser end-to-end flows and peak-volume deployment capacity before production activation.
+
+## Universal banking implementation slices
+
+- [ ] Assess all eleven banks against official sources; record method, credentials, access gaps and certification status independently.
+- [ ] Extend catalog and capability contracts; prove registration of a test-only additional provider without financial engine/schema changes.
+- [ ] Implement each accessible official native protocol and hostile-input/authentication contract tests; never register unimplemented capabilities.
+- [ ] Connect native verified evidence to existing durable inbox, worker recovery and shared ledger/allocation path.
+- [ ] Extend approved connection configuration, diagnostics and lifecycle with provider-specific dynamic inputs and genuine activation gates.
+- [ ] Complete governed credit application, overpayment correction and reversals; verify conservation under concurrency.
+- [ ] Complete audited, idempotent legacy invoice preview/adoption; preserve original records and avoid historical cash reposting.
+- [ ] Complete Accountant bank setup/reconciliation/credit UI and related Principal/Super Admin workflows; test mobile and desktop.
+- [ ] Run isolated provider/database/end-to-end and existing M-Pesa, finance, portal and progression regression checks.
+- [ ] Run built-in review and release checks; publish per-bank implementation, sandbox/live evidence and remaining external dependencies.
+
+Each slice requires focused tests and build/type checks before committing. Existing completed items above remain historical verification records and are rechecked where affected.

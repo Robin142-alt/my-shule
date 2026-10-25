@@ -6,7 +6,7 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
   CREATE TABLE IF NOT EXISTS tenant_payment_channel_revisions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
     channel_id uuid, replaces_revision_id uuid,
-    provider_code text NOT NULL CHECK (provider_code IN ('safaricom','equity','kcb','coop','other_bank')),
+    provider_code text NOT NULL CHECK (provider_code ~ '^[a-z][a-z0-9_]{1,63}$'),
     channel_kind text NOT NULL CHECK (channel_kind IN ('mpesa_paybill','bank_paybill','bank_account')),
     display_name text NOT NULL, account_name text NOT NULL, account_number text NOT NULL, bank_name text, paybill_number text,
     status text NOT NULL DEFAULT 'pending_approval' CHECK (status IN
@@ -25,6 +25,9 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
     CHECK (status IN ('pending_approval','rejected') OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
     CHECK (credentials_ciphertext IS NULL OR credentials_ciphertext LIKE 'enc:v1:%')
   );
+  ALTER TABLE tenant_payment_channel_revisions DROP CONSTRAINT IF EXISTS tenant_payment_channel_revisions_provider_code_check;
+  ALTER TABLE tenant_payment_channel_revisions ADD CONSTRAINT tenant_payment_channel_revisions_provider_code_check
+    CHECK (provider_code ~ '^[a-z][a-z0-9_]{1,63}$');
   CREATE INDEX IF NOT EXISTS ix_collection_revision_school_state
     ON tenant_payment_channel_revisions(tenant_id,status,created_at DESC);
   CREATE INDEX IF NOT EXISTS ix_collection_revision_connection_queue

@@ -1,20 +1,22 @@
 import { BadRequestException } from "@nestjs/common";
+import { BANK_PROVIDERS, type ProviderAssessment } from './bank-provider.catalog';
 
-export type CollectionProviderCode =
-  | "safaricom"
-  | "equity"
-  | "kcb"
-  | "coop"
-  | "other_bank";
+// Registration validates codes; the financial engine has no fixed bank-name union.
+export type CollectionProviderCode = string;
 export type CollectionChannelKind =
   | "mpesa_paybill"
   | "bank_paybill"
   | "bank_account";
 export type CollectionConnectionMode = "daraja" | "statement";
+export interface CollectionProviderDefinition {
+  code:string;name:string;description:string;channel_kinds:readonly string[];connection_modes:readonly string[];
+  credential_fields:readonly {key:string;label:string;required:boolean;secret:boolean;description?:string}[];
+  assessment?:ProviderAssessment;
+}
 
 // Capabilities describe implemented, verifiable collection contracts. Bank APIs
 // require bank-specific merchant onboarding; a filled-in form is not a connection.
-export const COLLECTION_PROVIDERS = [
+export const COLLECTION_PROVIDERS: readonly CollectionProviderDefinition[] = [
   {
     code: "safaricom",
     name: "Safaricom M-PESA",
@@ -56,10 +58,8 @@ export const COLLECTION_PROVIDERS = [
       },
     ],
   },
+  ...BANK_PROVIDERS,
   ...[
-    ["equity", "Equity Bank"],
-    ["kcb", "KCB Bank"],
-    ["coop", "Co-operative Bank"],
     ["other_bank", "Other bank"],
   ].map(([code, name]) => ({
     code,
@@ -70,7 +70,7 @@ export const COLLECTION_PROVIDERS = [
       "Money goes directly to the school account. Use statement reconciliation with Principal review. Automatic bank collection requires a bank-approved adapter and merchant onboarding.",
     credential_fields: [],
   })),
-] as const;
+];
 
 export function collectionProvider(code: string) {
   const provider = COLLECTION_PROVIDERS.find((item) => item.code === code);

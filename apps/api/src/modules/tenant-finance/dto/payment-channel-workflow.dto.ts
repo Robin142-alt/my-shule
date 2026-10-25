@@ -15,7 +15,7 @@ import type {
 } from "../payment-provider.catalog";
 
 export class RequestPaymentChannelDto {
-  @IsIn(["safaricom", "equity", "kcb", "coop", "other_bank"])
+  @IsString() @Matches(/^[a-z][a-z0-9_]{1,63}$/)
   provider_code!: CollectionProviderCode;
   @IsIn(["mpesa_paybill", "bank_paybill", "bank_account"])
   channel_kind!: CollectionChannelKind;
