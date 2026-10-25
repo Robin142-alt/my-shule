@@ -140,7 +140,8 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       examSeriesId: activeWindow!.examSeriesId, classSectionId: activeWindow!.classSectionId,
       subjectId: activeWindow!.subjectId, assessmentId: activeWindow!.assessmentId,
       ...(assistance ? { teacherUserId: assistance.teacherUserId } : {}),
-      view: submittedView ? "submitted" as const : activeWindow?.canEnter === false ? "all" as const : "active" as const,
+      // A selected stream can be submitted before the rest of its class.
+      view: assistance?.streamIds ? "all" as const : submittedView ? "submitted" as const : activeWindow?.canEnter === false ? "all" as const : "active" as const,
     }),
     enabled: Boolean(liveSession.session && activeWindow?.examSeriesId && activeWindow.classSectionId
       && activeWindow.subjectId && activeWindow.assessmentId),

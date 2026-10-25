@@ -16,6 +16,20 @@ scope. Authenticated Exams Manager permissions, tenant filters, per-row edit gua
 version conflicts, audits and existing reopening rules remain in force. Financial
 roles receive no automatic mark-entry access.
 
+The selected stream also uses the authorized all-results read when opened, so a
+submitted stream remains visible and read-only while another stream is unfinished.
+The class-level submitted query deliberately requires all streams to be submitted;
+using it for a single-stream view caused an empty history view.
+
+Verification on 25 October 2026: all 61 database regressions and 60 focused
+frontend regressions passed. A read-only
+comparison against live Kibabi records found 18 eligible Grade 9 White Mathematics
+learners and two separate learners without a stream, with matching discovery,
+detail and progress counts (0/18 and 1/2 recorded respectively). Kawino had no
+unassigned markbooks in this comparison. No production rows were changed or
+reconciled. Live opening was confirmed by the user; save/submission tests used an
+isolated database and browser fixtures, not production scores.
+
 Single-paper subjects display only their subject and skip the redundant Paper
 selector. Multiple configured papers retain their names. A shared display helper
 suppresses generated `Main Paper` labels and repeated subject prefixes in selectors,
