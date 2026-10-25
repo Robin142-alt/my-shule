@@ -1088,9 +1088,9 @@ test('ExamsRepository saves and submits an explicitly opened future markbook wit
   assert.equal(result.status, 'submitted');
   assert.equal(calls.length, 3);
   assert.match(calls[0].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
-  assert.match(calls[0].sql, /assignment\.mark_entry_allowed = TRUE/);
-  assert.match(calls[0].sql, /assignment\.effective_from <= CURRENT_DATE/);
-  assert.match(calls[0].sql, /assignment\.effective_to IS NULL OR assignment\.effective_to >= CURRENT_DATE/);
+  assert.match(calls[0].sql, /assigned_teacher\.mark_entry_allowed = TRUE/);
+  assert.match(calls[0].sql, /assigned_teacher\.effective_from <= CURRENT_DATE/);
+  assert.match(calls[0].sql, /assigned_teacher\.effective_to IS NULL OR assigned_teacher\.effective_to >= CURRENT_DATE/);
   assert.match(calls[0].sql, /student\.id::text = source\.student_id::text/);
   assert.match(calls[1].sql, /mark_window\.opens_at <= NOW\(\) OR mark_window\.last_action = 'opened'/);
   assert.match(calls[1].sql, /mark\.student_id::text = student\.id::text/);
@@ -1882,6 +1882,7 @@ test('ExamsService atomically saves and submits a teacher mark sheet with explic
   assert.deepEqual(calls[0].input, {
     tenant_id: 'tenant-a',
     actor_user_id: 'teacher-1',
+    manager_entry: false,
     source_window_id: 'window-1',
     submit: true,
     rows: [
@@ -3729,8 +3730,8 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
   assert.match(calls[0]!.sql, /FROM exam_mark_entry_windows mark_window/);
   assert.match(calls[0]!.sql, /JOIN exam_assessments assessment/);
   assert.match(calls[0]!.sql, /JOIN students student/);
-  assert.match(calls[0]!.sql, /FROM student_class_assignments class_assignment/);
-  assert.match(calls[0]!.sql, /FROM student_subject_enrollments subject_enrollment/);
+  assert.match(calls[0]!.sql, /JOIN student_class_assignments membership/);
+  assert.match(calls[0]!.sql, /JOIN student_subject_enrollments enrollment/);
   assert.match(calls[0]!.sql, /LEFT JOIN exam_marks mark/);
   assert.match(calls[0]!.sql, /mark\.student_id::text = student\.id::text/);
   assert.match(calls[0]!.sql, /\$3::text IS NULL OR student\.id::text = \$3::text/);
@@ -3748,6 +3749,7 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
     0,
     null,
     null,
+    false,
     false,
   ]);
 });
@@ -3773,14 +3775,15 @@ test('ExamsRepository validates mark eligibility across legacy text and UUID lea
   });
 
   assert.equal(learner?.id, '00000000-0000-0000-0000-000000000301');
-  assert.match(calls[0]!.sql, /student\.id::text = \$2::text/);
-  assert.match(calls[0]!.sql, /class_assignment\.student_id = student\.id::text/);
-  assert.match(calls[0]!.sql, /subject_enrollment\.student_id = student\.id::text/);
+  assert.match(calls[0]!.sql, /student\.id::text\s*=\s*\$2::text/);
+  assert.match(calls[0]!.sql, /membership\.student_id = student\.id::text/);
+  assert.match(calls[0]!.sql, /enrollment\.student_id = student\.id::text/);
   assert.deepEqual(calls[0]!.params, [
     'tenant-a',
     '00000000-0000-0000-0000-000000000301',
     '00000000-0000-0000-0000-000000000401',
     '00000000-0000-0000-0000-000000000501',
+    null,
   ]);
 });
 

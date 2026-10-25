@@ -16,7 +16,8 @@ describe('Exams manager teacher mark progress', () => {
     const url = new URL(process.env.DATABASE_URL || 'postgres://invalid/invalid');
     if (process.env.MYSHULE_DISPOSABLE_POSTGRES !== '1' || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
       || !url.pathname.slice(1).startsWith('my_shule_disposable_')) throw new Error('Use the disposable PostgreSQL runner.');
-    pool = new Pool({ connectionString: url.toString(), max: 1 });
+    pool = new Pool({ connectionString: url.toString(), max: 1, options: '-c search_path=mark_progress,public' });
+    await pool.query('CREATE SCHEMA mark_progress');
     let bootstrap = '';
     await new ExamsSchemaService({ runSchemaBootstrap: async (sql: string) => { bootstrap += sql; } } as never).onModuleInit();
     for (const table of ['exam_series', 'exam_assessments', 'exam_mark_entry_windows', 'exam_marks']) {
@@ -25,6 +26,7 @@ describe('Exams manager teacher mark progress', () => {
       await pool.query(sql);
     }
     await pool.query(`
+      ALTER TABLE exam_assessments ADD COLUMN IF NOT EXISTS class_section_id uuid;
       CREATE TABLE subjects (id text, tenant_id text, name text);
       CREATE TABLE class_sections (id text, tenant_id text, name text);
       CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text);
@@ -60,7 +62,7 @@ describe('Exams manager teacher mark progress', () => {
     for (const [student, stream] of [[ids.s1, 'blue'], [ids.s2, 'blue'], [ids.s3, 'red']]) await enroll(student, stream);
   });
   afterEach(async () => { await pool.query('ROLLBACK'); });
-  afterAll(async () => { await pool?.end(); });
+  afterAll(async () => { if (pool) { await pool.query('DROP SCHEMA IF EXISTS mark_progress CASCADE'); await pool.end(); } });
 
   async function enroll(student: string, stream: string) {
     await pool.query(`INSERT INTO students(id,tenant_id) VALUES ($1,$2)`, [student, context.tenant_id]);
@@ -88,7 +90,7 @@ describe('Exams manager teacher mark progress', () => {
     await enroll('legacy-student-number', 'blue');
     await mark(ids.s1, 'submitted', 'entered', 0);
     const row = (await entries()).find(item => item.teacher_id === ids.teacher);
-    expect(row).toMatchObject({ total_students: 3, recorded: 1, submitted: 1, missing: 2, status: 'In progress' });
+    expect(row).toMatchObject({ total_students: 3, recorded: 1, submitted: 1, missing: 2, status: 'Submitted' });
   });
 
   it('keeps saved drafts outstanding and checks every paper separately', async () => {
@@ -105,13 +107,13 @@ describe('Exams manager teacher mark progress', () => {
     await mark(ids.s2, 'submitted', 'absent', null);
     await pool.query(`UPDATE exam_mark_entry_windows SET opens_at=NOW()-INTERVAL '3 days',closes_at=NOW()-INTERVAL '1 day'`);
     const rows = await entries();
-    expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ entered: 1, recorded: 2, submitted: 2, status: 'Completed', overdue: false });
+    expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ entered: 1, recorded: 2, submitted: 2, status: 'Submitted', overdue: false });
     expect(rows.find(row => row.teacher_id === ids.teacher2)).toMatchObject({ status: 'Not started', overdue: true });
   });
 
-  it('ignores marks outside the enrolled roster and does not count incomplete outcomes as finished', async () => {
+  it('ignores marks outside the enrolled roster and counts explicit incomplete reasons as recorded outcomes', async () => {
     await mark(ids.s1); await mark(ids.s2, 'draft', 'incomplete', null); await mark(ids.extra, 'submitted');
-    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, entered: 1, recorded: 1, missing: 1, status: 'In progress' });
+    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, entered: 1, recorded: 2, missing: 0, status: 'Awaiting submission' });
   });
 
   it('exposes unassigned students and excludes expired, wrong-term and disabled teaching assignments', async () => {
@@ -132,12 +134,56 @@ describe('Exams manager teacher mark progress', () => {
     expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, recorded: 1, missing: 1, window_closed: true, status: 'In progress' });
   });
 
+  it('preserves a historical marked learner after a later class transfer rewrites their subject selection', async () => {
+    await mark(ids.s1, 'submitted');
+    await mark(ids.s2, 'submitted');
+    await pool.query(`UPDATE student_subject_enrollments SET class_section_id=$1 WHERE student_id=$2`, [randomUUID(), ids.s2]);
+    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({
+      total_students: 2, recorded: 2, missing: 0, status: 'Submitted',
+    });
+  });
+
   it('separates draft and explicitly scheduled exams from outstanding work', async () => {
     await pool.query(`UPDATE exam_series SET status='draft'`);
     expect((await entries()).every(row => row.status === 'Draft' && !row.overdue)).toBe(true);
     await pool.query(`UPDATE exam_series SET status='submitted'`);
     await pool.query(`UPDATE exam_mark_entry_windows SET opens_at=NOW()+INTERVAL '1 day', last_action='scheduled'`);
     expect((await entries()).every(row => row.status === 'Scheduled')).toBe(true);
+  });
+
+  it('retains an eligible learner and their genuine blank after transfer during an ongoing exam', async () => {
+    await pool.query(`UPDATE exam_series SET starts_on=CURRENT_DATE-7,ends_on=CURRENT_DATE+7;
+      ALTER TABLE student_class_assignments ADD COLUMN updated_at timestamptz DEFAULT NOW();
+      ALTER TABLE student_subject_enrollments ADD COLUMN effective_to date;`);
+    await pool.query(`UPDATE students SET status='transferred' WHERE id=$1`, [ids.s2]);
+    await pool.query(`UPDATE student_class_assignments SET status='transferred' WHERE student_id=$1`, [ids.s2]);
+    await pool.query(`UPDATE student_subject_enrollments SET status='transferred',effective_to=CURRENT_DATE WHERE student_id=$1`, [ids.s2]);
+    await mark(ids.s1, 'submitted');
+    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({
+      total_students: 2, recorded: 1, missing: 1, status: 'Submitted',
+    });
+  });
+
+  it.each([[10, 2], [2, 3]])('keeps %i historical candidates separate from %i later enrolments', async (original, later) => {
+    await pool.query(`ALTER TABLE student_subject_enrollments ADD COLUMN effective_from date, ADD COLUMN effective_to date;
+      UPDATE exam_series SET starts_on='2026-09-01',ends_on='2026-09-30';
+      DELETE FROM student_subject_enrollments; DELETE FROM student_class_assignments; DELETE FROM students;`);
+    for (let i=0;i<original+later;i++) {
+      const student=randomUUID(); await enroll(student,'blue');
+      await pool.query(`UPDATE student_subject_enrollments SET effective_from=$2 WHERE student_id=$1`,[student,i<original?'2026-09-01':'2026-10-04']);
+      if(i<original) await mark(student,'submitted');
+    }
+    expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({total_students:original,recorded:original,missing:0,status:'Submitted'});
+  });
+
+  it('keeps submitted status with genuine eligible blanks and records X and Y outcomes', async()=>{
+    await mark(ids.s1,'submitted','entered',0);
+    expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({total_students:2,recorded:1,missing:1,status:'Submitted',overdue:false});
+    await pool.query(`ALTER TABLE exam_marks DROP CONSTRAINT IF EXISTS exam_marks_score_status_check`);
+    await mark(ids.s2,'submitted','Y',null);
+    expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({recorded:2,missing:0,status:'Submitted'});
+    await pool.query(`UPDATE exam_marks SET score_status='X' WHERE student_id=$1`,[ids.s2]);
+    expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({recorded:2,missing:0});
   });
 
   it('requires verified tenant context and the exam-management capability', async () => {

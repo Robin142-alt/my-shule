@@ -1,3 +1,4 @@
+import { examRosterSql } from './exam-mark-roster';
 import { paperClassScopeSql } from './exam-result-policy';
 // Shared by the generation preflight and the report-card selector. Do not derive
 // readiness from paginated mark sheets: missing learner marks have no row there.
@@ -17,28 +18,15 @@ export function reportCardReadinessCtes(options: {
   return `selected_windows AS (
   ${selectedWindowsSql}
 ), expected AS (
-  SELECT DISTINCT student.id::text AS student_id,
+  SELECT DISTINCT roster.student_id,
     mark_window.exam_series_id, mark_window.class_section_id, mark_window.subject_id
   FROM selected_windows mark_window
-  JOIN student_class_assignments assignment
-    ON assignment.tenant_id = $1
-   AND assignment.class_section_id = mark_window.class_section_id::text
-   AND assignment.status = 'active'
-  JOIN students student
-    ON student.tenant_id = assignment.tenant_id
-   AND student.id::text = assignment.student_id::text
-   AND student.status = 'active'
-  JOIN student_subject_enrollments enrollment
-    ON enrollment.tenant_id = student.tenant_id
-   AND enrollment.student_id::text = student.id::text
-   AND enrollment.class_section_id = mark_window.class_section_id::text
-   AND enrollment.subject_id = mark_window.subject_id::text
-   AND enrollment.status = 'active'
-  LEFT JOIN class_streams stream
-    ON stream.tenant_id = assignment.tenant_id
-   AND stream.id::text = assignment.stream_id::text
+  JOIN exam_series roster_series ON roster_series.tenant_id=$1 AND roster_series.id=mark_window.exam_series_id
+  CROSS JOIN LATERAL (SELECT $1::text AS tenant_id, mark_window.*) roster_window
+  JOIN LATERAL (${examRosterSql('roster_window','roster_series')}) roster ON TRUE
+  LEFT JOIN class_streams stream ON stream.tenant_id=$1 AND stream.id::text=roster.stream_id::text
   WHERE (${streamNameSql} IS NULL OR stream.name = ${streamNameSql})
-    ${options.studentIdSql ? `AND student.id::text = ${options.studentIdSql}` : ''}
+    ${options.studentIdSql ? `AND roster.student_id = ${options.studentIdSql}` : ''}
 ), readiness AS (
   SELECT expected.*, COALESCE(evidence.is_ready, FALSE) AS is_ready,
     COALESCE(evidence.mark_state, 0) AS mark_state

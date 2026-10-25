@@ -1,3 +1,4 @@
+import { examStudentEligibleSql, examRosterSql, recordedMarkSql } from '../exam-mark-roster';
 import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
 import { examResultCtes } from '../exam-result-query';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
@@ -13,7 +14,7 @@ import type { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../../database/prisma.service';
 import { markEntryAccessSql } from '../mark-entry-window-policy';
-import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql } from '../teacher-mark-scope';
+import { teacherMarkSheetSubmittedSql, teacherMarkStudentScopeSql, markStreamSubmittedSql } from '../teacher-mark-scope';
 import { reportCardReadinessCtes, REPORT_CARD_READINESS_CTES, REPORT_CARD_READINESS_COUNTS } from '../report-card-readiness';
 
 import { ANALYTICS_APPOINTMENTS_SQL, type AnalyticsFilters, type ExamAnalyticsScope, type ExamAnalyticsScopeLevel } from '../analytics/analytics-scope';
@@ -579,6 +580,7 @@ export class ExamsRepository {
     tenant_id: string;
     actor_user_id: string;
     teacher_user_id?: string;
+    manager_entry?: boolean;
     source_window_id: string;
     submit: boolean;
     rows: Array<{
@@ -602,7 +604,7 @@ export class ExamsRepository {
       input.tenant_id,
       input.actor_user_id,
       async (tx: any) => {
-        const teacherUserId = input.teacher_user_id ?? input.actor_user_id;
+        const teacherUserId = input.manager_entry ? input.teacher_user_id ?? null : input.actor_user_id;
         // Serialize saves with exam reopening, locking and publishing.
         await tx.$queryRawUnsafe(`SELECT series.id FROM exam_series series
           JOIN exam_mark_entry_windows w ON w.tenant_id = series.tenant_id AND w.exam_series_id = series.id
@@ -625,7 +627,12 @@ export class ExamsRepository {
                remarks text, category_scores jsonb, has_expected_version boolean, expected_updated_at timestamptz, paper_config_version integer
              )
            ), scoped AS MATERIALIZED (
-             SELECT source.*
+             SELECT source.*, COALESCE($5::text, (
+               SELECT CASE WHEN COUNT(DISTINCT assigned.teacher_user_id)=1 THEN MIN(assigned.teacher_user_id) END
+               FROM teacher_subject_assignments assigned WHERE assigned.tenant_id=$1
+                 AND assigned.class_section_id=source.class_section_id::text AND assigned.subject_id=source.subject_id::text
+                 AND ${teacherMarkStudentScopeSql('mark_window','series','source.student_id','assigned.teacher_user_id')}
+             ))::uuid AS selected_teacher_id
              FROM source
              JOIN exam_mark_entry_windows mark_window
                ON mark_window.tenant_id = $1
@@ -652,42 +659,11 @@ export class ExamsRepository {
              JOIN students student
                ON student.tenant_id = mark_window.tenant_id
               AND student.id::text = source.student_id::text
-              AND student.status = 'active'
+
              WHERE (source.score IS NULL OR source.score BETWEEN 0 AND assessment.max_score)
-               AND EXISTS (
-               SELECT 1
-               FROM teacher_subject_assignments assignment
-               WHERE assignment.tenant_id = mark_window.tenant_id
-                 AND assignment.teacher_user_id = $5::text
-                 AND (assignment.academic_term_id IS NULL OR assignment.academic_term_id = source.academic_term_id::text)
-                 AND assignment.class_section_id = source.class_section_id::text
-                 AND assignment.subject_id = source.subject_id::text
-                 AND EXISTS (SELECT 1 FROM student_class_assignments membership
-                   WHERE membership.tenant_id=assignment.tenant_id AND membership.student_id=source.student_id::text
-                     AND membership.class_section_id=assignment.class_section_id AND membership.status='active'
-                     AND (assignment.stream_id IS NULL OR assignment.stream_id=membership.stream_id))
-                 AND assignment.status = 'active'
-                 AND assignment.mark_entry_allowed = TRUE
-                 AND assignment.effective_from <= CURRENT_DATE
-                 AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
-             )
-               AND EXISTS (
-                 SELECT 1
-                 FROM student_class_assignments class_assignment
-                 WHERE class_assignment.tenant_id = student.tenant_id
-                   AND class_assignment.student_id = student.id::text
-                   AND class_assignment.class_section_id = source.class_section_id::text
-                   AND class_assignment.status = 'active'
-               )
-               AND EXISTS (
-                 SELECT 1
-                 FROM student_subject_enrollments subject_enrollment
-                 WHERE subject_enrollment.tenant_id = student.tenant_id
-                   AND subject_enrollment.student_id = student.id::text
-                   AND subject_enrollment.class_section_id = source.class_section_id::text
-                   AND subject_enrollment.subject_id = source.subject_id::text
-                   AND subject_enrollment.status = 'active'
-               )
+               AND ($5::text IS NULL OR ${teacherMarkStudentScopeSql('mark_window','series','source.student_id','$5')})
+               AND ${examStudentEligibleSql('mark_window','series','source.student_id')}
+               AND NOT ${markStreamSubmittedSql('mark_window','series','assessment.id','source.student_id')}
            ), previous AS MATERIALIZED (
              SELECT scoped.*,
                mark.id AS previous_mark_id,
@@ -708,7 +684,7 @@ export class ExamsRepository {
              )
              SELECT $1, exam_series_id, assessment_id, academic_term_id,
                class_section_id, subject_id, student_id, score, score_status, remarks,
-               $2::uuid, $2::uuid, $5::uuid, 'draft', COALESCE(category_scores, '{}'::jsonb)
+               $2::uuid, $2::uuid, selected_teacher_id, 'draft', COALESCE(category_scores, '{}'::jsonb)
              FROM previous WHERE has_expected_version IS NOT TRUE OR expected_updated_at IS NOT DISTINCT FROM previous_updated_at
              ON CONFLICT (tenant_id, assessment_id, student_id)
              DO UPDATE SET
@@ -716,14 +692,20 @@ export class ExamsRepository {
                score_status = EXCLUDED.score_status,
                remarks = EXCLUDED.remarks,
                updated_by_user_id = EXCLUDED.updated_by_user_id,
-               assigned_teacher_user_id = EXCLUDED.assigned_teacher_user_id,
+               assigned_teacher_user_id = COALESCE(EXCLUDED.assigned_teacher_user_id, exam_marks.assigned_teacher_user_id),
                category_scores = EXCLUDED.category_scores,
                updated_at = NOW()
              WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
                AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
                AND exam_marks.class_section_id = EXCLUDED.class_section_id
                AND exam_marks.subject_id = EXCLUDED.subject_id
-               AND ($2::uuid <> $5::uuid OR COALESCE(exam_marks.assigned_teacher_user_id, exam_marks.entered_by_user_id) = $5::uuid)
+               AND ($5::uuid IS NULL OR $2::uuid <> $5::uuid
+                 OR COALESCE(exam_marks.assigned_teacher_user_id,exam_marks.entered_by_user_id) = $5::uuid
+                 OR (exam_marks.assigned_teacher_user_id IS NULL AND EXISTS (
+                   SELECT 1 FROM exam_mark_audit_logs origin WHERE origin.tenant_id=exam_marks.tenant_id
+                     AND origin.mark_id=exam_marks.id AND origin.action='grade.created'
+                     AND origin.actor_user_id=exam_marks.entered_by_user_id
+                     AND origin.metadata->>'source'='exams_manager_mark_sheet')))
                AND exam_marks.status = 'draft'
              RETURNING *
            ), audits AS (
@@ -740,8 +722,8 @@ export class ExamsRepository {
                previous.previous_score,
                mark.score,
                jsonb_build_object(
-                 'source', CASE WHEN $2::uuid <> $5::uuid THEN 'exams_manager_mark_sheet' ELSE 'teacher_mark_sheet' END,
-                 'assigned_teacher_user_id', $5::text,
+                 'source', CASE WHEN $5::uuid IS NULL OR $2::uuid <> $5::uuid THEN 'exams_manager_mark_sheet' ELSE 'teacher_mark_sheet' END,
+                 'assigned_teacher_user_id', mark.assigned_teacher_user_id,
                  'entered_by_user_id', mark.entered_by_user_id,
                  'updated_by_user_id', $2::text,
                  'source_window_id', $4::text,
@@ -796,7 +778,7 @@ export class ExamsRepository {
              COUNT(student.id)::integer AS expected_count,
              COUNT(mark.id)::integer AS evidence_count,
              COUNT(mark.id) FILTER (
-               WHERE COALESCE(mark.assigned_teacher_user_id, mark.entered_by_user_id) IS DISTINCT FROM $2::uuid
+               WHERE $2::uuid IS NOT NULL AND mark.assigned_teacher_user_id IS NOT NULL AND mark.assigned_teacher_user_id IS DISTINCT FROM $2::uuid
              )::integer AS foreign_owner_count,
              COUNT(mark.id) FILTER (
                WHERE mark.status NOT IN ('draft', 'submitted')
@@ -812,24 +794,7 @@ export class ExamsRepository {
             AND series.id = mark_window.exam_series_id
            JOIN students student
              ON student.tenant_id = mark_window.tenant_id
-            AND student.status = 'active'
-            AND EXISTS (
-              SELECT 1
-              FROM student_class_assignments class_assignment
-              WHERE class_assignment.tenant_id = student.tenant_id
-                AND class_assignment.student_id = student.id::text
-                AND class_assignment.class_section_id = mark_window.class_section_id::text
-                AND class_assignment.status = 'active'
-            )
-            AND EXISTS (
-              SELECT 1
-              FROM student_subject_enrollments subject_enrollment
-              WHERE subject_enrollment.tenant_id = student.tenant_id
-                AND subject_enrollment.student_id = student.id::text
-                AND subject_enrollment.class_section_id = mark_window.class_section_id::text
-                AND subject_enrollment.subject_id = mark_window.subject_id::text
-                AND subject_enrollment.status = 'active'
-            )
+            AND ${examStudentEligibleSql('mark_window','series','student.id')}
            LEFT JOIN exam_marks mark
              ON mark.tenant_id = mark_window.tenant_id
             AND mark.exam_series_id = mark_window.exam_series_id
@@ -843,7 +808,8 @@ export class ExamsRepository {
              AND mark_window.class_section_id = $6::uuid
              AND mark_window.subject_id = $7::uuid
              AND ${markEntryAccessSql('mark_window', 'series', '$2')}
-             AND ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')}`,
+             AND ($2::text IS NULL OR ${teacherMarkStudentScopeSql('mark_window', 'series', 'student.id', '$2')})
+             AND NOT ${markStreamSubmittedSql('mark_window','series','$5::uuid','student.id')}`,
           input.tenant_id,
           teacherUserId,
           input.source_window_id,
@@ -868,7 +834,7 @@ export class ExamsRepository {
             `${expectedCount - evidenceCount} learner mark entr${expectedCount - evidenceCount === 1 ? 'y is' : 'ies are'} still missing.`,
           );
         }
-        if (foreignOwnerCount > 0) {
+        if (!input.manager_entry && foreignOwnerCount > 0) {
           throw new ConflictException(
             'This sheet contains marks entered by another user. An exams officer must resolve ownership before submission.',
           );
@@ -889,7 +855,7 @@ export class ExamsRepository {
                  updated_at = NOW()
              WHERE tenant_id = $1
                AND id = ANY($3::uuid[])
-               AND COALESCE(assigned_teacher_user_id, entered_by_user_id) = $5::uuid
+               AND ($5::uuid IS NULL OR assigned_teacher_user_id IS NULL OR assigned_teacher_user_id = $5::uuid)
                AND status = 'draft'
              RETURNING *
            ), audits AS (
@@ -900,7 +866,7 @@ export class ExamsRepository {
              SELECT $1, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id,
                'grade.submitted', $2::uuid, mark.score, mark.score,
                jsonb_build_object(
-                 'source', CASE WHEN $2::uuid <> $5::uuid THEN 'exams_manager_mark_sheet' ELSE 'teacher_mark_sheet' END,
+                 'source', CASE WHEN $5::uuid IS NULL OR $2::uuid <> $5::uuid THEN 'exams_manager_mark_sheet' ELSE 'teacher_mark_sheet' END,
                  'assigned_teacher_user_id', $5::text,
                  'source_window_id', $4::text,
                  'score_status', mark.score_status
@@ -993,6 +959,13 @@ export class ExamsRepository {
          SELECT $1, exam_series_id, assessment_id, academic_term_id,
            class_section_id, subject_id, student_id, score, score_status, remarks, $2::uuid, $2::uuid, COALESCE(category_scores, '{}'::jsonb)
          FROM previous WHERE (has_expected_version IS NOT TRUE OR expected_updated_at IS NOT DISTINCT FROM previous_updated_at)
+           AND EXISTS (SELECT 1 FROM exam_mark_entry_windows entry_window
+             JOIN exam_series entry_series ON entry_series.tenant_id=entry_window.tenant_id AND entry_series.id=entry_window.exam_series_id
+             WHERE entry_window.tenant_id=$1 AND entry_window.exam_series_id=previous.exam_series_id
+               AND entry_window.class_section_id=previous.class_section_id AND entry_window.subject_id=previous.subject_id
+               AND ${markEntryAccessSql('entry_window','entry_series','$2')}
+               AND ${examStudentEligibleSql('entry_window','entry_series','previous.student_id')}
+               AND NOT ${markStreamSubmittedSql('entry_window','entry_series','previous.assessment_id','previous.student_id')})
            AND (paper_config_version IS NULL OR EXISTS (SELECT 1 FROM exam_mark_entry_windows entry_window
              WHERE entry_window.tenant_id=$1 AND entry_window.exam_series_id=previous.exam_series_id
                AND entry_window.class_section_id=previous.class_section_id AND entry_window.subject_id=previous.subject_id
@@ -1096,51 +1069,18 @@ export class ExamsRepository {
   }
 
   async getExamReadinessStats(input: Record<string, unknown>) {
-    const result = await this.executeSql(
-      `WITH windows AS (
-         SELECT class_section_id, subject_id
-         FROM exam_mark_entry_windows
-         WHERE tenant_id = $1 AND exam_series_id = $2::uuid
-       ), expected AS (
-         SELECT mark_window.class_section_id, mark_window.subject_id, COUNT(student.id)::integer AS expected_count
-         FROM windows mark_window
-         LEFT JOIN students student
-           ON student.tenant_id = $1
-          AND student.status = 'active'
-          AND EXISTS (
-            SELECT 1 FROM student_class_assignments class_assignment
-            WHERE class_assignment.tenant_id = student.tenant_id
-              AND class_assignment.student_id = student.id::text
-              AND class_assignment.class_section_id = mark_window.class_section_id::text
-              AND class_assignment.status = 'active'
-          )
-          AND EXISTS (
-            SELECT 1 FROM student_subject_enrollments subject_enrollment
-            WHERE subject_enrollment.tenant_id = student.tenant_id
-              AND subject_enrollment.student_id = student.id::text
-              AND subject_enrollment.class_section_id = mark_window.class_section_id::text
-              AND subject_enrollment.subject_id = mark_window.subject_id::text
-              AND subject_enrollment.status = 'active'
-          )
-         GROUP BY mark_window.class_section_id, mark_window.subject_id
-       ), saved AS (
-         SELECT class_section_id, subject_id, COUNT(DISTINCT student_id)::integer AS saved_count
-         FROM exam_marks
-         WHERE tenant_id = $1 AND exam_series_id = $2::uuid
-         GROUP BY class_section_id, subject_id
-       )
-       SELECT
-         (SELECT COUNT(*)::integer FROM exam_marks
-          WHERE tenant_id = $1 AND exam_series_id = $2::uuid
-            AND status NOT IN ('reviewed', 'locked', 'published')) AS unapproved_count,
-         COALESCE(SUM(GREATEST(expected.expected_count - COALESCE(saved.saved_count, 0), 0)), 0)::integer AS missing_count
-       FROM expected
-       LEFT JOIN saved
-         ON saved.class_section_id = expected.class_section_id
-        AND saved.subject_id = expected.subject_id`,
-      [input.tenant_id, input.exam_series_id],
-    );
-    return result.rows[0] ?? { unapproved_count: 0, missing_count: 0 };
+    const result=await this.executeSql(`SELECT
+        COUNT(*) FILTER (WHERE mark.id IS NOT NULL AND mark.status NOT IN ('reviewed','approved','locked','published'))::int AS unapproved_count,
+        COUNT(*) FILTER (WHERE NOT COALESCE(${recordedMarkSql('mark')},FALSE))::int AS missing_count
+      FROM exam_mark_entry_windows w JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id
+      JOIN LATERAL (${examRosterSql('w','series')}) roster ON TRUE
+      JOIN exam_assessments paper ON paper.tenant_id=w.tenant_id AND paper.exam_series_id=w.exam_series_id
+        AND paper.subject_id=w.subject_id AND ${paperClassScopeSql('paper','w.class_section_id')}
+      LEFT JOIN exam_marks mark ON mark.tenant_id=w.tenant_id AND mark.assessment_id=paper.id
+        AND mark.exam_series_id=w.exam_series_id AND mark.class_section_id=w.class_section_id
+        AND mark.subject_id=w.subject_id AND mark.student_id::text=roster.student_id
+      WHERE w.tenant_id=$1 AND w.exam_series_id=$2::uuid`,[input.tenant_id,input.exam_series_id]);
+    return result.rows[0] ?? {unapproved_count:0,missing_count:0};
   }
 
   async getMarkImportBatch(input: Record<string, unknown>) {
@@ -3406,43 +3346,15 @@ export class ExamsRepository {
   }
 
   async findStudentMarkEligibility(input: {
-    tenant_id: string;
-    student_id: string;
-    class_section_id: string;
-    subject_id: string;
+    tenant_id: string; student_id: string; class_section_id: string; subject_id: string; exam_series_id?: string;
   }) {
-    const result = await this.executeSql(
-      `SELECT student.id::text
-       FROM students student
-       WHERE student.tenant_id = $1
-         AND student.id::text = $2::text
-         AND student.status = 'active'
-         AND EXISTS (
-           SELECT 1
-           FROM student_class_assignments class_assignment
-           WHERE class_assignment.tenant_id = student.tenant_id
-             AND class_assignment.student_id = student.id::text
-             AND class_assignment.class_section_id = $3::text
-             AND class_assignment.status = 'active'
-         )
-         AND EXISTS (
-           SELECT 1
-           FROM student_subject_enrollments subject_enrollment
-           WHERE subject_enrollment.tenant_id = student.tenant_id
-             AND subject_enrollment.student_id = student.id::text
-             AND subject_enrollment.class_section_id = $3::text
-             AND subject_enrollment.subject_id = $4::text
-             AND subject_enrollment.status = 'active'
-         )
-       LIMIT 1`,
-      [
-        input.tenant_id,
-        input.student_id,
-        input.class_section_id,
-        input.subject_id,
-      ],
-    );
-
+    const result = await this.executeSql(`SELECT student.id::text FROM students student
+      JOIN exam_mark_entry_windows w ON w.tenant_id=student.tenant_id AND w.class_section_id=$3::uuid AND w.subject_id=$4::uuid
+      JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id
+      WHERE student.tenant_id=$1 AND student.id::text=$2::text
+        AND ($5::uuid IS NULL OR series.id=$5::uuid)
+        AND ${examStudentEligibleSql('w','series','student.id')} LIMIT 1`,
+      [input.tenant_id,input.student_id,input.class_section_id,input.subject_id,input.exam_series_id ?? null]);
     return result.rows[0] ?? null;
   }
 
@@ -3545,6 +3457,8 @@ export class ExamsRepository {
          AND mark.exam_series_id = mark_window.exam_series_id
          AND mark.subject_id = mark_window.subject_id
          AND mark.class_section_id = mark_window.class_section_id
+         AND ${examStudentEligibleSql('mark_window','series','mark.student_id')}
+         AND ($5::text IS NULL OR ${teacherMarkStudentScopeSql('mark_window','series','mark.student_id','$5')})
         WHERE mark_window.tenant_id = $1
           AND ($2::uuid IS NULL OR mark_window.exam_series_id = $2::uuid)
           AND ($3::uuid IS NULL OR mark_window.class_section_id = $3::uuid)
@@ -5648,44 +5562,27 @@ export class ExamsRepository {
       COALESCE(subject.name, mark_window.subject_id::text) AS subject_name,
       COALESCE(mark_window.last_action, mark_window.status) AS workflow_status,
       COALESCE(student_counts.expected_count, 0)::integer AS expected_count,
-      COALESCE(mark_counts.saved_count, 0)::integer AS saved_count,
-      COALESCE(mark_counts.submitted_count, 0)::integer AS submitted_count,
-      GREATEST(COALESCE(student_counts.expected_count, 0) - COALESCE(mark_counts.saved_count, 0), 0)::integer AS missing_count,
+      COALESCE(student_counts.saved_count, 0)::integer AS saved_count,
+      COALESCE(student_counts.submitted_count, 0)::integer AS submitted_count,
+      GREATEST(COALESCE(student_counts.expected_count, 0) - COALESCE(student_counts.saved_count, 0), 0)::integer AS missing_count,
       COALESCE(teacher_assignments.teacher_user_ids, ARRAY[]::text[]) AS teacher_user_ids
       FROM exam_mark_entry_windows mark_window
       LEFT JOIN class_sections class_section
         ON class_section.tenant_id = mark_window.tenant_id AND class_section.id = mark_window.class_section_id::text
       LEFT JOIN subjects subject
         ON subject.tenant_id = mark_window.tenant_id AND subject.id = mark_window.subject_id::text
+      JOIN exam_series series ON series.tenant_id=mark_window.tenant_id AND series.id=mark_window.exam_series_id
       LEFT JOIN LATERAL (
-        SELECT COUNT(*)::integer AS expected_count FROM students student
-        WHERE student.tenant_id = mark_window.tenant_id
-          AND student.status = 'active'
-          AND EXISTS (
-            SELECT 1 FROM student_class_assignments class_assignment
-            WHERE class_assignment.tenant_id = student.tenant_id
-              AND class_assignment.student_id = student.id::text
-              AND class_assignment.class_section_id = mark_window.class_section_id::text
-              AND class_assignment.status = 'active'
-          )
-          AND EXISTS (
-            SELECT 1 FROM student_subject_enrollments subject_enrollment
-            WHERE subject_enrollment.tenant_id = student.tenant_id
-              AND subject_enrollment.student_id = student.id::text
-              AND subject_enrollment.class_section_id = mark_window.class_section_id::text
-              AND subject_enrollment.subject_id = mark_window.subject_id::text
-              AND subject_enrollment.status = 'active'
-          )
+        SELECT COUNT(*)::int AS expected_count,
+          COUNT(*) FILTER (WHERE ${recordedMarkSql('mark')})::int AS saved_count,
+          COUNT(*) FILTER (WHERE mark.status IN ('submitted','reviewed','approved','locked','published'))::int AS submitted_count
+        FROM (${examRosterSql('mark_window','series')}) roster
+        JOIN exam_assessments paper ON paper.tenant_id=mark_window.tenant_id AND paper.exam_series_id=mark_window.exam_series_id
+          AND paper.subject_id=mark_window.subject_id AND ${paperClassScopeSql('paper','mark_window.class_section_id')}
+        LEFT JOIN exam_marks mark ON mark.tenant_id=mark_window.tenant_id AND mark.assessment_id=paper.id
+          AND mark.exam_series_id=mark_window.exam_series_id AND mark.class_section_id=mark_window.class_section_id
+          AND mark.subject_id=mark_window.subject_id AND mark.student_id::text=roster.student_id
       ) student_counts ON TRUE
-      LEFT JOIN LATERAL (
-        SELECT COUNT(DISTINCT mark.student_id)::integer AS saved_count,
-          COUNT(DISTINCT mark.student_id) FILTER (WHERE mark.status IN ('submitted', 'reviewed', 'locked', 'published'))::integer AS submitted_count
-        FROM exam_marks mark
-        WHERE mark.tenant_id = mark_window.tenant_id
-          AND mark.exam_series_id = mark_window.exam_series_id
-          AND mark.class_section_id = mark_window.class_section_id
-          AND mark.subject_id = mark_window.subject_id
-      ) mark_counts ON TRUE
       LEFT JOIN LATERAL (
         SELECT array_agg(DISTINCT assignment.teacher_user_id::text) AS teacher_user_ids
         FROM exam_series series
@@ -5751,6 +5648,11 @@ export class ExamsRepository {
           LIMIT 1) AS updated_by_name,
         mark.assigned_teacher_user_id::text,
         mark.updated_at::text,
+        (series.locked_at IS NULL AND series.published_at IS NULL
+          AND series.status NOT IN ('locked','published','archived')
+          AND ${markEntryAccessSql('mark_window','series','$4')}
+          AND COALESCE(mark.status,'draft')='draft'
+          AND NOT ${markStreamSubmittedSql('mark_window','series','assessment.id','student.id')}) AS can_edit,
         mark_window.opens_at::text,
         mark_window.closes_at::text
       FROM exam_mark_entry_windows mark_window
@@ -5764,22 +5666,7 @@ export class ExamsRepository {
        AND ${paperClassScopeSql('assessment', 'mark_window.class_section_id')}
       JOIN students student
         ON student.tenant_id = mark_window.tenant_id
-       AND student.status = 'active'
-       AND EXISTS (
-         SELECT 1 FROM student_class_assignments class_assignment
-         WHERE class_assignment.tenant_id = student.tenant_id
-           AND class_assignment.student_id = student.id::text
-           AND class_assignment.class_section_id = mark_window.class_section_id::text
-           AND class_assignment.status = 'active'
-       )
-       AND EXISTS (
-         SELECT 1 FROM student_subject_enrollments subject_enrollment
-         WHERE subject_enrollment.tenant_id = student.tenant_id
-           AND subject_enrollment.student_id = student.id::text
-           AND subject_enrollment.class_section_id = mark_window.class_section_id::text
-           AND subject_enrollment.subject_id = mark_window.subject_id::text
-           AND subject_enrollment.status = 'active'
-       )
+       AND ${examStudentEligibleSql('mark_window','series','student.id')}
       LEFT JOIN class_sections class_section
         ON class_section.tenant_id = mark_window.tenant_id
        AND class_section.id = mark_window.class_section_id::text
@@ -5817,7 +5704,7 @@ export class ExamsRepository {
         AND ($8::uuid IS NULL OR mark_window.subject_id = $8::uuid)
         AND ($9::uuid IS NULL OR assessment.id = $9::uuid)
         AND (
-          ($10::boolean AND mark.status IN ('submitted', 'reviewed', 'approved', 'locked', 'published'))
+          $11::boolean OR ($10::boolean AND ${teacherMarkSheetSubmittedSql('mark_window','series','assessment.id','$4')})
           OR (NOT $10::boolean
             AND ($4::uuid IS NULL OR NOT ${teacherMarkSheetSubmittedSql('mark_window', 'series', 'assessment.id', '$4')})
             AND ${markEntryAccessSql('mark_window', 'series', '$4')}
@@ -5844,6 +5731,7 @@ export class ExamsRepository {
       filters.subject_id ?? null,
       filters.assessment_id ?? null,
       filters.view === 'submitted',
+      filters.view === 'all',
     ];
     const result = await this.executeSql(query, params);
     return result.rows;

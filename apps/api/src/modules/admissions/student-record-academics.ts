@@ -91,7 +91,8 @@ export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor:
   // End removed selections, retaining their historical rows and all existing marks.
   await query(`UPDATE student_subject_enrollments SET status='dropped',effective_to=CURRENT_DATE,updated_at=NOW()
     WHERE tenant_id=$1 AND student_id::text=$2 AND status='active'
-      AND (subject_id IS NULL OR NOT(subject_id::text=ANY($3::text[])))`, tenant, student.id, selected);
+      AND (subject_id IS NULL OR NOT(subject_id::text=ANY($3::text[]))
+        OR class_section_id IS DISTINCT FROM $4 OR stream_id IS DISTINCT FROM $5)`, tenant, student.id, selected, classId, streamId);
   await query(`INSERT INTO student_subject_enrollments (tenant_id,student_id,academic_enrollment_id,subject_code,subject_name,
     academic_year_id,academic_term_id,class_section_id,stream_id,subject_id,curriculum_model,subject_type,is_compulsory,selected_by_user_id,effective_from,status)
     SELECT $1,$2,$3,item.code,item.name,$5,item.academic_term_id,$6,$7,item.id,$8,item.subject_type,item.is_compulsory,$9::uuid,CURRENT_DATE,'active'

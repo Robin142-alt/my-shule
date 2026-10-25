@@ -19,7 +19,7 @@ describe('Exam-specific report-card readiness', () => {
       || !url.pathname.slice(1).startsWith('my_shule_disposable_')) throw new Error('Use disposable local PostgreSQL.');
     pool = new Pool({ connectionString: url.toString(), options: '-c search_path=report_readiness,public' });
     await query(`CREATE SCHEMA report_readiness;
-      CREATE TABLE exam_series(tenant_id text,id uuid,name text);
+      CREATE TABLE exam_series(tenant_id text,id uuid,name text,academic_term_id uuid, starts_on date DEFAULT CURRENT_DATE, ends_on date DEFAULT CURRENT_DATE+30);
       CREATE TABLE exam_mark_entry_windows(tenant_id text,exam_series_id uuid,class_section_id uuid,subject_id uuid);
       CREATE TABLE students(tenant_id text,id text,status text);
       CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,stream_id text,status text);
@@ -39,7 +39,7 @@ describe('Exam-specific report-card readiness', () => {
   beforeEach(async () => {
     await query(`TRUNCATE exam_series,exam_mark_entry_windows,students,student_class_assignments,
       student_subject_enrollments,class_streams,class_sections,subjects,exam_marks,exam_assessments`);
-    await query(`INSERT INTO exam_series VALUES ('school-a',$1,'END TERM 3'),('school-a',$2,'MID TERM 3'),('school-b',$1,'Private exam');
+    await query(`INSERT INTO exam_series(tenant_id,id,name) VALUES ('school-a',$1,'END TERM 3'),('school-a',$2,'MID TERM 3'),('school-b',$1,'Private exam');
       `, [ids.exam, ids.otherExam]);
     await query(`INSERT INTO class_sections VALUES ('school-a',$1,'Form 4',NULL),('school-a',$2,'Form 3',NULL)`, [ids.class, ids.otherClass]);
     await query(`INSERT INTO exam_assessments VALUES ('school-a',$1,$2,$1,NULL),('school-a',$1,$3,$1,NULL)`,[ids.subject,ids.exam,ids.otherExam]);
@@ -106,7 +106,7 @@ describe('Exam-specific report-card readiness', () => {
       INSERT INTO exam_mark_entry_windows SELECT * FROM exam_mark_entry_windows;`);
     for (let index = 0; index < 55; index++) {
       const id = randomUUID();
-      await query(`INSERT INTO exam_series VALUES ('school-a',$1,$2)`, [id, `Exam ${index}`]);
+      await query(`INSERT INTO exam_series(tenant_id,id,name) VALUES ('school-a',$1,$2)`, [id, `Exam ${index}`]);
       await query(`INSERT INTO exam_mark_entry_windows VALUES ('school-a',$1,$2,$3)`, [id, ids.class, ids.subject]);
     }
     const scopes = await repository.listReportCardGenerationScopes({ tenant_id: 'school-a' });

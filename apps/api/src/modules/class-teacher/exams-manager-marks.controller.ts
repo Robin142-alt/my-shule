@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { IsUUID } from 'class-validator';
+import { IsOptional, IsUUID } from 'class-validator';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
@@ -7,8 +7,9 @@ import { ClassTeacherService } from './class-teacher.service';
 import { SaveTeacherMarksDto } from './dto/class-teacher.dto';
 
 export class AssistedTeacherQuery {
+  @IsOptional()
   @IsUUID()
-  teacherUserId!: string;
+  teacherUserId?: string;
 }
 
 export class SaveAssistedMarksDto extends SaveTeacherMarksDto {
@@ -21,8 +22,9 @@ export class SaveAssistedMarksDto extends SaveTeacherMarksDto {
   @IsUUID()
   declare assessmentId: string;
 
+  @IsOptional()
   @IsUUID()
-  teacherUserId!: string;
+  teacherUserId?: string;
 }
 
 @Controller('exams/assisted-marks-entry')

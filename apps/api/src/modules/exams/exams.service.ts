@@ -1032,11 +1032,11 @@ export class ExamsService {
     rowsValue: BulkExamMarkUploadRowDto[],
     sourceWindowIdValue: string,
     submit = false,
-    teacherUserId?: string,
+    teacherUserId?: string | null,
   ) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
-    if (teacherUserId) {
+    if (teacherUserId !== undefined) {
       requireAssistedMarkEntryScope(this.requestContext.getStore());
       if (!this.schoolEvents) throw new ServiceUnavailableException('Exam event recording is unavailable. Retry before saving marks.');
     }
@@ -1078,7 +1078,7 @@ export class ExamsService {
           );
         }
 
-        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId, teacherUserId);
+        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId, teacherUserId ?? undefined);
         validEntries.push({ row_number: rowNumber, entry });
       } catch (error) {
         validationErrors.push({
@@ -1100,6 +1100,7 @@ export class ExamsService {
       tenant_id: tenantId,
       actor_user_id: actorUserId,
       ...(teacherUserId ? { teacher_user_id: teacherUserId } : {}),
+      manager_entry: teacherUserId !== undefined,
       source_window_id: sourceWindowId,
       submit,
       rows: validEntries.map(({ row_number, entry }) => ({
@@ -1132,8 +1133,8 @@ export class ExamsService {
         severity: 'info',
         payload: {
           source_window_id: sourceWindowId,
-          assigned_teacher_user_id: teacherUserId ?? actorUserId,
-          source_dashboard: teacherUserId ? 'exams-manager' : 'teacher',
+          assigned_teacher_user_id: teacherUserId === undefined ? actorUserId : teacherUserId,
+          source_dashboard: teacherUserId !== undefined ? 'exams-manager' : 'teacher',
           saved_count: result.saved_count,
           submitted_count: result.submitted_count,
           mark_ids: result.mark_ids,
@@ -2484,6 +2485,7 @@ export class ExamsService {
         student_id: string;
         class_section_id: string;
         subject_id: string;
+        exam_series_id?: string;
       }) => Promise<Record<string, unknown> | null>;
     };
     if (
@@ -2491,6 +2493,7 @@ export class ExamsService {
       && !await repository.findStudentMarkEligibility({
         tenant_id: tenantId,
         student_id: dto.student_id,
+        exam_series_id: dto.exam_series_id,
         class_section_id: dto.class_section_id,
         subject_id: dto.subject_id,
       })
@@ -5222,10 +5225,10 @@ export class ExamsService {
     const subjectId = this.optionalText(filters.subject_id);
     const teacherUserId = this.optionalText(filters.teacher_user_id);
 
-    if (filters.view !== undefined && !['active', 'submitted'].includes(filters.view)) {
-      throw new BadRequestException('Mark sheet view must be active or submitted');
+    if (filters.view !== undefined && !['active', 'submitted', 'all'].includes(filters.view)) {
+      throw new BadRequestException('Mark sheet view must be active, submitted or all');
     }
-    if (filters.view === 'submitted') normalizedFilters.view = 'submitted';
+    if (filters.view) normalizedFilters.view = filters.view;
 
     if (examSeriesId) normalizedFilters.exam_series_id = examSeriesId;
     if (assessmentId) normalizedFilters.assessment_id = assessmentId;

@@ -26,7 +26,7 @@ export async function updateStudentCohortPosition(tx: CohortTx, actor: Actor, st
 export async function updateStudentCohortSubjects(tx: CohortTx, actor: Actor, studentId: string, target: CohortContext, enrollment: Row | null, subjects: Row[]) {
     const [tables] = await rows(tx, `SELECT to_regclass('public.student_subject_enrollments')::text AS subjects,to_regclass('public.student_timetable_enrollments')::text AS timetable`);
     if (tables?.subjects) {
-      const previous = await rows(tx, `UPDATE student_subject_enrollments SET status='completed',updated_at=NOW()
+      const previous = await rows(tx, `UPDATE student_subject_enrollments SET status='completed',effective_to=COALESCE(effective_to,CURRENT_DATE),updated_at=NOW()
         WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' RETURNING subject_id`, [actor.tenantId,studentId]);
       const selected = new Set(previous.map((item) => String(item.subject_id)));
       if (enrollment) for (const subject of subjects.filter((item) => item.status === 'active'

@@ -39,6 +39,8 @@ test('assisted writes validate IDs, actions and reject actor or tenant overrides
   const body = { examId: id, classSectionId: id, assessmentId: id, teacherUserId: id, action: 'draft', marks: {} };
   const validate = (values: object) => validateSync(Object.assign(new SaveAssistedMarksDto(), values), { whitelist: true, forbidNonWhitelisted: true });
   assert.equal(validate(body).length, 0);
+  assert.equal(validate({ ...body, teacherUserId: undefined }).length, 0);
+  assert.equal(validate({ ...body, teacherUserId: null }).length, 0);
   for (const field of ['examId', 'classSectionId', 'assessmentId', 'teacherUserId']) {
     assert.ok(validate({ ...body, [field]: 'invalid' }).length);
   }
