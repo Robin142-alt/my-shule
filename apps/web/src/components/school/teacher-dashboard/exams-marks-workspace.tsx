@@ -285,7 +285,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
     <section className="min-w-0 rounded-xl border border-slate-200 bg-white text-slate-900">
       <header className="flex items-center justify-between gap-3 border-b border-slate-200 p-3 sm:p-4 sm:px-6">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-foreground">{assistance ? `Marks for ${assistance.teacherName}` : "Exams & Marks"}</h2>
+          <h2 className="text-xl font-semibold text-foreground">{assistance?.teacherName ? `Marks for ${assistance.teacherName}` : assistance ? "Enter Marks" : "Exams & Marks"}</h2>
           <p className="mt-1 hidden text-sm text-slate-500 sm:block">Enter scores, save your draft, then submit results.</p>
         </div>
         <button type="button" aria-label="Refresh exams" title="Refresh exams" onClick={() => void pendingMarksQuery.refetch()} disabled={pendingMarksQuery.isFetching || isSaving} className={cn(buttonClass, "shrink-0")}>

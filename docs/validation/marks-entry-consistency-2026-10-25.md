@@ -78,6 +78,10 @@ stream cases. Tests exercise the guarded HTTP controller, tenant-injection rejec
 cross-school requests, teacher rejection from manager routes, zero marks, stale saves,
 submissions, lifecycle restrictions, paper configuration, imports and event rollback.
 
+Local checks passed: 104 distinct PostgreSQL integration tests across five suites,
+182 backend unit tests, and 50 frontend workflow/reconnect tests. Backend compilation,
+frontend TypeScript and changed-file lint also passed. The unassigned-entry browser
+harness passed all four viewport widths; phone screenshots were inspected manually.
 Validation logs are kept locally under `.marks-*.log`; they are not release artifacts.
 The release checklist includes database integration suites, backend unit tests,
 frontend workflow/reconnect tests, TypeScript, changed-file lint, and the browser
