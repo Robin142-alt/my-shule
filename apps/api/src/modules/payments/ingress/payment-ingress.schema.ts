@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS payment_ingress (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_ingress_production_transaction
  ON payment_ingress(provider_code,destination_account,provider_transaction_id) WHERE environment='production';
+ALTER TABLE payment_ingress ADD COLUMN IF NOT EXISTS bank_evidence jsonb;
+ALTER TABLE payment_ingress ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'credit' CHECK(direction IN ('credit','debit'));
 CREATE INDEX IF NOT EXISTS ix_ingress_due ON payment_ingress(tenant_id,next_attempt_at) WHERE state IN ('received','verifying','verified');
 CREATE TABLE IF NOT EXISTS payment_ingress_verifications (
  id uuid PRIMARY KEY, tenant_id text NOT NULL, ingress_id uuid NOT NULL, token_hash text NOT NULL,
@@ -37,9 +39,9 @@ CREATE OR REPLACE FUNCTION app.guard_payment_ingress() RETURNS trigger LANGUAGE 
 BEGIN
  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Payment evidence cannot be deleted'; END IF;
  IF ROW(NEW.tenant_id,NEW.revision_id,NEW.provider_code,NEW.environment,NEW.provider_transaction_id,NEW.destination_account,
- NEW.amount_minor,NEW.currency_code,NEW.account_reference,NEW.occurred_at,NEW.payload_hash,NEW.created_at)
+ NEW.amount_minor,NEW.currency_code,NEW.account_reference,NEW.occurred_at,NEW.payload_hash,NEW.created_at,NEW.bank_evidence,NEW.direction)
  IS DISTINCT FROM ROW(OLD.tenant_id,OLD.revision_id,OLD.provider_code,OLD.environment,OLD.provider_transaction_id,OLD.destination_account,
- OLD.amount_minor,OLD.currency_code,OLD.account_reference,OLD.occurred_at,OLD.payload_hash,OLD.created_at)
+ OLD.amount_minor,OLD.currency_code,OLD.account_reference,OLD.occurred_at,OLD.payload_hash,OLD.created_at,OLD.bank_evidence,OLD.direction)
  THEN RAISE EXCEPTION 'Payment evidence identity is immutable'; END IF;
  IF OLD.collection_id IS NOT NULL AND NEW.collection_id IS DISTINCT FROM OLD.collection_id
  THEN RAISE EXCEPTION 'Posted collection link is immutable'; END IF;

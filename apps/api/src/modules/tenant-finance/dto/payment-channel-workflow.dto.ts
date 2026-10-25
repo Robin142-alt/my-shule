@@ -34,7 +34,7 @@ export class DecidePaymentChannelDto {
 }
 
 export class ConnectPaymentChannelDto {
-  @IsIn(["daraja", "statement"]) connection_mode!: CollectionConnectionMode;
+  @IsIn(["daraja", "statement", "bank_api"]) connection_mode!: CollectionConnectionMode;
   @IsIn(["sandbox", "production"]) environment!: "sandbox" | "production";
   @IsObject() credentials!: Record<string, string>;
   @IsOptional() @IsIn(['daraja_direct','edge_signed']) callback_trust_mode?: 'daraja_direct' | 'edge_signed';

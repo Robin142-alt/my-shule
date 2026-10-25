@@ -51,6 +51,12 @@ export class PaymentChannelWorkflowController {
   ) {
     return this.service.decide(id, dto);
   }
+  @Post('collection-channels/:id/connect') @Permissions('billing:write') connect(
+    @Param('id',ParseUUIDPipe) id:string,@Body() dto:ConnectPaymentChannelDto,
+  ) { return this.service.connectSchool(id,dto); }
+  @Post('collection-channels/:id/test') @Permissions('billing:write') test(
+    @Param('id',ParseUUIDPipe) id:string,
+  ) { return this.service.testSchool(id); }
 }
 
 @Controller("platform/payment-integrations")

@@ -13,13 +13,15 @@ import { PaymentIngressConfigService } from '../../tenant-finance/payment-ingres
 import type { PaymentChannelRevision } from '../../tenant-finance/payment-channel-workflow.types';
 import { CollectionPaymentsService } from '../collection-payments.service';
 import { CollectionReferenceMatcher } from '../collection-reference-matcher.service';
-import { CollectionPaymentInput } from '../collection-payment.types';
+import { CollectionPaymentInput, normalizeCollectionInput } from '../collection-payment.types';
+import type { BankTransaction } from '../../tenant-finance/providers/bank-provider';
 import { CollectionAdapterRegistry } from './collection-adapter-registry.service';
 import { CollectionAdapterChannel, CollectionVerification, verificationMatches } from './collection-adapter';
 
 interface IngressPayment extends CollectionPaymentInput {
   id: string; tenant_id: string; revision_id: string; environment: 'sandbox' | 'production';
   state: string; attempts: number; collection_id: string | null; conflict_hash: string | null;
+  direction?:'credit'|'debit'; bank_evidence?:BankTransaction['evidence']|null;
 }
 interface VerificationRequest {
   id: string; ingress_id: string; state: string; token_hash: string; expires_at: Date;
@@ -112,6 +114,49 @@ export class PaymentIngressService {
     }));
   }
 
+  /** Internal only: called with account-bound evidence retrieved by a registered bank adapter. */
+  async acceptBankTransaction(revisionId:string,entry:BankTransaction):Promise<string> {
+    const tenant=this.context.requireStore().tenant_id;
+    if(!tenant) throw new UnauthorizedException('School context is required');
+    const payment=normalizeCollectionInput(entry.payment);
+    if(!['credit','debit'].includes(entry.direction)||!entry.evidence?.method||!entry.evidence.bank_reference)
+      throw new BadRequestException('Bank evidence is incomplete');
+    return this.db.withRequestTransaction(async()=>{
+      await this.db.query('SELECT id FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND id=$2::uuid FOR SHARE',[tenant,revisionId]);
+      const channel=await this.channel(revisionId);
+      const revision=channel.revision;
+      if(revision.connection_mode!=='bank_api'||revision.status!=='active'||revision.provider_code!==payment.provider_code
+        ||revision.account_number!==payment.destination_account) throw new BadRequestException('Bank destination is not an active approved school account');
+      const hash=createHash('sha256').update(JSON.stringify({payment,direction:entry.direction})).digest('hex');
+      await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',[`ingress:${revision.environment}:${payment.provider_code}:${payment.destination_account}:${payment.provider_transaction_id}`]);
+      // An older reviewed statement can use the bank's raw reference. Do not post
+      // a second receipt merely because the native protocol has a richer identity.
+      const older=revision.environment==='production' ? await this.db.query(`SELECT id FROM collection_payments WHERE tenant_id=$1
+        AND provider_code=$2 AND destination_account=$3 AND provider_transaction_id=$4 AND provider_transaction_id<>$5 LIMIT 1`,
+        [tenant,payment.provider_code,payment.destination_account,entry.evidence.bank_reference.toUpperCase(),payment.provider_transaction_id]):{rows:[]};
+      const reason=entry.direction==='debit'?'Bank debit: reconcile against the statement and use the approved reversal workflow where appropriate'
+        :older.rows.length?'A reviewed collection already uses this bank reference; reconcile before allocating':null;
+      const inserted=await this.db.query<IngressPayment>(`INSERT INTO payment_ingress(tenant_id,revision_id,provider_code,environment,
+        provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,payload_hash,bank_evidence,direction,state,review_reason)
+        VALUES($1,$2::uuid,$3,$4,$5,$6,$7::bigint,$8,$9,$10::timestamptz,$11,$12::jsonb,$13,$14,$15)
+        ON CONFLICT DO NOTHING RETURNING *,amount_minor::text`,[tenant,revisionId,payment.provider_code,revision.environment,
+        payment.provider_transaction_id,payment.destination_account,payment.amount_minor,payment.currency_code,payment.account_reference,payment.occurred_at,
+        hash,JSON.stringify(entry.evidence),entry.direction,reason?'review':'verified',reason]);
+      if(inserted.rows[0]) {await this.record(inserted.rows[0],reason?'review_required':'bank_verified');return inserted.rows[0].id;}
+      const previous=(await this.db.query<IngressPayment&{payload_hash:string}>(`SELECT *,amount_minor::text FROM payment_ingress WHERE tenant_id=$1
+        AND environment=$2 AND provider_code=$3 AND destination_account=$4 AND provider_transaction_id=$5 FOR UPDATE`,
+        [tenant,revision.environment,payment.provider_code,payment.destination_account,payment.provider_transaction_id])).rows[0];
+      if(!previous) throw new ConflictException('Bank transaction belongs to another approved school destination');
+      if(previous.payload_hash!==hash) {
+        await this.db.query(`UPDATE payment_ingress SET conflict_hash=$3,review_reason='Conflicting bank statement identity',
+          state=CASE WHEN state IN ('posted','unmatched','sandbox_verified') THEN state ELSE 'review' END,updated_at=now()
+          WHERE tenant_id=$1 AND id=$2::uuid`,[tenant,previous.id,hash]);
+        await this.record(previous,'review_required');
+      }
+      return previous.id;
+    });
+  }
+
   /** Invoked by the existing payment worker. SQL leases survive Redis/process failure. */
   async recoverSchool(tenant: string) {
     const due = await this.db.withRequestTransaction(() => this.db.query<{ id: string }>(
@@ -139,6 +184,14 @@ export class PaymentIngressService {
     if (!['active','superseded','suspended'].includes(channel.revision.status)) return this.review(payment,'Channel is not activated');
     if (channel.revision.environment !== payment.environment || channel.revision.account_number !== payment.destination_account)
       return this.review(payment,'Approved destination changed');
+    if(channel.revision.connection_mode==='bank_api') {
+      if(!payment.bank_evidence||payment.direction!=='credit') return this.review(payment,'Bank account evidence does not establish an incoming payment');
+      try { return await this.finalize(payment); }
+      catch(error) {
+        if(error instanceof ConflictException) return this.review(payment,error.message);
+        throw error;
+      }
+    }
     const adapter = this.adapters.get(payment.provider_code);
     const request = (await this.db.query<VerificationRequest>(
       'SELECT * FROM payment_ingress_verifications WHERE tenant_id=$1 AND ingress_id=$2::uuid ORDER BY created_at DESC,id DESC LIMIT 1', [tenant,id])).rows[0];
@@ -165,12 +218,12 @@ export class PaymentIngressService {
     }
   }
 
-  private async finalize(payment: IngressPayment, request: VerificationRequest) {
+  private async finalize(payment: IngressPayment, request?: VerificationRequest) {
     return this.db.withRequestTransaction(async () => {
       const current = await this.payment(payment.id,true);
       if (!['received','verifying','verified'].includes(current.state) || current.conflict_hash) return;
       let reference = current.account_reference;
-      if (current.environment === 'sandbox') {
+      if (current.environment === 'sandbox' && !current.bank_evidence) {
         const test = (await this.db.query<{account_reference:string}>(`SELECT account_reference FROM payment_sandbox_tests
           WHERE tenant_id=$1 AND revision_id=$2::uuid AND provider_reference=$3`,[current.tenant_id,current.revision_id,reference])).rows[0];
         if (!test) return this.review(current,'Sandbox reference was not issued for this school; use the approved channel simulator');
@@ -181,14 +234,15 @@ export class PaymentIngressService {
       let state = 'sandbox_verified';
       if (current.environment === 'production') {
         const channel = await this.channel(current.revision_id);
-        const collection = await this.collections.recognizeVerified(current.tenant_id,current,channel.revision.channel_id);
+        const collection = await this.collections.recognizeVerified(current.tenant_id,
+          {...current,...(current.bank_evidence?{bank_reference:current.bank_evidence.bank_reference}:{})},channel.revision.channel_id);
         collectionId = collection.id;
         state = collection.status === 'posted' || collection.status === 'reversed' ? 'posted' : 'unmatched';
       }
       await this.db.query(`UPDATE payment_ingress SET state=$3,collection_id=$4::uuid,student_id=$5,invoice_id=$6::uuid,
         verified_at=now(),review_reason=$7,updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid`,
         [current.tenant_id,current.id,state,collectionId,match.student_id,match.invoice_id,match.student_id ? null : match.reason]);
-      await this.db.query(`UPDATE payment_ingress_verifications SET state='complete' WHERE tenant_id=$1 AND id=$2::uuid`,[current.tenant_id,request.id]);
+      if(request) await this.db.query(`UPDATE payment_ingress_verifications SET state='complete' WHERE tenant_id=$1 AND id=$2::uuid`,[current.tenant_id,request.id]);
       await this.record(current,state);
     });
   }
@@ -198,6 +252,7 @@ export class PaymentIngressService {
     if (!actor.is_authenticated || !['accountant','bursar','principal'].includes(actor.role ?? '')) throw new UnauthorizedException();
     await this.db.withRequestTransaction(async () => {
       const payment = await this.payment(id,true);
+      if(payment.direction==='debit') throw new ConflictException('Bank debits need statement reconciliation or an approved reversal, not payment allocation');
       if (payment.state !== 'review' || payment.conflict_hash) throw new ConflictException('Only non-conflicting unverified payments can be retried');
       await this.db.query(`UPDATE payment_ingress SET state='received',attempts=0,next_attempt_at=now(),review_reason=NULL WHERE tenant_id=$1 AND id=$2::uuid`,[payment.tenant_id,id]);
       await this.db.query(`UPDATE payment_ingress_verifications SET state='failed' WHERE tenant_id=$1 AND ingress_id=$2::uuid AND state IN ('pending','received')`,[payment.tenant_id,id]);
@@ -215,7 +270,8 @@ export class PaymentIngressService {
       FROM payment_ingress i LEFT JOIN collection_payments c ON c.tenant_id=i.tenant_id AND c.id=i.collection_id
       WHERE i.tenant_id=$1
     ) SELECT id,revision_id,provider_code,environment,provider_transaction_id,destination_account,
-      amount_minor::text,account_reference,occurred_at,effective_state AS state,review_reason,collection_id,student_id,invoice_id,verified_at,created_at,
+      amount_minor::text,account_reference,occurred_at,effective_state AS state,review_reason,collection_id,student_id,invoice_id,verified_at,created_at,direction,
+      bank_evidence->>'bank_reference' AS bank_reference,
       (conflict_hash IS NOT NULL) AS has_conflict
       FROM inbox
       ORDER BY CASE WHEN environment='production' AND (effective_state='review' OR conflict_hash IS NOT NULL) THEN 0

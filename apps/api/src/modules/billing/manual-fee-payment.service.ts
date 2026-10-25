@@ -27,6 +27,7 @@ import {
 import { InvoicesRepository, StudentFeeInvoiceForAllocation } from './repositories/invoices.repository';
 import { ManualFeePaymentsRepository } from './repositories/manual-fee-payments.repository';
 import { FeeCreditApplicationService } from './fee-credit-application.service';
+import { guardBankReceipt } from './bank-receipt-identity';
 
 const DEFAULT_CURRENCY_CODE = 'KES';
 const DEFAULT_FEE_CONTROL_ACCOUNT_CODE = '1100-AR-FEES';
@@ -77,12 +78,16 @@ export class ManualFeePaymentService {
 
   async createManualFeePayment(
     dto: CreateManualFeePaymentDto,
+    collection?: {id:string;bank_reference?:string},
   ): Promise<ManualFeePaymentResponseDto> {
     const tenantId = this.requireTenantId();
     const requestContext = this.requestContext.requireStore();
     const payment = await this.prisma.withRequestTransaction(async () => {
       this.assertHasAllocationTarget(dto.student_id ?? null, dto.invoice_id ?? null);
       this.assertMethodRequirements(dto);
+      if(['bank_deposit','eft'].includes(dto.payment_method))
+        await guardBankReceipt(this.prisma,tenantId,[dto.external_reference ?? '',dto.deposit_reference ?? '',collection?.bank_reference ?? ''],
+          dto.idempotency_key.trim(),collection?.id);
       let studentId = dto.student_id ?? null;
       if (dto.invoice_id) {
         const invoice = await this.invoicesRepository.findById(tenantId, dto.invoice_id);

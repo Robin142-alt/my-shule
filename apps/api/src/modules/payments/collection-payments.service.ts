@@ -16,6 +16,7 @@ import { SchoolOperationNotificationsRepository } from "../events/repositories/s
 import { AuditLogService } from "../observability/audit-log.service";
 import { CollectionSuspenseService } from "./collection-suspense.service";
 import { CollectionReferenceMatcher } from './collection-reference-matcher.service';
+import { lockBankReceiptReferences } from '../billing/bank-receipt-identity';
 import {
   CollectionPaymentInput,
   normalizeCollectionInput,
@@ -183,7 +184,7 @@ export class CollectionPaymentsService {
           `SELECT id,channel_id FROM tenant_payment_channel_revisions
         WHERE tenant_id=$1 AND provider_code=$3 AND account_number=$4
           AND environment='production'
-          AND ($2::uuid IS NULL OR channel_id=$2::uuid) AND activated_at<=$5::timestamptz
+          AND ($2::uuid IS NULL OR channel_id=$2::uuid OR $3<>'safaricom') AND activated_at<=$5::timestamptz
           AND status IN ('active','superseded','suspended') ORDER BY activated_at DESC LIMIT 1`,
           [
             tenant,
@@ -344,15 +345,26 @@ export class CollectionPaymentsService {
     },
   ) {
     const input = normalizeCollectionInput(raw);
+    if(input.provider_code!=='safaricom') {
+      const reference=input.bank_reference ?? input.provider_transaction_id;
+      await lockBankReceiptReferences(this.db,tenant,[reference,input.provider_transaction_id]);
+      await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',
+        [`bank-reference:${tenant}:${input.provider_code}:${input.destination_account}:${reference}`]);
+      const competing=await this.db.query(`SELECT id FROM collection_payments WHERE tenant_id=$1 AND provider_code=$2
+        AND destination_account=$3 AND (bank_reference=$4 OR provider_transaction_id=$4)
+        AND provider_transaction_id<>$5 AND (source='statement' OR $6='statement') LIMIT 1`,
+        [tenant,input.provider_code,input.destination_account,reference,input.provider_transaction_id,source.source]);
+      if(competing.rows.length) throw new ConflictException('Bank reference already has statement or API evidence; reconcile the existing collection before allocating');
+    }
     await this.db.query(
       `SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`,
       [`collection:${input.provider_code}:${input.provider_transaction_id}`],
     );
     await this.db.query(
-      `INSERT INTO collection_payments(tenant_id,revision_id,channel_id,provider_code,provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,source,status,requested_by,evidence_reference,asset_account_code,fee_control_account_code)
+      `INSERT INTO collection_payments(tenant_id,revision_id,channel_id,provider_code,provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,source,status,requested_by,evidence_reference,asset_account_code,fee_control_account_code,bank_reference)
       VALUES($1,$2::uuid,$3::uuid,$4,$5,$6,$7::bigint,$8,$9,$10::timestamptz,$11,$12,$13::uuid,$14,
         COALESCE(NULLIF($15::text,''),CASE WHEN $4='safaricom' THEN COALESCE((SELECT NULLIF(mpesa_clearing_account_code,'') FROM tenant_financial_accounts WHERE tenant_id=$1),'1110-MPESA-CLEARING') ELSE '1120-BANK-CLEARING' END),
-        COALESCE(NULLIF($16::text,''),(SELECT NULLIF(fee_control_account_code,'') FROM tenant_financial_accounts WHERE tenant_id=$1),'1100-AR-FEES')) ON CONFLICT DO NOTHING`,
+        COALESCE(NULLIF($16::text,''),(SELECT NULLIF(fee_control_account_code,'') FROM tenant_financial_accounts WHERE tenant_id=$1),'1100-AR-FEES'),$17) ON CONFLICT DO NOTHING`,
       [
         tenant,
         source.revision_id,
@@ -372,6 +384,7 @@ export class CollectionPaymentsService {
         source.evidence_reference ?? null,
         source.ledgerAccounts?.asset_account_code ?? null,
         source.ledgerAccounts?.fee_control_account_code ?? null,
+        input.bank_reference ?? null,
       ],
     );
     const payment = (
@@ -401,6 +414,15 @@ export class CollectionPaymentsService {
     explicitStudent?: string,
     reviewedTarget?: { invoice_id?: string; reason: string },
   ) {
+    if(payment.provider_code!=='safaricom') {
+      const original=(await this.db.query<{bank_reference:string|null}>(`SELECT bank_reference FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid`,
+        [payment.tenant_id,payment.id])).rows[0];
+      const legacy=await this.db.query(`SELECT 1 FROM manual_fee_payments m WHERE m.tenant_id=$1
+        AND (upper(m.external_reference) IN ($2,$3) OR upper(m.deposit_reference) IN ($2,$3)) AND m.payment_method IN ('bank_deposit','eft')
+        AND m.status IN ('cleared','reversed') LIMIT 1`,
+        [payment.tenant_id,payment.provider_transaction_id,original?.bank_reference ?? payment.provider_transaction_id]);
+      if(legacy.rows.length) throw new ConflictException('This bank reference already exists in manual fee receipts; reconcile the historical payment before allocating');
+    }
     // During adoption, old STK/C2B receipts remain authoritative. Do not credit
     // a historical payment again merely because it has no unified inbox row.
     if (payment.provider_code === "safaricom") {
@@ -490,7 +512,7 @@ export class CollectionPaymentsService {
         revision_id: payment.revision_id,
         provider_code: payment.provider_code,
       },
-    });
+    }, {id:payment.id,bank_reference:payment.bank_reference});
     const result = (
       await this.db.query<CollectionPayment>(
         `UPDATE collection_payments SET status='posted',student_id=$3,invoice_id=$4::uuid,manual_fee_payment_id=$5::uuid,ledger_transaction_id=$6::uuid,receipt_number=$7,suspense_release_transaction_id=$8::uuid,updated_at=NOW() WHERE tenant_id=$1 AND id=$2::uuid RETURNING *,amount_minor::text`,
@@ -522,6 +544,9 @@ export class CollectionPaymentsService {
       throw new NotFoundException("Student was not found in this school");
   }
   private async lock(tenant: string, id: string) {
+    const identity=(await this.db.query<CollectionPayment>('SELECT * FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,id])).rows[0];
+    if(identity && identity.provider_code!=='safaricom')
+      await lockBankReceiptReferences(this.db,tenant,[identity.provider_transaction_id,identity.bank_reference ?? identity.provider_transaction_id]);
     const payment = (
       await this.db.query<CollectionPayment>(
         "SELECT *,amount_minor::text FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE",

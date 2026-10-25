@@ -6,6 +6,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import type { PaymentChannelRevision } from "./payment-channel-workflow.types";
 import { PaymentIngressConfigService } from './payment-ingress-config.service';
+import { BANK_PROVIDER_REGISTRY } from './providers/registered-bank-providers';
 
 async function providerBody(response: Response): Promise<Record<string, unknown>> {
   try {
@@ -73,6 +74,12 @@ export class PaymentChannelConnectionService {
   ): Promise<string> {
     if (revision.connection_mode === "statement")
       return "statement_review_ready";
+    if (revision.connection_mode === 'bank_api') {
+      await BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).checkConnection({
+        school_id:revision.tenant_id,revision_id:revision.id,environment:revision.environment!,account_number:revision.account_number,credentials,
+      });
+      return revision.environment === 'sandbox' ? 'bank_sandbox_account_verified' : 'bank_live_account_verified';
+    }
     if (revision.provider_code !== "safaricom")
       throw new BadRequestException(
         "Automatic integration is not available for this provider",

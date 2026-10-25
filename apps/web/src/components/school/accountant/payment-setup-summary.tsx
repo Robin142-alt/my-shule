@@ -19,7 +19,7 @@ export const paymentSetupFilters = [
 export function paymentSetupStatus(row: CollectionChannelRevision) {
   const labels: Record<string, string> = {
     pending_approval: "Awaiting Principal approval",
-    approved: "Awaiting Super Admin connection",
+    approved: row.provider_code !== 'safaricom' ? "Approved — connection setup pending" : "Awaiting Super Admin connection",
     connecting: "Connection checks in progress",
     ready: "Ready for Super Admin activation",
     rejected: "Rejected — correction required",
@@ -27,6 +27,7 @@ export function paymentSetupStatus(row: CollectionChannelRevision) {
     superseded: "Replaced — history retained",
   };
   if (row.status === "active") {
+    if(row.last_error) return 'Connection degraded — follow-up required';
     if (row.environment === "sandbox")
       return "Sandbox active — no live fee credit";
     return row.connection_mode === "statement"

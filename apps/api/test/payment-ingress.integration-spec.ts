@@ -16,6 +16,13 @@ import { PaymentIngressController } from '../src/modules/payments/ingress/paymen
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import type { BankTransaction } from '../src/modules/tenant-finance/providers/bank-provider';
+import { BankSynchronizationService } from '../src/modules/payments/ingress/bank-synchronization.service';
+import { BANK_SYNCHRONIZATION_SCHEMA } from '../src/modules/payments/ingress/bank-synchronization.schema';
+import { BANK_PROVIDER_REGISTRY } from '../src/modules/tenant-finance/providers/registered-bank-providers';
+import { BankProviderError, type BankRetrieval } from '../src/modules/tenant-finance/providers/bank-provider';
+import { listCollectionProviders } from '../src/modules/tenant-finance/payment-provider.catalog';
+import { guardBankReceipt } from '../src/modules/billing/bank-receipt-identity';
 
 describe('Verified collection ingress with real PostgreSQL/RLS', () => {
   jest.setTimeout(60000);
@@ -24,7 +31,7 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
   let db: PrismaService;
   const school='school-a', other='school-b', learner=randomUUID(), invoice=randomUUID();
   const token='a'.repeat(64), credentials={consumer_key:'test',consumer_secret:'test',initiator_name:'test',security_credential:'test',_callback_token:token,_callback_trust_mode:'daraja_direct'};
-  let pool:Pool, ingress:PaymentIngressService, matcher:CollectionReferenceMatcher;
+  let pool:Pool, ingress:PaymentIngressService, matcher:CollectionReferenceMatcher, collections:CollectionPaymentsService;
   let app:INestApplication;
   let prod:IngressRoute, sandboxA:IngressRoute, sandboxB:IngressRoute;
   const requests = new Map<string,{result:string;timeout:string;conversation:string}>();
@@ -61,8 +68,8 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
       CREATE TABLE student_portal_access(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE test_postings(id uuid PRIMARY KEY,tenant_id text,student_id text,amount_minor bigint);
       CREATE TABLE mpesa_transactions(tenant_id text,mpesa_receipt_number text,ledger_transaction_id uuid);
-      CREATE TABLE manual_fee_payments(tenant_id text,external_reference text,payment_method text,status text);
-      ${PAYMENT_CHANNEL_WORKFLOW_SCHEMA} ${COLLECTION_PAYMENTS_SCHEMA} ${PAYMENT_INGRESS_SCHEMA}
+      CREATE TABLE manual_fee_payments(tenant_id text,external_reference text,payment_method text,status text,deposit_reference text,id uuid DEFAULT gen_random_uuid(),idempotency_key text);
+      ${PAYMENT_CHANNEL_WORKFLOW_SCHEMA} ${COLLECTION_PAYMENTS_SCHEMA} ${PAYMENT_INGRESS_SCHEMA} ${BANK_SYNCHRONIZATION_SCHEMA}
       GRANT USAGE ON SCHEMA ${schema},app TO ${role};GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
     const originalUrl=process.env.DATABASE_URL;
     // Exercise both schema options preservation and a non-UTC connection default.
@@ -78,7 +85,7 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
     prod=await revision(school,'production');sandboxA=await revision(school,'sandbox');sandboxB=await revision(other,'sandbox');
     const audit={record:async()=>{}},events={publish:async()=>{}},notifications={upsertFromSchoolOperation:async()=>{}};
     matcher=new CollectionReferenceMatcher(db as never);
-    const collections=new CollectionPaymentsService(db as never,context,{createManualFeePayment:async(input:any)=>{
+    collections=new CollectionPaymentsService(db as never,context,{createManualFeePayment:async(input:any)=>{
       const id=randomUUID();await db.query(`INSERT INTO test_postings VALUES($1,$2,$3,$4)`,[id,context.requireStore().tenant_id,input.student_id,input.amount_minor]);
       return {id,ledger_transaction_id:randomUUID(),receipt_number:`R-${id}`};
     }} as never,{} as never,events as never,audit as never,notifications as never,{recognize:async()=>randomUUID(),release:async()=>null} as never,matcher);
@@ -161,5 +168,186 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
     await pool.query(`INSERT INTO invoices VALUES($1,$2,'OTHER','open',10000,0,$3::jsonb)`,[randomUUID(),school,JSON.stringify({student_id:learner,external_reference:'INV-1'})]);
     expect((await as(()=>matcher.match(school,'INV-1'))).reason).toBe('ambiguous_invoice_reference');
     expect((await as(()=>matcher.match(other,'INV-1'),other)).student_id).toBeNull();
+  });
+  async function bankRevision(environment:'sandbox'|'production'='production',provider='equity',tenant=school) {
+    const id=randomUUID(),channel=randomUUID(),account=`1234${Date.now()}${Math.floor(Math.random()*1000)}`;
+    await pool.query('INSERT INTO tenant_payment_channels(id,tenant_id) VALUES($1,$2)',[channel,tenant]);
+    await pool.query(`INSERT INTO tenant_payment_channel_revisions(id,tenant_id,channel_id,provider_code,channel_kind,display_name,account_name,account_number,status,connection_mode,environment,credentials_ciphertext,requested_by,reviewed_by,reviewed_at,reason,activated_at)
+      VALUES($1,$2,$3,$9,'bank_account','Bank fees','School',$4,'active','bank_api',$5,$6,$7,$8,now(),'Approved school bank account',now()-interval '1 year')`,
+      [id,tenant,environment==='production'?channel:null,account,environment,`enc:v1:${JSON.stringify(credentials)}`,randomUUID(),randomUUID(),provider]);
+    return {id,account};
+  }
+  function bankEntry(account:string,reference=`BANK-${randomUUID()}`):BankTransaction {
+    return {direction:'credit',payment:{provider_code:'equity',provider_transaction_id:reference,destination_account:account,
+      amount_minor:'10000',currency_code:'KES',account_reference:learner,occurred_at:new Date().toISOString()},
+      evidence:{method:'jenga_account_statement',bank_reference:reference,serial:'1',retrieved_at:new Date().toISOString()}};
+  }
+  it('bank statement evidence uses the same durable inbox/poster and never posts a debit or a duplicate',async()=>{
+    const bank=await bankRevision(); const entry=bankEntry(bank.account);
+    // Match a unique invoice, independently of earlier ambiguity fixtures.
+    entry.payment.account_reference=invoice;
+    const before=(await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n;
+    const id=await as(()=>ingress.acceptBankTransaction(bank.id,entry));
+    await Promise.all([as(()=>ingress.process(id)),as(()=>ingress.process(id))]);
+    await as(()=>ingress.acceptBankTransaction(bank.id,entry));await as(()=>ingress.process(id));
+    expect((await state(id)).state).toBe('posted');
+    expect((await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n).toBe(before+1);
+    const debit=await as(()=>ingress.acceptBankTransaction(bank.id,{...bankEntry(bank.account),direction:'debit'}));
+    await as(()=>ingress.process(debit));expect((await state(debit)).state).toBe('review');expect((await state(debit)).collection_id).toBeNull();
+    await expect(as(()=>ingress.acceptBankTransaction(bank.id,bankEntry('OTHER')))).rejects.toThrow(/destination/);
+    await expect(as(()=>ingress.acceptBankTransaction(bank.id,entry),other)).rejects.toThrow();
+  });
+  it('bank sandbox evidence is isolated from live fees without depending on Daraja simulation references',async()=>{
+    const bank=await bankRevision('sandbox');const entry=bankEntry(bank.account);entry.payment.account_reference=invoice;
+    const id=await as(()=>ingress.acceptBankTransaction(bank.id,entry));await as(()=>ingress.process(id));
+    expect((await state(id)).state).toBe('sandbox_verified');expect((await state(id)).collection_id).toBeNull();
+  });
+  it('conflicting bank evidence remains visible and cannot change a previously posted transaction',async()=>{
+    const bank=await bankRevision();const entry=bankEntry(bank.account);entry.payment.account_reference=invoice;
+    const id=await as(()=>ingress.acceptBankTransaction(bank.id,entry));await as(()=>ingress.process(id));
+    await as(()=>ingress.acceptBankTransaction(bank.id,{...entry,payment:{...entry.payment,amount_minor:'20000'}}));
+    expect((await state(id)).conflict_hash).toBeTruthy();expect((await state(id)).amount_minor).toBe('10000');
+    await expect(pool.query("UPDATE payment_ingress SET bank_evidence='{}' WHERE id=$1",[id])).rejects.toThrow(/immutable/);
+  });
+  it('cannot double-post the same bank reference through native retrieval and reviewed statement entry in either order',async()=>{
+    const a=await bankRevision(),entry=bankEntry(a.account);entry.payment.account_reference=invoice;
+    entry.evidence.bank_reference=`RAW-${randomUUID()}`;
+    const before=(await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n;
+    const id=await as(()=>ingress.acceptBankTransaction(a.id,entry));await as(()=>ingress.process(id));
+    await expect(as(()=>collections.statement(a.id,{...entry.payment,provider_transaction_id:entry.evidence.bank_reference},'Bank statement page one'))).rejects.toThrow(/already has/);
+    const b=await bankRevision(),pending=bankEntry(b.account);pending.payment.account_reference=invoice;
+    pending.evidence.bank_reference=`RAW-${randomUUID()}`;
+    await as(()=>collections.statement(b.id,{...pending.payment,provider_transaction_id:pending.evidence.bank_reference},'Bank statement page two'));
+    const second=await as(()=>ingress.acceptBankTransaction(b.id,pending));expect((await state(second)).state).toBe('review');
+    await as(()=>ingress.retry(second));await as(()=>ingress.process(second));
+    expect((await state(second)).state).toBe('review');expect((await state(second)).collection_id).toBeNull();
+    expect((await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n).toBe(before+1);
+  });
+  it('preserves historical manual bank receipts during automated adoption',async()=>{
+    const bank=await bankRevision(),entry=bankEntry(bank.account);entry.payment.account_reference=invoice;
+    await pool.query(`INSERT INTO manual_fee_payments(tenant_id,external_reference,payment_method,status) VALUES($1,$2,'bank_deposit','cleared')`,[school,entry.evidence.bank_reference]);
+    const id=await as(()=>ingress.acceptBankTransaction(bank.id,entry));await as(()=>ingress.process(id));
+    expect((await state(id)).state).toBe('review');expect((await state(id)).collection_id).toBeNull();
+  });
+  it('serializes competing manual bank receipts, retains idempotent retry, and rejects native-reference aliases',async()=>{
+    const reference=`MANUAL-${randomUUID()}`;
+    const attempt=(key:string)=>as(()=>db.withRequestTransaction(async()=>{
+      await guardBankReceipt(db,school,[reference],key);
+      await db.query(`INSERT INTO manual_fee_payments(tenant_id,external_reference,payment_method,status,idempotency_key)
+        VALUES($1,$2,'eft','cleared',$3)`,[school,reference,key]);
+    }));
+    const result=await Promise.allSettled([attempt('manual-a'),attempt('manual-b')]);
+    expect(result.filter(r=>r.status==='fulfilled')).toHaveLength(1);
+    const row=(await pool.query('SELECT idempotency_key FROM manual_fee_payments WHERE external_reference=$1',[reference])).rows[0];
+    await as(()=>db.withRequestTransaction(()=>guardBankReceipt(db,school,[reference],row.idempotency_key)));
+    await as(()=>db.withRequestTransaction(()=>guardBankReceipt(db,other,[reference],'other-school')),other);
+    const bank=await bankRevision(),entry=bankEntry(bank.account);entry.payment.account_reference=invoice;
+    entry.evidence.bank_reference=`BANK-ALIAS-${randomUUID()}`;
+    const id=await as(()=>ingress.acceptBankTransaction(bank.id,entry));await as(()=>ingress.process(id));
+    await expect(as(()=>db.withRequestTransaction(()=>guardBankReceipt(db,school,[entry.evidence.bank_reference],'manual-copy')))).rejects.toThrow(/already in Collections/);
+  });
+
+  describe('bank retrieval through a twelfth registered contract provider',()=>{
+    const provider='contract_bank', day='2026-09-15';
+    const responses=new Map<string,BankRetrieval|Error>();
+    const calls:string[]=[];
+    const recorded:string[]=[];
+    let banks:BankSynchronizationService;
+    beforeAll(()=>{
+      BANK_PROVIDER_REGISTRY.register({code:provider,name:'Contract test provider',description:'Isolated test fixture',
+        channel_kinds:['bank_account'],connection_modes:['statement'],credential_fields:[]},{provider,calendar_time_zone:'Africa/Nairobi',channel_kinds:['bank_account'],
+        checkConnection:async c=>({account_number:c.account_number,currency_code:'KES',method:'contract_fixture'}),
+        retrieveTransactions:async(c,range)=>{
+          calls.push(`${c.school_id}:${c.account_number}:${range.from_date}`);
+          const value=responses.get(c.account_number)!;
+          if(value instanceof Error) throw value;
+          return value;
+        }});
+      banks=new BankSynchronizationService(db,context,{decrypt:(v:string)=>v.slice(7)} as never,ingress,
+        {record:async(e:any)=>{recorded.push(e.action);}} as never,{publish:async()=>{}} as never,{upsertFromSchoolOperation:async()=>{}} as never);
+    });
+    afterAll(()=>BANK_PROVIDER_REGISTRY.remove(provider));
+    async function setup(environment:'sandbox'|'production'='production') {
+      const tenant=`sync-${randomUUID()}`,student=randomUUID(),inv=randomUUID();
+      const bank=await bankRevision(environment,provider,tenant);
+      await pool.query(`INSERT INTO students VALUES($1,$2,'ADM-1','active');`,[student,tenant]);
+      await pool.query(`INSERT INTO invoices VALUES($1,$2,'BANK-INV','open',100000,0,$3::jsonb)`,[inv,tenant,JSON.stringify({student_id:student})]);
+      await pool.query(`INSERT INTO tenant_financial_accounts VALUES($1,'1110-MPESA-CLEARING','1100-AR-FEES')`,[tenant]);
+      await pool.query(`INSERT INTO bank_connection_sync(tenant_id,revision_id,scan_date,earliest_at) VALUES($1,$2,$3::date,$4::timestamptz)`,
+        [tenant,bank.id,day,`${day}T00:00:00+03:00`]);
+      const entry=bankEntry(bank.account);entry.payment.provider_code=provider;entry.payment.occurred_at=`${day}T09:00:00.000Z`;entry.payment.account_reference=inv;
+      responses.set(bank.account,{entries:[entry],complete:true});
+      return {...bank,tenant,student,entry};
+    }
+    async function syncRow(tenant:string) {return (await pool.query('SELECT *,scan_date::text FROM bank_connection_sync WHERE tenant_id=$1',[tenant])).rows[0];}
+    it('discovers a new adapter and retrieves/posts through the unchanged inbox with school leases and replay safety',async()=>{
+      expect(listCollectionProviders().find(p=>p.code===provider)?.connection_modes).toContain('bank_api');
+      const a=await setup(),b=await setup();const before=calls.length;
+      await Promise.all([as(()=>banks.recoverSchool(a.tenant),a.tenant),as(()=>banks.recoverSchool(a.tenant),a.tenant)]);
+      expect(calls.length).toBe(before+1);
+      await as(()=>ingress.recoverSchool(a.tenant),a.tenant);
+      expect((await pool.query('SELECT * FROM test_postings WHERE tenant_id=$1',[a.tenant])).rows).toHaveLength(1);
+      expect((await pool.query('SELECT * FROM payment_ingress WHERE tenant_id=$1',[b.tenant])).rows).toHaveLength(0);
+      expect((await syncRow(a.tenant)).scan_date).toBe('2026-09-16');
+      await as(()=>banks.requestSync(a.id,'Recheck the bank evidence',day),a.tenant);
+      await as(()=>banks.recoverSchool(a.tenant),a.tenant);await as(()=>ingress.recoverSchool(a.tenant),a.tenant);
+      expect((await pool.query('SELECT * FROM test_postings WHERE tenant_id=$1',[a.tenant])).rows).toHaveLength(1);
+      expect(recorded).toContain('bank_connection.credentials_accessed');
+      expect(recorded).toContain('bank_connection.retrieval_completed');
+      await expect(as(()=>banks.requestSync(a.id,'Wrong school request'),b.tenant)).rejects.toThrow();
+      expect((await as(()=>db.query('SELECT * FROM bank_connection_sync'),b.tenant)).rows.every((r:any)=>r.tenant_id===b.tenant)).toBe(true);
+    });
+    it('keeps incomplete days pending, retries outages, and never posts sandbox evidence to live balances',async()=>{
+      const a=await setup('sandbox');responses.set(a.account,{entries:[a.entry],complete:false});
+      await as(()=>banks.recoverSchool(a.tenant),a.tenant);
+      expect((await syncRow(a.tenant)).scan_date).toBe(day);
+      expect((await syncRow(a.tenant)).last_error).toMatch(/incomplete/);
+      expect((await pool.query('SELECT * FROM payment_ingress WHERE tenant_id=$1',[a.tenant])).rows).toHaveLength(0);
+      responses.set(a.account,new BankProviderError('unavailable','Bank service is temporarily unavailable'));
+      await as(()=>banks.requestSync(a.id,'Retry bank availability'),a.tenant);await as(()=>banks.recoverSchool(a.tenant),a.tenant);
+      expect((await syncRow(a.tenant)).last_error).toMatch(/temporarily unavailable/);
+      responses.set(a.account,{entries:[a.entry],complete:true});
+      await as(()=>banks.requestSync(a.id,'Bank service has recovered'),a.tenant);await as(()=>banks.recoverSchool(a.tenant),a.tenant);
+      await as(()=>ingress.recoverSchool(a.tenant),a.tenant);
+      expect((await syncRow(a.tenant)).last_error).toBeNull();
+      expect((await pool.query('SELECT state FROM payment_ingress WHERE tenant_id=$1',[a.tenant])).rows[0].state).toBe('sandbox_verified');
+      expect((await pool.query('SELECT * FROM test_postings WHERE tenant_id=$1',[a.tenant])).rows).toHaveLength(0);
+    });
+    it('resumes an expired lease and refuses conflicting staff changes or unauthorized requests',async()=>{
+      const a=await setup();
+      await pool.query(`UPDATE bank_connection_sync SET lease_token=$2,next_attempt_at=now()+interval '2 minutes' WHERE tenant_id=$1`,[a.tenant,randomUUID()]);
+      await expect(as(()=>banks.requestSync(a.id,'Concurrent manual retrieval'),a.tenant)).rejects.toThrow(/being retrieved/);
+      const before=calls.length;await as(()=>banks.recoverSchool(a.tenant),a.tenant);expect(calls.length).toBe(before);
+      await pool.query(`UPDATE bank_connection_sync SET next_attempt_at=now()-interval '1 second' WHERE tenant_id=$1`,[a.tenant]);
+      await as(()=>banks.recoverSchool(a.tenant),a.tenant);expect(calls.length).toBe(before+1);
+      await expect(context.run({tenant_id:a.tenant,role:'teacher',is_authenticated:true,permissions:['*:*']} as never,()=>banks.requestSync(a.id,'Not authorized'))).rejects.toThrow();
+      await expect(as(()=>banks.requestSync(a.id,'Invalid start date','2026-02-30'),a.tenant)).rejects.toThrow(/valid start date/);
+      await expect(as(()=>banks.recoverSchool(other),a.tenant)).rejects.toThrow(/context mismatch/);
+    });
+    it('resumes the previous account cursor after credential replacement without losing older approved receipts',async()=>{
+      const a=await setup(),id=randomUUID(),channel=randomUUID();
+      await pool.query(`UPDATE tenant_payment_channel_revisions SET status='superseded' WHERE id=$1`,[a.id]);
+      await pool.query(`INSERT INTO tenant_payment_channels VALUES($1,$2)`,[channel,a.tenant]);
+      await pool.query(`INSERT INTO tenant_payment_channel_revisions(id,tenant_id,channel_id,replaces_revision_id,provider_code,channel_kind,
+        display_name,account_name,account_number,status,connection_mode,environment,credentials_ciphertext,requested_by,reviewed_by,reviewed_at,reason,activated_at)
+        SELECT $2,tenant_id,$3,id,provider_code,channel_kind,display_name,account_name,account_number,'active',connection_mode,environment,
+          credentials_ciphertext,requested_by,reviewed_by,reviewed_at,'Credential rotation',now()
+        FROM tenant_payment_channel_revisions WHERE id=$1`,[a.id,id,channel]);
+      await as(()=>banks.recoverSchool(a.tenant),a.tenant);await as(()=>ingress.recoverSchool(a.tenant),a.tenant);
+      const checkpoint=(await pool.query('SELECT scan_date::text FROM bank_connection_sync WHERE revision_id=$1',[id])).rows[0];
+      expect(checkpoint.scan_date).toBe('2026-09-16');
+      const receipt=(await pool.query('SELECT * FROM collection_payments WHERE tenant_id=$1',[a.tenant])).rows[0];
+      expect(receipt.status).toBe('posted');expect(receipt.revision_id).toBe(a.id);
+      await as(()=>banks.requestSync(id,'Recheck the pending account history',day),a.tenant);
+      await expect(as(()=>banks.requestSync(id,'Date before the approved window','2026-09-14'),a.tenant)).rejects.toThrow(/activation/);
+    });
+    it('isolates adapter removal without removing account history or breaking another provider',async()=>{
+      const a=await setup();BANK_PROVIDER_REGISTRY.remove(provider);
+      await as(()=>banks.recoverSchool(a.tenant),a.tenant);
+      expect((await syncRow(a.tenant)).scan_date).toBe(day);
+      expect((await syncRow(a.tenant)).last_error).toMatch(/failed/);
+      expect(BANK_PROVIDER_REGISTRY.adapter('equity').provider).toBe('equity');
+      expect((await pool.query('SELECT id FROM tenant_payment_channel_revisions WHERE id=$1',[a.id])).rows).toHaveLength(1);
+    });
   });
 });

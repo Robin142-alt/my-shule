@@ -4,7 +4,7 @@ Preserve the existing PostgreSQL/RLS, encrypted tenant finance configuration, Bu
 
 ## Decisions
 
-- Add immutable school payment channel revisions with mandatory separate Principal approval; technical connection and activation are Super Admin operations. Existing active channels keep working while replacements are reviewed.
+- Add immutable school payment channel revisions with mandatory separate Principal approval. Accountants can configure and test supported native banks after approval; Super Admin retains technical oversight, activation and suspension. Existing active channels keep working while replacements are reviewed.
 - Reuse tenant_payment_channels and tenant_mpesa_configs rather than create a second channel registry. Bank collection configurations carry explicit capability/connection states; never claim an unsupported provider contract has been tested.
 - Normalize verified provider receipts into a durable tenant-scoped inbox; unique provider transaction identity, atomic ledger/allocation, recovery and immutable history protect against retries and bursts.
 - Reuse actual provider adapters and require authenticated server-side evidence. Frontend input cannot mark automated payments successful. Provider onboarding/production credentials remain external prerequisites.

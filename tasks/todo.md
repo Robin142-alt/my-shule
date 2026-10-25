@@ -17,7 +17,7 @@
 ## Universal banking implementation slices
 
 - [ ] Assess all eleven banks against official sources; record method, credentials, access gaps and certification status independently.
-- [ ] Extend catalog and capability contracts; prove registration of a test-only additional provider without financial engine/schema changes.
+- [x] Extend catalog and capability contracts; prove registration of a test-only additional provider without financial engine/schema changes.
 - [ ] Implement each accessible official native protocol and hostile-input/authentication contract tests; never register unimplemented capabilities.
 - [ ] Connect native verified evidence to existing durable inbox, worker recovery and shared ledger/allocation path.
 - [ ] Extend approved connection configuration, diagnostics and lifecycle with provider-specific dynamic inputs and genuine activation gates.
@@ -36,3 +36,7 @@ Each slice requires focused tests and build/type checks before committing. Exist
 - Credit application covers automatic new-invoice application, an audited Accountant action, immutable application/reversal history, manual/online credits and remaining-credit reads. Forty PostgreSQL regression tests pass across credit application, portal balances, Accountant approvals/reversals and UUID/text/legacy invoice schemas. Six UI tests pass; web typecheck and API build pass. Cash and STK statements preserve one receipt after credit application.
 - Inspect the legacy M-Pesa finance-approval resolver: it currently marks a reconciliation discrepancy resolved without executing a reversal. Complete actual approved financial corrections before claiming the reversal requirement complete.
 - Legacy `student_invoices` adoption and the old `/finance/invoices/generate` writer remain to be replaced through canonical billing with audited lineage.
+- Equity Jenga authenticated, RSA-signed account statements and diagnostic transaction query are implemented against official specifications. Native retrieval is wired through the existing BullMQ worker, tenant-scoped durable cursors, verified inbox and shared posting; no bank sandbox/live certification is claimed.
+- Accountant bank credential configuration and connection testing follow Principal approval; Super Admin retains activation. Dynamic inputs and retrieval/retry controls pass 17 UI tests; web typecheck passes. Provider/inbox/worker focused tests pass (21 tests); 42 PostgreSQL ingress, workflow and Accountant regressions pass, including same-account credential rotation and historical manual bank receipt protection.
+- Additional official public specifications discovered on 26 October: KCB account IPN (RSA-SHA256 signature, receiving account) and Co-op full statement/account validation. Implement these next; do not classify them as private-documentation blocked. Official schema snapshots are in ignored `output/bank-research/` for development, and source URLs are recorded in `docs/universal-banking.md`.
+- Final native retrieval slice checks: API build passed; 63 focused billing/provider/recovery/worker tests passed; 42 PostgreSQL regressions and 17 UI tests passed; web typecheck passed. No live bank account or production financial record was modified.

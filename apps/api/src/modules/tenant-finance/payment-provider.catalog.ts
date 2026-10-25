@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
-import { BANK_PROVIDERS, type ProviderAssessment } from './bank-provider.catalog';
+import { type ProviderAssessment } from './bank-provider.catalog';
+import { BANK_PROVIDER_REGISTRY } from './providers/registered-bank-providers';
 
 // Registration validates codes; the financial engine has no fixed bank-name union.
 export type CollectionProviderCode = string;
@@ -7,16 +8,16 @@ export type CollectionChannelKind =
   | "mpesa_paybill"
   | "bank_paybill"
   | "bank_account";
-export type CollectionConnectionMode = "daraja" | "statement";
+export type CollectionConnectionMode = "daraja" | "statement" | "bank_api";
 export interface CollectionProviderDefinition {
   code:string;name:string;description:string;channel_kinds:readonly string[];connection_modes:readonly string[];
-  credential_fields:readonly {key:string;label:string;required:boolean;secret:boolean;description?:string}[];
+  credential_fields:readonly {key:string;label:string;required:boolean;secret:boolean;description?:string;multiline?:boolean}[];
   assessment?:ProviderAssessment;
 }
 
 // Capabilities describe implemented, verifiable collection contracts. Bank APIs
 // require bank-specific merchant onboarding; a filled-in form is not a connection.
-export const COLLECTION_PROVIDERS: readonly CollectionProviderDefinition[] = [
+const NON_BANK_PROVIDERS: readonly CollectionProviderDefinition[] = [
   {
     code: "safaricom",
     name: "Safaricom M-PESA",
@@ -58,7 +59,6 @@ export const COLLECTION_PROVIDERS: readonly CollectionProviderDefinition[] = [
       },
     ],
   },
-  ...BANK_PROVIDERS,
   ...[
     ["other_bank", "Other bank"],
   ].map(([code, name]) => ({
@@ -72,8 +72,13 @@ export const COLLECTION_PROVIDERS: readonly CollectionProviderDefinition[] = [
   })),
 ];
 
+export function listCollectionProviders(): readonly CollectionProviderDefinition[] {
+  return [NON_BANK_PROVIDERS[0],...BANK_PROVIDER_REGISTRY.definitions(),...NON_BANK_PROVIDERS.slice(1)];
+}
+export const COLLECTION_PROVIDERS = listCollectionProviders();
+
 export function collectionProvider(code: string) {
-  const provider = COLLECTION_PROVIDERS.find((item) => item.code === code);
+  const provider = listCollectionProviders().find((item) => item.code === code);
   if (!provider)
     throw new BadRequestException("Choose a supported payment provider");
   return provider;

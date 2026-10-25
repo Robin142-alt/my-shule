@@ -3,6 +3,7 @@ import { PrismaService } from "../../database/prisma.service";
 import { PaymentChannelWorkflowSchemaService } from "../tenant-finance/payment-channel-workflow-schema.service";
 import { MPESA_ASYNC_STATUS_SCHEMA } from "./mpesa-async-status.service";
 import { PAYMENT_INGRESS_SCHEMA } from './ingress/payment-ingress.schema';
+import { BANK_SYNCHRONIZATION_SCHEMA } from './ingress/bank-synchronization.schema';
 
 export const COLLECTION_PAYMENTS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS collection_payments (
@@ -29,6 +30,9 @@ ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS suspense_transaction_id
 ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS suspense_release_transaction_id uuid;
 ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS asset_account_code text;
 ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS fee_control_account_code text;
+ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS bank_reference text;
+CREATE INDEX IF NOT EXISTS ix_collection_bank_reference ON collection_payments(tenant_id,provider_code,destination_account,bank_reference)
+  WHERE bank_reference IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_mpesa_receipt ON collection_payments(provider_transaction_id) WHERE provider_code='safaricom';
 CREATE INDEX IF NOT EXISTS ix_collections_student ON collection_payments(tenant_id,student_id,occurred_at DESC);
 CREATE TABLE IF NOT EXISTS collection_reversal_requests (
@@ -52,9 +56,9 @@ CREATE OR REPLACE FUNCTION app.guard_collection_payment_history() RETURNS trigge
 BEGIN
  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Payment history cannot be deleted'; END IF;
  IF ROW(NEW.tenant_id,NEW.revision_id,NEW.channel_id,NEW.provider_code,NEW.provider_transaction_id,
-   NEW.destination_account,NEW.amount_minor,NEW.currency_code,NEW.account_reference,NEW.occurred_at,NEW.source,NEW.created_at,NEW.requested_by,NEW.evidence_reference,NEW.asset_account_code,NEW.fee_control_account_code)
+   NEW.destination_account,NEW.amount_minor,NEW.currency_code,NEW.account_reference,NEW.occurred_at,NEW.source,NEW.created_at,NEW.requested_by,NEW.evidence_reference,NEW.asset_account_code,NEW.fee_control_account_code,NEW.bank_reference)
  IS DISTINCT FROM ROW(OLD.tenant_id,OLD.revision_id,OLD.channel_id,OLD.provider_code,OLD.provider_transaction_id,
-   OLD.destination_account,OLD.amount_minor,OLD.currency_code,OLD.account_reference,OLD.occurred_at,OLD.source,OLD.created_at,OLD.requested_by,OLD.evidence_reference,OLD.asset_account_code,OLD.fee_control_account_code)
+   OLD.destination_account,OLD.amount_minor,OLD.currency_code,OLD.account_reference,OLD.occurred_at,OLD.source,OLD.created_at,OLD.requested_by,OLD.evidence_reference,OLD.asset_account_code,OLD.fee_control_account_code,OLD.bank_reference)
  THEN RAISE EXCEPTION 'Financial history is immutable'; END IF;
  IF OLD.status IN ('posted','reversed') AND ROW(NEW.student_id,NEW.invoice_id,NEW.manual_fee_payment_id,NEW.payment_intent_id,NEW.ledger_transaction_id,NEW.receipt_number)
  IS DISTINCT FROM ROW(OLD.student_id,OLD.invoice_id,OLD.manual_fee_payment_id,OLD.payment_intent_id,OLD.ledger_transaction_id,OLD.receipt_number)
@@ -95,7 +99,7 @@ export class CollectionPaymentsSchemaService implements OnModuleInit {
   async onModuleInit() {
     await this.channels.onModuleInit();
     await this.db.runSchemaBootstrap(
-      COLLECTION_PAYMENTS_SCHEMA + MPESA_ASYNC_STATUS_SCHEMA + PAYMENT_INGRESS_SCHEMA,
+      COLLECTION_PAYMENTS_SCHEMA + MPESA_ASYNC_STATUS_SCHEMA + PAYMENT_INGRESS_SCHEMA + BANK_SYNCHRONIZATION_SCHEMA,
     );
   }
 }

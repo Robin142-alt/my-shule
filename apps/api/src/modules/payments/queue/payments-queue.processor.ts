@@ -6,6 +6,7 @@ import {
   PAYMENTS_PROCESS_JOB,
   PAYMENTS_VERIFY_MPESA_JOB,
   PAYMENTS_QUEUE_NAME,
+  PAYMENTS_RETRIEVE_BANK_JOB,
 } from '../payments.constants';
 import { PaymentsJobExecutionService } from '../services/payments-job-execution.service';
 import {
@@ -13,6 +14,7 @@ import {
   PaymentsQueueJobResult,
   ProcessMpesaVerificationJobData,
   ProcessPaymentJobData,
+  ProcessBankRetrievalJobData,
 } from './payments-queue.types';
 
 @Processor(PAYMENTS_QUEUE_NAME, { concurrency: 5 })
@@ -26,7 +28,7 @@ export class PaymentsQueueProcessor extends WorkerHost {
   }
 
   async process(
-    job: Job<PaymentsQueueJobData, PaymentsQueueJobResult, typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB>,
+    job: Job<PaymentsQueueJobData, PaymentsQueueJobResult, typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB | typeof PAYMENTS_RETRIEVE_BANK_JOB>,
   ): Promise<PaymentsQueueJobResult> {
     if (job.name === PAYMENTS_PROCESS_JOB) {
       return this.paymentsJobExecutionService.processPayment(
@@ -42,6 +44,9 @@ export class PaymentsQueueProcessor extends WorkerHost {
       );
     }
 
+    if(job.name===PAYMENTS_RETRIEVE_BANK_JOB) {
+      return this.paymentsJobExecutionService.processBankRetrieval(job.data as ProcessBankRetrievalJobData,String(job.id));
+    }
     throw new Error(`Unsupported payment job "${job.name}"`);
   }
 

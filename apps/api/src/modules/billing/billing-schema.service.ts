@@ -1081,6 +1081,10 @@ export class BillingSchemaService implements OnModuleInit {
         ON student_fee_credits (tenant_id, student_id, remaining_amount_minor DESC);
       CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_status_received
         ON manual_fee_payments (tenant_id, status, received_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_manual_bank_external_reference
+        ON manual_fee_payments(tenant_id,upper(external_reference)) WHERE payment_method IN ('bank_deposit','eft');
+      CREATE INDEX IF NOT EXISTS ix_manual_bank_deposit_reference
+        ON manual_fee_payments(tenant_id,upper(deposit_reference)) WHERE payment_method IN ('bank_deposit','eft');
       CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_student
         ON manual_fee_payments (tenant_id, student_id, received_at DESC)
         WHERE student_id IS NOT NULL;

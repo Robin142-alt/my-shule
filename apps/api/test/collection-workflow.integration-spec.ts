@@ -121,6 +121,7 @@ describe("Collection approval, persistence and school boundaries", () => {
       CREATE TABLE student_guardians(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE student_portal_access(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE test_effects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,kind text);
+      CREATE TABLE manual_fee_payments(tenant_id text,external_reference text,payment_method text,status text,deposit_reference text);
       CREATE TABLE notifications(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,notification_key text,
         recipient_user_id uuid,recipient_guardian_id uuid,type text,title text,body text,status text,priority text,metadata jsonb,
         created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW(),UNIQUE(tenant_id,notification_key));
@@ -160,7 +161,7 @@ describe("Collection approval, persistence and school boundaries", () => {
     workflow = new PaymentChannelWorkflowService(
       context,
       db as never,
-      {} as never,
+      {encrypt:(value:string)=>`enc:v1:${value}`,decrypt:(value:string)=>value.slice(7)} as never,
       {} as never,
       {
         createBankAccount: async () => ({ id: randomUUID() }),
@@ -170,7 +171,7 @@ describe("Collection approval, persistence and school boundaries", () => {
             [input.tenant_id, input.channel_id, input.status],
           ),
       } as never,
-      { test: async () => "statement_review_ready" } as never,
+      { test: async (row:any) => row.connection_mode==='bank_api' ? 'bank_sandbox_account_verified' : "statement_review_ready" } as never,
       audit as never,
       events as never,
       notifications as never,
@@ -238,6 +239,27 @@ describe("Collection approval, persistence and school boundaries", () => {
     }
   });
 
+  it('allows the Accountant to configure only an approved own-school bank and retains platform activation governance',async()=>{
+    const bankSchool='bank-school';await pool.query('INSERT INTO tenants VALUES($1,$2)',[bankSchool,'Bank connection school']);
+    const bankAs=<T>(role:string,fn:()=>Promise<T>)=>as(role,fn,bankSchool);
+    const own=await bankAs('accountant',()=>workflow.request({...request,account_number:'00111222333'}));
+    const config={connection_mode:'bank_api' as const,environment:'sandbox' as const,
+      credentials:{merchant_code:'test-merchant',consumer_secret:'test-secret',api_key:'test-key',private_key:'test-key-material'}};
+    await expect(bankAs('accountant',()=>workflow.connectSchool(own.id,config))).rejects.toThrow(/approved/);
+    await bankAs('principal',()=>workflow.decide(own.id,{decision:'approve',reason:'Verified the school bank mandate'}));
+    await expect(as('accountant',()=>workflow.connectSchool(own.id,config),otherSchool)).rejects.toThrow();
+    await expect(bankAs('teacher',()=>workflow.connectSchool(own.id,config))).rejects.toThrow();
+    const connected=await bankAs('accountant',()=>workflow.connectSchool(own.id,config));
+    expect(connected).toMatchObject({status:'connecting',credentials_configured:true,connection_mode:'bank_api'});
+    expect(JSON.stringify(connected)).not.toContain('test-secret');
+    expect(connected).not.toHaveProperty('credentials_ciphertext');
+    const checked=await bankAs('accountant',()=>workflow.testSchool(own.id));
+    expect(checked.status).toBe('ready');
+    await expect(bankAs('accountant',()=>workflow.activate(bankSchool,own.id))).rejects.toThrow(/Super Admin/);
+    await bankAs('platform_owner',()=>workflow.activate(bankSchool,own.id));
+    await expect(bankAs('accountant',()=>workflow.connectSchool(own.id,config))).rejects.toThrow(/inactive/);
+  });
+
   it("persists a request, separates approval from activation, and hides secrets", async () => {
     revision = await as("accountant", () => workflow.request(request));
     expect(revision.status).toBe("pending_approval");
@@ -284,7 +306,7 @@ describe("Collection approval, persistence and school boundaries", () => {
     );
     expect(revision.status).toBe("active");
     const effectRows = await pool.query(
-      "SELECT count(*)::int AS count FROM test_effects",
+      "SELECT count(*)::int AS count FROM test_effects WHERE tenant_id=$1", [school],
     );
     expect(effectRows.rows[0].count).toBe(15);
   });
@@ -588,7 +610,7 @@ describe("Collection approval, persistence and school boundaries", () => {
     expect(platform[0]).not.toHaveProperty("credentials_ciphertext");
     const lastNotice = notices.filter(item => item.notification.relatedRecordId === corrected.id).at(-1)!;
     expect(lastNotice.notification.audienceRoles).toEqual(["accountant", "bursar"]);
-    expect(lastNotice.notification.body).toContain("Awaiting Super Admin connection");
+    expect(lastNotice.notification.body).toContain("Configure the supported connection");
   });
 
   it("honours the selected invoice and rejects a reference owned by another student", async () => {

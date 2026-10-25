@@ -4,6 +4,7 @@ import { sanitizeRequestPath } from "../../common/request-path.util";
 import { PaymentsJobProducerService } from "./services/payments-job-producer.service";
 import { PaymentInboxRecoveryService } from "./services/payment-inbox-recovery.service";
 import { RequestContextService } from "../../common/request-context/request-context.service";
+import { PaymentsJobExecutionService } from './services/payments-job-execution.service';
 
 test("callback bearer tokens are redacted in application logs with and without queries", () => {
   for (const suffix of ["result", "timeout"]) {
@@ -37,6 +38,29 @@ test("queue IDs separate tenants and late deliveries while replaying a delivery 
     producer.buildJobId({ ...payment, callback_log_id: "late-success" }),
     id,
   );
+});
+
+test('bank jobs share the existing queue, yield priority to callbacks, and retry a failed dispatch without changing school identity',async()=>{
+  const added:any[]=[],retried:string[]=[];
+  let existing:any=null;
+  const producer=new PaymentsJobProducerService({getQueue:()=>({getJob:async()=>existing,
+    add:async(...args:any[])=>{added.push(args);}})} as never);
+  await producer.enqueueBankRetrieval('school-a','request-a');await producer.enqueueBankRetrieval('school-b','request-b');
+  assert.equal(added[0][0],'retrieve-bank-transactions');assert.equal(added[0][2].priority,10);
+  assert.notEqual(added[0][2].jobId,added[1][2].jobId);assert.equal(added[0][1].tenant_id,'school-a');
+  existing={getState:async()=> 'failed',retry:async()=>{retried.push('retry');}};
+  await producer.enqueueBankRetrieval('school-a','request-again');assert.deepEqual(retried,['retry']);assert.equal(added.length,2);
+});
+
+test('bank queue execution establishes and restores one school context',async()=>{
+  const context=new RequestContextService(),seen:string[]=[];
+  const service=new PaymentsJobExecutionService({} as never,{} as never,{recoverSchool:async(tenant:string)=>{
+    assert.equal(context.requireStore().tenant_id,tenant);seen.push(tenant);
+  }} as never,context);
+  await service.processBankRetrieval({tenant_id:'school-a',request_id:'a',enqueued_at:new Date().toISOString()},'job-a');
+  await service.processBankRetrieval({tenant_id:'school-b',request_id:'b',enqueued_at:new Date().toISOString()},'job-b');
+  assert.deepEqual(seen,['school-a','school-b']);
+  await assert.rejects(()=>service.processBankRetrieval({tenant_id:'../../other',request_id:'x',enqueued_at:''},'job-x'),/not configured/);
 });
 
 test("a failed dispatch preserves recovery of other schools and uses individual tenant context", async () => {

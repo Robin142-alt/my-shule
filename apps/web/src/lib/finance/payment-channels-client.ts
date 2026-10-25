@@ -12,8 +12,29 @@ export interface CollectionProvider {
     required: boolean;
     secret: boolean;
     description?: string;
+    multiline?: boolean;
   }>;
+  assessment?: {
+    implementation: 'not_implemented' | 'contract_tested';
+    sandbox_verification: 'unavailable' | 'passed';
+    live_verification: 'pending' | 'passed';
+    onboarding: string;
+    restriction: string;
+    sources: string[];
+  };
 }
+export interface BankConnectionHealth {
+  revision_id:string; display_name:string; provider_code:string; environment:string; status:string;
+  scan_date:string|null; next_attempt_at:string|null; last_success_at:string|null; last_error:string|null;
+  last_entry_count:number|null; health:string;
+}
+export const retrieveBankTransactions = (tenantId:string,id:string,reason:string,fromDate?:string) =>
+  requestDashboardApi<{accepted:boolean;message:string}>(`/payments/bank-connections/${id}/retrieve`,
+    {tenantId,method:'POST',body:{reason,...(fromDate?{from_date:fromDate}:{})}});
+export const configureSchoolBank = (tenantId:string,id:string,body:Record<string,unknown>) =>
+  requestDashboardApi<CollectionChannelRevision>(`/tenant-finance/collection-channels/${id}/connect`,{tenantId,method:'POST',body});
+export const testSchoolBank = (tenantId:string,id:string) =>
+  requestDashboardApi<CollectionChannelRevision>(`/tenant-finance/collection-channels/${id}/test`,{tenantId,method:'POST',timeoutMs:45000});
 export interface CollectionChannelRevision {
   id: string;
   tenant_id: string;

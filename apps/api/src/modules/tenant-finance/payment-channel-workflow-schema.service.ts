@@ -11,7 +11,7 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
     display_name text NOT NULL, account_name text NOT NULL, account_number text NOT NULL, bank_name text, paybill_number text,
     status text NOT NULL DEFAULT 'pending_approval' CHECK (status IN
       ('pending_approval','approved','rejected','connecting','ready','active','superseded','suspended')),
-    connection_mode text CHECK (connection_mode IN ('daraja','statement')),
+    connection_mode text CHECK (connection_mode IN ('daraja','statement','bank_api')),
     environment text CHECK (environment IN ('sandbox','production')),
     credentials_ciphertext text, credential_version integer NOT NULL DEFAULT 0,
     requested_by uuid NOT NULL, reviewed_by uuid, reason text NOT NULL, decision_reason text,
@@ -28,6 +28,9 @@ export const PAYMENT_CHANNEL_WORKFLOW_SCHEMA = `
   ALTER TABLE tenant_payment_channel_revisions DROP CONSTRAINT IF EXISTS tenant_payment_channel_revisions_provider_code_check;
   ALTER TABLE tenant_payment_channel_revisions ADD CONSTRAINT tenant_payment_channel_revisions_provider_code_check
     CHECK (provider_code ~ '^[a-z][a-z0-9_]{1,63}$');
+  ALTER TABLE tenant_payment_channel_revisions DROP CONSTRAINT IF EXISTS tenant_payment_channel_revisions_connection_mode_check;
+  ALTER TABLE tenant_payment_channel_revisions ADD CONSTRAINT tenant_payment_channel_revisions_connection_mode_check
+    CHECK(connection_mode IN ('daraja','statement','bank_api'));
   CREATE INDEX IF NOT EXISTS ix_collection_revision_school_state
     ON tenant_payment_channel_revisions(tenant_id,status,created_at DESC);
   CREATE INDEX IF NOT EXISTS ix_collection_revision_connection_queue

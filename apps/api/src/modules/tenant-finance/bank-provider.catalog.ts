@@ -9,26 +9,34 @@ export interface ProviderAssessment {
   restriction: string;
   sources: string[];
 }
-const bank = (code:string,name:string,method:string,sources:string[],onboarding:string,restriction:string,specification:ProviderAssessment['specification']='onboarding_required') => ({
+const bank = (code:string,name:string,method:string,sources:string[],onboarding:string,restriction:string,specification:ProviderAssessment['specification']='onboarding_required',implementation:ProviderAssessment['implementation']='not_implemented') => ({
   code,name,channel_kinds:['bank_paybill','bank_account'],connection_modes:['statement'],credential_fields:[],
   description:'Reviewed statement reconciliation is available. Direct activation requires an implemented adapter and verified bank entitlement.',
-  assessment:{checked_on:'2026-10-25',method,specification,implementation:'not_implemented',sandbox_verification:'unavailable',live_verification:'pending',onboarding,restriction,sources} as ProviderAssessment,
+  assessment:{checked_on:'2026-10-26',method,specification,implementation,sandbox_verification:'unavailable',live_verification:'pending',onboarding,restriction,sources} as ProviderAssessment,
 });
 
 /** Product evidence is distinct from implemented or certified MyShule capability. */
 export const BANK_PROVIDERS = [
-  bank('equity','Equity Bank','Jenga REST account services and transaction queries',
+  {...bank('equity','Equity Bank','Jenga REST account services and transaction queries',
     ['https://developer.jengahq.io/guides/get-started/developer-quickstart','https://developer.jengahq.io/guides/jenga-api/account-services/account-fullstatement'],
     'Authorized Jenga merchant, Equity account entitlement, API key, merchant code, consumer secret and registered RSA public key.',
-    'Public contracts require merchant credentials. Account inquiry documentation repeats the UAT host for live; production endpoint and statement continuation semantics need confirmation.','public'),
+    'Account-bound statements and diagnostic transaction queries are implemented against public specifications. Bank credentials, onboarding and authorized sandbox/live tests remain required. Saturated statement dates require bank continuation confirmation.','public','contract_tested'),
+    description:'Jenga account statements and transaction queries. Activation requires authorized credentials, Principal approval and an account connection check. Provider sandbox/live certification is pending.',
+    credential_fields:[
+      {key:'merchant_code',label:'Jenga merchant code',required:true,secret:false},
+      {key:'consumer_secret',label:'Jenga consumer secret',required:true,secret:true},
+      {key:'api_key',label:'Jenga API key',required:true,secret:true},
+      {key:'private_key',label:'Registered RSA private key',required:true,secret:true,multiline:true,
+        description:'PEM key of at least 2048 bits. Register its matching public key in the authorized Jenga merchant account.'},
+    ]},
   bank('kcb','Kenya Commercial Bank (KCB)','Buni APIs including instant payment notifications and account services',
-    ['https://buni.kcbgroup.com/getting-started','https://buni.kcbgroup.com/faqs/'],
+    ['https://buni.kcbgroup.com/getting-started','https://sandbox.buni.kcbgroup.com/api/am/devportal/v3/apis/01b3ebbd-1452-4baf-a068-2913ecd3af73/swagger','https://buni.kcbgroup.com/faqs/'],
     'Buni application/API subscription and sandbox keys; KCB or VOOMA account and bank-approved production access.',
-    'Obtain the subscribed account/IPN verification and authentication contract. Sandbox use is free; production transaction tariffs apply.'),
+    'Public IPN OpenAPI specifies account identifiers and RSA-SHA256 body signatures. Implementation and bank-issued verification keys/onboarding are still required. Sandbox use is free; production transaction tariffs apply.','public'),
   bank('coop','Co-operative Bank of Kenya','Co-op Connect account APIs and B2B validation/notifications',
-    ['https://developer.co-opbank.co.ke/','https://www.co-opbank.co.ke/corporate/corporates/'],
+    ['https://developer.co-opbank.co.ke/','https://developer.co-opbank.co.ke/api/am/store/v1/apis/876fccc8-e189-47d6-b923-0174ee4c0f5a/swagger','https://www.co-opbank.co.ke/corporate/corporates/'],
     'School account, Co-op Connect application/subscriptions and approved B2B integration mandate.',
-    'Public catalog advertises statement, transaction and notification products; obtain exact subscribed protocol and callback trust requirements.'),
+    'Public OpenAPI for account statements and validation is accessible. Adapter implementation, authorized sandbox credentials and verified production endpoint/entitlement remain required.','public'),
   bank('nbk','National Bank of Kenya (NBK)','Existing NBK channels; Access integration is phased',
     ['https://nationalbank.co.ke/about-us/newsroom/national-bank-and-access-bank-kenya-integration-update'],
     'NBK relationship manager must confirm the school account collection interface, mandate, credentials and technical specification.',
@@ -50,9 +58,9 @@ export const BANK_PROVIDERS = [
     'Relationship-manager onboarding, authorized account, bank security tokens and agreed VPN or point-to-point connectivity.',
     'Public H2H details emphasize outbound payments and return-file reconciliation; inbound collection evidence and file formats need bank confirmation.'),
   bank('dtb','Diamond Trust Bank (DTB)','Astra account statements/notifications and Till Moja collections',
-    ['https://partners.astraafrica.co.ke/','https://dtbk.dtbafrica.com/account/till-moja-collection-service'],
+    ['https://partners.astraafrica.co.ke/docs/','https://dtbk.dtbafrica.com/account/till-moja-collection-service'],
     'DTB account, approved Astra partner access or signed Till Moja forms and technical onboarding.',
-    'Astra advertises account/query APIs; protocol documentation needs partner access. Till Moja advertises no signup charge; confirm ongoing tariffs.'),
+    'The official Astra portal embeds an IP-restricted technical guide (HTTP 403 Ip Forbidden). Obtain approved guide access and account entitlement. Till Moja advertises no signup charge; confirm ongoing tariffs.'),
   bank('stanbic','Stanbic Bank Kenya','Kenya API Connect IPN, mini-statements and transaction status',
     ['https://sandbox.stanbicbank.co.ke/product','https://sandbox.stanbicbank.co.ke/support'],
     'Developer application, subscribed IPN product, client credentials and bank-approved account mandate/production access.',

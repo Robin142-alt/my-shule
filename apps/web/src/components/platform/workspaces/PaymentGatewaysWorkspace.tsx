@@ -195,6 +195,8 @@ export function PaymentGatewaysWorkspace() {
                     ? "Statement reconciliation — Principal confirms each entry"
                     : row.connection_mode === "daraja"
                       ? "Daraja automatic collections"
+                      : row.connection_mode === "bank_api"
+                        ? "Automatic bank statement retrieval"
                       : "Connection method not selected"}
                 </p>
                 <p className="text-sm">{row.environment === 'sandbox' ? 'Sandbox — verifies matching only; no live fee credit' : row.environment === 'production' ? 'Production' : 'Environment not selected'}</p>
@@ -391,7 +393,7 @@ export function PaymentGatewaysWorkspace() {
                       <option key={value} value={value}>
                         {value === "statement"
                           ? "Statement reconciliation"
-                          : "Daraja automatic collections"}
+                          : value === "bank_api" ? "Direct bank API" : "Daraja automatic collections"}
                       </option>
                     ))}
                   </select>
@@ -415,12 +417,17 @@ export function PaymentGatewaysWorkspace() {
                       <option value="edge_signed">Gateway-signed callbacks + transaction verification</option>
                     </select>
                   </label>}
-                {environment === 'sandbox' && <p className="text-sm">No live balance is changed. Use the built-in simulator to isolate schools sharing a sandbox shortcode. Only one school may test a shared shortcode per 15-minute window.</p>}
-                {mode === "daraja" &&
+                {environment === 'sandbox' && <p className="text-sm">No live balance is changed. {mode === 'daraja' ? 'Use the built-in simulator to isolate schools sharing a sandbox shortcode. Only one school may test a shared shortcode per 15-minute window.' : 'The bank’s authorized sandbox account is used for connection and retrieval tests.'}</p>}
+                {mode !== "statement" &&
                   provider?.credential_fields.map((field) => (
                     <label key={field.key} className="block space-y-1">
                       <span>{field.label}{!field.required && " (optional)"}</span>
-                      <input
+                      {field.multiline ? <textarea
+                        className="input-base w-full font-mono text-sm" rows={5} autoComplete="off" spellCheck={false}
+                        required={field.required} maxLength={8192} value={credentials[field.key] || ""}
+                        aria-describedby={field.description ? `credential-${field.key}-help` : undefined}
+                        onChange={event=>setCredentials({...credentials,[field.key]:event.target.value})}
+                      /> : <input
                         className="input-base w-full"
                         type={field.secret ? "password" : "text"}
                         autoComplete="off"
@@ -434,7 +441,7 @@ export function PaymentGatewaysWorkspace() {
                             [field.key]: event.target.value,
                           })
                         }
-                      />
+                      />}
                       {field.description && <p id={`credential-${field.key}-help`} className="text-sm text-muted">{field.description}</p>}
                     </label>
                   ))}
