@@ -71,6 +71,7 @@ import { PrincipalSettingsWorkspace } from "./principal-dashboard/settings-works
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
 import { PrincipalStaffRolesWorkspace } from "./principal-dashboard/staff-roles-workspace";
 import { PrincipalStudentsWorkspace } from "./principal-dashboard/students-workspace";
+import { StudentProgressionWorkspace } from "./student-progression/workspace";
 import { StudentAdmissionWizard } from "./admissions-dashboard/student-admission-wizard";
 import { PrincipalSubjectsDepartmentsWorkspace } from "./principal-dashboard/subjects-departments-workspace";
 import { buildSchoolSectionHref } from "./school-pages";
@@ -79,6 +80,7 @@ import { OverviewWorkspace as TransportOverviewWorkspace } from "./transport-man
 
 type PrincipalSection =
   | "overview"
+  | "student-progression"
   | "students"
   | "admissions"
   | "setup-checklist"
@@ -153,6 +155,7 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
     id: "students", label: "Students", icon: Users,
     children: [
       { id: "students", label: "Student Directory", icon: Users },
+      { id: "student-progression", label: "Student Progression & Transitions", icon: GraduationCap },
       { id: "admissions", label: "Admit Student", icon: UsersRound },
       { id: "attendance", label: "Attendance", icon: Activity },
       { id: "discipline", label: "Discipline", icon: ShieldAlert },
@@ -460,6 +463,7 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
     if (activeWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
     if (activeWorkspace === "students") return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
+    if (activeWorkspace === "student-progression") return <StudentProgressionWorkspace onOpenCalendar={() => setActiveWorkspace("academic-setup")} />;
     if (activeWorkspace === "fees") return <PrincipalFinanceOverviewWorkspace />;
     if (activeWorkspace === "payment-setup") return <SchoolPaymentChannels mode="review" />;
     if (activeWorkspace === "collections") return <CollectionsWorkspace mode="review" />;

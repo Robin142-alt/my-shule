@@ -315,6 +315,7 @@ test('AcademicsRepository includes subject teachers in stream lifecycle dependen
 
 test('AcademicsRepository types every lifecycle parameter for status-only records', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
+  let locks=0;
   const repository = new AcademicsRepository({
     executeWithTenant: async (
       tenantId: string,
@@ -324,6 +325,7 @@ test('AcademicsRepository types every lifecycle parameter for status-only record
       assert.equal(tenantId, 'tenant-a');
       return callback({
         $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if(sql.includes('pg_advisory_xact_lock')) {assert.deepEqual(params,['cohort-teaching:tenant-a']);locks++;return [];}
           calls.push({ sql, params });
           return [{ id: 'year-1', status: 'inactive', version: 2 }];
         },
@@ -341,6 +343,7 @@ test('AcademicsRepository types every lifecycle parameter for status-only record
   );
 
   assert.equal(result.status, 'inactive');
+  assert.equal(locks,1);
   assert.equal(calls.length, 1);
   const captured = calls[0]!;
   assert.match(captured.sql, /WITH lifecycle_input AS/);
@@ -362,6 +365,7 @@ test('AcademicsRepository types every lifecycle parameter for status-only record
 
 test('AcademicsRepository supplies durable IDs when creating academic years and terms', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
+  let locks=0;
   const repository = new AcademicsRepository({
     executeWithTenant: async (
       tenantId: string,
@@ -371,6 +375,7 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
       assert.equal(tenantId, 'kibabi-high');
       return callback({
         $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+          if(sql.includes('pg_advisory_xact_lock')) {assert.deepEqual(params,['cohort-teaching:kibabi-high']);locks++;return [];}
           calls.push({ sql, params });
           return [{ id: params[1], tenant_id: params[0] }];
         },
@@ -395,6 +400,7 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
     created_by_user_id: actorUserId,
   });
 
+  assert.equal(locks,2);
   assert.equal(calls.length, 2);
   assert.match(calls[0]!.sql, /INSERT INTO academic_years\s*\(\s*tenant_id,\s*id,/);
   assert.match(calls[0]!.sql, /name,\s*start_date,\s*end_date,\s*starts_on,\s*ends_on/);

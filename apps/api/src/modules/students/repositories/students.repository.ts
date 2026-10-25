@@ -26,6 +26,13 @@ type UpdateStudentInput = Partial<Omit<CreateStudentInput, 'tenant_id' | 'create
 
 const toPrismaStudentStatus = (status?: StudentEntity['status']): StudentStatus => {
   switch (status) {
+    case 'applicant': return StudentStatus.APPLICANT;
+    case 'accepted': return StudentStatus.ACCEPTED;
+    case 'enrolled': return StudentStatus.ENROLLED;
+    case 'suspended': return StudentStatus.SUSPENDED;
+    case 'on_leave': return StudentStatus.ON_LEAVE;
+    case 'withdrawn': case 'expelled': return StudentStatus.WITHDRAWN;
+    case 'archived': return StudentStatus.ARCHIVED;
     case 'inactive':
       return StudentStatus.INACTIVE;
     case 'graduated':
@@ -42,6 +49,13 @@ const toPrismaStudentStatus = (status?: StudentEntity['status']): StudentStatus 
 
 const fromPrismaStudentStatus = (status: StudentStatus | string | null | undefined): StudentEntity['status'] => {
   switch (status) {
+    case StudentStatus.APPLICANT: return 'applicant';
+    case StudentStatus.ACCEPTED: return 'accepted';
+    case StudentStatus.ENROLLED: return 'enrolled';
+    case StudentStatus.SUSPENDED: return 'suspended';
+    case StudentStatus.ON_LEAVE: return 'on_leave';
+    case StudentStatus.WITHDRAWN: return 'withdrawn';
+    case StudentStatus.ARCHIVED: return 'archived';
     case StudentStatus.INACTIVE:
       return 'inactive';
     case StudentStatus.GRADUATED:
@@ -242,7 +256,7 @@ export class StudentsRepository {
       first_name: row.firstName,
       last_name: row.lastName,
       middle_name: row.middleName,
-      status: fromPrismaStudentStatus(row.studentStatus),
+      status: row.studentStatus === StudentStatus.WITHDRAWN && row.metadata?.progression_exit_type === 'expelled' ? 'expelled' : fromPrismaStudentStatus(row.studentStatus),
       date_of_birth: row.dateOfBirth ? row.dateOfBirth.toISOString().split('T')[0] : null,
       gender: row.gender,
       primary_guardian_name: this.piiEncryptionService.decryptNullable(

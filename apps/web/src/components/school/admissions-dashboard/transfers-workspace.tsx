@@ -32,7 +32,7 @@ export function TransfersWorkspace() {
     {feedback ? <p role="status" className="my-3 rounded-xl bg-success-soft p-3">{feedback}</p> : null}
     {create.isError ? <p role="alert">{create.error.message}</p> : null}
     {transfers.isError ? <p role="alert">Transfers could not be loaded. <button onClick={() => void transfers.refetch()}>Retry</button></p> : transfers.isLoading ? <p role="status">Loading transfers…</p> : !transfers.data?.length ? <p>No transfer requests yet. Start a request above after adding the learner.</p> : null}
-    <ul className="divide-y divide-border">{transfers.data?.map(row => <li key={row.id} className="py-3"><p className="font-bold">{row.school_name} · {row.transfer_type}</p><p className="text-sm text-muted">{row.reason} · {row.requested_on.slice(0,10)} · {row.status}</p></li>)}</ul>
+    <ul className="divide-y divide-border">{transfers.data?.map(row => <li key={row.id} className="py-3"><p className="font-bold">{row.school_name || "Receiving school not recorded"} · {row.transfer_type}</p><p className="text-sm text-muted">{row.reason} · {row.requested_on.slice(0,10)} · {row.status}</p></li>)}</ul>
     <div className="mt-3 flex gap-2"><button className="min-h-11 rounded-lg border px-3" disabled={!page || transfers.isFetching} onClick={() => setPage(p => p - 1)}>Previous</button><button className="min-h-11 rounded-lg border px-3" disabled={(transfers.data?.length ?? 0) < 50 || transfers.isFetching} onClick={() => setPage(p => p + 1)}>Next</button></div>
   </section>;
 }

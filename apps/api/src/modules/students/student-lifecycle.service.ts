@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { StudentStatus } from '@prisma/client';
 import { CohortPromotionService } from '../admissions/cohort-promotion.service';
+import { lockCohortSchool } from '../academics/cohort-configuration';
 
 @Injectable()
 export class StudentLifecycleService {
@@ -16,6 +17,7 @@ export class StudentLifecycleService {
 
   async enrollStudent(schoolId: string, studentId: string, userId: string) {
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      await lockCohortSchool(tx,schoolId);
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.schoolId !== schoolId) {
         throw new NotFoundException('Student not found');
@@ -57,6 +59,7 @@ export class StudentLifecycleService {
   async placeInClass(schoolId: string, studentId: string, classId: string, academicYearId: string, academicLevelId: string, userId: string, streamId?: string, promotion = false) {
     if (promotion) return this.promoteStudent(schoolId, studentId, classId, academicYearId, academicLevelId, userId, streamId);
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      await lockCohortSchool(tx,schoolId);
       const [student, classSection, academicYear, academicLevel, stream] = await Promise.all([
         tx.student.findFirst({ where: { id: studentId, schoolId } }),
         tx.class.findFirst({ where: { id: classId, schoolId, deletedAt: null } }),
@@ -146,6 +149,7 @@ export class StudentLifecycleService {
 
   async suspendStudent(schoolId: string, studentId: string, userId: string, reason: string) {
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      await lockCohortSchool(tx,schoolId);
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.schoolId !== schoolId) {
         throw new NotFoundException('Student not found');
@@ -211,6 +215,7 @@ export class StudentLifecycleService {
     }
 
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      await lockCohortSchool(tx,schoolId);
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.schoolId !== schoolId) {
         throw new NotFoundException('Student not found');
@@ -266,6 +271,7 @@ export class StudentLifecycleService {
 
   async archiveStudent(schoolId: string, studentId: string, userId: string) {
     return this.prisma.executeWithTenant(schoolId, userId, async (tx: any) => {
+      await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", `cohort-teaching:${schoolId}`);
       const student = await tx.student.findUnique({ where: { id: studentId } });
       if (!student || student.schoolId !== schoolId) {
         throw new NotFoundException('Student not found');

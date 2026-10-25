@@ -430,7 +430,7 @@ describe("principal production readiness", () => {
 
     for (const [label, toggleName, children] of [
       ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
-      ["Students", "Students", ["Student Directory", "Admit Student", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
+      ["Students", "Students", ["Student Directory", "Student Progression & Transitions", "Admit Student", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
       ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
       ["School Setup", "Expand School Setup", ["School Profile"]],
     ] as const) {

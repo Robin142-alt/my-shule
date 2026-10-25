@@ -52,6 +52,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
     { id: "setup-checklist", label: "Setup Checklist", href: toSchoolPath("setup-checklist"), icon: Settings },
     { id: "school-profile", label: "School Profile", href: toSchoolPath("school-profile"), icon: Building2 },
     { id: "academic-setup", label: "Academic Setup", href: toSchoolPath("academic-setup"), icon: GraduationCap },
+    { id: "student-progression", label: "Student Progression & Transitions", href: toSchoolPath("student-progression"), icon: GraduationCap },
     { id: "classes-streams", label: "Classes & Streams", href: toSchoolPath("classes-streams"), icon: Building2 },
     { id: "subjects-departments", label: "Subjects & Departments", href: toSchoolPath("subjects-departments"), icon: BookOpenCheck },
     { id: "staff-roles", label: "Staff & Roles", href: toSchoolPath("staff-roles"), icon: Users },
@@ -71,6 +72,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   ],
   "deputy-principal": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
+    { id: "student-progression", label: "Student Progression & Transitions", href: toSchoolPath("student-progression"), icon: GraduationCap },
     { id: "daily-operations", label: "Daily Operations", href: toSchoolPath("daily-operations"), icon: CalendarDays },
     { id: "attendance", label: "Attendance & Punctuality", href: "/attendance", icon: LayoutGrid },
     { id: "staff-duty", label: "Staff Duty", href: "/staff-duty", icon: LayoutGrid },
@@ -114,6 +116,7 @@ const schoolNavMap: Record<SchoolExperienceRole | PortalViewer, ExperienceNavIte
   "dean-academics": [
     { id: "overview", label: "Overview", href: toSchoolPath("overview"), icon: LayoutGrid },
     { id: "academics", label: "Academic Foundation", href: toSchoolPath("academics"), icon: GraduationCap },
+    { id: "student-progression", label: "Student Progression & Transitions", href: toSchoolPath("student-progression"), icon: GraduationCap },
     { id: "curriculum-coverage", label: "Curriculum Coverage", href: toSchoolPath("curriculum-coverage"), icon: BookOpenCheck },
     { id: "lesson-plans", label: "Lesson Plans", href: toSchoolPath("lesson-plans"), icon: FileSpreadsheet },
     { id: "lesson-logs", label: "Lesson Logs", href: toSchoolPath("lesson-logs"), icon: ClipboardList },
@@ -428,6 +431,7 @@ export const schoolSectionLabels: Record<string, string> = {
   "setup-checklist": "Setup Checklist",
   "school-profile": "School Profile",
   "academic-setup": "Academic Setup",
+  "student-progression": "Student Progression & Transitions",
   "classes-streams": "Classes & Streams",
   "subjects-departments": "Subjects & Departments",
   "staff-roles": "Staff & Roles",

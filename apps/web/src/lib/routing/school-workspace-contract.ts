@@ -18,6 +18,7 @@ export function isDedicatedSchoolWorkspace(role: string, section: string) {
 }
 
 export function isSchoolWorkspaceSection(role: string, section: string) {
+  if (section === "student-progression") return ["principal", "deputy-principal", "dean-academics"].includes(role);
   if (role === "deputy-principal") return isDeputyWorkspace(section);
   if (isDedicatedSchoolWorkspace(role, section)) return true;
   // The dedicated teacher register has its own backend contract; only the

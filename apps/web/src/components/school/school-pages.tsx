@@ -654,6 +654,7 @@ const roleOperationalWorkspaceSectionIds = new Set([
 ]);
 
 const deanAcademicsWorkspaceSectionIds = new Set([
+  "student-progression",
   "exam-analytics",
   "dashboard",
   "overview",
@@ -760,6 +761,7 @@ const financeRoleDedicatedSectionIds = new Set([
   "reports",
 ]);
 const principalCommandCenterSectionIds = new Set([
+  "student-progression",
   "exam-analytics",
   "payment-setup",
   "collections",

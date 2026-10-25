@@ -130,8 +130,9 @@ export class StudentsService {
   }
 
   async updateStudent(studentId: string, dto: UpdateStudentDto): Promise<StudentResponseDto> {
-    return this.prisma.withRequestTransaction(async () => {
+    return this.prisma.withRequestTransaction(async (tx) => {
       const tenantId = this.requireTenantId();
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text', `cohort-teaching:${tenantId}`);
       const existingStudent = await this.studentsRepository.findById(tenantId, studentId);
 
       if (!existingStudent) {

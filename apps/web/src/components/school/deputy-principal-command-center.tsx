@@ -62,6 +62,7 @@ import { DeputyReportsDownloadsWorkspace } from "./deputy-principal/reports-work
 import { DeputyStaffRolesWorkspace } from "./deputy-principal/staff-roles-workspace";
 import { DeputySettingsWorkspace } from "./deputy-principal/settings-workspace";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
+import { StudentProgressionWorkspace } from "./student-progression/workspace";
 import { ExamAnalyticsWorkspace } from "./exam-analytics-entry";
 import { SupportCenterWorkspace } from "@/components/support/support-center-workspace";
 import { resolveDeputyWorkspace } from "@/lib/routing/deputy-workspaces";
@@ -84,6 +85,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { id: "staff-duty", label: "Staff Duty", icon: UsersRound, group: "Staff Management" },
   { id: "timetable", label: "Timetable & Relief", icon: CalendarClock, group: "Staff Management" },
   { id: "academics", label: "Academic Foundation", icon: GraduationCap, group: "Academics" },
+  { id: "student-progression", label: "Student Progression & Transitions", icon: GraduationCap, group: "Academics" },
   { id: "exams", label: "Exams & Marks", icon: ClipboardCheck, group: "Academics" },
   { id: "exam-analytics", label: "Exam Analytics", icon: BrainCircuit, group: "Academics" },
   { id: "classes", label: "Classes & Streams", icon: Layers, group: "Academics" },
@@ -193,6 +195,7 @@ export function DeputyPrincipalCommandCenter({
       case "staff-duty": return <DeputyStaffDutyWorkspace />;
       case "timetable": return <DeputyTimetableManagementWorkspace />;
       case "academics": return <AcademicFoundationWorkspace actorRole="Deputy Principal" schoolName={schoolName} tenantId={schoolId} />;
+      case "student-progression": return <StudentProgressionWorkspace onOpenCalendar={() => setActiveWorkspace("academics")} />;
       case "teaching": return <DeputyTeachingWorkspace />;
       case "exams":
         return (

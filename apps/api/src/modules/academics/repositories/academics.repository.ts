@@ -252,6 +252,7 @@ export class AcademicsRepository {
 
   public async executeSql(tenantId: string, sql: string, params: any[] = []): Promise<{rows: any[]}> {
     return this.prisma.executeWithTenant<any>(tenantId, null, async (tx: any) => {
+      if(/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:academic_years|academic_terms|class_sections|class_streams)\b/i.test(sql)) await lockCohortSchool(tx,tenantId);
       const rows = await tx.$queryRawUnsafe(sql, ...params);
       return { rows: Array.isArray(rows) ? rows : [rows] } as any;
     });
@@ -2274,6 +2275,7 @@ export class AcademicsRepository {
 
   async setCurrentAcademicPeriod(tenantId: string, entityType: 'academic-year' | 'academic-term', id: string) {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
+      await lockCohortSchool(tx,tenantId);
       if (entityType === 'academic-year') {
         await this.executeSqlTx(tx, `
           UPDATE academic_years
