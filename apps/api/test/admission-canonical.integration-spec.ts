@@ -249,7 +249,10 @@ describe('Complete admission on the upgraded legacy database', () => {
       expect(rows).toEqual([{class_section_id:destination}]);
     }
     expect((await pool.query('SELECT class_name FROM student_allocations WHERE tenant_id=$1 AND student_id=$2 AND is_current',[school,id])).rows).toEqual([{class_name:'Grade 7 West'}]);
-    expect((await pool.query("SELECT * FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='dropped'",[school,id])).rowCount).toBe(7);
+    const historical = (await pool.query("SELECT subject_id,class_section_id,effective_to FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='dropped'",[school,id])).rows;
+    expect(historical.map(row => row.subject_id).sort()).toEqual(before.subjects.map((subject:any) => subject.id).sort());
+    expect(historical.every(row => row.class_section_id === classId && row.effective_to != null)).toBe(true);
+    expect((await pool.query("SELECT subject_id FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,id])).rows.map(row => row.subject_id).sort()).toEqual([...selected].sort());
     expect((await pool.query('SELECT * FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2',[school,id])).rows).toEqual(feeBefore);
   });
 
