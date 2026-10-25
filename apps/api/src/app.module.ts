@@ -1,4 +1,5 @@
 import { LegalModule } from './modules/legal/legal.module';
+import { StudentProgressionModule } from './modules/student-progression/student-progression.module';
 import { LegalGuard } from './modules/legal/legal.guard';
 import { LegalStreamInterceptor } from './modules/legal/legal-stream.interceptor';
 import { AgpModule } from './common/platform-governance/agp.module';
@@ -114,6 +115,7 @@ const ENV_FILE_PATHS = [
     ModuleAccessModule,
     InventoryModule,
     AdmissionsModule,
+    StudentProgressionModule,
     SupportModule,
     PlatformModule,
     AcademicsModule,

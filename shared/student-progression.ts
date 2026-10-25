@@ -21,7 +21,7 @@ export type ProgressionOverview = {
   permissions: { manage: boolean; approve: boolean };
   counts: Record<string, number>; students: ProgressionStudent[]; total: number;
   years: ProgressionYear[]; classes: ProgressionClass[]; streams: ProgressionStream[]; runs: ProgressionRun[];
-  approvals: Array<{ id: string; action: ProgressionAction; student_count: number; reason: string; requested_by: string; created_at: string }>;
+  approvals: Array<{ id: string; action: ProgressionAction; student_count: number; summary?: string; reason: string; requested_by: string; created_at: string }>;
 };
 export type ProgressionStudentDetail = {
   student: ProgressionStudent;
@@ -33,5 +33,6 @@ export type ProgressionCommand = {
   request_id: string; action: ProgressionAction; reason: string; academic_year_id: string;
   students: Array<{ id: string; expected_version: string }>;
   target_class_section_id?: string; target_stream_id?: string | null; subject_ids?: string[]; transition_id?: string;
+  destination_school_name?: string;
 };
 export type ProgressionCommandResult = { status: 'completed' | 'pending_approval'; affected: number; message: string; approval_id?: string; replayed?: boolean };

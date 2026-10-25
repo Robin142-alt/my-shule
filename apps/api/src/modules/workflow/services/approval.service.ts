@@ -3,11 +3,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { RequestContextService } from '../../../common/request-context/request-context.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { EventPublisherService } from '../../events/event-publisher.service';
 import { applySchoolFeeWaiver } from '../../finance/fee-waiver-workflow';
+import { ProgressionEngine } from '../../student-progression/student-progression.service';
 
 export interface CreateApprovalRequestInput {
   tenantId: string;
@@ -86,6 +88,7 @@ export class ApprovalService {
     private readonly prisma: PrismaService,
     private readonly requestContext: RequestContextService,
     private readonly eventPublisher: EventPublisherService,
+    @Optional() private readonly progression?: ProgressionEngine,
   ) {}
 
   async listPendingForApprover(input: {
@@ -250,6 +253,17 @@ export class ApprovalService {
     }
 
     const normalizedRole = this.normalizeRole(input.actorRole);
+    if(this.progression) {
+      const [request]=await this.prisma.executeWithTenant(input.tenantId,input.actorUserId,tx=>tx.$queryRawUnsafe<any[]>(
+        "SELECT * FROM dashboard_approval_requests WHERE tenant_id=$1 AND id::text=$2 AND module='student_progression'",input.tenantId,input.approvalId));
+      if(request) {
+        await this.progression.decideApproval({tenantId:input.tenantId,userId:input.actorUserId,role:normalizedRole,
+          permissions:this.requestContext.requireStore().permissions},input.approvalId,input.decision==='APPROVED'?'approved':'rejected',note??'');
+        const [saved]=await this.prisma.executeWithTenant(input.tenantId,input.actorUserId,tx=>tx.$queryRawUnsafe<any[]>(
+          'SELECT *,lower(status) AS status FROM dashboard_approval_requests WHERE tenant_id=$1 AND id::text=$2',input.tenantId,input.approvalId));
+        return {...saved,title:saved.metadata?.title??'Student progression decision'};
+      }
+    }
     return this.prisma.executeWithTenant(input.tenantId, input.actorUserId, async (tx) => {
       const projectionRows = await tx.$queryRawUnsafe<AddressedApprovalProjection[]>(`
         SELECT

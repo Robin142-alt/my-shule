@@ -191,7 +191,8 @@ export class CohortPromotionService {
       LEFT JOIN LATERAL (SELECT academic.* FROM student_academic_enrollments academic
         WHERE academic.tenant_id = student.tenant_id AND academic.student_id::text = student.id::text AND academic.status = 'active'
         ORDER BY academic.created_at DESC LIMIT 1) enrollment ON TRUE
-      WHERE student.tenant_id = $1 AND COALESCE(student.status, 'active') = 'active' AND (
+      WHERE student.tenant_id = $1 AND COALESCE(student.status, 'active') = 'active'
+        AND lower(COALESCE(to_jsonb(student)->>'student_status','active')) IN ('active','enrolled') AND (
         EXISTS (SELECT 1 FROM student_class_assignments membership WHERE membership.tenant_id = student.tenant_id
           AND membership.student_id::text = student.id::text AND membership.status = 'active'
           AND membership.class_section_id::text = $2 AND membership.stream_id::text IS NOT DISTINCT FROM $3::text)
@@ -225,7 +226,13 @@ export class CohortPromotionService {
       destinations.add(key);
       const roster = await this.roster(tx, actor.tenantId, source);
       const requested = mapping.student_ids ? new Set(mapping.student_ids) : null;
-      const students = requested ? roster.filter((student) => requested.has(student.id)) : roster;
+      const [progression]=await rows(tx,"SELECT to_regclass('public.academic_progression_decisions')::text AS name");
+      const exceptions=progression?.name?await rows(tx,`SELECT student_id FROM academic_progression_decisions WHERE tenant_id=$1 AND academic_year_id=$2 AND decision IN ('hold','repeat')
+        UNION SELECT selected->>'id' FROM dashboard_approval_requests approval CROSS JOIN LATERAL jsonb_array_elements(approval.metadata->'command'->'students') selected
+        WHERE approval.tenant_id=$1 AND approval.module='student_progression' AND approval.status='PENDING'`,[actor.tenantId,source.academic_year_id]):[];
+      const eligible=roster.filter(student=>!exceptions.some(exception=>exception.student_id===student.id));
+      const students = requested ? eligible.filter((student) => requested.has(student.id)) : eligible;
+      if(eligible.length<roster.length) warnings.push('Learners with a hold, repeat or pending progression decision remain in their source class. Manage these decisions in Student Progression & Transitions.');
       if (requested && students.length !== requested.size) { blockers.push('Selected learners no longer all belong to the expected source cohort.'); continue; }
       if (students.some((student) => selectedStudents.has(student.id))) { blockers.push('A learner appears in more than one source mapping.'); continue; }
       students.forEach((student) => selectedStudents.add(student.id));

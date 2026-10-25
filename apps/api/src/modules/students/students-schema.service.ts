@@ -107,8 +107,17 @@ export class StudentsSchemaService implements OnModuleInit {
       BEGIN
         NEW.tenant_id = COALESCE(NULLIF(NEW.tenant_id, ''), NULLIF(NEW.school_id, ''));
         NEW.school_id = COALESCE(NULLIF(NEW.school_id, ''), NULLIF(NEW.tenant_id, ''));
-        NEW.student_status = COALESCE(NEW.student_status, upper(COALESCE(NULLIF(NEW.status, ''), 'active'))::"StudentStatus");
-        NEW.status = lower(COALESCE(NULLIF(NEW.status, ''), NEW.student_status::text, 'active'));
+        IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+          NEW.student_status = (CASE lower(NEW.status) WHEN 'transferred' THEN 'TRANSFERRED_OUT'
+            WHEN 'expelled' THEN 'WITHDRAWN' ELSE upper(NEW.status) END)::"StudentStatus";
+        ELSIF TG_OP = 'UPDATE' AND NEW.student_status IS DISTINCT FROM OLD.student_status THEN
+          NEW.status = lower(NEW.student_status::text);
+        ELSE
+          NEW.student_status = COALESCE(NEW.student_status, (CASE lower(NEW.status)
+            WHEN 'transferred' THEN 'TRANSFERRED_OUT' WHEN 'expelled' THEN 'WITHDRAWN'
+            ELSE upper(COALESCE(NULLIF(NEW.status, ''), 'active')) END)::"StudentStatus");
+          NEW.status = lower(COALESCE(NULLIF(NEW.status, ''), NEW.student_status::text, 'active'));
+        END IF;
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
@@ -147,7 +156,7 @@ export class StudentsSchemaService implements OnModuleInit {
         CONSTRAINT ck_students_admission_number_not_blank CHECK (btrim(admission_number) <> ''),
         CONSTRAINT ck_students_first_name_not_blank CHECK (btrim(first_name) <> ''),
         CONSTRAINT ck_students_last_name_not_blank CHECK (btrim(last_name) <> ''),
-        CONSTRAINT ck_students_status CHECK (status IN ('applicant', 'accepted', 'enrolled', 'active', 'inactive', 'suspended', 'on_leave', 'transferred', 'transferred_out', 'withdrawn', 'graduated', 'alumni', 'archived')),
+        CONSTRAINT ck_students_status CHECK (status IN ('applicant', 'accepted', 'enrolled', 'active', 'inactive', 'suspended', 'on_leave', 'transferred', 'transferred_out', 'withdrawn', 'expelled', 'graduated', 'alumni', 'archived')),
         CONSTRAINT ck_students_gender CHECK (gender IS NULL OR gender IN ('male', 'female', 'other', 'undisclosed')),
         CONSTRAINT uq_students_tenant_id_id UNIQUE (tenant_id, id),
         CONSTRAINT uq_students_school_id_id UNIQUE (school_id, id),

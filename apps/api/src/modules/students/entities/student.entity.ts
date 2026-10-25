@@ -5,7 +5,7 @@ export class StudentEntity extends BaseEntity {
   first_name!: string;
   last_name!: string;
   middle_name!: string | null;
-  status!: 'active' | 'inactive' | 'graduated' | 'transferred';
+  status!: 'applicant' | 'accepted' | 'enrolled' | 'active' | 'inactive' | 'suspended' | 'on_leave' | 'graduated' | 'transferred' | 'withdrawn' | 'expelled' | 'archived';
   date_of_birth!: string | null;
   gender!: 'male' | 'female' | 'other' | 'undisclosed' | null;
   primary_guardian_name!: string | null;

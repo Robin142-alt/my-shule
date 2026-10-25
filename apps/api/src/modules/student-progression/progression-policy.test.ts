@@ -21,6 +21,7 @@ test('empty, fabricated, overlapping and out-of-range calendars are blocked', ()
   assert.ok(calendarEligibility(year, [{starts_on:'2026-02-01',ends_on:'2027-02-01'}], [year,next], 'Africa/Nairobi', at).blocker);
   assert.ok(calendarEligibility(year, terms, [year,{...next,starts_on:'2026-12-20'}], 'Africa/Nairobi', at).blocker);
   assert.ok(calendarEligibility(year, terms, [year,next], 'Invalid/Timezone', at).blocker);
+  assert.ok(calendarEligibility({...year,starts_on:'2026-02-31'},terms,[next],'Africa/Nairobi',at).blocker);
 });
 test('CBC and legacy pathways progress without crossing curricula', () => {
   assert.equal(resolveNextClass(section(7), [section(8),section(2,'8-4-4')]).target?.id, 'CBC-8');

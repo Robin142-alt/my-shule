@@ -350,6 +350,7 @@ const schoolSectionModuleMap: Record<string, SchoolModuleCode | null> = {
   finance: "finance",
   mpesa: "finance",
   academics: "academics",
+  "student-progression": "academics",
   exams: "exams",
   "exam-workflow": "exams",
   "exam-analytics": "exams",

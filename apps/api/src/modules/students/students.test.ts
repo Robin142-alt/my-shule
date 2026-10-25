@@ -98,6 +98,7 @@ test('StudentLifecycleService rejects every cross-tenant class placement referen
     const mutations: string[] = [];
     const events: unknown[] = [];
     const tx = {
+      $queryRawUnsafe:async(sql:string,key:string)=>{assert.match(sql,/pg_advisory_xact_lock/);assert.equal(key,'cohort-teaching:tenant-a');return [];},
       student: {
         findFirst: async ({ where }: any) => where.schoolId === 'tenant-a'
           ? { id: 'student-a', schoolId: 'tenant-a', studentStatus: 'ENROLLED' }
@@ -166,6 +167,7 @@ test('StudentLifecycleService rejects every cross-tenant class placement referen
 test('StudentLifecycleService persists a valid same-tenant class placement after relationship validation', async () => {
   const calls: Array<{ method: string; input?: unknown }> = [];
   const tx = {
+    $queryRawUnsafe:async(sql:string,key:string)=>{assert.match(sql,/pg_advisory_xact_lock/);assert.equal(key,'cohort-teaching:tenant-a');calls.push({method:'school.lock'});return [];},
     student: {
       findFirst: async ({ where }: any) => {
         calls.push({ method: 'student.findFirst', input: where });
@@ -226,6 +228,7 @@ test('StudentLifecycleService persists a valid same-tenant class placement after
   );
 
   assert.equal(placed.currentClassId, 'class-a');
+  assert.equal(calls[0].method,'school.lock');
   assert.deepEqual((calls.find((call) => call.method === 'stream.findFirst')?.input as any), {
     id: 'stream-a',
     schoolId: 'tenant-a',

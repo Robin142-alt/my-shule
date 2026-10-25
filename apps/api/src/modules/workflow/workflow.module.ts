@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { StudentProgressionModule } from '../student-progression/student-progression.module';
 
 // Services
 import { WorkflowService } from './services/workflow.service';
@@ -20,7 +21,7 @@ import { ApprovalController } from './controllers/approval.controller';
 import { DashboardController } from './controllers/dashboard.controller';
 
 @Module({
-  imports: [DatabaseModule, ObservabilityModule, NotificationsModule],
+  imports: [DatabaseModule, ObservabilityModule, NotificationsModule, StudentProgressionModule],
   controllers: [
     WorkflowController,
     NotificationController,

@@ -40,12 +40,14 @@ import { OverviewWorkspace } from "./dean-academics/overview-workspace";
 import { TeacherWorkloadWorkspace } from "./dean-academics/teacher-workload-workspace";
 import { LiveReportCardsWorkspace } from "./live-report-cards-workspace";
 import { AcademicFoundationWorkspace } from "./academic-foundation-workspace";
+import { StudentProgressionWorkspace } from "./student-progression/workspace";
 import { DeputyTimetableManagementWorkspace } from "./deputy-principal/timetable-management-workspace";
 
 type DeanRouteMode = "hosted" | "public";
 
 export type DeanView =
   | "overview"
+  | "student-progression"
   | "academics"
   | "curriculum-coverage"
   | "exam-analytics"
@@ -67,6 +69,7 @@ type DeanNavItem = {
 
 const deanNavItems: DeanNavItem[] = [
   { id: "exam-analytics", label: "Exam Analytics", description: "Explore school results, trends, comparisons and printable academic insights.", icon: BarChart3, group: "Academic office" },
+  { id: "student-progression", label: "Student Progression & Transitions", description: "Follow automatic annual progression and manage individual learner decisions.", icon: GraduationCap, group: "Academic office" },
   {
     id: "academics",
     label: "Academic Foundation",
@@ -142,6 +145,7 @@ const deanNavItems: DeanNavItem[] = [
 ];
 
 const deanViewAliases: Record<string, DeanView> = {
+  "student-progression": "student-progression",
   "exam-analytics": "exam-analytics",
   dashboard: "overview",
   "academic-overview": "overview",
@@ -350,6 +354,8 @@ function DeanWorkspace({
   const tenantId = useOptionalSchoolTenantId();
   const { schoolName } = useSchoolCommandIdentity();
   switch (activeView) {
+    case "student-progression":
+      return <StudentProgressionWorkspace onOpenCalendar={() => onNavigate("academics")} />;
     case "exam-analytics":
       return <ExamAnalyticsWorkspace scope="school" emptyActions={[{label:"Review assessments",onClick:()=>onNavigate("assessments")},{label:"Review report cards",onClick:()=>onNavigate("reports")}]}/>;
     case "academics":

@@ -2000,7 +2000,9 @@ test('AdmissionsService graduates an active student and records an academic life
   const service = new AdmissionsService(
     requestContext,
     {
-      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
+      withRequestTransaction: async <T>(callback: (tx:any) => Promise<T>): Promise<T> => callback({
+        $queryRawUnsafe:async(sql:string,key:string)=>{assert.match(sql,/pg_advisory_xact_lock/);assert.equal(key,'cohort-teaching:tenant-a');return [];}
+      }),
     } as never,
     {
       findActiveAcademicEnrollmentForUpdate: async () => ({
@@ -2077,7 +2079,9 @@ test('AdmissionsService rejects lifecycle changes without an active academic enr
   const service = new AdmissionsService(
     requestContext,
     {
-      withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
+      withRequestTransaction: async <T>(callback: (tx:any) => Promise<T>): Promise<T> => callback({
+        $queryRawUnsafe:async(sql:string,key:string)=>{assert.match(sql,/pg_advisory_xact_lock/);assert.equal(key,'cohort-teaching:tenant-a');return [];}
+      }),
     } as never,
     {
       findActiveAcademicEnrollmentForUpdate: async () => null,

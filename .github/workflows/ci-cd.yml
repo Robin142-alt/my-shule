@@ -79,6 +79,9 @@ jobs:
       - name: Admissions workflows, drafts and consolidated navigation
         run: npm --prefix apps/web run test:design -- student-record-proxy student-record-workspace admissions-dashboard-routing admissions-consolidated-workflows admissions-empty-state-workflows student-admission-wizard student-bulk-admission-feedback admissions-live-api admissions-workspace feedback-viewport operational-feedback
 
+      - name: Student progression controls and navigation
+        run: npm --prefix apps/web run test:design -- --runTestsByPath tests/design/student-progression.test.tsx tests/design/principal-production-readiness.test.tsx
+
       - name: Authenticated mobile navigation and action contracts
         run: npm --prefix apps/web run test:design -- mobile-product mobile-workspace-navigation modal.test header-popover dropdown-menu teacher-overview-feedback exam-workflow-tracker dashboard-action-contract principal-production-readiness
 
@@ -91,6 +94,7 @@ jobs:
           node tests/design/mobile-roles-browser.mjs --all-workspaces --contrast
           node tests/design/exam-analytics-library-browser.mjs
           node tests/design/accountant-usability-browser.mjs
+          node tests/design/student-progression-browser.mjs
           npx playwright test -c playwright.legal.config.ts
 
       - name: Keep dashboard visual diagnostics
@@ -312,6 +316,14 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
+
+      - name: Calendar progression, history, recovery and school isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/student-progression/progression-policy.test.js dist/apps/api/src/modules/student-progression/progression-store.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/student-progression.integration-spec.ts
 
       - name: Existing-school dashboard reads and Principal operations
         env:

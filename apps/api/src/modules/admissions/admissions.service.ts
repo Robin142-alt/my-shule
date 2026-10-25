@@ -1498,6 +1498,7 @@ export class AdmissionsService {
     if (dto.action === 'promotion') return this.promotionService().promoteSingle(this.promotionActor(), studentId, dto);
     return this.prisma.withRequestTransaction(async (tx: any) => {
       const tenantId = this.requireTenantId();
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text', `cohort-teaching:${tenantId}`);
       const action = this.parseAcademicLifecycleAction(dto.action);
       const activeEnrollment = await this.requireActiveAcademicEnrollment(
         tenantId, studentId, action === 'promotion' ? tx : undefined,

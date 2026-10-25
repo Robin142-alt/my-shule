@@ -1,6 +1,6 @@
 type Row = Record<string, any>;
 export const day = (value: unknown) => value instanceof Date ? value.toISOString().slice(0,10) : String(value ?? '').slice(0,10);
-const validDay = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(day(value)) && !Number.isNaN(Date.parse(day(value)));
+const validDay = (value: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(day(value)) && !Number.isNaN(Date.parse(day(value))) && new Date(day(value)).toISOString().slice(0,10)===day(value);
 export function localDay(now: Date, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', {timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 }
@@ -9,13 +9,13 @@ export function activeLearner(student: Row): boolean {
   return active.has(String(student.status).toLowerCase())
     && (student.student_status == null || active.has(String(student.student_status).toLowerCase()));
 }
-export function calendarEligibility(year: Row, terms: Row[], years: Row[], timezone: string, now = new Date()): {
+export function calendarEligibility(year: Row, terms: Row[], years: Row[], timezone: string, now = new Date(), allowScheduled=false): {
   due: boolean; blocker: string | null; nextYear: Row | null; today: string;
 } {
   let today: string;
   try { today = localDay(now, timezone); } catch { return {due:false,blocker:'Correct the school timezone before automatic progression.',nextYear:null,today:''}; }
   const result = (blocker: string | null, nextYear: Row | null = null) => ({due:!blocker && today>day(year.ends_on),blocker,nextYear,today});
-  if (!['active','closed'].includes(year.status) || year.archived_at) return result('Activate a confirmed academic calendar before progression.');
+  if (!(allowScheduled?['draft','active','closed']:['active','closed']).includes(year.status) || year.archived_at) return result('Activate a confirmed academic calendar before progression.');
   if (!validDay(year.starts_on) || !validDay(year.ends_on) || day(year.starts_on)>=day(year.ends_on)) return result('Review the academic year dates; a complete year requires a start and a later end.');
   const periods = terms.filter(item=>!['inactive','archived'].includes(item.status) && !item.archived_at).sort((a,b)=>day(a.starts_on).localeCompare(day(b.starts_on)));
   if (!periods.length) return result('Add the academic year’s term dates before automatic progression.');
