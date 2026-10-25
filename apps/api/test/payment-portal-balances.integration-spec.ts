@@ -4,6 +4,7 @@ import { RequestContextService } from "../src/common/request-context/request-con
 import { ParentCommandService } from "../src/modules/admin-command/parent-command.service";
 import { StudentCommandService } from "../src/modules/admin-command/student-command.service";
 import { FEE_CREDIT_READ_SQL } from "../src/modules/billing/fee-credit-read-sql";
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from "../src/modules/billing/fee-credit-application-schema";
 import { MpesaService } from "../src/modules/payments/services/mpesa.service";
 import { InvoicesRepository } from "../src/modules/billing/repositories/invoices.repository";
 import { ManualFeePaymentsRepository } from "../src/modules/billing/repositories/manual-fee-payments.repository";
@@ -65,7 +66,7 @@ describe("School payment balances shared with linked Parent and Student portals"
       connectionString: url.toString(),
       options: `-c search_path=${schema},public`,
     });
-    await pool.query(`CREATE SCHEMA ${schema};
+    await pool.query(`CREATE SCHEMA ${schema}; CREATE SCHEMA IF NOT EXISTS app;
       CREATE TABLE students(id uuid PRIMARY KEY,tenant_id text,admission_number text,first_name text,middle_name text,last_name text,current_class_id uuid,deleted_at timestamptz);
       CREATE TABLE class_sections(id uuid,tenant_id text,name text);
       CREATE TABLE student_guardians(tenant_id text,student_id uuid,user_id uuid,status text);
@@ -76,6 +77,7 @@ describe("School payment balances shared with linked Parent and Student portals"
       CREATE TABLE manual_fee_payment_allocations(tenant_id text,student_id uuid,manual_payment_id uuid,allocation_type text,amount_minor bigint);
       CREATE TABLE student_fee_credits(tenant_id text,student_id uuid,remaining_amount_minor bigint);
     `);
+    await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
     await pool.query(
       `INSERT INTO students(id,tenant_id,admission_number,first_name,last_name) VALUES($1,'school-a','ADM-1','Linked','Student'),($2,'school-a','ADM-2','Unlinked','Student');
     `,

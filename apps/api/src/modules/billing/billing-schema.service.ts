@@ -1,5 +1,6 @@
 import { FEE_WAIVER_INVOICE_SCHEMA_SQL } from './fee-waiver-schema';
 import { INVOICE_WRITE_SCHEMA_SQL } from './invoice-write-schema';
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from './fee-credit-application-schema';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -1254,6 +1255,7 @@ export class BillingSchemaService implements OnModuleInit {
       BEFORE UPDATE OR DELETE ON manual_fee_payment_allocations
       FOR EACH ROW
       EXECUTE FUNCTION app.prevent_append_only_mutation();
+      ${FEE_CREDIT_APPLICATION_SCHEMA_SQL}
     `);
 
     this.logger.log('Billing schema, lifecycle, invoices, usage metering, and notifications verified');

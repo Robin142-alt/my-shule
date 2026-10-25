@@ -61,6 +61,12 @@ export class BillingController {
     private readonly reportExportQueueService: ReportExportQueueService,
   ) {}
 
+  @Post('students/:studentId/apply-credit')
+  @Permissions('billing:write')
+  applyStudentCredit(@Param('studentId', ParseUUIDPipe) studentId: string, @Body() dto: { reason: string }) {
+    return this.billingService.applyStudentCredits(studentId, dto.reason);
+  }
+
   @Post('subscriptions')
   @Permissions('billing:write')
   async createSubscription(

@@ -78,6 +78,7 @@ import {
   type StudentUnappliedCreditSummary,
 } from './repositories/manual-fee-payments.repository';
 import { SubscriptionsRepository } from './repositories/subscriptions.repository';
+import { FeeCreditApplicationService } from './fee-credit-application.service';
 
 type BillingReportExportDefinition = {
   id: string;
@@ -236,6 +237,7 @@ export class BillingService {
     @Optional() private readonly manualFeePaymentsRepository?: ManualFeePaymentsRepository,
     @Optional() private readonly feeStructuresRepository?: FeeStructuresRepository,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly feeCredits?: FeeCreditApplicationService,
   ) {}
 
   async createSubscription(dto: CreateSubscriptionDto): Promise<SubscriptionResponseDto> {
@@ -380,7 +382,11 @@ export class BillingService {
         metadata,
       });
 
-      if (studentId) await this.recordLearnerInvoice(invoice);
+      if (studentId) {
+        await this.recordLearnerInvoice(invoice);
+        const credit = await this.requireFeeCredits().applyAvailable(studentId, 'Automatic application to a new fee invoice', true);
+        return this.mapInvoice(credit.applied_amount_minor === '0' ? invoice : (await this.invoicesRepository.findById(tenantId, invoice.id))!);
+      }
       else await this.subscriptionsRepository.markInvoiceIssued(tenantId, subscription.id, null);
       return this.mapInvoice(invoice);
     });
@@ -398,6 +404,15 @@ export class BillingService {
         payload: { invoice_id: invoice.id, student_id: invoice.metadata.student_id,
           total_amount_minor: invoice.total_amount_minor, source_dashboard: 'accountant-invoices' } },
     });
+  }
+
+  private requireFeeCredits() {
+    if (!this.feeCredits) throw new ConflictException('Credit application service is unavailable; retry when finance services recover');
+    return this.feeCredits;
+  }
+
+  applyStudentCredits(studentId: string, reason: string) {
+    return this.requireFeeCredits().applyAvailable(studentId, reason);
   }
 
   async createFeeStructure(
@@ -609,8 +624,9 @@ export class BillingService {
         });
 
         await this.recordLearnerInvoice(invoice);
+        const credit = await this.requireFeeCredits().applyAvailable(student.student_id, 'Automatic application to a new fee invoice', true);
         activeInvoiceByStudent.set(student.student_id, invoice);
-        invoices.push(this.mapInvoice(invoice));
+        invoices.push(this.mapInvoice(credit.applied_amount_minor === '0' ? invoice : (await this.invoicesRepository.findById(tenantId, invoice.id))!));
       }
 
       return {

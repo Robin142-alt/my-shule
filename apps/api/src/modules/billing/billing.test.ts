@@ -901,6 +901,7 @@ test('ManualFeePaymentService reverses a cleared cheque and restores the invoice
       },
     } as never,
     { recordSchoolOperation: async () => undefined } as never,
+    { reverseManualApplications: async (paymentId: string) => { assert.equal(paymentId, clearedPayment.id); } } as never,
   );
 
   const response = await requestContext.run(
@@ -1360,6 +1361,10 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
       ],
     } as never,
     { recordSchoolOperation: async (input: any) => { assert.equal(input.event.type, 'invoice.created'); } } as never,
+    { applyAvailable: async (studentId: string, reason: string, automatic: boolean) => {
+      assert.equal(studentId, studentA); assert.equal(automatic, true); assert.match(reason, /new fee invoice/);
+      return { applied_amount_minor: '0' };
+    } } as never,
   );
 
   const response = await requestContext.run(

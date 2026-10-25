@@ -6,6 +6,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { BillingSchemaService } from '../src/modules/billing/billing-schema.service';
 import { BillingService } from '../src/modules/billing/billing.service';
+import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
 import { FeeStructuresRepository } from '../src/modules/billing/repositories/fee-structures.repository';
 import { InvoicesRepository } from '../src/modules/billing/repositories/invoices.repository';
 import { SubscriptionsRepository } from '../src/modules/billing/repositories/subscriptions.repository';
@@ -56,13 +58,15 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
     await pool.query(`CREATE SCHEMA ${schema}; CREATE ROLE ${role}; GRANT USAGE ON SCHEMA ${schema} TO ${role};`);
     let ddl = '';
     await new BillingSchemaService({ runSchemaBootstrap: async (sql: string) => { ddl = sql; } } as never).onModuleInit();
-    for (const name of ['subscriptions', 'invoices', 'fee_structures']) {
+    for (const name of ['subscriptions', 'invoices', 'fee_structures','manual_fee_payments','manual_fee_payment_allocations','student_fee_credits']) {
       const table = ddl.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${name} \\([\\s\\S]*?\\n      \\);`))![0];
       await pool.query(table);
-      if (identifierType === 'text' && name !== 'subscriptions') {
+      if (identifierType === 'text' && ['invoices','fee_structures'].includes(name)) {
         await pool.query(`ALTER TABLE ${name} ALTER COLUMN id TYPE text USING id::text`);
       }
     }
+    await pool.query('CREATE SCHEMA IF NOT EXISTS app');
+    await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
     await pool.query(`
       CREATE TABLE students(id ${identifierType} PRIMARY KEY,tenant_id text,first_name text,last_name text,
         admission_number text,primary_guardian_phone text,status text,deleted_at timestamptz);
@@ -110,7 +114,7 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
           if (failEvent) throw Error('Injected event failure');
           await db.query('INSERT INTO evidence VALUES($1,$2::jsonb)', [context.requireStore().tenant_id, JSON.stringify(event)]);
         },
-      } as never);
+      } as never, new FeeCreditApplicationService(context,db as never,{recordSchoolOperation:async()=>{throw Error('Unexpected credit in empty fixture');}} as never));
     await pool.query(`INSERT INTO subscriptions(tenant_id,plan_code,status,current_period_start,current_period_end)
       VALUES($1,'school','active',now(),now()+interval '1 year')`, [school]);
     await pool.query(`INSERT INTO students VALUES($1,$2,'Amina','Learner','ADM-1',NULL,'active',NULL),

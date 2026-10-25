@@ -11,7 +11,7 @@
 - [x] Finish final post-change compiler and regression checks: API/web production builds, API typecheck, billing/security/M-PESA regressions and isolated PostgreSQL workflow/portal checks.
 - [ ] Obtain bank merchant contracts and implement/certify native bank adapters; current bank mode is reviewed statements.
 - [ ] Migrate any school still using only legacy student_invoices with audited opening balances.
-- [ ] Add governed automatic reallocation of existing credits to future invoices, if required for rollout.
+- [x] Add governed automatic application of existing credits to future invoices; audited manual reconciliation and receipt reversal preserve invoice/credit history.
 - [ ] Certify real merchant onboarding/callback gateway, browser end-to-end flows and peak-volume deployment capacity before production activation.
 
 ## Universal banking implementation slices
@@ -28,3 +28,11 @@
 - [ ] Run built-in review and release checks; publish per-bank implementation, sandbox/live evidence and remaining external dependencies.
 
 Each slice requires focused tests and build/type checks before committing. Existing completed items above remain historical verification records and are rechecked where affected.
+
+### Verified progress and remaining accounting audit findings
+
+- Eleven independently documented bank targets are registered; unimplemented native capabilities remain disabled. Catalog/M-Pesa credential regressions: 19 passed, API build passed.
+- Invoice-only manual receipts now resolve and validate the same-school learner before posting, preserving overpayment ownership. Focused billing/control regressions: 47 passed.
+- Credit application covers automatic new-invoice application, an audited Accountant action, immutable application/reversal history, manual/online credits and remaining-credit reads. Forty PostgreSQL regression tests pass across credit application, portal balances, Accountant approvals/reversals and UUID/text/legacy invoice schemas. Six UI tests pass; web typecheck and API build pass. Cash and STK statements preserve one receipt after credit application.
+- Inspect the legacy M-Pesa finance-approval resolver: it currently marks a reconciliation discrepancy resolved without executing a reversal. Complete actual approved financial corrections before claiming the reversal requirement complete.
+- Legacy `student_invoices` adoption and the old `/finance/invoices/generate` writer remain to be replaced through canonical billing with audited lineage.

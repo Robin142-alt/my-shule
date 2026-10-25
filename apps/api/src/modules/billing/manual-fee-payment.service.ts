@@ -26,6 +26,7 @@ import {
 } from './entities/manual-fee-payment.entity';
 import { InvoicesRepository, StudentFeeInvoiceForAllocation } from './repositories/invoices.repository';
 import { ManualFeePaymentsRepository } from './repositories/manual-fee-payments.repository';
+import { FeeCreditApplicationService } from './fee-credit-application.service';
 
 const DEFAULT_CURRENCY_CODE = 'KES';
 const DEFAULT_FEE_CONTROL_ACCOUNT_CODE = '1100-AR-FEES';
@@ -71,6 +72,7 @@ export class ManualFeePaymentService {
     private readonly accountsRepository: AccountsRepository,
     private readonly transactionService: TransactionService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly feeCredits?: FeeCreditApplicationService,
   ) {}
 
   async createManualFeePayment(
@@ -297,6 +299,8 @@ export class ManualFeePaymentService {
         );
       }
 
+      if (!this.feeCredits) throw new ConflictException('Credit application service is unavailable; retry when finance services recover');
+      await this.feeCredits.reverseManualApplications(lockedPayment.id, dto.notes ?? 'Approved receipt reversal');
       const reversalTransaction = await this.postReversalTransaction(lockedPayment, dto);
       const allocations = await this.manualFeePaymentsRepository.listAllocations(
         tenantId,

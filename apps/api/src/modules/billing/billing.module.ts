@@ -11,6 +11,7 @@ import { BillingNotificationService } from './billing-notification.service';
 import { BillingSchemaService } from './billing-schema.service';
 import { BillingService } from './billing.service';
 import { ManualFeePaymentService } from './manual-fee-payment.service';
+import { FeeCreditApplicationService } from './fee-credit-application.service';
 import { StudentFeePaymentAllocationService } from './student-fee-payment-allocation.service';
 import { BillingLifecycleGuard } from '../../guards/billing-lifecycle.guard';
 import { InvoicesRepository } from './repositories/invoices.repository';
@@ -33,6 +34,7 @@ import { FeeStructuresRepository } from './repositories/fee-structures.repositor
     BillingNotificationService,
     BillingMpesaService,
     ManualFeePaymentService,
+    FeeCreditApplicationService,
     StudentFeePaymentAllocationService,
     UsageMeterService,
     SubscriptionsRepository,
@@ -57,6 +59,7 @@ import { FeeStructuresRepository } from './repositories/fee-structures.repositor
     BillingService,
     BillingMpesaService,
     ManualFeePaymentService,
+    FeeCreditApplicationService,
     StudentFeePaymentAllocationService,
     UsageMeterService,
     SubscriptionsRepository,
