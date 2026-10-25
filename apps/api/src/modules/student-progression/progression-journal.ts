@@ -9,9 +9,9 @@ export async function recordProgressionOperation(tx:CohortTx,events:EventPublish
   await query(tx,`INSERT INTO academic_audit_logs(school_id,tenant_id,entity_type,entity_id,action,actor_user_id,actor_role,reason,new_values,correlation_id)
     VALUES($1,$1,'student_progression',$2,$3,$4::uuid,$5,$6,$7::jsonb,$8) RETURNING id`,actor.tenantId,entityId,action,actor.userId,actor.role,reason,JSON.stringify(details),id);
   await events.publish({tenant_id:actor.tenantId,event_name:'school.operation.recorded',event_key:`student.progression.operation:${id}`,
-    aggregate_type:'student_progression',aggregate_id:entityId,payload:{tenant_id:actor.tenantId,school_id:actor.tenantId,operation_id:id,
-      operation_type:`student.progression.${action}`,module:'academics',actor_role:actor.role,title:'Student progression update',body:'Academic progression records have been updated.',
-      entity_id:entityId,severity:'info',target_roles:[],notifications:[],sms:[],payload:{system_refresh_only:true},occurred_at:new Date().toISOString()}},tx);
+    aggregate_type:'student_progression',aggregate_id:id,payload:{tenant_id:actor.tenantId,school_id:actor.tenantId,operation_id:id,
+      operation_type:'student.progression.refresh',module:'platform',actor_role:actor.role,title:'School data updated',body:'Academic progression records have been updated.',
+      entity_id:id,severity:'info',target_roles:[],notifications:[],sms:[],payload:{system_refresh_only:true},occurred_at:new Date().toISOString()}},tx);
 }
 
 export async function recordTransition(tx:CohortTx,events:EventPublisherService,actor:ProgressionActor,current:StudentState,
@@ -50,9 +50,9 @@ export async function recordTransition(tx:CohortTx,events:EventPublisherService,
         reason:input.reason,occurred_at:new Date().toISOString()}},tx);
   }
   await events.publish({tenant_id:actor.tenantId,event_name:'school.operation.recorded',event_key:`student.progression:${record.id}`,
-    aggregate_type:'student',aggregate_id:current.student.id,payload:{tenant_id:actor.tenantId,school_id:actor.tenantId,operation_id:record.id,
-      operation_type:`student.progression.${input.action}`,module:'academics',actor_role:actor.role,title:'Student progression updated',
-      body:'Academic placement and progression records have been updated.',entity_id:current.student.id,severity:'info',target_roles:[],notifications:[],sms:[],
+    aggregate_type:'student_progression',aggregate_id:record.id,payload:{tenant_id:actor.tenantId,school_id:actor.tenantId,operation_id:record.id,
+      operation_type:'student.progression.refresh',module:'platform',actor_role:actor.role,title:'School data updated',
+      body:'Academic placement and progression records have been updated.',entity_id:record.id,severity:'info',target_roles:[],notifications:[],sms:[],
       payload:{system_refresh_only:true,transition_id:record.id},occurred_at:new Date().toISOString()}},tx);
   return record;
 }

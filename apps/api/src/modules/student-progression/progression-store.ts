@@ -39,7 +39,7 @@ export async function readStudentState(tx:CohortTx,tenant:string,id:string,lock=
 }
 export async function readStudentStates(tx:CohortTx,tenant:string,ids:string[],lock=false) {
   if(!ids.length) return [];
-  const students=await query(tx,`SELECT *,id::text AS id FROM students WHERE tenant_id=$1 AND id::text=ANY($2::text[])
+  const students=await query(tx,`SELECT *,id::text AS id,admission_date::text AS admission_date FROM students WHERE tenant_id=$1 AND id::text=ANY($2::text[])
     AND to_jsonb(students)->>'deleted_at' IS NULL ORDER BY students.id ${lock?'FOR UPDATE':''}`,tenant,ids);
   const assignments=await query(tx,`SELECT assignment.*,section.name AS class_name,section.grade_level,section.curriculum_model,
       year.name AS year_name,stream.name AS stream_name FROM student_class_assignments assignment
@@ -54,7 +54,7 @@ export async function readStudentStates(tx:CohortTx,tenant:string,ids:string[],l
   const transitions=await query(tx,'SELECT DISTINCT ON(student_id) student_id,id,action,outcome,academic_year_id,before_state,after_state,created_at FROM academic_student_transitions WHERE tenant_id=$1 AND student_id=ANY($2::text[]) ORDER BY student_id,created_at DESC,id DESC',tenant,ids);
   return students.map(student=>{
     const forStudent=(rows:Row[])=>rows.filter(row=>String(row.student_id)===student.id);
-    const state={student:{id:student.id,status:student.status,student_status:student.student_status,current_class_id:student.current_class_id,
+    const state={student:{id:student.id,status:student.status,student_status:student.student_status,admission_date:student.admission_date,current_class_id:student.current_class_id,
       current_stream_id:student.current_stream_id,progression_exit_type:student.metadata?.progression_exit_type??null},
       assignments:forStudent(assignments),enrollments:forStudent(enrollments),subjects:forStudent(subjects),allocations:forStudent(allocations),decisions:forStudent(decisions)};
     return {state,version:digest(state),student,placement:state.assignments[0]??null,enrollment:state.enrollments[0]??null,latest:forStudent(transitions)[0]??null};

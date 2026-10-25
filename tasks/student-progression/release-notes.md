@@ -21,6 +21,7 @@ The read-only production preflight found that some schools have missing next-yea
 ## Verification
 
 - PostgreSQL scenarios cover normal and terminal progression, mixed pathways and streams, timezones, holds/repeats, reversal/release, exceptions, retries, events rolling back with failed transactions, concurrent/stale actions, approvals, canonical tenant discovery and school isolation.
+- Admission dates are read as database calendar dates, avoiding timezone shifts at year boundaries. Learners admitted after the source year ended become exceptions. Shared refresh events reach parent, student and finance dashboards without revealing learner identities or decision reasons.
 - Browser checks exercise the real progression components at 1440, 768, 390 and 320 pixels, including subject changes, reasons, group holds and overflow/error detection.
 - `production-preflight.cjs` only reads schema metadata and tenant-scoped aggregates; it prints no student names, contacts or credentials.
 - `check-production-schema.cjs` restores a schema-only snapshot to the disposable localhost harness and applies the migration twice. No production student records are copied.

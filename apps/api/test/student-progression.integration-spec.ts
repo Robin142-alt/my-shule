@@ -5,6 +5,7 @@ import { StudentProgressionFixture } from './support/student-progression-fixture
 import { StudentProgressionRuntime } from '../src/modules/student-progression/student-progression.runtime';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { CohortPromotionService } from '../src/modules/admissions/cohort-promotion.service';
+import { DashboardRealtimeService } from '../src/modules/events/dashboard-realtime.service';
 
 jest.setTimeout(120_000);
 
@@ -384,6 +385,20 @@ describe('Automatic student progression in PostgreSQL',()=>{
     expect((await current(student.id))[0].academic_year_id).toBe(year());
     expect((await detail(student.id)).student.message).toContain('admitted after');
     expect(await fixture.q("SELECT id FROM student_academic_enrollments WHERE student_id=$1 AND academic_year='2027'",[student.id])).toHaveLength(0);
+  });
+
+  it('refreshes finance and parent dashboards without exposing learner decisions or identities',async()=>{
+    const student=await fixture.seed();
+    await engine.command(actor(),await request(student.id,'hold',{reason:'Private authorised decision'}));
+    const [saved]=await fixture.q("SELECT payload FROM progression_fixture_events WHERE payload->>'event_name'='school.operation.recorded' ORDER BY id DESC LIMIT 1");
+    const stream=new DashboardRealtimeService({} as never,{} as never,{} as never);
+    for(const role of ['accountant','parent','student']) {
+      const event=stream.toDashboardEvent({...saved.payload,id:'refresh-event',created_at:new Date().toISOString()} as never,
+        {enabledModules:[],permissions:['auth:read'],role});
+      expect(event?.tenantId).toBe(fixture.school);
+      expect(JSON.stringify(event)).not.toContain(student.id);
+      expect(JSON.stringify(event)).not.toContain('Private authorised decision');
+    }
   });
 
   it('shows approval names and consistent filtered progression counts',async()=>{
