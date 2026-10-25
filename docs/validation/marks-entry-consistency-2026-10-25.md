@@ -62,7 +62,8 @@ orphaned mark memberships, conflicting active streams, legacy completion dates a
 fingerprints for marks, report cards and result snapshots. Keep its output private:
 review entries can contain student identifiers.
 
-Before release, 115 Kibabi and 36 Kawino progress rows were inspected. Twenty
+Before release, every school with examination records was audited: 115 Kibabi and
+36 Kawino progress rows. Twenty
 Computer/CRE scopes were compared using the actual repository and teacher services
 against production records. All roster lengths and recorded totals agreed. A genuine
 Kawino Computer blank remained visible as 10/11, with the sheet still Submitted.
@@ -79,9 +80,13 @@ cross-school requests, teacher rejection from manager routes, zero marks, stale 
 submissions, lifecycle restrictions, paper configuration, imports and event rollback.
 
 Local checks passed: 104 distinct PostgreSQL integration tests across five suites,
-182 backend unit tests, and 50 frontend workflow/reconnect tests. Backend compilation,
+318 backend unit tests, and 50 frontend workflow/reconnect tests. Backend compilation,
 frontend TypeScript and changed-file lint also passed. The unassigned-entry browser
 harness passed all four viewport widths; phone screenshots were inspected manually.
+The first full CI unit run passed 1,593 of 1,595 tests. Its two failures were old
+SQL-alias/status mock expectations in the admin-command suite; these were updated
+to the shared query contract, preserving tenant assertions, and all 136 tests in
+that suite passed locally. The production workflow reruns the full suite.
 Validation logs are kept locally under `.marks-*.log`; they are not release artifacts.
 The release checklist includes database integration suites, backend unit tests,
 frontend workflow/reconnect tests, TypeScript, changed-file lint, and the browser

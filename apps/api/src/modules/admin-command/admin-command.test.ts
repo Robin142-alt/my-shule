@@ -5199,7 +5199,7 @@ test('ExamsManagerCommandService returns clean exam setup and marks entry for a 
   assert.equal(reads.length, 2);
   assert.equal(reads.every((read) => read.params[0] === 'tenant-fresh'), true);
   assert.equal(reads.some((read) => /FROM exam_series series/i.test(read.sql)), true);
-  assert.equal(reads.some((read) => /FROM exam_mark_entry_windows mark_window/i.test(read.sql)), true);
+  assert.equal(reads.some((read) => /FROM exam_mark_entry_windows w/i.test(read.sql)), true);
   assert.equal(reads.some((read) => /LEFT JOIN exam_marks mark/i.test(read.sql)), true);
   assert.equal(reads.every((read) => /tenant_id = \$1/.test(read.sql)), true);
 });
@@ -5574,7 +5574,10 @@ test('ExamsManagerCommandService reads configured windows before teachers enter 
             total_students: 35,
             entered: 0,
             missing: 35,
-            status: 'Pending',
+            status: 'Not started',
+            outstanding: true,
+            is_submitted: false,
+            overdue: false,
             deadline: '2026-01-16',
           }],
           rowCount: 1,
@@ -5589,11 +5592,11 @@ test('ExamsManagerCommandService reads configured windows before teachers enter 
   assert.equal(result.metrics.pending, 1);
   assert.equal(result.entries[0]?.exam_name, 'Term 1 Opener');
   assert.deepEqual(reads[0].params, ['kibabi-high']);
-  assert.match(reads[0].sql, /FROM exam_mark_entry_windows mark_window/i);
+  assert.match(reads[0].sql, /FROM exam_mark_entry_windows w/i);
   assert.match(reads[0].sql, /LEFT JOIN exam_marks mark/i);
-  assert.match(reads[0].sql, /LEFT JOIN subjects subject/i);
-  assert.match(reads[0].sql, /LEFT JOIN class_sections class_section/i);
-  assert.match(reads[0].sql, /WHERE mark_window\.tenant_id = \$1/i);
+  assert.match(reads[0].sql, /JOIN subjects subject ON subject\.tenant_id = w\.tenant_id/i);
+  assert.match(reads[0].sql, /JOIN class_sections section ON section\.tenant_id = w\.tenant_id/i);
+  assert.match(reads[0].sql, /WHERE w\.tenant_id = \$1/i);
 });
 
 test('ExamsManagerCommandService closes a tenant-scoped entry window without bypassing Dean review', async () => {
