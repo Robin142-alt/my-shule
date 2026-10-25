@@ -62,7 +62,7 @@ describe('Persistent cohort teaching configuration in PostgreSQL', () => {
       CREATE TABLE student_subject_enrollments(id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
         tenant_id text,student_id text,academic_enrollment_id text,academic_year_id text,class_section_id text,stream_id text,
         subject_id text,subject_code text,subject_name text,is_compulsory boolean,selected_by_user_id uuid,
-        status text DEFAULT 'active',created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW());
+        status text DEFAULT 'active',created_at timestamptz DEFAULT NOW(),effective_to date,updated_at timestamptz DEFAULT NOW());
       CREATE UNIQUE INDEX test_subject_enrollment_scope ON student_subject_enrollments(tenant_id,student_id,academic_year_id,subject_id) WHERE status='active';
       CREATE TABLE student_timetable_enrollments(id text,tenant_id text,student_id text,status text,updated_at timestamptz);
       CREATE TABLE historical_results (student_id text,class_section_id text,academic_term_id text,marks integer);

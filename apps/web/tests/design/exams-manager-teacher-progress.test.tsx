@@ -59,7 +59,20 @@ describe("Teacher mark entry follow-up", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unassigned" }));
     expect(screen.queryByText("Amina Otieno")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Details for Unassigned/ }));
-    expect(screen.getByText(/Assign a subject teacher/)).toBeVisible();
+    expect(screen.getByText(/Exams Manager can use Enter Marks/)).toBeVisible();
+  });
+
+  it("keeps submitted sheets with unresolved blanks out of outstanding while showing their real totals", () => {
+    response([sheet({total_students:5,recorded:4,entered:4,submitted:4,missing:1,
+      status:'Submitted',is_submitted:true,outstanding:false,overdue:false})]);
+    render(<TeacherMarksProgress />);
+    expect(screen.getByText('No outstanding mark-entry sheets')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'All sheets'}));
+    expect(screen.getByRole('listitem')).toHaveTextContent(/4\s*\/\s*5 recorded/);
+    expect(screen.getByText('1 missing')).toBeVisible();
+    expect(screen.getByText('Submitted')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:/Details for Amina/}));
+    expect(screen.getByText('Sheet submitted.')).toBeVisible();
   });
 
   it("refreshes real data and presents loading, errors and clean-school setup truthfully", () => {

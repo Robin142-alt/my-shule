@@ -168,15 +168,15 @@ export interface PendingMarksWindow {
   opensAt?: string;
 }
 
-export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false, teacherUserId?: string): Promise<{
+export async function fetchPendingMarksLive(session: LiveAuthSession, includeUnavailable = false, includeSubmitted = false, teacherUserId?: string | null): Promise<{
   stats: { totalWindows: number; nearingDeadline: number };
   windows: PendingMarksWindow[];
 }> {
   const query = new URLSearchParams();
   if (includeUnavailable) query.set('includeUnavailable', 'true');
   if (includeSubmitted) query.set('includeSubmitted', 'true');
-  if (teacherUserId) { query.delete("includeUnavailable"); query.delete("includeSubmitted"); query.set("teacherUserId", teacherUserId); }
-  const path = teacherUserId ? "/exams/assisted-marks-entry/markbooks" : "/class-teacher/pending-marks";
+  if (teacherUserId !== undefined) { query.delete("includeUnavailable"); query.delete("includeSubmitted"); if(teacherUserId) query.set("teacherUserId", teacherUserId); }
+  const path = teacherUserId !== undefined ? "/exams/assisted-marks-entry/markbooks" : "/class-teacher/pending-marks";
   return withSession(session, `${path}${query.size ? `?${query}` : ""}`, {
     method: "GET",
   });
@@ -348,6 +348,7 @@ export const EXAM_SCORE_STATUSES = [
 export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
 
 export interface TeacherMarkSheetRow {
+  can_edit?: boolean;
   category_scores?: Record<string, number | null | 'X' | 'Y'>;
   categories?: Array<{ id: string; name: string; max_score: number }>;
   paper_config_version?: number;
@@ -393,8 +394,8 @@ export async function fetchTeacherMarkSheetLive(
     classSectionId: string;
     subjectId: string;
     assessmentId: string;
-    view?: 'active' | 'submitted';
-    teacherUserId?: string;
+    view?: 'active' | 'submitted' | 'all';
+    teacherUserId?: string | null;
   },
 ): Promise<TeacherMarkSheetRow[]> {
   const query = new URLSearchParams({
@@ -404,7 +405,7 @@ export async function fetchTeacherMarkSheetLive(
     assessment_id: filters.assessmentId,
     limit: "100",
   });
-  if (filters.view === 'submitted') query.set('view', 'submitted');
+  if (filters.view) query.set('view', filters.view);
   if (filters.teacherUserId) query.set('teacher_user_id', filters.teacherUserId);
   // The API pages at 100 students. Submission needs the entire assigned roster,
   // including large classes, before it can ask about every missing score.
@@ -433,7 +434,7 @@ export interface SaveTeacherMarksPayload extends Record<string, unknown> {
   examId: string;
   classSectionId: string;
   assessmentId?: string;
-  teacherUserId?: string;
+  teacherUserId?: string | null;
   marks: Record<string, TeacherMarkDraftInput>;
 }
 
@@ -462,7 +463,7 @@ export async function saveExamMarksLive(
   session: LiveAuthSession,
   data: SaveTeacherMarksPayload,
 ): Promise<SaveTeacherMarksResult> {
-  return withSession(session, data.teacherUserId ? "/exams/assisted-marks-entry" : "/class-teacher/marks", {
+  return withSession(session, data.teacherUserId !== undefined ? "/exams/assisted-marks-entry" : "/class-teacher/marks", {
     method: "POST",
     body: data,
   });

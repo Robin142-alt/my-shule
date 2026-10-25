@@ -10,7 +10,8 @@ import bundledWebpack from 'next/dist/compiled/webpack/webpack.js';
 const require = createRequire(import.meta.url);
 const { webpack } = bundledWebpack;
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const assisted = process.argv.includes('--assisted');
+const unassigned = process.argv.includes('--unassigned');
+const assisted = process.argv.includes('--assisted') || unassigned;
 const papers = process.argv.includes('--papers');
 const out = path.resolve(web, papers ? '../../output/flexible-exam-papers-ui' : assisted ? '../../output/exams-manager-marks-ui' : '../../output/teacher-marks-ui');
 fs.mkdirSync(out, { recursive: true });
@@ -27,7 +28,7 @@ export async function saveExamMarksLive(session,payload){window.__payload=payloa
 export async function fetchPaperConfiguration(){return {version:1,papers:[{id:'paper-1',name:'Main Paper',max_score:100,weight:null,categories:[]}]};}
 export async function savePaperConfiguration(session,id,data){window.__config=data;exam.outOf=data.papers[0].max_score;exam.paperName=data.papers[0].name;exam.paperConfigVersion=2;rows=rows.map(row=>({...row,id:null,score:null,score_status:'not_assessed',category_scores:{},categories:data.papers[0].categories.map((c,i)=>({...c,id:'category-'+i})),paper_config_version:2}));return {...data,version:2};}`);
 fs.writeFileSync(path.join(out, 'api-client.ts'), `export async function requestDashboardApi(){throw new Error('Unexpected API request in isolated browser QA');}`);
-fs.writeFileSync(path.join(out, 'school-hooks.ts'), `export function useSchoolQuery(path){return {data:path.endsWith('/assignments')?{assignments:[{exam_id:'exam-1',exam_name:'End Term Exams',class_section_id:'form-4',class_name:'Form 4 Blue',subject_id:'agriculture',subject_name:'Agriculture',teacher_user_id:'teacher-1',teacher_name:'Ms Achieng'}]}:{entries:[]},refetch:async()=>{},isLoading:false,isFetching:false};}`);
+fs.writeFileSync(path.join(out, 'school-hooks.ts'), `export function useSchoolQuery(path){return {data:path.endsWith('/assignments')?{assignments:[{exam_id:'exam-1',exam_name:'End Term Exams',class_section_id:'form-4',class_name:'Form 4 Blue',subject_id:'agriculture',subject_name:'Agriculture',assessment_id:'paper-1',paper_name:'Main Paper',window_id:'window-1',teacher_user_id:'teacher-1',teacher_name:'Ms Achieng'}]}:{entries:[]},refetch:async()=>{},isLoading:false,isFetching:false};}`);
 fs.writeFileSync(path.join(out, 'entry.tsx'), `import {createRoot} from 'react-dom/client';import {QueryClient,QueryClientProvider} from '@tanstack/react-query';import {${assisted ? 'MarksEntryWorkspace' : 'ExamsMarksWorkspace'} as Workspace} from ${source(path.join(web, assisted ? 'src/components/school/exams-manager/marks-entry-workspace' : 'src/components/school/teacher-dashboard/exams-marks-workspace'))};createRoot(document.getElementById('root')).render(<QueryClientProvider client={new QueryClient()}><main className="mx-auto max-w-5xl p-3 sm:p-6"><Workspace onStartAction={()=>{}} onOpenSetup={()=>{}}/></main></QueryClientProvider>);`);
 
 async function run() {
@@ -57,19 +58,20 @@ async function run() {
       page.on('console', message => { if (message.type() === 'error') console.error(message.text()); });
       await page.goto(`http://127.0.0.1:${server.address().port}`);
       if (assisted) {
-        await page.getByRole('heading', { name: 'Enter marks for a teacher' }).waitFor();
+        await page.getByRole('heading', { name: 'Enter Marks' }).waitFor();
         await page.getByLabel('Exam', { exact: true }).selectOption('exam-1');
         await page.getByLabel('Class / grade', { exact: true }).selectOption('form-4');
         await page.getByLabel('Subject', { exact: true }).selectOption('agriculture');
-        await page.getByLabel('Assigned teacher', { exact: true }).selectOption('teacher-1');
+        await page.getByLabel('Paper', { exact: true }).selectOption('paper-1');
+        if (!unassigned) await page.getByLabel('Assigned teacher', { exact: true }).selectOption('teacher-1');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Selectors overflow at ${width}px`);
         await page.screenshot({ path: path.join(out, `selection-${width}.png`), fullPage: true });
-        await page.getByRole('button', { name: 'Open markbooks', exact: true }).click();
+        await page.getByRole('button', { name: 'Open markbook', exact: true }).click();
       }
-      await page.getByRole('button', { name: assisted ? 'To do (1)' : 'To do (4)', exact: true }).waitFor();
+      if (!assisted) await page.getByRole('button', { name: 'To do (4)', exact: true }).waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `List overflows at ${width}px`);
       await page.screenshot({ path: path.join(out, `markbooks-${width}.png`), fullPage: true });
-      await page.getByRole('button', { name: /Open Agriculture Form 4 Blue/ }).click();
+      if (!assisted) await page.getByRole('button', { name: /Open Agriculture Form 4 Blue/ }).click();
       const asha = page.getByLabel('Asha Njeri score', { exact: true });
       await asha.waitFor();
       if(papers) {
@@ -121,7 +123,7 @@ async function run() {
       await page.getByText(/draft saved. You can continue editing/).waitFor();
       assert.equal(await page.getByText('Reasons for missing scores').count(), 0);
       assert.equal(await page.evaluate(() => window.__payload.marks['student-0'].score), 0);
-      if (assisted) assert.equal(await page.evaluate(() => window.__payload.teacherUserId), 'teacher-1');
+      if (assisted) assert.equal(await page.evaluate(() => window.__payload.teacherUserId), unassigned ? null : 'teacher-1');
       await page.getByRole('button', { name: 'Submit results', exact: true }).click();
       const reason = page.getByLabel('Brian Otieno missing score reason', { exact: true });
       await reason.waitFor();
@@ -137,11 +139,10 @@ async function run() {
       assert.equal(await page.getByText(/evidence/i).count(), 0);
       assert.equal(await asha.inputValue(), '0');
       await page.getByRole('button', { name: 'Submit results', exact: true }).click();
-      await page.getByRole('button', { name: 'Confirm submission', exact: true }).click();
       await page.getByRole('button', { name: assisted ? 'To do (0)' : 'To do (3)', exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__payload.marks['student-1'].score_status), 'absent');
       assert.equal(await page.getByLabel('Asha Njeri score', { exact: true }).count(), 0);
-      await page.getByRole('button', { name: 'Submitted (2)', exact: true }).click();
+      await page.getByRole('button', { name: assisted ? 'Submitted (1)' : 'Submitted (2)', exact: true }).click();
       await page.getByRole('button', { name: /Open Agriculture.*End Term Exams/ }).click();
       await asha.waitFor();
       assert.equal(await asha.isDisabled(), true);

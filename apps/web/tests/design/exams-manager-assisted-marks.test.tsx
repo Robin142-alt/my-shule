@@ -11,7 +11,7 @@ jest.mock("@/components/school/exams-manager/teacher-marks-progress", () => ({ T
 jest.mock("@/components/school/teacher-dashboard/exams-marks-workspace", () => ({ ExamsMarksWorkspace: jest.fn(() => <p>Shared marks interface</p>) }));
 
 const assignment = { exam_id: "exam-a", exam_name: "Term 1", class_section_id: "class-a", class_name: "Grade 7",
-  subject_id: "maths", subject_name: "Mathematics", teacher_user_id: "teacher-a", teacher_name: "Ms Achieng" };
+  subject_id: "maths", subject_name: "Mathematics", teacher_user_id: "teacher-a", teacher_name: "Ms Achieng", assessment_id:"paper-a",paper_name:"Paper 1",window_id:"window-a" };
 
 describe("Exams Manager assisted mark selection", () => {
   beforeEach(() => {
@@ -24,17 +24,30 @@ describe("Exams Manager assisted mark selection", () => {
 
   it("filters assigned teachers by exam, class and subject and opens the existing interface", () => {
     renderWithProviders(<MarksEntryWorkspace onOpenSetup={jest.fn()} />);
-    expect(screen.getByRole("button", { name: "Open markbooks" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open markbook" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Exam"), { target: { value: "exam-a" } });
     fireEvent.change(screen.getByLabelText("Class / grade"), { target: { value: "class-a" } });
     fireEvent.change(screen.getByLabelText("Subject"), { target: { value: "maths" } });
     expect(screen.queryByRole("option", { name: "Mr Otieno" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Paper"), { target: { value: "paper-a" } });
     fireEvent.change(screen.getByLabelText("Assigned teacher"), { target: { value: "teacher-a" } });
-    fireEvent.click(screen.getByRole("button", { name: "Open markbooks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open markbook" }));
     expect(screen.getByText("Shared marks interface")).toBeVisible();
     expect(ExamsMarksWorkspace).toHaveBeenCalledWith(expect.objectContaining({ assistance: expect.objectContaining({
       teacherUserId: "teacher-a", examSeriesId: "exam-a", classSectionId: "class-a", subjectId: "maths",
     }) }), undefined);
+  });
+
+  it("opens an unassigned paper without selecting a teacher",()=>{
+    jest.mocked(useSchoolQuery).mockReturnValue({data:{assignments:[{...assignment,teacher_user_id:null,teacher_name:"Unassigned"}]},isLoading:false,isFetching:false,error:null,refetch:jest.fn()} as never);
+    renderWithProviders(<MarksEntryWorkspace onOpenSetup={jest.fn()}/>);
+    fireEvent.change(screen.getByLabelText("Exam"),{target:{value:"exam-a"}});
+    fireEvent.change(screen.getByLabelText("Class / grade"),{target:{value:"class-a"}});
+    fireEvent.change(screen.getByLabelText("Subject"),{target:{value:"maths"}});
+    fireEvent.change(screen.getByLabelText("Paper"),{target:{value:"paper-a"}});
+    expect(screen.getByLabelText("Assigned teacher")).not.toBeRequired();
+    fireEvent.click(screen.getByRole("button",{name:"Open markbook"}));
+    expect(ExamsMarksWorkspace).toHaveBeenCalledWith(expect.objectContaining({assistance:expect.objectContaining({teacherUserId:null,assessmentId:"paper-a",windowId:"window-a"})}),undefined);
   });
 
   it("resets the selected teacher when the subject changes", () => {
@@ -42,10 +55,11 @@ describe("Exams Manager assisted mark selection", () => {
     fireEvent.change(screen.getByLabelText("Exam"), { target: { value: "exam-a" } });
     fireEvent.change(screen.getByLabelText("Class / grade"), { target: { value: "class-a" } });
     fireEvent.change(screen.getByLabelText("Subject"), { target: { value: "maths" } });
+    fireEvent.change(screen.getByLabelText("Paper"), { target: { value: "paper-a" } });
     fireEvent.change(screen.getByLabelText("Assigned teacher"), { target: { value: "teacher-a" } });
     fireEvent.change(screen.getByLabelText("Subject"), { target: { value: "science" } });
     expect(screen.getByLabelText("Assigned teacher")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Open markbooks" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open markbook" })).toBeDisabled();
   });
 
   it("clears the assisted editor when the school changes", () => {
@@ -53,8 +67,9 @@ describe("Exams Manager assisted mark selection", () => {
     fireEvent.change(screen.getByLabelText("Exam"), { target: { value: "exam-a" } });
     fireEvent.change(screen.getByLabelText("Class / grade"), { target: { value: "class-a" } });
     fireEvent.change(screen.getByLabelText("Subject"), { target: { value: "maths" } });
+    fireEvent.change(screen.getByLabelText("Paper"), { target: { value: "paper-a" } });
     fireEvent.change(screen.getByLabelText("Assigned teacher"), { target: { value: "teacher-a" } });
-    fireEvent.click(screen.getByRole("button", { name: "Open markbooks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open markbook" }));
     jest.mocked(useOptionalSchoolTenantId).mockReturnValue("school-b");
     view.rerender(<MarksEntryWorkspace onOpenSetup={jest.fn()} />);
     expect(screen.queryByText("Shared marks interface")).not.toBeInTheDocument();
@@ -65,7 +80,7 @@ describe("Exams Manager assisted mark selection", () => {
     const refetch = jest.fn();
     jest.mocked(useSchoolQuery).mockReturnValue({ error: new Error("Unavailable"), refetch } as never);
     const view = renderWithProviders(<MarksEntryWorkspace onOpenSetup={jest.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Retry assignments" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry markbooks" }));
     expect(refetch).toHaveBeenCalled();
     const onOpenSetup = jest.fn();
     jest.mocked(useSchoolQuery).mockReturnValue({ data: { assignments: [] }, refetch } as never);

@@ -14,6 +14,7 @@ export type TeacherMarkSheet = {
   teacher_id: string | null; teacher: string; subject: string; paper: string;
   class_name: string; stream: string | null; total_students: number;
   entered: number; recorded: number; submitted: number; missing: number;
+  is_submitted?: boolean; outstanding?: boolean;
   status: string; overdue: boolean; deadline: string;
   window_closed: boolean; last_activity: string | null;
 };
@@ -23,7 +24,7 @@ const PAGE_SIZE = 8;
 const control = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 
 export function isOutstandingSheet(sheet: TeacherMarkSheet) {
-  return sheet.total_students > sheet.submitted && !["Draft", "Scheduled", "No students"].includes(sheet.status);
+  return sheet.outstanding ?? (sheet.total_students > 0 && !sheet.is_submitted && !["Submitted", "Completed", "Approved", "Published", "Draft", "Scheduled", "No students"].includes(sheet.status));
 }
 
 function dateLabel(value: string | null, time = false) {
@@ -36,7 +37,7 @@ function dateLabel(value: string | null, time = false) {
 
 function tone(sheet: TeacherMarkSheet): Tone {
   if (sheet.overdue) return "danger";
-  if (sheet.status === "Completed") return "success";
+  if (["Submitted", "Completed"].includes(sheet.status)) return "success";
   if (["Awaiting submission", "Unassigned"].includes(sheet.status)) return "warning";
   return sheet.status === "In progress" ? "info" : "neutral";
 }
@@ -133,9 +134,9 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup }
                 </div>
                 {expandedId === sheet.id ? (
                   <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                    <p><strong className="font-medium text-slate-800">{sheet.total_students - sheet.submitted} awaiting submission.</strong> {sheet.entered} scores entered; {sheet.recorded - sheet.entered} absence or other recorded outcomes. Missing and incomplete entries still need attention.</p>
+                    <p><strong className="font-medium text-slate-800">{sheet.is_submitted || sheet.status === "Submitted" ? "Sheet submitted." : `${sheet.total_students - sheet.submitted} awaiting submission.`}</strong> {sheet.entered} scores entered; {sheet.recorded - sheet.entered} absence or other recorded outcomes. Missing and incomplete entries still need attention.</p>
                     <p>Last activity: {dateLabel(sheet.last_activity, true)}. Deadline: {dateLabel(sheet.deadline, true)} (East Africa Time).</p>
-                    {!sheet.teacher_id ? <p className="text-warning">Assign a subject teacher to this class or stream in Academic Setup. These students are not assigned to a teacher with mark-entry access.</p> : null}
+                    {!sheet.teacher_id ? <p className="text-warning">No subject teacher is assigned. An Exams Manager can use Enter Marks above; a teacher can be assigned later.</p> : null}
                     {sheet.window_closed ? <p className="text-warning">This mark-entry window is locked. Outstanding work needs an authorized review before it can continue.</p> : null}
                     {showWindowControls ? confirmWindow === sheet.window_id ? (
                       <div className="space-y-3"><p className="font-medium text-amber-900">Lock all papers and teachers for {sheet.subject}, {sheet.class_name} in {sheet.exam_name}? This closes the whole class window, including any unfinished sheets.</p><div className="flex flex-wrap gap-2"><button className={control} disabled={Boolean(lockingWindow)} onClick={() => void handleLock(sheet.window_id)}>{lockingWindow ? "Locking…" : "Confirm lock"}</button><button className={control} disabled={Boolean(lockingWindow)} onClick={() => setConfirmWindow(null)}>Cancel</button></div></div>

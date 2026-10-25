@@ -116,6 +116,7 @@ jobs:
         run: |
           npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks teacher-exams-marks-workspace
           node apps/web/tests/design/teacher-marks-browser.mjs --assisted
+          node apps/web/tests/design/teacher-marks-browser.mjs --unassigned
           node apps/web/tests/design/teacher-marks-browser.mjs --papers
 
       - name: School day builder and timetable interface
@@ -390,7 +391,7 @@ jobs:
         env:
           DATABASE_URL: ""
           NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/exam-setup-integrity.integration-spec.ts apps/api/test/teacher-exam-visibility.integration-spec.ts
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/exam-setup-integrity.integration-spec.ts apps/api/test/teacher-exam-visibility.integration-spec.ts apps/api/test/teacher-mark-progress.integration-spec.ts
 
       - name: Report-card generation, recovery and school isolation
         env:

@@ -55,6 +55,7 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
             total_students: '30',
             window_status: 'open',
             entry_state: 'Open',
+            sheet_status: 'In progress',
             opens_at: '2026-09-01T06:00:00.000Z',
           }],
           rowCount: 1,
@@ -69,7 +70,8 @@ test('ClassTeacherService loads open teacher markbooks across text and uuid acad
   assert.equal(result.stats.totalWindows, 1);
   assert.equal(result.windows[0].classSectionId, 'class-a');
   assert.equal(result.windows[0].subjectId, 'subject-a');
-  assert.equal(result.windows[0].status, 'Draft');
+  assert.equal(result.windows[0].status, 'In progress');
+  assert.equal(result.windows[0].missingCount, 26);
   assert.equal(result.windows[0].canEnter, true);
   assert.deepEqual(queries[0].params, ['tenant-a', 'teacher-a', false, false]);
   assert.match(queries[0].sql, /cs\.id\s*=\s*w\.class_section_id::text/);

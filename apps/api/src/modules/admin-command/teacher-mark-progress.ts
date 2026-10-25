@@ -1,3 +1,5 @@
+import { examRosterSql, recordedMarkSql, markSheetStatusSql } from '../exams/exam-mark-roster';
+import { paperClassScopeSql } from '../exams/exam-result-policy';
 import { markEntryHasStartedSql, teacherEntryDeadlineSql, effectiveEntryDeadlineSql } from '../exams/mark-entry-window-policy';
 
 export type TeacherMarkProgress = {
@@ -18,6 +20,9 @@ export type TeacherMarkProgress = {
   submitted: number;
   missing: number;
   status: string;
+  assessment_id: string;
+  is_submitted: boolean;
+  outstanding: boolean;
   overdue: boolean;
   deadline: string;
   window_closed: boolean;
@@ -36,36 +41,26 @@ export const TEACHER_MARK_PROGRESS_SQL = `
         CASE WHEN owner.teacher_user_id IS NULL THEN 'Unassigned' ELSE 'Teacher name unavailable' END) AS teacher,
       COUNT(DISTINCT roster.student_id)::int AS total_students,
       COUNT(DISTINCT roster.student_id) FILTER (WHERE mark.score_status = 'entered' AND mark.score IS NOT NULL)::int AS entered,
-      COUNT(DISTINCT roster.student_id) FILTER (WHERE
-        (mark.score_status = 'entered' AND mark.score IS NOT NULL)
-        OR mark.score_status IN ('absent', 'exempt', 'not_assessed', 'withheld', 'medical_exception', 'transfer_student'))::int AS recorded,
-      COUNT(DISTINCT roster.student_id) FILTER (WHERE
-        mark.status IN ('submitted', 'reviewed', 'approved', 'locked', 'published') AND (
-          (mark.score_status = 'entered' AND mark.score IS NOT NULL)
-          OR mark.score_status IN ('absent', 'exempt', 'not_assessed', 'withheld', 'medical_exception', 'transfer_student'))
-      )::int AS submitted,
+      COUNT(DISTINCT roster.student_id) FILTER (WHERE ${recordedMarkSql('mark')})::int AS recorded,
+      COUNT(DISTINCT roster.student_id) FILTER (WHERE mark.status IN ('submitted','reviewed','approved','locked','published')
+        AND ${recordedMarkSql('mark')})::int AS submitted,
+      (BOOL_OR(mark.status IN ('submitted','reviewed','approved','locked','published'))
+        AND NOT COALESCE(BOOL_OR(mark.status = 'draft'), FALSE)) AS is_submitted,
+      w.last_action,
       MAX(mark.updated_at)::text AS last_activity,
       (w.status = 'closed' AND COALESCE(${teacherEntryDeadlineSql('w', 'owner.teacher_user_id')} < NOW(), TRUE))
-        OR series.status IN ('locked', 'published') AS window_closed,
+        OR series.status IN ('locked', 'published') OR series.locked_at IS NOT NULL OR series.published_at IS NOT NULL AS window_closed,
       (${markEntryHasStartedSql('w', 'series')} OR ${teacherEntryDeadlineSql('w', 'owner.teacher_user_id')} IS NOT NULL) AS has_started,
       ${effectiveEntryDeadlineSql('w', 'owner.teacher_user_id')} AS deadline
     FROM exam_mark_entry_windows w
     JOIN exam_series series ON series.tenant_id = w.tenant_id AND series.id = w.exam_series_id
     JOIN exam_assessments assessment ON assessment.tenant_id = w.tenant_id
       AND assessment.exam_series_id = w.exam_series_id AND assessment.subject_id = w.subject_id
+      AND ${paperClassScopeSql('assessment','w.class_section_id')}
     JOIN subjects subject ON subject.tenant_id = w.tenant_id AND subject.id::text = w.subject_id::text
     JOIN class_sections section ON section.tenant_id = w.tenant_id AND section.id::text = w.class_section_id::text
     LEFT JOIN LATERAL (
-      SELECT DISTINCT student.id AS student_id, membership.stream_id
-      FROM students student
-      JOIN student_class_assignments membership ON membership.tenant_id = student.tenant_id
-        AND membership.student_id = student.id::text AND membership.class_section_id = w.class_section_id::text
-        AND membership.status = 'active'
-      WHERE student.tenant_id = w.tenant_id AND student.status = 'active'
-        AND EXISTS (SELECT 1 FROM student_subject_enrollments enrollment
-          WHERE enrollment.tenant_id = w.tenant_id AND enrollment.student_id = student.id::text
-            AND enrollment.class_section_id = w.class_section_id::text
-            AND enrollment.subject_id = w.subject_id::text AND enrollment.status = 'active')
+      ${examRosterSql('w','series')}
     ) roster ON TRUE
     LEFT JOIN class_streams stream ON stream.tenant_id = w.tenant_id
       AND stream.class_section_id = w.class_section_id::text AND stream.id = roster.stream_id
@@ -89,20 +84,12 @@ export const TEACHER_MARK_PROGRESS_SQL = `
       roster.stream_id, stream.name, owner.teacher_user_id
   )
   SELECT CONCAT(window_id, ':', assessment_id, ':', COALESCE(teacher_id::text, 'unassigned'), ':', COALESCE(stream_id, 'class')) AS id,
-    window_id::text, class_section_id::text, exam_id::text, exam_name, subject, paper, class_name, stream,
+    assessment_id::text, window_id::text, class_section_id::text, exam_id::text, exam_name, subject, paper, class_name, stream,
     teacher_id::text, teacher, total_students, entered, recorded, submitted,
-    (total_students - recorded)::int AS missing, deadline::text, window_closed, last_activity,
-    CASE
-      WHEN total_students = 0 THEN 'No students'
-      WHEN exam_status = 'draft' THEN 'Draft'
-      WHEN submitted = total_students THEN 'Completed'
-      WHEN NOT has_started AND NOT window_closed THEN 'Scheduled'
-      WHEN teacher_id IS NULL THEN 'Unassigned'
-      WHEN recorded = 0 THEN 'Not started'
-      WHEN recorded = total_students THEN 'Awaiting submission'
-      ELSE 'In progress'
-    END AS status,
-    (total_students > submitted AND total_students > 0 AND exam_status <> 'draft'
+    (total_students - recorded)::int AS missing, deadline::text, window_closed, last_activity, COALESCE(is_submitted,FALSE) AS is_submitted,
+    (total_students > 0 AND NOT COALESCE(is_submitted,FALSE) AND exam_status <> 'draft' AND has_started) AS outstanding,
+    ${markSheetStatusSql({total:'total_students',recorded:'recorded',submitted:'is_submitted',examStatus:'exam_status',started:'has_started',closed:'window_closed',teacher:'teacher_id',lastAction:'last_action'})} AS status,
+    (NOT COALESCE(is_submitted,FALSE) AND total_students > 0 AND exam_status <> 'draft'
       AND deadline < NOW()) AS overdue
   FROM progress
   ORDER BY overdue DESC, deadline, teacher, exam_name, class_name, stream, subject, paper

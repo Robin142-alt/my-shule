@@ -1,4 +1,5 @@
 import { examGradeOverrideSql, paperClassScopeSql } from './exam-result-policy';
+import { examRosterSql } from './exam-mark-roster';
 
 /** Repository-owned expressions only. Shared by processing and transactional correction refreshes. */
 export function examResultCtes(tenant: string, batch: string, mode: string): string {
@@ -18,16 +19,11 @@ export function examResultCtes(tenant: string, batch: string, mode: string): str
     FROM batch_scope batch JOIN exam_marks mark ON mark.tenant_id=${tenant} AND mark.exam_series_id=batch.exam_series_id
       AND (batch.class_section_id IS NULL OR mark.class_section_id=batch.class_section_id)
     UNION
-    SELECT batch.*,enrollment.student_id::uuid,w.subject_id,w.class_section_id AS learner_class
+    SELECT batch.*,roster.student_id::uuid,w.subject_id,w.class_section_id AS learner_class
     FROM batch_scope batch JOIN exam_mark_entry_windows w ON w.tenant_id=${tenant} AND w.exam_series_id=batch.exam_series_id
       AND (batch.class_section_id IS NULL OR w.class_section_id=batch.class_section_id)
     JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id
-    JOIN student_subject_enrollments enrollment ON enrollment.tenant_id=w.tenant_id
-      AND enrollment.class_section_id=w.class_section_id::text AND enrollment.subject_id=w.subject_id::text AND enrollment.status='active'
-      AND (to_jsonb(enrollment)->>'academic_term_id' IS NULL OR to_jsonb(enrollment)->>'academic_term_id'=series.academic_term_id::text)
-    WHERE EXISTS (SELECT 1 FROM student_class_assignments placement WHERE placement.tenant_id=w.tenant_id
-      AND placement.student_id=enrollment.student_id AND placement.class_section_id=enrollment.class_section_id
-      AND placement.status IN ('active','completed','transferred'))
+    JOIN LATERAL (${examRosterSql('w','series')}) roster ON TRUE
   ), paper_evidence AS (
     SELECT key.*,assessment.id AS assessment_id,assessment.max_score,COALESCE(assessment.weight,assessment.max_score) AS weight,
       mark.score,CASE WHEN mark.score_status IN ('X','Y','exempt') THEN mark.score_status
