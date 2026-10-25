@@ -62,8 +62,8 @@ function reasonLabel(draft: MarkDraft) {
 }
 
 export type MarkEntryAssistance = {
-  teacherUserId: string; teacherName: string; examSeriesId: string;
-  classSectionId: string; subjectId: string; onClose: () => void;
+  teacherUserId: string | null; teacherName: string; examSeriesId: string;
+  classSectionId: string; subjectId: string; assessmentId?: string; windowId?: string; onClose: () => void;
 };
 
 export function ExamsMarksWorkspace({ onStartAction, assistance }: {
@@ -83,7 +83,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const viewerScope = assistance ? `${liveSession.session?.user.user_id}:assisting:${assistance.teacherUserId}` : liveSession.session?.user.user_id;
   const [exitRequested, setExitRequested] = useState(false);
   const queryClient = useQueryClient();
-  const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+  const [activeWindowId, setActiveWindowId] = useState<string | null>(assistance?.windowId && assistance.assessmentId ? `${assistance.windowId}:${assistance.assessmentId}` : null);
   const [view, setView] = useState<MarkbookView>("active");
   const [draftMarks, setDraftMarks] = useState<Record<string, DraftsByStudent>>({});
   const [savedDrafts, setSavedDrafts] = useState<Record<string, DraftsByStudent>>({});
@@ -97,13 +97,22 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const scoreInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const pendingKey = ["pending-marks", liveSession.session?.tenantId, viewerScope, "markbooks"];
+  const initiallyOpenedSheet = useRef<string | null>(null);
   const pendingMarksQuery = useQuery({
     queryKey: pendingKey,
     queryFn: () => fetchPendingMarksLive(liveSession.session!, true, true, ...(assistance ? [assistance.teacherUserId] : [])),
     enabled: !!liveSession.session, retry: false, refetchInterval: 30_000,
   });
   const sheets = (pendingMarksQuery.data?.windows ?? EMPTY_WINDOWS).filter(sheet => !assistance
-    || (sheet.examSeriesId === assistance.examSeriesId && sheet.classSectionId === assistance.classSectionId && sheet.subjectId === assistance.subjectId));
+    || (sheet.examSeriesId === assistance.examSeriesId && sheet.classSectionId === assistance.classSectionId && sheet.subjectId === assistance.subjectId && (!assistance.assessmentId || sheet.assessmentId === assistance.assessmentId) && (!assistance.windowId || sheet.id === assistance.windowId)));
+  const firstAssistedSheet = sheets.length === 1 ? sheets[0] : undefined;
+  useEffect(() => {
+    if(assistance?.assessmentId && firstAssistedSheet && initiallyOpenedSheet.current !== sheetKey(firstAssistedSheet)) {
+      initiallyOpenedSheet.current = sheetKey(firstAssistedSheet);
+      setView(isSubmitted(firstAssistedSheet) ? 'submitted' : 'active');
+      setActiveWindowId(sheetKey(firstAssistedSheet));
+    }
+  }, [assistance?.assessmentId, firstAssistedSheet]);
   const windows = sheets.filter(sheet => view === "submitted" ? isSubmitted(sheet) : !isSubmitted(sheet));
   const activeWindow = windows.find(windowTask => sheetKey(windowTask) === activeWindowId) ?? null;
   const submittedView = !!activeWindow && isSubmitted(activeWindow);
@@ -126,30 +135,32 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       examSeriesId: activeWindow!.examSeriesId, classSectionId: activeWindow!.classSectionId,
       subjectId: activeWindow!.subjectId, assessmentId: activeWindow!.assessmentId,
       ...(assistance ? { teacherUserId: assistance.teacherUserId } : {}),
-      ...(submittedView ? { view: "submitted" as const } : {}),
+      view: submittedView ? "submitted" as const : activeWindow?.canEnter === false ? "all" as const : "active" as const,
     }),
     enabled: Boolean(liveSession.session && activeWindow?.examSeriesId && activeWindow.classSectionId
-      && activeWindow.subjectId && activeWindow.assessmentId && (submittedView || activeWindow.canEnter !== false)),
+      && activeWindow.subjectId && activeWindow.assessmentId),
     retry: false,
   });
-  const markRows = activeWindow?.canEnter === false && !submittedView ? EMPTY_ROWS : markSheetQuery.data ?? EMPTY_ROWS;
+  const markRows = markSheetQuery.data ?? EMPTY_ROWS;
   const activeDrafts = Object.fromEntries(markRows.map(row => [row.student_id,
     (!submittedView && activeWindow && (draftMarks[sheetKey(activeWindow)]?.[row.student_id]
       || savedDrafts[sheetKey(activeWindow)]?.[row.student_id])) || draftFromRow(row),
   ])) as DraftsByStudent;
-  const blankRows = markRows.filter(row => !activeDrafts[row.student_id].score.trim());
-  const invalidRows = markRows.filter(row => scoreError(activeDrafts[row.student_id], activeWindow?.outOf ?? 100)
+  const blankRows = markRows.filter(row => !scoreStatus(activeDrafts[row.student_id]));
+  const editableRows = markRows.filter(row => row.can_edit !== false && (!row.id || row.status === "draft"));
+  const editableBlankRows = blankRows.filter(row => editableRows.includes(row));
+  const invalidRows = editableRows.filter(row => scoreError(activeDrafts[row.student_id], activeWindow?.outOf ?? 100)
     || row.categories?.some(c => scoreError({ score: activeDrafts[row.student_id].categories?.[c.id] ?? '', scoreStatus: '', remarks: '' }, Number(c.max_score))));
   const enteredCount = markRows.length - blankRows.length;
-  const readOnly = submittedView || activeWindow?.canEnter === false || markRows.some(row => row.id && row.status !== "draft");
+  const readOnly = submittedView || activeWindow?.canEnter === false || !editableRows.length;
   const exportUnavailable = !activeWindow || !markRows.length || isSaving || markSheetQuery.isError || markSheetQuery.isLoading;
   const unavailable = !activeWindow || readOnly || !markRows.length || isSaving || pendingMarksQuery.isError
     || markSheetQuery.isError || markSheetQuery.isLoading;
-  const visibleRows = markRows.filter(row => (!onlyBlank || !activeDrafts[row.student_id].score.trim())
+  const visibleRows = markRows.filter(row => (!onlyBlank || !scoreStatus(activeDrafts[row.student_id]))
     && `${row.student_name ?? ""} ${row.admission_number ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
 
   function updateDraft(studentId: string, patch: Partial<MarkDraft>) {
-    if (!activeWindow || isSaving || readOnly) return;
+    if (!activeWindow || isSaving || readOnly || !editableRows.some(row => row.student_id === studentId)) return;
     setActionError(""); setNotice("");
     setDraftMarks(current => ({ ...current, [sheetKey(activeWindow)]: {
       ...current[sheetKey(activeWindow)], [studentId]: { ...activeDrafts[studentId], ...patch },
@@ -168,11 +179,11 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   async function persistScores(action: "draft" | "submit") {
     if (savingRef.current || unavailable || !liveSession.session || !activeWindow) return;
     if (reportInvalidScores()) return;
-    if (action === "submit" && blankRows.some(row => !scoreStatus(activeDrafts[row.student_id]))) {
+    if (action === "submit" && editableRows.some(row => !scoreStatus(activeDrafts[row.student_id]))) {
       setActionError("Select a reason for every student without a score before submitting.");
       return;
     }
-    const marks = Object.fromEntries(markRows.flatMap(row => {
+    const marks = Object.fromEntries(editableRows.flatMap(row => {
       const draft = activeDrafts[row.student_id];
       // Clearing a persisted score must clear it on the server as an incomplete
       // draft, rather than silently keeping the previous saved score.
@@ -236,7 +247,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
         setSavedDrafts(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
       }
       setDraftMarks(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
-      const label = `${assistance ? `On behalf of ${assistance.teacherName}: ` : ""}${activeWindow.subjectName} · ${activeWindow.className} · ${activeWindow.paperName}`;
+      const label = `${assistance?.teacherName ? `On behalf of ${assistance.teacherName}: ` : ""}${activeWindow.subjectName} · ${activeWindow.className} · ${activeWindow.paperName}`;
       const message = action === "submit" ? `${label}: submitted for moderation. Choose your next markbook below.` : `${label}: draft saved. You can continue editing or return later.`;
       setNotice(message); toast.success(message);
       onStartAction?.("marks", "exams-marks", message);
@@ -248,7 +259,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   function submitResults() {
     if (unavailable || reportInvalidScores()) return;
     setActionError("");
-    if (blankRows.length) setReviewWindowId(sheetKey(activeWindow!));
+    if (editableRows.some(row => !scoreStatus(activeDrafts[row.student_id]))) setReviewWindowId(sheetKey(activeWindow!));
     else void persistScores("submit");
   }
   function downloadMarkbook() {
@@ -282,7 +293,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
         </button>
       </header>
       {assistance && <div className="space-y-2 border-b border-slate-200 p-4 sm:px-6">
-        <p className="text-sm text-slate-600">Entering on behalf of {assistance.teacherName}. Changes are recorded under your account. Exam locks and submission rules still apply.</p>
+        <p className="text-sm text-slate-600">{assistance.teacherName ? `Entering on behalf of ${assistance.teacherName}.` : "Entering marks as Exams Manager."} Changes are recorded under your account. Exam locks and submission rules still apply.</p>
         <button type="button" className={buttonClass} disabled={isSaving} onClick={() => hasUnsavedChanges ? setExitRequested(true) : assistance.onClose()}>Change teacher or exam</button>
         {exitRequested && <div role="alert" className="space-y-2 rounded-lg bg-warning-soft p-3 text-sm">
           <p>You have unsaved marks. Save your draft before changing teacher, or discard these changes.</p>
@@ -326,9 +337,10 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
             disabled={readOnly || hasUnsavedChanges || isSaving} onSaved={() => { setDraftMarks({}); setSavedDrafts({}); switchWindow(null); setNotice('Paper settings saved. Choose a markbook to continue entering scores.'); }} /></div>}
           <p className="px-4 pt-3 text-xs text-slate-500 sm:px-6">Enter a score, X for missing marks, or Y for examination irregularity. Any required X/Y sets the overall exam grade; Y takes priority.</p>
           {actionError && <p role="alert" className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{actionError}</p>}
-          {activeWindow.canEnter === false && !submittedView ? (
+          {activeWindow.canEnter === false && !submittedView && (
             <div role="status" className="m-4 rounded-lg border border-warning-border bg-warning-soft p-4"><h3 className="font-semibold">{activeWindow.entryState || "Entry unavailable"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{entryUnavailableReason(activeWindow)}</p></div>
-          ) : markSheetQuery.isLoading ? (
+          )}
+          {markSheetQuery.isLoading ? (
             <p role="status" className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Loading students...</p>
           ) : markSheetQuery.isError ? (
             <div role="alert" className="m-4 rounded-lg border border-danger-border bg-danger-soft p-4">
@@ -341,9 +353,9 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
             <section aria-labelledby="missing-scores-title" className="p-4 sm:px-6">
               <button type="button" onClick={() => { setReviewWindowId(null); setActionError(""); }} disabled={isSaving} className={buttonClass}><ArrowLeft className="h-4 w-4" /> Back to scores</button>
               <h3 ref={reviewHeading} tabIndex={-1} id="missing-scores-title" className="mt-5 text-lg font-semibold outline-none">Reasons for missing scores</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-500">{blankRows.length} {blankRows.length === 1 ? "student has" : "students have"} no score. Select a reason for each, or go back to enter their scores.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">{editableBlankRows.length} {editableBlankRows.length === 1 ? "student has" : "students have"} no score. Select a reason for each, or go back to enter their scores.</p>
               <div className="mt-4 divide-y divide-slate-200 rounded-lg border border-slate-200">
-                {blankRows.map(row => <div key={row.student_id} className="grid gap-3 p-3 sm:grid-cols-2 sm:items-center sm:p-4">
+                {editableBlankRows.map(row => <div key={row.student_id} className="grid gap-3 p-3 sm:grid-cols-2 sm:items-center sm:p-4">
                   <div className="min-w-0"><p className="break-words text-sm font-medium">{row.student_name ?? "Unnamed student"}</p><p className="mt-0.5 text-xs text-slate-500">{row.admission_number ?? "No admission number"}</p></div>
                   <label className="grid min-w-0 gap-1 text-sm text-slate-600">Reason / evidence
                     <select aria-label={`${row.student_name ?? "Student"} missing score reason`} value={scoreStatus(activeDrafts[row.student_id])} disabled={isSaving}
@@ -357,7 +369,8 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
             </section>
           ) : (
             <>
-              {readOnly && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
+              {readOnly && activeWindow.canEnter !== false && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
+              {submittedView && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
               <div className="flex flex-wrap items-center gap-2 p-3 sm:gap-3 sm:p-4 sm:px-6">
                 <label className="relative min-w-0 flex-1 basis-48"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input type="search" aria-label="Find student" placeholder="Name or admission number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-base focus:outline-blue-600" /></label>
                 <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-info-soft text-info")}>Blank ({blankRows.length})</button>
@@ -371,11 +384,12 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
                   {visibleRows.map(row => {
                     const draft = activeDrafts[row.student_id];
                     const error = scoreError(draft, activeWindow.outOf);
+                    const rowReadOnly = readOnly || !editableRows.includes(row);
                     return <div role="row" key={row.student_id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1 px-4 py-3 focus-within:bg-info-soft/50 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
                       <div role="cell" className="min-w-0"><label htmlFor={`score-${row.student_id}`} className="block break-words text-sm font-medium leading-5">{row.student_name ?? "Unnamed student"}</label><p className="mt-1 text-xs text-slate-500 sm:hidden">{row.admission_number ?? "No admission number"}</p>{row.updated_by_name && <p className="mt-1 break-words text-xs text-slate-500">Last saved by {row.updated_by_name}{row.updated_at ? ` · ${markbookDate(row.updated_at)}` : ""}</p>}</div>
                       <span role="cell" className="hidden text-sm text-slate-500 sm:block">{row.admission_number ?? "-"}</span>
                       <div role="cell"><input id={`score-${row.student_id}`} ref={element => { scoreInputs.current[row.student_id] = element; }} aria-label={`${row.student_name ?? "Student"} score`}
-                        type="text" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={draft.score} disabled={readOnly || isSaving} readOnly={Boolean(row.categories?.length)}
+                        type="text" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={draft.score} disabled={rowReadOnly || isSaving} readOnly={Boolean(row.categories?.length)}
                         aria-invalid={!!error} aria-describedby={error ? `error-${row.student_id}` : undefined}
                         onChange={event => updateDraft(row.student_id, { score: event.target.value, scoreStatus: event.target.value.trim() ? "entered" : "" })}
                         onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); const next = visibleRows[visibleRows.indexOf(row) + 1]; if (next) scoreInputs.current[next.student_id]?.focus(); } }}
@@ -383,7 +397,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
                       </div>
                       {Boolean(row.categories?.length) && <div className="col-span-full grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-3">
                         {row.categories!.map(category => <label key={category.id} className="grid gap-1 text-xs text-slate-600">{category.name} / {category.max_score}
-                          <input aria-label={`${row.student_name} ${category.name} score`} className="min-h-11 min-w-0 rounded-lg border border-slate-300 px-2 text-base" inputMode="decimal" value={draft.categories?.[category.id] ?? ''} disabled={readOnly || isSaving}
+                          <input aria-label={`${row.student_name} ${category.name} score`} className="min-h-11 min-w-0 rounded-lg border border-slate-300 px-2 text-base" inputMode="decimal" value={draft.categories?.[category.id] ?? ''} disabled={rowReadOnly || isSaving}
                             aria-invalid={Boolean(scoreError({score:draft.categories?.[category.id] ?? '',scoreStatus:'',remarks:''},Number(category.max_score)))}
                             onChange={event => {
                               const categories = { ...draft.categories, [category.id]: event.target.value };
@@ -393,7 +407,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
                             }} />
                           {scoreError({score:draft.categories?.[category.id] ?? '',scoreStatus:'',remarks:''},Number(category.max_score)) && <span role="alert" className="text-red-700">Enter 0 to {category.max_score}, X or Y.</span>}
                         </label>)}
-                        <label className="col-span-full flex min-h-11 items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={draft.scoreStatus==='exempt'} disabled={readOnly || isSaving}
+                        <label className="col-span-full flex min-h-11 items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={draft.scoreStatus==='exempt'} disabled={rowReadOnly || isSaving}
                           onChange={event=>{
                             const values=row.categories!.map(c=>draft.categories?.[c.id]?.trim().toUpperCase()??'');
                             const score=event.target.checked?'':values.includes('Y')?'Y':values.some(v=>!v||v==='X')?'X':String(values.reduce((sum,v)=>sum+Number(v),0));

@@ -342,7 +342,8 @@ describe("teacher exams and marks workspace", () => {
     renderWithProviders(createElement(ExamsMarksWorkspace, { onStartAction: jest.fn() }));
     fireEvent.click(await screen.findByRole("button", { name: /^Open Mathematics/ }));
     expect(await screen.findByText(reason)).toBeVisible();
-    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({ view: "all" }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Submit results" })).toBeDisabled();
   });
@@ -483,6 +484,21 @@ describe("teacher exams and marks workspace", () => {
     })));
   });
 
+  it('saves only editable rows when another stream contains protected submitted results', async () => {
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue([
+      { ...rows[0], id: 'submitted-mark', score: 110, status: 'submitted', can_edit: false },
+      { ...rows[1], can_edit: true },
+    ]);
+    await openWorkspace();
+    expect(screen.getByLabelText('Asha Njeri score')).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Brian Otieno score'), { target: { value: '71' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
+      action: 'draft', marks: { 'student-2': { score: 71, score_status: 'entered', expected_updated_at: null } },
+    })));
+  });
+
   it("shows locked markbooks without enabling assisted entry", async () => {
     const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
     jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [{ ...result.windows[0], canEnter: false, entryState: "Locked", status: "Locked" }] });
@@ -493,7 +509,8 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Open Mathematics/ }));
     expect(await screen.findByText(/This exam is locked or published/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
-    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({ view: "all" }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeDisabled();
     expect(saveExamMarksLive).not.toHaveBeenCalled();
   });
 

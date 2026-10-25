@@ -68,8 +68,9 @@ export function MarkbookList({ sheets, drafts, view, onView, onOpen }: {
         </div>
         <div className="min-w-0 text-sm">
           <p className={cn("font-medium", isSubmitted(sheet) ? "text-success" : "text-slate-700")}>
-            {drafts.includes(sheetKey(sheet)) ? "Unsaved changes" : isSubmitted(sheet) ? "Submitted" : sheet.canEnter === false ? sheet.entryState : hasDraft(sheet) ? `${sheet.savedCount ?? sheet.enteredCount} saved · Editable draft` : "Not started"}
+            {drafts.includes(sheetKey(sheet)) ? "Unsaved changes" : isSubmitted(sheet) ? "Submitted" : sheet.status}
           </p>
+          <p className="mt-1 text-xs text-slate-500">{sheet.enteredCount} / {sheet.totalStudents} recorded · {Math.max(0, sheet.totalStudents - sheet.enteredCount)} blank{sheet.canEnter === false && sheet.entryState ? ` · ${sheet.entryState}` : ""}</p>
           <p className="mt-1 text-xs text-slate-500">{isSubmitted(sheet) ? `Submitted ${markbookDate(sheet.submittedAt)}` : `Due ${markbookDate(sheet.deadline)}`}</p>
         </div>
         <button type="button" aria-label={`Open ${sheet.subjectName} ${sheet.className} ${sheet.paperName} ${sheet.examName}`} onClick={() => onOpen(sheetKey(sheet))}

@@ -28,3 +28,12 @@ it("uses separate assisted and normal teacher write endpoints", async () => {
   await saveExamMarksLive(session, payload);
   expect(withSession).toHaveBeenLastCalledWith(session, "/class-teacher/marks", { method: "POST", body: payload });
 });
+
+it("routes a manager without a teacher through the protected manager endpoints",async()=>{
+  jest.mocked(withSession).mockResolvedValue({windows:[]});
+  await fetchPendingMarksLive(session,true,true,null);
+  expect(withSession).toHaveBeenLastCalledWith(session,"/exams/assisted-marks-entry/markbooks",{method:"GET"});
+  const payload={action:"draft" as const,examId:"window-a",classSectionId:"class-a",assessmentId:"paper-a",teacherUserId:null,marks:{}};
+  await saveExamMarksLive(session,payload);
+  expect(withSession).toHaveBeenLastCalledWith(session,"/exams/assisted-marks-entry",{method:"POST",body:payload});
+});
