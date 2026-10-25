@@ -25,13 +25,26 @@ async function main() {
         count(*) FILTER(WHERE student.status='active' AND NOT EXISTS(SELECT 1 FROM student_academic_enrollments enrollment WHERE enrollment.tenant_id=student.tenant_id AND enrollment.student_id::text=student.id::text AND enrollment.status='active'))::int AS missing_current_enrollment
         FROM students student WHERE student.tenant_id=current_setting('app.tenant_id',true) GROUP BY tenant_id ORDER BY tenant_id`,
       tables:"SELECT to_regclass('public.academic_student_transitions')::text AS transitions,to_regclass('public.academic_progression_runs')::text AS runs",
+      constraints:"SELECT rel.relname AS table_name,con.conname,pg_get_constraintdef(con.oid) AS definition FROM pg_constraint con JOIN pg_class rel ON rel.oid=con.conrelid WHERE rel.relname=ANY($1::text[]) AND con.contype IN ('c','u') ORDER BY rel.relname,con.conname",
+      indexes:"SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename=ANY($1::text[]) AND indexdef LIKE 'CREATE UNIQUE%' ORDER BY tablename,indexname",
     };
     const tableNames=['student_allocations','student_academic_enrollments','student_subject_enrollments','student_timetable_enrollments','academic_timetable_slots','academics_class_teachers','approval_rules','dashboard_approval_requests','academic_audit_logs','notifications'];
-    for(const [name,sql] of Object.entries(queries).filter(([name])=>!['calendars','readiness'].includes(name))) console.log(JSON.stringify({check:name,rows:(await client.query(sql,name==='columns'?[tableNames]:[])).rows}));
+    for(const [name,sql] of Object.entries(queries).filter(([name])=>!['calendars','readiness'].includes(name))) console.log(JSON.stringify({check:name,rows:(await client.query(sql,['columns','constraints','indexes'].includes(name)?[tableNames]:[])).rows}));
     const schools=(await client.query(queries.schools)).rows;
     for(const school of schools) {
       await client.query("SELECT set_config('app.tenant_id',$1,true)",[school.slug]);
       for(const name of ['calendars','readiness']) console.log(JSON.stringify({check:name,rows:(await client.query(queries[name])).rows}));
+      if(process.env.PROGRESSION_VERIFY_OVERVIEW==='1') {
+        const {progressionOverview}=require('../../apps/api/src/modules/student-progression/progression-queries');
+        const runtimeRole=process.env.PROGRESSION_RUNTIME_ROLE||'my_shule_runtime';
+        await client.query('SET LOCAL ROLE "'+runtimeRole.replaceAll('"','""')+'"');
+        await client.query("SELECT set_config('app.role','system',true)");
+        const tx={$queryRawUnsafe:async(sql,...values)=>(await client.query(sql,values)).rows};
+        const overview=await progressionOverview(tx,{tenantId:school.slug,userId:null,role:'system',permissions:[],system:true},{limit:25});
+        console.log(JSON.stringify({check:'live_progression_read',tenant:school.slug,total:overview.total,counts:overview.counts,
+          status:overview.automation.status,message:overview.automation.message,years:overview.years.length}));
+        await client.query('RESET ROLE');
+      }
     }
     await client.query('ROLLBACK');
   } finally {await client.end();}

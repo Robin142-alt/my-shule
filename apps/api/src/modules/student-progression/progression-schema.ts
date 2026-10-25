@@ -51,11 +51,21 @@ CREATE INDEX IF NOT EXISTS ix_annual_enrollment_year_id ON student_academic_enro
 UPDATE student_academic_enrollments enrollment SET academic_year_id=section.academic_year_id
 FROM class_sections section WHERE enrollment.academic_year_id IS NULL AND enrollment.tenant_id=section.tenant_id
   AND enrollment.class_section_id::text=section.id::text;
+ALTER TABLE academic_progression_activation ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_activation FORCE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_runs FORCE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_decisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_decisions FORCE ROW LEVEL SECURITY;
+ALTER TABLE academic_student_transitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_student_transitions FORCE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_commands ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_progression_commands FORCE ROW LEVEL SECURITY;
 DO $$ DECLARE target text; BEGIN
   FOREACH target IN ARRAY ARRAY['academic_progression_activation','academic_progression_runs','academic_progression_decisions',
     'academic_student_transitions','academic_progression_items','academic_progression_commands'] LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY',target);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY',target);
     EXECUTE format('DROP POLICY IF EXISTS progression_school_policy ON %I',target);
     EXECUTE format('CREATE POLICY progression_school_policy ON %I USING (tenant_id=current_setting(''app.tenant_id'',true)) WITH CHECK (tenant_id=current_setting(''app.tenant_id'',true))',target);
   END LOOP;

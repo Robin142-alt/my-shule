@@ -367,6 +367,25 @@ describe('Automatic student progression in PostgreSQL',()=>{
     expect(await current(student.id)).toHaveLength(1);
   });
 
+  it('lets a Principal reject their own pending request without permitting self-approval',async()=>{
+    const student=await fixture.seed();
+    const principal={...actor(),userId:fixture.principal,role:'principal'};
+    const pending=await engine.command(principal,await request(student.id,'expel'));
+    await expect(engine.decideApproval(principal,pending.approval_id!,'approved','Self review')).rejects.toThrow();
+    await engine.decideApproval(principal,pending.approval_id!,'rejected','Request cancelled; learner remains enrolled');
+    expect((await detail(student.id)).student.student_status).toBe('active');
+    expect((await engine.overview(principal)).approvals).toHaveLength(0);
+  });
+
+  it('flags a new admission after the source year ended instead of silently advancing it',async()=>{
+    const student=await fixture.seed();await fixture.configureClass(8);
+    await fixture.q("UPDATE students SET admission_date='2027-01-01' WHERE id=$1",[student.id]);
+    await engine.runYear(actor(),year(),fixture.due);
+    expect((await current(student.id))[0].academic_year_id).toBe(year());
+    expect((await detail(student.id)).student.message).toContain('admitted after');
+    expect(await fixture.q("SELECT id FROM student_academic_enrollments WHERE student_id=$1 AND academic_year='2027'",[student.id])).toHaveLength(0);
+  });
+
   it('shows approval names and consistent filtered progression counts',async()=>{
     const student=await fixture.seed();await fixture.configureClass(8);
     await engine.command(actor(),await request(student.id,'expel'));

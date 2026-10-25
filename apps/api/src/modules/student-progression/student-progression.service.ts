@@ -77,7 +77,7 @@ export class ProgressionEngine {
     return this.transaction(actor,async tx=>{
       const [approval]=await query(tx,"SELECT * FROM dashboard_approval_requests WHERE tenant_id=$1 AND id::text=$2 AND module='student_progression' FOR UPDATE",actor.tenantId,id);
       if(!approval) throw new NotFoundException('The approval was not found in this school.');
-      if(approval.requested_by_user_id===actor.userId) throw new ForbiddenException('A different Principal must review this decision.');
+      if(decision==='approved'&&approval.requested_by_user_id===actor.userId) throw new ForbiddenException('A different Principal must approve this decision.');
       if(String(approval.status).toLowerCase()===decision) return {status:'completed',affected:0,message:'This decision is already recorded.',replayed:true};
       if(String(approval.status).toLowerCase()!=='pending') throw new ConflictException('This approval has already been decided.');
       const command=approval.metadata.command as ProgressionCommand;
@@ -263,6 +263,7 @@ export class ProgressionEngine {
             const current=await readStudentState(tx,actor.tenantId,id,true);
             const decision=current.state.decisions.find(row=>row.academic_year_id===yearId)?.decision;
             if(!activeLearner(current.student)) {await this.saveItem(tx,actor,yearId,id,'excluded','The learner is not currently enrolled.');return;}
+            if(day(current.student.admission_date)>day(year.ends_on)) throw new BadRequestException('This learner was admitted after the source year ended. Correct their admission-year placement before progression.');
             const pending=await query(tx,`SELECT id FROM dashboard_approval_requests WHERE tenant_id=$1 AND module='student_progression' AND status='PENDING'
               AND metadata->'command'->'students' @> $2::jsonb LIMIT 1`,actor.tenantId,JSON.stringify([{id}]));
             if(decision==='hold'||pending.length) {await this.saveItem(tx,actor,yearId,id,'held',pending.length?'A Principal decision is pending.':'An authorised hold is in place.');return;}
