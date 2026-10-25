@@ -81,16 +81,17 @@ export class ManualFeePaymentService {
     const payment = await this.prisma.withRequestTransaction(async () => {
       this.assertHasAllocationTarget(dto.student_id ?? null, dto.invoice_id ?? null);
       this.assertMethodRequirements(dto);
-      if (dto.student_id) {
-        const student = await this.prisma.query(`SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`, [tenantId, dto.student_id]);
-        if (!student.rows.length) throw new NotFoundException('Learner was not found in this school');
-      }
+      let studentId = dto.student_id ?? null;
       if (dto.invoice_id) {
         const invoice = await this.invoicesRepository.findById(tenantId, dto.invoice_id);
         if (!invoice || (dto.student_id && this.readStudentId(invoice) !== dto.student_id)) {
           throw new NotFoundException('Invoice was not found for this learner in this school');
         }
+        studentId = this.readStudentId(invoice);
       }
+      if (!studentId) throw new BadRequestException('A fee receipt requires an invoice linked to a learner');
+      const student = await this.prisma.query(`SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`, [tenantId, studentId]);
+      if (!student.rows.length) throw new NotFoundException('Learner was not found in this school');
 
       const createdPayment = await this.manualFeePaymentsRepository.create({
         tenant_id: tenantId,
@@ -98,7 +99,7 @@ export class ManualFeePaymentService {
         receipt_number: this.generateReceiptNumber(),
         payment_method: dto.payment_method,
         status: 'received',
-        student_id: dto.student_id ?? null,
+        student_id: studentId,
         invoice_id: dto.invoice_id ?? null,
         amount_minor: this.normalizeMinorAmount(dto.amount_minor),
         currency_code: DEFAULT_CURRENCY_CODE,
