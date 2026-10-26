@@ -97,6 +97,12 @@ export class StructuredLoggerService implements LoggerService {
     trace?: string,
     fields: Record<string, unknown> = {},
   ): void {
+    // Per-route bootstrap messages exceed the hosting log burst limit on this
+    // API. Keep them in development; always retain operational and error logs.
+    if (level === 'log' && this.configService.get<string>('app.nodeEnv') === 'production'
+      && (context === 'RouterExplorer' || context === 'RoutesResolver')) {
+      return;
+    }
     const record = this.buildRecord(level, message, context, trace, fields);
     const stream =
       level === 'error' || level === 'fatal'
