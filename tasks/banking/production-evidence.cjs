@@ -29,20 +29,20 @@ async function main(){
       const imbalanced=(await client.query(`SELECT count(*)::int AS count FROM (SELECT transaction_id FROM ledger_entries WHERE tenant_id=$1
         GROUP BY transaction_id HAVING sum(CASE WHEN direction='debit' THEN amount_minor::numeric ELSE -amount_minor::numeric END)<>0) q`,[tenant])).rows[0].count;
       const history={};
-      for(const table of ['student_fee_payment_allocations','student_fee_credits','manual_fee_payment_allocations','payment_intents',
+      for(const table of ['student_invoices','student_fee_payment_allocations','student_fee_credits','manual_fee_payment_allocations','payment_intents',
         'mpesa_transactions','mpesa_c2b_payments','mpesa_payload_vault','finance_approval_requests','mpesa_reconciliation_discrepancies'])
-        history[table]=(await client.query(`SELECT count(*)::text AS count FROM ${table} WHERE tenant_id=$1`,[tenant])).rows[0].count;
+        history[table]=(await client.query(`SELECT count(*)::text AS count FROM ${table} WHERE tenant_id::text=$1`,[tenant])).rows[0].count;
       report.schools.push({tenant,...student,...invoice,...receipts,...journals,imbalanced_journals:imbalanced,history_counts:history});
     }
     report.schema=(await client.query(`SELECT relname,relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname=ANY($1::text[]) ORDER BY relname`,
-      [['fee_payment_corrections','fee_credit_refunds','fee_credit_applications','fee_credit_application_reversals','receipt_refund_evidence','legacy_fee_invoice_adoptions','bank_synchronization_cursors','payment_ingress_events']])).rows;
+      [['fee_payment_corrections','fee_credit_refunds','fee_credit_applications','fee_credit_application_reversals','receipt_refund_evidence','legacy_fee_invoice_adoptions','bank_connection_sync','payment_ingress','payment_ingress_verifications']])).rows;
     await client.query('ROLLBACK');
     const phase=process.argv.includes('--after')?'after':'before';writeFileSync(`output/banking-release/${phase}.json`,JSON.stringify(report,null,2));
     console.log(JSON.stringify(report));
     if(phase==='after'){
       const baseline=JSON.parse(readFileSync('output/banking-release/before.json','utf8'));
       if(JSON.stringify(report.schools)!==JSON.stringify(baseline.schools))throw new Error('Production records changed since baseline; review the saved before/after evidence');
-      for(const name of ['fee_payment_corrections','fee_credit_refunds','fee_credit_applications','fee_credit_application_reversals','receipt_refund_evidence']){
+      for(const name of ['fee_payment_corrections','fee_credit_refunds','fee_credit_applications','fee_credit_application_reversals','receipt_refund_evidence','legacy_fee_invoice_adoptions','bank_connection_sync','payment_ingress','payment_ingress_verifications']){
         const table=report.schema.find(row=>row.relname===name);
         if(!table?.relrowsecurity||!table.relforcerowsecurity)throw new Error(`Missing forced RLS for ${name}`);
       }
