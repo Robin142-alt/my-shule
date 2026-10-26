@@ -10,6 +10,7 @@ Banking backend release `6e8376d60e92d55c81fd49a6303c48117057bd99` is deployed i
 - Six production authentication/CSRF/status smoke checks passed; four new protected financial endpoints rejected unauthenticated requests carrying forged school headers.
 - Main CI run `40376937799` passed quality, security, backend tests, PostgreSQL integration, Cloudflare build/runtime tests and container build. Cloudflare publication failed because GitHub's combined status response omits `creator`. The corrected lookup uses the full newest-first status list and has also verified the actual deployed banking commit.
 - Follow-up regression coverage checks trusted publisher identity, immutable commit lookup, newest pending/failed status, malformed responses and transport errors. Production route enumeration is suppressed to avoid Railway's observed startup log burst limit; operational, audit, warning and error records remain enabled.
+- Recovery review reproduced a school-local inbox failure starving all later schools. The worker now records a scoped failure, advances the page and revisits durable failed work on later sweeps. Six recovery tests pass, including 101 schools across page boundaries and repeated failures; the suite is included in CI.
 
 ## Delivered behavior
 

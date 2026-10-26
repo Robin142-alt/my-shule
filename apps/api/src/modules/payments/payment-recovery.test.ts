@@ -5,6 +5,46 @@ import { PaymentsJobProducerService } from "./services/payments-job-producer.ser
 import { PaymentInboxRecoveryService } from "./services/payment-inbox-recovery.service";
 import { RequestContextService } from "../../common/request-context/request-context.service";
 import { PaymentsJobExecutionService } from './services/payments-job-execution.service';
+import { Logger } from '@nestjs/common';
+
+test('a school recovery failure cannot starve later schools or prevent retry on the next page cycle', async (t) => {
+  const errors: string[] = [];
+  t.mock.method(Logger.prototype, 'error', (message: string) => errors.push(message));
+  const context = new RequestContextService();
+  const tenants = Array.from({ length: 101 }, (_, i) => `school-${String(i).padStart(3, '0')}`);
+  const visited: string[] = [], dispatched: string[] = [], cursors: string[] = [];
+  const db = {
+    withRequestTransaction: (fn: () => Promise<unknown>) => fn(),
+    query: async (sql: string, values: string[]) => {
+      if (sql.includes('FROM tenants')) {
+        assert.equal(context.requireStore().tenant_id, null);
+        cursors.push(values[0]);
+        return { rows: tenants.filter((tenant) => tenant > values[0]).slice(0, 100).map((tenant_id) => ({ tenant_id })) };
+      }
+      assert.equal(context.requireStore().tenant_id, values[0]);
+      return { rows: sql.includes('UPDATE callback_logs') ? [{ id: 'callback', checkout_request_id: 'checkout' }] : [] };
+    },
+  };
+  const recovery = new PaymentInboxRecoveryService(db as never, context, {
+    enqueuePayment: async ({ tenant_id }: { tenant_id: string }) => dispatched.push(tenant_id),
+  } as never, {
+    recoverSchool: async (tenant: string) => {
+      assert.equal(context.requireStore().tenant_id, tenant);
+      visited.push(tenant);
+      if (tenant === tenants[0]) throw new Error('private provider details must not be logged');
+    },
+  } as never);
+  await recovery.sweep();
+  await recovery.sweep();
+  await recovery.sweep();
+  assert.deepEqual(cursors, ['', tenants[99], '']);
+  assert.equal(visited.filter((tenant) => tenant === tenants[0]).length, 2);
+  assert.ok(dispatched.includes(tenants[100]));
+  assert.equal(dispatched.length, 199);
+  assert.equal(errors.length, 2);
+  assert.ok(errors.every((message) => message.includes(tenants[0]) && !message.includes('private provider')));
+  assert.equal(context.snapshot(), undefined);
+});
 
 test("callback bearer tokens are redacted in application logs with and without queries", () => {
   for (const suffix of ["result", "timeout"]) {
