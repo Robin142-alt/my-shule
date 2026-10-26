@@ -14,16 +14,16 @@ export const FEE_RECEIPTS_READ_SQL = `
   FROM manual_fee_payments WHERE tenant_id=$1
   UNION ALL
   SELECT p.id::text, p.tenant_id, 'stk:' || p.id::text,
-    'STK-' || p.id::text, 'mpesa_c2b', 'cleared',
+    'STK-' || p.id::text, 'mpesa_c2b', CASE WHEN reversal.id IS NULL THEN 'cleared' ELSE 'reversed' END,
     p.student_id::text, NULL::text, p.amount_minor, p.currency_code, NULL::text,
     COALESCE(p.completed_at,p.created_at), NULL::timestamptz, p.completed_at,
-    NULL::timestamptz, NULL::timestamptz, NULL::text, NULL::text, NULL::text,
+    NULL::timestamptz, reversal.created_at, NULL::text, NULL::text, NULL::text,
     (SELECT mt.mpesa_receipt_number FROM mpesa_transactions mt
       WHERE mt.tenant_id=p.tenant_id AND mt.payment_intent_id=p.id
         AND mt.ledger_transaction_id::text=p.ledger_transaction_id::text AND mt.mpesa_receipt_number IS NOT NULL
       ORDER BY mt.created_at LIMIT 1),
     '1110-MPESA-CLEARING', '1100-AR-FEES', p.ledger_transaction_id::text,
-    NULL::text, NULL::text,
+    reversal.reversal_ledger_transaction_id::text, NULL::text,
     jsonb_build_object('source','stk_payment',
       'invoice_allocations', COALESCE((SELECT jsonb_agg(jsonb_build_object('invoice_id',a.invoice_id,'amount_minor',a.amount_minor::text)) FROM (
         SELECT invoice_id,amount_minor FROM student_fee_payment_allocations WHERE tenant_id=p.tenant_id AND payment_intent_id=p.id
@@ -33,8 +33,9 @@ export const FEE_RECEIPTS_READ_SQL = `
         ) a),'[]'::jsonb),
       'credit_amount_minor', COALESCE((SELECT SUM(c.remaining_amount_minor) FROM student_fee_credits c
         WHERE c.tenant_id=p.tenant_id AND c.payment_intent_id=p.id),0)::text),
-    p.user_id::text, p.created_at, p.updated_at
+    p.user_id::text, p.created_at, COALESCE(reversal.created_at,p.updated_at)
   FROM payment_intents p
+  LEFT JOIN student_fee_payment_reversals reversal ON reversal.tenant_id=p.tenant_id AND reversal.payment_intent_id=p.id
   WHERE p.tenant_id=$1 AND p.payment_owner='tenant' AND p.status='completed'
     AND p.student_id IS NOT NULL AND p.ledger_transaction_id IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM manual_fee_payments m WHERE m.tenant_id=p.tenant_id AND m.ledger_transaction_id::text=p.ledger_transaction_id::text)

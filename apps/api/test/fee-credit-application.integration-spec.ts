@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
 import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
 import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from '../src/modules/billing/student-fee-payment-reversal.schema';
 import { FEE_CREDIT_READ_SQL } from '../src/modules/billing/fee-credit-read-sql';
 import { ManualFeePaymentsRepository } from '../src/modules/billing/repositories/manual-fee-payments.repository';
 import { BillingService } from '../src/modules/billing/billing.service';
@@ -41,6 +42,7 @@ describe('Audited fee credit application', () => {
       CREATE TABLE student_fee_payment_allocations(tenant_id text,payment_intent_id uuid,invoice_id uuid,amount_minor bigint);
     `);
     await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
+    await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
   });
   beforeEach(async () => {
     await pool.query('TRUNCATE fee_credit_application_reversals,fee_credit_applications,students,invoices,manual_fee_payments,manual_fee_payment_allocations,student_fee_credits,payment_intents,events');

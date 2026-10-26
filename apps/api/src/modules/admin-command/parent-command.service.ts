@@ -1,4 +1,5 @@
 import { FEE_INVOICE_READ_SQL } from '../billing/fee-invoice-read-sql';
+import { FEE_RECEIPTS_READ_SQL } from '../billing/fee-receipts-read-sql';
 import { STUDENT_FEE_CREDIT_SQL } from '../billing/fee-credit-read-sql';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -255,7 +256,7 @@ export class ParentCommandService {
             payment.amount_minor,
             payment.status,
             payment.received_at::text
-          FROM manual_fee_payments payment
+          FROM (${FEE_RECEIPTS_READ_SQL}) payment
           LEFT JOIN (${FEE_INVOICE_READ_SQL}) invoice
             ON invoice.tenant_id::text = payment.tenant_id::text
            AND invoice.id::text = payment.invoice_id::text

@@ -14,6 +14,8 @@ import { ManualFeePaymentsRepository } from '../src/modules/billing/repositories
 import { InvoicesRepository } from '../src/modules/billing/repositories/invoices.repository';
 import { SubscriptionsRepository } from '../src/modules/billing/repositories/subscriptions.repository';
 import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
+import { StudentFeePaymentAllocationService } from '../src/modules/billing/student-fee-payment-allocation.service';
+import { FEE_RECEIPTS_READ_SQL } from '../src/modules/billing/fee-receipts-read-sql';
 import { ManualFeePaymentService } from '../src/modules/billing/manual-fee-payment.service';
 import { CollectionPaymentsService } from '../src/modules/payments/collection-payments.service';
 import { CollectionSuspenseService } from '../src/modules/payments/collection-suspense.service';
@@ -37,6 +39,7 @@ describe('Bank collection accounting through the real financial engine', () => {
   const accountant = randomUUID(), principal = randomUUID(), student = randomUUID();
   let pool: Pool, admin: Pool, db: PrismaService, collections: CollectionPaymentsService;
   let credits: FeeCreditApplicationService, ingress: PaymentIngressService;
+  let transactions: TransactionService, schoolEvents: {recordSchoolOperation:(input:unknown)=>Promise<void>};
   let subscription: string, revision: string;
   let failAudit = false;
   const account = '0123456789012';
@@ -91,12 +94,16 @@ describe('Bank collection accounting through the real financial engine', () => {
       CREATE TABLE IF NOT EXISTS tenant_financial_accounts(tenant_id text,mpesa_clearing_account_code text,fee_control_account_code text);
       CREATE TABLE IF NOT EXISTS student_guardians(tenant_id text,student_id uuid,user_id uuid,status text);
       CREATE TABLE IF NOT EXISTS student_portal_access(tenant_id text,student_id uuid,user_id uuid,status text);
-      CREATE TABLE IF NOT EXISTS mpesa_transactions(tenant_id text,mpesa_receipt_number text,ledger_transaction_id uuid);
+      CREATE TABLE payment_intents(id uuid PRIMARY KEY,tenant_id text,student_id uuid,user_id uuid,payment_owner text,status text,
+        amount_minor bigint,currency_code text,ledger_transaction_id uuid,completed_at timestamptz DEFAULT now(),
+        created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),UNIQUE(tenant_id,id));
+      CREATE TABLE IF NOT EXISTS mpesa_transactions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,mpesa_receipt_number text,
+        ledger_transaction_id uuid,payment_intent_id uuid,status text,checkout_request_id text,created_at timestamptz DEFAULT now());
       CREATE TABLE IF NOT EXISTS mpesa_c2b_payments(id uuid PRIMARY KEY,tenant_id text,trans_id text,status text,manual_fee_payment_id uuid,updated_at timestamptz);
       CREATE TABLE finance_approval_requests(id uuid PRIMARY KEY,tenant_id text,action text,status text,subject_type text,subject_id uuid,
         reconciliation_discrepancy_id uuid,amount_minor bigint,currency_code text,reason text,requested_by_user_id uuid,
         first_approver_user_id uuid,second_approver_user_id uuid);
-      CREATE TABLE mpesa_reconciliation_discrepancies(id uuid PRIMARY KEY,tenant_id text,provider_transaction_id text,ledger_transaction_id uuid);
+      CREATE TABLE mpesa_reconciliation_discrepancies(id uuid PRIMARY KEY,tenant_id text,provider_transaction_id text,ledger_transaction_id uuid,payment_intent_id uuid);
       CREATE TABLE banking_chain_effects(tenant_id text,kind text,payload jsonb);`);
     const bootstrap = {runSchemaBootstrap: (sql: string) => pool.query(sql)};
     await new FinanceSchemaService(bootstrap as never,{onModuleInit:async()=>{}} as never).onModuleInit();
@@ -127,10 +134,10 @@ describe('Bank collection accounting through the real financial engine', () => {
       [revision,school,channel,account,accountant,principal]);
     const audit = {record:(input:unknown)=>effect('audit',input),recordFinanceTransactionPosted:(input:unknown)=>effect('ledger_audit',input)};
     const events = {publish:(input:unknown)=>effect('event',input)};
-    const schoolEvents = {recordSchoolOperation:(input:unknown)=>effect('school_event',input)};
+    schoolEvents = {recordSchoolOperation:(input:unknown)=>effect('school_event',input)};
     const notifications = {upsertFromSchoolOperation:(input:unknown)=>effect('notification',input),resolveRequiredAction:async()=>{}};
     const accounts = new AccountsRepository(db);
-    const transactions = new TransactionService(new LedgerService(db,{get:()=>undefined} as never,context,db,accounts,
+    transactions = new TransactionService(new LedgerService(db,{get:()=>undefined} as never,context,db,accounts,
       new TransactionsRepository(db),new LedgerEntriesRepository(db),new IdempotencyKeysRepository(db),audit as never,
       {recordServerOperation:(...input:unknown[])=>effect('sync',input)} as never));
     credits = new FeeCreditApplicationService(context,db,schoolEvents as never);
@@ -257,7 +264,7 @@ describe('Bank collection accounting through the real financial engine', () => {
       destination_account:'600111',amount_minor:'5000',currency_code:'KES',account_reference:'ADM-MPESA',occurred_at:new Date().toISOString()},channel));
     expect(payment.status).toBe('posted');
     await pool.query("INSERT INTO mpesa_c2b_payments VALUES($1,$2,$3,'matched',$4,now())",[randomUUID(),school,reference,payment.manual_fee_payment_id]);
-    await pool.query('INSERT INTO mpesa_reconciliation_discrepancies VALUES($1,$2,$3,$4)',[discrepancy,school,reference,payment.ledger_transaction_id]);
+    await pool.query('INSERT INTO mpesa_reconciliation_discrepancies(id,tenant_id,provider_transaction_id,ledger_transaction_id) VALUES($1,$2,$3,$4)',[discrepancy,school,reference,payment.ledger_transaction_id]);
     await pool.query(`INSERT INTO finance_approval_requests VALUES($1,$2,'reversal','approved','mpesa_reconciliation_discrepancy',$3,$3,5000,'KES',
       'Reviewed receipt correction',$4,$5,$6)`,[approval,school,discrepancy,accountant,randomUUID(),principal]);
     const corrections=new FinanceCorrectionService(db,context,collections);
@@ -267,6 +274,81 @@ describe('Bank collection accounting through the real financial engine', () => {
     expect((await pool.query('SELECT status FROM mpesa_c2b_payments WHERE trans_id=$1',[reference])).rows[0].status).toBe('reversed');
     const ledger=(await pool.query('SELECT metadata,total_amount_minor FROM transactions WHERE id=$1',[results[0].reversal_ledger_transaction_id])).rows[0];
     expect(ledger).toMatchObject({total_amount_minor:'5000',metadata:{source:'manual_fee_payment_reversal',original_ledger_transaction_id:payment.ledger_transaction_id}});
+    await assertBalanced();
+  });
+
+  async function historicalStk(firstInvoiceAmount='10000') {
+    const owner=randomUUID(),intent=randomUUID(),approval=randomUUID(),discrepancy=randomUUID(),reference=`STK-${randomUUID()}`;
+    await pool.query("INSERT INTO students VALUES($1,$2,$3,'active',NULL)",[owner,school,owner]);
+    const first=await invoice(firstInvoiceAmount,owner);
+    const accounts=(await pool.query("SELECT id,code FROM accounts WHERE tenant_id=$1 AND code IN ('1110-MPESA-CLEARING','1100-AR-FEES')",[school])).rows;
+    const posted=await as(()=>transactions.postTransaction({idempotency_key:intent,reference,description:'Verified historical STK receipt',
+      metadata:{source:'mpesa',payment_intent_id:intent},entries:accounts.map(a=>({account_id:a.id,
+        direction:a.code==='1110-MPESA-CLEARING'?'debit':'credit',amount_minor:'15000',currency_code:'KES'}))}));
+    await pool.query(`INSERT INTO payment_intents(id,tenant_id,student_id,user_id,payment_owner,status,amount_minor,currency_code,ledger_transaction_id)
+      VALUES($1,$2,$3,$4,'tenant','completed',15000,'KES',$5)`,[intent,school,owner,accountant,posted.transaction_id]);
+    await pool.query(`INSERT INTO mpesa_transactions(tenant_id,mpesa_receipt_number,ledger_transaction_id,payment_intent_id,status,checkout_request_id)
+      VALUES($1,$2,$3,$4,'succeeded',$2)`,[school,reference,posted.transaction_id,intent]);
+    const allocator=new StudentFeePaymentAllocationService(new InvoicesRepository(db,{decryptNullable:(value:unknown)=>value} as never));
+    const allocation=()=>as(()=>db.withRequestTransaction(()=>allocator.allocateConfirmedPayment({tenantId:school,
+      paymentIntent:{id:intent,tenant_id:school,student_id:owner,user_id:accountant},amountPaidMinor:'15000',ledgerTransactionId:posted.transaction_id})));
+    await allocation();
+    const second=await invoice('3000',owner);
+    await as(()=>credits.applyAvailable(owner,'Apply credit to the next term'));
+    await pool.query('INSERT INTO mpesa_reconciliation_discrepancies VALUES($1,$2,$3,$4,$5)',[discrepancy,school,reference,posted.transaction_id,intent]);
+    await pool.query(`INSERT INTO finance_approval_requests VALUES($1,$2,'reversal','approved','mpesa_reconciliation_discrepancy',$3,$3,15000,'KES',
+      'Verified historical STK correction',$4,$5,$6)`,[approval,school,discrepancy,accountant,randomUUID(),principal]);
+    const service=new (FinanceCorrectionService as any)(db,context,collections,transactions,schoolEvents);
+    return {owner,intent,approval,first,second,posted,allocation,
+      execute:()=>as<{reversal_ledger_transaction_id:string}>(()=>service.execute(approval),school,'principal')};
+  }
+
+  it('reverses a historical STK receipt, applied and remaining credit once while preserving history and receipt visibility',async()=>{
+    const item=await historicalStk();
+    const results=await Promise.all([item.execute(),item.execute(),item.execute()]);
+    expect(new Set(results.map(result=>result.reversal_ledger_transaction_id)).size).toBe(1);
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=ANY($1::uuid[])',[[item.first,item.second]])).rows)
+      .toEqual([{amount_paid_minor:'0'},{amount_paid_minor:'0'}]);
+    expect((await pool.query('SELECT amount_minor,remaining_amount_minor FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows)
+      .toEqual([{amount_minor:'5000',remaining_amount_minor:'0'}]);
+    expect((await pool.query('SELECT * FROM student_fee_payment_allocations WHERE payment_intent_id=$1',[item.intent])).rows).toHaveLength(1);
+    expect((await item.allocation()).duplicate).toBe(true);
+    expect((await as(()=>credits.applyAvailable(item.owner,'No credit from reversed STK'))).applied_amount_minor).toBe('0');
+    const receipt=(await as(()=>db.query(`SELECT * FROM (${FEE_RECEIPTS_READ_SQL}) receipts WHERE id=$2`,[school,item.intent]))).rows[0];
+    expect(receipt).toMatchObject({status:'reversed',reversal_ledger_transaction_id:results[0].reversal_ledger_transaction_id});
+    expect((await as(()=>db.query('SELECT * FROM student_fee_payment_reversals'),other)).rows).toHaveLength(0);
+    await expect(as(()=>db.query('UPDATE student_fee_payment_reversals SET reason=$2 WHERE payment_intent_id=$1',[item.intent,'Erase history'])))
+      .rejects.toThrow(/immutable/);
+    await assertBalanced();
+  });
+
+  it('rolls back all historical STK corrections on audit failure and leaves invalid ownership or amounts unchanged',async()=>{
+    const item=await historicalStk();
+    failAudit=true;
+    try{await expect(item.execute()).rejects.toThrow(/audit failure/);}finally{failAudit=false;}
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[item.first])).rows[0].amount_paid_minor).toBe('10000');
+    expect((await pool.query('SELECT * FROM student_fee_payment_reversals WHERE payment_intent_id=$1',[item.intent])).rows).toHaveLength(0);
+    await pool.query('UPDATE finance_approval_requests SET amount_minor=1 WHERE id=$1',[item.approval]);
+    await expect(item.execute()).rejects.toThrow(/amount|match/i);
+    await pool.query('UPDATE finance_approval_requests SET amount_minor=15000 WHERE id=$1',[item.approval]);
+    await pool.query('UPDATE payment_intents SET student_id=$2 WHERE id=$1',[item.intent,student]);
+    await expect(item.execute()).rejects.toThrow(/payment|receipt|allocation/i);
+    await pool.query('UPDATE payment_intents SET student_id=$2 WHERE id=$1',[item.intent,item.owner]);
+    await pool.query('UPDATE student_fee_credits SET remaining_amount_minor=1 WHERE payment_intent_id=$1',[item.intent]);
+    await expect(item.execute()).rejects.toThrow(/credit history/);
+    await pool.query('UPDATE student_fee_credits SET remaining_amount_minor=2000 WHERE payment_intent_id=$1',[item.intent]);
+    await item.execute();
+    await assertBalanced();
+  });
+
+  it.each(['10000','0'])('serializes a %s invoice STK reversal with concurrent credit application, including credit-only receipts',async amount=>{
+    const item=await historicalStk(amount);
+    const future=await invoice('20000',item.owner);
+    await Promise.all([item.execute(),as(()=>credits.applyAvailable(item.owner,'Apply outstanding credit during review'))]);
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=ANY($1::uuid[])',[[item.first,item.second,future]])).rows)
+      .toEqual([{amount_paid_minor:'0'},{amount_paid_minor:'0'},{amount_paid_minor:'0'}]);
+    expect((await item.allocation()).duplicate).toBe(true);
+    expect((await pool.query('SELECT remaining_amount_minor FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].remaining_amount_minor).toBe('0');
     await assertBalanced();
   });
 });

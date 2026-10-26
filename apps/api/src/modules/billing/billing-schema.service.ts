@@ -2,6 +2,7 @@ import { FEE_WAIVER_INVOICE_SCHEMA_SQL } from './fee-waiver-schema';
 import { INVOICE_WRITE_SCHEMA_SQL } from './invoice-write-schema';
 import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from './fee-credit-application-schema';
 import { LEGACY_FEE_INVOICE_ADOPTION_SCHEMA } from './legacy-fee-invoice-adoption.schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from './student-fee-payment-reversal.schema';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -1279,6 +1280,7 @@ export class BillingSchemaService implements OnModuleInit {
       FOR EACH ROW
       EXECUTE FUNCTION app.prevent_append_only_mutation();
       ${FEE_CREDIT_APPLICATION_SCHEMA_SQL}
+      ${STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA}
       ${LEGACY_FEE_INVOICE_ADOPTION_SCHEMA}
     `);
 

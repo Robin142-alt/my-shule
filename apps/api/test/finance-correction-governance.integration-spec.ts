@@ -59,7 +59,7 @@ describe('Financial correction approval and execution boundary',()=>{
         subject_type text,subject_id uuid,amount_minor bigint,currency_code text,reason text,reconciliation_batch_id uuid,reconciliation_discrepancy_id uuid,
         close_period_id uuid,requested_by_user_id uuid,first_approver_user_id uuid,first_approved_at timestamptz,second_approver_user_id uuid,second_approved_at timestamptz,
         rejected_by_user_id uuid,rejected_at timestamptz,evidence jsonb DEFAULT '{}',created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
-      CREATE TABLE mpesa_reconciliation_discrepancies(id uuid PRIMARY KEY,tenant_id text,reconciliation_batch_id uuid,provider_transaction_id text,ledger_transaction_id uuid,
+      CREATE TABLE mpesa_reconciliation_discrepancies(id uuid PRIMARY KEY,tenant_id text,reconciliation_batch_id uuid,provider_transaction_id text,ledger_transaction_id uuid,payment_intent_id uuid,
         resolution_status text DEFAULT 'open',resolved_by_user_id uuid,resolved_at timestamptz,approving_user_id uuid,evidence jsonb DEFAULT '{}',updated_at timestamptz DEFAULT now());
       CREATE TABLE collection_payments(id uuid PRIMARY KEY,tenant_id text,provider_code text,provider_transaction_id text,amount_minor bigint,currency_code text,status text,ledger_transaction_id uuid,manual_fee_payment_id uuid);
       CREATE TABLE collection_reversal_requests(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,payment_id uuid,reason text,requested_by uuid,status text DEFAULT 'pending');

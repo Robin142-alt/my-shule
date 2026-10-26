@@ -36,8 +36,15 @@ describe.each(['uuid','text'] as const)('Receipt links with %s ledger identifier
     const constraints = await pool.query(`SELECT conname FROM pg_constraint WHERE conrelid='manual_fee_payments'::regclass
       AND conname IN ('fk_manual_fee_payments_ledger_transaction','fk_manual_fee_payments_reversal_ledger_transaction')`);
     expect(constraints.rows).toHaveLength(2);
+    const onlineConstraints=await pool.query(`SELECT conname FROM pg_constraint WHERE conrelid='student_fee_payment_reversals'::regclass
+      AND conname IN ('student_payment_reversal_original_ledger','student_payment_reversal_ledger')`);
+    expect(onlineConstraints.rows).toHaveLength(2);
     await new BillingSchemaService({runSchemaBootstrap:(sql:string)=>pool.query(sql)} as never).onModuleInit();
     await expect(pool.query(`INSERT INTO manual_fee_payments(tenant_id,idempotency_key,receipt_number,payment_method,student_id,amount_minor,ledger_transaction_id)
       VALUES('school','test','R-1','cash',$1,100,$2)`,[randomUUID(),randomUUID()])).rejects.toMatchObject({code:'23503'});
+    await expect(pool.query(`INSERT INTO student_fee_payment_reversals(tenant_id,payment_intent_id,student_id,approval_id,
+      original_ledger_transaction_id,reversal_ledger_transaction_id,amount_minor,currency_code,reason,created_by)
+      VALUES('school',$1,'student',$2,$3,$4,100,'KES','Reviewed correction','principal')`,
+      [randomUUID(),randomUUID(),randomUUID(),randomUUID()])).rejects.toMatchObject({code:'23503'});
   });
 });

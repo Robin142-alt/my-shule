@@ -9,6 +9,7 @@ import { ManualFeePaymentService } from '../src/modules/billing/manual-fee-payme
 import { ManualFeePaymentsRepository } from '../src/modules/billing/repositories/manual-fee-payments.repository';
 import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
 import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from '../src/modules/billing/student-fee-payment-reversal.schema';
 
 describe('Accountant persisted approvals and atomic reversals', () => {
   const schema=`finance_controls_${randomUUID().replaceAll('-','')}`;
@@ -58,6 +59,7 @@ describe('Accountant persisted approvals and atomic reversals', () => {
       GRANT ALL ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
     await pool.query('CREATE SCHEMA IF NOT EXISTS app');
     await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
+    await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
     await pool.query(`GRANT ALL ON fee_credit_applications,fee_credit_application_reversals TO ${role}`);
     for(const table of ['school_expenses','manual_fee_payments','manual_fee_payment_allocations']) await pool.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;CREATE POLICY school_only ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
   });

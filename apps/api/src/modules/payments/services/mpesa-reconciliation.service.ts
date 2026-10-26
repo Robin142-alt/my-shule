@@ -552,8 +552,13 @@ export class MpesaReconciliationService {
           approving_user_id::text,
           resolution_status,
           evidence - 'raw_payload' AS evidence,
-          (SELECT amount_minor::text FROM collection_payments p WHERE p.tenant_id=mpesa_reconciliation_discrepancies.tenant_id
-            AND p.provider_code='safaricom' AND p.provider_transaction_id=mpesa_reconciliation_discrepancies.provider_transaction_id AND p.status='posted') AS collection_amount_minor,
+          COALESCE((SELECT amount_minor::text FROM collection_payments p WHERE p.tenant_id=mpesa_reconciliation_discrepancies.tenant_id
+            AND p.provider_code='safaricom' AND p.provider_transaction_id=mpesa_reconciliation_discrepancies.provider_transaction_id AND p.status='posted'),
+            (SELECT p.amount_minor::text FROM payment_intents p WHERE p.tenant_id=mpesa_reconciliation_discrepancies.tenant_id
+              AND p.id=mpesa_reconciliation_discrepancies.payment_intent_id AND p.payment_owner='tenant' AND p.status='completed'
+              AND p.student_id IS NOT NULL AND p.ledger_transaction_id IS NOT NULL
+              AND NOT EXISTS(SELECT 1 FROM student_fee_payment_reversals r WHERE r.tenant_id=p.tenant_id AND r.payment_intent_id=p.id)
+              AND NOT EXISTS(SELECT 1 FROM manual_fee_payments m WHERE m.tenant_id=p.tenant_id AND m.ledger_transaction_id::text=p.ledger_transaction_id::text))) AS collection_amount_minor,
           created_at
         FROM mpesa_reconciliation_discrepancies
         WHERE tenant_id = $1

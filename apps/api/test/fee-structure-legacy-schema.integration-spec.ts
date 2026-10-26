@@ -8,6 +8,7 @@ import { BillingSchemaService } from '../src/modules/billing/billing-schema.serv
 import { BillingService } from '../src/modules/billing/billing.service';
 import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
 import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from '../src/modules/billing/student-fee-payment-reversal.schema';
 import { FeeStructuresRepository } from '../src/modules/billing/repositories/fee-structures.repository';
 import { InvoicesRepository } from '../src/modules/billing/repositories/invoices.repository';
 import { SubscriptionsRepository } from '../src/modules/billing/repositories/subscriptions.repository';
@@ -67,6 +68,7 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
     }
     await pool.query('CREATE SCHEMA IF NOT EXISTS app');
     await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
+    await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
     await pool.query(`
       CREATE TABLE students(id ${identifierType} PRIMARY KEY,tenant_id text,first_name text,last_name text,
         admission_number text,primary_guardian_phone text,status text,deleted_at timestamptz);
