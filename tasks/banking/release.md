@@ -1,6 +1,15 @@
 # Banking release evidence
 
-Release candidate on `codex/universal-banking`; production deployment remains pending until the records below are completed.
+Banking backend release `6e8376d60e92d55c81fd49a6303c48117057bd99` is deployed in production. Cloudflare publication was stopped by a release-check defect; the follow-up corrects the GitHub status endpoint while preserving publisher, service and commit verification.
+
+## Production evidence, 26 October 2026
+
+- PR #116 merged. Railway API (`6b1616fe-f8bd-40e2-8086-b48c724153a4`), payments worker (`67822930-3e67-4b16-811c-593d54c03373`) and both report workers reached SUCCESS at the banking release commit.
+- Actual worker logs confirm schema verification, PostgreSQL/Redis connections and BullMQ startup. API readiness and the runtime environment audit passed with no missing/invalid configuration or active alerts.
+- Read-only comparison after deployment preserved all five schools, 125 students and every inspected financial count/total. All nine new financial history/ingress tables enforce forced tenant RLS. No financial fixtures were inserted in production.
+- Six production authentication/CSRF/status smoke checks passed; four new protected financial endpoints rejected unauthenticated requests carrying forged school headers.
+- Main CI run `40376937799` passed quality, security, backend tests, PostgreSQL integration, Cloudflare build/runtime tests and container build. Cloudflare publication failed because GitHub's combined status response omits `creator`. The corrected lookup uses the full newest-first status list and has also verified the actual deployed banking commit.
+- Follow-up regression coverage checks trusted publisher identity, immutable commit lookup, newest pending/failed status, malformed responses and transport errors. Production route enumeration is suppressed to avoid Railway's observed startup log burst limit; operational, audit, warning and error records remain enabled.
 
 ## Delivered behavior
 

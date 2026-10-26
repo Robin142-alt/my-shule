@@ -8,12 +8,36 @@ import { GradesAuditService } from './grades-audit.service';
 import { ObservabilityController } from './observability.controller';
 import { SloMetricsService } from './slo-metrics.service';
 import { SloMonitoringService } from './slo-monitoring.service';
+import { StructuredLoggerService } from './structured-logger.service';
 import {
   PRODUCTION_ALERT_POLICIES,
   PRODUCTION_OBSERVABILITY_DASHBOARDS,
   PRODUCTION_SYNTHETIC_CHECKS,
   validateProductionObservabilityCatalog,
 } from './production-observability.catalog';
+
+test('production route enumeration cannot crowd out operational, audit or error logs', (t) => {
+  const records: Array<Record<string, unknown>> = [];
+  const capture = (chunk: unknown) => { records.push(JSON.parse(String(chunk))); return true; };
+  t.mock.method(process.stdout, 'write', capture);
+  t.mock.method(process.stderr, 'write', capture);
+  const logger = new StructuredLoggerService({ get: () => 'production' } as never, new RequestContextService());
+  for (const context of ['RouterExplorer', 'RoutesResolver']) {
+    logger.log('Mapped route', context);
+    logger.warn('Route warning', context);
+    logger.error('Route error', 'trace', context);
+  }
+  logger.log('API started', 'NestApplication');
+  logger.logEvent('payment.received', { school_id: 'school-a' });
+  logger.logRequest('request.completed', { status_code: 200 });
+  assert.equal(records.length, 7);
+  assert.equal(records.some((record) => record.message === 'Mapped route'), false);
+  assert.equal(records.filter((record) => record.level === 'error').length, 2);
+  assert.equal(records.find((record) => record.message === 'payment.received')?.school_id, 'school-a');
+  const developmentLogger = new StructuredLoggerService({ get: () => 'development' } as never, new RequestContextService());
+  developmentLogger.log('Mapped route', 'RouterExplorer');
+  assert.equal(records.at(-1)?.message, 'Mapped route');
+});
 
 test('ObservabilityController restricts platform telemetry to the platform owner', () => {
   assert.equal(Reflect.hasMetadata(IS_PUBLIC_KEY, ObservabilityController), false);

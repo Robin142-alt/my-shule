@@ -10,7 +10,7 @@
 - [x] Document supported modes and rollout gates in docs/payment-platform.md.
 - [x] Finish final post-change compiler and regression checks: API/web production builds, API typecheck, billing/security/M-PESA regressions and isolated PostgreSQL workflow/portal checks.
 - [ ] Obtain bank merchant contracts and certify implemented native adapters; Equity retrieval and KCB signed account notifications now have local contract coverage. Other bank modes remain reviewed statements until their adapters are implemented.
-- [ ] Migrate any school still using only legacy student_invoices with audited opening balances.
+- [x] Verify legacy student_invoices adoption readiness; production inspection on 26 October found no existing legacy invoices requiring adoption. Future historical imports use audited preview/adoption.
 - [x] Add governed automatic application of existing credits to future invoices; audited manual reconciliation and receipt reversal preserve invoice/credit history.
 - [ ] Certify real merchant onboarding/callback gateway, browser end-to-end flows and peak-volume deployment capacity before production activation.
 
@@ -24,8 +24,10 @@
 - [x] Complete governed credit application, overpayment correction and reversals; verify conservation under concurrency.
 - [x] Complete audited, idempotent legacy invoice preview/adoption; preserve original records and avoid historical cash reposting.
 - [x] Complete Accountant bank setup/reconciliation/credit UI and related Principal/Super Admin workflows; test mobile and desktop (expanded final-head checks remain in release verification).
-- [ ] Run isolated provider/database/end-to-end and existing M-Pesa, finance, portal and progression regression checks.
-- [ ] Run built-in review and release checks; publish per-bank implementation, sandbox/live evidence and remaining external dependencies.
+- [x] Run isolated provider/database/end-to-end and existing M-Pesa, finance, portal and progression regression checks.
+- [x] Run built-in review and release checks; publish per-bank implementation, sandbox/live evidence and remaining external dependencies.
+
+Latest release status (26 October): banking backend `6e8376d6` deployed successfully to API, payments and both report workers. Read-only production migration verification preserves all five schools, 125 students and inspected financial totals; all nine financial tables enforce forced RLS. Six production auth/readiness smoke checks pass. Cloudflare publication awaits the corrected release gate; see `tasks/banking/release.md`. Earlier continuation notes below are historical, not current outstanding software tasks. Real-bank activation/certification remains external.
 
 Each slice requires focused tests and build/type checks before committing. Existing completed items above remain historical verification records and are rechecked where affected.
 

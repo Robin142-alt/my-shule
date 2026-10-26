@@ -1,6 +1,6 @@
 # Universal banking implementation evidence
 
-Work in progress, checked 26 October 2026. This document distinguishes software tests from bank authorization. No bank sandbox credentials or live merchant accounts have been supplied; no official sandbox/live transaction test or certification is claimed.
+Implementation evidence checked 26 October 2026; backend deployed at `6e8376d6`. Frontend release verification is tracked in `tasks/banking/release.md`. This document distinguishes software tests from bank authorization. No bank sandbox credentials or live merchant accounts have been supplied; no official sandbox/live transaction test or certification is claimed.
 
 ## Shared implementation
 
