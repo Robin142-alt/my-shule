@@ -11,6 +11,7 @@ import { BillingNotificationService } from './billing-notification.service';
 import { BillingSchemaService } from './billing-schema.service';
 import { BillingService } from './billing.service';
 import { ManualFeePaymentService } from './manual-fee-payment.service';
+import { FeeCreditApplicationService } from './fee-credit-application.service';
 import { StudentFeePaymentAllocationService } from './student-fee-payment-allocation.service';
 import { BillingLifecycleGuard } from '../../guards/billing-lifecycle.guard';
 import { InvoicesRepository } from './repositories/invoices.repository';
@@ -21,18 +22,29 @@ import { UsageRecordsRepository } from './repositories/usage-records.repository'
 import { UsageMeterService } from './usage-meter.service';
 import { BillingFeatureGuard } from '../../guards/billing-feature.guard';
 import { FeeStructuresRepository } from './repositories/fee-structures.repository';
+import { LegacyFeeInvoiceAdoptionController } from './legacy-fee-invoice-adoption.controller';
+import { LegacyFeeInvoiceAdoptionService } from './legacy-fee-invoice-adoption.service';
+import { FinanceBillingAliasesController } from './finance-billing-aliases.controller';
+import { ReceiptRefundEvidenceController } from './receipt-refund-evidence.controller';
+import { ReceiptRefundEvidenceService } from './receipt-refund-evidence.service';
+import { CreditRefundController } from './credit-refund.controller';
+import { CreditRefundService } from './credit-refund.service';
 
 @Module({
   imports: [FinanceModule, forwardRef(() => PaymentsModule)],
-  controllers: [BillingController],
+  controllers: [BillingController, LegacyFeeInvoiceAdoptionController, FinanceBillingAliasesController, ReceiptRefundEvidenceController, CreditRefundController],
   providers: [
     BillingSchemaService,
     BillingService,
+    ReceiptRefundEvidenceService,
+    CreditRefundService,
+    LegacyFeeInvoiceAdoptionService,
     BillingAccessService,
     BillingLifecycleService,
     BillingNotificationService,
     BillingMpesaService,
     ManualFeePaymentService,
+    FeeCreditApplicationService,
     StudentFeePaymentAllocationService,
     UsageMeterService,
     SubscriptionsRepository,
@@ -57,6 +69,7 @@ import { FeeStructuresRepository } from './repositories/fee-structures.repositor
     BillingService,
     BillingMpesaService,
     ManualFeePaymentService,
+    FeeCreditApplicationService,
     StudentFeePaymentAllocationService,
     UsageMeterService,
     SubscriptionsRepository,

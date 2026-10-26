@@ -81,6 +81,7 @@ export function LearnerPicker({
         <input
           id={inputId}
           className="input-base pl-9"
+          style={{ paddingLeft: "2.25rem" }}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);

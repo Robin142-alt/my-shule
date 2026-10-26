@@ -12,6 +12,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { openPrintDocument } from "@/lib/dashboard/export";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { SchoolPaymentInstructions } from "../payment-instructions";
+import { CreditRefundHistory,creditRefundSummary,type CreditRefundHistoryEntry } from "../credit-refund-history";
 
 type FeeAccount = {
   student_id: string;
@@ -36,6 +37,7 @@ type FeeInvoice = {
 };
 
 type FeeTransaction = {
+  credit_refunds?: CreditRefundHistoryEntry[];
   id: string;
   student_id: string;
   student_name: string;
@@ -168,7 +170,7 @@ export function FeesWorkspace() {
         })),
         ...transactions.slice(0, 6).map((transaction) => ({
           label: `Receipt ${transaction.receipt_number || transaction.id}`,
-          value: `${formatMoney(transaction.amount_minor)} (${transaction.status})`,
+          value: `${formatMoney(transaction.amount_minor)} (${transaction.status}) ${creditRefundSummary(transaction.credit_refunds)}`,
         })),
       ],
       footer: "Generated from live MyShule records for the selected learner.",
@@ -321,7 +323,7 @@ export function FeesWorkspace() {
                         </div>
                         <div>
                           <dt className="text-xs text-slate-500">Amount</dt>
-                          <dd className="mt-0.5 font-semibold text-success">{formatMoney(transaction.amount_minor)}</dd>
+                          <dd className="mt-0.5 font-semibold text-success">{formatMoney(transaction.amount_minor)}<CreditRefundHistory refunds={transaction.credit_refunds}/></dd>
                         </div>
                         <div className="min-w-0 sm:col-span-2">
                           <dt className="text-xs text-slate-500">Receipt</dt>
@@ -384,6 +386,7 @@ export function FeesWorkspace() {
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-success">
                             {formatMoney(transaction.amount_minor)}
+                            <CreditRefundHistory refunds={transaction.credit_refunds}/>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <StatusBadge status={transaction.status} />

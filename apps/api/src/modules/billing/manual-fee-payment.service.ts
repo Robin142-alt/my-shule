@@ -26,6 +26,8 @@ import {
 } from './entities/manual-fee-payment.entity';
 import { InvoicesRepository, StudentFeeInvoiceForAllocation } from './repositories/invoices.repository';
 import { ManualFeePaymentsRepository } from './repositories/manual-fee-payments.repository';
+import { FeeCreditApplicationService } from './fee-credit-application.service';
+import { guardBankReceipt } from './bank-receipt-identity';
 
 const DEFAULT_CURRENCY_CODE = 'KES';
 const DEFAULT_FEE_CONTROL_ACCOUNT_CODE = '1100-AR-FEES';
@@ -71,26 +73,49 @@ export class ManualFeePaymentService {
     private readonly accountsRepository: AccountsRepository,
     private readonly transactionService: TransactionService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly feeCredits?: FeeCreditApplicationService,
   ) {}
 
   async createManualFeePayment(
     dto: CreateManualFeePaymentDto,
+    collection?: {id:string;bank_reference?:string;correction_approval_id?:string;correction_effective_at?:string},
   ): Promise<ManualFeePaymentResponseDto> {
     const tenantId = this.requireTenantId();
     const requestContext = this.requestContext.requireStore();
     const payment = await this.prisma.withRequestTransaction(async () => {
       this.assertHasAllocationTarget(dto.student_id ?? null, dto.invoice_id ?? null);
       this.assertMethodRequirements(dto);
-      if (dto.student_id) {
-        const student = await this.prisma.query(`SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`, [tenantId, dto.student_id]);
-        if (!student.rows.length) throw new NotFoundException('Learner was not found in this school');
+      if(collection?.correction_approval_id) {
+        const approved=await this.prisma.query(`WITH originals AS (
+          SELECT tenant_id,id::text AS id,amount_minor,ledger_transaction_id::text AS ledger_id FROM manual_fee_payments WHERE status='reversed'
+          UNION ALL SELECT tenant_id,payment_intent_id::text,amount_minor,original_ledger_transaction_id::text FROM student_fee_payment_reversals
+        ) SELECT a.id FROM finance_approval_requests a JOIN originals original
+          ON original.tenant_id=a.tenant_id AND original.id=a.evidence->>'original_receipt_id'
+          WHERE a.tenant_id=$1 AND a.id=$2::uuid AND a.status='approved' AND a.action='move_payment'
+            AND a.second_approver_user_id::text=$3 AND a.first_approver_user_id<>a.second_approver_user_id
+            AND a.requested_by_user_id<>a.first_approver_user_id AND a.requested_by_user_id<>a.second_approver_user_id
+            AND COALESCE(a.evidence->>'collection_payment_id',a.subject_id::text)=$4 AND a.evidence->>'target_student_id'=$5
+            AND a.amount_minor=$6::bigint AND original.amount_minor=a.amount_minor
+            AND 2=(SELECT count(*) FROM ledger_entries e JOIN accounts ac ON ac.tenant_id=e.tenant_id AND ac.id=e.account_id
+              WHERE e.tenant_id=$1 AND e.transaction_id::text=original.ledger_id AND e.amount_minor::numeric=a.amount_minor AND e.currency_code=a.currency_code
+                AND ((e.direction='debit' AND ac.code=$7) OR (e.direction='credit' AND ac.code=$8)))`,
+          [tenantId,collection.correction_approval_id,requestContext.user_id,collection.id,dto.student_id,dto.amount_minor,dto.asset_account_code,dto.fee_control_account_code]);
+        if(requestContext.role!=='principal'||!approved.rows.length) throw new ForbiddenException('An independently approved payment move is required');
       }
+      if(['bank_deposit','eft'].includes(dto.payment_method))
+        await guardBankReceipt(this.prisma,tenantId,[dto.external_reference ?? '',dto.deposit_reference ?? '',collection?.bank_reference ?? ''],
+          dto.idempotency_key.trim(),collection?.id,collection?.correction_approval_id);
+      let studentId = dto.student_id ?? null;
       if (dto.invoice_id) {
         const invoice = await this.invoicesRepository.findById(tenantId, dto.invoice_id);
         if (!invoice || (dto.student_id && this.readStudentId(invoice) !== dto.student_id)) {
           throw new NotFoundException('Invoice was not found for this learner in this school');
         }
+        studentId = this.readStudentId(invoice);
       }
+      if (!studentId) throw new BadRequestException('A fee receipt requires an invoice linked to a learner');
+      const student = await this.prisma.query(`SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`, [tenantId, studentId]);
+      if (!student.rows.length) throw new NotFoundException('Learner was not found in this school');
 
       const createdPayment = await this.manualFeePaymentsRepository.create({
         tenant_id: tenantId,
@@ -98,7 +123,7 @@ export class ManualFeePaymentService {
         receipt_number: this.generateReceiptNumber(),
         payment_method: dto.payment_method,
         status: 'received',
-        student_id: dto.student_id ?? null,
+        student_id: studentId,
         invoice_id: dto.invoice_id ?? null,
         amount_minor: this.normalizeMinorAmount(dto.amount_minor),
         currency_code: DEFAULT_CURRENCY_CODE,
@@ -129,7 +154,7 @@ export class ManualFeePaymentService {
       }
 
       return this.clearLockedPayment(createdPayment, {
-        occurred_at: dto.received_at,
+        occurred_at: collection?.correction_effective_at ?? dto.received_at,
         deposit_reference: dto.deposit_reference,
         notes: dto.notes,
         metadata: { cleared_on_create: true },
@@ -296,6 +321,11 @@ export class ManualFeePaymentService {
         );
       }
 
+      if (!this.feeCredits) throw new ConflictException('Credit application service is unavailable; retry when finance services recover');
+      if((await this.prisma.query(`SELECT id FROM fee_credit_refunds WHERE tenant_id=$1 AND source_kind='manual'
+        AND source_id=$2::uuid AND status IN ('pending','approved','completed') LIMIT 1`,[tenantId,lockedPayment.id])).rows.length)
+        throw new ConflictException('This receipt has reserved or refunded credit. Cancel an unpaid refund first; completed refunds require a reconciled correction instead of a full reversal.');
+      await this.feeCredits.reverseManualApplications(lockedPayment.id, dto.notes ?? 'Approved receipt reversal');
       const reversalTransaction = await this.postReversalTransaction(lockedPayment, dto);
       const allocations = await this.manualFeePaymentsRepository.listAllocations(
         tenantId,

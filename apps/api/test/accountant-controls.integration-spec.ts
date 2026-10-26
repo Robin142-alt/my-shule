@@ -7,6 +7,9 @@ import { SIDEBAR_WORKSPACE_SCHEMA_SQL } from '../src/modules/admin-command/sideb
 import { BillingSchemaService } from '../src/modules/billing/billing-schema.service';
 import { ManualFeePaymentService } from '../src/modules/billing/manual-fee-payment.service';
 import { ManualFeePaymentsRepository } from '../src/modules/billing/repositories/manual-fee-payments.repository';
+import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from '../src/modules/billing/student-fee-payment-reversal.schema';
 
 describe('Accountant persisted approvals and atomic reversals', () => {
   const schema=`finance_controls_${randomUUID().replaceAll('-','')}`;
@@ -36,7 +39,7 @@ describe('Accountant persisted approvals and atomic reversals', () => {
     reverseManualFeeInvoicePayment:async(input:{tenantId:string;invoiceId:string;amountMinor:string})=>db.query('UPDATE invoices SET paid=paid-$3::bigint WHERE tenant_id=$1 AND id=$2::uuid',[input.tenantId,input.invoiceId,input.amountMinor]),
   } as never,{findByCode:async()=>({id:randomUUID(),is_active:true})} as never,{
     postTransaction:async()=>{await db.query('INSERT INTO evidence(tenant_id) VALUES($1)',[context.requireStore().tenant_id]);return {transaction_id:randomUUID()};},
-  } as never,{recordSchoolOperation:event} as never);
+  } as never,{recordSchoolOperation:event} as never,new FeeCreditApplicationService(context,db as never,{recordSchoolOperation:event} as never));
   beforeAll(async()=>{
     const url=new URL(process.env.DATABASE_URL??'postgresql://invalid/invalid');
     if(process.env.MYSHULE_DISPOSABLE_POSTGRES!=='1'||!['localhost','127.0.0.1'].includes(url.hostname)||!url.pathname.startsWith('/my_shule_disposable_'))throw Error('Requires disposable PostgreSQL');
@@ -51,16 +54,20 @@ describe('Accountant persisted approvals and atomic reversals', () => {
     await pool.query(`CREATE TABLE workflow_events(tenant_id text,entity_id text,event_type text,source_user_id uuid,created_at timestamptz);
       CREATE TABLE collection_payments(id uuid,tenant_id text,manual_fee_payment_id uuid);
       CREATE TABLE collection_reversal_requests(tenant_id text,payment_id uuid,status text,reviewed_by uuid);
-      CREATE TABLE invoices(id uuid,tenant_id text,paid bigint);
+      CREATE TABLE invoices(id uuid,tenant_id text,paid bigint,due_at timestamptz DEFAULT now(),issued_at timestamptz DEFAULT now(),created_at timestamptz DEFAULT now());
       CREATE TABLE evidence(tenant_id text);
       GRANT ALL ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
+    await pool.query('CREATE SCHEMA IF NOT EXISTS app');
+    await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
+    await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
+    await pool.query(`GRANT ALL ON fee_credit_applications,fee_credit_application_reversals,fee_credit_refunds TO ${role}`);
     for(const table of ['school_expenses','manual_fee_payments','manual_fee_payment_allocations']) await pool.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;CREATE POLICY school_only ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
   });
   beforeEach(async()=>{
     failEvent=false;
     await pool.query(`TRUNCATE manual_fee_reversal_requests,manual_fee_payment_allocations,manual_fee_payments,school_expenses,invoices,evidence;
       INSERT INTO manual_fee_payments(id,tenant_id,idempotency_key,receipt_number,payment_method,status,student_id,amount_minor) VALUES('${receipt}','school-a','seed','RCT-001','cash','cleared','${student}',10000);
-      INSERT INTO invoices VALUES('${invoice}','school-a',10000);
+      INSERT INTO invoices(id,tenant_id,paid) VALUES('${invoice}','school-a',10000);
       INSERT INTO manual_fee_payment_allocations(tenant_id,manual_payment_id,invoice_id,student_id,allocation_type,amount_minor) VALUES('school-a','${receipt}','${invoice}','${student}','invoice',10000);`);
   });
   afterAll(async()=>{if(pool){await pool.query(`DROP SCHEMA ${schema} CASCADE; DROP ROLE ${role}`);await pool.end();}});

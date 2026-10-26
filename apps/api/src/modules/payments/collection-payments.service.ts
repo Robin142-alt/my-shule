@@ -16,6 +16,7 @@ import { SchoolOperationNotificationsRepository } from "../events/repositories/s
 import { AuditLogService } from "../observability/audit-log.service";
 import { CollectionSuspenseService } from "./collection-suspense.service";
 import { CollectionReferenceMatcher } from './collection-reference-matcher.service';
+import { lockBankReceiptReferences } from '../billing/bank-receipt-identity';
 import {
   CollectionPaymentInput,
   normalizeCollectionInput,
@@ -162,6 +163,69 @@ export class CollectionPaymentsService {
     });
   }
 
+  /** Internal final-approval boundary; the request's persisted snapshot is authoritative. */
+  async executeApprovedCorrection(approvalId:string) {
+    const tenant=this.actor(['principal']),actor=this.context.requireStore().user_id;
+    return this.db.withRequestTransaction(async()=>{
+      const approval=(await this.db.query<{id:string;action:string;amount_minor:string;currency_code:string;reason:string;requested_by_user_id:string;
+        evidence:{collection_payment_id:string;target_student_id:string;original_receipt_id:string|null}}>(`SELECT *,amount_minor::text FROM finance_approval_requests
+        WHERE tenant_id=$1 AND id=$2::uuid AND status='approved' AND action IN ('move_payment','post_after_mismatch')
+          AND second_approver_user_id::text=$3 AND first_approver_user_id<>second_approver_user_id
+          AND requested_by_user_id<>first_approver_user_id AND requested_by_user_id<>second_approver_user_id FOR UPDATE`,[tenant,approvalId,actor])).rows[0];
+      if(!approval) throw new ForbiddenException('Independent final approval is required');
+      const prior=(await this.db.query<{id:string;collection_payment_id:string;replacement_receipt_id:string;replacement_ledger_id:string}>(
+        'SELECT * FROM fee_payment_corrections WHERE tenant_id=$1 AND approval_id=$2::uuid',[tenant,approvalId])).rows[0];
+      if(prior) return {correction_id:prior.id,collection_payment_id:prior.collection_payment_id,manual_fee_payment_id:prior.replacement_receipt_id,ledger_transaction_id:prior.replacement_ledger_id};
+      const identity=(await this.db.query<CollectionPayment>('SELECT * FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid',
+        [tenant,approval.evidence.collection_payment_id])).rows[0];
+      if(identity?.provider_code==='safaricom') await this.db.query('SELECT id FROM mpesa_c2b_payments WHERE tenant_id=$1 AND trans_id=$2 FOR UPDATE',[tenant,identity.provider_transaction_id]);
+      const payment=await this.lock(tenant,approval.evidence.collection_payment_id);
+      if(payment.amount_minor!==approval.amount_minor||payment.currency_code.trim()!==approval.currency_code.trim())
+        throw new ConflictException('The approved amount and currency must match verified provider evidence');
+      await this.requireStudent(tenant,approval.evidence.target_student_id);
+      if(approval.action==='post_after_mismatch') {
+        if(payment.status==='posted' && payment.student_id===approval.evidence.target_student_id && !approval.evidence.original_receipt_id)
+          {await this.syncC2bPlacement(payment);return {collection_payment_id:payment.id,manual_fee_payment_id:payment.manual_fee_payment_id,ledger_transaction_id:payment.ledger_transaction_id};}
+        if(!['verified','unmatched'].includes(payment.status)||approval.evidence.original_receipt_id)
+          throw new ConflictException('Only a verified unposted collection can be matched after review');
+        const result=await this.post(payment,approval.evidence.target_student_id,{reason:approval.reason,approval_id:approvalId});
+        return {collection_payment_id:result.id,manual_fee_payment_id:result.manual_fee_payment_id,ledger_transaction_id:result.ledger_transaction_id};
+      }
+      if(payment.status!=='posted'||payment.manual_fee_payment_id!==approval.evidence.original_receipt_id||payment.student_id===approval.evidence.target_student_id)
+        throw new ConflictException('The original posted receipt or learner changed. Request a new correction.');
+      const original=(await this.db.query<{asset_account_code:string;fee_control_account_code:string}>(
+        'SELECT asset_account_code,fee_control_account_code FROM manual_fee_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,payment.manual_fee_payment_id])).rows[0];
+      if((await this.db.query("SELECT id FROM collection_reversal_requests WHERE tenant_id=$1 AND payment_id=$2::uuid AND status='pending'",[tenant,payment.id])).rows.length)
+        throw new ConflictException('A reversal is already pending for this receipt');
+      const request=(await this.db.query<{id:string}>(`INSERT INTO collection_reversal_requests(tenant_id,payment_id,reason,requested_by)
+        VALUES($1,$2::uuid,$3,$4::uuid) RETURNING id`,[tenant,payment.id,approval.reason,approval.requested_by_user_id])).rows[0];
+      await this.decideReversal(request.id,'approve',`Move approval ${approval.id}: ${approval.reason}`);
+      const reversal=(await this.db.query<{reversal_ledger_transaction_id:string;effective_at:Date}>(`SELECT m.reversal_ledger_transaction_id,t.effective_at
+        FROM manual_fee_payments m JOIN transactions t ON t.tenant_id=m.tenant_id AND t.id=m.reversal_ledger_transaction_id
+        WHERE m.tenant_id=$1 AND m.id=$2::uuid`,[tenant,payment.manual_fee_payment_id])).rows[0];
+      const receipt=await this.manual.createManualFeePayment({idempotency_key:`collection:${payment.id}:move:${approval.id}`,
+        payment_method:payment.provider_code==='safaricom'?'mpesa_c2b':'bank_deposit',amount_minor:payment.amount_minor,
+        student_id:approval.evidence.target_student_id,received_at:new Date(payment.occurred_at).toISOString(),
+        external_reference:payment.provider_transaction_id,deposit_reference:payment.provider_transaction_id,
+        asset_account_code:original.asset_account_code,fee_control_account_code:original.fee_control_account_code,
+        metadata:{source:'collection_payment',collection_payment_id:payment.id,correction_approval_id:approval.id,provider_code:payment.provider_code}},
+        {id:payment.id,bank_reference:payment.bank_reference,correction_approval_id:approval.id,correction_effective_at:new Date(reversal.effective_at).toISOString()});
+      const correction=(await this.db.query<{id:string}>(`INSERT INTO fee_payment_corrections(tenant_id,approval_id,collection_payment_id,source_kind,source_id,
+        replacement_receipt_id,from_student_id,to_student_id,amount_minor,currency_code,original_ledger_id,reversal_ledger_id,replacement_ledger_id,created_by)
+        VALUES($1,$2::uuid,$3::uuid,'manual',$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13) RETURNING id`,
+        [tenant,approval.id,payment.id,payment.manual_fee_payment_id,receipt.id,payment.student_id,approval.evidence.target_student_id,payment.amount_minor,
+          payment.currency_code,payment.ledger_transaction_id,reversal.reversal_ledger_transaction_id,receipt.ledger_transaction_id,actor])).rows[0];
+      const updated=(await this.db.query<CollectionPayment>(`UPDATE collection_payments SET status='posted',student_id=$3,invoice_id=NULL,
+        manual_fee_payment_id=$4::uuid,ledger_transaction_id=$5::uuid,receipt_number=$6,updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid RETURNING *,amount_minor::text`,
+        [tenant,payment.id,approval.evidence.target_student_id,receipt.id,receipt.ledger_transaction_id,receipt.receipt_number])).rows[0];
+      if(payment.provider_code==='safaricom') await this.db.query(`UPDATE mpesa_c2b_payments SET status='matched',matched_student_id=$3,matched_invoice_id=NULL,
+        manual_fee_payment_id=$4::uuid,ledger_transaction_id=$5::uuid,updated_at=now() WHERE tenant_id=$1 AND trans_id=$2`,
+        [tenant,payment.provider_transaction_id,approval.evidence.target_student_id,receipt.id,receipt.ledger_transaction_id]);
+      await this.record(updated,'moved',['accountant','bursar','principal']);
+      return {correction_id:correction.id,collection_payment_id:payment.id,manual_fee_payment_id:receipt.id,ledger_transaction_id:receipt.ledger_transaction_id};
+    });
+  }
+
   // Internal adapter boundary. Deliberately no HTTP endpoint accepts "verified".
   // Caller must validate provider evidence before entering this transaction.
   async recognizeVerified(
@@ -183,7 +247,7 @@ export class CollectionPaymentsService {
           `SELECT id,channel_id FROM tenant_payment_channel_revisions
         WHERE tenant_id=$1 AND provider_code=$3 AND account_number=$4
           AND environment='production'
-          AND ($2::uuid IS NULL OR channel_id=$2::uuid) AND activated_at<=$5::timestamptz
+          AND ($2::uuid IS NULL OR channel_id=$2::uuid OR $3<>'safaricom') AND activated_at<=$5::timestamptz
           AND status IN ('active','superseded','suspended') ORDER BY activated_at DESC LIMIT 1`,
           [
             tenant,
@@ -195,6 +259,18 @@ export class CollectionPaymentsService {
         )
       ).rows[0];
       if (!revision) {
+        // A retained pre-activation bank delivery may already have been reconciled
+        // through a Principal-approved statement. Link that immutable receipt;
+        // never create another posting or bypass a pending statement decision.
+        if(input.provider_code!=='safaricom') {
+          const reconciled=(await this.db.query<CollectionPayment>(`
+            SELECT *,amount_minor::text FROM collection_payments
+            WHERE tenant_id=$1 AND provider_code=$2 AND destination_account=$3
+              AND provider_transaction_id=$4 AND amount_minor=$5::bigint AND currency_code=$6
+              AND source='statement' AND status IN ('posted','reversed')`,
+            [tenant,input.provider_code,input.destination_account,input.provider_transaction_id,input.amount_minor,input.currency_code])).rows[0];
+          if(reconciled) return reconciled;
+        }
         // Only an existing, school-owned M-PESA channel may predate approval
         // revisions. New providers must arrive through an activated revision.
         const legacy =
@@ -228,7 +304,12 @@ export class CollectionPaymentsService {
         );
       }
       if (["posted", "reversed", "rejected"].includes(payment.status)) {
-        if (studentId && payment.student_id && studentId !== payment.student_id)
+        const approvedMove=studentId&&studentId!==payment.student_id&&!reviewedTarget
+          ? (await this.db.query(`SELECT id FROM fee_payment_corrections c WHERE tenant_id=$1 AND collection_payment_id=$2::uuid
+              AND from_student_id=$3 AND EXISTS(SELECT 1 FROM fee_payment_corrections latest WHERE latest.tenant_id=c.tenant_id
+                AND latest.collection_payment_id=c.collection_payment_id AND latest.replacement_receipt_id=$4::uuid)`,
+            [tenant,payment.id,studentId,payment.manual_fee_payment_id])).rows.length>0:false;
+        if (studentId && payment.student_id && studentId !== payment.student_id && !approvedMove)
           throw new ConflictException(
             "This transaction is already allocated to a different student",
           );
@@ -295,6 +376,12 @@ export class CollectionPaymentsService {
         throw new ConflictException("Reversal request was already reviewed");
       if (request.requested_by === this.context.requireStore().user_id)
         throw new ForbiddenException("The requester cannot approve a reversal");
+      // The legacy reconciliation path locks C2B before its collection. Keep
+      // the same order when a reversal updates both representations.
+      const identity=(await this.db.query<{provider_code:string;provider_transaction_id:string}>(
+        'SELECT provider_code,provider_transaction_id FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,request.payment_id])).rows[0];
+      if(identity?.provider_code==='safaricom') await this.db.query(
+        'SELECT id FROM mpesa_c2b_payments WHERE tenant_id=$1 AND trans_id=$2 FOR UPDATE',[tenant,identity.provider_transaction_id]);
       const payment = await this.lock(tenant, request.payment_id);
       const result = await this.db.query(
         `UPDATE collection_reversal_requests SET status=$3,reviewed_by=$4::uuid,reviewed_at=NOW(),decision_reason=$5 WHERE tenant_id=$1 AND id=$2::uuid RETURNING *`,
@@ -318,6 +405,11 @@ export class CollectionPaymentsService {
         await this.db.query(
           `UPDATE collection_payments SET status='reversed',updated_at=NOW() WHERE tenant_id=$1 AND id=$2::uuid`,
           [tenant, payment.id],
+        );
+        if(payment.provider_code==='safaricom') await this.db.query(
+          `UPDATE mpesa_c2b_payments SET status='reversed',updated_at=NOW()
+           WHERE tenant_id=$1 AND trans_id=$2 AND manual_fee_payment_id=$3::uuid`,
+          [tenant,payment.provider_transaction_id,payment.manual_fee_payment_id],
         );
       }
       await this.record(
@@ -344,15 +436,26 @@ export class CollectionPaymentsService {
     },
   ) {
     const input = normalizeCollectionInput(raw);
+    if(input.provider_code!=='safaricom') {
+      const reference=input.bank_reference ?? input.provider_transaction_id;
+      await lockBankReceiptReferences(this.db,tenant,[reference,input.provider_transaction_id]);
+      await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',
+        [`bank-reference:${tenant}:${input.provider_code}:${input.destination_account}:${reference}`]);
+      const competing=await this.db.query(`SELECT id FROM collection_payments WHERE tenant_id=$1 AND provider_code=$2
+        AND destination_account=$3 AND (bank_reference=$4 OR provider_transaction_id=$4)
+        AND provider_transaction_id<>$5 AND (source='statement' OR $6='statement') LIMIT 1`,
+        [tenant,input.provider_code,input.destination_account,reference,input.provider_transaction_id,source.source]);
+      if(competing.rows.length) throw new ConflictException('Bank reference already has statement or API evidence; reconcile the existing collection before allocating');
+    }
     await this.db.query(
       `SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text`,
       [`collection:${input.provider_code}:${input.provider_transaction_id}`],
     );
     await this.db.query(
-      `INSERT INTO collection_payments(tenant_id,revision_id,channel_id,provider_code,provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,source,status,requested_by,evidence_reference,asset_account_code,fee_control_account_code)
+      `INSERT INTO collection_payments(tenant_id,revision_id,channel_id,provider_code,provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,source,status,requested_by,evidence_reference,asset_account_code,fee_control_account_code,bank_reference)
       VALUES($1,$2::uuid,$3::uuid,$4,$5,$6,$7::bigint,$8,$9,$10::timestamptz,$11,$12,$13::uuid,$14,
         COALESCE(NULLIF($15::text,''),CASE WHEN $4='safaricom' THEN COALESCE((SELECT NULLIF(mpesa_clearing_account_code,'') FROM tenant_financial_accounts WHERE tenant_id=$1),'1110-MPESA-CLEARING') ELSE '1120-BANK-CLEARING' END),
-        COALESCE(NULLIF($16::text,''),(SELECT NULLIF(fee_control_account_code,'') FROM tenant_financial_accounts WHERE tenant_id=$1),'1100-AR-FEES')) ON CONFLICT DO NOTHING`,
+        COALESCE(NULLIF($16::text,''),(SELECT NULLIF(fee_control_account_code,'') FROM tenant_financial_accounts WHERE tenant_id=$1),'1100-AR-FEES'),$17) ON CONFLICT DO NOTHING`,
       [
         tenant,
         source.revision_id,
@@ -372,6 +475,7 @@ export class CollectionPaymentsService {
         source.evidence_reference ?? null,
         source.ledgerAccounts?.asset_account_code ?? null,
         source.ledgerAccounts?.fee_control_account_code ?? null,
+        input.bank_reference ?? null,
       ],
     );
     const payment = (
@@ -399,8 +503,17 @@ export class CollectionPaymentsService {
   private async post(
     payment: CollectionPayment,
     explicitStudent?: string,
-    reviewedTarget?: { invoice_id?: string; reason: string },
+    reviewedTarget?: { invoice_id?: string; reason: string; approval_id?:string },
   ) {
+    if(payment.provider_code!=='safaricom') {
+      const original=(await this.db.query<{bank_reference:string|null}>(`SELECT bank_reference FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid`,
+        [payment.tenant_id,payment.id])).rows[0];
+      const legacy=await this.db.query(`SELECT 1 FROM manual_fee_payments m WHERE m.tenant_id=$1
+        AND (upper(m.external_reference) IN ($2,$3) OR upper(m.deposit_reference) IN ($2,$3)) AND m.payment_method IN ('bank_deposit','eft')
+        AND m.status IN ('cleared','reversed') LIMIT 1`,
+        [payment.tenant_id,payment.provider_transaction_id,original?.bank_reference ?? payment.provider_transaction_id]);
+      if(legacy.rows.length) throw new ConflictException('This bank reference already exists in manual fee receipts; reconcile the historical payment before allocating');
+    }
     // During adoption, old STK/C2B receipts remain authoritative. Do not credit
     // a historical payment again merely because it has no unified inbox row.
     if (payment.provider_code === "safaricom") {
@@ -419,7 +532,7 @@ export class CollectionPaymentsService {
     let studentId = explicitStudent ?? payment.student_id;
     let invoiceId: string | null = null;
     if (reviewedTarget) {
-      this.actor(["accountant", "bursar"]);
+      this.actor(reviewedTarget.approval_id?["principal"]:["accountant", "bursar"]);
       if (!studentId || !reviewedTarget.reason.trim())
         throw new BadRequestException(
           "A reviewed match requires a student and reason",
@@ -490,7 +603,7 @@ export class CollectionPaymentsService {
         revision_id: payment.revision_id,
         provider_code: payment.provider_code,
       },
-    });
+    }, {id:payment.id,bank_reference:payment.bank_reference});
     const result = (
       await this.db.query<CollectionPayment>(
         `UPDATE collection_payments SET status='posted',student_id=$3,invoice_id=$4::uuid,manual_fee_payment_id=$5::uuid,ledger_transaction_id=$6::uuid,receipt_number=$7,suspense_release_transaction_id=$8::uuid,updated_at=NOW() WHERE tenant_id=$1 AND id=$2::uuid RETURNING *,amount_minor::text`,
@@ -506,12 +619,20 @@ export class CollectionPaymentsService {
         ],
       )
     ).rows[0];
+    await this.syncC2bPlacement(result);
     await this.record(result, "received", [
       "accountant",
       "bursar",
       "principal",
     ]);
     return result;
+  }
+  private async syncC2bPlacement(payment:CollectionPayment) {
+    if(payment.provider_code!=='safaricom'||payment.status!=='posted') return;
+    await this.db.query(`UPDATE mpesa_c2b_payments SET status='matched',matched_student_id=$3,matched_invoice_id=$4::uuid,
+      manual_fee_payment_id=$5::uuid,ledger_transaction_id=$6::uuid,updated_at=now() WHERE tenant_id=$1 AND trans_id=$2
+        AND amount_minor=$7::bigint AND currency_code=$8`,[payment.tenant_id,payment.provider_transaction_id,payment.student_id,
+        payment.invoice_id,payment.manual_fee_payment_id,payment.ledger_transaction_id,payment.amount_minor,payment.currency_code]);
   }
   private async requireStudent(tenant: string, id: string) {
     const result = await this.db.query(
@@ -522,6 +643,9 @@ export class CollectionPaymentsService {
       throw new NotFoundException("Student was not found in this school");
   }
   private async lock(tenant: string, id: string) {
+    const identity=(await this.db.query<CollectionPayment>('SELECT * FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,id])).rows[0];
+    if(identity && identity.provider_code!=='safaricom')
+      await lockBankReceiptReferences(this.db,tenant,[identity.provider_transaction_id,identity.bank_reference ?? identity.provider_transaction_id]);
     const payment = (
       await this.db.query<CollectionPayment>(
         "SELECT *,amount_minor::text FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE",

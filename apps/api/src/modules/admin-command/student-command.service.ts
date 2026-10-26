@@ -1,4 +1,5 @@
 import { FEE_INVOICE_READ_SQL } from '../billing/fee-invoice-read-sql';
+import { FEE_RECEIPTS_READ_SQL } from '../billing/fee-receipts-read-sql';
 import { STUDENT_FEE_CREDIT_SQL } from '../billing/fee-credit-read-sql';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -227,6 +228,7 @@ export class StudentCommandService {
       this.executeSql<{
         id: string;
         receipt_number: string;
+        credit_refunds:Array<{id:string;amount_minor:string;reference:string;paid_at:string}>;
         payment_method: string;
         amount_minor: string | number;
         status: string;
@@ -238,13 +240,14 @@ export class StudentCommandService {
             payment.receipt_number,
             payment.payment_method,
             payment.amount_minor,
+            payment.metadata->'credit_refunds' AS credit_refunds,
             payment.status,
             payment.received_at::text
           FROM student_portal_access access
           JOIN students student
             ON student.tenant_id::text = access.tenant_id::text
            AND student.id::text = access.student_id::text
-          JOIN manual_fee_payments payment
+          JOIN (${FEE_RECEIPTS_READ_SQL}) payment
             ON payment.tenant_id::text = student.tenant_id::text
           LEFT JOIN (${FEE_INVOICE_READ_SQL}) invoice
             ON invoice.tenant_id::text = payment.tenant_id::text

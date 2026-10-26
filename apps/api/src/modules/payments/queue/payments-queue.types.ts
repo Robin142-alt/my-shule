@@ -78,7 +78,21 @@ export interface EnqueueMpesaVerificationJobResult {
   state: string;
 }
 
-export type PaymentsQueueJobData = ProcessPaymentJobData | ProcessMpesaVerificationJobData;
+export interface ProcessBankRetrievalJobData {
+  tenant_id:string;
+  request_id:string;
+  enqueued_at:string;
+  callback_log_id?:null;
+}
+export interface ProcessBankRetrievalJobResult {
+  job_id:string;
+  tenant_id:string;
+  callback_log_id:null;
+  status:'completed';
+  processed_at:string;
+}
+export type PaymentsQueueJobData = ProcessPaymentJobData | ProcessMpesaVerificationJobData | ProcessBankRetrievalJobData;
 export type PaymentsQueueJobResult =
   | ProcessPaymentJobResult
-  | ProcessMpesaVerificationJobResult;
+  | ProcessMpesaVerificationJobResult
+  | ProcessBankRetrievalJobResult;

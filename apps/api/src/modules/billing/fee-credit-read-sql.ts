@@ -1,10 +1,13 @@
+import { ACTIVE_CREDIT_APPLICATION_SQL } from './fee-credit-application-schema';
+
 /** Credits come from allocation records, never from the full amount of a
  * receipt that has already paid invoices. Retain pre-allocation legacy credits.
  */
 export const FEE_CREDIT_READ_SQL = `
-  SELECT allocation.tenant_id,allocation.student_id::text AS student_id,allocation.amount_minor
+  SELECT allocation.tenant_id,COALESCE(allocation.student_id::text,payment.student_id::text,original.metadata->>'student_id') AS student_id,allocation.amount_minor
   FROM manual_fee_payment_allocations allocation
   JOIN manual_fee_payments payment ON payment.tenant_id=allocation.tenant_id AND payment.id=allocation.manual_payment_id
+  LEFT JOIN invoices original ON original.tenant_id=payment.tenant_id AND original.id::text=payment.invoice_id::text
   WHERE allocation.tenant_id=current_setting('app.tenant_id',true)
     AND allocation.allocation_type='credit' AND payment.status='cleared'
   UNION ALL
@@ -13,6 +16,15 @@ export const FEE_CREDIT_READ_SQL = `
     AND payment.status='cleared' AND payment.invoice_id IS NULL AND payment.student_id IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM manual_fee_payment_allocations allocation
       WHERE allocation.tenant_id=payment.tenant_id AND allocation.manual_payment_id=payment.id)
+  UNION ALL
+  SELECT application.tenant_id,application.student_id,-application.amount_minor
+  FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) application
+  JOIN manual_fee_payments payment ON payment.tenant_id=application.tenant_id AND payment.id::text=application.source_id::text
+  WHERE application.tenant_id=current_setting('app.tenant_id',true)
+    AND application.source_kind='manual' AND payment.status='cleared'
+  UNION ALL
+  SELECT refund.tenant_id,refund.student_id,-refund.amount_minor FROM fee_credit_refunds refund
+  WHERE refund.tenant_id=current_setting('app.tenant_id',true) AND refund.source_kind='manual' AND refund.status='completed'
   UNION ALL
   SELECT credit.tenant_id,credit.student_id::text,credit.remaining_amount_minor
   FROM student_fee_credits credit WHERE credit.tenant_id=current_setting('app.tenant_id',true)

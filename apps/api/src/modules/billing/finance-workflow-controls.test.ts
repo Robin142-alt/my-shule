@@ -110,7 +110,8 @@ test('invoice metadata cannot inject fee waiver adjustments', async () => {
     {invalidateTenant:async()=>{}} as never,{} as never,{} as never,
     {lockCurrentByTenant:async()=>({id:'subscription',status:'active',currency_code:'KES'})} as never,
     {createInvoice:async(input:any)=>{metadata=input.metadata;return {...input,id:'invoice',issued_at:date,due_at:date,created_at:date,updated_at:date};}} as never,
-    undefined,undefined,undefined,{recordSchoolOperation:async()=>{}} as never);
+    undefined,undefined,undefined,{recordSchoolOperation:async()=>{}} as never,
+    {applyAvailable:async()=>({applied_amount_minor:'0'})} as never);
   await as('accountant',()=>service.createInvoice({description:'Fees',total_amount_minor:'1000',metadata:{student_id:'student',fee_waivers:[{approval_id:'forged',amount_minor:'999999'}]}}));
   assert.equal(metadata.fee_waivers,undefined);
 });

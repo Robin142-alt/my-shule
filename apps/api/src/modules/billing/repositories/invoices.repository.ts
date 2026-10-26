@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { FEE_BALANCE_STUDENT_PAGE_SQL } from '../fee-credit-read-sql';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -584,7 +584,7 @@ export class InvoicesRepository {
   ): Promise<{ id: string } | null> {
     // Hold through the caller's financial transaction, including credit-only receipts.
     await this.executeSql(
-      `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
+      `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))::text`,
       [tenantId, idempotencyKey],
     );
     const result = await this.executeSql<{ id: string }>(
@@ -835,18 +835,21 @@ export class InvoicesRepository {
       `
         UPDATE invoices
         SET
-          amount_paid_minor = GREATEST(amount_paid_minor - $3::bigint, 0),
+          amount_paid_minor = amount_paid_minor - $3::bigint,
           status = CASE
-            WHEN GREATEST(amount_paid_minor - $3::bigint, 0) = 0 THEN $4
+            WHEN status IN ('void','uncollectible') THEN status
+            WHEN amount_paid_minor - $3::bigint >= total_amount_minor THEN 'paid'
+            WHEN amount_paid_minor - $3::bigint = 0 THEN $4
             ELSE 'pending_payment'
           END,
-          paid_at = NULL,
+          paid_at = CASE WHEN amount_paid_minor - $3::bigint >= total_amount_minor THEN paid_at ELSE NULL END,
           metadata = metadata || jsonb_build_object(
             'last_manual_reversal_amount_minor', $3::text
           ),
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id::text = $2::uuid::text
+          AND amount_paid_minor >= $3::bigint AND $3::bigint > 0
         RETURNING
           id,
           tenant_id,
@@ -872,6 +875,7 @@ export class InvoicesRepository {
       [input.tenantId, input.invoiceId, input.amountMinor, input.nextStatus],
     );
 
+    if (!result.rows[0]) throw new ConflictException('Invoice balance no longer supports this allocation reversal; reconcile the invoice before retrying');
     return this.mapRow(result.rows[0]);
   }
 

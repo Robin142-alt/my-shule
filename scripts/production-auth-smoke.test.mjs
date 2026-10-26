@@ -144,7 +144,7 @@ test('buildSmokeArtifact records multiple step failures without leaking encoded 
 test('assertAcceptedInviteLoginHtml checks hint, invited email, and first-login autocomplete', () => {
   assert.doesNotThrow(() =>
     assertAcceptedInviteLoginHtml(
-      '<input value="teacher@example.test" autocomplete="new-password" /><p>Use the password you just created</p>',
+      '<input value="teacher@example.test" /><input type="password" autocomplete="current-password" /><p>Use the password you just created</p>',
       'teacher@example.test',
       'school',
     ),

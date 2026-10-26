@@ -3837,10 +3837,12 @@ test('MpesaReconciliationService requires two distinct approvers before resolvin
   };
   const queryLog: string[] = [];
   let discrepancyResolved = false;
+  let correctionExecuted = false;
   const service = new MpesaReconciliationService(
     { get: (): string | undefined => undefined } as never,
     requestContext,
     {
+      withRequestTransaction: async (work:()=>Promise<unknown>)=>work(),
           executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
       return cb({
         $queryRawUnsafe: async (sql: string, ...params: any[]) => {
@@ -3851,6 +3853,8 @@ test('MpesaReconciliationService requires two distinct approvers before resolvin
     },
 query: async (sql: string, params: unknown[]) => {
         queryLog.push(sql);
+        if (/SELECT id FROM mpesa_reconciliation_discrepancies/.test(sql)) return {rows:[{id:params[1]}]};
+        if (/SELECT id FROM finance_approval_requests/.test(sql)) return {rows:[]};
 
         if (/INSERT INTO finance_approval_requests/.test(sql)) {
           return { rows: [approvalRows[requestId]] };
@@ -3879,6 +3883,7 @@ query: async (sql: string, params: unknown[]) => {
         }
 
         if (/UPDATE mpesa_reconciliation_discrepancies/.test(sql)) {
+          assert.equal(correctionExecuted,true);
           discrepancyResolved = true;
           return { rows: [] };
         }
@@ -3886,6 +3891,10 @@ query: async (sql: string, params: unknown[]) => {
         return { rows: [] };
       },
     } as never,
+    undefined,
+    {execute:async(id:string)=>{assert.equal(id,requestId);correctionExecuted=true;return {reversal_ledger_transaction_id:'ledger-reversal'};}} as never,
+    {recordSchoolOperation:async()=>{}} as never,
+    {record:async()=>{}} as never,
   );
 
   const requested = await requestContext.run(
@@ -3924,7 +3933,7 @@ query: async (sql: string, params: unknown[]) => {
       request_id: 'req-approval-2',
       tenant_id: 'tenant-a',
       user_id: '00000000-0000-0000-0000-000000000402',
-      role: 'principal',
+      role: 'accountant',
       session_id: 'session-approval-2',
       permissions: ['billing:update'],
       is_authenticated: true,
@@ -3949,7 +3958,7 @@ query: async (sql: string, params: unknown[]) => {
           request_id: 'req-approval-3',
           tenant_id: 'tenant-a',
           user_id: '00000000-0000-0000-0000-000000000402',
-          role: 'principal',
+          role: 'accountant',
           session_id: 'session-approval-3',
           permissions: ['billing:update'],
           is_authenticated: true,
@@ -3972,7 +3981,7 @@ query: async (sql: string, params: unknown[]) => {
       request_id: 'req-approval-4',
       tenant_id: 'tenant-a',
       user_id: '00000000-0000-0000-0000-000000000403',
-      role: 'director',
+      role: 'principal',
       session_id: 'session-approval-4',
       permissions: ['billing:update'],
       is_authenticated: true,
@@ -4005,8 +4014,8 @@ test('PaymentsController exposes accountant review and finance approval endpoint
     'reconciliation/approval-requests/:requestId/approve',
   );
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, reviewHandler), ['billing:read']);
-  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, requestHandler), ['billing:update']);
-  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, approveHandler), ['billing:update']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, requestHandler), ['billing:write']);
+  assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, approveHandler), ['billing:write']);
 });
 
 test('MpesaReconciliationService runs daily reconciliation for every active tenant payment channel', async () => {

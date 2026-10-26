@@ -7,6 +7,7 @@ import {
   PAYMENTS_PROCESS_JOB,
   PAYMENTS_VERIFY_MPESA_JOB,
   PAYMENTS_QUEUE_NAME,
+  PAYMENTS_RETRIEVE_BANK_JOB,
 } from '../payments.constants';
 import {
   EnqueueMpesaVerificationJobData,
@@ -24,6 +25,20 @@ export class PaymentsJobProducerService {
   private readonly logger = new Logger(PaymentsJobProducerService.name);
 
   constructor(private readonly queueService: QueueService) {}
+
+  async enqueueBankRetrieval(tenant:string,requestId:string) {
+    const queue=this.getPaymentsQueue();
+    const jobId=`${PAYMENTS_QUEUE_NAME}-bank-${createHash('sha256').update(tenant).digest('hex')}`;
+    const existing=await queue.getJob(jobId);
+    if(existing) {
+      const state=await existing.getState();
+      if(state==='failed') await existing.retry();
+      if(state==='completed') await existing.retry('completed');
+      return;
+    }
+    await queue.add(PAYMENTS_RETRIEVE_BANK_JOB,{tenant_id:tenant,request_id:requestId,enqueued_at:new Date().toISOString()},
+      {jobId,priority:10,attempts:5,backoff:{type:'exponential',delay:5000},removeOnComplete:{age:86400,count:5000},removeOnFail:{age:604800,count:5000}});
+  }
 
   async enqueuePayment(data: EnqueuePaymentJobData): Promise<EnqueuePaymentJobResult> {
     const payload: ProcessPaymentJobData = {
@@ -171,7 +186,7 @@ export class PaymentsJobProducerService {
   }
 
   private async mapQueueResult(
-    job: Job<PaymentsQueueJobData, PaymentsQueueJobResult, typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB>,
+    job: Job<PaymentsQueueJobData, PaymentsQueueJobResult, typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB | typeof PAYMENTS_RETRIEVE_BANK_JOB>,
     payload: ProcessPaymentJobData,
     deduplicated: boolean,
   ): Promise<EnqueuePaymentJobResult> {
@@ -186,7 +201,7 @@ export class PaymentsJobProducerService {
   }
 
   private async mapMpesaVerificationQueueResult(
-    job: Job<PaymentsQueueJobData, PaymentsQueueJobResult, typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB>,
+    job: Job<PaymentsQueueJobData, PaymentsQueueJobResult, typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB | typeof PAYMENTS_RETRIEVE_BANK_JOB>,
     payload: ProcessMpesaVerificationJobData,
     deduplicated: boolean,
   ): Promise<EnqueueMpesaVerificationJobResult> {
@@ -210,12 +225,12 @@ export class PaymentsJobProducerService {
   private getPaymentsQueue(): Queue<
     PaymentsQueueJobData,
     PaymentsQueueJobResult,
-    typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB
+    typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB | typeof PAYMENTS_RETRIEVE_BANK_JOB
   > {
     return this.queueService.getQueue(PAYMENTS_QUEUE_NAME) as Queue<
       PaymentsQueueJobData,
       PaymentsQueueJobResult,
-      typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB
+      typeof PAYMENTS_PROCESS_JOB | typeof PAYMENTS_VERIFY_MPESA_JOB | typeof PAYMENTS_RETRIEVE_BANK_JOB
     >;
   }
 }

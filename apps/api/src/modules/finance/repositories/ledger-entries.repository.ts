@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { LedgerEntryEntity } from '../entities/ledger-entry.entity';
 import { AccountBalanceSnapshot, ValidatedLedgerEntry, EntryDirection } from '../finance.types';
+import { ledgerMinor } from '../ledger-minor';
 
 @Injectable()
 export class LedgerEntriesRepository {
@@ -56,20 +57,20 @@ export class LedgerEntriesRepository {
           a.code AS account_code,
           a.currency_code,
           a.normal_balance,
-          COALESCE(
+          trunc(COALESCE(
             SUM(CASE WHEN lower(le.direction::text) = 'debit' THEN le.amount_minor::numeric ELSE 0 END),
             0
-          )::text AS debit_total_minor,
-          COALESCE(
+          ))::text AS debit_total_minor,
+          trunc(COALESCE(
             SUM(CASE WHEN lower(le.direction::text) = 'credit' THEN le.amount_minor::numeric ELSE 0 END),
             0
-          )::text AS credit_total_minor
+          ))::text AS credit_total_minor
         FROM accounts a
         LEFT JOIN ledger_entries le
           ON le.tenant_id = a.tenant_id
          AND le.account_id = a.id
         WHERE a.tenant_id = ${tenantId}
-          AND a.id = ANY(${uniqueAccountIds}::uuid[])
+          AND a.id::text = ANY(${uniqueAccountIds}::text[])
         GROUP BY a.id, a.code, a.currency_code, a.normal_balance
       `;
 
@@ -120,7 +121,7 @@ export class LedgerEntriesRepository {
       account_id: row.accountId,
       line_number: row.lineNumber,
       direction: row.direction?.toLowerCase() as EntryDirection,
-      amount_minor: row.amountMinor,
+      amount_minor: ledgerMinor(row.amountMinor),
       currency_code: row.currencyCode,
       description: row.description,
       metadata: (row.metadata && typeof row.metadata === 'object') ? row.metadata : {},

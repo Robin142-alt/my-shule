@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { FEE_RECEIPTS_READ_SQL } from '../fee-receipts-read-sql';
 import { FEE_BALANCE_STUDENT_PAGE_SQL, FEE_CREDIT_READ_SQL } from '../fee-credit-read-sql';
+import { ACTIVE_CREDIT_APPLICATION_SQL } from '../fee-credit-application-schema';
 
 import { PrismaService } from '../../../database/prisma.service';
 import {
@@ -350,15 +351,21 @@ export class ManualFeePaymentsRepository {
           reversal_ledger_transaction_id,
           notes,
           CASE WHEN metadata->>'source'='stk_payment' THEN metadata ELSE metadata || jsonb_build_object(
-            'invoice_allocations', COALESCE((SELECT jsonb_agg(jsonb_build_object('invoice_id',allocation.invoice_id,'amount_minor',allocation.amount_minor::text))
-              FROM manual_fee_payment_allocations allocation WHERE allocation.tenant_id=payment.tenant_id
-                AND allocation.manual_payment_id::text=payment.id::text AND allocation.allocation_type='invoice'),'[]'::jsonb),
-            'credit_amount_minor', COALESCE((SELECT SUM(allocation.amount_minor)
+            'invoice_allocations', COALESCE((SELECT jsonb_agg(jsonb_build_object('invoice_id',allocation.invoice_id,'amount_minor',allocation.amount_minor::text)) FROM (
+              SELECT invoice_id,amount_minor FROM manual_fee_payment_allocations WHERE tenant_id=payment.tenant_id
+                AND manual_payment_id::text=payment.id::text AND allocation_type='invoice'
+              UNION ALL SELECT invoice_id,amount_minor FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) applied
+                WHERE applied.tenant_id=payment.tenant_id AND applied.source_kind='manual' AND applied.source_id::text=payment.id::text
+              ) allocation),'[]'::jsonb),
+            'credit_amount_minor', (COALESCE((SELECT SUM(allocation.amount_minor)
               FROM manual_fee_payment_allocations allocation WHERE allocation.tenant_id=payment.tenant_id
                 AND allocation.manual_payment_id::text=payment.id::text AND allocation.allocation_type='credit'),
               CASE WHEN payment.invoice_id IS NULL AND NOT EXISTS(SELECT 1 FROM manual_fee_payment_allocations allocation
                 WHERE allocation.tenant_id=payment.tenant_id AND allocation.manual_payment_id::text=payment.id::text)
-                THEN payment.amount_minor ELSE 0 END)::text
+                THEN payment.amount_minor ELSE 0 END) - COALESCE((SELECT sum(applied.amount_minor) FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) applied
+                  WHERE applied.tenant_id=payment.tenant_id AND applied.source_kind='manual' AND applied.source_id::text=payment.id::text),0)
+                -COALESCE((SELECT sum(refund.amount_minor) FROM fee_credit_refunds refund WHERE refund.tenant_id=payment.tenant_id
+                  AND refund.source_kind='manual' AND refund.source_id::text=payment.id::text AND refund.status='completed'),0))::text
           ) END AS metadata,
           created_by_user_id,
           created_at,
@@ -767,6 +774,7 @@ export class ManualFeePaymentsRepository {
         )
         VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6::bigint, $7::jsonb)
         ON CONFLICT (tenant_id, manual_payment_id, invoice_id, allocation_type)
+        WHERE invoice_id IS NOT NULL
         DO NOTHING
         RETURNING id
       `,

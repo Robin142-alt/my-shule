@@ -349,6 +349,7 @@ export class MpesaC2bService {
         },payment.payment_channel_id,selectedStudent,undefined,{
           invoice_id:dto.invoice_id,reason:dto.notes?.trim() || 'Accountant reconciled verified provider evidence',
         });
+        if (collection.status==='reversed') throw new ConflictException('This collection was reversed. Review its original receipt and reversal instead of matching it again.');
         if (!collection.manual_fee_payment_id) throw new ConflictException('Payment reference still needs reconciliation');
         const matchedPayment = await this.mpesaC2bPaymentsRepository.markMatched({tenant_id:tenantId,payment_id:payment.id,matched_invoice_id:collection.invoice_id,
           matched_student_id:collection.student_id,manual_fee_payment_id:collection.manual_fee_payment_id,ledger_transaction_id:collection.ledger_transaction_id});

@@ -9,11 +9,14 @@ export interface CollectionPaymentInput {
   currency_code: string;
   account_reference: string;
   occurred_at: string;
+  bank_reference?: string;
 }
 export function normalizeCollectionInput(
   input: CollectionPaymentInput,
 ): CollectionPaymentInput {
   collectionProvider(input.provider_code);
+  if(input.bank_reference!==undefined && (typeof input.bank_reference!=='string' || !input.bank_reference.trim() || input.bank_reference.length>100))
+    throw new BadRequestException('Invalid bank reference');
   if (
     !/^\d{1,19}$/.test(input.amount_minor) ||
     BigInt(input.amount_minor) <= 0n ||
@@ -53,5 +56,6 @@ export function normalizeCollectionInput(
     amount_minor: BigInt(input.amount_minor).toString(),
     account_reference: input.account_reference.trim(),
     occurred_at: occurred.toISOString(),
+    ...(input.bank_reference ? {bank_reference:input.bank_reference.trim().toUpperCase()} : {}),
   };
 }

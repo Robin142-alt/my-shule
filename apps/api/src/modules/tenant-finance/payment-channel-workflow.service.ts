@@ -22,10 +22,12 @@ import {
   SandboxPaymentTestDto,
 } from "./dto/payment-channel-workflow.dto";
 import {
-  COLLECTION_PROVIDERS,
+  listCollectionProviders,
   collectionProvider,
 } from "./payment-provider.catalog";
 import { PaymentChannelConnectionService } from "./payment-channel-connection.service";
+import { BANK_PROVIDER_REGISTRY } from './providers/registered-bank-providers';
+import { BankProviderError } from './providers/bank-provider';
 import { PaymentChannelQueryDto } from "./dto/payment-channel-query.dto";
 import {
   PaymentChannelRevision,
@@ -51,7 +53,7 @@ export class PaymentChannelWorkflowService {
   ) {}
 
   providers() {
-    return COLLECTION_PROVIDERS;
+    return listCollectionProviders();
   }
 
   async instructions() {
@@ -163,11 +165,13 @@ export class PaymentChannelWorkflowService {
   async callbacks(tenantId: string, id: string) {
     return this.inPlatformSchool(tenantId, async () => {
       const revision = await this.requireRevision(tenantId,id);
-      if (revision.connection_mode !== 'daraja') throw new BadRequestException('Statement channels do not have provider callbacks');
+      const native=revision.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).notifications;
+      if (revision.connection_mode !== 'daraja' && !native) throw new BadRequestException('This channel does not have provider callbacks');
       const credentials = this.credentials(revision);
       await this.audit.record({action:'payment_channel.callback_urls_viewed',resource_type:'payment_channel_revision',resource_id:id});
-      return { ...this.connection.callbackUrls(revision,credentials), environment:revision.environment,
-        trust_mode:credentials._callback_trust_mode ?? 'edge_signed', sandbox_posts_live_fees:false };
+      const urls=this.connection.callbackUrls(revision,credentials);
+      return { ...urls,...(native?{validation_url:''}:{}), environment:revision.environment,
+        trust_mode:native?'bank_signature':credentials._callback_trust_mode ?? 'edge_signed', sandbox_posts_live_fees:false };
     });
   }
 
@@ -275,7 +279,9 @@ export class PaymentChannelWorkflowService {
   }
 
   async connect(tenantId: string, id: string, dto: ConnectPaymentChannelDto) {
-    return this.inPlatformSchool(tenantId, () =>
+    if(this.context.requireStore().role!==SUPERADMIN_ROLE_OWNER && dto.connection_mode!=='bank_api')
+      throw new ForbiddenException('School connection controls support approved direct bank integrations');
+    return this.inConnectionSchool(tenantId, id, () =>
       this.db.withRequestTransaction(async () => {
         const revision = await this.requireRevision(tenantId, id, true);
         if (!["approved", "connecting", "ready"].includes(revision.status))
@@ -294,7 +300,11 @@ export class PaymentChannelWorkflowService {
         const credentials: Record<string, string> = {};
         if (dto.connection_mode === 'statement' && dto.environment !== 'production')
           throw new BadRequestException('Statement channels record real bank evidence; use production');
-        if (dto.connection_mode === "daraja") {
+        if (dto.connection_mode === 'bank_api' && !BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).channel_kinds.includes(revision.channel_kind as 'bank_account'|'bank_paybill'))
+          throw new BadRequestException('This provider protocol does not support the requested account type');
+        if(dto.connection_mode==='bank_api' && !provider.bank_api_environments?.includes(dto.environment))
+          throw new BadRequestException('This bank protocol is not available in the selected environment; use reviewed statements for live accounts');
+        if (dto.connection_mode !== "statement") {
           for (const field of provider.credential_fields) {
             const value = dto.credentials[field.key];
             if (value === undefined && !field.required) continue;
@@ -308,8 +318,12 @@ export class PaymentChannelWorkflowService {
             if (!value.trim()) continue;
             credentials[field.key] = value.trim();
           }
-          credentials._callback_token = randomBytes(32).toString('hex');
-          credentials._callback_trust_mode = dto.callback_trust_mode ?? 'daraja_direct';
+          if(dto.connection_mode === 'daraja') {
+            credentials._callback_token = randomBytes(32).toString('hex');
+            credentials._callback_trust_mode = dto.callback_trust_mode ?? 'daraja_direct';
+          }
+          if(dto.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).notifications)
+            credentials._callback_token=randomBytes(32).toString('hex');
         } else if (Object.keys(dto.credentials).length)
           throw new BadRequestException(
             "Statement reconciliation does not require provider credentials",
@@ -323,7 +337,7 @@ export class PaymentChannelWorkflowService {
             id,
             dto.connection_mode,
             dto.environment,
-            dto.connection_mode === "daraja"
+            dto.connection_mode !== "statement"
               ? this.encryption.encrypt(
                   JSON.stringify(credentials),
                   this.aad(tenantId, id),
@@ -342,7 +356,7 @@ export class PaymentChannelWorkflowService {
   }
 
   async test(tenantId: string, id: string) {
-    return this.inPlatformSchool(tenantId, async () => {
+    return this.inConnectionSchool(tenantId, id, async () => {
       const revision = await this.requireRevision(tenantId, id);
       if (!["connecting", "ready"].includes(revision.status))
         throw new ConflictException(
@@ -352,14 +366,16 @@ export class PaymentChannelWorkflowService {
       let failure: string | null = null;
       try {
         await this.reserveSandbox(revision);
-        outcome = await this.connection.test(
-          revision,
-          this.credentials(revision),
-        );
+        const native=revision.connection_mode==='bank_api' ? BANK_PROVIDER_REGISTRY.adapter(revision.provider_code) : null;
+        if(native?.connection_check==='signed_notification') {
+          await this.requireSignedBankProof(revision);
+          outcome=revision.environment==='sandbox'?'bank_sandbox_notification_verified':'bank_live_notification_verified';
+        } else outcome = await this.connection.test(revision,this.credentials(revision));
       } catch (error) {
         outcome = "failed";
         failure =
           error instanceof BadRequestException ||
+          error instanceof BankProviderError ||
           error instanceof ConflictException ||
           (error instanceof Error && error.name === "BadGatewayException")
             ? error.message
@@ -412,7 +428,7 @@ export class PaymentChannelWorkflowService {
   }
 
   private async reserveSandbox(revision: PaymentChannelRevision) {
-    if (revision.environment !== 'sandbox') return;
+    if (revision.environment !== 'sandbox' || revision.connection_mode !== 'daraja') return;
     const result = await this.db.query(`INSERT INTO payment_sandbox_leases(provider_code,destination_account,tenant_id,revision_id,expires_at)
       VALUES($1,$2,$3,$4::uuid,now()+INTERVAL '15 minutes')
       ON CONFLICT(provider_code,destination_account) DO UPDATE SET tenant_id=EXCLUDED.tenant_id,revision_id=EXCLUDED.revision_id,expires_at=EXCLUDED.expires_at
@@ -438,6 +454,10 @@ export class PaymentChannelWorkflowService {
           throw new ConflictException(
             "A successful connection check within the last 24 hours is required",
           );
+        if(revision.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).connection_check==='signed_notification')
+          await this.requireSignedBankProof(revision);
+        if(revision.connection_mode==='bank_api' && !collectionProvider(revision.provider_code).bank_api_environments?.includes(revision.environment!))
+          throw new BadRequestException('This bank protocol is not available in the selected environment');
         if (revision.replaces_revision_id) {
           const old = await this.requireRevision(
             tenantId,
@@ -461,7 +481,7 @@ export class PaymentChannelWorkflowService {
         if (revision.environment === 'sandbox') {
           // A sandbox revision uses the same ingress and verifier but cannot own
           // live payment channels or create real school ledger entries.
-          if (revision.connection_mode !== 'daraja') throw new ConflictException('Only provider sandboxes can be activated for testing');
+          if (!['daraja','bank_api'].includes(revision.connection_mode ?? '')) throw new ConflictException('Only provider sandboxes can be activated for testing');
         } else if (revision.connection_mode === "daraja") {
           const credentials = this.credentials(revision);
           const summary = await this.finance.upsertMpesaConfig(tenantId, {
@@ -509,7 +529,7 @@ export class PaymentChannelWorkflowService {
               JSON.stringify({
                 provider_code: revision.provider_code,
                 revision_id: id,
-                connection_mode: "statement",
+                connection_mode: revision.connection_mode,
               }),
             ],
           );
@@ -591,6 +611,25 @@ export class PaymentChannelWorkflowService {
       );
     return actor;
   }
+  async connectSchool(id:string,dto:ConnectPaymentChannelDto) {
+    return this.connect(this.schoolActor(['accountant','bursar']),id,dto);
+  }
+  async testSchool(id:string) {
+    return this.test(this.schoolActor(['accountant','bursar']),id);
+  }
+  private async inConnectionSchool<T>(tenantId:string,id:string,fn:()=>Promise<T>):Promise<T> {
+    const actor=this.context.requireStore();
+    if(actor.role===SUPERADMIN_ROLE_OWNER) return this.inPlatformSchool(tenantId,fn);
+    if(this.schoolActor(['accountant','bursar'])!==tenantId ||
+      !(actor.permissions ?? []).some(permission=>permission==='billing:write'||permission==='*:*'))
+      throw new ForbiddenException('Connection configuration requires permission in the receiving school');
+    const revision=await this.requireRevision(tenantId,id);
+    if(!collectionProvider(revision.provider_code).connection_modes.includes('bank_api') ||
+      collectionProvider(revision.provider_code).platform_managed_credentials ||
+      (revision.connection_mode && revision.connection_mode!=='bank_api'))
+      throw new ForbiddenException('This channel requires platform connection');
+    return fn();
+  }
   private inPlatformSchool<T>(
     tenantId: string,
     fn: () => Promise<T>,
@@ -599,6 +638,14 @@ export class PaymentChannelWorkflowService {
     if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(tenantId))
       throw new BadRequestException("Invalid school identity");
     return this.context.run({ ...actor, tenant_id: tenantId }, fn);
+  }
+  private async requireSignedBankProof(revision:PaymentChannelRevision) {
+    const proof=await this.db.query(`SELECT id FROM payment_ingress WHERE tenant_id=$1 AND revision_id=$2::uuid
+      AND provider_code=$3 AND destination_account=$4 AND environment=$5 AND conflict_hash IS NULL
+      AND bank_evidence->>'notification'='true' AND bank_evidence->>'credential_version'=$6
+      AND occurred_at>=now()-INTERVAL '24 hours' AND created_at>=now()-INTERVAL '24 hours' LIMIT 1`,
+      [revision.tenant_id,revision.id,revision.provider_code,revision.account_number,revision.environment,String(revision.credential_version)]);
+    if(!proof.rows.length) throw new BadRequestException('Awaiting a recent bank-signed account notification. Give the confirmation URL to the bank and request an authorized test delivery.');
   }
   private view(row: PaymentChannelRevision): PaymentChannelRevisionView {
     const { credentials_ciphertext, ...view } = row;
@@ -625,9 +672,9 @@ export class PaymentChannelWorkflowService {
     const title = `Payment setup: ${action.replaceAll("_", " ")}`;
     const nextStep: Record<string, string> = {
       pending_approval: "Principal: review and approve or reject the school account.",
-      approved: "Approved. Awaiting Super Admin connection.",
+      approved: "Approved. Configure the supported connection or ask Super Admin for assistance.",
       rejected: "Accountant: review the decision and submit a corrected setup.",
-      connecting: "Super Admin is connecting and testing this account.",
+      connecting: "Connection configuration and testing are in progress.",
       ready: "Checks passed. Awaiting Super Admin activation.",
       active: row.environment === "sandbox" ? "Sandbox testing only; live school fees are not enabled." : "School payment channel is active.",
       suspended: "Collection is suspended. Contact Super Admin or request a corrected setup.",

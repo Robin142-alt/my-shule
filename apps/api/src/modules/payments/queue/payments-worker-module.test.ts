@@ -10,6 +10,7 @@ import { DatabaseSecurityService } from '../../../database/database-security.ser
 import { PrismaService } from '../../../database/prisma.service';
 import { REDIS_CLIENT } from '../../../infrastructure/redis/redis.constants';
 import { PaymentIngressService } from '../ingress/payment-ingress.service';
+import { BankSynchronizationService } from '../ingress/bank-synchronization.service';
 import { PaymentInboxRecoveryService } from '../services/payment-inbox-recovery.service';
 import { PAYMENTS_QUEUE_NAME } from '../payments.constants';
 
@@ -46,6 +47,7 @@ test('standalone payments worker resolves the real ingress and accounting depend
       .compile();
     assert.ok(module.get(PaymentIngressService));
     assert.ok(module.get(PaymentInboxRecoveryService));
+    assert.ok(module.get(BankSynchronizationService));
     await module.close();
   } finally {
     for (const [key, value] of Object.entries(original)) {

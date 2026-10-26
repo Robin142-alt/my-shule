@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { FinanceCorrectionService } from './finance-correction.service';
 
 import { AuthModule } from '../../auth/auth.module';
 import { BillingModule } from '../billing/billing.module';
@@ -43,6 +44,8 @@ import { PaymentIngressController } from './ingress/payment-ingress.controller';
 import { PaymentIngressService } from './ingress/payment-ingress.service';
 import { CollectionAdapterRegistry } from './ingress/collection-adapter-registry.service';
 import { SafaricomCollectionAdapter } from './ingress/safaricom-collection.adapter';
+import { BankSynchronizationService } from './ingress/bank-synchronization.service';
+import { BankSynchronizationController } from './ingress/bank-synchronization.controller';
 
 @Module({
   imports: [
@@ -56,13 +59,15 @@ import { SafaricomCollectionAdapter } from './ingress/safaricom-collection.adapt
     PaymentsQueueModule,
     forwardRef(() => BillingModule),
   ],
-  controllers: [PaymentsController, MpesaCallbackController, MpesaC2bController, CollectionPaymentsController, MpesaAsyncStatusController, PaymentIngressController],
+  controllers: [PaymentsController, MpesaCallbackController, MpesaC2bController, CollectionPaymentsController, MpesaAsyncStatusController, PaymentIngressController, BankSynchronizationController],
   providers: [
     PaymentsSchemaService,
     CollectionPaymentsSchemaService,
     CollectionPaymentsService,
+    FinanceCorrectionService,
     CollectionReferenceMatcher,
     PaymentIngressService,
+    BankSynchronizationService,
     CollectionAdapterRegistry,
     SafaricomCollectionAdapter,
     CollectionSuspenseService,
@@ -89,6 +94,7 @@ import { SafaricomCollectionAdapter } from './ingress/safaricom-collection.adapt
   ],
   exports: [
     PaymentIngressService,
+    BankSynchronizationService,
     CollectionPaymentsService,
     MpesaService,
     MpesaCallbackChannelService,

@@ -5,6 +5,8 @@ import { Pool } from 'pg';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { AccountantCommandService } from '../src/modules/admin-command/accountant-command.service';
 import { ManualFeePaymentsRepository } from '../src/modules/billing/repositories/manual-fee-payments.repository';
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from '../src/modules/billing/student-fee-payment-reversal.schema';
 
 describe('Accountant daily figures agree with posted school accounts', () => {
   const schema = `accountant_${randomUUID().replaceAll('-', '')}`;
@@ -39,6 +41,7 @@ describe('Accountant daily figures agree with posted school accounts', () => {
       || !url.pathname.startsWith('/my_shule_disposable_')) throw new Error('Use disposable PostgreSQL harness');
     pool = new Pool({ connectionString: url.toString(), options: `-c search_path=${schema},public` });
     await pool.query(`CREATE SCHEMA ${schema};
+      CREATE TABLE transactions(id uuid PRIMARY KEY,tenant_id text NOT NULL,UNIQUE(tenant_id,id));
       CREATE TABLE invoices(id text,tenant_id text,invoice_number text,description text,metadata jsonb,status text,total_amount_minor bigint,amount_paid_minor bigint,issued_at timestamptz DEFAULT now());
       CREATE TABLE manual_fee_payments(id text,tenant_id text,student_id text,invoice_id text,receipt_number text,payer_name text,payment_method text,amount_minor bigint,status text,received_at timestamptz DEFAULT now());
       CREATE TABLE manual_fee_payment_allocations(tenant_id text,student_id text,manual_payment_id text,allocation_type text,amount_minor bigint);
@@ -57,6 +60,7 @@ describe('Accountant daily figures agree with posted school accounts', () => {
       INSERT INTO mpesa_transactions(tenant_id,mpesa_receipt_number) VALUES('legacy-school','LEGACY-RECEIPT');
       ALTER TABLE manual_fee_payment_allocations ADD COLUMN invoice_id uuid;
       ALTER TABLE student_fee_credits ADD COLUMN payment_intent_id uuid;
+      ALTER TABLE student_fee_credits ADD COLUMN id uuid DEFAULT gen_random_uuid();
       CREATE TABLE mpesa_c2b_payments(tenant_id text,status text);
       CREATE TABLE fee_structures(tenant_id text,status text);
       CREATE TABLE collection_payments(tenant_id text,status text);
@@ -97,6 +101,9 @@ describe('Accountant daily figures agree with posted school accounts', () => {
     expect(upgrade?.length).toBeGreaterThan(0);
     await pool.query(upgrade!.join('\n'));
     await pool.query(upgrade!.join('\n'));
+    await pool.query('CREATE SCHEMA IF NOT EXISTS app');
+    await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
+    await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
   });
   it('upgrades legacy provider rows idempotently without inventing verification or financial amounts', async () => {
     const result = await pool.query(`SELECT mpesa_receipt_number,amount_minor,ledger_transaction_id,transaction_occurred_at,processed_at,metadata

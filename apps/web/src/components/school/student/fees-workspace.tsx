@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle, ReceiptText, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { SchoolPaymentInstructions } from "../payment-instructions";
+import { CreditRefundHistory,type CreditRefundHistoryEntry } from "../credit-refund-history";
 
 type StudentFeesData = {
   metrics: {
@@ -31,6 +32,7 @@ type StudentFeesData = {
     created_at: string;
   }>;
   transactions: Array<{
+    credit_refunds?: CreditRefundHistoryEntry[];
     id: string;
     receipt_number?: string | null;
     payment_method?: string | null;
@@ -158,6 +160,7 @@ export function FeesWorkspace() {
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-success">
                       {formatMoney(transaction.amount_minor)}
+                      <CreditRefundHistory refunds={transaction.credit_refunds}/>
                     </td>
                     <td className="px-4 py-3 text-right text-slate-600">{transaction.status}</td>
                   </tr>

@@ -18,6 +18,9 @@ import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
 import type { StudentFeeBalanceResponse, StudentFeeStatementResponse } from "@/components/school/school-pages";
 
 import { BulkFeeBillingDialog } from "./bulk-fee-billing-dialog";
+import { LegacyInvoicesReview } from "./legacy-invoices-review";
+import { CreditRefunds } from "./credit-refunds";
+import { PaymentCorrectionRequest } from "./payment-correction-request";
 
 type Invoice = { id: string; invoice_number: string; description: string; status: string; total_amount_minor: string; amount_paid_minor: string; due_at: string; issued_at: string; metadata: { student_id: string; student_name: string; admission_number?: string } };
 const pageSize = 50;
@@ -47,6 +50,12 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
   const statement = useSchoolQuery<StudentFeeStatementResponse>(statementId ? `/billing/student-balances/${statementId}/statement` : null);
   const [exporting, setExporting] = useState(false);
   const [documentError, setDocumentError] = useState("");
+  const [creditTarget, setCreditTarget] = useState<StudentFeeBalanceResponse | null>(null);
+  const [refundTarget,setRefundTarget]=useState<StudentFeeBalanceResponse|null>(null);
+  const [creditReason, setCreditReason] = useState("");
+  const [creditError, setCreditError] = useState("");
+  const [applyingCredit, setApplyingCredit] = useState(false);
+  const creditInFlight = useRef(false);
   const invoiceRows = (Array.isArray(invoices.data) ? invoices.data : []).filter(row => `${row.invoice_number} ${row.metadata.student_name} ${row.metadata.admission_number || ""}`.toLowerCase().includes(search.toLowerCase()));
   const balanceRows = (Array.isArray(balances.data) ? balances.data : []).filter(row => (row.student_name || row.student_id).toLowerCase().includes(search.toLowerCase()));
   const activeQuery = tab === "invoices" ? invoices : balances;
@@ -109,6 +118,21 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
     } catch (cause) { setDocumentError(cause instanceof Error ? cause.message : "Statement export failed. Retry."); }
     finally { setExporting(false); }
   }
+  async function applyCredit() {
+    if (!tenantId || !canWrite || !creditTarget || creditReason.trim().length < 5 || creditInFlight.current) return;
+    creditInFlight.current = true; setApplyingCredit(true); setCreditError("");
+    try {
+      const result = await requestDashboardApi<{ applied_amount_minor: string }>(`/billing/students/${creditTarget.student_id}/apply-credit`, {
+        tenantId, method: "POST", body: { reason: creditReason.trim() },
+      });
+      setNotice(BigInt(result.applied_amount_minor) > BigInt(0)
+        ? `${formatMinorKes(result.applied_amount_minor)} of existing credit applied to eligible invoices.`
+        : "No credit was applied. There is no available credit or eligible unpaid invoice.");
+      setCreditTarget(null);
+      await client.invalidateQueries({ queryKey: ["school", tenantId] });
+    } catch (cause) { setCreditError(cause instanceof Error ? cause.message : "Credit could not be applied. Retry."); }
+    finally { creditInFlight.current = false; setApplyingCredit(false); }
+  }
   return <div className="space-y-4">
     <section className="rounded-xl border border-border bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-semibold">Invoices & statements</h3><p className="mt-1 text-sm text-muted">Bill a learner or a class, then follow each account from invoice to cleared payment.</p></div>
@@ -116,6 +140,7 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
       </div>
       <div className="mt-4 flex flex-wrap gap-2">{(["invoices", "balances"] as const).map(value => <Button key={value} variant={tab === value ? "primary" : "ghost"} aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); setSearch(""); }}>{value === "invoices" ? "Invoice register" : "Learner balances"}</Button>)}
         {onNavigate && <Button variant="ghost" onClick={() => onNavigate("fee-structures")}>Manage fee structures</Button>}
+        <LegacyInvoicesReview />
         <Button variant="ghost" disabled={activeQuery.isFetching} onClick={() => void activeQuery.refetch()}>Refresh</Button>
       </div>
     </section>
@@ -130,14 +155,15 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
       { id: "paid", header: "Paid", render: row => formatMinorKes(row.amount_paid_minor) },
       { id: "status", header: "Status", render: row => row.status.replaceAll("_", " ") },
       { id: "due", header: "Due", render: row => formatActivityDate(row.due_at) },
-      { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => previewInvoice(row)}>Preview / print</Button><Button size="sm" variant="ghost" onClick={() => viewStatement(row.metadata.student_id)}>Statement</Button></div> },
+      { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => previewInvoice(row)}>Preview / print</Button><Button size="sm" variant="ghost" onClick={() => viewStatement(row.metadata.student_id)}>Statement</Button>{["open","pending_payment"].includes(row.status)&&BigInt(row.total_amount_minor)>BigInt(row.amount_paid_minor)&&<PaymentCorrectionRequest id={row.id} amount={(BigInt(row.total_amount_minor)-BigInt(row.amount_paid_minor)).toString()} kind="write_off" label="Request write-off"/>}</div> },
     ]} /> : <DataTable pageSize={pageSize} title="Learner balances" rows={balanceRows} getRowKey={row => row.student_id} emptyMessage={balances.isLoading ? "Loading balances…" : balances.error ? "Balance records unavailable. Retry above." : "No matching learner accounts. Create a learner invoice to start."} columns={[
       { id: "student", header: "Learner", render: row => row.student_name || "Learner account" },
       { id: "invoiced", header: "Invoiced", render: row => formatMinorKes(row.invoiced_amount_minor) },
       { id: "paid", header: "Paid", render: row => formatMinorKes(row.paid_amount_minor) },
       { id: "credit", header: "Credit", render: row => formatMinorKes(row.credit_amount_minor) },
       { id: "balance", header: "Balance", render: row => <strong className="tabular-nums">{formatMinorKes(row.balance_amount_minor)}</strong> },
-      { id: "actions", header: "Actions", render: row => <Button size="sm" variant="secondary" onClick={() => viewStatement(row.student_id)}>View statement</Button> },
+      { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => viewStatement(row.student_id)}>View statement</Button>
+        {BigInt(row.credit_amount_minor) > BigInt(0) && <><Button size="sm" variant="ghost" disabled={!canWrite} onClick={() => { setCreditTarget(row); setCreditReason(""); setCreditError(""); }}>Apply credit</Button><Button size="sm" variant="ghost" disabled={!canWrite} onClick={()=>setRefundTarget(row)}>Refund credit</Button></>}</div> },
     ]} />}
     <div className="flex flex-wrap items-center justify-end gap-3 text-sm"><span>Page {offset / pageSize + 1}</span><Button variant="secondary" disabled={!offset || activeQuery.isFetching} onClick={() => setOffset(offset - pageSize)}>Previous page</Button><Button variant="secondary" disabled={(activeQuery.data?.length ?? 0) < pageSize || activeQuery.isFetching} onClick={() => setOffset(offset + pageSize)}>Next page</Button></div>
     {dialog === "bulk" && <BulkFeeBillingDialog onClose={() => setDialog(null)} onComplete={result => {
@@ -151,6 +177,17 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
         <label className="block text-sm">Amount (KES)<input required name="amount" inputMode="decimal" className="input-base mt-1 w-full" /></label>
         <label className="block text-sm">Due date (optional)<input name="due" type="date" className="input-base mt-1 w-full" /></label>
       </fieldset></form>
+    </Modal>
+    <CreditRefunds student={refundTarget} onClose={()=>setRefundTarget(null)}/>
+    <Modal open={Boolean(creditTarget)} title="Apply existing fee credit" onClose={() => { if (!applyingCredit) setCreditTarget(null); }}
+      footer={<><Button variant="secondary" disabled={applyingCredit} onClick={() => setCreditTarget(null)}>Cancel</Button>
+        <Button disabled={!canWrite || applyingCredit || creditReason.trim().length < 5} onClick={() => void applyCredit()}>{applyingCredit ? "Applying credit…" : "Confirm credit application"}</Button></>}>
+      <div className="space-y-4"><p className="text-sm">{creditTarget?.student_name || "This learner"} has {formatMinorKes(creditTarget?.credit_amount_minor || "0")} available.
+        Unreserved credit will pay eligible invoices in due-date order. Pending refunds stay reserved until paid, rejected or cancelled.</p>
+        <p className="text-sm text-muted">New invoices use eligible credits automatically. This action also reconciles existing unpaid invoices.</p>
+        {creditError && <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{creditError}</p>}
+        <label className="block text-sm">Reason<textarea className="input-base mt-1 w-full" maxLength={1000} disabled={applyingCredit} value={creditReason} onChange={event => setCreditReason(event.target.value)} /></label>
+      </div>
     </Modal>
     <Modal open={Boolean(statementId)} title={statement.data ? `${statement.data.summary.student_name || "Learner"} · fee statement` : "Fee statement"} onClose={() => setStatementId(null)}>
       <div className="space-y-4">{statement.isLoading && <p role="status">Loading statement…</p>}{statement.error && <p role="alert">{statement.error.message} <Button onClick={() => void statement.refetch()}>Retry statement</Button></p>}

@@ -20,5 +20,6 @@ export const FEE_INVOICE_READ_SQL = `
   FROM student_invoices legacy WHERE legacy.tenant_id::text=current_setting('app.tenant_id',true)
     AND NOT EXISTS (SELECT 1 FROM invoices canonical WHERE canonical.tenant_id=legacy.tenant_id::text
       AND canonical.metadata->>'student_id'=legacy.student_id::text
-      AND (canonical.id::text=legacy.id::text OR canonical.invoice_number=legacy.invoice_number))
+      AND (canonical.id::text=legacy.id::text OR canonical.invoice_number=legacy.invoice_number
+        OR canonical.metadata->>'legacy_invoice_id'=legacy.id::text))
 `;

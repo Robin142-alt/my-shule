@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../../database/prisma.service';
 import {
@@ -374,6 +374,7 @@ export class MpesaC2bPaymentsRepository {
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND status NOT IN ('matched','reversed','rejected')
         RETURNING
           id,
           tenant_id,
@@ -415,7 +416,10 @@ export class MpesaC2bPaymentsRepository {
       ],
     );
 
-    return this.mapRow(result.rows[0]);
+    if(result.rows[0]) return this.mapRow(result.rows[0]);
+    const current=await this.lockById(input.tenant_id,input.payment_id);
+    if(!current) throw new NotFoundException('M-Pesa payment was not found in this school');
+    return current;
   }
 
   async markVerificationRequested(input: {
@@ -433,6 +437,7 @@ export class MpesaC2bPaymentsRepository {
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND status NOT IN ('matched','reversed','rejected')
         RETURNING
           id,
           tenant_id,
@@ -466,7 +471,10 @@ export class MpesaC2bPaymentsRepository {
       [input.tenant_id, input.payment_id, input.reason, JSON.stringify(input.metadata ?? {})],
     );
 
-    return this.mapRow(result.rows[0]);
+    if(result.rows[0]) return this.mapRow(result.rows[0]);
+    const current=await this.lockById(input.tenant_id,input.payment_id);
+    if(!current) throw new NotFoundException('M-Pesa payment was not found in this school');
+    return current;
   }
 
   async markProviderVerified(input: {
@@ -519,6 +527,7 @@ export class MpesaC2bPaymentsRepository {
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND status NOT IN ('matched','reversed','rejected')
         RETURNING
           id,
           tenant_id,
@@ -559,7 +568,10 @@ export class MpesaC2bPaymentsRepository {
       ],
     );
 
-    return this.mapRow(result.rows[0]);
+    if(result.rows[0]) return this.mapRow(result.rows[0]);
+    const current=await this.lockById(input.tenant_id,input.payment_id);
+    if(!current) throw new NotFoundException('M-Pesa payment was not found in this school');
+    return current;
   }
 
   async markProviderFailed(input: {
@@ -587,6 +599,7 @@ export class MpesaC2bPaymentsRepository {
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND status NOT IN ('matched','reversed','rejected')
         RETURNING
           id,
           tenant_id,
@@ -626,7 +639,10 @@ export class MpesaC2bPaymentsRepository {
       ],
     );
 
-    return this.mapRow(result.rows[0]);
+    if(result.rows[0]) return this.mapRow(result.rows[0]);
+    const current=await this.lockById(input.tenant_id,input.payment_id);
+    if(!current) throw new NotFoundException('M-Pesa payment was not found in this school');
+    return current;
   }
 
   async markPendingReview(input: {
@@ -644,6 +660,7 @@ export class MpesaC2bPaymentsRepository {
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND status NOT IN ('matched','reversed','rejected')
         RETURNING
           id,
           tenant_id,
@@ -677,7 +694,10 @@ export class MpesaC2bPaymentsRepository {
       [input.tenant_id, input.payment_id, input.reason, JSON.stringify(input.metadata ?? {})],
     );
 
-    return this.mapRow(result.rows[0]);
+    if(result.rows[0]) return this.mapRow(result.rows[0]);
+    const current=await this.lockById(input.tenant_id,input.payment_id);
+    if(!current) throw new NotFoundException('M-Pesa payment was not found in this school');
+    return current;
   }
 
   async markRejected(input: {
@@ -695,6 +715,7 @@ export class MpesaC2bPaymentsRepository {
           updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
+          AND status NOT IN ('matched','reversed','rejected')
         RETURNING
           id,
           tenant_id,
@@ -728,7 +749,10 @@ export class MpesaC2bPaymentsRepository {
       [input.tenant_id, input.payment_id, input.reason, JSON.stringify(input.metadata ?? {})],
     );
 
-    return this.mapRow(result.rows[0]);
+    if(result.rows[0]) return this.mapRow(result.rows[0]);
+    const current=await this.lockById(input.tenant_id,input.payment_id);
+    if(!current) throw new NotFoundException('M-Pesa payment was not found in this school');
+    return current;
   }
 
   private mapRow(row: MpesaC2bPaymentRow): MpesaC2bPaymentEntity {

@@ -6,6 +6,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
 import { BillingSchemaService } from '../src/modules/billing/billing-schema.service';
 import { BillingService } from '../src/modules/billing/billing.service';
+import { FeeCreditApplicationService } from '../src/modules/billing/fee-credit-application.service';
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from '../src/modules/billing/fee-credit-application-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from '../src/modules/billing/student-fee-payment-reversal.schema';
 import { FeeStructuresRepository } from '../src/modules/billing/repositories/fee-structures.repository';
 import { InvoicesRepository } from '../src/modules/billing/repositories/invoices.repository';
 import { SubscriptionsRepository } from '../src/modules/billing/repositories/subscriptions.repository';
@@ -56,13 +59,16 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
     await pool.query(`CREATE SCHEMA ${schema}; CREATE ROLE ${role}; GRANT USAGE ON SCHEMA ${schema} TO ${role};`);
     let ddl = '';
     await new BillingSchemaService({ runSchemaBootstrap: async (sql: string) => { ddl = sql; } } as never).onModuleInit();
-    for (const name of ['subscriptions', 'invoices', 'fee_structures']) {
+    for (const name of ['subscriptions', 'invoices', 'fee_structures','manual_fee_payments','manual_fee_payment_allocations','student_fee_credits']) {
       const table = ddl.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${name} \\([\\s\\S]*?\\n      \\);`))![0];
       await pool.query(table);
-      if (identifierType === 'text' && name !== 'subscriptions') {
+      if (identifierType === 'text' && ['invoices','fee_structures'].includes(name)) {
         await pool.query(`ALTER TABLE ${name} ALTER COLUMN id TYPE text USING id::text`);
       }
     }
+    await pool.query('CREATE SCHEMA IF NOT EXISTS app');
+    await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
+    await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
     await pool.query(`
       CREATE TABLE students(id ${identifierType} PRIMARY KEY,tenant_id text,first_name text,last_name text,
         admission_number text,primary_guardian_phone text,status text,deleted_at timestamptz);
@@ -90,12 +96,14 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
         ALTER TABLE invoices ADD COLUMN deleted_at timestamptz;
       `);
     }
+    await pool.query('CREATE TABLE audit_logs(tenant_id text,actor_user_id text,action text,resource_type text,resource_id text,metadata jsonb)');
+    await pool.query(`GRANT ALL ON audit_logs TO ${role}`);
     await pool.query('INSERT INTO tenants VALUES($1),($2)', [school, otherSchool]);
     if (INVOICE_WRITE_SCHEMA_SQL) {
       await pool.query(INVOICE_WRITE_SCHEMA_SQL);
       await pool.query(INVOICE_WRITE_SCHEMA_SQL);
     }
-    for (const name of ['subscriptions', 'invoices', 'fee_structures', 'students', 'student_allocations', 'evidence']) {
+    for (const name of ['subscriptions', 'invoices', 'fee_structures', 'students', 'student_allocations', 'evidence', 'audit_logs']) {
       await pool.query(`ALTER TABLE ${name} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${name} FORCE ROW LEVEL SECURITY;
         CREATE POLICY school_only ON ${name} USING(tenant_id=current_setting('app.tenant_id',true))
           WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
@@ -110,7 +118,7 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
           if (failEvent) throw Error('Injected event failure');
           await db.query('INSERT INTO evidence VALUES($1,$2::jsonb)', [context.requireStore().tenant_id, JSON.stringify(event)]);
         },
-      } as never);
+      } as never, new FeeCreditApplicationService(context,db as never,{recordSchoolOperation:async()=>{throw Error('Unexpected credit in empty fixture');}} as never));
     await pool.query(`INSERT INTO subscriptions(tenant_id,plan_code,status,current_period_start,current_period_end)
       VALUES($1,'school','active',now(),now()+interval '1 year')`, [school]);
     await pool.query(`INSERT INTO students VALUES($1,$2,'Amina','Learner','ADM-1',NULL,'active',NULL),
@@ -157,6 +165,19 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
     expect((await pool.query('SELECT * FROM invoices')).rows).toHaveLength(0);
     failEvent = false;
     expect((await issue('event-failure')).generated_count).toBe(1);
+  });
+  it('persists fee structure audit and event atomically, with no unaudited saved plan on failure', async () => {
+    const name=`Extra charge ${variant}`;
+    failEvent=true;
+    await expect(asSchool(()=>billing.createFeeStructure({name,academic_year:'2027',term:'Term 1',grade_level:'Grade 7',
+      line_items:[{code:'activity',label:'Activity',amount_minor:'2500'}]}))).rejects.toThrow('Injected event failure');
+    expect((await pool.query('SELECT id FROM fee_structures WHERE name=$1',[name])).rows).toHaveLength(0);
+    const audits=(await pool.query('SELECT count(*)::int AS n FROM audit_logs')).rows[0].n;
+    failEvent=false;
+    await asSchool(()=>billing.createFeeStructure({name,academic_year:'2027',term:'Term 1',grade_level:'Grade 7',
+      line_items:[{code:'activity',label:'Activity',amount_minor:'2500'}]}));
+    expect((await pool.query('SELECT count(*)::int AS n FROM audit_logs')).rows[0].n).toBe(audits+1);
+    expect((await pool.query('SELECT * FROM evidence')).rows).toHaveLength(1);
   });
   it('reads, allocates and reverses the issued invoice without losing its learner balance', async () => {
     const invoice = (await issue('payment')).invoices[0];

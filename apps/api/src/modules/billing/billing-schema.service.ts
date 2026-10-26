@@ -1,5 +1,10 @@
 import { FEE_WAIVER_INVOICE_SCHEMA_SQL } from './fee-waiver-schema';
 import { INVOICE_WRITE_SCHEMA_SQL } from './invoice-write-schema';
+import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from './fee-credit-application-schema';
+import { LEGACY_FEE_INVOICE_ADOPTION_SCHEMA } from './legacy-fee-invoice-adoption.schema';
+import { LEGACY_RECEIPT_SCHEMA } from './legacy-receipt-schema';
+import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from './student-fee-payment-reversal.schema';
+import { RECEIPT_REFUND_EVIDENCE_SCHEMA } from './receipt-refund-evidence.schema';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -311,6 +316,8 @@ export class BillingSchemaService implements OnModuleInit {
         CONSTRAINT uq_manual_fee_payment_allocations_tenant_id_id UNIQUE (tenant_id, id)
       );
 
+      ${LEGACY_RECEIPT_SCHEMA}
+
       DO $$
       DECLARE
         target_table text;
@@ -462,16 +469,34 @@ export class BillingSchemaService implements OnModuleInit {
         ADD COLUMN IF NOT EXISTS bounced_at timestamptz;
       ALTER TABLE manual_fee_payments
         ADD COLUMN IF NOT EXISTS reversed_at timestamptz;
-      ALTER TABLE manual_fee_payments
-        ALTER COLUMN ledger_transaction_id TYPE text USING ledger_transaction_id::text;
-      ALTER TABLE manual_fee_payments
-        ALTER COLUMN reversal_ledger_transaction_id TYPE text USING reversal_ledger_transaction_id::text;
+      -- Receipt links must match the installed ledger identifier type. Older
+      -- Prisma databases use text; the canonical finance bootstrap uses UUID.
+      -- Do not rewrite the ledger or discard an invalid historical reference.
+      DO $$
+      DECLARE
+        ledger_id_type text;
+        link_column text;
+        link_type text;
+      BEGIN
+        SELECT format_type(atttypid, atttypmod) INTO ledger_id_type
+        FROM pg_attribute WHERE attrelid=to_regclass('transactions') AND attname='id' AND NOT attisdropped;
+        IF ledger_id_type IN ('uuid','text') THEN
+          FOREACH link_column IN ARRAY ARRAY['ledger_transaction_id','reversal_ledger_transaction_id'] LOOP
+            SELECT format_type(atttypid, atttypmod) INTO link_type
+            FROM pg_attribute WHERE attrelid='manual_fee_payments'::regclass AND attname=link_column AND NOT attisdropped;
+            IF link_type IS DISTINCT FROM ledger_id_type THEN
+              EXECUTE format('ALTER TABLE manual_fee_payments ALTER COLUMN %I TYPE %s USING %I::%s',
+                link_column,ledger_id_type,link_column,ledger_id_type);
+            END IF;
+          END LOOP;
+        END IF;
+      END $$;
       ALTER TABLE manual_fee_payments
         ALTER COLUMN asset_account_code TYPE text USING asset_account_code::text;
       ALTER TABLE manual_fee_payments
         ALTER COLUMN fee_control_account_code TYPE text USING fee_control_account_code::text;
       ALTER TABLE manual_fee_payments
-        ALTER COLUMN amount_minor TYPE bigint USING GREATEST(amount_minor::bigint, 1);
+        ALTER COLUMN amount_minor TYPE bigint USING amount_minor::bigint;
       ALTER TABLE manual_fee_payments
         ALTER COLUMN currency_code TYPE text USING currency_code::text;
       ALTER TABLE manual_fee_payments
@@ -1080,6 +1105,10 @@ export class BillingSchemaService implements OnModuleInit {
         ON student_fee_credits (tenant_id, student_id, remaining_amount_minor DESC);
       CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_status_received
         ON manual_fee_payments (tenant_id, status, received_at DESC);
+      CREATE INDEX IF NOT EXISTS ix_manual_bank_external_reference
+        ON manual_fee_payments(tenant_id,upper(external_reference)) WHERE payment_method IN ('bank_deposit','eft');
+      CREATE INDEX IF NOT EXISTS ix_manual_bank_deposit_reference
+        ON manual_fee_payments(tenant_id,upper(deposit_reference)) WHERE payment_method IN ('bank_deposit','eft');
       CREATE INDEX IF NOT EXISTS ix_manual_fee_payments_student
         ON manual_fee_payments (tenant_id, student_id, received_at DESC)
         WHERE student_id IS NOT NULL;
@@ -1254,6 +1283,10 @@ export class BillingSchemaService implements OnModuleInit {
       BEFORE UPDATE OR DELETE ON manual_fee_payment_allocations
       FOR EACH ROW
       EXECUTE FUNCTION app.prevent_append_only_mutation();
+      ${FEE_CREDIT_APPLICATION_SCHEMA_SQL}
+      ${STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA}
+      ${RECEIPT_REFUND_EVIDENCE_SCHEMA}
+      ${LEGACY_FEE_INVOICE_ADOPTION_SCHEMA}
     `);
 
     this.logger.log('Billing schema, lifecycle, invoices, usage metering, and notifications verified');

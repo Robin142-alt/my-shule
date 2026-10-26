@@ -5,6 +5,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { FinanceSchemaService } from '../finance/finance-schema.service';
 import { TenantFinanceSchemaService } from '../tenant-finance/tenant-finance-schema.service';
 import { LEGACY_STK_WRITE_SCHEMA } from './legacy-stk-write-schema';
+import { LEGACY_RECONCILIATION_SCHEMA } from './legacy-reconciliation-schema';
+import { LEGACY_C2B_SCHEMA } from './legacy-c2b-schema';
 
 @Injectable()
 export class PaymentsSchemaService implements OnModuleInit {
@@ -541,6 +543,11 @@ export class PaymentsSchemaService implements OnModuleInit {
           ON DELETE SET NULL
       );
 
+      ${LEGACY_RECONCILIATION_SCHEMA}
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_finance_correction_request_key ON finance_approval_requests(tenant_id,(evidence->>'request_key'))
+        WHERE evidence ? 'request_key';
+
       CREATE OR REPLACE FUNCTION app.ensure_finance_period_open()
       RETURNS trigger AS $$
       BEGIN
@@ -955,6 +962,7 @@ export class PaymentsSchemaService implements OnModuleInit {
       $$;
 
       ${LEGACY_STK_WRITE_SCHEMA}
+      ${LEGACY_C2B_SCHEMA}
 
       CREATE INDEX IF NOT EXISTS ix_payment_intents_status_created_at
         ON payment_intents (tenant_id, status, created_at DESC);

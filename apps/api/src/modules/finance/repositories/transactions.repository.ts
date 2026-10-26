@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { FinancialTransactionEntity } from '../entities/transaction.entity';
+import { ledgerMinor } from '../ledger-minor';
 
 interface CreateTransactionInput {
   tenant_id: string;
@@ -84,7 +85,7 @@ export class TransactionsRepository {
       reference: row.reference,
       description: row.description,
       currency_code: row.currencyCode,
-      total_amount_minor: row.totalAmountMinor,
+      total_amount_minor: ledgerMinor(row.totalAmountMinor),
       entry_count: row.entryCount,
       effective_at: row.effectiveAt,
       posted_at: row.postedAt,

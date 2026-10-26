@@ -3,8 +3,11 @@ import { PrismaService } from "../../database/prisma.service";
 import { PaymentChannelWorkflowSchemaService } from "../tenant-finance/payment-channel-workflow-schema.service";
 import { MPESA_ASYNC_STATUS_SCHEMA } from "./mpesa-async-status.service";
 import { PAYMENT_INGRESS_SCHEMA } from './ingress/payment-ingress.schema';
+import { BANK_SYNCHRONIZATION_SCHEMA } from './ingress/bank-synchronization.schema';
+import { PAYMENT_CORRECTION_SCHEMA } from '../billing/payment-correction.schema';
 
 export const COLLECTION_PAYMENTS_SCHEMA = `
+${PAYMENT_CORRECTION_SCHEMA}
 CREATE TABLE IF NOT EXISTS collection_payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
   revision_id uuid, channel_id uuid, provider_code text NOT NULL,
@@ -29,6 +32,9 @@ ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS suspense_transaction_id
 ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS suspense_release_transaction_id uuid;
 ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS asset_account_code text;
 ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS fee_control_account_code text;
+ALTER TABLE collection_payments ADD COLUMN IF NOT EXISTS bank_reference text;
+CREATE INDEX IF NOT EXISTS ix_collection_bank_reference ON collection_payments(tenant_id,provider_code,destination_account,bank_reference)
+  WHERE bank_reference IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_collection_mpesa_receipt ON collection_payments(provider_transaction_id) WHERE provider_code='safaricom';
 CREATE INDEX IF NOT EXISTS ix_collections_student ON collection_payments(tenant_id,student_id,occurred_at DESC);
 CREATE TABLE IF NOT EXISTS collection_reversal_requests (
@@ -49,22 +55,31 @@ ALTER TABLE collection_reversal_requests FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS collection_reversal_school ON collection_reversal_requests;
 CREATE POLICY collection_reversal_school ON collection_reversal_requests FOR ALL USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
 CREATE OR REPLACE FUNCTION app.guard_collection_payment_history() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE approved_move boolean := false;
 BEGIN
  IF TG_OP='DELETE' THEN RAISE EXCEPTION 'Payment history cannot be deleted'; END IF;
  IF ROW(NEW.tenant_id,NEW.revision_id,NEW.channel_id,NEW.provider_code,NEW.provider_transaction_id,
-   NEW.destination_account,NEW.amount_minor,NEW.currency_code,NEW.account_reference,NEW.occurred_at,NEW.source,NEW.created_at,NEW.requested_by,NEW.evidence_reference,NEW.asset_account_code,NEW.fee_control_account_code)
+   NEW.destination_account,NEW.amount_minor,NEW.currency_code,NEW.account_reference,NEW.occurred_at,NEW.source,NEW.created_at,NEW.requested_by,NEW.evidence_reference,NEW.asset_account_code,NEW.fee_control_account_code,NEW.bank_reference)
  IS DISTINCT FROM ROW(OLD.tenant_id,OLD.revision_id,OLD.channel_id,OLD.provider_code,OLD.provider_transaction_id,
-   OLD.destination_account,OLD.amount_minor,OLD.currency_code,OLD.account_reference,OLD.occurred_at,OLD.source,OLD.created_at,OLD.requested_by,OLD.evidence_reference,OLD.asset_account_code,OLD.fee_control_account_code)
+   OLD.destination_account,OLD.amount_minor,OLD.currency_code,OLD.account_reference,OLD.occurred_at,OLD.source,OLD.created_at,OLD.requested_by,OLD.evidence_reference,OLD.asset_account_code,OLD.fee_control_account_code,OLD.bank_reference)
  THEN RAISE EXCEPTION 'Financial history is immutable'; END IF;
+ IF OLD.status='reversed' AND NEW.status='posted' AND to_regclass('fee_payment_corrections') IS NOT NULL THEN
+   SELECT EXISTS(SELECT 1 FROM fee_payment_corrections c WHERE c.tenant_id=OLD.tenant_id AND c.collection_payment_id=OLD.id
+     AND c.source_kind='manual' AND c.source_id=OLD.manual_fee_payment_id AND c.replacement_receipt_id=NEW.manual_fee_payment_id
+     AND c.from_student_id=OLD.student_id AND c.to_student_id=NEW.student_id AND c.original_ledger_id=OLD.ledger_transaction_id::text
+     AND c.replacement_ledger_id=NEW.ledger_transaction_id::text AND c.amount_minor=OLD.amount_minor AND c.currency_code=OLD.currency_code
+     AND NEW.invoice_id IS NULL AND NEW.payment_intent_id IS NOT DISTINCT FROM OLD.payment_intent_id)
+     INTO approved_move;
+ END IF;
  IF OLD.status IN ('posted','reversed') AND ROW(NEW.student_id,NEW.invoice_id,NEW.manual_fee_payment_id,NEW.payment_intent_id,NEW.ledger_transaction_id,NEW.receipt_number)
  IS DISTINCT FROM ROW(OLD.student_id,OLD.invoice_id,OLD.manual_fee_payment_id,OLD.payment_intent_id,OLD.ledger_transaction_id,OLD.receipt_number)
- THEN RAISE EXCEPTION 'Posted payment allocation is immutable'; END IF;
- IF OLD.status='reversed' AND NEW.status<>'reversed' THEN RAISE EXCEPTION 'Reversal is final'; END IF;
+ AND NOT approved_move THEN RAISE EXCEPTION 'Posted payment allocation is immutable'; END IF;
+ IF OLD.status='reversed' AND NEW.status<>'reversed' AND NOT approved_move THEN RAISE EXCEPTION 'Reversal is final'; END IF;
  IF NEW.status<>OLD.status AND NOT (
    (OLD.status='pending_review' AND NEW.status IN ('verified','rejected')) OR
    (OLD.status='verified' AND NEW.status IN ('unmatched','posted')) OR
    (OLD.status='unmatched' AND NEW.status='posted') OR
-   (OLD.status='posted' AND NEW.status='reversed')) THEN RAISE EXCEPTION 'Invalid collection state transition'; END IF;
+   (OLD.status='posted' AND NEW.status='reversed') OR approved_move) THEN RAISE EXCEPTION 'Invalid collection state transition'; END IF;
  IF OLD.suspense_transaction_id IS NOT NULL AND NEW.suspense_transaction_id IS DISTINCT FROM OLD.suspense_transaction_id
    THEN RAISE EXCEPTION 'Suspense receipt history is immutable'; END IF;
  IF OLD.suspense_release_transaction_id IS NOT NULL AND NEW.suspense_release_transaction_id IS DISTINCT FROM OLD.suspense_release_transaction_id
@@ -95,7 +110,7 @@ export class CollectionPaymentsSchemaService implements OnModuleInit {
   async onModuleInit() {
     await this.channels.onModuleInit();
     await this.db.runSchemaBootstrap(
-      COLLECTION_PAYMENTS_SCHEMA + MPESA_ASYNC_STATUS_SCHEMA + PAYMENT_INGRESS_SCHEMA,
+      COLLECTION_PAYMENTS_SCHEMA + MPESA_ASYNC_STATUS_SCHEMA + PAYMENT_INGRESS_SCHEMA + BANK_SYNCHRONIZATION_SCHEMA,
     );
   }
 }

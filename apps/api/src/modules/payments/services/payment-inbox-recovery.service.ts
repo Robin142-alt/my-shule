@@ -14,6 +14,7 @@ import {
 } from "../../../auth/auth.constants";
 import { PaymentsJobProducerService } from "./payments-job-producer.service";
 import { PaymentIngressService } from '../ingress/payment-ingress.service';
+import { BankSynchronizationService } from '../ingress/bank-synchronization.service';
 
 interface PendingVerification {
   id: string;
@@ -37,6 +38,7 @@ export class PaymentInboxRecoveryService
     private readonly context: RequestContextService,
     private readonly producer: PaymentsJobProducerService,
     @Optional() private readonly ingress?: PaymentIngressService,
+    @Optional() private readonly banks?: BankSynchronizationService,
   ) {}
 
   onApplicationBootstrap() {
@@ -96,6 +98,10 @@ export class PaymentInboxRecoveryService
   }
 
   private async recoverSchool(tenant: string) {
+    if(this.banks && await this.banks.hasDue(tenant)) {
+      try { await this.producer.enqueueBankRetrieval(tenant,this.context.requireStore().request_id); }
+      catch { this.logger.warn('Bank retrieval dispatch deferred; the durable cursor remains available'); }
+    }
     await this.ingress?.recoverSchool(tenant);
     // Callback acceptance commits before Redis dispatch. Also recover a worker
     // that stopped after taking a callback; posting itself remains idempotent.

@@ -8,7 +8,8 @@ import { FinanceTasksService } from './finance-tasks.service';
 import { FinanceWidgetDataDto } from '../dashboard/dashboard.dto';
 import { EventPublisherService } from '../events/event-publisher.service';
 import { ApprovalsService } from '../approvals/approvals.service';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { FEE_INVOICE_READ_SQL } from '../billing/fee-invoice-read-sql';
 import { RequestFeeWaiverDto } from './dto/request-fee-waiver.dto';
 import { requestSchoolFeeWaiver } from './fee-waiver-workflow';
 
@@ -68,16 +69,7 @@ function formatDate(value: Date) {
   });
 }
 
-function generateInvoiceNumber(tenantId: string, studentId: string, feeStructureId: string, academicYear: string, term: string) {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const digest = createHash('sha256')
-    .update(JSON.stringify({ tenantId, studentId, feeStructureId, academicYear, term }))
-    .digest('hex')
-    .slice(0, 10)
-    .toUpperCase();
 
-  return `INV-${date}-${digest}`;
-}
 
 export function buildFeeStatementContent(input: {
   generatedAt: Date;
@@ -523,7 +515,7 @@ export class FinanceController {
   async getInvoices() {
     const tenantId = this.requestContext.requireStore().tenant_id;
     const result = await this.db.query(
-      `SELECT * FROM student_invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      `SELECT * FROM (${FEE_INVOICE_READ_SQL}) fee_invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 50`,
       [tenantId]
     );
     return result.rows;
@@ -640,69 +632,6 @@ export class FinanceController {
     });
   }
 
-  @Post('fee-structures')
-  @Permissions('finance:write')
-  async createFeeStructure(@Body() dto: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    const userId = this.requestContext.requireStore().user_id;
-    const result = await this.db.query(
-      `INSERT INTO fee_structures (tenant_id, name, academic_year, term, grade_level, currency_code, due_days, total_amount_minor, line_items, created_by_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10) RETURNING *`,
-      [tenantId, dto.name, dto.academic_year, dto.term, dto.grade_level, dto.currency_code || 'KES', dto.due_days || 14, dto.total_amount_minor, JSON.stringify(dto.line_items || []), userId]
-    );
-    return result.rows[0];
-  }
-
-  @Post('invoices/generate')
-  @Permissions('finance:write')
-  async generateInvoices(@Body() dto: any) {
-    const tenantId = this.requestContext.requireStore().tenant_id;
-    const { fee_structure_id, term, academic_year } = dto;
-
-    if (!tenantId) {
-      throw new Error('Tenant context is required to generate invoices');
-    }
-    
-    const fsRes = await this.db.query(`SELECT * FROM fee_structures WHERE id = $1 AND tenant_id = $2`, [fee_structure_id, tenantId]);
-    if (fsRes.rowCount === 0) throw new Error('Fee structure not found');
-    const fs = fsRes.rows[0];
-
-    const studentsRes = await this.db.query(
-      `SELECT s.id FROM students s 
-       WHERE s.tenant_id = $1 AND s.metadata->>'grade_level' = $2 AND s.status = 'active'`,
-      [tenantId, fs.grade_level]
-    );
-
-    const invoices = [];
-    for (const student of studentsRes.rows) {
-      const invoiceTerm = term || fs.term;
-      const invoiceAcademicYear = academic_year || fs.academic_year;
-      const studentId = typeof student.id === 'string' && student.id.trim() ? student.id : '';
-      const feeStructureId = typeof fs.id === 'string' && fs.id.trim() ? fs.id : '';
-
-      if (!invoiceTerm || !invoiceAcademicYear || !studentId || !feeStructureId) {
-        throw new Error('Student, fee structure, term, and academic year are required to generate invoices');
-      }
-
-      const invRes = await this.db.query(
-        `INSERT INTO student_invoices (tenant_id, student_id, invoice_number, fee_structure_id, term, academic_year, amount_minor, balance_minor)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [
-          tenantId,
-          studentId,
-          generateInvoiceNumber(tenantId, studentId, feeStructureId, invoiceAcademicYear, invoiceTerm),
-          feeStructureId,
-          invoiceTerm,
-          invoiceAcademicYear,
-          fs.total_amount_minor,
-          fs.total_amount_minor,
-        ]
-      );
-      invoices.push(invRes.rows[0]);
-    }
-    return { generated: invoices.length, invoices };
-  }
-
   @Get('receipts/:id')
   @Permissions('finance:read')
   async getReceipt(@Param('id') id: string) {
@@ -815,8 +744,8 @@ export class FinanceController {
     const tenantId = this.requestContext.requireStore().tenant_id;
     const result = await this.db.query(
       `SELECT student_id, SUM(balance_minor) as total_balance 
-       FROM student_invoices 
-       WHERE tenant_id = $1 AND status = 'open' 
+       FROM (${FEE_INVOICE_READ_SQL}) fee_invoices
+       WHERE tenant_id = $1 AND status NOT IN ('cancelled','canceled','void','uncollectible','draft')
        GROUP BY student_id`,
       [tenantId]
     );

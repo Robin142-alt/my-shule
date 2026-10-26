@@ -15,7 +15,7 @@ import type {
 } from "../payment-provider.catalog";
 
 export class RequestPaymentChannelDto {
-  @IsIn(["safaricom", "equity", "kcb", "coop", "other_bank"])
+  @IsString() @Matches(/^[a-z][a-z0-9_]{1,63}$/)
   provider_code!: CollectionProviderCode;
   @IsIn(["mpesa_paybill", "bank_paybill", "bank_account"])
   channel_kind!: CollectionChannelKind;
@@ -34,7 +34,7 @@ export class DecidePaymentChannelDto {
 }
 
 export class ConnectPaymentChannelDto {
-  @IsIn(["daraja", "statement"]) connection_mode!: CollectionConnectionMode;
+  @IsIn(["daraja", "statement", "bank_api"]) connection_mode!: CollectionConnectionMode;
   @IsIn(["sandbox", "production"]) environment!: "sandbox" | "production";
   @IsObject() credentials!: Record<string, string>;
   @IsOptional() @IsIn(['daraja_direct','edge_signed']) callback_trust_mode?: 'daraja_direct' | 'edge_signed';
