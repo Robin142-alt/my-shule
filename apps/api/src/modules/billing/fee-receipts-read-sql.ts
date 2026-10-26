@@ -3,7 +3,7 @@ import { ACTIVE_CREDIT_APPLICATION_SQL } from './fee-credit-application-schema';
 function refundsFor(receipt:string) {
   return `COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'amount_minor',r.amount_minor::text,'paid_at',r.paid_at,
     'reference',r.external_reference,'ledger_transaction_id',r.ledger_transaction_id) ORDER BY r.paid_at,r.id)
-    FROM fee_credit_refunds r WHERE r.tenant_id=${receipt}.tenant_id AND r.receipt_id=${receipt}.id
+    FROM fee_credit_refunds r WHERE r.tenant_id=${receipt}.tenant_id AND r.receipt_id::text=${receipt}.id::text
       AND r.source_kind='${receipt==='p'?'online':'manual'}' AND r.status='completed'),'[]'::jsonb)`;
 }
 

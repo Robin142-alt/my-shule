@@ -19,7 +19,7 @@ export const FEE_CREDIT_READ_SQL = `
   UNION ALL
   SELECT application.tenant_id,application.student_id,-application.amount_minor
   FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) application
-  JOIN manual_fee_payments payment ON payment.tenant_id=application.tenant_id AND payment.id=application.source_id
+  JOIN manual_fee_payments payment ON payment.tenant_id=application.tenant_id AND payment.id::text=application.source_id::text
   WHERE application.tenant_id=current_setting('app.tenant_id',true)
     AND application.source_kind='manual' AND payment.status='cleared'
   UNION ALL

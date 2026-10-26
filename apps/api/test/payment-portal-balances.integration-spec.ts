@@ -68,6 +68,7 @@ describe("School payment balances shared with linked Parent and Student portals"
       options: `-c search_path=${schema},public`,
     });
     await pool.query(`CREATE SCHEMA ${schema}; CREATE SCHEMA IF NOT EXISTS app;
+      CREATE TABLE transactions(id uuid PRIMARY KEY,tenant_id text NOT NULL,UNIQUE(tenant_id,id));
       CREATE TABLE students(id uuid PRIMARY KEY,tenant_id text,admission_number text,first_name text,middle_name text,last_name text,current_class_id uuid,deleted_at timestamptz);
       CREATE TABLE class_sections(id uuid,tenant_id text,name text);
       CREATE TABLE student_guardians(tenant_id text,student_id uuid,user_id uuid,status text);
@@ -316,7 +317,8 @@ describe("School payment balances shared with linked Parent and Student portals"
   });
 
   it('shows an older STK receipt and its correction consistently in linked Parent and Student payment histories',async()=>{
-    const owner=randomUUID(),portalUser=randomUUID(),intent=randomUUID(),ledger=randomUUID(),target=randomUUID();
+    const owner=randomUUID(),portalUser=randomUUID(),intent=randomUUID(),ledger=randomUUID(),reversal=randomUUID(),target=randomUUID();
+    await pool.query("INSERT INTO transactions(id,tenant_id) VALUES($1,'school-stk'),($2,'school-stk')",[ledger,reversal]);
     await pool.query("INSERT INTO students(id,tenant_id,admission_number,first_name,last_name) VALUES($1,'school-stk','STK-1','Linked','STK')",[owner]);
     await pool.query("INSERT INTO student_guardians VALUES('school-stk',$1,$2,'active')",[owner,portalUser]);
     await pool.query("INSERT INTO student_portal_access VALUES('school-stk',$1,$2,'active')",[owner,portalUser]);
@@ -329,7 +331,7 @@ describe("School payment balances shared with linked Parent and Student portals"
     for(const portal of await read()) expect(portal.transactions).toEqual([expect.objectContaining({id:intent,status:'cleared',amount_minor:5000})]);
     await pool.query(`INSERT INTO student_fee_payment_reversals(tenant_id,payment_intent_id,student_id,approval_id,original_ledger_transaction_id,
       reversal_ledger_transaction_id,amount_minor,currency_code,reason,created_by)
-      VALUES('school-stk',$1,$2,$3,$4,$5,5000,'KES','Approved correction',$6)`,[intent,owner,randomUUID(),ledger,randomUUID(),portalUser]);
+      VALUES('school-stk',$1,$2,$3,$4,$5,5000,'KES','Approved correction',$6)`,[intent,owner,randomUUID(),ledger,reversal,portalUser]);
     await pool.query("UPDATE invoices SET amount_paid_minor=0,status='open' WHERE id=$1",[target]);
     await pool.query('UPDATE student_fee_credits SET remaining_amount_minor=0 WHERE payment_intent_id=$1',[intent]);
     for(const portal of await read()) {
