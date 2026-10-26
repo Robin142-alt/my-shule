@@ -79,11 +79,22 @@ export class PaymentInboxRecoveryService
             [this.afterTenant],
           );
           for (const { tenant_id } of tenants.rows) {
-            await this.context.run(
-              { ...this.context.requireStore(), tenant_id },
-              () => this.recoverSchool(tenant_id),
-            );
-            this.afterTenant = tenant_id;
+            try {
+              await this.context.run(
+                { ...this.context.requireStore(), tenant_id },
+                () => this.recoverSchool(tenant_id),
+              );
+            } catch {
+              this.logger.error(JSON.stringify({
+                event: 'payment.recovery.school_failed',
+                tenant_id,
+                message: 'School payment recovery failed; durable work remains available for retry',
+              }));
+            } finally {
+              // Advance even on failure so one school cannot starve the page.
+              // The next full sweep revisits failed work after its lease expires.
+              this.afterTenant = tenant_id;
+            }
           }
           if (tenants.rows.length < 100) this.afterTenant = "";
         },
