@@ -258,6 +258,7 @@ export class PaymentIngressService {
         reference = test.account_reference;
       }
       const match = await this.matcher.match(current.tenant_id,reference);
+      let studentId=match.student_id, invoiceId=match.invoice_id;
       let collectionId: string | null = null;
       let state = 'sandbox_verified';
       if (current.environment === 'production') {
@@ -265,11 +266,12 @@ export class PaymentIngressService {
         const collection = await this.collections.recognizeVerified(current.tenant_id,
           {...current,...(current.bank_evidence?{bank_reference:current.bank_evidence.bank_reference}:{})},channel.revision.channel_id);
         collectionId = collection.id;
+        studentId=collection.student_id;invoiceId=collection.invoice_id;
         state = collection.status === 'posted' || collection.status === 'reversed' ? 'posted' : 'unmatched';
       }
       await this.db.query(`UPDATE payment_ingress SET state=$3,collection_id=$4::uuid,student_id=$5,invoice_id=$6::uuid,
         verified_at=now(),review_reason=$7,updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid`,
-        [current.tenant_id,current.id,state,collectionId,match.student_id,match.invoice_id,match.student_id ? null : match.reason]);
+        [current.tenant_id,current.id,state,collectionId,studentId,invoiceId,studentId ? null : match.reason]);
       if(request) await this.db.query(`UPDATE payment_ingress_verifications SET state='complete' WHERE tenant_id=$1 AND id=$2::uuid`,[current.tenant_id,request.id]);
       await this.record(current,state);
     });

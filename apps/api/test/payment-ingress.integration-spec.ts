@@ -172,12 +172,12 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
     expect((await as(()=>matcher.match(other,'INV-1'),other)).student_id).toBeNull();
   });
   async function bankRevision(environment:'sandbox'|'production'='production',provider='equity',tenant=school,
-    options:{status?:string;credentials?:Record<string,string>}={}) {
+    options:{status?:string;credentials?:Record<string,string>;activatedAt?:string}={}) {
     const id=randomUUID(),channel=randomUUID(),account=`1234${Date.now()}${Math.floor(Math.random()*1000)}`;
     await pool.query('INSERT INTO tenant_payment_channels(id,tenant_id) VALUES($1,$2)',[channel,tenant]);
     await pool.query(`INSERT INTO tenant_payment_channel_revisions(id,tenant_id,channel_id,provider_code,channel_kind,display_name,account_name,account_number,status,connection_mode,environment,credentials_ciphertext,requested_by,reviewed_by,reviewed_at,reason,activated_at)
-      VALUES($1,$2,$3,$9,'bank_account','Bank fees','School',$4,$10,'bank_api',$5,$6,$7,$8,now(),'Approved school bank account',CASE WHEN $10='active' THEN now()-interval '1 year' END)`,
-      [id,tenant,environment==='production'?channel:null,account,environment,`enc:v1:${JSON.stringify(options.credentials ?? credentials)}`,randomUUID(),randomUUID(),provider,options.status ?? 'active']);
+      VALUES($1,$2,$3,$9,'bank_account','Bank fees','School',$4,$10,'bank_api',$5,$6,$7,$8,now(),'Approved school bank account',CASE WHEN $10='active' THEN COALESCE($11::timestamptz,now()-interval '1 year') END)`,
+      [id,tenant,environment==='production'?channel:null,account,environment,`enc:v1:${JSON.stringify(options.credentials ?? credentials)}`,randomUUID(),randomUUID(),provider,options.status ?? 'active',options.activatedAt ?? null]);
     return {id,account};
   }
   describe('KCB signed account notifications',()=>{
@@ -247,6 +247,29 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
       expect((await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n).toBe(before);
       const banks=new BankSynchronizationService(db as never,context,{} as never,ingress,{} as never,{} as never,{} as never);
       await expect(as(()=>banks.requestSync(bank.id,'Retrieve missing bank credit'))).rejects.toThrow(/uses notifications/);
+    });
+    it('closes an older bank inbox item against the approved statement receipt without posting twice',async()=>{
+      const bank=await bankRevision('production','kcb',school,{credentials:bankCredentials,activatedAt:new Date().toISOString()});
+      const body=notification(bank.account);
+      body.timestamp=new Date(Date.now()+10800000-3600000).toISOString().slice(0,19).replace(/[-:T]/g,'');
+      await send(bank,'production',body).expect(200);
+      const incoming=(await pool.query('SELECT * FROM payment_ingress WHERE revision_id=$1',[bank.id])).rows[0];
+      await as(()=>ingress.process(incoming.id));expect((await state(incoming.id)).state).toBe('review');
+      const input={provider_transaction_id:body.transactionReference,amount_minor:'10000',
+        account_reference:invoice,occurred_at:incoming.occurred_at.toISOString()};
+      const reviewed=await as(()=>collections.statement(bank.id,input,'Bank statement checked against the retained notification'));
+      // Pending review never becomes verified simply because the bank delivery is retried.
+      await as(()=>ingress.retry(incoming.id));await as(()=>ingress.process(incoming.id));
+      expect((await state(incoming.id)).state).toBe('review');
+      const before=(await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n;
+      await context.run({tenant_id:school,user_id:randomUUID(),role:'principal',is_authenticated:true} as never,
+        ()=>collections.decide(reviewed.id,'approve','Receiving account and original statement confirmed'));
+      await expect(as(()=>collections.recognizeVerified(school,{...input,provider_code:'kcb',
+        destination_account:bank.account,currency_code:'KES',amount_minor:'20000'},null))).rejects.toThrow(/approved historical/);
+      await as(()=>ingress.retry(incoming.id));await as(()=>ingress.process(incoming.id));
+      const reconciled=await state(incoming.id);
+      expect(reconciled.state).toBe('posted');expect(reconciled.collection_id).toBe(reviewed.id);
+      expect((await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n).toBe(before+1);
     });
   });
   function bankEntry(account:string,reference=`BANK-${randomUUID()}`):BankTransaction {

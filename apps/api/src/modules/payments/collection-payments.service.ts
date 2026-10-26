@@ -196,6 +196,18 @@ export class CollectionPaymentsService {
         )
       ).rows[0];
       if (!revision) {
+        // A retained pre-activation bank delivery may already have been reconciled
+        // through a Principal-approved statement. Link that immutable receipt;
+        // never create another posting or bypass a pending statement decision.
+        if(input.provider_code!=='safaricom') {
+          const reconciled=(await this.db.query<CollectionPayment>(`
+            SELECT *,amount_minor::text FROM collection_payments
+            WHERE tenant_id=$1 AND provider_code=$2 AND destination_account=$3
+              AND provider_transaction_id=$4 AND amount_minor=$5::bigint AND currency_code=$6
+              AND source='statement' AND status IN ('posted','reversed')`,
+            [tenant,input.provider_code,input.destination_account,input.provider_transaction_id,input.amount_minor,input.currency_code])).rows[0];
+          if(reconciled) return reconciled;
+        }
         // Only an existing, school-owned M-PESA channel may predate approval
         // revisions. New providers must arrive through an activated revision.
         const legacy =
