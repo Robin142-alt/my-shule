@@ -1,5 +1,6 @@
 import { constants, createHash, createPrivateKey, sign } from 'node:crypto';
 import { BankProviderError, type BankConnection, type BankProviderAdapter, type BankRetrieval, type BankTransaction, type BankTransactionDiagnostic } from './bank-provider';
+import { parseBankJson } from './bank-json';
 
 const STATEMENT_PATH='/v3-apis/account-api/v3.0/accounts/fullStatement';
 const STATEMENT_LIMIT=1000;
@@ -122,7 +123,7 @@ export class EquityJengaAdapter implements BankProviderAdapter {
       try { for(;;){const next=await reader.read();if(next.done)break;size+=next.value.byteLength;
         if(size>MAX_RESPONSE_BYTES) {await reader.cancel();throw invalid('Jenga response exceeds the supported size');}chunks.push(next.value);}
       } finally { reader.releaseLock(); }
-      try {return object(JSON.parse(Buffer.concat(chunks).toString('utf8')));} catch(error){if(error instanceof BankProviderError)throw error;throw invalid('Jenga returned malformed JSON');}
+      try {return object(parseBankJson(Buffer.concat(chunks).toString('utf8'),['amount']));} catch(error){if(error instanceof BankProviderError)throw error;throw invalid('Jenga returned malformed JSON');}
     } catch(error) {
       if(error instanceof BankProviderError) throw error;
       throw new BankProviderError('unavailable','Jenga could not be reached securely; retry after checking provider availability');
@@ -133,11 +134,11 @@ function invalid(message:string){return new BankProviderError('invalid_evidence'
 function object(value:unknown):Record<string,unknown>{if(!value||typeof value!=='object'||Array.isArray(value))throw invalid('Jenga returned an invalid object');return value as Record<string,unknown>;}
 function requiredText(value:unknown,max:number,label:string){if(typeof value!=='string'||!value.trim()||value.length>max||/[\x00-\x1f]/.test(value))throw invalid(`Invalid ${label}`);return value.trim();}
 function minorAmount(value:unknown){
-  if(typeof value!=='string'&&typeof value!=='number') throw invalid('Invalid transaction amount');
-  const match=/^(\d{1,17})(?:\.(\d{1,2}))?$/.exec(String(value));
+  if(typeof value!=='string') throw invalid('Invalid transaction amount');
+  const match=/^(\d{1,17})(?:\.(\d{1,2}))?$/.exec(value);
   if(!match) throw invalid('Transaction amount must have exact positive minor-unit precision');
   const amount=BigInt(match[1])*100n+BigInt((match[2]??'').padEnd(2,'0'));
-  if(amount<=0n||amount>9223372036854775807n||(typeof value==='number'&&amount>BigInt(Number.MAX_SAFE_INTEGER)))
+  if(amount<=0n||amount>9223372036854775807n)
     throw invalid('Transaction amount exceeds safe monetary precision');
   return amount.toString();
 }

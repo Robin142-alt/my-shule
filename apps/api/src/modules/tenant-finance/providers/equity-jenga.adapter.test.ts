@@ -43,13 +43,26 @@ test('statement identity includes serial and debit entries cannot become receive
   assert.notEqual(result.entries[0].payment.provider_transaction_id,result.entries[1].payment.provider_transaction_id);
   assert.deepEqual(result.entries.map(entry=>entry.direction),['credit','debit']);
 });
+
+test('keeps the exact JSON decimal before JavaScript rounding and rejects hidden fractional cents',async()=>{
+  function rawTransport(amount:string) {
+    return new EquityJengaAdapter(async(url)=>{
+      if(String(url).includes('/authenticate/')) return Response.json({accessToken:'token-a',tokenType:'Bearer',expiresIn:new Date(Date.now()+60000).toISOString()});
+      return new Response(JSON.stringify(statement([{...row,amount:'RAW_AMOUNT'}])).replace('"RAW_AMOUNT"',amount));
+    });
+  }
+  const range={from_date:'2026-10-01',to_date:'2026-10-01'};
+  const result=await rawTransport('90071992547409.91').retrieveTransactions(connection,range);
+  assert.equal(result.entries[0].payment.amount_minor,'9007199254740991');
+  await assert.rejects(rawTransport('1.00000000000000001').retrieveTransactions(connection,range),/precision/);
+});
 test('receiving account and currency must match before any statement is trusted',async()=>{
   for(const body of [statement([row],'OTHER-ACCOUNT'),{...statement(),data:{...statement().data,currency:'USD'}}]) {
     await assert.rejects(transport(body).adapter.retrieveTransactions(connection,{from_date:'2026-10-01',to_date:'2026-10-01'}),/account|currency/i);
   }
 });
 test('rejects ambiguous, imprecise, incomplete and malformed transaction records',async()=>{
-  for(const change of [{amount:'1.001'},{amount:9007199254740992},{serial:''},{type:'Pending'},{date:'2026-02-30T10:00:00.000',postedDateTime:'2026-02-30T10:00:00.000'}]) {
+  for(const change of [{amount:'1.001'},{amount:'92233720368547758.08'},{serial:''},{type:'Pending'},{date:'2026-02-30T10:00:00.000',postedDateTime:'2026-02-30T10:00:00.000'}]) {
     await assert.rejects(transport(statement([{...row,...change}])).adapter.retrieveTransactions(connection,{from_date:'2026-10-01',to_date:'2026-10-01'}));
   }
   const saturated=await transport(statement(Array.from({length:1000},(_,n)=>({...row,serial:String(n+1)})))).adapter.retrieveTransactions(connection,{from_date:'2026-10-01',to_date:'2026-10-01'});
