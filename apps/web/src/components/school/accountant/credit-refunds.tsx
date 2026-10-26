@@ -1,5 +1,5 @@
 "use client";
-import { useRef,useState,type FormEvent } from "react";
+import { useCallback,useRef,useState,type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -24,10 +24,10 @@ export function CreditRefunds({student,onClose}:{student?:Student|null;onClose?:
   const sources=useSchoolQuery<{items:Source[]}>(student?`${endpoint}/sources/${encodeURIComponent(student.student_id)}`:null);
   const query=useSchoolQuery<{items:Refund[]}>(open&&!student?`${endpoint}?offset=${offset}`:null);
   const creating=Boolean(student),editing=creating||Boolean(selected),canWrite=hasPermission("billing:write");
-  function reset(){setSelected(null);setAction(null);setConfirmed(false);setError("");submission.current={key:"",body:""};}
+  const reset=useCallback(()=>{setSelected(null);setAction(null);setConfirmed(false);setError("");submission.current={key:"",body:""};},[]);
   function close(){if(busy)return;reset();setOpen(false);onClose?.();}
   function choose(row:Refund,next:typeof action){reset();setNotice("");setSelected(row);setAction(next);}
-  async function save(event:FormEvent<HTMLFormElement>) {
+  const save=useCallback(async (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault();if(!tenant||!confirmed||inFlight.current||!canWrite)return;
     const form=new FormData(event.currentTarget);let body:Record<string,string>,path=endpoint;
     if(creating){
@@ -53,7 +53,7 @@ export function CreditRefunds({student,onClose}:{student?:Student|null;onClose?:
       reset();onClose?.();setOpen(true);await client.invalidateQueries({queryKey:["school",tenant]});
     }catch(cause){setError(cause instanceof Error?cause.message:"Unable to save the refund. Retry the original details.");}
     finally{inFlight.current=false;setBusy(false);}
-  }
+  },[action,canWrite,client,confirmed,creating,onClose,reset,selected,sources.data,tenant]);
   const label=creating?"Request refund":action==="payout"?"Confirm payout":action==="cancel"?"Confirm cancellation":"Confirm decision";
   return <>
     <Button variant="secondary" disabled={!hasPermission("billing:read")} onClick={()=>{reset();setNotice("");setOpen(true);}}>Credit refunds</Button>

@@ -47,6 +47,17 @@ test('unauthorized requester cannot review and cancellation requires notes',()=>
   expect(screen.getByRole('button',{name:'Confirm cancellation'})).toBeDisabled();
   expect(screen.getByLabelText('Reason')).toBeRequired();
 });
+test('payout submission rejects future evidence without calling the financial API',async()=>{
+  mockStatus='approved';mockCanReview=false;render(<CreditRefunds/>);
+  fireEvent.click(screen.getByRole('button',{name:'Credit refunds'}));
+  fireEvent.click(screen.getByRole('button',{name:'Record payout'}));
+  fireEvent.change(screen.getByLabelText('Outgoing payment reference'),{target:{value:'REF-FUTURE'}});
+  fireEvent.change(screen.getByLabelText('Paid at'),{target:{value:'2099-01-10T10:00'}});
+  fireEvent.change(screen.getByLabelText('Evidence location and details'),{target:{value:'School bank statement page 3'}});
+  fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Confirm payout'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('cannot be in the future');
+  expect(requestDashboardApi).not.toHaveBeenCalled();
+});
 test('portal refund history keeps exact minor units and displays the original payout reference as text',()=>{
   render(<CreditRefundHistory refunds={[{id:'refund-1',amount_minor:'9007199254740993',reference:'BANK<REFERENCE>',paid_at:'2026-01-10T10:00:00Z'}]}/>);
   expect(screen.getByRole('listitem')).toHaveTextContent('Refunded KES 90,071,992,547,409.93');
