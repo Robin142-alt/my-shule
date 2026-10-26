@@ -264,8 +264,13 @@ function PaymentChannelsWorkspace({
                 <p className="mt-2 text-sm text-danger">{row.last_error}</p>
               )}
               {row.connection_mode === 'bank_api' && ['active','suspended'].includes(row.status) &&
+                providers.find(p=>p.code===row.provider_code)?.capabilities?.includes('transaction_retrieval') &&
                 <BankRetrievalControl revisionId={row.id} canWrite={hasPermission('billing:write') && (canRequest || canReview)} />}
+              {providers.find(p=>p.code===row.provider_code)?.platform_managed_credentials &&
+                ['approved','connecting','ready'].includes(row.status) &&
+                <p className="mt-3 text-sm text-muted">Your account is approved. MyShule support must verify the bank-issued signing key and arrange a signed test notification with your bank before activation.</p>}
               {canRequest && ['approved','connecting','ready'].includes(row.status) && (!row.connection_mode || row.connection_mode==='bank_api') &&
+                !providers.find(p=>p.code===row.provider_code)?.platform_managed_credentials &&
                 providers.find(p=>p.code===row.provider_code)?.connection_modes.includes('bank_api') &&
                 <BankConnectionControl row={row} provider={providers.find(p=>p.code===row.provider_code)!} onUpdated={async()=>{
                   if(tenant) publishSchoolDataUpdate(tenant,'finance');await Promise.all([channels.refetch(),summary.refetch()]);

@@ -13,6 +13,7 @@ export interface CollectionProviderDefinition {
   code:string;name:string;description:string;channel_kinds:readonly string[];connection_modes:readonly string[];
   credential_fields:readonly {key:string;label:string;required:boolean;secret:boolean;description?:string;multiline?:boolean}[];
   assessment?:ProviderAssessment;
+  platform_managed_credentials?:boolean;
 }
 
 // Capabilities describe implemented, verifiable collection contracts. Bank APIs

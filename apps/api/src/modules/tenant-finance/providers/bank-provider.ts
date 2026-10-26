@@ -27,6 +27,7 @@ export interface BankTransactionDiagnostic {
 export interface BankProviderAdapter {
   readonly provider:string;
   readonly calendar_time_zone?:string;
+  readonly connection_check?:'request'|'signed_notification';
   readonly channel_kinds:readonly ('bank_account'|'bank_paybill')[];
   checkConnection(connection:BankConnection):Promise<{account_number:string;currency_code:string;method:string}>;
   retrieveTransactions?(connection:BankConnection,range:{from_date:string;to_date:string}):Promise<BankRetrieval>;
@@ -34,6 +35,7 @@ export interface BankProviderAdapter {
   notifications?:{
     authenticate(connection:BankConnection,raw:Buffer,headers:Record<string,string|undefined>):void;
     parse(connection:BankConnection,payload:unknown):BankTransaction[];
+    acknowledge(payload:unknown):Record<string,unknown>;
   };
 }
 export type BankErrorCategory='authentication'|'permission'|'rate_limit'|'unavailable'|'invalid_configuration'|'invalid_evidence';

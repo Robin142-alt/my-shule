@@ -8,8 +8,9 @@ export class BankProviderRegistry {
     if(!/^[a-z][a-z0-9_]{1,63}$/.test(definition.code)) throw Error('Invalid registered provider code');
     if(this.providers.has(definition.code)) throw Error('Provider already registered');
     if(adapter&&adapter.provider!==definition.code) throw Error('Adapter and provider codes must match');
-    if(definition.connection_modes.includes('bank_api')&&!adapter?.retrieveTransactions) throw Error('Bank API mode requires an implemented adapter');
-    const connection_modes=[...new Set([...definition.connection_modes,...(adapter?.retrieveTransactions?['bank_api']:[])])];
+    const implemented=Boolean(adapter?.retrieveTransactions||adapter?.notifications);
+    if(definition.connection_modes.includes('bank_api')&&!implemented) throw Error('Bank API mode requires an implemented adapter');
+    const connection_modes=[...new Set([...definition.connection_modes,...(implemented?['bank_api']:[])])];
     this.providers.set(definition.code,{definition:{...definition,connection_modes},adapter});
   }
   definition(code:string){

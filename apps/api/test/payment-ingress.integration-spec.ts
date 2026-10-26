@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, generateKeyPairSync, sign } from 'node:crypto';
 import { Pool } from 'pg';
 import { PrismaService } from '../src/database/prisma.service';
 import { RequestContextService } from '../src/common/request-context/request-context.service';
@@ -23,6 +23,8 @@ import { BANK_PROVIDER_REGISTRY } from '../src/modules/tenant-finance/providers/
 import { BankProviderError, type BankRetrieval } from '../src/modules/tenant-finance/providers/bank-provider';
 import { listCollectionProviders } from '../src/modules/tenant-finance/payment-provider.catalog';
 import { guardBankReceipt } from '../src/modules/billing/bank-receipt-identity';
+import { PaymentChannelWorkflowService } from '../src/modules/tenant-finance/payment-channel-workflow.service';
+import { PaymentChannelConnectionService } from '../src/modules/tenant-finance/payment-channel-connection.service';
 
 describe('Verified collection ingress with real PostgreSQL/RLS', () => {
   jest.setTimeout(60000);
@@ -169,14 +171,84 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
     expect((await as(()=>matcher.match(school,'INV-1'))).reason).toBe('ambiguous_invoice_reference');
     expect((await as(()=>matcher.match(other,'INV-1'),other)).student_id).toBeNull();
   });
-  async function bankRevision(environment:'sandbox'|'production'='production',provider='equity',tenant=school) {
+  async function bankRevision(environment:'sandbox'|'production'='production',provider='equity',tenant=school,
+    options:{status?:string;credentials?:Record<string,string>}={}) {
     const id=randomUUID(),channel=randomUUID(),account=`1234${Date.now()}${Math.floor(Math.random()*1000)}`;
     await pool.query('INSERT INTO tenant_payment_channels(id,tenant_id) VALUES($1,$2)',[channel,tenant]);
     await pool.query(`INSERT INTO tenant_payment_channel_revisions(id,tenant_id,channel_id,provider_code,channel_kind,display_name,account_name,account_number,status,connection_mode,environment,credentials_ciphertext,requested_by,reviewed_by,reviewed_at,reason,activated_at)
-      VALUES($1,$2,$3,$9,'bank_account','Bank fees','School',$4,'active','bank_api',$5,$6,$7,$8,now(),'Approved school bank account',now()-interval '1 year')`,
-      [id,tenant,environment==='production'?channel:null,account,environment,`enc:v1:${JSON.stringify(credentials)}`,randomUUID(),randomUUID(),provider]);
+      VALUES($1,$2,$3,$9,'bank_account','Bank fees','School',$4,$10,'bank_api',$5,$6,$7,$8,now(),'Approved school bank account',CASE WHEN $10='active' THEN now()-interval '1 year' END)`,
+      [id,tenant,environment==='production'?channel:null,account,environment,`enc:v1:${JSON.stringify(options.credentials ?? credentials)}`,randomUUID(),randomUUID(),provider,options.status ?? 'active']);
     return {id,account};
   }
+  describe('KCB signed account notifications',()=>{
+    const keys=generateKeyPairSync('rsa',{modulusLength:2048});
+    const bankCredentials={bank_public_key:keys.publicKey.export({type:'spki',format:'pem'}).toString(),_callback_token:token};
+    function notification(account:string,reference=`KCB-${randomUUID()}`) {
+      return {transactionReference:reference,requestId:randomUUID(),creditAccountIdentifier:account,
+        customerReference:invoice,currency:'KES',transactionAmount:'100.00',
+        timestamp:new Date(Date.now()+10800000).toISOString().slice(0,19).replace(/[-:T]/g,'')};
+    }
+    function send(bank:{id:string},environment:string,body:ReturnType<typeof notification>,signature?:string,tenant=school) {
+      const raw=JSON.stringify(body);
+      return request(app.getHttpServer()).post(`/payments/ingress/kcb/${environment}/${tenant}/${bank.id}/${token}/confirmation`)
+        .set('Content-Type','application/json').set('Signature',signature ?? sign('RSA-SHA256',Buffer.from(raw),keys.privateKey).toString('base64')).send(raw);
+    }
+    it('rejects altered signatures and receiving accounts; concurrent genuine replays post once',async()=>{
+      const bank=await bankRevision('production','kcb',school,{credentials:bankCredentials});
+      const body=notification(bank.account),raw=JSON.stringify(body);
+      const signature=sign('RSA-SHA256',Buffer.from(raw),keys.privateKey).toString('base64');
+      await send(bank,'production',{...body,transactionAmount:'200.00'},signature).expect(401);
+      await send(bank,'production',{...body,creditAccountIdentifier:'another-account'}).expect(400);
+      await send(bank,'production',body,signature,other).expect(401);
+      const responses=await Promise.all(Array.from({length:5},()=>send(bank,'production',body)));
+      responses.forEach(response=>{expect(response.status).toBe(200);expect(response.body.statusCode).toBe('0');});
+      const rows=(await pool.query('SELECT * FROM payment_ingress WHERE revision_id=$1',[bank.id])).rows;
+      expect(rows).toHaveLength(1);expect(rows[0].bank_evidence.method).toBe('kcb_rsa_account_credit');
+      const before=(await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n;
+      await Promise.all(Array.from({length:4},()=>as(()=>ingress.process(rows[0].id))));
+      expect((await state(rows[0].id)).state).toBe('posted');
+      expect((await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n).toBe(before+1);
+      expect((await as(()=>db.query('SELECT id FROM payment_ingress WHERE id=$1',[rows[0].id]),other)).rows).toHaveLength(0);
+    });
+    it('requires a current signed onboarding delivery, protects its key, and keeps sandbox out of live books',async()=>{
+      const bank=await bankRevision('sandbox','kcb',school,{status:'connecting',credentials:bankCredentials});
+      const config=new PaymentIngressConfigService({get:()=> 'https://payments.myshule.online/payments/ingress'} as never);
+      const workflow=new PaymentChannelWorkflowService(context,db as never,{decrypt:(value:string)=>value.slice(7)} as never,
+        {} as never,{} as never,new PaymentChannelConnectionService({} as never,config),
+        {record:async()=>{}} as never,{publish:async()=>{}} as never,{upsertFromSchoolOperation:async()=>{}} as never);
+      function platform<T>(work:()=>Promise<T>){return context.run({tenant_id:school,user_id:randomUUID(),role:'platform_owner',
+        audience:'superadmin',is_authenticated:true,permissions:['*:*']} as never,work);}
+      expect((await platform(()=>workflow.test(school,bank.id))).last_error).toMatch(/Awaiting a recent/);
+      await expect(as(()=>workflow.test(school,bank.id))).rejects.toThrow(/platform connection/);
+      const urls=await platform(()=>workflow.callbacks(school,bank.id));
+      expect(urls.validation_url).toBe('');expect(urls.trust_mode).toBe('bank_signature');
+      const body=notification(bank.account);await send(bank,'sandbox',body).expect(200);
+      const row=(await pool.query('SELECT * FROM payment_ingress WHERE revision_id=$1',[bank.id])).rows[0];
+      expect(row.state).toBe('review');expect(row.collection_id).toBeNull();
+      expect((await platform(()=>workflow.test(school,bank.id))).status).toBe('ready');
+      // A delivery verified with an old key cannot approve a replacement key.
+      await pool.query('UPDATE tenant_payment_channel_revisions SET credential_version=1 WHERE id=$1',[bank.id]);
+      expect((await platform(()=>workflow.test(school,bank.id))).status).toBe('connecting');
+      const oldKeyEntry=BANK_PROVIDER_REGISTRY.adapter('kcb').notifications!.parse({school_id:school,revision_id:bank.id,
+        account_number:bank.account,environment:'sandbox',credentials:bankCredentials},notification(bank.account))[0];
+      await expect(as(()=>ingress.acceptBankTransaction(bank.id,oldKeyEntry,0))).rejects.toThrow(/key changed/);
+      await send(bank,'sandbox',notification(bank.account)).expect(200);
+      expect((await platform(()=>workflow.test(school,bank.id))).last_test_status).toBe('bank_sandbox_notification_verified');
+      await pool.query("UPDATE payment_ingress SET conflict_hash='conflicting-delivery' WHERE revision_id=$1",[bank.id]);
+      await expect(platform(()=>workflow.activate(school,bank.id))).rejects.toThrow(/Awaiting a recent/);
+      await send(bank,'sandbox',notification(bank.account)).expect(200);
+      await platform(()=>workflow.test(school,bank.id));
+      await platform(()=>workflow.activate(school,bank.id));
+      await send(bank,'sandbox',notification(bank.account)).expect(200);
+      const pending=(await pool.query("SELECT id FROM payment_ingress WHERE revision_id=$1 AND state='verified'",[bank.id])).rows[0];
+      const before=(await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n;
+      await as(()=>ingress.process(pending.id));
+      expect((await state(pending.id)).state).toBe('sandbox_verified');
+      expect((await pool.query('SELECT count(*)::int AS n FROM test_postings')).rows[0].n).toBe(before);
+      const banks=new BankSynchronizationService(db as never,context,{} as never,ingress,{} as never,{} as never,{} as never);
+      await expect(as(()=>banks.requestSync(bank.id,'Retrieve missing bank credit'))).rejects.toThrow(/uses notifications/);
+    });
+  });
   function bankEntry(account:string,reference=`BANK-${randomUUID()}`):BankTransaction {
     return {direction:'credit',payment:{provider_code:'equity',provider_transaction_id:reference,destination_account:account,
       amount_minor:'10000',currency_code:'KES',account_reference:learner,occurred_at:new Date().toISOString()},

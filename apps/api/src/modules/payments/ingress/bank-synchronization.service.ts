@@ -42,7 +42,8 @@ export class BankSynchronizationService {
       FROM tenant_payment_channel_revisions r LEFT JOIN bank_connection_sync s
         ON s.tenant_id=r.tenant_id AND s.revision_id=r.id
       WHERE r.tenant_id=$1 AND r.connection_mode='bank_api' AND r.status IN ('active','suspended')
-      ORDER BY r.created_at DESC,r.id`, [tenant])).rows;
+        AND r.provider_code=ANY($2::text[])
+      ORDER BY r.created_at DESC,r.id`, [tenant,this.retrievalProviders()])).rows;
   }
 
   async requestSync(revisionId: string, reason: string, fromDate?: string) {
@@ -51,6 +52,8 @@ export class BankSynchronizationService {
       throw new BadRequestException('Explain the reason for retrieving bank transactions');
     return this.db.withRequestTransaction(async () => {
       const revision = await this.revision(tenant, revisionId, true);
+      if(!this.registry.adapter(revision.provider_code).retrieveTransactions)
+        throw new BadRequestException('This bank uses notifications. Recover missing transactions through reviewed statements.');
       const zone = this.registry.adapter(revision.provider_code).calendar_time_zone ?? 'UTC';
       const today = this.day(new Date(), zone);
       if (fromDate !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) ||
@@ -79,7 +82,8 @@ export class BankSynchronizationService {
     if(tenant!==this.context.requireStore().tenant_id) throw new UnauthorizedException('School context mismatch');
     return (await this.db.query(`SELECT r.id FROM tenant_payment_channel_revisions r LEFT JOIN bank_connection_sync s
       ON s.tenant_id=r.tenant_id AND s.revision_id=r.id WHERE r.tenant_id=$1 AND r.status='active'
-      AND r.connection_mode='bank_api' AND (s.next_attempt_at IS NULL OR s.next_attempt_at<=now()) LIMIT 1`,[tenant])).rows.length>0;
+      AND r.connection_mode='bank_api' AND (r.provider_code=ANY($2::text[]) OR s.revision_id IS NOT NULL)
+      AND (s.next_attempt_at IS NULL OR s.next_attempt_at<=now()) LIMIT 1`,[tenant,this.retrievalProviders()])).rows.length>0;
   }
 
   async recoverSchool(tenant: string) {
@@ -87,8 +91,9 @@ export class BankSynchronizationService {
     const revisions = (await this.db.query<PaymentChannelRevision>(`SELECT r.* FROM tenant_payment_channel_revisions r
       LEFT JOIN bank_connection_sync s ON s.tenant_id=r.tenant_id AND s.revision_id=r.id
       WHERE r.tenant_id=$1 AND r.status='active' AND r.connection_mode='bank_api'
+        AND (r.provider_code=ANY($2::text[]) OR s.revision_id IS NOT NULL)
         AND (s.next_attempt_at IS NULL OR s.next_attempt_at<=now())
-      ORDER BY s.next_attempt_at NULLS FIRST,r.id LIMIT 2`, [tenant])).rows;
+      ORDER BY s.next_attempt_at NULLS FIRST,r.id LIMIT 2`, [tenant,this.retrievalProviders()])).rows;
     for (const revision of revisions) await this.retrieve(revision);
   }
 
@@ -162,6 +167,7 @@ export class BankSynchronizationService {
     }
   }
 
+  private retrievalProviders() {return this.registry.definitions().filter(p=>p.capabilities.includes('transaction_retrieval')).map(p=>p.code);}
   private async initialize(revision: PaymentChannelRevision, zone:string) {
     if (!revision.activated_at) throw new ConflictException('Bank connection activation is incomplete');
     // A credential replacement for the same account resumes its pending date.

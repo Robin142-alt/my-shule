@@ -15,6 +15,8 @@ import { CollectionPaymentsService } from '../collection-payments.service';
 import { CollectionReferenceMatcher } from '../collection-reference-matcher.service';
 import { CollectionPaymentInput, normalizeCollectionInput } from '../collection-payment.types';
 import type { BankTransaction } from '../../tenant-finance/providers/bank-provider';
+import { BankProviderError } from '../../tenant-finance/providers/bank-provider';
+import { BANK_PROVIDER_REGISTRY } from '../../tenant-finance/providers/registered-bank-providers';
 import { CollectionAdapterRegistry } from './collection-adapter-registry.service';
 import { CollectionAdapterChannel, CollectionVerification, verificationMatches } from './collection-adapter';
 
@@ -59,6 +61,27 @@ export class PaymentIngressService {
           !this.secretEquals(route.token, c._callback_token ?? '') ||
           !['connecting','ready','active','superseded','suspended'].includes(channel.revision.status))
         throw new UnauthorizedException('Unknown payment callback channel');
+      if(channel.revision.connection_mode==='bank_api') {
+        if(validation) throw new BadRequestException('This bank account channel uses confirmed notifications only');
+        const notifications=BANK_PROVIDER_REGISTRY.adapter(route.provider).notifications;
+        if(!notifications) throw new BadRequestException('This bank connection uses statement retrieval');
+        const connection={school_id:route.tenant,revision_id:route.revision,environment:channel.revision.environment!,
+          account_number:channel.revision.account_number,credentials:c};
+        try {
+          notifications.authenticate(connection,Buffer.from(raw),Object.fromEntries(Object.entries(headers).map(([key,value])=>[key,typeof value==='string'?value:undefined])));
+          const signedPayload:unknown=JSON.parse(raw);
+          const entries=notifications.parse(connection,signedPayload);
+          for(const entry of entries) await this.acceptBankTransaction(route.revision,entry,channel.revision.credential_version);
+          return notifications.acknowledge(signedPayload);
+        } catch(error) {
+          if(error instanceof BankProviderError) {
+            if(error.category==='authentication') throw new UnauthorizedException(error.message);
+            throw new BadRequestException(error.message);
+          }
+          if(error instanceof SyntaxError) throw new BadRequestException('Invalid signed bank notification');
+          throw error;
+        }
+      }
       const adapter = this.adapters.get(route.provider);
       adapter.authenticate(channel, raw, headers);
       const payment = adapter.parse(payload);
@@ -115,7 +138,7 @@ export class PaymentIngressService {
   }
 
   /** Internal only: called with account-bound evidence retrieved by a registered bank adapter. */
-  async acceptBankTransaction(revisionId:string,entry:BankTransaction):Promise<string> {
+  async acceptBankTransaction(revisionId:string,entry:BankTransaction,notificationCredentialVersion?:number):Promise<string> {
     const tenant=this.context.requireStore().tenant_id;
     if(!tenant) throw new UnauthorizedException('School context is required');
     const payment=normalizeCollectionInput(entry.payment);
@@ -125,7 +148,11 @@ export class PaymentIngressService {
       await this.db.query('SELECT id FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND id=$2::uuid FOR SHARE',[tenant,revisionId]);
       const channel=await this.channel(revisionId);
       const revision=channel.revision;
-      if(revision.connection_mode!=='bank_api'||revision.status!=='active'||revision.provider_code!==payment.provider_code
+      const notification=notificationCredentialVersion!==undefined;
+      if(notification && revision.credential_version!==notificationCredentialVersion)
+        throw new ConflictException('Bank verification key changed during delivery. Retry the notification.');
+      const allowed=notification ? ['connecting','ready','active','superseded','suspended'] : ['active'];
+      if(revision.connection_mode!=='bank_api'||!allowed.includes(revision.status)||revision.provider_code!==payment.provider_code
         ||revision.account_number!==payment.destination_account) throw new BadRequestException('Bank destination is not an active approved school account');
       const hash=createHash('sha256').update(JSON.stringify({payment,direction:entry.direction})).digest('hex');
       await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',[`ingress:${revision.environment}:${payment.provider_code}:${payment.destination_account}:${payment.provider_transaction_id}`]);
@@ -134,14 +161,15 @@ export class PaymentIngressService {
       const older=revision.environment==='production' ? await this.db.query(`SELECT id FROM collection_payments WHERE tenant_id=$1
         AND provider_code=$2 AND destination_account=$3 AND provider_transaction_id=$4 AND provider_transaction_id<>$5 LIMIT 1`,
         [tenant,payment.provider_code,payment.destination_account,entry.evidence.bank_reference.toUpperCase(),payment.provider_transaction_id]):{rows:[]};
-      const reason=entry.direction==='debit'?'Bank debit: reconcile against the statement and use the approved reversal workflow where appropriate'
+      const reason=['connecting','ready'].includes(revision.status)?'Bank evidence received before activation; review the retained payment after onboarding'
+        :entry.direction==='debit'?'Bank debit: reconcile against the statement and use the approved reversal workflow where appropriate'
         :older.rows.length?'A reviewed collection already uses this bank reference; reconcile before allocating':null;
       const inserted=await this.db.query<IngressPayment>(`INSERT INTO payment_ingress(tenant_id,revision_id,provider_code,environment,
         provider_transaction_id,destination_account,amount_minor,currency_code,account_reference,occurred_at,payload_hash,bank_evidence,direction,state,review_reason)
         VALUES($1,$2::uuid,$3,$4,$5,$6,$7::bigint,$8,$9,$10::timestamptz,$11,$12::jsonb,$13,$14,$15)
         ON CONFLICT DO NOTHING RETURNING *,amount_minor::text`,[tenant,revisionId,payment.provider_code,revision.environment,
         payment.provider_transaction_id,payment.destination_account,payment.amount_minor,payment.currency_code,payment.account_reference,payment.occurred_at,
-        hash,JSON.stringify(entry.evidence),entry.direction,reason?'review':'verified',reason]);
+        hash,JSON.stringify({...entry.evidence,credential_version:revision.credential_version,notification}),entry.direction,reason?'review':'verified',reason]);
       if(inserted.rows[0]) {await this.record(inserted.rows[0],reason?'review_required':'bank_verified');return inserted.rows[0].id;}
       const previous=(await this.db.query<IngressPayment&{payload_hash:string}>(`SELECT *,amount_minor::text FROM payment_ingress WHERE tenant_id=$1
         AND environment=$2 AND provider_code=$3 AND destination_account=$4 AND provider_transaction_id=$5 FOR UPDATE`,

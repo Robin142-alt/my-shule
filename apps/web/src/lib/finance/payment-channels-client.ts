@@ -6,6 +6,8 @@ export interface CollectionProvider {
   description: string;
   channel_kinds: string[];
   connection_modes: string[];
+  capabilities?: string[];
+  platform_managed_credentials?: boolean;
   credential_fields: Array<{
     key: string;
     label: string;

@@ -258,12 +258,12 @@ export function PaymentGatewaysWorkspace() {
                   </dl>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  {row.connection_mode === 'daraja' && row.credentials_configured && <Button variant="secondary" disabled={busy}
+                  {(row.connection_mode === 'daraja' || (row.connection_mode === 'bank_api' && providers.find(p=>p.code===row.provider_code)?.capabilities?.includes('notifications'))) && row.credentials_configured && <Button variant="secondary" disabled={busy}
                     onClick={async () => {setBusy(true);setError('');try {setCallbacks(await getIntegrationCallbacks(row));}
                       catch(cause){setError(cause instanceof Error?cause.message:'Callback URLs unavailable');} finally{setBusy(false);} }}>
                     Callback URLs
                   </Button>}
-                  {row.status === 'active' && row.environment === 'sandbox' && <Button variant="secondary" disabled={busy}
+                  {row.connection_mode === 'daraja' && row.status === 'active' && row.environment === 'sandbox' && <Button variant="secondary" disabled={busy}
                     onClick={()=>{setError('');setSimulating(row);}}>Simulate sandbox payment</Button>}
                   {["approved", "connecting", "ready"].includes(row.status) && (
                     <Button disabled={busy} onClick={() => open(row)}>
@@ -472,9 +472,9 @@ export function PaymentGatewaysWorkspace() {
       </Modal>
       <Modal open={Boolean(callbacks)} title="Canonical provider callback URLs" onClose={()=>setCallbacks(null)}>
         {callbacks && <div className="space-y-4">
-          <p>{callbacks.environment} · {callbacks.trust_mode}. These URLs contain secret callback tokens. Share only with Safaricom or your authenticated gateway.</p>
+          <p>{callbacks.environment} · {callbacks.trust_mode}. These URLs contain secret callback tokens. Share only with the approved payment provider or your authenticated gateway.</p>
           <label className="block">Confirmation URL<textarea readOnly className="input-base w-full break-all" rows={4} value={callbacks.confirmation_url}/></label>
-          <label className="block">Validation URL<textarea readOnly className="input-base w-full break-all" rows={4} value={callbacks.validation_url}/></label>
+          {callbacks.validation_url && <label className="block">Validation URL<textarea readOnly className="input-base w-full break-all" rows={4} value={callbacks.validation_url}/></label>}
           <p>Check connection registers these exact URLs. Safaricom must enable validation for the Paybill. URL registration alone does not prove that verification or settlement works.</p>
         </div>}
       </Modal>

@@ -165,11 +165,13 @@ export class PaymentChannelWorkflowService {
   async callbacks(tenantId: string, id: string) {
     return this.inPlatformSchool(tenantId, async () => {
       const revision = await this.requireRevision(tenantId,id);
-      if (revision.connection_mode !== 'daraja') throw new BadRequestException('Statement channels do not have provider callbacks');
+      const native=revision.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).notifications;
+      if (revision.connection_mode !== 'daraja' && !native) throw new BadRequestException('This channel does not have provider callbacks');
       const credentials = this.credentials(revision);
       await this.audit.record({action:'payment_channel.callback_urls_viewed',resource_type:'payment_channel_revision',resource_id:id});
-      return { ...this.connection.callbackUrls(revision,credentials), environment:revision.environment,
-        trust_mode:credentials._callback_trust_mode ?? 'edge_signed', sandbox_posts_live_fees:false };
+      const urls=this.connection.callbackUrls(revision,credentials);
+      return { ...urls,...(native?{validation_url:''}:{}), environment:revision.environment,
+        trust_mode:native?'bank_signature':credentials._callback_trust_mode ?? 'edge_signed', sandbox_posts_live_fees:false };
     });
   }
 
@@ -318,6 +320,8 @@ export class PaymentChannelWorkflowService {
             credentials._callback_token = randomBytes(32).toString('hex');
             credentials._callback_trust_mode = dto.callback_trust_mode ?? 'daraja_direct';
           }
+          if(dto.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).notifications)
+            credentials._callback_token=randomBytes(32).toString('hex');
         } else if (Object.keys(dto.credentials).length)
           throw new BadRequestException(
             "Statement reconciliation does not require provider credentials",
@@ -360,10 +364,11 @@ export class PaymentChannelWorkflowService {
       let failure: string | null = null;
       try {
         await this.reserveSandbox(revision);
-        outcome = await this.connection.test(
-          revision,
-          this.credentials(revision),
-        );
+        const native=revision.connection_mode==='bank_api' ? BANK_PROVIDER_REGISTRY.adapter(revision.provider_code) : null;
+        if(native?.connection_check==='signed_notification') {
+          await this.requireSignedBankProof(revision);
+          outcome=revision.environment==='sandbox'?'bank_sandbox_notification_verified':'bank_live_notification_verified';
+        } else outcome = await this.connection.test(revision,this.credentials(revision));
       } catch (error) {
         outcome = "failed";
         failure =
@@ -447,6 +452,8 @@ export class PaymentChannelWorkflowService {
           throw new ConflictException(
             "A successful connection check within the last 24 hours is required",
           );
+        if(revision.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).connection_check==='signed_notification')
+          await this.requireSignedBankProof(revision);
         if (revision.replaces_revision_id) {
           const old = await this.requireRevision(
             tenantId,
@@ -614,6 +621,7 @@ export class PaymentChannelWorkflowService {
       throw new ForbiddenException('Connection configuration requires permission in the receiving school');
     const revision=await this.requireRevision(tenantId,id);
     if(!collectionProvider(revision.provider_code).connection_modes.includes('bank_api') ||
+      collectionProvider(revision.provider_code).platform_managed_credentials ||
       (revision.connection_mode && revision.connection_mode!=='bank_api'))
       throw new ForbiddenException('This channel requires platform connection');
     return fn();
@@ -626,6 +634,14 @@ export class PaymentChannelWorkflowService {
     if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(tenantId))
       throw new BadRequestException("Invalid school identity");
     return this.context.run({ ...actor, tenant_id: tenantId }, fn);
+  }
+  private async requireSignedBankProof(revision:PaymentChannelRevision) {
+    const proof=await this.db.query(`SELECT id FROM payment_ingress WHERE tenant_id=$1 AND revision_id=$2::uuid
+      AND provider_code=$3 AND destination_account=$4 AND environment=$5 AND conflict_hash IS NULL
+      AND bank_evidence->>'notification'='true' AND bank_evidence->>'credential_version'=$6
+      AND occurred_at>=now()-INTERVAL '24 hours' AND created_at>=now()-INTERVAL '24 hours' LIMIT 1`,
+      [revision.tenant_id,revision.id,revision.provider_code,revision.account_number,revision.environment,String(revision.credential_version)]);
+    if(!proof.rows.length) throw new BadRequestException('Awaiting a recent bank-signed account notification. Give the confirmation URL to the bank and request an authorized test delivery.');
   }
   private view(row: PaymentChannelRevision): PaymentChannelRevisionView {
     const { credentials_ciphertext, ...view } = row;
