@@ -302,6 +302,8 @@ export class PaymentChannelWorkflowService {
           throw new BadRequestException('Statement channels record real bank evidence; use production');
         if (dto.connection_mode === 'bank_api' && !BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).channel_kinds.includes(revision.channel_kind as 'bank_account'|'bank_paybill'))
           throw new BadRequestException('This provider protocol does not support the requested account type');
+        if(dto.connection_mode==='bank_api' && !provider.bank_api_environments?.includes(dto.environment))
+          throw new BadRequestException('This bank protocol is not available in the selected environment; use reviewed statements for live accounts');
         if (dto.connection_mode !== "statement") {
           for (const field of provider.credential_fields) {
             const value = dto.credentials[field.key];
@@ -454,6 +456,8 @@ export class PaymentChannelWorkflowService {
           );
         if(revision.connection_mode==='bank_api' && BANK_PROVIDER_REGISTRY.adapter(revision.provider_code).connection_check==='signed_notification')
           await this.requireSignedBankProof(revision);
+        if(revision.connection_mode==='bank_api' && !collectionProvider(revision.provider_code).bank_api_environments?.includes(revision.environment!))
+          throw new BadRequestException('This bank protocol is not available in the selected environment');
         if (revision.replaces_revision_id) {
           const old = await this.requireRevision(
             tenantId,

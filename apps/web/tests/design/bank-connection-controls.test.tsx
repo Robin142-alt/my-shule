@@ -50,3 +50,10 @@ test('Accountant enters provider-specific bank credentials once and remains pend
   expect(await screen.findByText(/Super Admin can now complete activation/)).toBeVisible();
   expect(updated).toHaveBeenCalledTimes(2);
 });
+
+test('a sandbox-only bank cannot be configured as production from the school form',()=>{
+  render(<BankConnectionControl row={row} provider={{...provider,code:'coop',name:'Co-op',bank_api_environments:['sandbox']}} onUpdated={jest.fn()}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Configure bank connection'}));
+  expect(screen.getByLabelText('Environment')).toHaveValue('sandbox');
+  expect(screen.queryByRole('option',{name:'Production'})).not.toBeInTheDocument();
+});

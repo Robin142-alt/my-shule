@@ -27,6 +27,7 @@ export interface BankTransactionDiagnostic {
 export interface BankProviderAdapter {
   readonly provider:string;
   readonly calendar_time_zone?:string;
+  readonly environments?:readonly ('sandbox'|'production')[];
   readonly connection_check?:'request'|'signed_notification';
   readonly channel_kinds:readonly ('bank_account'|'bank_paybill')[];
   checkConnection(connection:BankConnection):Promise<{account_number:string;currency_code:string;method:string}>;

@@ -8,6 +8,7 @@ export interface CollectionProvider {
   connection_modes: string[];
   capabilities?: string[];
   platform_managed_credentials?: boolean;
+  bank_api_environments?: ('sandbox'|'production')[];
   credential_fields: Array<{
     key: string;
     label: string;

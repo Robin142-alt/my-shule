@@ -14,6 +14,7 @@ export interface CollectionProviderDefinition {
   credential_fields:readonly {key:string;label:string;required:boolean;secret:boolean;description?:string;multiline?:boolean}[];
   assessment?:ProviderAssessment;
   platform_managed_credentials?:boolean;
+  bank_api_environments?:readonly ('sandbox'|'production')[];
 }
 
 // Capabilities describe implemented, verifiable collection contracts. Bank APIs

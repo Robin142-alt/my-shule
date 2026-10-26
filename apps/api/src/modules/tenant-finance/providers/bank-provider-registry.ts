@@ -11,7 +11,8 @@ export class BankProviderRegistry {
     const implemented=Boolean(adapter?.retrieveTransactions||adapter?.notifications);
     if(definition.connection_modes.includes('bank_api')&&!implemented) throw Error('Bank API mode requires an implemented adapter');
     const connection_modes=[...new Set([...definition.connection_modes,...(implemented?['bank_api']:[])])];
-    this.providers.set(definition.code,{definition:{...definition,connection_modes},adapter});
+    this.providers.set(definition.code,{definition:{...definition,connection_modes,
+      ...(adapter?{bank_api_environments:adapter.environments ?? ['sandbox','production'] as const}:{})},adapter});
   }
   definition(code:string){
     const registration=this.providers.get(code);

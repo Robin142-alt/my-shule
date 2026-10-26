@@ -35,7 +35,8 @@ export function BankConnectionControl({row,provider,onUpdated}:{row:CollectionCh
         <p>{row.account_name} · <span className="font-mono">{row.account_number}</span></p>
         <p className="text-sm text-muted">{provider.assessment?.onboarding || 'Use credentials issued for this school’s approved account. Complete the bank’s onboarding before testing.'}</p>
         <label className="block space-y-1"><span>Environment</span><select className="input-base w-full" value={environment} onChange={e=>setEnvironment(e.target.value)}>
-          <option value="sandbox">Sandbox — testing only</option><option value="production">Production</option></select></label>
+          {(provider.bank_api_environments ?? ['sandbox','production']).map(value=>
+            <option key={value} value={value}>{value==='sandbox'?'Sandbox — testing only':'Production'}</option>)}</select></label>
         {provider.credential_fields.map(field=><label className="block space-y-1" key={field.key}>
           <span>{field.label}{!field.required?' (optional)':''}</span>
           {field.multiline?<textarea className="input-base w-full font-mono text-sm" rows={5} autoComplete="off" spellCheck={false}

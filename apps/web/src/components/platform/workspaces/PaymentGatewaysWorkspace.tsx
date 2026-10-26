@@ -387,6 +387,10 @@ export function PaymentGatewaysWorkspace() {
                     onChange={(event) => {
                       setMode(event.target.value);
                       setCredentials({});
+                      if(event.target.value==='bank_api' && provider?.bank_api_environments &&
+                        !provider.bank_api_environments.includes(environment as 'sandbox'|'production'))
+                        setEnvironment(provider.bank_api_environments[0]);
+                      if(event.target.value==='statement') setEnvironment('production');
                     }}
                   >
                     {provider?.connection_modes.map((value) => (
@@ -406,8 +410,9 @@ export function PaymentGatewaysWorkspace() {
                     value={environment}
                     onChange={(event) => setEnvironment(event.target.value)}
                   >
-                    <option value="production">Production</option>
-                    <option value="sandbox">Sandbox — testing only</option>
+                    {(mode==='bank_api' ? provider?.bank_api_environments ?? ['sandbox','production'] :
+                      mode==='statement'?['production']:['production','sandbox']).map(value=>
+                      <option key={value} value={value}>{value==='sandbox'?'Sandbox — testing only':'Production'}</option>)}
                   </select>
                 </label>
                 {mode === "daraja" &&

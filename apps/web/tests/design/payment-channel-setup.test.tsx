@@ -357,3 +357,17 @@ test('school bank setup explains trusted signing-key onboarding without an unusa
   expect(screen.getByText(/verify the bank-issued signing key/)).toBeVisible();
   expect(screen.queryByRole('button',{name:/configure bank|retrieve transactions/i})).not.toBeInTheDocument();
 });
+
+test('platform setup switches a restricted bank API to sandbox while retaining live statement mode',async()=>{
+  jest.mocked(api.listIntegrationProviders).mockResolvedValue([{...provider,code:'coop',name:'Co-op',
+    connection_modes:['statement','bank_api'],bank_api_environments:['sandbox']}]);
+  jest.mocked(api.listPaymentIntegrations).mockResolvedValue([{...revision,provider_code:'coop',status:'approved'}]);
+  render(<PaymentGatewaysWorkspace/>);
+  fireEvent.click(await screen.findByRole('button',{name:'Connect channel'}));
+  expect(screen.getByLabelText('Environment')).toHaveValue('production');
+  fireEvent.change(screen.getByLabelText('Connection method'),{target:{value:'bank_api'}});
+  expect(screen.getByLabelText('Environment')).toHaveValue('sandbox');
+  expect(screen.queryByRole('option',{name:'Production'})).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Connection method'),{target:{value:'statement'}});
+  expect(screen.getByLabelText('Environment')).toHaveValue('production');
+});

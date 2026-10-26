@@ -613,6 +613,23 @@ describe("Collection approval, persistence and school boundaries", () => {
     expect(lastNotice.notification.body).toContain("Configure the supported connection");
   });
 
+  it('rejects live configuration and activation for a bank whose verified contract supports sandbox only',async()=>{
+    const row=await as('accountant',()=>workflow.request({...request,provider_code:'coop',account_number:'00123456789012'}));
+    await as('principal',()=>workflow.decide(row.id,{decision:'approve',reason:'Confirmed school sandbox account'}));
+    const config={connection_mode:'bank_api',environment:'production',credentials:{access_token:'authorized-token',account_currency:'KES'}} as const;
+    await expect(as('accountant',()=>workflow.connect(school,row.id,config))).rejects.toThrow(/selected environment/);
+    const configured=await as('accountant',()=>workflow.connect(school,row.id,{...config,environment:'sandbox'}));
+    expect(configured.environment).toBe('sandbox');
+    const checked=await as('accountant',()=>workflow.test(school,row.id));
+    expect(checked.status).toBe('ready'); // Connection transport is stubbed in this workflow suite.
+    // Even stale/misconfigured stored rows cannot bypass the activation guard.
+    await pool.query("UPDATE tenant_payment_channel_revisions SET environment='production' WHERE id=$1",[row.id]);
+    await expect(as('platform_owner',()=>workflow.activate(school,row.id))).rejects.toThrow(/selected environment/);
+    await pool.query("UPDATE tenant_payment_channel_revisions SET environment='sandbox' WHERE id=$1",[row.id]);
+    const active=await as('platform_owner',()=>workflow.activate(school,row.id));
+    expect(active.status).toBe('active');expect(active.channel_id).toBeNull();
+  });
+
   it("honours the selected invoice and rejects a reference owned by another student", async () => {
     const input = {
       provider_code: "equity",
