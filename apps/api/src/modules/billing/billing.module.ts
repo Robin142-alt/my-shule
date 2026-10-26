@@ -22,13 +22,17 @@ import { UsageRecordsRepository } from './repositories/usage-records.repository'
 import { UsageMeterService } from './usage-meter.service';
 import { BillingFeatureGuard } from '../../guards/billing-feature.guard';
 import { FeeStructuresRepository } from './repositories/fee-structures.repository';
+import { LegacyFeeInvoiceAdoptionController } from './legacy-fee-invoice-adoption.controller';
+import { LegacyFeeInvoiceAdoptionService } from './legacy-fee-invoice-adoption.service';
+import { FinanceBillingAliasesController } from './finance-billing-aliases.controller';
 
 @Module({
   imports: [FinanceModule, forwardRef(() => PaymentsModule)],
-  controllers: [BillingController],
+  controllers: [BillingController, LegacyFeeInvoiceAdoptionController, FinanceBillingAliasesController],
   providers: [
     BillingSchemaService,
     BillingService,
+    LegacyFeeInvoiceAdoptionService,
     BillingAccessService,
     BillingLifecycleService,
     BillingNotificationService,

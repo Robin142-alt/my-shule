@@ -94,12 +94,14 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
         ALTER TABLE invoices ADD COLUMN deleted_at timestamptz;
       `);
     }
+    await pool.query('CREATE TABLE audit_logs(tenant_id text,actor_user_id text,action text,resource_type text,resource_id text,metadata jsonb)');
+    await pool.query(`GRANT ALL ON audit_logs TO ${role}`);
     await pool.query('INSERT INTO tenants VALUES($1),($2)', [school, otherSchool]);
     if (INVOICE_WRITE_SCHEMA_SQL) {
       await pool.query(INVOICE_WRITE_SCHEMA_SQL);
       await pool.query(INVOICE_WRITE_SCHEMA_SQL);
     }
-    for (const name of ['subscriptions', 'invoices', 'fee_structures', 'students', 'student_allocations', 'evidence']) {
+    for (const name of ['subscriptions', 'invoices', 'fee_structures', 'students', 'student_allocations', 'evidence', 'audit_logs']) {
       await pool.query(`ALTER TABLE ${name} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${name} FORCE ROW LEVEL SECURITY;
         CREATE POLICY school_only ON ${name} USING(tenant_id=current_setting('app.tenant_id',true))
           WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
@@ -161,6 +163,19 @@ describe.each(['uuid', 'text', 'legacy'] as const)('Fee billing with %s record i
     expect((await pool.query('SELECT * FROM invoices')).rows).toHaveLength(0);
     failEvent = false;
     expect((await issue('event-failure')).generated_count).toBe(1);
+  });
+  it('persists fee structure audit and event atomically, with no unaudited saved plan on failure', async () => {
+    const name=`Extra charge ${variant}`;
+    failEvent=true;
+    await expect(asSchool(()=>billing.createFeeStructure({name,academic_year:'2027',term:'Term 1',grade_level:'Grade 7',
+      line_items:[{code:'activity',label:'Activity',amount_minor:'2500'}]}))).rejects.toThrow('Injected event failure');
+    expect((await pool.query('SELECT id FROM fee_structures WHERE name=$1',[name])).rows).toHaveLength(0);
+    const audits=(await pool.query('SELECT count(*)::int AS n FROM audit_logs')).rows[0].n;
+    failEvent=false;
+    await asSchool(()=>billing.createFeeStructure({name,academic_year:'2027',term:'Term 1',grade_level:'Grade 7',
+      line_items:[{code:'activity',label:'Activity',amount_minor:'2500'}]}));
+    expect((await pool.query('SELECT count(*)::int AS n FROM audit_logs')).rows[0].n).toBe(audits+1);
+    expect((await pool.query('SELECT * FROM evidence')).rows).toHaveLength(1);
   });
   it('reads, allocates and reverses the issued invoice without losing its learner balance', async () => {
     const invoice = (await issue('payment')).invoices[0];

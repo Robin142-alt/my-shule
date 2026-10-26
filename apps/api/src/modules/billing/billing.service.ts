@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { assertNoUnadoptedLegacyCharges } from './legacy-fee-invoice-guard';
 
 import {
   createCsvReportArtifact,
@@ -335,6 +336,10 @@ export class BillingService {
       const metadata = { ...(dto.metadata ?? {}) };
       delete metadata.submission_key;
       delete metadata.fee_waivers;
+      delete metadata.legacy_invoice_id;
+      delete metadata.legacy_opening_paid_minor;
+      delete metadata.source_fingerprint;
+      if (metadata.billing_reason === 'legacy_invoice_adoption') delete metadata.billing_reason;
       const studentId = this.readStringMetadata(metadata, 'student_id');
       if ('student_id' in metadata && !studentId) throw new BadRequestException('A valid learner reference is required');
       if (studentId) {
@@ -426,23 +431,34 @@ export class BillingService {
       .reduce((total, item) => total + BigInt(item.amount_minor), 0n)
       .toString();
     if (BigInt(totalAmountMinor) > 9_223_372_036_854_775_807n) throw new BadRequestException('The fee total exceeds the supported financial limit');
-    const feeStructure = await feeStructuresRepository.create({
-      tenant_id: tenantId,
-      name: dto.name.trim(),
-      academic_year: dto.academic_year.trim(),
-      term: dto.term.trim(),
-      grade_level: dto.grade_levels?.[0]?.trim() || dto.grade_level.trim(),
-      class_name: dto.class_name?.trim() || null,
-      currency_code: BILLING_DEFAULT_CURRENCY_CODE,
-      status: dto.status ?? 'active',
-      due_days: dto.due_days ?? 14,
-      line_items: lineItems,
-      total_amount_minor: totalAmountMinor,
-      metadata: { ...dto.metadata, billing_grade_levels: dto.grade_levels ?? [dto.grade_level.trim()] },
-      created_by_user_id: store.user_id ?? null,
+    return this.prisma.withRequestTransaction(async (tx) => {
+      if (!this.schoolEvents) throw new ConflictException('Fee event service is unavailable; retry when finance services recover');
+      const feeStructure = await feeStructuresRepository.create({
+        tenant_id: tenantId,
+        name: dto.name.trim(),
+        academic_year: dto.academic_year.trim(),
+        term: dto.term.trim(),
+        grade_level: dto.grade_levels?.[0]?.trim() || dto.grade_level.trim(),
+        class_name: dto.class_name?.trim() || null,
+        currency_code: BILLING_DEFAULT_CURRENCY_CODE,
+        status: dto.status ?? 'active',
+        due_days: dto.due_days ?? 14,
+        line_items: lineItems,
+        total_amount_minor: totalAmountMinor,
+        metadata: { ...dto.metadata, billing_grade_levels: dto.grade_levels ?? [dto.grade_level.trim()] },
+        created_by_user_id: store.user_id ?? null,
+      }, tx);
+      await this.prisma.query(`INSERT INTO audit_logs(tenant_id,actor_user_id,action,resource_type,resource_id,metadata)
+        VALUES($1,$2,'finance.fee_structure_created','fee_structure',$3,$4::jsonb)`,
+        [tenantId,store.user_id,feeStructure.id,JSON.stringify({total_amount_minor:totalAmountMinor,academic_year:feeStructure.academic_year,term:feeStructure.term})]);
+      await this.schoolEvents.recordSchoolOperation({schoolId: tenantId, event: {
+        id: `fee-structure-created:${feeStructure.id}`, type: 'finance.fee_structure_created', module: 'finance',
+        entityId: feeStructure.id, title: 'Fee structure created', body: `${feeStructure.name} is available for billing.`,
+        payload: { fee_structure_id: feeStructure.id, total_amount_minor: totalAmountMinor,
+          academic_year: feeStructure.academic_year, term: feeStructure.term },
+      }}, tx);
+      return this.mapFeeStructure(feeStructure);
     });
-
-    return this.mapFeeStructure(feeStructure);
   }
 
   async listFeeStructures(): Promise<FeeStructureResponseDto[]> {
@@ -542,6 +558,7 @@ export class BillingService {
       }
 
       const selected = this.normalizeBulkFeeStudents(dto.target_students);
+      await assertNoUnadoptedLegacyCharges(this.prisma, tenantId, feeStructure.id, selected.map(row => row.student_id));
       const roster = await feeStructuresRepository.listBillableStudentsForFeeStructure(tenantId, {
         grade_level: feeStructure.grade_level, class_name: feeStructure.class_name,
         grade_levels: this.feeStructureGrades(feeStructure),
@@ -1443,18 +1460,19 @@ export class BillingService {
       const unrepresentedCredit = paidMinor - receiptCredits;
 
       if (unrepresentedCredit > 0n) {
+        const historicalOpening = invoice.metadata?.billing_reason === 'legacy_invoice_adoption';
         entries.push({
           id: `allocated-payment:${invoice.id}`,
-          kind: 'receipt',
+          kind: historicalOpening ? 'adjustment' : 'receipt',
           source_id: invoice.id,
           invoice_id: invoice.id,
-          reference: `ALLOC-${invoice.invoice_number}`,
-          description: 'Allocated payment',
+          reference: `${historicalOpening ? 'OPENING' : 'ALLOC'}-${invoice.invoice_number}`,
+          description: historicalOpening ? 'Reviewed historical paid balance (no new receipt)' : 'Allocated payment',
           status: 'cleared',
-          method: 'allocated_payment',
+          method: historicalOpening ? 'historical_opening_balance' : 'allocated_payment',
           debit_amount_minor: 0n,
           credit_amount_minor: unrepresentedCredit,
-          occurred_at: invoice.paid_at ?? invoice.updated_at,
+          occurred_at: historicalOpening ? invoice.issued_at : invoice.paid_at ?? invoice.updated_at,
           ledger_transaction_id: null,
         });
       }

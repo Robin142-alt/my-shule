@@ -44,4 +44,14 @@ KCB's published OpenAPI timestamp example has minute precision; the account PDF 
 
 JSON monetary numbers retain their source decimal tokens before conversion to integer minor units; string amounts use the same exact decimal validation. This prevents hidden fractional cents or floating-point rounding from changing a payment.
 
-The remaining release work includes safe legacy invoice adoption, the legacy M-Pesa financial correction resolver, full-chain ledger verification, responsive browser tests and deployment checks. Co-op production and the other unimplemented native providers require the external contracts listed above. Student progression changes remain preserved.
+## Historical invoice adoption
+
+Accountants can inspect **Invoices & statements → Historical invoices**. Principals can review and adopt selected records from **Fees → Historical invoices**, with a required review reason. The server requires Principal/owner permission, school ownership and the current source fingerprint. Invalid balances, missing learners, duplicate numbers and conflicting canonical invoices remain exceptions. Selection is limited to 100 records per transaction; the screen pages 50 records at a time.
+
+Adoption preserves the original invoice ID, number, learner, academic labels, total, paid amount and source row. It records immutable lineage and a source snapshot, audit and event in the same transaction. Paid amounts appear as historical opening adjustments; adoption creates no receipt, cash posting or fabricated payment date. Where legacy records have no due date, their original creation date is the explicit due-date fallback. Existing canonical records require matching source lineage and amounts; matching an invoice number alone cannot authorize adoption.
+
+The old `/finance/invoices/generate` URL now uses the canonical billing roster, duplicate guard and credit application. Its configured fee structure determines the academic period; mismatched overrides are rejected. `/finance/fee-structures` shares the validated billing DTO and audited service. Finance reads combine canonical and remaining legacy invoices. Unadopted historical charges prevent billing the same learners for that fee structure again.
+
+Deployment adds the lineage table and source-protection trigger; it does not automatically migrate any school. The operator-only schema down script is tested before adoption and refuses to run once lineage exists. After adoption, keep the canonical billing path and lineage when rolling back application changes; use audited forward corrections for financial history. No destructive backfill or source-table removal is included.
+
+The remaining release work includes the legacy M-Pesa financial correction resolver, full-chain ledger verification, responsive browser tests and deployment checks. Co-op production and the other unimplemented native providers require the external contracts listed above. Student progression changes remain preserved.

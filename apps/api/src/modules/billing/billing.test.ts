@@ -939,6 +939,7 @@ test('BillingService creates an active fee structure with computed line item tot
   const service = new BillingService(
     requestContext,
     {
+      query: async () => ({ rows: [] }),
       withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
     } as never,
     {
@@ -971,6 +972,7 @@ test('BillingService creates an active fee structure with computed line item tot
         };
       },
     } as never,
+    { recordSchoolOperation: async () => ({}) } as never,
   );
 
   const response = await requestContext.run(
@@ -1280,6 +1282,7 @@ test('BillingService bulk-generates fee invoices and skips duplicate active stud
   const service = new BillingService(
     requestContext,
     {
+      query: async () => ({ rows: [] }),
       withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback(),
     } as never,
     {

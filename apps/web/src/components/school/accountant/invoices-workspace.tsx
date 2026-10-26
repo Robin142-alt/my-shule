@@ -18,6 +18,7 @@ import type { SchoolExperienceRole } from "@/lib/experiences/school-data";
 import type { StudentFeeBalanceResponse, StudentFeeStatementResponse } from "@/components/school/school-pages";
 
 import { BulkFeeBillingDialog } from "./bulk-fee-billing-dialog";
+import { LegacyInvoicesReview } from "./legacy-invoices-review";
 
 type Invoice = { id: string; invoice_number: string; description: string; status: string; total_amount_minor: string; amount_paid_minor: string; due_at: string; issued_at: string; metadata: { student_id: string; student_name: string; admission_number?: string } };
 const pageSize = 50;
@@ -136,6 +137,7 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
       </div>
       <div className="mt-4 flex flex-wrap gap-2">{(["invoices", "balances"] as const).map(value => <Button key={value} variant={tab === value ? "primary" : "ghost"} aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); setSearch(""); }}>{value === "invoices" ? "Invoice register" : "Learner balances"}</Button>)}
         {onNavigate && <Button variant="ghost" onClick={() => onNavigate("fee-structures")}>Manage fee structures</Button>}
+        <LegacyInvoicesReview />
         <Button variant="ghost" disabled={activeQuery.isFetching} onClick={() => void activeQuery.refetch()}>Refresh</Button>
       </div>
     </section>

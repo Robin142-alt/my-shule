@@ -3,6 +3,7 @@
 import { TrendEmptyState } from "./trend-empty-state";
 import { ExpensesWorkspace } from "@/components/school/accountant/expenses-workspace";
 import { ManualReversalQueue } from "@/components/school/accountant/manual-reversal-queue";
+import { LegacyInvoicesReview } from "@/components/school/accountant/legacy-invoices-review";
 
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
 
@@ -183,6 +184,7 @@ export function PrincipalFinanceOverviewWorkspace() {
     <div className="space-y-6">
       <ExpensesWorkspace review />
       <ManualReversalQueue review />
+      <LegacyInvoicesReview principal />
       <div className="app-metric-grid grid gap-4 md:grid-cols-4">
         {/* Summary Cards */}
         <Card className="border border-white/10 bg-white/5 p-5">
