@@ -24,7 +24,7 @@ export class FeeCreditApplicationService {
     return this.prisma.withRequestTransaction(async()=>{
       const learner=await this.prisma.query('SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL',[school,studentId]);
       if(!learner.rows.length) throw new NotFoundException('Learner was not found in this school');
-      await this.prisma.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`fee-credit:${school}:${studentId}`]);
+      await this.prisma.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',[`fee-credit:${school}:${studentId}`]);
       // Lock source receipts before invoices, matching the receipt reversal lock order.
       // Legacy invoice-only receipts can be recovered only through their same-school invoice.
       const manual=await this.prisma.query<CreditSource>(`

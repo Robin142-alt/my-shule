@@ -772,6 +772,7 @@ export class ManualFeePaymentsRepository {
         )
         VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6::bigint, $7::jsonb)
         ON CONFLICT (tenant_id, manual_payment_id, invoice_id, allocation_type)
+        WHERE invoice_id IS NOT NULL
         DO NOTHING
         RETURNING id
       `,

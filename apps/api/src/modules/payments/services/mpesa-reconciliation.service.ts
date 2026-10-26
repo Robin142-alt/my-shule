@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
+import { FinanceCorrectionService } from '../finance-correction.service';
+import { SchoolOperationalEventsService } from '../../events/school-operational-events.service';
+import { AuditLogService } from '../../observability/audit-log.service';
 
 import { RequestContextService } from '../../../common/request-context/request-context.service';
 import { PrismaService } from '../../../database/prisma.service';
@@ -94,7 +99,7 @@ interface FinanceApprovalRequestInput {
   action: FinanceApprovalAction;
   subject_type: string;
   subject_id: string;
-  amount_minor?: number;
+  amount_minor?: number | string;
   currency_code?: string;
   reason: string;
   reconciliation_batch_id?: string;
@@ -158,6 +163,9 @@ export class MpesaReconciliationService {
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     @Optional() private readonly tenantFinanceConfigService?: TenantFinanceConfigService,
+    @Optional() private readonly corrections?: FinanceCorrectionService,
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly audit?: AuditLogService,
   ) {}
 
   async generateDailyReport(
@@ -544,6 +552,8 @@ export class MpesaReconciliationService {
           approving_user_id::text,
           resolution_status,
           evidence - 'raw_payload' AS evidence,
+          (SELECT amount_minor::text FROM collection_payments p WHERE p.tenant_id=mpesa_reconciliation_discrepancies.tenant_id
+            AND p.provider_code='safaricom' AND p.provider_transaction_id=mpesa_reconciliation_discrepancies.provider_transaction_id AND p.status='posted') AS collection_amount_minor,
           created_at
         FROM mpesa_reconciliation_discrepancies
         WHERE tenant_id = $1
@@ -587,7 +597,36 @@ export class MpesaReconciliationService {
     };
   }
 
+  async listFinanceApprovals(limit=50,offset=0) {
+    this.requireFinanceActor(true);
+    if(!Number.isInteger(limit)||limit<1||limit>50||!Number.isInteger(offset)||offset<0) throw new BadRequestException('Invalid review page');
+    const actor=this.requestContext.requireStore();
+    const rows=(await this.executeSql(`SELECT id::text,action,status,amount_minor::text,currency_code,reason,
+      requested_by_user_id::text,first_approver_user_id::text,created_at,evidence->'correction_execution' AS execution
+      FROM finance_approval_requests WHERE tenant_id=$1 ORDER BY created_at DESC,id LIMIT $2 OFFSET $3`,[actor.tenant_id,limit,offset])).rows;
+    return rows.map(row=>({...row,can_approve:row.requested_by_user_id!==actor.user_id &&
+      (row.status==='pending_first_approval' || (row.status==='pending_second_approval' && actor.role==='principal' && row.first_approver_user_id!==actor.user_id)),
+      can_cancel:['pending_first_approval','pending_second_approval'].includes(row.status) && (actor.role==='principal'||row.requested_by_user_id===actor.user_id)}));
+  }
+
+  async cancelFinanceApproval(id:string,reason:string) {
+    this.requireFinanceActor();
+    if(typeof reason!=='string'||reason.trim().length<5||reason.length>1000) throw new BadRequestException('Explain why this correction is being cancelled');
+    const tenant=this.requireTenantId(),actor=this.requestContext.requireStore();
+    return this.prisma.withRequestTransaction(async()=>{
+      const row=await this.loadFinanceApprovalRequest(tenant,id);
+      if(!row) throw new NotFoundException('Correction request was not found in this school');
+      if(actor.role!=='principal' && row.requested_by_user_id!==actor.user_id) throw new ForbiddenException('Only the requester or Principal can cancel this request');
+      if(!['pending_first_approval','pending_second_approval'].includes(String(row.status))) throw new ConflictException('Only pending correction requests can be cancelled');
+      await this.executeSql(`UPDATE finance_approval_requests SET status='cancelled',updated_at=now(),
+        evidence=evidence||jsonb_build_object('cancellation_reason',$3::text,'cancelled_by',$4::text) WHERE tenant_id=$1 AND id=$2::uuid`,[tenant,id,reason.trim(),actor.user_id]);
+      await this.recordFinanceApproval(tenant,id,'cancelled',{reason:reason.trim()});
+      return {status:'cancelled'};
+    });
+  }
+
   async requestFinanceApproval(input: FinanceApprovalRequestInput) {
+    this.requireFinanceActor();
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const action = this.normalizeFinanceApprovalAction(input.action);
@@ -609,6 +648,20 @@ export class MpesaReconciliationService {
       throw new BadRequestException('Finance approval subject_id is required');
     }
 
+    if(reason.length<5 || reason.length>1000) throw new BadRequestException('Provide a correction reason of 5 to 1,000 characters');
+    if(subjectType!=='mpesa_reconciliation_discrepancy' || subjectId!==reconciliationDiscrepancyId)
+      throw new BadRequestException('The approval subject must be its linked reconciliation discrepancy');
+    if(action==='reversal' && amountMinor===null) throw new BadRequestException('The full payment amount is required for a reversal');
+    const evidence=redactReviewEvidence(input.evidence ?? {}) as Record<string,unknown>;
+    delete evidence.correction_execution;
+    return this.prisma.withRequestTransaction(async()=>{
+    const discrepancy=(await this.executeSql(`SELECT id FROM mpesa_reconciliation_discrepancies WHERE tenant_id=$1 AND id=$2::uuid
+      AND ($3::uuid IS NULL OR reconciliation_batch_id=$3::uuid) AND resolution_status IN ('open','under_review') FOR UPDATE`,
+      [tenantId,reconciliationDiscrepancyId,reconciliationBatchId])).rows[0];
+    if(!discrepancy) throw new NotFoundException('Open reconciliation discrepancy was not found in this school and batch');
+    const pending=await this.executeSql(`SELECT id FROM finance_approval_requests WHERE tenant_id=$1 AND reconciliation_discrepancy_id=$2::uuid
+      AND status IN ('pending_first_approval','pending_second_approval')`,[tenantId,reconciliationDiscrepancyId]);
+    if(pending.rows.length) throw new ConflictException('This discrepancy already has a pending correction request');
     const result = await this.executeSql<Record<string, unknown>>(
       `
         INSERT INTO finance_approval_requests (
@@ -650,7 +703,7 @@ export class MpesaReconciliationService {
         reconciliationBatchId,
         reconciliationDiscrepancyId,
         actorUserId,
-        JSON.stringify(redactReviewEvidence(input.evidence ?? {})),
+        JSON.stringify(evidence),
       ],
     );
     const request = result.rows[0];
@@ -659,10 +712,13 @@ export class MpesaReconciliationService {
       throw new BadRequestException('Finance approval request could not be created');
     }
 
+    await this.recordFinanceApproval(tenantId,String(request.id),'requested');
     return request;
+    });
   }
 
   async approveFinanceApproval(requestId: string) {
+    this.requireFinanceActor();
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const approvalRequestId = this.normalizeOptionalUuid(requestId, 'approval_request_id');
@@ -671,6 +727,7 @@ export class MpesaReconciliationService {
       throw new BadRequestException('Finance approval request id is required');
     }
 
+    return this.prisma.withRequestTransaction(async()=>{
     const approval = await this.loadFinanceApprovalRequest(tenantId, approvalRequestId);
 
     if (!approval) {
@@ -682,20 +739,51 @@ export class MpesaReconciliationService {
     }
 
     if (approval.status === 'pending_first_approval') {
-      return this.recordFirstFinanceApproval(tenantId, approvalRequestId, actorUserId);
+      const updated=await this.recordFirstFinanceApproval(tenantId, approvalRequestId, actorUserId);
+      await this.recordFinanceApproval(tenantId,approvalRequestId,'first_approved');
+      return updated;
     }
 
     if (approval.status === 'pending_second_approval') {
       if (String(approval.first_approver_user_id ?? '') === actorUserId) {
         throw new ForbiddenException('Finance approval requires a distinct approver for second approval');
       }
+      if(this.requestContext.requireStore().role!=='principal') throw new ForbiddenException('The Principal must give final approval for a financial correction');
 
       const approved = await this.recordSecondFinanceApproval(tenantId, approvalRequestId, actorUserId);
-      await this.resolveFinanceApprovalSubject(tenantId, approved, actorUserId);
-      return approved;
+      if(!this.corrections || !approved) throw new ConflictException('Financial correction service is unavailable; retry when finance services recover');
+      const execution=await this.corrections.execute(approvalRequestId);
+      await this.resolveFinanceApprovalSubject(tenantId, approved, actorUserId, execution);
+      await this.executeSql("UPDATE finance_approval_requests SET evidence=evidence||jsonb_build_object('correction_execution',$3::jsonb) WHERE tenant_id=$1 AND id=$2::uuid",
+        [tenantId,approvalRequestId,JSON.stringify(execution)]);
+      await this.recordFinanceApproval(tenantId,approvalRequestId,'executed',execution);
+      return {...approved,evidence:{...(approved.evidence as Record<string,unknown> ?? {}),correction_execution:execution}};
     }
 
+    if(approval.status==='approved' && (approval.evidence as Record<string,unknown> | null)?.correction_execution) {
+      if(!this.corrections) throw new ConflictException('Financial correction service is unavailable');
+      await this.corrections.execute(approvalRequestId);
+      return approval;
+    }
     throw new BadRequestException(`Finance approval request is not pending approval; current status is "${approval.status}"`);
+    });
+  }
+
+  private requireFinanceActor(read=false) {
+    const actor=this.requestContext.requireStore();
+    if(!actor.is_authenticated || !actor.user_id || !actor.tenant_id || !['accountant','bursar','principal'].includes(actor.role ?? '') ||
+      !(actor.permissions ?? []).some(permission=>['*:*','billing:*','billing:write','billing:update',...(read?['billing:read']:[])].includes(permission)))
+      throw new ForbiddenException('School finance permission is required for financial corrections');
+  }
+
+  private async recordFinanceApproval(tenant:string,id:string,status:string,execution:Record<string,unknown>={}) {
+    if(!this.schoolEvents || !this.audit) throw new ConflictException('Financial audit service is unavailable; retry when finance services recover');
+    await this.audit.record({tenant_id:tenant,action:`finance.correction_${status}`,resource_type:'finance_approval',resource_id:id,metadata:execution});
+    await this.schoolEvents.recordSchoolOperation({schoolId:tenant,event:{id:randomUUID(),type:`finance.correction_${status}`,module:'finance',entityId:id,
+      title:'Financial correction review',body:status==='executed'?'The approved correction was executed and its financial result verified.':status==='cancelled'?'The correction request was cancelled; no payment was changed.':'A financial correction is awaiting independent review.',
+      payload:{approval_id:id,status,...execution}},notifications:[{id:`finance-correction:${id}:${status}`,title:'Financial correction review',
+        body:status==='executed'?'The approved correction was executed and verified.':status==='cancelled'?'The correction request was cancelled.':'A financial correction requires independent review.',
+        audienceRoles:['principal','accountant','bursar'],priority:'normal',href:'/fees'}]});
   }
 
   private async loadSuccessfulMpesaRows(
@@ -1210,6 +1298,7 @@ export class MpesaReconciliationService {
     tenantId: string,
     approval: Record<string, unknown> | null,
     actorUserId: string,
+    execution: Record<string,unknown>,
   ): Promise<void> {
     if (!approval || approval.status !== 'approved') {
       return;
@@ -1232,7 +1321,8 @@ export class MpesaReconciliationService {
           evidence = evidence || jsonb_build_object(
             'finance_approval_request_id', $2::text,
             'finance_approval_action', $4::text,
-            'finance_approval_status', 'approved'
+            'finance_approval_status', 'approved',
+            'correction_execution', $6::jsonb
           ),
           updated_at = NOW()
         WHERE tenant_id = $1
@@ -1244,6 +1334,7 @@ export class MpesaReconciliationService {
         actorUserId,
         approval.action,
         reconciliationDiscrepancyId,
+        JSON.stringify(execution),
       ],
     );
   }
@@ -1322,16 +1413,13 @@ export class MpesaReconciliationService {
     return normalized;
   }
 
-  private normalizeOptionalPositiveInteger(value: number | undefined, fieldName: string): number | null {
-    if (value == null) {
-      return null;
-    }
-
-    if (!Number.isInteger(value) || value <= 0) {
-      throw new BadRequestException(`MPESA reconciliation ${fieldName} must be a positive integer`);
-    }
-
-    return value;
+  private normalizeOptionalPositiveInteger(value: number | string | undefined, fieldName: string): string | null {
+    if(value==null) return null;
+    if(typeof value==='number' && !Number.isSafeInteger(value)) throw new BadRequestException(`${fieldName} must be an exact positive integer`);
+    const amount=String(value);
+    if(!/^[1-9][0-9]{0,18}$/.test(amount) || BigInt(amount)>9223372036854775807n)
+      throw new BadRequestException(`${fieldName} must be an exact positive integer`);
+    return amount;
   }
 
   private normalizeCurrencyCode(value: string): string {

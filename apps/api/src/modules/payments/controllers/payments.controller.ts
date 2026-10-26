@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { SuspendPaymentChannelDto } from '../../tenant-finance/dto/payment-channel-workflow.dto';
 
 import { Permissions } from '../../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../../module-access/module-access.decorator';
@@ -59,15 +60,27 @@ export class PaymentsController {
   }
 
   @Post('reconciliation/approval-requests')
-  @Permissions('billing:update')
+  @Permissions('billing:write')
   async requestFinanceApproval(
     @Body() dto: RequestFinanceApprovalDto,
   ) {
     return this.mpesaReconciliationService.requestFinanceApproval(dto);
   }
 
+  @Get('reconciliation/approval-requests')
+  @Permissions('billing:read')
+  listFinanceApprovals(@Query('limit') limit?: string,@Query('offset') offset?: string) {
+    return this.mpesaReconciliationService.listFinanceApprovals(limit===undefined?50:Number(limit),offset===undefined?0:Number(offset));
+  }
+
+  @Post('reconciliation/approval-requests/:requestId/cancel')
+  @Permissions('billing:write')
+  cancelFinanceApproval(@Param('requestId',ParseUUIDPipe) requestId:string,@Body() dto:SuspendPaymentChannelDto) {
+    return this.mpesaReconciliationService.cancelFinanceApproval(requestId,dto.reason);
+  }
+
   @Post('reconciliation/approval-requests/:requestId/approve')
-  @Permissions('billing:update')
+  @Permissions('billing:write')
   async approveFinanceApproval(
     @Param('requestId') requestId: string,
   ) {

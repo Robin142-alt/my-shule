@@ -308,6 +308,12 @@ export class CollectionPaymentsService {
         throw new ConflictException("Reversal request was already reviewed");
       if (request.requested_by === this.context.requireStore().user_id)
         throw new ForbiddenException("The requester cannot approve a reversal");
+      // The legacy reconciliation path locks C2B before its collection. Keep
+      // the same order when a reversal updates both representations.
+      const identity=(await this.db.query<{provider_code:string;provider_transaction_id:string}>(
+        'SELECT provider_code,provider_transaction_id FROM collection_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,request.payment_id])).rows[0];
+      if(identity?.provider_code==='safaricom') await this.db.query(
+        'SELECT id FROM mpesa_c2b_payments WHERE tenant_id=$1 AND trans_id=$2 FOR UPDATE',[tenant,identity.provider_transaction_id]);
       const payment = await this.lock(tenant, request.payment_id);
       const result = await this.db.query(
         `UPDATE collection_reversal_requests SET status=$3,reviewed_by=$4::uuid,reviewed_at=NOW(),decision_reason=$5 WHERE tenant_id=$1 AND id=$2::uuid RETURNING *`,
@@ -331,6 +337,11 @@ export class CollectionPaymentsService {
         await this.db.query(
           `UPDATE collection_payments SET status='reversed',updated_at=NOW() WHERE tenant_id=$1 AND id=$2::uuid`,
           [tenant, payment.id],
+        );
+        if(payment.provider_code==='safaricom') await this.db.query(
+          `UPDATE mpesa_c2b_payments SET status='reversed',updated_at=NOW()
+           WHERE tenant_id=$1 AND trans_id=$2 AND manual_fee_payment_id=$3::uuid`,
+          [tenant,payment.provider_transaction_id,payment.manual_fee_payment_id],
         );
       }
       await this.record(

@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { FinanceCorrectionService } from './finance-correction.service';
 
 import { AuthModule } from '../../auth/auth.module';
 import { BillingModule } from '../billing/billing.module';
@@ -63,6 +64,7 @@ import { BankSynchronizationController } from './ingress/bank-synchronization.co
     PaymentsSchemaService,
     CollectionPaymentsSchemaService,
     CollectionPaymentsService,
+    FinanceCorrectionService,
     CollectionReferenceMatcher,
     PaymentIngressService,
     BankSynchronizationService,

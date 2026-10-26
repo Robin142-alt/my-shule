@@ -121,10 +121,7 @@ export class SubscriptionsRepository {
   async acquireTenantMutationLock(tenantId: string): Promise<void> {
     await this.executeSql(
       `
-        WITH tenant_lock AS (
-          SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
-        )
-        SELECT TRUE AS locked
+        SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))::text AS locked
       `,
       [tenantId],
     );

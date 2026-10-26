@@ -1,5 +1,6 @@
 "use client";
 import { ManualReversalQueue } from "./manual-reversal-queue";
+import { ReconciliationCorrections } from "./reconciliation-corrections";
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -358,6 +359,7 @@ export function CollectionsWorkspace({
         </div>
       )}
       <ManualReversalQueue review={mode === "review"} />
+      <ReconciliationCorrections />
       <Modal
         open={Boolean(action)}
         title={
