@@ -16,6 +16,7 @@ import { openPrintDocument, downloadCsvFile } from "@/lib/dashboard/export";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { ManualReversalQueue } from "./manual-reversal-queue";
 import { RefundEvidence } from "./refund-evidence";
+import { PaymentCorrectionRequest } from "./payment-correction-request";
 
 type Receipt = {
   id: string; receipt_number: string; payment_method: string; status: string;
@@ -188,6 +189,8 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
         { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={previewingId !== null} onClick={() => void preview(row)}>{previewingId === row.id ? "Opening…" : "Preview / print"}</Button>
           {canWrite && row.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => { setError(""); if (row.metadata?.source === "collection_payment" && onNavigate) onNavigate("collections"); else setReversal(row); }}>Request reversal</Button>}
           {canWrite && row.status === "reversed" && <Button size="sm" variant="ghost" onClick={()=>setRefund(row)}>Record refund evidence</Button>}
+          {canWrite && row.status === "cleared" && row.metadata?.source!=="collection_payment" && <PaymentCorrectionRequest id={row.id} amount={row.amount_minor}
+            kind="move_payment" subjectType={row.metadata?.source==="stk_payment"?"payment_intent":"manual_fee_payment"} tenantSlug={tenantSlug} label="Move to correct learner"/>}
           {!receiptsOnly && canWrite && row.payment_method === "cheque" && ["received", "deposited"].includes(row.status) && (row.status === "received" ? ["deposit", "clear", "bounce"] as const : ["clear", "bounce"] as const).map(action =>
             <Button key={action} size="sm" variant="ghost" onClick={() => { setError(""); setCheque({ receipt: row, action }); }}>{action === "clear" ? "Confirm cleared" : action === "bounce" ? "Mark bounced" : "Mark deposited"}</Button>)}
         </div> },
@@ -198,7 +201,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
     <ManualReversalQueue />
     <RefundEvidence receipt={refund} onClose={()=>setRefund(null)}/>
     <Modal open={Boolean(reversal)} title={`Request reversal · ${reversal?.receipt_number || ""}`} onClose={() => { if (!busy) setReversal(null); }}>
-      <form onSubmit={requestReversal} className="space-y-4"><p>{reversal?.metadata?.source === "stk_payment" ? "Two independent reviewers, including the Principal, must approve in Collections → M-Pesa reconciliation reviews." : "A different Principal must approve."} This request does not change the learner’s balance or send a refund.</p>{error && <p role="alert">{error}</p>}
+      <form onSubmit={requestReversal} className="space-y-4"><p>{reversal?.metadata?.source === "stk_payment" ? "Two independent reviewers, including the Principal, must approve in Collections → Financial correction reviews." : "A different Principal must approve."} This request does not change the learner’s balance or send a refund.</p>{error && <p role="alert">{error}</p>}
         <label className="block">Reason<textarea name="reason" required minLength={5} maxLength={512} className="input-base mt-1 w-full" /></label>
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" disabled={busy} onClick={() => setReversal(null)}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Submitting…" : "Request approval"}</Button></div>
       </form>

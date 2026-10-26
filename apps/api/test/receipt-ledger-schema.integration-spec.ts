@@ -4,6 +4,7 @@ import { FinanceSchemaService } from '../src/modules/finance/finance-schema.serv
 import { BillingSchemaService } from '../src/modules/billing/billing-schema.service';
 
 describe.each(['uuid','text'] as const)('Receipt links with %s ledger identifiers', type => {
+  jest.setTimeout(90000);
   const database = `my_shule_disposable_receipt_${randomUUID().replaceAll('-','')}`;
   let pool: Pool, admin: Pool;
   beforeAll(async () => {
@@ -18,6 +19,10 @@ describe.each(['uuid','text'] as const)('Receipt links with %s ledger identifier
     const bootstrap = {runSchemaBootstrap:(sql:string)=>pool.query(sql)};
     await new FinanceSchemaService(bootstrap as never,{onModuleInit:async()=>{}} as never).onModuleInit();
     if(type === 'text') await pool.query(`
+      ALTER TABLE transactions DROP CONSTRAINT ck_transactions_total_amount_minor;
+      ALTER TABLE ledger_entries DROP CONSTRAINT ck_ledger_entries_amount_minor;
+      ALTER TABLE transactions ALTER COLUMN total_amount_minor TYPE text USING total_amount_minor::text;
+      ALTER TABLE ledger_entries ALTER COLUMN amount_minor TYPE text USING amount_minor::text;
       ALTER TABLE ledger_entries DROP CONSTRAINT fk_ledger_entries_transaction;
       ALTER TABLE transactions ALTER COLUMN id TYPE text USING id::text;
       ALTER TABLE ledger_entries ALTER COLUMN transaction_id TYPE text USING transaction_id::text;
@@ -46,5 +51,27 @@ describe.each(['uuid','text'] as const)('Receipt links with %s ledger identifier
       original_ledger_transaction_id,reversal_ledger_transaction_id,amount_minor,currency_code,reason,created_by)
       VALUES('school',$1,'student',$2,$3,$4,100,'KES','Reviewed correction','principal')`,
       [randomUUID(),randomUUID(),randomUUID(),randomUUID()])).rejects.toMatchObject({code:'23503'});
+  });
+  it('enforces exact balanced money and matching headers for legacy and canonical ledger types',async()=>{
+    const accounts=(await pool.query(`INSERT INTO accounts(tenant_id,code,name,category,normal_balance,currency_code)
+      VALUES('school','BANK','Bank','asset','debit','KES'),('school','FEES','Fees','asset','debit','KES') RETURNING id`)).rows;
+    const post=async(total:string,credit:string)=>{
+      const tx=await pool.connect(),id=randomUUID(),key=randomUUID();
+      try{
+        await tx.query('BEGIN');
+        const request=(await tx.query(`INSERT INTO idempotency_keys(tenant_id,scope,idempotency_key,request_method,request_path,request_hash,expires_at)
+          VALUES('school','test',$1,'POST','/test','local',now()+interval '1 day') RETURNING id`,[key])).rows[0];
+        await tx.query(`INSERT INTO transactions(id,tenant_id,idempotency_key_id,reference,description,currency_code,total_amount_minor,entry_count)
+          VALUES($1,'school',$2,$3,'Local exact money test','KES',$4,2)`,[id,request.id,key,total]);
+        await tx.query(`INSERT INTO ledger_entries(tenant_id,transaction_id,account_id,line_number,direction,amount_minor,currency_code)
+          VALUES('school',$1,$2,1,'debit','100','KES'),('school',$1,$3,2,'credit',$4,'KES')`,[id,accounts[0].id,accounts[1].id,credit]);
+        await tx.query('COMMIT');return id;
+      }catch(error){await tx.query('ROLLBACK');throw error;}finally{tx.release();}
+    };
+    await post(type==='text'?'100.00':'100',type==='text'?'1e2':'100');
+    await expect(post('100','99')).rejects.toMatchObject({code:'23514'});
+    await expect(post('101','100')).rejects.toMatchObject({code:'23514'});
+    await expect(post('100','99.5')).rejects.toThrow();
+    expect((await pool.query('SELECT count(*)::int AS count FROM transactions')).rows[0].count).toBe(1);
   });
 });

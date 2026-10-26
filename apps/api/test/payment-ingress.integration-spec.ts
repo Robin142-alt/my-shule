@@ -73,6 +73,11 @@ describe('Verified collection ingress with real PostgreSQL/RLS', () => {
       CREATE TABLE manual_fee_payments(tenant_id text,external_reference text,payment_method text,status text,deposit_reference text,id uuid DEFAULT gen_random_uuid(),idempotency_key text);
       ${PAYMENT_CHANNEL_WORKFLOW_SCHEMA} ${COLLECTION_PAYMENTS_SCHEMA} ${PAYMENT_INGRESS_SCHEMA} ${BANK_SYNCHRONIZATION_SCHEMA}
       GRANT USAGE ON SCHEMA ${schema},app TO ${role};GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
+    await pool.query(`CREATE TABLE mpesa_c2b_payments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,trans_id text,status text,
+      matched_student_id text,matched_invoice_id uuid,manual_fee_payment_id uuid,ledger_transaction_id uuid,amount_minor bigint,currency_code text,updated_at timestamptz);
+      ALTER TABLE mpesa_c2b_payments ENABLE ROW LEVEL SECURITY; ALTER TABLE mpesa_c2b_payments FORCE ROW LEVEL SECURITY;
+      CREATE POLICY school_only ON mpesa_c2b_payments USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
+      GRANT SELECT,INSERT,UPDATE ON mpesa_c2b_payments TO ${role};`);
     const originalUrl=process.env.DATABASE_URL;
     // Exercise both schema options preservation and a non-UTC connection default.
     url.searchParams.set('options',`-c search_path=${schema},public -c timezone=Africa/Nairobi`);

@@ -127,7 +127,7 @@ export class IdempotencyKeysRepository {
           expires_at = NOW() + ($7 * INTERVAL '1 second'),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::text
         RETURNING
           id,
           tenant_id,
@@ -178,7 +178,7 @@ export class IdempotencyKeysRepository {
           completed_at = NOW(),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::text
       `,
       [tenantId, idempotencyKeyId, responseStatusCode, JSON.stringify(responseBody)],
       transactionClient,
@@ -246,7 +246,7 @@ export class IdempotencyKeysRepository {
           expires_at = NOW() + ($7 * INTERVAL '1 second'),
           updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2::text
         RETURNING
           id,
           tenant_id,

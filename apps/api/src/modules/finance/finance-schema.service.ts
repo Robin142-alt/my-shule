@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { LEGACY_FINANCE_SCHEMA } from './legacy-finance-schema';
 
 import { AuthSchemaService } from '../../auth/auth-schema.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -154,8 +155,8 @@ export class FinanceSchemaService implements OnModuleInit {
       RETURNS trigger AS $$
       DECLARE
         target_tenant_id text;
-        target_transaction_id uuid;
-        entry_count integer;
+        target_transaction_id text;
+        actual_entry_count integer;
         debit_total bigint;
         credit_total bigint;
         currency_count integer;
@@ -170,15 +171,15 @@ export class FinanceSchemaService implements OnModuleInit {
 
         SELECT
           COUNT(*)::integer,
-          COALESCE(SUM(CASE WHEN lower(direction::text) = 'debit' THEN amount_minor ELSE 0 END), 0)::bigint,
-          COALESCE(SUM(CASE WHEN lower(direction::text) = 'credit' THEN amount_minor ELSE 0 END), 0)::bigint,
+          COALESCE(SUM(CASE WHEN lower(direction::text) = 'debit' THEN amount_minor::numeric ELSE 0 END), 0)::bigint,
+          COALESCE(SUM(CASE WHEN lower(direction::text) = 'credit' THEN amount_minor::numeric ELSE 0 END), 0)::bigint,
           COUNT(DISTINCT currency_code)::integer
-        INTO entry_count, debit_total, credit_total, currency_count
+        INTO actual_entry_count, debit_total, credit_total, currency_count
         FROM ledger_entries
         WHERE tenant_id = target_tenant_id
-          AND transaction_id = target_transaction_id;
+          AND transaction_id::text = target_transaction_id;
 
-        IF entry_count < 2 THEN
+        IF actual_entry_count < 2 THEN
           RAISE EXCEPTION 'financial transaction "%" must have at least two ledger entries', target_transaction_id
             USING ERRCODE = '23514';
         END IF;
@@ -192,6 +193,13 @@ export class FinanceSchemaService implements OnModuleInit {
           RAISE EXCEPTION 'financial transaction "%" is unbalanced: debits (%) do not equal credits (%)',
             target_transaction_id, debit_total, credit_total
             USING ERRCODE = '23514';
+        END IF;
+
+        IF NOT EXISTS(SELECT 1 FROM transactions t WHERE t.tenant_id=target_tenant_id AND t.id::text=target_transaction_id
+          AND t.total_amount_minor::numeric=debit_total AND t.entry_count=actual_entry_count
+          AND NOT EXISTS(SELECT 1 FROM ledger_entries e WHERE e.tenant_id=target_tenant_id AND e.transaction_id::text=target_transaction_id
+            AND e.currency_code<>t.currency_code)) THEN
+          RAISE EXCEPTION 'financial transaction header does not match its ledger entries' USING ERRCODE='23514';
         END IF;
 
         RETURN NULL;
@@ -505,6 +513,8 @@ export class FinanceSchemaService implements OnModuleInit {
       EXECUTE FUNCTION app.prevent_append_only_mutation();
 
       DROP TRIGGER IF EXISTS trg_transactions_validate_balance ON transactions;
+
+      ${LEGACY_FINANCE_SCHEMA}
 
       DROP TRIGGER IF EXISTS trg_ledger_entries_validate_balance ON ledger_entries;
       CREATE CONSTRAINT TRIGGER trg_ledger_entries_validate_balance

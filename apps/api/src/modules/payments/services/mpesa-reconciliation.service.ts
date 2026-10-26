@@ -96,6 +96,8 @@ interface ReconciliationBatchRow {
 type FinanceApprovalAction = 'reversal' | 'write_off' | 'move_payment' | 'post_after_mismatch';
 
 interface FinanceApprovalRequestInput {
+  request_key?:string;
+  target_student_id?: string;
   action: FinanceApprovalAction;
   subject_type: string;
   subject_id: string;
@@ -608,6 +610,10 @@ export class MpesaReconciliationService {
     const actor=this.requestContext.requireStore();
     const rows=(await this.executeSql(`SELECT id::text,action,status,amount_minor::text,currency_code,reason,
       requested_by_user_id::text,first_approver_user_id::text,created_at,evidence->'correction_execution' AS execution,
+      (SELECT concat_ws(' ',s.first_name,s.last_name)||' ('||s.admission_number||')' FROM students s
+        WHERE s.tenant_id=finance_approval_requests.tenant_id AND s.id::text=evidence->>'target_student_id') AS target_student_name,
+      CASE WHEN subject_type='invoice' THEN (SELECT i.invoice_number FROM invoices i
+        WHERE i.tenant_id=finance_approval_requests.tenant_id AND i.id::text=subject_id::text) END AS invoice_number,
       (status='approved' AND action='reversal' AND NOT evidence ? 'correction_execution' AND NOT evidence ? 'replacement_approval_id') AS can_reopen
       FROM finance_approval_requests WHERE tenant_id=$1 ORDER BY created_at DESC,id LIMIT $2 OFFSET $3`,[actor.tenant_id,limit,offset])).rows;
     return rows.map(row=>({...row,can_approve:row.requested_by_user_id!==actor.user_id &&
@@ -695,7 +701,7 @@ export class MpesaReconciliationService {
       const pending=(await this.executeSql(`SELECT a.* FROM finance_approval_requests a JOIN mpesa_reconciliation_discrepancies d
         ON d.tenant_id=a.tenant_id AND d.id=a.reconciliation_discrepancy_id WHERE a.tenant_id=$1 AND d.payment_intent_id=$2::uuid
         AND a.status IN ('pending_first_approval','pending_second_approval') ORDER BY a.created_at LIMIT 1`,[tenant,id])).rows[0];
-      const message='Correction requested. Two independent reviews, including final Principal approval, are required in Collections → M-Pesa reconciliation reviews.';
+      const message='Correction requested. Two independent reviews, including final Principal approval, are required in Collections → Financial correction reviews.';
       if(pending) {
         if(pending.requested_by_user_id===actor && pending.action==='reversal' && pending.reason===reason.trim()) return {...pending,message};
         throw new ConflictException('This receipt already has a pending review in Collections');
@@ -721,6 +727,8 @@ export class MpesaReconciliationService {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const action = this.normalizeFinanceApprovalAction(input.action);
+    const requestKey=this.normalizeOptionalUuid(input.request_key??null,'request_key');
+    if(action!=='reversal'&&!requestKey) throw new BadRequestException('A unique correction request key is required');
     const reason = this.requireText(input.reason, 'Finance approval reason');
     const subjectType = this.requireText(input.subject_type, 'Finance approval subject type');
     const subjectId = this.normalizeOptionalUuid(input.subject_id, 'subject_id');
@@ -740,14 +748,80 @@ export class MpesaReconciliationService {
     }
 
     if(reason.length<5 || reason.length>1000) throw new BadRequestException('Provide a correction reason of 5 to 1,000 characters');
-    if(subjectType!=='mpesa_reconciliation_discrepancy' || subjectId!==reconciliationDiscrepancyId)
+    const collectionAction=['move_payment','post_after_mismatch'].includes(action) && subjectType==='collection_payment';
+    const invoiceAction=action==='write_off' && subjectType==='invoice';
+    const receiptAction=action==='move_payment' && ['manual_fee_payment','payment_intent'].includes(subjectType);
+    if(collectionAction && (reconciliationDiscrepancyId||reconciliationBatchId))
+      throw new BadRequestException('A collection correction cannot close an unrelated bank discrepancy');
+    if(!collectionAction && !invoiceAction && !receiptAction && (subjectType!=='mpesa_reconciliation_discrepancy' || subjectId!==reconciliationDiscrepancyId))
       throw new BadRequestException('The approval subject must be its linked reconciliation discrepancy');
-    if(action==='reversal' && amountMinor===null) throw new BadRequestException('The full payment amount is required for a reversal');
+    if(amountMinor===null) throw new BadRequestException('The exact correction amount is required');
+    if(action==='write_off' && !invoiceAction) throw new BadRequestException('Write-offs apply to an unpaid invoice. They cannot resolve an unexplained incoming payment.');
     const evidence=redactReviewEvidence(input.evidence ?? {}) as Record<string,unknown>;
     delete evidence.correction_execution;
     delete evidence.replacement_approval_id;
     delete evidence.previous_approval_id;
+    for(const key of ['collection_payment_id','target_student_id','original_receipt_id','invoice_id','request_key']) delete evidence[key];
     return this.prisma.withRequestTransaction(async()=>{
+    if(requestKey) {
+      await this.executeSql('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',[`${tenantId}:finance-correction:${requestKey}`]);
+      const prior=(await this.executeSql<Record<string,any>>('SELECT *,amount_minor::text FROM finance_approval_requests WHERE tenant_id=$1 AND evidence->>\'request_key\'=$2',[tenantId,requestKey])).rows[0];
+      if(prior) {
+        if(prior.action!==action||prior.subject_type!==subjectType||prior.subject_id!==subjectId||prior.amount_minor!==amountMinor||prior.currency_code.trim()!==currencyCode
+          ||prior.reason!==reason||prior.requested_by_user_id!==actorUserId||(action!=='write_off'&&prior.evidence.target_student_id!==input.target_student_id)
+          ||(prior.reconciliation_discrepancy_id??null)!==reconciliationDiscrepancyId) throw new ConflictException('This request key belongs to different correction details');
+        return prior;
+      }
+      evidence.request_key=requestKey;
+    }
+    if(subjectType==='mpesa_reconciliation_discrepancy') await this.executeSql(
+      'SELECT id FROM mpesa_reconciliation_discrepancies WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE',[tenantId,subjectId]);
+    if(!receiptAction && (collectionAction || ['move_payment','post_after_mismatch'].includes(action))) {
+      const payment=(await this.executeSql<{id:string;amount_minor:string;currency_code:string;status:string;student_id:string;manual_fee_payment_id:string}>(`
+        SELECT p.id,p.amount_minor::text,p.currency_code,p.status,p.student_id,p.manual_fee_payment_id FROM collection_payments p
+        WHERE p.tenant_id=$1 AND (($3 AND p.id=$2::uuid) OR (NOT $3 AND p.provider_code='safaricom' AND EXISTS(
+          SELECT 1 FROM mpesa_reconciliation_discrepancies d WHERE d.tenant_id=$1 AND d.id=$2::uuid AND d.provider_transaction_id=p.provider_transaction_id))) FOR UPDATE`,
+        [tenantId,subjectId,collectionAction])).rows[0];
+      if(!payment||payment.amount_minor!==amountMinor||payment.currency_code.trim()!==currencyCode)
+        throw new ConflictException('Select a confirmed collection with the exact provider amount and currency');
+      if(action==='move_payment' ? payment.status!=='posted'||payment.student_id===input.target_student_id : !['verified','unmatched'].includes(payment.status))
+        throw new ConflictException('Select an eligible collection and a different learner for a move');
+      if(!input.target_student_id || !(await this.executeSql('SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL',[tenantId,input.target_student_id])).rows.length)
+        throw new NotFoundException('Choose the intended learner in this school');
+      if((await this.executeSql(`SELECT id FROM finance_approval_requests WHERE tenant_id=$1 AND evidence->>'collection_payment_id'=$2
+        AND status IN ('pending_first_approval','pending_second_approval')`,[tenantId,payment.id])).rows.length)
+        throw new ConflictException('This collection already has a pending correction');
+      Object.assign(evidence,{collection_payment_id:payment.id,target_student_id:input.target_student_id,original_receipt_id:payment.manual_fee_payment_id});
+    }
+    if(receiptAction) {
+      if(reconciliationDiscrepancyId||reconciliationBatchId) throw new BadRequestException('Choose the original receipt without an unrelated discrepancy');
+      const source=(await this.executeSql<{student_id:string;amount_minor:string;currency_code:string}>(subjectType==='manual_fee_payment'
+        ? `SELECT COALESCE(student_id::text,(SELECT metadata->>'student_id' FROM invoices i WHERE i.tenant_id=m.tenant_id AND i.id::text=m.invoice_id::text)) AS student_id,
+            amount_minor::text,currency_code FROM manual_fee_payments m WHERE tenant_id=$1 AND id=$2::uuid AND status='cleared'
+            AND NOT EXISTS(SELECT 1 FROM collection_payments c WHERE c.tenant_id=$1 AND c.manual_fee_payment_id=m.id) FOR UPDATE`
+        : `SELECT student_id::text,amount_minor::text,currency_code FROM payment_intents p WHERE tenant_id=$1 AND id=$2::uuid AND status='completed' AND payment_owner='tenant'
+            AND NOT EXISTS(SELECT 1 FROM student_fee_payment_reversals r WHERE r.tenant_id=$1 AND r.payment_intent_id=p.id) FOR UPDATE`,[tenantId,subjectId])).rows[0];
+      if(!source?.student_id||source.student_id===input.target_student_id||source.amount_minor!==amountMinor||source.currency_code.trim()!==currencyCode)
+        throw new ConflictException('Choose an unreversed receipt, its exact amount and a different learner');
+      if(!input.target_student_id||!(await this.executeSql('SELECT id FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL',[tenantId,input.target_student_id])).rows.length)
+        throw new NotFoundException('Choose the intended learner in this school');
+      if((await this.executeSql(`SELECT id FROM finance_approval_requests WHERE tenant_id=$1 AND subject_type=$2 AND subject_id=$3::uuid
+        AND status IN ('pending_first_approval','pending_second_approval')`,[tenantId,subjectType,subjectId])).rows.length)
+        throw new ConflictException('This receipt already has a pending correction');
+      Object.assign(evidence,{original_receipt_id:subjectId,target_student_id:input.target_student_id});
+    }
+    if(invoiceAction) {
+      if(reconciliationDiscrepancyId||reconciliationBatchId) throw new BadRequestException('Invoice write-offs must not close bank discrepancies');
+      const invoice=(await this.executeSql<{student_id:string;balance:string}>(`SELECT metadata->>'student_id' AS student_id,
+        (total_amount_minor-amount_paid_minor)::text AS balance FROM invoices WHERE tenant_id=$1 AND id::text=$2
+        AND currency_code=$3 AND status IN ('open','pending_payment') FOR UPDATE`,[tenantId,subjectId,currencyCode])).rows[0];
+      if(!invoice?.student_id || BigInt(invoice.balance)<BigInt(amountMinor)) throw new ConflictException('The write-off must fit the selected learner invoice balance');
+      if((await this.executeSql(`SELECT id FROM finance_approval_requests WHERE tenant_id=$1 AND subject_type='invoice' AND subject_id=$2::uuid
+        AND status IN ('pending_first_approval','pending_second_approval')`,[tenantId,subjectId])).rows.length)
+        throw new ConflictException('This invoice already has a pending write-off review');
+      Object.assign(evidence,{invoice_id:subjectId,target_student_id:invoice.student_id});
+    }
+    if(!collectionAction && !invoiceAction && !receiptAction) {
     const discrepancy=(await this.executeSql(`SELECT id FROM mpesa_reconciliation_discrepancies WHERE tenant_id=$1 AND id=$2::uuid
       AND ($3::uuid IS NULL OR reconciliation_batch_id=$3::uuid) AND resolution_status IN ('open','under_review') FOR UPDATE`,
       [tenantId,reconciliationDiscrepancyId,reconciliationBatchId])).rows[0];
@@ -755,6 +829,7 @@ export class MpesaReconciliationService {
     const pending=await this.executeSql(`SELECT id FROM finance_approval_requests WHERE tenant_id=$1 AND reconciliation_discrepancy_id=$2::uuid
       AND status IN ('pending_first_approval','pending_second_approval')`,[tenantId,reconciliationDiscrepancyId]);
     if(pending.rows.length) throw new ConflictException('This discrepancy already has a pending correction request');
+    }
     const result = await this.executeSql<Record<string, unknown>>(
       `
         INSERT INTO finance_approval_requests (
@@ -805,7 +880,8 @@ export class MpesaReconciliationService {
       throw new BadRequestException('Finance approval request could not be created');
     }
 
-    await this.recordFinanceApproval(tenantId,String(request.id),'requested');
+    await this.recordFinanceApproval(tenantId,String(request.id),'requested',{action,subject_type:subjectType,subject_id:subjectId,amount_minor:amountMinor,
+      target_student_id:evidence.target_student_id??null});
     return request;
     });
   }
@@ -900,7 +976,7 @@ export class MpesaReconciliationService {
           mt.created_at,
           t.id AS linked_transaction_id,
           t.reference AS linked_transaction_reference,
-          t.total_amount_minor::text AS linked_transaction_amount_minor,
+          t.total_amount_minor::numeric::bigint::text AS linked_transaction_amount_minor,
           t.posted_at AS linked_transaction_posted_at
         FROM mpesa_transactions mt
         INNER JOIN payment_intents pi
@@ -908,7 +984,7 @@ export class MpesaReconciliationService {
          AND pi.id = mt.payment_intent_id
         LEFT JOIN transactions t
           ON t.tenant_id = mt.tenant_id
-         AND t.id = mt.ledger_transaction_id
+         AND t.id::text = mt.ledger_transaction_id::text
         WHERE mt.tenant_id = $1
           AND mt.status = 'succeeded'
           AND COALESCE(mt.transaction_occurred_at, mt.processed_at, mt.created_at) >= $2::timestamptz
@@ -1019,7 +1095,7 @@ export class MpesaReconciliationService {
             t.id AS transaction_id,
             t.reference,
             t.description,
-            t.total_amount_minor::text AS total_amount_minor,
+            t.total_amount_minor::numeric::bigint::text AS total_amount_minor,
             t.currency_code,
             t.posted_at
           FROM transactions t
@@ -1048,7 +1124,7 @@ export class MpesaReconciliationService {
           ON ma.id = le.account_id
         LEFT JOIN mpesa_transactions mt
           ON mt.tenant_id = $1
-         AND mt.ledger_transaction_id = ct.transaction_id
+         AND mt.ledger_transaction_id::text = ct.transaction_id::text
          AND mt.status = 'succeeded'
         WHERE mt.id IS NULL
           -- Unified C2B collections and governed corrections retain their own
@@ -1058,7 +1134,7 @@ export class MpesaReconciliationService {
             WHERE cp.tenant_id=$1 AND cp.provider_code='safaricom'
               AND cp.status IN ('unmatched','posted','reversed')
               AND cp.amount_minor=ct.total_amount_minor::bigint AND cp.currency_code=ct.currency_code
-              AND ct.transaction_id IN (cp.ledger_transaction_id,cp.suspense_transaction_id,cp.suspense_release_transaction_id)
+              AND ct.transaction_id::text IN (cp.ledger_transaction_id::text,cp.suspense_transaction_id::text,cp.suspense_release_transaction_id::text)
           )
           AND NOT EXISTS (
             SELECT 1 FROM manual_fee_payments receipt
@@ -1075,6 +1151,11 @@ export class MpesaReconciliationService {
             SELECT 1 FROM fee_credit_refunds refund
             WHERE refund.tenant_id=$1 AND refund.status='completed' AND refund.ledger_transaction_id=ct.transaction_id::text
               AND refund.amount_minor=ct.total_amount_minor::bigint AND refund.currency_code=ct.currency_code
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM fee_payment_corrections correction WHERE correction.tenant_id=$1
+              AND ct.transaction_id::text IN (correction.original_ledger_id,correction.reversal_ledger_id,correction.replacement_ledger_id)
+              AND correction.amount_minor=ct.total_amount_minor::bigint AND correction.currency_code=ct.currency_code
           )
         GROUP BY
           ct.transaction_id,
@@ -1145,7 +1226,7 @@ export class MpesaReconciliationService {
               AND receipt.id=c2b.manual_fee_payment_id AND payment.ledger_transaction_id::text=c2b.ledger_transaction_id::text
               AND payment.amount_minor=c2b.amount_minor AND payment.currency_code=c2b.currency_code
               AND receipt.amount_minor=c2b.amount_minor AND receipt.currency_code=c2b.currency_code
-              AND reversal.total_amount_minor=c2b.amount_minor AND reversal.currency_code=c2b.currency_code
+              AND reversal.total_amount_minor::numeric=c2b.amount_minor AND reversal.currency_code=c2b.currency_code
           ))
         ORDER BY c2b.received_at ASC, c2b.id ASC
       `,

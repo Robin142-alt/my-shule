@@ -19,7 +19,7 @@ beforeEach(()=>{jest.clearAllMocks();mockCanApprove=true;mockHistorical=false;})
 test('a correction requires a reason and confirmation and keeps monetary minor units as text',async()=>{
   (requestDashboardApi as jest.Mock).mockResolvedValue({status:'pending_first_approval'});
   render(<ReconciliationCorrections/>);
-  fireEvent.click(screen.getByRole('button',{name:'M-Pesa reconciliation reviews'}));
+  fireEvent.click(screen.getByRole('button',{name:'Financial correction reviews'}));
   fireEvent.click(screen.getByRole('button',{name:'Request reversal review'}));
   expect(screen.getByRole('button',{name:'Request correction'})).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Reason'),{target:{value:'Confirmed duplicate from original receipt'}});
@@ -34,7 +34,7 @@ test('a correction requires a reason and confirmation and keeps monetary minor u
 test('first review remains pending and does not claim a financial reversal has executed',async()=>{
   (requestDashboardApi as jest.Mock).mockResolvedValue({status:'pending_second_approval'});
   render(<ReconciliationCorrections/>);
-  fireEvent.click(screen.getByRole('button',{name:'M-Pesa reconciliation reviews'}));
+  fireEvent.click(screen.getByRole('button',{name:'Financial correction reviews'}));
   fireEvent.click(screen.getByRole('button',{name:'Approval requests'}));
   fireEvent.click(screen.getByRole('button',{name:'Review request'}));
   fireEvent.click(screen.getByRole('checkbox'));
@@ -46,7 +46,7 @@ test('first review remains pending and does not claim a financial reversal has e
 test('failed execution remains visible and server permission flags prevent self approval',async()=>{
   (requestDashboardApi as jest.Mock).mockRejectedValue(new Error('The financial reversal did not produce a matching ledger entry'));
   const view=render(<ReconciliationCorrections/>);
-  fireEvent.click(screen.getByRole('button',{name:'M-Pesa reconciliation reviews'}));
+  fireEvent.click(screen.getByRole('button',{name:'Financial correction reviews'}));
   fireEvent.click(screen.getByRole('button',{name:'Approval requests'}));
   fireEvent.click(screen.getByRole('button',{name:'Review request'}));
   fireEvent.click(screen.getByRole('checkbox'));
@@ -62,7 +62,7 @@ test('historical approval without execution proof starts a fresh review with a r
   mockHistorical=true;
   (requestDashboardApi as jest.Mock).mockResolvedValue({status:'pending_first_approval'});
   render(<ReconciliationCorrections/>);
-  fireEvent.click(screen.getByRole('button',{name:'M-Pesa reconciliation reviews'}));
+  fireEvent.click(screen.getByRole('button',{name:'Financial correction reviews'}));
   fireEvent.click(screen.getByRole('button',{name:'Approval requests'}));
   fireEvent.click(screen.getByRole('button',{name:'Reopen review'}));
   expect(screen.getByRole('button',{name:'Start new review'})).toBeDisabled();

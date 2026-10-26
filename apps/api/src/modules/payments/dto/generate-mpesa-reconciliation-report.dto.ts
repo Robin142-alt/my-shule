@@ -85,6 +85,14 @@ export class ListMpesaReconciliationReviewDto {
 }
 
 export class RequestFinanceApprovalDto {
+  @IsOptional()
+  @IsUUID()
+  request_key?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(/^.{1,120}$/)
+  target_student_id?: string;
+
   @Transform(trim)
   @IsIn(['reversal', 'write_off', 'move_payment', 'post_after_mismatch'])
   action!: 'reversal' | 'write_off' | 'move_payment' | 'post_after_mismatch';

@@ -20,6 +20,7 @@ import type { StudentFeeBalanceResponse, StudentFeeStatementResponse } from "@/c
 import { BulkFeeBillingDialog } from "./bulk-fee-billing-dialog";
 import { LegacyInvoicesReview } from "./legacy-invoices-review";
 import { CreditRefunds } from "./credit-refunds";
+import { PaymentCorrectionRequest } from "./payment-correction-request";
 
 type Invoice = { id: string; invoice_number: string; description: string; status: string; total_amount_minor: string; amount_paid_minor: string; due_at: string; issued_at: string; metadata: { student_id: string; student_name: string; admission_number?: string } };
 const pageSize = 50;
@@ -154,7 +155,7 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
       { id: "paid", header: "Paid", render: row => formatMinorKes(row.amount_paid_minor) },
       { id: "status", header: "Status", render: row => row.status.replaceAll("_", " ") },
       { id: "due", header: "Due", render: row => formatActivityDate(row.due_at) },
-      { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => previewInvoice(row)}>Preview / print</Button><Button size="sm" variant="ghost" onClick={() => viewStatement(row.metadata.student_id)}>Statement</Button></div> },
+      { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => previewInvoice(row)}>Preview / print</Button><Button size="sm" variant="ghost" onClick={() => viewStatement(row.metadata.student_id)}>Statement</Button>{["open","pending_payment"].includes(row.status)&&BigInt(row.total_amount_minor)>BigInt(row.amount_paid_minor)&&<PaymentCorrectionRequest id={row.id} amount={(BigInt(row.total_amount_minor)-BigInt(row.amount_paid_minor)).toString()} kind="write_off" label="Request write-off"/>}</div> },
     ]} /> : <DataTable pageSize={pageSize} title="Learner balances" rows={balanceRows} getRowKey={row => row.student_id} emptyMessage={balances.isLoading ? "Loading balances…" : balances.error ? "Balance records unavailable. Retry above." : "No matching learner accounts. Create a learner invoice to start."} columns={[
       { id: "student", header: "Learner", render: row => row.student_name || "Learner account" },
       { id: "invoiced", header: "Invoiced", render: row => formatMinorKes(row.invoiced_amount_minor) },

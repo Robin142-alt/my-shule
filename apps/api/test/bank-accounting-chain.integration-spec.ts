@@ -46,6 +46,7 @@ describe('Bank collection accounting through the real financial engine', () => {
   let pool: Pool, admin: Pool, db: PrismaService, collections: CollectionPaymentsService;
   let credits: FeeCreditApplicationService, ingress: PaymentIngressService;
   let transactions: TransactionService, schoolEvents: {recordSchoolOperation:(input:unknown)=>Promise<void>};
+  let manual:ManualFeePaymentService;
   let subscription: string, revision: string;
   let failAudit = false;
   const account = '0123456789012';
@@ -110,7 +111,7 @@ describe('Bank collection accounting through the real financial engine', () => {
         ledger_transaction_id uuid,payment_channel_id uuid,received_at timestamptz DEFAULT now(),metadata jsonb DEFAULT '{}');
       CREATE TABLE finance_approval_requests(id uuid PRIMARY KEY,tenant_id text,action text,status text,subject_type text,subject_id uuid,
         reconciliation_discrepancy_id uuid,amount_minor bigint,currency_code text,reason text,requested_by_user_id uuid,
-        first_approver_user_id uuid,second_approver_user_id uuid);
+        first_approver_user_id uuid,second_approver_user_id uuid,evidence jsonb NOT NULL DEFAULT '{}');
       CREATE TABLE mpesa_reconciliation_discrepancies(id uuid PRIMARY KEY,tenant_id text,provider_transaction_id text,ledger_transaction_id uuid,payment_intent_id uuid);
       CREATE TABLE banking_chain_effects(tenant_id text,kind text,payload jsonb);`);
     const bootstrap = {runSchemaBootstrap: (sql: string) => pool.query(sql)};
@@ -150,7 +151,7 @@ describe('Bank collection accounting through the real financial engine', () => {
       {recordServerOperation:(...input:unknown[])=>effect('sync',input)} as never));
     credits = new FeeCreditApplicationService(context,db,schoolEvents as never);
     const invoices = new InvoicesRepository(db,{encryptNullable:(value:unknown)=>value,decryptNullable:(value:unknown)=>value} as never);
-    const manual = new ManualFeePaymentService(context,db,new ManualFeePaymentsRepository(db),invoices,accounts,transactions,schoolEvents as never,credits);
+    manual = new ManualFeePaymentService(context,db,new ManualFeePaymentsRepository(db),invoices,accounts,transactions,schoolEvents as never,credits);
     const matcher = new CollectionReferenceMatcher(db);
     collections = new CollectionPaymentsService(db,context,manual,invoices,events as never,audit as never,notifications as never,
       new CollectionSuspenseService(db,context,accounts,transactions),matcher);
@@ -575,5 +576,116 @@ describe('Bank collection accounting through the real financial engine', () => {
     const own=await as(()=>service.request({...input,evidence_reference:'Legible original signed voucher now supplied'}),school,'principal');
     await expect(as(()=>service.decide(own.id,'approve','Verified original signed voucher'),school,'principal')).rejects.toThrow(/different Principal/);
     expect((await pool.query('SELECT status FROM receipt_refund_evidence WHERE id=$1',[saved.id])).rows[0].status).toBe('rejected');
+  });
+  async function approvedCollection(payment:{id:string;manual_fee_payment_id?:string;amount_minor:string},target:string,action='move_payment') {
+    const id=randomUUID();
+    await pool.query(`INSERT INTO finance_approval_requests(id,tenant_id,action,status,subject_type,subject_id,amount_minor,currency_code,reason,
+      requested_by_user_id,first_approver_user_id,second_approver_user_id,evidence)
+      VALUES($1,$2,$3,'approved','collection_payment',$4,$5,'KES','Correct the evidenced learner reference',$6,$7,$8,$9::jsonb)`,
+      [id,school,action,payment.id,payment.amount_minor,accountant,randomUUID(),principal,JSON.stringify({collection_payment_id:payment.id,
+        target_student_id:target,original_receipt_id:payment.manual_fee_payment_id??null})]);
+    return id;
+  }
+
+  it('moves a verified bank receipt once with net-zero correction cash and immutable original history',async()=>{
+    const originalStudent=randomUUID(),target=randomUUID();
+    await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1::uuid,$3,$1::uuid::text,'active'),($2::uuid,$3,$2::uuid::text,'active')",[originalStudent,target,school]);
+    const originalInvoice=await invoice('10000',originalStudent),targetInvoice=await invoice('10000',target);
+    const payment=await post(transaction('10000',originalStudent));
+    const approval=await approvedCollection(payment,target);
+    await expect(as(()=>collections.executeApprovedCorrection(approval))).rejects.toThrow(/role|permission|authorized/i);
+    const results=await Promise.all([as(()=>collections.executeApprovedCorrection(approval),school,'principal'),as(()=>collections.executeApprovedCorrection(approval),school,'principal')]);
+    expect(results[0]).toEqual(results[1]);
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[originalInvoice])).rows[0].amount_paid_minor).toBe('0');
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[targetInvoice])).rows[0].amount_paid_minor).toBe('10000');
+    const proof=(await pool.query('SELECT * FROM fee_payment_corrections WHERE approval_id=$1',[approval])).rows[0];
+    expect(proof.source_id).toBe(payment.manual_fee_payment_id);
+    const journals=(await pool.query(`SELECT id::text,effective_at FROM transactions WHERE id::text=ANY($1::text[])`,[[proof.reversal_ledger_id,proof.replacement_ledger_id]])).rows;
+    expect(journals).toHaveLength(2);expect(journals[0].effective_at).toEqual(journals[1].effective_at);
+    const cash=(await pool.query(`SELECT sum(CASE WHEN e.direction='debit' THEN e.amount_minor ELSE -e.amount_minor END)::text AS amount
+      FROM ledger_entries e JOIN accounts a ON a.tenant_id=e.tenant_id AND a.id=e.account_id
+      WHERE e.tenant_id=$1 AND a.code='1120-BANK-CLEARING' AND e.transaction_id::text=ANY($2::text[])`,
+      [school,[proof.original_ledger_id,proof.reversal_ledger_id,proof.replacement_ledger_id]])).rows[0];
+    expect(cash.amount).toBe('10000');
+    expect((await pool.query('SELECT student_id,status FROM collection_payments WHERE id=$1',[payment.id])).rows[0]).toEqual({student_id:target,status:'posted'});
+    await expect(as(()=>db.query('UPDATE fee_payment_corrections SET to_student_id=$2 WHERE id=$1',[proof.id,originalStudent]))).rejects.toThrow(/immutable/);
+    await expect(as(()=>collections.executeApprovedCorrection(approval),other,'principal')).rejects.toThrow(/approval/);
+    const refunds=new ReceiptRefundEvidenceService(db,context,schoolEvents as never,{record:async()=>{}} as never);
+    await expect(as(()=>refunds.request({receipt_id:payment.manual_fee_payment_id,source_kind:'manual',amount_minor:'10000',
+      external_reference:randomUUID(),evidence_reference:'Bank statement proof of outgoing refund',paid_at:new Date().toISOString(),reason:'Do not refund a bookkeeping move'}))).rejects.toThrow(/moved/);
+    await assertBalanced();
+  });
+
+  it('posts only trusted unmatched evidence through independently approved matching',async()=>{
+    const target=randomUUID();await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1::uuid,$2,$1::uuid::text,'active')",[target,school]);
+    const targetInvoice=await invoice('5000',target),payment=await post(transaction('6000',`UNMATCHED-${randomUUID()}`));
+    expect(payment.status).toBe('unmatched');
+    const approval=await approvedCollection(payment,target,'post_after_mismatch');
+    await as(()=>collections.executeApprovedCorrection(approval),school,'principal');
+    await as(()=>collections.executeApprovedCorrection(approval),school,'principal');
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[targetInvoice])).rows[0].amount_paid_minor).toBe('5000');
+    expect((await pool.query('SELECT count(*)::int AS count FROM manual_fee_payments WHERE tenant_id=$1 AND student_id=$2',[school,target])).rows[0].count).toBe(1);
+    await assertBalanced();
+  });
+
+  it('executes a separately approved invoice write-off once without fabricating a collection or changing paid money',async()=>{
+    const target=randomUUID();await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1::uuid,$2,$1::uuid::text,'active')",[target,school]);
+    const targetInvoice=await invoice('10000',target),approval=await approvedCollection({id:targetInvoice,amount_minor:'2500'},target,'write_off');
+    await pool.query("UPDATE finance_approval_requests SET subject_type='invoice',evidence=$2::jsonb WHERE id=$1",[approval,JSON.stringify({invoice_id:targetInvoice,target_student_id:target})]);
+    const corrections=new FinanceCorrectionService(db,context,collections,transactions,schoolEvents as never);
+    const before=(await pool.query('SELECT count(*) FROM transactions')).rows[0].count;
+    const results=await Promise.all([as(()=>corrections.execute(approval),school,'principal'),as(()=>corrections.execute(approval),school,'principal')]);
+    expect(results[0]).toEqual(results[1]);
+    expect((await pool.query('SELECT total_amount_minor,amount_paid_minor,metadata FROM invoices WHERE id=$1',[targetInvoice])).rows[0])
+      .toMatchObject({total_amount_minor:'7500',amount_paid_minor:'0',metadata:{fee_waivers:[{approval_id:approval,amount_minor:'2500'}]}});
+    expect((await pool.query('SELECT count(*) FROM transactions')).rows[0].count).toBe(before);
+    const stale=await approvedCollection({id:targetInvoice,amount_minor:'8000'},target,'write_off');
+    await pool.query("UPDATE finance_approval_requests SET subject_type='invoice',evidence=$2::jsonb WHERE id=$1",[stale,JSON.stringify({invoice_id:targetInvoice,target_student_id:target})]);
+    await expect(as(()=>corrections.execute(stale),school,'principal')).rejects.toThrow(/balance changed/);
+    await expect(as(()=>corrections.execute(approval),other,'principal')).rejects.toThrow(/approval|request/i);
+  });
+
+  it.each(['manual','stk'] as const)('moves a %s receipt through original-account journals, restoring old invoices and preserving historical evidence',async kind=>{
+    const item=await historicalStk(),target=randomUUID();
+    await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1::uuid,$2,$1::uuid::text,'active')",[target,school]);
+    const targetInvoice=await invoice('20000',target);
+    let sourceId:string=item.intent;
+    if(kind==='manual') {
+      await item.execute();
+      const receipt=await as(()=>manual.createManualFeePayment({idempotency_key:randomUUID(),payment_method:'bank_deposit',student_id:item.owner,
+        amount_minor:'15000',external_reference:randomUUID(),deposit_reference:randomUUID(),received_at:new Date().toISOString()}));
+      sourceId=receipt.id;
+    }
+    const approval=await approvedCollection({id:sourceId,amount_minor:'15000'},target);
+    await pool.query('UPDATE finance_approval_requests SET subject_type=$2,evidence=$3::jsonb WHERE id=$1',
+      [approval,kind==='manual'?'manual_fee_payment':'payment_intent',JSON.stringify({original_receipt_id:sourceId,target_student_id:target})]);
+    const corrections=new FinanceCorrectionService(db,context,collections,transactions,schoolEvents as never,manual);
+    const results=await Promise.all([as(()=>corrections.execute(approval),school,'principal'),as(()=>corrections.execute(approval),school,'principal')]);
+    expect(results[0]).toEqual(results[1]);
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[targetInvoice])).rows[0].amount_paid_minor).toBe('15000');
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=ANY($1::uuid[])',[[item.first,item.second]])).rows).toEqual([{amount_paid_minor:'0'},{amount_paid_minor:'0'}]);
+    const proof=(await pool.query('SELECT * FROM fee_payment_corrections WHERE approval_id=$1',[approval])).rows[0];
+    expect(proof.source_kind).toBe(kind);expect(proof.source_id).toBe(sourceId);
+    const refunds=new ReceiptRefundEvidenceService(db,context,schoolEvents as never,{record:async()=>{}} as never);
+    await expect(as(()=>refunds.request({receipt_id:sourceId,source_kind:kind,amount_minor:'15000',external_reference:randomUUID(),
+      evidence_reference:'Actual bank evidence would be required',paid_at:new Date().toISOString(),reason:'Bookkeeping correction cannot send money'}))).rejects.toThrow(/moved/);
+    await assertBalanced();
+  });
+
+  it('synchronizes approved C2B matching with the original provider queue and retries without a second receipt',async()=>{
+    const target=randomUUID(),reference=`MATCH-${randomUUID()}`.toUpperCase();
+    await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1::uuid,$2,$1::uuid::text,'active')",[target,school]);
+    const targetInvoice=await invoice('8000',target);
+    const channel=(await pool.query("SELECT channel_id FROM tenant_payment_channel_revisions WHERE tenant_id=$1 AND account_number='600111'",[school])).rows[0].channel_id;
+    const payment=await as(()=>collections.recognizeVerified(school,{provider_code:'safaricom',provider_transaction_id:reference,destination_account:'600111',
+      amount_minor:'8000',currency_code:'KES',account_reference:'unknown learner',occurred_at:new Date().toISOString()},channel));
+    await pool.query(`INSERT INTO mpesa_c2b_payments(id,tenant_id,trans_id,status,amount_minor) VALUES($1,$2,$3,'verified_unmatched',8000)`,[randomUUID(),school,reference]);
+    const approval=await approvedCollection({id:payment.id,amount_minor:'8000'},target,'post_after_mismatch');
+    const result=await as(()=>collections.executeApprovedCorrection(approval),school,'principal');
+    await as(()=>collections.executeApprovedCorrection(approval),school,'principal');
+    expect((await pool.query('SELECT status,matched_student_id,manual_fee_payment_id,ledger_transaction_id FROM mpesa_c2b_payments WHERE tenant_id=$1 AND trans_id=$2',[school,reference])).rows[0])
+      .toEqual({status:'matched',matched_student_id:target,manual_fee_payment_id:result.manual_fee_payment_id,ledger_transaction_id:result.ledger_transaction_id});
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[targetInvoice])).rows[0].amount_paid_minor).toBe('8000');
+    await assertBalanced();
   });
 });

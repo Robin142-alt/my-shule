@@ -149,8 +149,8 @@ export function assertAcceptedInviteLoginHtml(html, email, audienceLabel) {
     throw new Error(`${audienceLabel} accepted-invite login is missing the invited email.`);
   }
 
-  if (!html.includes('new-password')) {
-    throw new Error(`${audienceLabel} accepted-invite login is not preventing stale password autofill.`);
+  if (!/<input\b(?=[^>]*\btype=["']password["'])(?=[^>]*\bautocomplete=["']current-password["'])[^>]*>/i.test(html)) {
+    throw new Error(`${audienceLabel} accepted-invite login is missing the current-password input contract.`);
   }
 }
 

@@ -66,6 +66,9 @@ describe('Financial correction approval and execution boundary',()=>{
       CREATE TABLE manual_fee_payments(id uuid PRIMARY KEY,tenant_id text,status text,reversal_ledger_transaction_id uuid);
       CREATE TABLE transactions(id uuid PRIMARY KEY,tenant_id text,currency_code text,total_amount_minor bigint);
       CREATE TABLE audit_evidence(tenant_id text,payload text);
+      CREATE TABLE students(id uuid PRIMARY KEY,tenant_id text,first_name text,last_name text,admission_number text,deleted_at timestamptz);
+      CREATE TABLE invoices(id uuid PRIMARY KEY,tenant_id text,invoice_number text,total_amount_minor bigint,amount_paid_minor bigint,currency_code text,status text,metadata jsonb);
+      ALTER TABLE collection_payments ADD student_id text;
       CREATE TABLE payment_intents(id uuid PRIMARY KEY,tenant_id text,student_id uuid,amount_minor bigint,currency_code text,
         payment_owner text,status text,ledger_transaction_id uuid,completed_at timestamptz DEFAULT now());
       CREATE TABLE mpesa_transactions(id uuid PRIMARY KEY,tenant_id text,payment_intent_id uuid,mpesa_receipt_number text,
@@ -83,7 +86,7 @@ describe('Financial correction approval and execution boundary',()=>{
         received_at timestamptz DEFAULT now(),matched_at timestamptz,raw_payload jsonb DEFAULT '{}',raw_payload_encrypted_ref text,payload_sha256 text,
         metadata jsonb DEFAULT '{}',created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
       GRANT ALL ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
-    for(const table of ['finance_approval_requests','mpesa_reconciliation_discrepancies','collection_payments','collection_reversal_requests','manual_fee_payments','transactions','audit_evidence','mpesa_c2b_payments','payment_intents','mpesa_transactions','student_fee_payment_reversals','mpesa_reconciliation_batches'])
+    for(const table of ['students','invoices','finance_approval_requests','mpesa_reconciliation_discrepancies','collection_payments','collection_reversal_requests','manual_fee_payments','transactions','audit_evidence','mpesa_c2b_payments','payment_intents','mpesa_transactions','student_fee_payment_reversals','mpesa_reconciliation_batches'])
       await pool.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
         CREATE POLICY school_only ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
   });
@@ -191,5 +194,33 @@ describe('Financial correction approval and execution boundary',()=>{
     await as(()=>service.approveFinanceApproval(a.id),principal,'principal');
     expect((await pool.query('SELECT status FROM collection_payments WHERE id=$1',[row.payment])).rows[0].status).toBe('reversed');
     await expect(as(()=>(service as any).reopenHistoricalApproval(a.id,'Attempt to repeat an executed correction'))).rejects.toThrow(/executed|proof/i);
+  });
+  it('binds reviewed matches and moves to server-read receipt evidence and rejects unrelated discrepancies and foreign learners',async()=>{
+    const row=await seed(),target=randomUUID(),foreign=randomUUID();
+    await pool.query("INSERT INTO students(id,tenant_id,first_name,last_name,admission_number) VALUES($1,'school-a','Correct','Learner','A'),($2,'school-b','Other','Learner','A')",[target,foreign]);
+    await pool.query('UPDATE collection_payments SET student_id=$2 WHERE id=$1',[row.payment,randomUUID()]);
+    const input={request_key:randomUUID(),action:'move_payment' as const,subject_type:'collection_payment',subject_id:row.payment,amount_minor:'12500',currency_code:'KES',
+      target_student_id:target,reason:'Reviewed original evidence identifies the correct learner',evidence:{collection_payment_id:'forged',original_receipt_id:'forged',target_student_id:foreign}};
+    await expect(as(()=>service.requestFinanceApproval({...input,reconciliation_discrepancy_id:row.discrepancy}))).rejects.toThrow(/unrelated/);
+    await expect(as(()=>service.requestFinanceApproval({...input,target_student_id:foreign}))).rejects.toThrow(/school/);
+    await expect(as(()=>service.requestFinanceApproval({...input,amount_minor:'1'}))).rejects.toThrow(/exact/);
+    const approval=await as(()=>service.requestFinanceApproval(input));
+    expect(approval.evidence).toMatchObject({collection_payment_id:row.payment,original_receipt_id:row.receipt,target_student_id:target});
+    expect((await as(()=>service.requestFinanceApproval(input))).id).toBe(approval.id);
+    await expect(as(()=>service.requestFinanceApproval({...input,request_key:randomUUID()}))).rejects.toThrow(/pending/);
+    const reviews=await as(()=>service.listFinanceApprovals());
+    expect(reviews.find(r=>r.id===approval.id)).toMatchObject({target_student_name:'Correct Learner (A)'});
+    expect((await pool.query('SELECT resolution_status FROM mpesa_reconciliation_discrepancies WHERE id=$1',[row.discrepancy])).rows[0].resolution_status).toBe('open');
+  });
+  it('deduplicates write-off requests under retries and never accepts a payment discrepancy as invoice proof',async()=>{
+    const id=randomUUID(),student=randomUUID();
+    await pool.query("INSERT INTO invoices VALUES($1,'school-a','WRITE-OFF',10000,1000,'KES','pending_payment',$2::jsonb)",[id,JSON.stringify({student_id:student})]);
+    const input={request_key:randomUUID(),action:'write_off' as const,subject_type:'invoice',subject_id:id,amount_minor:'2000',currency_code:'KES',reason:'School-authorized hardship reduction'};
+    const results=await Promise.all([as(()=>service.requestFinanceApproval(input)),as(()=>service.requestFinanceApproval(input))]);
+    expect(results[0].id).toBe(results[1].id);
+    await expect(as(()=>service.requestFinanceApproval({...input,amount_minor:'1000'}))).rejects.toThrow(/different/);
+    await expect(as(()=>service.requestFinanceApproval({...input,request_key:randomUUID()}))).rejects.toThrow(/pending/);
+    await expect(as(()=>service.requestFinanceApproval({...input,request_key:randomUUID(),reconciliation_discrepancy_id:randomUUID()}))).rejects.toThrow(/discrepancies/);
+    expect((await pool.query('SELECT count(*)::int AS count FROM finance_approval_requests WHERE subject_id=$1',[id])).rows[0].count).toBe(1);
   });
 });

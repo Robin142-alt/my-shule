@@ -99,9 +99,10 @@ export class ReceiptRefundEvidenceService {
     ) SELECT receipt.*,receipt.amount_minor::text FROM receipt
       JOIN transactions original ON original.tenant_id=$1 AND original.id::text=receipt.original_ledger_transaction_id
       JOIN transactions reversal ON reversal.tenant_id=$1 AND reversal.id::text=receipt.reversal_ledger_transaction_id
-      WHERE receipt.student_id IS NOT NULL AND original.total_amount_minor=receipt.amount_minor AND original.currency_code=receipt.currency_code
-        AND reversal.total_amount_minor=receipt.amount_minor AND reversal.currency_code=receipt.currency_code`,[tenant,id,kind]);
-    if(!rows.rows[0]) throw new ConflictException('An executed same-school full receipt reversal with matching ledger proof is required');
+      WHERE receipt.student_id IS NOT NULL AND original.total_amount_minor::numeric=receipt.amount_minor AND original.currency_code=receipt.currency_code
+        AND reversal.total_amount_minor::numeric=receipt.amount_minor AND reversal.currency_code=receipt.currency_code
+        AND NOT EXISTS(SELECT 1 FROM fee_payment_corrections c WHERE c.tenant_id=$1 AND c.source_kind=$3 AND c.source_id=$2::uuid)`,[tenant,id,kind]);
+    if(!rows.rows[0]) throw new ConflictException('An executed same-school full receipt reversal is required. A receipt moved to another learner cannot be refunded through its accounting reversal.');
     return rows.rows[0];
   }
 

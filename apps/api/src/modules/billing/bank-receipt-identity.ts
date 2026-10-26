@@ -7,14 +7,21 @@ export async function lockBankReceiptReferences(db:PrismaService,tenant:string,r
 }
 
 /** Called in the receipt transaction before any cash or invoice mutation. */
-export async function guardBankReceipt(db:PrismaService,tenant:string,references:string[],idempotencyKey:string,collectionId?:string) {
+export async function guardBankReceipt(db:PrismaService,tenant:string,references:string[],idempotencyKey:string,collectionId?:string,correctionApprovalId?:string) {
   const refs=[...new Set(references.map(value=>value.trim().toUpperCase()).filter(Boolean))];
   if(!refs.length) return;
   await lockBankReceiptReferences(db,tenant,refs);
   const duplicate=await db.query(`SELECT id FROM manual_fee_payments WHERE tenant_id=$1
     AND payment_method IN ('bank_deposit','eft') AND status IN ('received','deposited','cleared','reversed')
     AND (upper(external_reference)=ANY($2::text[]) OR upper(deposit_reference)=ANY($2::text[]))
-    AND idempotency_key IS DISTINCT FROM $3 LIMIT 1`,[tenant,refs,idempotencyKey]);
+    AND idempotency_key IS DISTINCT FROM $3
+    ${correctionApprovalId ? `AND NOT (status='reversed'
+      AND EXISTS(SELECT 1 FROM finance_approval_requests a WHERE a.tenant_id=$1 AND a.id=$4::uuid
+        AND a.status='approved' AND a.action='move_payment' AND manual_fee_payments.id::text IN (
+          WITH RECURSIVE ancestors(id) AS (SELECT a.evidence->>'original_receipt_id' UNION
+            SELECT c.source_id::text FROM fee_payment_corrections c JOIN ancestors p ON c.replacement_receipt_id::text=p.id
+              WHERE c.tenant_id=$1 AND c.source_kind='manual') SELECT id FROM ancestors)))` : ''}
+    LIMIT 1`,correctionApprovalId?[tenant,refs,idempotencyKey,correctionApprovalId]:[tenant,refs,idempotencyKey]);
   if(duplicate.rows.length) throw new ConflictException('A bank receipt already uses this reference. Review the existing receipt before recording another payment.');
   // The internal collection path already checks competing statement aliases.
   // Separate native postings may legitimately share a bank reference/serial group.

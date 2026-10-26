@@ -3,6 +3,7 @@ import { ManualReversalQueue } from "./manual-reversal-queue";
 import { ReconciliationCorrections } from "./reconciliation-corrections";
 import { RefundEvidence } from "./refund-evidence";
 import { CreditRefunds } from "./credit-refunds";
+import { PaymentCorrectionRequest } from "./payment-correction-request";
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -311,6 +312,8 @@ export function CollectionsWorkspace({
                         Request reversal
                       </Button>
                     )}
+                    {mode === "manage" && row.status === "posted" && <PaymentCorrectionRequest id={row.id} amount={row.amount_minor} kind="move_payment" label="Move to correct learner" tenantSlug={tenantSlug}/>}
+                    {mode === "manage" && ["verified","unmatched"].includes(row.status) && <PaymentCorrectionRequest id={row.id} amount={row.amount_minor} kind="post_after_mismatch" label="Request reviewed match" tenantSlug={tenantSlug}/>}
                   </td>
                 </tr>
               ))}

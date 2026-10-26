@@ -11,7 +11,7 @@ import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { formatMinorKes } from "@/lib/billing/billing-utils";
 
 type Discrepancy = { id:string;reconciliation_batch_id:string;provider_transaction_id:string;detail:string;reconciliation_state:string;collection_amount_minor:string|null };
-type Approval = { id:string;action:string;status:string;amount_minor:string|null;reason:string;can_approve:boolean;can_cancel:boolean;can_reopen?:boolean;execution:Record<string,string>|null };
+type Approval = { id:string;action:string;status:string;amount_minor:string|null;reason:string;target_student_name?:string;invoice_number?:string;can_approve:boolean;can_cancel:boolean;can_reopen?:boolean;execution:Record<string,string>|null };
 type Action = {kind:"request";row:Discrepancy}|{kind:"approve"|"cancel"|"reopen";row:Approval};
 const base="/payments/mpesa/reconciliation";
 
@@ -43,8 +43,8 @@ export function ReconciliationCorrections() {
     finally{inFlight.current=false;setBusy(false);}
   }
   return <>
-    <Button variant="secondary" disabled={!hasPermission("billing:read")} onClick={()=>setOpen(true)}>M-Pesa reconciliation reviews</Button>
-    <Modal open={open} size="xl" mobileFullScreen title="M-Pesa reconciliation reviews" onClose={()=>{if(!busy)setOpen(false);}}
+    <Button variant="secondary" disabled={!hasPermission("billing:read")} onClick={()=>setOpen(true)}>Financial correction reviews</Button>
+    <Modal open={open} size="xl" mobileFullScreen title="Financial correction reviews" onClose={()=>{if(!busy)setOpen(false);}}
       footer={<><Button variant="secondary" disabled={busy} onClick={()=>action?setAction(null):setOpen(false)}>{action?"Back to reviews":"Close"}</Button>
         {action&&<Button disabled={busy||!hasPermission("billing:write")||!confirmed||(action.kind!=="approve"&&reason.trim().length<5)} onClick={()=>void submit()}>{busy?"Saving…":action.kind==="approve"?"Confirm approval":action.kind==="cancel"?"Cancel request":action.kind==="reopen"?"Start new review":"Request correction"}</Button>}</>}>
       <div className="space-y-4">
@@ -52,7 +52,8 @@ export function ReconciliationCorrections() {
         {(error||query.error)&&<p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{error||query.error?.message}</p>}
         {action?<div className="space-y-4">
           <p className="text-sm">{action.kind==="request"?`Request reversal of ${formatMinorKes(action.row.collection_amount_minor??"0")} for ${action.row.provider_transaction_id}.`:action.row.reason}</p>
-          <p className="text-sm text-muted">An accounting reversal restores the learner balance. This action does not send money through M-Pesa. The payment, approval and audit history remain available.</p>
+          {action.kind!=="request"&&<p className="text-sm">{action.row.action.replaceAll("_"," ")} · {formatMinorKes(action.row.amount_minor??"0")} {action.row.target_student_name&&`· ${action.row.target_student_name}`} {action.row.invoice_number&&`· ${action.row.invoice_number}`}</p>}
+          <p className="text-sm text-muted">The approved correction updates the relevant invoice or receipt. This action does not send money. The payment, approval and audit history remain available.</p>
           {action.kind==="reopen"&&<p className="text-sm">The earlier decision will be preserved. A new request needs two independent reviews before any correction can execute.</p>}
           {action.kind!=="approve"&&<label className="block text-sm">Reason<textarea className="input-base mt-1 w-full" disabled={busy} maxLength={1000} value={reason} onChange={event=>setReason(event.target.value)}/></label>}
           <label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" disabled={busy} checked={confirmed} onChange={event=>setConfirmed(event.target.checked)}/>I have checked the payment and the reason for this decision.</label>

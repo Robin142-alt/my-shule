@@ -143,9 +143,9 @@ export class CreditRefundService {
   }
   private async ledgerEntries(source:Source) {
     const rows=(await this.db.query<{account_id:string;direction:'debit'|'credit';amount_minor:string;currency_code:string}>(`
-      SELECT e.account_id::text,lower(e.direction::text) AS direction,e.amount_minor::text,e.currency_code FROM ledger_entries e
+      SELECT e.account_id::text,lower(e.direction::text) AS direction,e.amount_minor::numeric::bigint::text AS amount_minor,e.currency_code FROM ledger_entries e
       JOIN transactions t ON t.tenant_id=e.tenant_id AND t.id=e.transaction_id
-      WHERE e.tenant_id=$1 AND e.transaction_id::text=$2 AND t.total_amount_minor=$3::bigint AND t.currency_code=$4 ORDER BY e.line_number`,
+      WHERE e.tenant_id=$1 AND e.transaction_id::text=$2 AND t.total_amount_minor::numeric=$3::bigint AND t.currency_code=$4 ORDER BY e.line_number`,
       [this.context.requireStore().tenant_id,source.original_ledger_transaction_id,source.receipt_amount_minor,source.currency_code])).rows;
     if(rows.length!==2||!['debit','credit'].every(direction=>rows.some(r=>r.direction===direction&&r.amount_minor===source.receipt_amount_minor&&r.currency_code.trim()===source.currency_code.trim())))
       throw new ConflictException('The source receipt requires ledger reconciliation before a partial refund');

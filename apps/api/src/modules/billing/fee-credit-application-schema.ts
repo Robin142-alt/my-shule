@@ -1,7 +1,9 @@
 import { CREDIT_REFUND_SCHEMA } from './credit-refund.schema';
+import { PAYMENT_CORRECTION_SCHEMA } from './payment-correction.schema';
 /** Applications, refunds and their reversals are durable financial history. */
 export const FEE_CREDIT_APPLICATION_SCHEMA_SQL = `
 ${CREDIT_REFUND_SCHEMA}
+${PAYMENT_CORRECTION_SCHEMA}
 CREATE TABLE IF NOT EXISTS fee_credit_applications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text NOT NULL,
   student_id text NOT NULL, source_kind text NOT NULL CHECK(source_kind IN ('manual','online')),

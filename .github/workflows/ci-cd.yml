@@ -64,8 +64,14 @@ jobs:
       - name: Accountant daily finance, receipts and verified payment review
         run: npm --prefix apps/web run test:design -- accountant-bulk-billing accountant-reports-waivers school-finance-bulk-billing accountant-navigation accountant-fee-structures-loading accountant-daily-workflows accountant-mpesa-review accountant-command-center-contract finance-amount-precision finance-export-safety front-office-finance-production-readiness
 
+      - name: Banking connections and governed financial corrections
+        run: npm --prefix apps/web run test:design -- bank-connection-controls fee-credit-application credit-refunds refund-evidence reconciliation-corrections payment-correction-request legacy-invoices-review
+
       - name: Conservative web build skipping
         run: node --test apps/web/scripts/ignore-build.test.mjs
+
+      - name: Production deployment and operational evidence contracts
+        run: node --test scripts/verify-railway-release.test.mjs scripts/production-runtime-env-audit.test.mjs scripts/production-auth-smoke.test.mjs
 
       - name: Dashboard role switching and delayed session responses
         run: npm --prefix apps/web run test:design -- sidebar-session-navigation role-switch-consistency dashboard-role-context school-dashboard-role-switcher active-role-cache-isolation leadership-teacher-role-switch
@@ -197,6 +203,7 @@ jobs:
     environment: production-cloudflare
     permissions:
       contents: read
+      statuses: read
     concurrency:
       group: cloudflare-production
       cancel-in-progress: false
@@ -231,8 +238,10 @@ jobs:
           GATEWAY_IDENTITY_SECRET: ${{ secrets.GATEWAY_IDENTITY_SECRET }}
           SERVER_API_BASE_URL: https://my-shule-api-production.up.railway.app
           WRANGLER_SEND_METRICS: 'false'
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Missing scoped Cloudflare deployment credential'; exit 1; }
+          node ../../scripts/verify-railway-release.mjs
           node cloudflare/verify-origin.mjs
           node cloudflare/verify-legal-release.mjs
           secret_file=$(mktemp)
@@ -375,6 +384,14 @@ jobs:
         run: |
           node --test dist/apps/api/src/modules/billing/billing.test.js dist/apps/api/src/modules/billing/fee-roster.test.js dist/apps/api/src/modules/finance/finance.controller.test.js dist/apps/api/src/modules/finance/finance.test.js dist/apps/api/src/modules/workflow/workflow-communication.test.js dist/apps/api/src/modules/billing/finance-workflow-controls.test.js dist/apps/api/src/modules/admin-command/admin-command.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/accountant-waivers-roster.integration-spec.ts apps/api/test/fee-structure-legacy-schema.integration-spec.ts apps/api/test/accountant-overview.integration-spec.ts apps/api/test/accountant-controls.integration-spec.ts apps/api/test/stk-legacy-schema.integration-spec.ts
+
+      - name: Universal banking protocols, money conservation and historical corrections
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: |
+          node --test dist/apps/api/src/modules/tenant-finance/providers/bank-provider-registry.test.js dist/apps/api/src/modules/tenant-finance/providers/equity-jenga.adapter.test.js dist/apps/api/src/modules/tenant-finance/providers/kcb-buni.adapter.test.js dist/apps/api/src/modules/tenant-finance/providers/coop-connect.adapter.test.js
+          PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/bank-accounting-chain.integration-spec.ts apps/api/test/fee-credit-application.integration-spec.ts apps/api/test/finance-correction-governance.integration-spec.ts apps/api/test/legacy-fee-invoice-adoption.integration-spec.ts apps/api/test/receipt-ledger-schema.integration-spec.ts apps/api/test/legacy-payment-contracts.integration-spec.ts
 
       - name: Durable report jobs, private storage and worker isolation
         env:

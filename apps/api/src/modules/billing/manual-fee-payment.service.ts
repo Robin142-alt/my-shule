@@ -78,16 +78,33 @@ export class ManualFeePaymentService {
 
   async createManualFeePayment(
     dto: CreateManualFeePaymentDto,
-    collection?: {id:string;bank_reference?:string},
+    collection?: {id:string;bank_reference?:string;correction_approval_id?:string;correction_effective_at?:string},
   ): Promise<ManualFeePaymentResponseDto> {
     const tenantId = this.requireTenantId();
     const requestContext = this.requestContext.requireStore();
     const payment = await this.prisma.withRequestTransaction(async () => {
       this.assertHasAllocationTarget(dto.student_id ?? null, dto.invoice_id ?? null);
       this.assertMethodRequirements(dto);
+      if(collection?.correction_approval_id) {
+        const approved=await this.prisma.query(`WITH originals AS (
+          SELECT tenant_id,id::text AS id,amount_minor,ledger_transaction_id::text AS ledger_id FROM manual_fee_payments WHERE status='reversed'
+          UNION ALL SELECT tenant_id,payment_intent_id::text,amount_minor,original_ledger_transaction_id::text FROM student_fee_payment_reversals
+        ) SELECT a.id FROM finance_approval_requests a JOIN originals original
+          ON original.tenant_id=a.tenant_id AND original.id=a.evidence->>'original_receipt_id'
+          WHERE a.tenant_id=$1 AND a.id=$2::uuid AND a.status='approved' AND a.action='move_payment'
+            AND a.second_approver_user_id::text=$3 AND a.first_approver_user_id<>a.second_approver_user_id
+            AND a.requested_by_user_id<>a.first_approver_user_id AND a.requested_by_user_id<>a.second_approver_user_id
+            AND COALESCE(a.evidence->>'collection_payment_id',a.subject_id::text)=$4 AND a.evidence->>'target_student_id'=$5
+            AND a.amount_minor=$6::bigint AND original.amount_minor=a.amount_minor
+            AND 2=(SELECT count(*) FROM ledger_entries e JOIN accounts ac ON ac.tenant_id=e.tenant_id AND ac.id=e.account_id
+              WHERE e.tenant_id=$1 AND e.transaction_id::text=original.ledger_id AND e.amount_minor::numeric=a.amount_minor AND e.currency_code=a.currency_code
+                AND ((e.direction='debit' AND ac.code=$7) OR (e.direction='credit' AND ac.code=$8)))`,
+          [tenantId,collection.correction_approval_id,requestContext.user_id,collection.id,dto.student_id,dto.amount_minor,dto.asset_account_code,dto.fee_control_account_code]);
+        if(requestContext.role!=='principal'||!approved.rows.length) throw new ForbiddenException('An independently approved payment move is required');
+      }
       if(['bank_deposit','eft'].includes(dto.payment_method))
         await guardBankReceipt(this.prisma,tenantId,[dto.external_reference ?? '',dto.deposit_reference ?? '',collection?.bank_reference ?? ''],
-          dto.idempotency_key.trim(),collection?.id);
+          dto.idempotency_key.trim(),collection?.id,collection?.correction_approval_id);
       let studentId = dto.student_id ?? null;
       if (dto.invoice_id) {
         const invoice = await this.invoicesRepository.findById(tenantId, dto.invoice_id);
@@ -137,7 +154,7 @@ export class ManualFeePaymentService {
       }
 
       return this.clearLockedPayment(createdPayment, {
-        occurred_at: dto.received_at,
+        occurred_at: collection?.correction_effective_at ?? dto.received_at,
         deposit_reference: dto.deposit_reference,
         notes: dto.notes,
         metadata: { cleared_on_create: true },

@@ -108,54 +108,8 @@ jobs:
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'env-audit' || github.event.inputs.check == 'readiness' || github.event.inputs.check == 'scorecard' || github.event.schedule == '33 2 * * *'
         continue-on-error: true
         env:
-          NODE_ENV: production
-          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-          DATABASE_SSL: "true"
-          DATABASE_PGBOUNCER_MODE: transaction
-          DATABASE_RLS_AUDIT_ENABLED: "true"
-          DATABASE_API_MAX_CONNECTIONS: "30"
-          DATABASE_WORKER_MAX_CONNECTIONS: "10"
-          REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
-          REDIS_TLS_ENABLED: "true"
-          APP_CORS_ENABLED: "true"
-          APP_CORS_ORIGINS: ${{ secrets.WEB_APP_URL || secrets.PUBLIC_APP_URL || 'https://www.myshule.online' }}
-          APP_TRUSTED_PROXY_CIDRS: ${{ secrets.APP_TRUSTED_PROXY_CIDRS }}
-          APP_TRUSTED_TENANT_HEADER_SECRET: ${{ secrets.APP_TRUSTED_TENANT_HEADER_SECRET }}
-          AUTH_COOKIE_SECURE: "true"
-          AUTH_COOKIE_SAME_SITE: lax
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          REPORT_CARD_DOWNLOAD_SIGNING_SECRET: ${{ secrets.REPORT_CARD_DOWNLOAD_SIGNING_SECRET }}
-          SECURITY_PII_ENCRYPTION_KEY: ${{ secrets.SECURITY_PII_ENCRYPTION_KEY }}
-          SECURITY_LOCKDOWN_BYPASS_SECRET: ${{ secrets.SECURITY_LOCKDOWN_BYPASS_SECRET }}
-          MPESA_CONSUMER_KEY: ${{ secrets.MPESA_CONSUMER_KEY }}
-          MPESA_CONSUMER_SECRET: ${{ secrets.MPESA_CONSUMER_SECRET }}
-          MPESA_SHORT_CODE: ${{ secrets.MPESA_SHORT_CODE }}
-          MPESA_PASSKEY: ${{ secrets.MPESA_PASSKEY }}
-          MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL: ${{ secrets.MPESA_TRANSACTION_STATUS_SECURITY_CREDENTIAL }}
-          MPESA_CALLBACK_URL: ${{ secrets.MPESA_CALLBACK_URL }}
-          MPESA_CALLBACK_SECRET: ${{ secrets.MPESA_CALLBACK_SECRET }}
-          MPESA_LEDGER_DEBIT_ACCOUNT_CODE: ${{ secrets.MPESA_LEDGER_DEBIT_ACCOUNT_CODE }}
-          MPESA_LEDGER_CREDIT_ACCOUNT_CODE: ${{ secrets.MPESA_LEDGER_CREDIT_ACCOUNT_CODE }}
-          MPESA_PAYLOAD_VAULT_ENABLED: "true"
-          EMAIL_PROVIDER: resend
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          PUBLIC_APP_URL: ${{ secrets.PUBLIC_APP_URL || secrets.WEB_APP_URL || 'https://www.myshule.online' }}
-          SUPPORT_NOTIFICATION_EMAILS: ${{ secrets.SUPPORT_NOTIFICATION_EMAILS }}
-          UPLOAD_MALWARE_SCAN_PROVIDER: clamav
-          UPLOAD_MALWARE_SCAN_API_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_API_URL }}
-          UPLOAD_MALWARE_SCAN_HEALTH_URL: ${{ secrets.UPLOAD_MALWARE_SCAN_HEALTH_URL }}
-          UPLOAD_MALWARE_SCAN_API_TOKEN: ${{ secrets.UPLOAD_MALWARE_SCAN_API_TOKEN }}
-          UPLOAD_MALWARE_SCAN_REQUIRED: "true"
-          UPLOAD_OBJECT_STORAGE_ENABLED: "true"
-          UPLOAD_OBJECT_STORAGE_PROVIDER: ${{ secrets.UPLOAD_OBJECT_STORAGE_PROVIDER }}
-          UPLOAD_OBJECT_STORAGE_ENDPOINT: ${{ secrets.UPLOAD_OBJECT_STORAGE_ENDPOINT }}
-          UPLOAD_OBJECT_STORAGE_BUCKET: ${{ secrets.UPLOAD_OBJECT_STORAGE_BUCKET }}
-          UPLOAD_OBJECT_STORAGE_REGION: ${{ secrets.UPLOAD_OBJECT_STORAGE_REGION }}
-          UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.UPLOAD_OBJECT_STORAGE_ACCESS_KEY_ID }}
-          UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.UPLOAD_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
-        run: npm run env:production:audit > production-env-audit.json
-
+          MYSHULE_API_URL: ${{ secrets.PROD_API_BASE_URL }}
+        run: node scripts/production-runtime-env-audit.mjs > production-env-audit.json
       - name: Hosted production auth smoke
         if: github.event.inputs.check == 'all' || github.event.inputs.check == 'auth-smoke' || github.event.inputs.check == 'readiness' || github.event.inputs.check == 'scorecard' || github.event.schedule == '33 2 * * *'
         continue-on-error: true

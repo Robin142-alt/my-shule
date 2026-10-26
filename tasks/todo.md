@@ -21,13 +21,15 @@
 - [x] Implement accessible Equity/Jenga, KCB account-IPN and Co-op sandbox protocols with hostile-input/authentication contract tests; unsupported native capabilities remain unavailable pending bank contracts.
 - [x] Connect native verified evidence to existing durable inbox, worker recovery and shared ledger/allocation path.
 - [x] Extend approved connection configuration, diagnostics and lifecycle with provider-specific dynamic inputs and genuine activation gates.
-- [ ] Complete governed credit application, overpayment correction and reversals; verify conservation under concurrency.
+- [x] Complete governed credit application, overpayment correction and reversals; verify conservation under concurrency.
 - [x] Complete audited, idempotent legacy invoice preview/adoption; preserve original records and avoid historical cash reposting.
-- [ ] Complete Accountant bank setup/reconciliation/credit UI and related Principal/Super Admin workflows; test mobile and desktop.
+- [x] Complete Accountant bank setup/reconciliation/credit UI and related Principal/Super Admin workflows; test mobile and desktop (expanded final-head checks remain in release verification).
 - [ ] Run isolated provider/database/end-to-end and existing M-Pesa, finance, portal and progression regression checks.
 - [ ] Run built-in review and release checks; publish per-bank implementation, sandbox/live evidence and remaining external dependencies.
 
 Each slice requires focused tests and build/type checks before committing. Existing completed items above remain historical verification records and are rechecked where affected.
+
+Current release continuation: non-reversal corrections are implemented with independent approvals, immutable receipt-move proof, precise invoice write-offs, retry keys, C2B synchronization and audited execution. A schema-only production rehearsal exposed and repaired legacy receipt/ledger/C2B/reconciliation types, defaults and duplicate constraints. Repeated migrations and real Prisma posting, allocation, excess credit, callback replay and reconciliation pass on that copied schema. Final regressions, build/browser checks and deployment are in progress; no banking production deployment is claimed by this entry.
 
 Latest correction continuation: receipt-register STK requests, reopening historical reversal approvals, exact-recipient notifications and provenance-aware orphan detection are implemented. Nineteen real-PostgreSQL checks, 120 payment/event/notification regressions, six component tests and API build passed. The production web build passed; eight desktop/mobile browser journeys passed with controlled API fixtures. No live financial data was changed.
 

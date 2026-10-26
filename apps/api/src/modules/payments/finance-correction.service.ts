@@ -5,11 +5,14 @@ import { CollectionPaymentsService } from './collection-payments.service';
 import { TransactionService } from '../finance/transaction.service';
 import { SchoolOperationalEventsService } from '../events/school-operational-events.service';
 import { ACTIVE_CREDIT_APPLICATION_SQL } from '../billing/fee-credit-application-schema';
+import { ManualFeePaymentService } from '../billing/manual-fee-payment.service';
+import { lockBankReceiptReferences } from '../billing/bank-receipt-identity';
 
 export type FinanceCorrectionApproval = {
   id: string; action: string; subject_type: string; subject_id: string;
   reconciliation_discrepancy_id: string | null; amount_minor: string | number | null;
   currency_code: string; reason: string; requested_by_user_id: string;
+  evidence?:Record<string,unknown>;
 };
 type CorrectionDiscrepancy = {id:string;provider_transaction_id:string;ledger_transaction_id:string|null;payment_intent_id:string|null};
 
@@ -20,9 +23,10 @@ export class FinanceCorrectionService {
   constructor(private readonly db: PrismaService, private readonly context: RequestContextService,
     private readonly collections: CollectionPaymentsService,
     @Optional() private readonly transactions?: TransactionService,
-    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService) {}
+    @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly manual?: ManualFeePaymentService) {}
 
-  async execute(approvalId: string) {
+  async execute(approvalId: string):Promise<Record<string,unknown>> {
     const actor=this.context.requireStore();
     if(!actor.is_authenticated || !actor.tenant_id || !actor.user_id || actor.role!=='principal')
       throw new ForbiddenException('The Principal must give final approval for a financial correction');
@@ -34,6 +38,9 @@ export class FinanceCorrectionService {
         AND requested_by_user_id<>first_approver_user_id AND requested_by_user_id<>second_approver_user_id
       FOR UPDATE`,[tenant,approvalId,actor.user_id])).rows[0];
     if(!approval) throw new ForbiddenException('An approved request with independent reviewers is required');
+    if(approval.action==='write_off') return this.writeOffInvoice(approval);
+    if(approval.action==='move_payment' && ['manual_fee_payment','payment_intent'].includes(approval.subject_type)) return this.moveReceipt(approval);
+    if(['move_payment','post_after_mismatch'].includes(approval.action)) return this.collections.executeApprovedCorrection(approval.id);
     if(approval.subject_type!=='mpesa_reconciliation_discrepancy' || approval.subject_id!==approval.reconciliation_discrepancy_id)
       throw new ConflictException('Link this request to its same-school reconciliation discrepancy before correcting it');
     const discrepancy=(await this.db.query<CorrectionDiscrepancy>(`
@@ -66,12 +73,94 @@ export class FinanceCorrectionService {
       JOIN collection_payments payment ON payment.tenant_id=receipt.tenant_id AND payment.manual_fee_payment_id=receipt.id
       JOIN transactions reversal ON reversal.tenant_id=receipt.tenant_id AND reversal.id=receipt.reversal_ledger_transaction_id
       WHERE receipt.tenant_id=$1 AND payment.id=$2::uuid AND payment.status='reversed' AND receipt.status='reversed'
-        AND reversal.currency_code=$3 AND reversal.total_amount_minor=$4::bigint`,
+        AND reversal.currency_code=$3 AND reversal.total_amount_minor::numeric=$4::bigint`,
       [tenant,payment.id,payment.currency_code,payment.amount_minor])).rows[0];
     if(!result) throw new ConflictException('The financial reversal did not produce a matching ledger entry; the discrepancy remains open');
     return {collection_payment_id:payment.id,manual_fee_payment_id:payment.manual_fee_payment_id,
       reversal_ledger_transaction_id:result.reversal_ledger_transaction_id};
     });
+  }
+
+  private async moveReceipt(approval:FinanceCorrectionApproval) {
+    const actor=this.context.requireStore(),tenant=actor.tenant_id!,stk=approval.subject_type==='payment_intent';
+    if(!this.manual) throw new ConflictException('Receipt correction services are unavailable');
+    const prior=(await this.db.query<{id:string;replacement_receipt_id:string;replacement_ledger_id:string}>(
+      'SELECT * FROM fee_payment_corrections WHERE tenant_id=$1 AND approval_id=$2::uuid',[tenant,approval.id])).rows[0];
+    if(prior) return {correction_id:prior.id,manual_fee_payment_id:prior.replacement_receipt_id,ledger_transaction_id:prior.replacement_ledger_id};
+    if(approval.evidence?.original_receipt_id!==approval.subject_id||typeof approval.evidence?.target_student_id!=='string')
+      throw new ConflictException('The approved source and target receipt details are required');
+    if(!stk) {
+      const references=(await this.db.query<{external_reference:string;deposit_reference:string}>(
+        'SELECT external_reference,deposit_reference FROM manual_fee_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,approval.subject_id])).rows[0];
+      await lockBankReceiptReferences(this.db,tenant,[references?.external_reference??'',references?.deposit_reference??'']);
+    }
+    const source=(await this.db.query<{student_id:string;amount_minor:string;currency_code:string;ledger_id:string;received_at:Date;external_reference:string;deposit_reference:string;payment_method:string}>(stk
+      ? `SELECT student_id::text,amount_minor::text,currency_code,ledger_transaction_id::text AS ledger_id,completed_at AS received_at,
+          (SELECT COALESCE(mpesa_receipt_number,checkout_request_id) FROM mpesa_transactions m WHERE m.tenant_id=p.tenant_id AND m.payment_intent_id=p.id
+            AND m.status='succeeded' AND m.ledger_transaction_id=p.ledger_transaction_id ORDER BY m.created_at LIMIT 1) AS external_reference,
+          NULL::text AS deposit_reference,'mpesa_c2b'::text AS payment_method FROM payment_intents p WHERE tenant_id=$1 AND id=$2::uuid
+            AND status='completed' AND payment_owner='tenant' AND NOT EXISTS(SELECT 1 FROM student_fee_payment_reversals r WHERE r.tenant_id=$1 AND r.payment_intent_id=p.id) FOR UPDATE`
+      : `SELECT COALESCE(student_id::text,(SELECT metadata->>'student_id' FROM invoices i WHERE i.tenant_id=m.tenant_id AND i.id::text=m.invoice_id::text)) AS student_id,
+          amount_minor::text,currency_code,ledger_transaction_id::text AS ledger_id,received_at,external_reference,deposit_reference,payment_method
+          FROM manual_fee_payments m WHERE tenant_id=$1 AND id=$2::uuid AND status='cleared'
+            AND NOT EXISTS(SELECT 1 FROM collection_payments c WHERE c.tenant_id=$1 AND c.manual_fee_payment_id=m.id) FOR UPDATE`,[tenant,approval.subject_id])).rows[0];
+    if(!source?.student_id||source.student_id===approval.evidence.target_student_id||source.amount_minor!==String(approval.amount_minor)
+      ||source.currency_code.trim()!==approval.currency_code.trim()||(stk&&!source.external_reference))
+      throw new ConflictException('The original unreversed receipt no longer matches this approval');
+    const accounts=(await this.db.query<{code:string;direction:string;amount_minor:string}>(`SELECT a.code,e.direction,e.amount_minor::numeric::bigint::text AS amount_minor FROM ledger_entries e
+      JOIN accounts a ON a.tenant_id=e.tenant_id AND a.id=e.account_id WHERE e.tenant_id=$1 AND e.transaction_id::text=$2`,[tenant,source.ledger_id])).rows;
+    if(accounts.length!==2||accounts.filter(a=>a.direction==='debit').length!==1||accounts.filter(a=>a.direction==='credit').length!==1
+      ||accounts.some(a=>a.amount_minor!==source.amount_minor)) throw new ConflictException('Reconcile the original ledger accounts before moving this receipt');
+    let reversalId:string;
+    if(stk) {
+      const result=await this.reverseHistoricalStk(approval,{id:approval.id,payment_intent_id:approval.subject_id,
+        provider_transaction_id:source.external_reference,ledger_transaction_id:source.ledger_id});
+      reversalId=result.reversal_ledger_transaction_id;
+    } else {
+      if((await this.db.query("SELECT id FROM manual_fee_reversal_requests WHERE tenant_id=$1 AND payment_id=$2::uuid AND status='pending'",[tenant,approval.subject_id])).rows.length)
+        throw new ConflictException('A reversal is already awaiting review for this receipt');
+      const request=(await this.db.query<{id:string}>(`INSERT INTO manual_fee_reversal_requests(tenant_id,payment_id,reason,requested_by)
+        VALUES($1,$2::uuid,$3,$4::uuid) RETURNING id`,[tenant,approval.subject_id,approval.reason,approval.requested_by_user_id])).rows[0];
+      await this.manual.decideReversal(request.id,'approve',`Move approval ${approval.id}: ${approval.reason}`);
+      reversalId=(await this.db.query<{id:string}>('SELECT reversal_ledger_transaction_id::text AS id FROM manual_fee_payments WHERE tenant_id=$1 AND id=$2::uuid',[tenant,approval.subject_id])).rows[0].id;
+    }
+    const effective=(await this.db.query<{effective_at:Date}>('SELECT effective_at FROM transactions WHERE tenant_id=$1 AND id::text=$2',[tenant,reversalId])).rows[0].effective_at;
+    const receipt=await this.manual.createManualFeePayment({idempotency_key:`receipt-move:${approval.id}`,payment_method:(source.payment_method==='cheque'?'bank_deposit':source.payment_method) as 'cash'|'mpesa_c2b'|'bank_deposit'|'eft',
+      student_id:approval.evidence.target_student_id,amount_minor:source.amount_minor,received_at:new Date(source.received_at).toISOString(),
+      external_reference:source.external_reference||`CORRECTION-${approval.id}`,deposit_reference:source.deposit_reference||source.external_reference||`CORRECTION-${approval.id}`,
+      asset_account_code:accounts.find(a=>a.direction==='debit')!.code,fee_control_account_code:accounts.find(a=>a.direction==='credit')!.code,
+      metadata:{source:'receipt_correction',correction_approval_id:approval.id,original_receipt_id:approval.subject_id,original_payment_method:source.payment_method}},
+      {id:approval.subject_id,correction_approval_id:approval.id,correction_effective_at:new Date(effective).toISOString()});
+    const proof=(await this.db.query<{id:string}>(`INSERT INTO fee_payment_corrections(tenant_id,approval_id,source_kind,source_id,replacement_receipt_id,
+      from_student_id,to_student_id,amount_minor,currency_code,original_ledger_id,reversal_ledger_id,replacement_ledger_id,created_by)
+      VALUES($1,$2::uuid,$3,$4::uuid,$5::uuid,$6,$7,$8::bigint,$9,$10,$11,$12,$13) RETURNING id`,[tenant,approval.id,stk?'stk':'manual',approval.subject_id,
+      receipt.id,source.student_id,approval.evidence.target_student_id,source.amount_minor,source.currency_code,source.ledger_id,reversalId,receipt.ledger_transaction_id,actor.user_id])).rows[0];
+    return {correction_id:proof.id,manual_fee_payment_id:receipt.id,ledger_transaction_id:receipt.ledger_transaction_id};
+  }
+
+  private async writeOffInvoice(approval:FinanceCorrectionApproval) {
+    const actor=this.context.requireStore(),tenant=actor.tenant_id;
+    if(approval.subject_type!=='invoice'||approval.reconciliation_discrepancy_id||approval.evidence?.invoice_id!==approval.subject_id)
+      throw new ConflictException('An invoice write-off cannot resolve an incoming-payment discrepancy');
+    const invoice=(await this.db.query<{student_id:string;total_amount_minor:string;subtotal_amount_minor:string;amount_paid_minor:string;status:string;metadata:Record<string,unknown>}>(`
+      SELECT metadata->>'student_id' AS student_id,total_amount_minor::text,subtotal_amount_minor::text,amount_paid_minor::text,status,metadata FROM invoices
+      WHERE tenant_id=$1 AND id::text=$2 AND currency_code=$3 FOR UPDATE`,[tenant,approval.subject_id,approval.currency_code])).rows[0];
+    if(!invoice||invoice.student_id!==approval.evidence?.target_student_id) throw new ConflictException('The invoice ownership changed');
+    const history=Array.isArray(invoice.metadata.fee_waivers)?invoice.metadata.fee_waivers as Array<Record<string,unknown>>:[];
+    if(history.some(item=>item.approval_id===approval.id)) return {invoice_id:approval.subject_id,write_off_amount_minor:String(approval.amount_minor)};
+    const amount=BigInt(approval.amount_minor??0);
+    if(amount<=0n||!['open','pending_payment'].includes(invoice.status)||amount>BigInt(invoice.total_amount_minor)-BigInt(invoice.amount_paid_minor)
+      ||amount>BigInt(invoice.subtotal_amount_minor)) throw new ConflictException('The invoice balance changed or requires a tax adjustment. Submit a revised write-off.');
+    await this.db.query(`UPDATE invoices SET total_amount_minor=total_amount_minor-$3::bigint,subtotal_amount_minor=subtotal_amount_minor-$3::bigint,
+      status=CASE WHEN total_amount_minor-$3::bigint=amount_paid_minor THEN 'paid' ELSE status END,
+      metadata=jsonb_set(metadata,'{fee_waivers}',COALESCE(metadata->'fee_waivers','[]'::jsonb)||$4::jsonb),updated_at=now()
+      WHERE tenant_id=$1 AND id::text=$2`,[tenant,approval.subject_id,amount.toString(),JSON.stringify([{approval_id:approval.id,
+        amount_minor:amount.toString(),reason:approval.reason,approved_by:actor.user_id,applied_at:new Date().toISOString(),type:'write_off'}])]);
+    if(!this.schoolEvents) throw new ConflictException('Financial events are unavailable');
+    await this.schoolEvents.recordSchoolOperation({schoolId:tenant,event:{id:`invoice-write-off:${approval.id}`,type:'invoice.written_off',module:'finance',
+      entityId:approval.subject_id,title:'Invoice balance adjusted',body:'An independently approved write-off reduced the unpaid invoice balance.',
+      payload:{student_id:invoice.student_id,approval_id:approval.id,amount_minor:amount.toString()}}});
+    return {invoice_id:approval.subject_id,write_off_amount_minor:amount.toString()};
   }
 
   /** Caller has locked and validated the persisted approval and discrepancy in
@@ -94,7 +183,7 @@ export class FinanceCorrectionService {
     const existing=(await this.db.query<{reversal_ledger_transaction_id:string}>(`SELECT r.reversal_ledger_transaction_id::text
       FROM student_fee_payment_reversals r JOIN transactions t ON t.tenant_id=r.tenant_id AND t.id=r.reversal_ledger_transaction_id
       WHERE r.tenant_id=$1 AND r.payment_intent_id=$2::uuid AND r.original_ledger_transaction_id::text=$3
-        AND r.amount_minor=$4::bigint AND t.total_amount_minor=r.amount_minor AND t.currency_code=r.currency_code`,
+        AND r.amount_minor=$4::bigint AND t.total_amount_minor::numeric=r.amount_minor AND t.currency_code=r.currency_code`,
       [tenant,payment.id,payment.ledger_transaction_id,payment.amount_minor])).rows[0];
     if(existing) return {payment_intent_id:payment.id,...existing};
     const duplicated=(await this.db.query(`SELECT id FROM manual_fee_payments WHERE tenant_id=$1 AND ledger_transaction_id::text=$2
@@ -133,9 +222,9 @@ export class FinanceCorrectionService {
       || row.currency_code.trim()!==payment.currency_code.trim() || BigInt(row.amount_paid_minor)<amounts.get(row.id)!))
       throw new ConflictException('Invoice balances or ownership need reconciliation before reversing this payment');
     const entries=(await this.db.query<{account_id:string;direction:'debit'|'credit';amount_minor:string;currency_code:string}>(`
-      SELECT e.account_id::text,e.direction,e.amount_minor::text,e.currency_code FROM ledger_entries e
+      SELECT e.account_id::text,e.direction,e.amount_minor::numeric::bigint::text AS amount_minor,e.currency_code FROM ledger_entries e
       JOIN transactions t ON t.tenant_id=e.tenant_id AND t.id=e.transaction_id
-      WHERE e.tenant_id=$1 AND e.transaction_id::text=$2 AND t.total_amount_minor=$3::bigint AND t.currency_code=$4
+      WHERE e.tenant_id=$1 AND e.transaction_id::text=$2 AND t.total_amount_minor::numeric=$3::bigint AND t.currency_code=$4
         AND t.metadata->>'payment_intent_id'=$5 ORDER BY e.line_number`,
       [tenant,payment.ledger_transaction_id,payment.amount_minor,payment.currency_code,payment.id])).rows;
     if(!entries.length || ['debit','credit'].some(direction=>entries.filter(e=>e.direction===direction)

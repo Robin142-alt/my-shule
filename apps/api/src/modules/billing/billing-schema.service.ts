@@ -2,6 +2,7 @@ import { FEE_WAIVER_INVOICE_SCHEMA_SQL } from './fee-waiver-schema';
 import { INVOICE_WRITE_SCHEMA_SQL } from './invoice-write-schema';
 import { FEE_CREDIT_APPLICATION_SCHEMA_SQL } from './fee-credit-application-schema';
 import { LEGACY_FEE_INVOICE_ADOPTION_SCHEMA } from './legacy-fee-invoice-adoption.schema';
+import { LEGACY_RECEIPT_SCHEMA } from './legacy-receipt-schema';
 import { STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA } from './student-fee-payment-reversal.schema';
 import { RECEIPT_REFUND_EVIDENCE_SCHEMA } from './receipt-refund-evidence.schema';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
@@ -315,6 +316,8 @@ export class BillingSchemaService implements OnModuleInit {
         CONSTRAINT uq_manual_fee_payment_allocations_tenant_id_id UNIQUE (tenant_id, id)
       );
 
+      ${LEGACY_RECEIPT_SCHEMA}
+
       DO $$
       DECLARE
         target_table text;
@@ -493,7 +496,7 @@ export class BillingSchemaService implements OnModuleInit {
       ALTER TABLE manual_fee_payments
         ALTER COLUMN fee_control_account_code TYPE text USING fee_control_account_code::text;
       ALTER TABLE manual_fee_payments
-        ALTER COLUMN amount_minor TYPE bigint USING GREATEST(amount_minor::bigint, 1);
+        ALTER COLUMN amount_minor TYPE bigint USING amount_minor::bigint;
       ALTER TABLE manual_fee_payments
         ALTER COLUMN currency_code TYPE text USING currency_code::text;
       ALTER TABLE manual_fee_payments

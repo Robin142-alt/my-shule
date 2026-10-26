@@ -60,7 +60,7 @@ export class AccountsRepository {
         SELECT *
         FROM accounts
         WHERE tenant_id = ${tenantId}
-          AND id = ANY(${uniqueAccountIds}::uuid[])
+          AND id::text = ANY(${uniqueAccountIds}::text[])
         ORDER BY id ASC
         FOR UPDATE
       `;
