@@ -25,13 +25,16 @@ import { FeeStructuresRepository } from './repositories/fee-structures.repositor
 import { LegacyFeeInvoiceAdoptionController } from './legacy-fee-invoice-adoption.controller';
 import { LegacyFeeInvoiceAdoptionService } from './legacy-fee-invoice-adoption.service';
 import { FinanceBillingAliasesController } from './finance-billing-aliases.controller';
+import { ReceiptRefundEvidenceController } from './receipt-refund-evidence.controller';
+import { ReceiptRefundEvidenceService } from './receipt-refund-evidence.service';
 
 @Module({
   imports: [FinanceModule, forwardRef(() => PaymentsModule)],
-  controllers: [BillingController, LegacyFeeInvoiceAdoptionController, FinanceBillingAliasesController],
+  controllers: [BillingController, LegacyFeeInvoiceAdoptionController, FinanceBillingAliasesController, ReceiptRefundEvidenceController],
   providers: [
     BillingSchemaService,
     BillingService,
+    ReceiptRefundEvidenceService,
     LegacyFeeInvoiceAdoptionService,
     BillingAccessService,
     BillingLifecycleService,

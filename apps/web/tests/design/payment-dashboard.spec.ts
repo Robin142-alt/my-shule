@@ -80,6 +80,7 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         created_at: "2026-09-30T08:00:00Z",
       };
       let correctionRequested=false,correctionExecuted=false;
+      let refundRecorded=role==='principal',refundApproved=false;
       await page.route("**/api/**", async (route) => {
         if (route.request().headers().accept?.includes('text/event-stream')) {
           await route.fulfill({contentType:'text/event-stream',body:': local dashboard fixture\n\n'});
@@ -98,7 +99,20 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         else if (path.endsWith('/billing/manual-fee-payments')) response=[{
           id:'00000000-0000-4000-8000-000000000433',receipt_number:'STK-RECEIPT',payment_method:'mpesa_c2b',
           status:'cleared',student_name:'Linked Learner',amount_minor:'15000',received_at:'2026-10-20T08:00:00Z',metadata:{source:'stk_payment'},
-        }];
+        },{id:'00000000-0000-4000-8000-000000000434',receipt_number:'REVERSED-RECEIPT',payment_method:'bank_deposit',
+          status:'reversed',student_name:'Linked Learner',amount_minor:'15000',received_at:'2026-01-09T08:00:00Z'}];
+        else if(path.endsWith('/billing/refund-evidence/refund-fixture/decision')) {
+          expect(role).toBe('principal');expect(route.request().postDataJSON()).toEqual({decision:'approve',reason:'Checked original payout evidence'});
+          refundApproved=true;response={status:'approved'};
+        }
+        else if(path.endsWith('/billing/refund-evidence')) {
+          if(route.request().method()==='POST') {
+            expect(route.request().postDataJSON()).toMatchObject({receipt_id:'00000000-0000-4000-8000-000000000434',source_kind:'manual',amount_minor:'15000',external_reference:'REFUND-PROOF'});
+            refundRecorded=true;response={status:'pending_review'};
+          }else response={items:refundRecorded?[{id:'refund-fixture',amount_minor:'15000',external_reference:'REFUND-PROOF',
+            evidence_reference:'Original bank statement page 3',reason:'Full authorized refund',status:refundApproved?'approved':'pending_review',
+            paid_at:'2026-01-10T10:00:00Z',can_review:role==='principal'&&!refundApproved}]:[]};
+        }
         else if (path.endsWith('/payment-intents/00000000-0000-4000-8000-000000000433/reversal-requests')) {
           expect(route.request().postDataJSON()).toEqual({reason:'Verified original receipt requires correction'});
           correctionRequested=true;
@@ -257,6 +271,16 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
       });
       if(role!=='principal') {
         await page.goto(`/school/${role}/payments`);
+        await page.getByRole('button',{name:'Record refund evidence',exact:true}).filter({visible:true}).click();
+        await page.getByLabel('Outgoing payment reference').fill('REFUND-PROOF');
+        await page.getByLabel('Refund paid at').fill('2026-01-10T10:00');
+        await page.getByLabel('Evidence location and details').fill('Original bank statement page 3');
+        await page.getByLabel('Reason',{exact:true}).fill('Full authorized refund');
+        await page.getByRole('checkbox',{name:/I checked the full amount/}).check();
+        await page.getByRole('button',{name:'Submit evidence',exact:true}).click();
+        await expect(page.getByText(/Awaiting independent Principal review/)).toBeVisible();
+        await expect(page.getByRole('dialog')).toBeInViewport({ratio:1});
+        await page.getByRole('button',{name:'Close',exact:true}).click();
         await page.getByRole('button',{name:'Request reversal',exact:true}).filter({visible:true}).click();
         await expect(page.getByText(/Two independent reviewers/)).toBeVisible();
         await page.getByLabel('Reason',{exact:true}).fill('Verified original receipt requires correction');
@@ -275,6 +299,15 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
       } else {
         correctionRequested=true;
         await page.goto('/school/principal/collections');
+        await page.getByRole('button',{name:'Refund evidence',exact:true}).click();
+        await page.getByRole('button',{name:'Review evidence',exact:true}).click();
+        await page.getByLabel('Review notes').fill('Checked original payout evidence');
+        await page.getByRole('checkbox',{name:/I checked the full amount/}).check();
+        await page.getByRole('button',{name:'Confirm decision',exact:true}).click();
+        await expect(page.getByText(/Refund evidence approved/)).toBeVisible();
+        await expect(page.getByRole('dialog')).toBeInViewport({ratio:1});
+        await page.screenshot({path:`../../artifacts/payment-dashboard/refund-review-${width}.png`});
+        await page.getByRole('button',{name:'Close',exact:true}).click();
         await page.getByRole('button',{name:'M-Pesa reconciliation reviews',exact:true}).click();
         await page.getByRole('button',{name:'Approval requests',exact:true}).click();
         await page.getByRole('button',{name:'Final review',exact:true}).click();

@@ -15,6 +15,7 @@ import { formatMinorKes, formatActivityDate, toMinorUnits } from "@/lib/billing/
 import { openPrintDocument, downloadCsvFile } from "@/lib/dashboard/export";
 import type { LearnerLookupItem } from "@/lib/students/student-lookup";
 import { ManualReversalQueue } from "./manual-reversal-queue";
+import { RefundEvidence } from "./refund-evidence";
 
 type Receipt = {
   id: string; receipt_number: string; payment_method: string; status: string;
@@ -51,6 +52,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
   const previewInFlight = useRef(false);
   const [cheque, setCheque] = useState<ChequeAction | null>(null);
   const [reversal, setReversal] = useState<Receipt | null>(null);
+  const [refund, setRefund] = useState<Receipt | null>(null);
   const rows = (Array.isArray(query.data) ? query.data : []).filter(row => [row.receipt_number, row.student_name, row.admission_number, row.payer_name, row.external_reference]
     .some(value => value?.toLowerCase().includes(search.trim().toLowerCase())));
 
@@ -185,6 +187,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
         { id: "date", header: "Received", render: row => formatActivityDate(row.received_at) },
         { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={previewingId !== null} onClick={() => void preview(row)}>{previewingId === row.id ? "Opening…" : "Preview / print"}</Button>
           {canWrite && row.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => { setError(""); if (row.metadata?.source === "collection_payment" && onNavigate) onNavigate("collections"); else setReversal(row); }}>Request reversal</Button>}
+          {canWrite && row.status === "reversed" && <Button size="sm" variant="ghost" onClick={()=>setRefund(row)}>Record refund evidence</Button>}
           {!receiptsOnly && canWrite && row.payment_method === "cheque" && ["received", "deposited"].includes(row.status) && (row.status === "received" ? ["deposit", "clear", "bounce"] as const : ["clear", "bounce"] as const).map(action =>
             <Button key={action} size="sm" variant="ghost" onClick={() => { setError(""); setCheque({ receipt: row, action }); }}>{action === "clear" ? "Confirm cleared" : action === "bounce" ? "Mark bounced" : "Mark deposited"}</Button>)}
         </div> },
@@ -193,6 +196,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
       <Button variant="secondary" disabled={!offset || query.isFetching} onClick={() => setOffset(offset - 50)}>Previous page</Button>
       <Button variant="secondary" disabled={(query.data?.length ?? 0) < 50 || query.isFetching} onClick={() => setOffset(offset + 50)}>Next page</Button></div>
     <ManualReversalQueue />
+    <RefundEvidence receipt={refund} onClose={()=>setRefund(null)}/>
     <Modal open={Boolean(reversal)} title={`Request reversal · ${reversal?.receipt_number || ""}`} onClose={() => { if (!busy) setReversal(null); }}>
       <form onSubmit={requestReversal} className="space-y-4"><p>{reversal?.metadata?.source === "stk_payment" ? "Two independent reviewers, including the Principal, must approve in Collections → M-Pesa reconciliation reviews." : "A different Principal must approve."} This request does not change the learner’s balance or send a refund.</p>{error && <p role="alert">{error}</p>}
         <label className="block">Reason<textarea name="reason" required minLength={5} maxLength={512} className="input-base mt-1 w-full" /></label>

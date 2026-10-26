@@ -33,6 +33,8 @@ Latest correction continuation: receipt-register STK requests, reopening histori
 
 Follow-up accounting audit: completed C2B corrections no longer recreate review exceptions when full financial proof agrees. Missing or mismatched proof remains visible. Real-Prisma fee-waiver lock deserialization is fixed; 31 PostgreSQL accounting, waiver and correction checks pass.
 
+Full reversed-receipt refund evidence now has a school-scoped, immutable review queue and independent Principal decision. It records an already paid external refund against the existing reversal, without double posting or claiming provider verification. Partial refunds of unused credit remain outstanding software work. Checks: 33 accounting/waiver/governance PostgreSQL tests, 24 follow-up accounting/portal/UUID-text schema tests (overlapping accounting coverage), nine component tests, API build, full production web build and eight expanded desktop/mobile browser journeys passed. Browser tests use local API fixtures; no bank certification or deployment is claimed.
+
 ### Verified progress and remaining accounting audit findings
 
 - Eleven independently documented bank targets are registered; unimplemented native capabilities remain disabled. Catalog/M-Pesa credential regressions: 19 passed, API build passed.

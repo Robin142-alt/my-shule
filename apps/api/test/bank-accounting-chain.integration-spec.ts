@@ -23,6 +23,7 @@ import { CollectionReferenceMatcher } from '../src/modules/payments/collection-r
 import { FinanceCorrectionService } from '../src/modules/payments/finance-correction.service';
 import { MpesaReconciliationService } from '../src/modules/payments/services/mpesa-reconciliation.service';
 import { requestSchoolFeeWaiver, applySchoolFeeWaiver } from '../src/modules/finance/fee-waiver-workflow';
+import { ReceiptRefundEvidenceService } from '../src/modules/billing/receipt-refund-evidence.service';
 import { PaymentIngressService } from '../src/modules/payments/ingress/payment-ingress.service';
 import { PAYMENT_CHANNEL_WORKFLOW_SCHEMA } from '../src/modules/tenant-finance/payment-channel-workflow-schema.service';
 import { COLLECTION_PAYMENTS_SCHEMA } from '../src/modules/payments/collection-payments-schema.service';
@@ -284,7 +285,7 @@ describe('Bank collection accounting through the real financial engine', () => {
 
   async function historicalStk(firstInvoiceAmount='10000') {
     const owner=randomUUID(),intent=randomUUID(),approval=randomUUID(),discrepancy=randomUUID(),reference=`STK-${randomUUID()}`;
-    await pool.query("INSERT INTO students VALUES($1,$2,$3,'active',NULL)",[owner,school,owner]);
+    await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1,$2,$3,'active')",[owner,school,owner]);
     const first=await invoice(firstInvoiceAmount,owner);
     const accounts=(await pool.query("SELECT id,code FROM accounts WHERE tenant_id=$1 AND code IN ('1110-MPESA-CLEARING','1100-AR-FEES')",[school])).rows;
     const posted=await as(()=>transactions.postTransaction({idempotency_key:intent,reference,description:'Verified historical STK receipt',
@@ -410,5 +411,47 @@ describe('Bank collection accounting through the real financial engine', () => {
       .toEqual([{total_amount_minor:'9000',amount_paid_minor:'0'}]);
     expect((await pool.query('SELECT count(*) FROM transactions')).rows[0].count).toBe(before);
     expect((await as(()=>db.query('SELECT * FROM dashboard_approval_requests'),other)).rows).toHaveLength(0);
+  });
+
+  it('records a full refund only against an executed reversal and independent evidence review without posting money twice',async()=>{
+    const item=await historicalStk();await item.execute();
+    const service=new ReceiptRefundEvidenceService(db,context,schoolEvents as never,{record:(data:unknown)=>effect('refund_audit',data)} as never);
+    const input={receipt_id:item.intent,source_kind:'stk' as const,external_reference:`REFUND-${randomUUID()}`,
+      amount_minor:'15000',paid_at:new Date().toISOString(),evidence_reference:'Bank statement page 3, confirmed outgoing refund to original payer',
+      reason:'Full refund authorized after receipt correction'};
+    const before=(await pool.query('SELECT count(*) FROM transactions')).rows[0].count;
+    const requests=await Promise.all([as(()=>service.request(input)),as(()=>service.request(input))]);
+    expect(requests[0].id).toBe(requests[1].id);
+    await expect(as(()=>service.decide(requests[0].id,'approve','Verified bank evidence'))).rejects.toThrow(/Principal/);
+    await expect(as(()=>service.request({...input,amount_minor:'1'}))).rejects.toThrow(/amount|details/i);
+    await expect(as(()=>service.request(input),other)).rejects.toThrow(/receipt|school/i);
+    await Promise.all([as(()=>service.decide(requests[0].id,'approve','Verified bank evidence'),school,'principal'),
+      as(()=>service.decide(requests[0].id,'approve','Verified bank evidence'),school,'principal')]);
+    expect((await as(()=>service.list())).items.find(row=>row.id===requests[0].id)?.status).toBe('approved');
+    expect((await as(()=>service.list(),other)).items).toHaveLength(0);
+    expect((await pool.query('SELECT count(*) FROM transactions')).rows[0].count).toBe(before);
+    expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[item.first])).rows[0].amount_paid_minor).toBe('0');
+    await expect(as(()=>db.query('UPDATE receipt_refund_evidence SET amount_minor=1 WHERE id=$1',[requests[0].id]))).rejects.toThrow(/immutable/i);
+    await expect(as(()=>service.request({...input,external_reference:randomUUID(),paid_at:new Date(Date.now()+86400000).toISOString()}))).rejects.toThrow(/future/);
+    const untouched=await historicalStk();
+    await expect(as(()=>service.request({...input,receipt_id:untouched.intent,external_reference:randomUUID()}))).rejects.toThrow(/reversal|reversed/i);
+    await assertBalanced();
+  });
+
+  it('keeps rejected manual refund evidence and rolls back a decision when audit persistence fails',async()=>{
+    const receipt=(await pool.query(`SELECT id,amount_minor::text FROM manual_fee_payments WHERE tenant_id=$1 AND status='reversed' LIMIT 1`,[school])).rows[0];
+    let fail=false;
+    const service=new ReceiptRefundEvidenceService(db,context,schoolEvents as never,{record:async(data:unknown)=>{
+      if(fail)throw Error('Refund audit unavailable');await effect('refund_audit',data);
+    }} as never);
+    const input={receipt_id:receipt.id,source_kind:'manual' as const,amount_minor:receipt.amount_minor,
+      external_reference:randomUUID(),paid_at:new Date().toISOString(),evidence_reference:'Signed cash voucher retained in school financial file',reason:'Previously authorized full payment refund'};
+    const saved=await as(()=>service.request(input));
+    fail=true;await expect(as(()=>service.decide(saved.id,'approve','Reviewed cash voucher'),school,'principal')).rejects.toThrow(/audit unavailable/);fail=false;
+    expect((await pool.query('SELECT status FROM receipt_refund_evidence WHERE id=$1',[saved.id])).rows[0].status).toBe('pending_review');
+    await as(()=>service.decide(saved.id,'reject','Voucher needs a legible original'),school,'principal');
+    const own=await as(()=>service.request({...input,evidence_reference:'Legible original signed voucher now supplied'}),school,'principal');
+    await expect(as(()=>service.decide(own.id,'approve','Verified original signed voucher'),school,'principal')).rejects.toThrow(/different Principal/);
+    expect((await pool.query('SELECT status FROM receipt_refund_evidence WHERE id=$1',[saved.id])).rows[0].status).toBe('rejected');
   });
 });
