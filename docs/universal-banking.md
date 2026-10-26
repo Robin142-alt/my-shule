@@ -1,6 +1,6 @@
 # Universal banking implementation evidence
 
-Implementation evidence checked 26 October 2026; backend deployed at `6e8376d6`. Frontend release verification is tracked in `tasks/banking/release.md`. This document distinguishes software tests from bank authorization. No bank sandbox credentials or live merchant accounts have been supplied; no official sandbox/live transaction test or certification is claimed.
+Implementation evidence checked 26 October 2026; API, workers and frontend deployed at `14f1847b`. Deployment evidence is recorded in `tasks/banking/release.md`. This document distinguishes software tests from bank authorization. No bank sandbox credentials or live merchant accounts have been supplied; no official sandbox/live transaction test or certification is claimed.
 
 ## Shared implementation
 
@@ -35,6 +35,26 @@ Accountants submit the account for Principal approval, enter supported bank cred
 | Standard Chartered Kenya | [Straight2Bank Kenya](https://www.sc.com/ke/business-channels/straight2bank/), [corporate channels](https://www.sc.com/en/corporate-investment-banking/transaction-banking/straight2bank/) | Statement reconciliation | Kenya product entitlement, implementation team, authorized API/H2H schemas and security material. |
 
 All eleven targets are selectable. Selection is not a claim of native implementation. Statement reconciliation is an operating fallback, not direct bank certification. No bank in this table has completed MyShule authorized sandbox or live tests. Bank contracts and tariffs must be confirmed by the school with its bank; public sandbox access or free signup does not establish free live processing.
+
+### Activation verification matrix
+
+Official sandbox testing is **unavailable without authorized access**, and live verification is **pending for every bank**. No bank is currently certified for live activation. The requirements in the evidence table above identify what each bank must supply.
+
+| Bank | Direct implementation | Automated coverage | Authorized activation status |
+|---|---|---|---|
+| Equity | Public authentication/signing/statement protocol implemented | Protocol fixtures and shared ingress/accounting passed | Credentials, account mandate and bank verification pending |
+| KCB | Public signed account IPN protocol implemented | Signature/HTTP fixtures and shared ingress/accounting passed | Approved signing key, account mandate and actual notification proof pending |
+| Co-operative | Public sandbox validation/statements implemented; production incomplete | Sandbox contract fixtures and shared retrieval passed | Authorized sandbox token/account pending; production contract required |
+| NBK | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Private technical contract, mandate and adapter required |
+| Family | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Private technical contract, mandate and adapter required |
+| Absa Kenya | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Kenya entitlement, private H2H contract and adapter required |
+| NCBA | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Receiving-account/notification contract and adapter required |
+| I&M | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Approved inbound collection contract and adapter required |
+| DTB | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Authorized technical portal access, mandate and adapter required |
+| Stanbic Kenya | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Subscribed schemas, mandate and adapter required |
+| Standard Chartered Kenya | Native protocol incomplete; statement fallback implemented | Registry, activation blocking and shared statement flow passed | Kenya entitlement, private API/H2H contract and adapter required |
+
+Registry/fallback coverage does not test an unimplemented native protocol. Future private adapters plug into the existing contract and dynamic setup without redesigning billing, ledger or the Accountant interface; a twelfth test provider verified that boundary.
 
 ## Verification boundaries
 

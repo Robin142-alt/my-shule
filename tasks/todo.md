@@ -12,7 +12,8 @@
 - [ ] Obtain bank merchant contracts and certify implemented native adapters; Equity retrieval and KCB signed account notifications now have local contract coverage. Other bank modes remain reviewed statements until their adapters are implemented.
 - [x] Verify legacy student_invoices adoption readiness; production inspection on 26 October found no existing legacy invoices requiring adoption. Future historical imports use audited preview/adoption.
 - [x] Add governed automatic application of existing credits to future invoices; audited manual reconciliation and receipt reversal preserve invoice/credit history.
-- [ ] Certify real merchant onboarding/callback gateway, browser end-to-end flows and peak-volume deployment capacity before production activation.
+- [x] Verify browser financial workflows locally and public login/runtime rendering after production publication.
+- [ ] Certify authorized real merchant onboarding/callback delivery and production peak-volume capacity before claiming bank/live throughput certification. Isolated financial concurrency tests pass; no synthetic production financial load was generated.
 
 ## Universal banking implementation slices
 
@@ -27,7 +28,7 @@
 - [x] Run isolated provider/database/end-to-end and existing M-Pesa, finance, portal and progression regression checks.
 - [x] Run built-in review and release checks; publish per-bank implementation, sandbox/live evidence and remaining external dependencies.
 
-Latest release status (26 October): banking backend `6e8376d6` deployed successfully to API, payments and both report workers. Read-only production migration verification preserves all five schools, 125 students and inspected financial totals; all nine financial tables enforce forced RLS. Six production auth/readiness smoke checks pass. Cloudflare publication awaits the corrected release gate; see `tasks/banking/release.md`. Earlier continuation notes below are historical, not current outstanding software tasks. Real-bank activation/certification remains external.
+Latest release status (26 October): `14f1847b` deployed successfully to Railway API, payments, both report workers and Cloudflare. Full CI and post-publication smoke checks on both public URLs passed. Read-only migration verification preserves all five schools, 125 students and inspected financial totals; all nine financial tables enforce forced RLS. Six production auth/readiness smoke checks pass. See `tasks/banking/release.md` for deployment IDs, test boundaries and verified outcomes. Earlier continuation notes below are historical, not current outstanding software tasks. Real-bank activation/certification remains external.
 
 Each slice requires focused tests and build/type checks before committing. Existing completed items above remain historical verification records and are rechecked where affected.
 

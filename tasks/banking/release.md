@@ -1,8 +1,34 @@
 # Banking release evidence
 
-Banking backend release `6e8376d60e92d55c81fd49a6303c48117057bd99` is deployed in production. Cloudflare publication was stopped by a release-check defect; the follow-up corrects the GitHub status endpoint while preserving publisher, service and commit verification.
+Production release **`14f1847b177a993f9ddb3011d304aeef78875e95`** is deployed to Railway and Cloudflare. Banking implementation merged in PR #116 (`6e8376d6`), followed by the release verification fix in #117 and school recovery isolation in #118. All application changes are committed and pushed. This report distinguishes deployed software from authorized bank certification.
 
-## Production evidence, 26 October 2026
+## Final deployment verification
+
+[Release CI run 40383726347](https://github.com/Robin142-alt/my-shule/actions/runs/40383726347) completed successfully. Quality, security audit, Cloudflare build/runtime, backend, PostgreSQL/Redis integration and container publishing passed. CodeQL passed. Railway uses its existing Git deployment; the alternate workflow deployment job is intentionally skipped.
+
+| Production component | Deployment/version | Verified state |
+|---|---|---|
+| Railway API | `096f3f80-e95d-4d79-b833-38ae7a0f295b` | SUCCESS at `14f1847b`; readiness, database/Redis and environment audit passed |
+| Payments worker | `80158135-cb88-4ae1-b658-7109879337bf` | SUCCESS at `14f1847b`; BullMQ startup and one connected consumer verified |
+| Interactive reports worker | `591d4036-10dc-4005-b1e8-045278cdf241` | SUCCESS at `14f1847b`; dispatcher, renderer and retention startup verified |
+| Bulk reports worker | `4f7c246f-be6a-4350-bb69-8966abddb54b` | SUCCESS at `14f1847b` |
+| Cloudflare `myshule-web` | `0630ff0d-5e38-45fd-a162-81340b276594` | Published 26 October 2026, 22:32 EAT, from the verified `14f1847b` artifact |
+
+Both `https://www.myshule.online` and `https://myshule-web.ondurobinson.workers.dev` passed post-deployment runtime smoke tests: pages, immutable assets, images, PWA, legal documents/PDF, CSRF, unsigned tenant protection and protected API routes. The six production authentication/readiness smoke checks also passed after publication. These are production-safe public/unauthenticated checks, not real-bank transactions or authenticated financial postings.
+
+Live Chromium checks also passed school, parent and Super Admin login pages at 390px and 1440px without horizontal overflow or page errors; the mobile school login screenshot was visually inspected. The final read-only database comparison after Cloudflare publication passed again at 22:34 EAT.
+
+Redis inspection confirmed matching API/worker database, Redis and queue namespace, one connected payments consumer, and zero waiting/active/delayed/failed jobs. No job was inserted by the verification. API/worker error-log checks were empty; the earlier startup log burst warning did not recur.
+
+Read-only production comparisons after deployment preserved all five schools, 125 students, inspected financial history counts and balances. All nine financial history/ingress tables enforce forced RLS. Existing canonical and legacy financial tables inspected were empty; no legacy invoice adoption or synthetic production financial posting was needed. Schema-only production migration rehearsal ran twice locally with real Prisma posting and retry checks.
+
+Final CI evidence includes 1,596 passing base backend tests, 20 registry/provider protocol tests, 62 PostgreSQL banking/history tests, 56 payment-ingress/tenant tests and 52 Accountant/portal tests. These are separate passing groups and are not additive unique coverage. The separate PostgreSQL/Redis integration job also passed finance concurrency, authentication, school isolation and promotion contracts. Eight local production-build browser journeys passed across Accountant, Bursar, Principal and Super Admin at mobile/desktop widths, using controlled API fixtures; actual accounting was tested separately in PostgreSQL.
+
+Concurrency evidence includes 25 simultaneous ledger payments plus duplicate, reversal, allocation and refund races. This is correctness coverage, not certification of production peak throughput for thousands of schools. No load-generating financial transactions were sent to production.
+
+No authorized bank sandbox or live certification occurred. Equity and KCB protocol implementation is contract tested; Co-op native integration is sandbox-only; eight other banks require private technical contracts before native adapter implementation. All eleven retain reviewed manual/statement workflows. M-Pesa merchant activation requires genuine authorized credentials and callback verification. See the per-bank matrix in `docs/universal-banking.md`.
+
+## Initial deployment and repaired release issues, 26 October 2026
 
 - PR #116 merged. Railway API (`6b1616fe-f8bd-40e2-8086-b48c724153a4`), payments worker (`67822930-3e67-4b16-811c-593d54c03373`) and both report workers reached SUCCESS at the banking release commit.
 - Actual worker logs confirm schema verification, PostgreSQL/Redis connections and BullMQ startup. API readiness and the runtime environment audit passed with no missing/invalid configuration or active alerts.
