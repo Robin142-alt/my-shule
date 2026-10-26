@@ -22,6 +22,7 @@ import { CollectionSuspenseService } from '../src/modules/payments/collection-su
 import { CollectionReferenceMatcher } from '../src/modules/payments/collection-reference-matcher.service';
 import { FinanceCorrectionService } from '../src/modules/payments/finance-correction.service';
 import { MpesaReconciliationService } from '../src/modules/payments/services/mpesa-reconciliation.service';
+import { requestSchoolFeeWaiver, applySchoolFeeWaiver } from '../src/modules/finance/fee-waiver-workflow';
 import { PaymentIngressService } from '../src/modules/payments/ingress/payment-ingress.service';
 import { PAYMENT_CHANNEL_WORKFLOW_SCHEMA } from '../src/modules/tenant-finance/payment-channel-workflow-schema.service';
 import { COLLECTION_PAYMENTS_SCHEMA } from '../src/modules/payments/collection-payments-schema.service';
@@ -100,7 +101,9 @@ describe('Bank collection accounting through the real financial engine', () => {
         created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),UNIQUE(tenant_id,id));
       CREATE TABLE IF NOT EXISTS mpesa_transactions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,mpesa_receipt_number text,
         ledger_transaction_id uuid,payment_intent_id uuid,status text,checkout_request_id text,created_at timestamptz DEFAULT now());
-      CREATE TABLE IF NOT EXISTS mpesa_c2b_payments(id uuid PRIMARY KEY,tenant_id text,trans_id text,status text,manual_fee_payment_id uuid,updated_at timestamptz);
+      CREATE TABLE IF NOT EXISTS mpesa_c2b_payments(id uuid PRIMARY KEY,tenant_id text,trans_id text,status text,manual_fee_payment_id uuid,updated_at timestamptz,
+        amount_minor bigint,currency_code text DEFAULT 'KES',bill_ref_number text,matched_invoice_id uuid,matched_student_id text,
+        ledger_transaction_id uuid,payment_channel_id uuid,received_at timestamptz DEFAULT now(),metadata jsonb DEFAULT '{}');
       CREATE TABLE finance_approval_requests(id uuid PRIMARY KEY,tenant_id text,action text,status text,subject_type text,subject_id uuid,
         reconciliation_discrepancy_id uuid,amount_minor bigint,currency_code text,reason text,requested_by_user_id uuid,
         first_approver_user_id uuid,second_approver_user_id uuid);
@@ -264,7 +267,8 @@ describe('Bank collection accounting through the real financial engine', () => {
     const payment=await as(()=>collections.recognizeVerified(school,{provider_code:'safaricom',provider_transaction_id:reference,
       destination_account:'600111',amount_minor:'5000',currency_code:'KES',account_reference:'ADM-MPESA',occurred_at:new Date().toISOString()},channel));
     expect(payment.status).toBe('posted');
-    await pool.query("INSERT INTO mpesa_c2b_payments VALUES($1,$2,$3,'matched',$4,now())",[randomUUID(),school,reference,payment.manual_fee_payment_id]);
+    await pool.query(`INSERT INTO mpesa_c2b_payments(id,tenant_id,trans_id,status,manual_fee_payment_id,updated_at,amount_minor,ledger_transaction_id)
+      VALUES($1,$2,$3,'matched',$4,now(),5000,$5)`,[randomUUID(),school,reference,payment.manual_fee_payment_id,payment.ledger_transaction_id]);
     await pool.query('INSERT INTO mpesa_reconciliation_discrepancies(id,tenant_id,provider_transaction_id,ledger_transaction_id) VALUES($1,$2,$3,$4)',[discrepancy,school,reference,payment.ledger_transaction_id]);
     await pool.query(`INSERT INTO finance_approval_requests VALUES($1,$2,'reversal','approved','mpesa_reconciliation_discrepancy',$3,$3,5000,'KES',
       'Reviewed receipt correction',$4,$5,$6)`,[approval,school,discrepancy,accountant,randomUUID(),principal]);
@@ -367,5 +371,44 @@ describe('Bank collection accounting through the real financial engine', () => {
     const reconciliation=new MpesaReconciliationService({get:()=>undefined} as never,context,db);
     const orphans=await as(()=>(reconciliation as any).loadUnmatchedLedgerRows(school,new Date(Date.now()-3600000),new Date(Date.now()+3600000),['1110-MPESA-CLEARING'],null)) as Array<{transaction_id:string}>;
     expect(orphans.map(row=>row.transaction_id)).toEqual([unknown.transaction_id]);
+  });
+
+  it('does not reopen an executed C2B correction but retains provider reversals without local financial proof',async()=>{
+    const unproved=randomUUID();
+    await pool.query(`INSERT INTO mpesa_c2b_payments(id,tenant_id,trans_id,status,amount_minor)
+      VALUES($1::uuid,$2,$1::uuid::text,'reversed',5000)`,[unproved,school]);
+    const reconciliation=new MpesaReconciliationService({get:()=>undefined} as never,context,db);
+    const review=()=>as(()=>(reconciliation as any).loadC2bReviewRows(school,new Date(Date.now()-3600000),new Date(Date.now()+3600000),new Date(),null)) as Promise<Array<{c2b_payment_id:string}>>;
+    expect((await review()).map(row=>row.c2b_payment_id)).toEqual([unproved]);
+    // A mismatched imported amount invalidates the supposed proof, even when
+    // the receipt and collection IDs still match the recorded reversal.
+    await pool.query('UPDATE mpesa_c2b_payments SET amount_minor=5001 WHERE manual_fee_payment_id IS NOT NULL');
+    expect((await review()).map(row=>row.c2b_payment_id)).toHaveLength(2);
+  });
+
+  it('requests and applies a fee waiver through the real Prisma transaction without duplicate requests or cash postings',async()=>{
+    await pool.query(`ALTER TABLE students ADD first_name text,ADD last_name text;
+      CREATE TABLE dashboard_approval_requests(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,approval_key text,
+        requested_by_user_id uuid,approver_role text,module text,record_id text,approval_type text,reason text,status text,metadata jsonb,
+        UNIQUE(tenant_id,approval_key));
+      ALTER TABLE dashboard_approval_requests ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE dashboard_approval_requests FORCE ROW LEVEL SECURITY;
+      CREATE POLICY school_only ON dashboard_approval_requests USING(tenant_id=current_setting('app.tenant_id',true))
+        WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
+      GRANT SELECT,INSERT,UPDATE ON dashboard_approval_requests TO ${role};`);
+    const learner=randomUUID(),key=randomUUID();
+    await pool.query("INSERT INTO students(id,tenant_id,admission_number,status) VALUES($1::uuid,$2,$1::uuid::text,'active')",[learner,school]);
+    const target=await invoice('10000',learner);
+    const before=(await pool.query('SELECT count(*) FROM transactions')).rows[0].count;
+    const request=()=>as(()=>db.withRequestTransaction(tx=>requestSchoolFeeWaiver(tx,{
+      schoolId:school,userId:accountant,studentId:learner,amountMinor:'1000',reason:'Approved school scholarship',key})));
+    const requested=await Promise.all([request(),request()]);
+    expect(requested[0].id).toBe(requested[1].id);
+    await as(()=>db.withRequestTransaction(tx=>applySchoolFeeWaiver(tx,{
+      schoolId:school,approvalId:requested[0].id,actorUserId:principal,actorRole:'principal',approved:true})),school,'principal');
+    expect((await pool.query('SELECT total_amount_minor,amount_paid_minor FROM invoices WHERE id=$1',[target])).rows)
+      .toEqual([{total_amount_minor:'9000',amount_paid_minor:'0'}]);
+    expect((await pool.query('SELECT count(*) FROM transactions')).rows[0].count).toBe(before);
+    expect((await as(()=>db.query('SELECT * FROM dashboard_approval_requests'),other)).rows).toHaveLength(0);
   });
 });

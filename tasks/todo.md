@@ -31,6 +31,8 @@ Each slice requires focused tests and build/type checks before committing. Exist
 
 Latest correction continuation: receipt-register STK requests, reopening historical reversal approvals, exact-recipient notifications and provenance-aware orphan detection are implemented. Nineteen real-PostgreSQL checks, 120 payment/event/notification regressions, six component tests and API build passed. The production web build passed; eight desktop/mobile browser journeys passed with controlled API fixtures. No live financial data was changed.
 
+Follow-up accounting audit: completed C2B corrections no longer recreate review exceptions when full financial proof agrees. Missing or mismatched proof remains visible. Real-Prisma fee-waiver lock deserialization is fixed; 31 PostgreSQL accounting, waiver and correction checks pass.
+
 ### Verified progress and remaining accounting audit findings
 
 - Eleven independently documented bank targets are registered; unimplemented native capabilities remain disabled. Catalog/M-Pesa credential regressions: 19 passed, API build passed.

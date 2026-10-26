@@ -1131,6 +1131,17 @@ export class MpesaReconciliationService {
               AND c2b.received_at <= $5::timestamptz
             )
           )
+          AND NOT (c2b.status='reversed' AND EXISTS (
+            SELECT 1 FROM collection_payments payment
+            JOIN manual_fee_payments receipt ON receipt.tenant_id=payment.tenant_id AND receipt.id=payment.manual_fee_payment_id
+            JOIN transactions reversal ON reversal.tenant_id=receipt.tenant_id AND reversal.id=receipt.reversal_ledger_transaction_id
+            WHERE payment.tenant_id=c2b.tenant_id AND payment.provider_code='safaricom'
+              AND payment.provider_transaction_id=c2b.trans_id AND payment.status='reversed' AND receipt.status='reversed'
+              AND receipt.id=c2b.manual_fee_payment_id AND payment.ledger_transaction_id::text=c2b.ledger_transaction_id::text
+              AND payment.amount_minor=c2b.amount_minor AND payment.currency_code=c2b.currency_code
+              AND receipt.amount_minor=c2b.amount_minor AND receipt.currency_code=c2b.currency_code
+              AND reversal.total_amount_minor=c2b.amount_minor AND reversal.currency_code=c2b.currency_code
+          ))
         ORDER BY c2b.received_at ASC, c2b.id ASC
       `,
       [

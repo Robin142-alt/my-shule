@@ -10,7 +10,7 @@ export type FeeWaiverRequest = {
 export async function requestSchoolFeeWaiver(tx: FeeWaiverTransaction, input: FeeWaiverRequest) {
   const amount = positiveMinor(input.amountMinor);
   // Serialize retries for this request without locking another school's records.
-  await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', `${input.schoolId}:fee-waiver:${input.userId}:${input.key}`);
+  await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))::text', `${input.schoolId}:fee-waiver:${input.userId}:${input.key}`);
   const key = `fee-waiver:${input.userId}:${input.key}`;
   const existing = await tx.$queryRawUnsafe<Array<{ id: string; record_id: string; reason: string; status: string; metadata: Record<string, string> }>>(
     `SELECT id::text, record_id, reason, status, metadata FROM dashboard_approval_requests WHERE tenant_id = $1 AND approval_key = $2`, input.schoolId, key,
