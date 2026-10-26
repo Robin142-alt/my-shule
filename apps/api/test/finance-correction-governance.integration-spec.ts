@@ -66,13 +66,24 @@ describe('Financial correction approval and execution boundary',()=>{
       CREATE TABLE manual_fee_payments(id uuid PRIMARY KEY,tenant_id text,status text,reversal_ledger_transaction_id uuid);
       CREATE TABLE transactions(id uuid PRIMARY KEY,tenant_id text,currency_code text,total_amount_minor bigint);
       CREATE TABLE audit_evidence(tenant_id text,payload text);
+      CREATE TABLE payment_intents(id uuid PRIMARY KEY,tenant_id text,student_id uuid,amount_minor bigint,currency_code text,
+        payment_owner text,status text,ledger_transaction_id uuid,completed_at timestamptz DEFAULT now());
+      CREATE TABLE mpesa_transactions(id uuid PRIMARY KEY,tenant_id text,payment_intent_id uuid,mpesa_receipt_number text,
+        checkout_request_id text,ledger_transaction_id uuid,status text,created_at timestamptz DEFAULT now());
+      CREATE TABLE student_fee_payment_reversals(tenant_id text,payment_intent_id uuid);
+      CREATE TABLE mpesa_reconciliation_batches(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text,report_date date,
+        window_started_at timestamptz,window_ended_at timestamptz,reconciliation_state text,summary jsonb,discrepancy_count integer,generated_by_user_id uuid);
+      ALTER TABLE mpesa_reconciliation_discrepancies ALTER COLUMN id SET DEFAULT gen_random_uuid(),
+        ADD discrepancy_type text,ADD reconciliation_state text,ADD severity text,ADD detail text,
+        ADD occurred_at timestamptz,ADD mpesa_transaction_id uuid;
+      ALTER TABLE manual_fee_payments ADD ledger_transaction_id uuid;
       CREATE TABLE mpesa_c2b_payments(id uuid PRIMARY KEY,tenant_id text,mpesa_config_id uuid,payment_channel_id uuid,trans_id text,transaction_type text,
         business_short_code text,bill_ref_number text,invoice_number text,amount_minor bigint,currency_code text,phone_number text,payer_name text,
         org_account_balance text,third_party_trans_id text,status text,matched_invoice_id uuid,matched_student_id text,manual_fee_payment_id uuid,ledger_transaction_id uuid,
         received_at timestamptz DEFAULT now(),matched_at timestamptz,raw_payload jsonb DEFAULT '{}',raw_payload_encrypted_ref text,payload_sha256 text,
         metadata jsonb DEFAULT '{}',created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
       GRANT ALL ON ALL TABLES IN SCHEMA ${schema} TO ${role};`);
-    for(const table of ['finance_approval_requests','mpesa_reconciliation_discrepancies','collection_payments','collection_reversal_requests','manual_fee_payments','transactions','audit_evidence','mpesa_c2b_payments'])
+    for(const table of ['finance_approval_requests','mpesa_reconciliation_discrepancies','collection_payments','collection_reversal_requests','manual_fee_payments','transactions','audit_evidence','mpesa_c2b_payments','payment_intents','mpesa_transactions','student_fee_payment_reversals','mpesa_reconciliation_batches'])
       await pool.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
         CREATE POLICY school_only ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
   });
@@ -134,5 +145,51 @@ describe('Financial correction approval and execution boundary',()=>{
       expect((await pool.query('SELECT status,manual_fee_payment_id,ledger_transaction_id FROM mpesa_c2b_payments WHERE id=$1',[id])).rows[0])
         .toEqual({status,manual_fee_payment_id:receipt,ledger_transaction_id:ledger});
     }
+  });
+
+  it('opens a staff-requested historical STK review once without changing any payment or ledger balance',async()=>{
+    const intent=randomUUID(),ledger=randomUUID();
+    await pool.query(`INSERT INTO payment_intents(id,tenant_id,student_id,amount_minor,currency_code,payment_owner,status,ledger_transaction_id)
+      VALUES($1,'school-a',$2,15000,'KES','tenant','completed',$3)`,[intent,randomUUID(),ledger]);
+    await pool.query(`INSERT INTO mpesa_transactions(id,tenant_id,payment_intent_id,mpesa_receipt_number,checkout_request_id,ledger_transaction_id,status)
+      VALUES($1,'school-a',$2,'STK-REVIEW','checkout-review',$3,'succeeded')`,[randomUUID(),intent,ledger]);
+    const review=()=>as(()=>(service as any).requestHistoricalStkReversal(intent,'Confirmed wrong payment needs correction'));
+    await expect(as(()=>(service as any).requestHistoricalStkReversal(intent,'Reviewed correction'),requester,'teacher')).rejects.toThrow(/permission/);
+    await expect(as(()=>(service as any).requestHistoricalStkReversal(intent,'Reviewed correction'),requester,'accountant','school-b')).rejects.toThrow(/payment|receipt/i);
+    failEvent=true;
+    try{await expect(review()).rejects.toThrow(/Outbox/);}finally{failEvent=false;}
+    expect((await pool.query('SELECT * FROM mpesa_reconciliation_discrepancies WHERE payment_intent_id=$1',[intent])).rows).toHaveLength(0);
+    const results=await Promise.all([review(),review()]) as Array<{id:string;status:string}>;
+    expect(results[0]).toMatchObject({status:'pending_first_approval'});
+    expect(results[0].id).toBe(results[1].id);
+    expect((await pool.query('SELECT * FROM mpesa_reconciliation_discrepancies WHERE payment_intent_id=$1',[intent])).rows).toHaveLength(1);
+    expect((await pool.query('SELECT * FROM finance_approval_requests WHERE id=$1',[results[0].id])).rows[0])
+      .toMatchObject({amount_minor:'15000',requested_by_user_id:requester});
+    expect((await pool.query('SELECT status FROM payment_intents WHERE id=$1',[intent])).rows[0].status).toBe('completed');
+    expect((await pool.query('SELECT * FROM transactions WHERE id=$1',[ledger])).rows).toHaveLength(0);
+  });
+
+  it('reopens a historical approval without execution proof as a new independent review and preserves the original decision',async()=>{
+    const row=await seed(),old=await request(row.discrepancy),oldId=String(old.id);
+    await pool.query("UPDATE finance_approval_requests SET status='approved',first_approver_user_id=$2,second_approver_user_id=$3 WHERE id=$1",[oldId,reviewer,principal]);
+    await pool.query("UPDATE mpesa_reconciliation_discrepancies SET resolution_status='resolved',resolved_by_user_id=$2,resolved_at=now() WHERE id=$1",[row.discrepancy,principal]);
+    const reopen=()=>as(()=>(service as any).reopenHistoricalApproval(oldId,'The earlier approval has no executed ledger correction'));
+    await expect(as(()=>(service as any).reopenHistoricalApproval(oldId,'Check original evidence'),requester,'accountant','school-b')).rejects.toThrow(/not found/);
+    failEvent=true;
+    try{await expect(reopen()).rejects.toThrow(/Outbox/);}finally{failEvent=false;}
+    expect((await pool.query('SELECT resolution_status FROM mpesa_reconciliation_discrepancies WHERE id=$1',[row.discrepancy])).rows[0].resolution_status).toBe('resolved');
+    const [a,b]=await Promise.all([reopen(),reopen()]) as Array<{id:string;status:string}>;
+    expect(a.id).toBe(b.id);expect(a.id).not.toBe(oldId);expect(a.status).toBe('pending_first_approval');
+    const original=(await pool.query('SELECT * FROM finance_approval_requests WHERE id=$1',[oldId])).rows[0];
+    expect(original).toMatchObject({status:'approved',reason:old.reason,second_approver_user_id:principal});
+    expect(original.evidence).not.toHaveProperty('correction_execution');
+    expect(original.evidence.replacement_approval_id).toBe(a.id);
+    const reopened=(await pool.query('SELECT * FROM finance_approval_requests WHERE id=$1',[a.id])).rows[0];
+    expect(reopened.evidence.previous_approval_id).toBe(oldId);
+    expect((await pool.query('SELECT status FROM collection_payments WHERE id=$1',[row.payment])).rows[0].status).toBe('posted');
+    await as(()=>service.approveFinanceApproval(a.id),reviewer);
+    await as(()=>service.approveFinanceApproval(a.id),principal,'principal');
+    expect((await pool.query('SELECT status FROM collection_payments WHERE id=$1',[row.payment])).rows[0].status).toBe('reversed');
+    await expect(as(()=>(service as any).reopenHistoricalApproval(a.id,'Attempt to repeat an executed correction'))).rejects.toThrow(/executed|proof/i);
   });
 });

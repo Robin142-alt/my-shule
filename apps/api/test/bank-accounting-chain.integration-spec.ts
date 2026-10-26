@@ -21,6 +21,7 @@ import { CollectionPaymentsService } from '../src/modules/payments/collection-pa
 import { CollectionSuspenseService } from '../src/modules/payments/collection-suspense.service';
 import { CollectionReferenceMatcher } from '../src/modules/payments/collection-reference-matcher.service';
 import { FinanceCorrectionService } from '../src/modules/payments/finance-correction.service';
+import { MpesaReconciliationService } from '../src/modules/payments/services/mpesa-reconciliation.service';
 import { PaymentIngressService } from '../src/modules/payments/ingress/payment-ingress.service';
 import { PAYMENT_CHANNEL_WORKFLOW_SCHEMA } from '../src/modules/tenant-finance/payment-channel-workflow-schema.service';
 import { COLLECTION_PAYMENTS_SCHEMA } from '../src/modules/payments/collection-payments-schema.service';
@@ -305,6 +306,9 @@ describe('Bank collection accounting through the real financial engine', () => {
 
   it('reverses a historical STK receipt, applied and remaining credit once while preserving history and receipt visibility',async()=>{
     const item=await historicalStk();
+    const family=randomUUID(),unlinked=randomUUID();
+    await pool.query("INSERT INTO student_guardians VALUES($1,$2,$3,'active'),($1,$2,$4,'inactive'),($5,$2,$4,'active')",
+      [school,item.owner,family,unlinked,other]);
     const results=await Promise.all([item.execute(),item.execute(),item.execute()]);
     expect(new Set(results.map(result=>result.reversal_ledger_transaction_id)).size).toBe(1);
     expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=ANY($1::uuid[])',[[item.first,item.second]])).rows)
@@ -319,6 +323,9 @@ describe('Bank collection accounting through the real financial engine', () => {
     expect((await as(()=>db.query('SELECT * FROM student_fee_payment_reversals'),other)).rows).toHaveLength(0);
     await expect(as(()=>db.query('UPDATE student_fee_payment_reversals SET reason=$2 WHERE payment_intent_id=$1',[item.intent,'Erase history'])))
       .rejects.toThrow(/immutable/);
+    const notification=(await pool.query("SELECT payload FROM banking_chain_effects WHERE kind='school_event' AND payload->'event'->>'entityId'=$1",[item.intent])).rows;
+    expect(notification).toHaveLength(1);
+    expect(notification[0].payload.notifications).toEqual([expect.objectContaining({targetUserId:family,href:'/fees'})]);
     await assertBalanced();
   });
 
@@ -350,5 +357,15 @@ describe('Bank collection accounting through the real financial engine', () => {
     expect((await item.allocation()).duplicate).toBe(true);
     expect((await pool.query('SELECT remaining_amount_minor FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].remaining_amount_minor).toBe('0');
     await assertBalanced();
+  });
+
+  it('keeps unexplained postings visible but does not flag governed reversals or verified collections as missing provider records',async()=>{
+    const accounts=(await pool.query("SELECT id,code FROM accounts WHERE tenant_id=$1 AND code IN ('1110-MPESA-CLEARING','1100-AR-FEES')",[school])).rows;
+    const unknown=await as(()=>transactions.postTransaction({idempotency_key:randomUUID(),reference:`UNKNOWN-${randomUUID()}`,
+      description:'Unexplained posting for reconciliation',entries:accounts.map(a=>({account_id:a.id,
+        direction:a.code==='1110-MPESA-CLEARING'?'debit':'credit',amount_minor:'100',currency_code:'KES'}))}));
+    const reconciliation=new MpesaReconciliationService({get:()=>undefined} as never,context,db);
+    const orphans=await as(()=>(reconciliation as any).loadUnmatchedLedgerRows(school,new Date(Date.now()-3600000),new Date(Date.now()+3600000),['1110-MPESA-CLEARING'],null)) as Array<{transaction_id:string}>;
+    expect(orphans.map(row=>row.transaction_id)).toEqual([unknown.transaction_id]);
   });
 });

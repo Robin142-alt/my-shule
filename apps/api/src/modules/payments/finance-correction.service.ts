@@ -156,11 +156,18 @@ export class FinanceCorrectionService {
       original_ledger_transaction_id,reversal_ledger_transaction_id,amount_minor,currency_code,reason,created_by)
       VALUES($1,$2::uuid,$3,$4::uuid,$5,$6,$7::bigint,$8,$9,$10)`,[tenant,payment.id,payment.student_id,approval.id,
       payment.ledger_transaction_id,reversed.transaction_id,payment.amount_minor,payment.currency_code,approval.reason,actor]);
+    const recipients=(await this.db.query<{user_id:string}>(`SELECT user_id FROM student_guardians
+      WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' AND user_id IS NOT NULL
+      UNION SELECT user_id FROM student_portal_access
+      WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' AND user_id IS NOT NULL`,[tenant,payment.student_id])).rows;
     await this.schoolEvents.recordSchoolOperation({schoolId:tenant,event:{id:`student-fee:${payment.id}:reversed`,type:'payment.reversed',
       module:'finance',entityId:payment.id,title:'M-Pesa receipt corrected',body:'An approved correction restored the learner invoice balances.',
       payload:{student_id:payment.student_id,approval_id:approval.id,amount_minor:payment.amount_minor,
         original_ledger_transaction_id:payment.ledger_transaction_id,reversal_ledger_transaction_id:reversed.transaction_id,
-        reversed_credit_applications:applications.map(a=>a.id),reason:approval.reason}}});
+        reversed_credit_applications:applications.map(a=>a.id),reason:approval.reason}},
+      notifications:recipients.map(recipient=>({id:`student-fee:${payment.id}:reversed:${recipient.user_id}`,
+        audienceRoles:['parent','student'],targetUserId:recipient.user_id,title:'Fee receipt corrected',
+        body:'An approved receipt correction updated your fee statement. Open Fees to view the corrected balance.',href:'/fees'}))});
     return {payment_intent_id:payment.id,reversal_ledger_transaction_id:reversed.transaction_id};
   }
 }

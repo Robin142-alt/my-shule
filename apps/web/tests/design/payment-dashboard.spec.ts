@@ -16,6 +16,7 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
       await page.setViewportSize({ width, height: 900 });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
+      page.on('console',message=>{if(message.type()==='error') errors.push(message.text());});
       const school = "payment-dashboard-fixture";
       const user = {
         user_id: "fixture-user",
@@ -31,6 +32,7 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
                 "principal:read",
                 "principal:write",
                 "billing:read",
+                "billing:write",
                 "notifications:read",
               ]
             : [
@@ -62,11 +64,6 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
           }),
           url: "http://127.0.0.1:3005",
         },
-        {
-          name: "myshule_access",
-          value: "local-payment-dashboard-fixture",
-          url: "http://127.0.0.1:3005",
-        },
       ]);
       const revision = {
         id: "00000000-0000-4000-8000-000000000411",
@@ -82,16 +79,39 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         requested_by: "accountant",
         created_at: "2026-09-30T08:00:00Z",
       };
+      let correctionRequested=false,correctionExecuted=false;
       await page.route("**/api/**", async (route) => {
+        if (route.request().headers().accept?.includes('text/event-stream')) {
+          await route.fulfill({contentType:'text/event-stream',body:': local dashboard fixture\n\n'});
+          return;
+        }
         const url = new URL(route.request().url());
         const path = url.pathname;
         let response: unknown = [];
         if (path === "/api/auth/csrf") response = { token: "local-fixture-csrf" };
+        else if (path === '/api/legal/access') response={ready:true};
         else if (path === "/api/auth/me") response = { session, user };
         else if (path === "/api/school/modules/me")
           response = ["principal_dashboard", "finance", "communication"];
         else if (path.includes("permissions"))
           response = { data: user.permissions };
+        else if (path.endsWith('/billing/manual-fee-payments')) response=[{
+          id:'00000000-0000-4000-8000-000000000433',receipt_number:'STK-RECEIPT',payment_method:'mpesa_c2b',
+          status:'cleared',student_name:'Linked Learner',amount_minor:'15000',received_at:'2026-10-20T08:00:00Z',metadata:{source:'stk_payment'},
+        }];
+        else if (path.endsWith('/payment-intents/00000000-0000-4000-8000-000000000433/reversal-requests')) {
+          expect(route.request().postDataJSON()).toEqual({reason:'Verified original receipt requires correction'});
+          correctionRequested=true;
+          response={status:'pending_first_approval',message:'Correction requested. Two independent reviews are required.'};
+        }
+        else if (path.endsWith('/reconciliation/approval-requests/approval-fixture/approve')) {
+          expect(role).toBe('principal');correctionExecuted=true;response={status:'approved'};
+        }
+        else if (path.endsWith('/reconciliation/approval-requests')) response=correctionRequested?[{
+          id:'approval-fixture',action:'reversal',status:correctionExecuted?'approved':role==='principal'?'pending_second_approval':'pending_first_approval',amount_minor:'15000',
+          reason:'Verified original receipt requires correction',can_approve:role==='principal'&&!correctionExecuted,can_cancel:!correctionExecuted,
+          execution:correctionExecuted?{reversal_ledger_transaction_id:'fixture-ledger'}:null,
+        }]:[];
         else if (path.endsWith("/collection-channel-summary"))
           response = {
             total: 1,
@@ -172,7 +192,7 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         `/school/${role}/${role === "principal" ? "approvals" : "payment-setup"}`,
       );
       await expect(
-        page.getByRole("heading", { name: "School payment channels" }),
+        page.getByRole("heading", { name: role === 'principal' ? 'Payment setup approvals' : 'School payment channels' }),
       ).toBeVisible();
       await expect(
         page.getByText("School fees account", { exact: true }),
@@ -192,7 +212,7 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         await page.getByLabel(/I have verified/).check();
         await page.getByRole("button", { name: "Approve destination" }).click();
         await expect(
-          page.getByText("Approved for technical connection by Super Admin."),
+          page.getByText("Payment setup approved and removed from this queue."),
         ).toBeVisible();
         await expect(
           page.getByRole("button", { name: "Review request", exact: true }),
@@ -235,6 +255,39 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         path: `../../artifacts/payment-dashboard/${role}-${width}.png`,
         fullPage: true,
       });
+      if(role!=='principal') {
+        await page.goto(`/school/${role}/payments`);
+        await page.getByRole('button',{name:'Request reversal',exact:true}).filter({visible:true}).click();
+        await expect(page.getByText(/Two independent reviewers/)).toBeVisible();
+        await page.getByLabel('Reason',{exact:true}).fill('Verified original receipt requires correction');
+        await page.getByRole('button',{name:'Request approval',exact:true}).click();
+        await expect(page.getByText('Correction requested. Two independent reviews are required.')).toBeVisible();
+        await page.goto(`/school/${role}/collections`);
+        await page.getByRole('button',{name:'M-Pesa reconciliation reviews',exact:true}).click();
+        await page.getByRole('button',{name:'Approval requests',exact:true}).click();
+        await expect(page.getByText('Verified original receipt requires correction',{exact:true})).toBeVisible();
+        await expect(page.getByRole('button',{name:'Review request',exact:true})).toHaveCount(0);
+        expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+        expect(errors).toEqual([]);
+        await expect(page.getByRole('dialog')).toBeInViewport({ratio:1});
+        await expect(page.getByRole('button',{name:'Close',exact:true})).toBeInViewport({ratio:1});
+        await page.screenshot({path:`../../artifacts/payment-dashboard/stk-review-${role}-${width}.png`});
+      } else {
+        correctionRequested=true;
+        await page.goto('/school/principal/collections');
+        await page.getByRole('button',{name:'M-Pesa reconciliation reviews',exact:true}).click();
+        await page.getByRole('button',{name:'Approval requests',exact:true}).click();
+        await page.getByRole('button',{name:'Final review',exact:true}).click();
+        await expect(page.getByRole('button',{name:'Confirm approval',exact:true})).toBeDisabled();
+        await page.getByRole('checkbox',{name:/I have checked the payment/}).check();
+        await page.getByRole('button',{name:'Confirm approval',exact:true}).click();
+        await expect(page.getByText('Correction executed and financial result verified.')).toBeVisible();
+        expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+        expect(errors).toEqual([]);
+        await expect(page.getByRole('dialog')).toBeInViewport({ratio:1});
+        await expect(page.getByRole('button',{name:'Close',exact:true})).toBeInViewport({ratio:1});
+        await page.screenshot({path:`../../artifacts/payment-dashboard/stk-review-${role}-${width}.png`});
+      }
     });
   }
 }
@@ -250,6 +303,7 @@ for (const width of [1440, 390]) {
       const path = new URL(route.request().url()).pathname;
       let response: unknown = [];
       if (path === "/api/auth/csrf") response = { token: "local-fixture-csrf" };
+      else if (path === '/api/legal/access') response={ready:true};
       else if (path.endsWith("/payment-integrations/summary")) response = { total: 1, pending_approval: 0, awaiting_connection: revision.status === "active" ? 0 : 1, ready: revision.status === "ready" ? 1 : 0, active: revision.status === "active" ? 1 : 0, sandbox: 0, attention: 0 };
       else if (path.endsWith("/payment-integrations/providers")) response = [{ code: "equity", name: "Equity", description: "Statement review", channel_kinds: ["bank_account"], connection_modes: ["statement"], credential_fields: [] }];
       else if (path.endsWith("/payment-integrations")) response = [revision];

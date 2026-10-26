@@ -43,6 +43,12 @@ export class PaymentsController {
     return this.mpesaReconciliationService.generateDailyReport(query);
   }
 
+  @Post('payment-intents/:paymentIntentId/reversal-requests')
+  @Permissions('billing:write')
+  requestHistoricalStkReversal(@Param('paymentIntentId',ParseUUIDPipe) id:string,@Body() dto:SuspendPaymentChannelDto) {
+    return this.mpesaReconciliationService.requestHistoricalStkReversal(id,dto.reason);
+  }
+
   @Get('reconciliation/range')
   @Permissions('billing:read')
   async getRangeReconciliationReport(
@@ -85,6 +91,12 @@ export class PaymentsController {
     @Param('requestId') requestId: string,
   ) {
     return this.mpesaReconciliationService.approveFinanceApproval(requestId);
+  }
+
+  @Post('reconciliation/approval-requests/:requestId/reopen')
+  @Permissions('billing:write')
+  reopenHistoricalApproval(@Param('requestId',ParseUUIDPipe) id:string,@Body() dto:SuspendPaymentChannelDto) {
+    return this.mpesaReconciliationService.reopenHistoricalApproval(id,dto.reason);
   }
 
   @Post('reconciliation/daily/run')

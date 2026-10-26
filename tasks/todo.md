@@ -16,11 +16,11 @@
 
 ## Universal banking implementation slices
 
-- [ ] Assess all eleven banks against official sources; record method, credentials, access gaps and certification status independently.
+- [x] Assess all eleven banks against official sources; record method, credentials, access gaps and certification status independently.
 - [x] Extend catalog and capability contracts; prove registration of a test-only additional provider without financial engine/schema changes.
-- [ ] Implement each accessible official native protocol and hostile-input/authentication contract tests; never register unimplemented capabilities.
-- [ ] Connect native verified evidence to existing durable inbox, worker recovery and shared ledger/allocation path.
-- [ ] Extend approved connection configuration, diagnostics and lifecycle with provider-specific dynamic inputs and genuine activation gates.
+- [x] Implement accessible Equity/Jenga, KCB account-IPN and Co-op sandbox protocols with hostile-input/authentication contract tests; unsupported native capabilities remain unavailable pending bank contracts.
+- [x] Connect native verified evidence to existing durable inbox, worker recovery and shared ledger/allocation path.
+- [x] Extend approved connection configuration, diagnostics and lifecycle with provider-specific dynamic inputs and genuine activation gates.
 - [ ] Complete governed credit application, overpayment correction and reversals; verify conservation under concurrency.
 - [x] Complete audited, idempotent legacy invoice preview/adoption; preserve original records and avoid historical cash reposting.
 - [ ] Complete Accountant bank setup/reconciliation/credit UI and related Principal/Super Admin workflows; test mobile and desktop.
@@ -29,12 +29,14 @@
 
 Each slice requires focused tests and build/type checks before committing. Existing completed items above remain historical verification records and are rechecked where affected.
 
+Latest correction continuation: receipt-register STK requests, reopening historical reversal approvals, exact-recipient notifications and provenance-aware orphan detection are implemented. Nineteen real-PostgreSQL checks, 120 payment/event/notification regressions, six component tests and API build passed. The production web build passed; eight desktop/mobile browser journeys passed with controlled API fixtures. No live financial data was changed.
+
 ### Verified progress and remaining accounting audit findings
 
 - Eleven independently documented bank targets are registered; unimplemented native capabilities remain disabled. Catalog/M-Pesa credential regressions: 19 passed, API build passed.
 - Invoice-only manual receipts now resolve and validate the same-school learner before posting, preserving overpayment ownership. Focused billing/control regressions: 47 passed.
 - Credit application covers automatic new-invoice application, an audited Accountant action, immutable application/reversal history, manual/online credits and remaining-credit reads. Forty PostgreSQL regression tests pass across credit application, portal balances, Accountant approvals/reversals and UUID/text/legacy invoice schemas. Six UI tests pass; web typecheck and API build pass. Cash and STK statements preserve one receipt after credit application.
-- M-Pesa finance approvals now execute and verify collection-backed and historical STK reversals transactionally. Non-reversal actions and legacy approvals without execution proof remain to be completed. Approval alone can no longer resolve them.
+- M-Pesa finance approvals now execute and verify collection-backed and historical STK reversals transactionally. Historical reversal approvals without proof can be reopened for fresh independent review. Non-reversal actions remain to be completed; approval alone cannot resolve them.
 - Legacy `student_invoices` adoption and the old `/finance/invoices/generate` writer now use canonical billing with audited lineage (verification below). Production adoption still requires each school's reviewed records.
 - Equity Jenga authenticated, RSA-signed account statements and diagnostic transaction query are implemented against official specifications. Native retrieval is wired through the existing BullMQ worker, tenant-scoped durable cursors, verified inbox and shared posting; no bank sandbox/live certification is claimed.
 - Accountant bank credential configuration and connection testing follow Principal approval; Super Admin retains activation. Dynamic inputs and retrieval/retry controls pass 17 UI tests; web typecheck passes. Provider/inbox/worker focused tests pass (21 tests); 42 PostgreSQL ingress, workflow and Accountant regressions pass, including same-account credential rotation and historical manual bank receipt protection.

@@ -4,16 +4,17 @@ import { requestDashboardApi } from '@/lib/dashboard/api-client';
 
 const mockInvalidate=jest.fn().mockResolvedValue(undefined);
 let mockCanApprove=true;
+let mockHistorical=false;
 jest.mock('@tanstack/react-query',()=>({useQueryClient:()=>({invalidateQueries:mockInvalidate})}));
 jest.mock('@/lib/data/school-tenant-scope',()=>({useOptionalSchoolTenantId:()=> 'school-a'}));
 jest.mock('@/components/providers/permission-context',()=>({usePermissions:()=>({hasPermission:()=>true})}));
 jest.mock('@/lib/dashboard/api-client',()=>({requestDashboardApi:jest.fn()}));
 jest.mock('@/lib/data/school-hooks',()=>({useSchoolQuery:(path:string|null)=>({
-  data:path?.includes('approval-requests')?[{id:'approval',action:'reversal',status:'pending_first_approval',amount_minor:'12500',reason:'Duplicate payment',can_approve:mockCanApprove,can_cancel:true,execution:null}]:
+  data:path?.includes('approval-requests')?[{id:'approval',action:'reversal',status:mockHistorical?'approved':'pending_first_approval',amount_minor:'12500',reason:'Duplicate payment',can_approve:mockCanApprove&&!mockHistorical,can_cancel:!mockHistorical,can_reopen:mockHistorical,execution:null}]:
     {items:[{id:'discrepancy',reconciliation_batch_id:'batch',provider_transaction_id:'MPESA-1',detail:'Check original payment',reconciliation_state:'manual_review_required',collection_amount_minor:'12500'}]},
   isLoading:false,isFetching:false,refetch:jest.fn(),
 })}));
-beforeEach(()=>{jest.clearAllMocks();mockCanApprove=true;});
+beforeEach(()=>{jest.clearAllMocks();mockCanApprove=true;mockHistorical=false;});
 
 test('a correction requires a reason and confirmation and keeps monetary minor units as text',async()=>{
   (requestDashboardApi as jest.Mock).mockResolvedValue({status:'pending_first_approval'});
@@ -55,4 +56,20 @@ test('failed execution remains visible and server permission flags prevent self 
   fireEvent.click(screen.getByRole('button',{name:'Back to reviews'}));
   mockCanApprove=false;view.rerender(<ReconciliationCorrections/>);
   expect(screen.queryByRole('button',{name:'Review request'})).not.toBeInTheDocument();
+});
+
+test('historical approval without execution proof starts a fresh review with a reason and explicit confirmation',async()=>{
+  mockHistorical=true;
+  (requestDashboardApi as jest.Mock).mockResolvedValue({status:'pending_first_approval'});
+  render(<ReconciliationCorrections/>);
+  fireEvent.click(screen.getByRole('button',{name:'M-Pesa reconciliation reviews'}));
+  fireEvent.click(screen.getByRole('button',{name:'Approval requests'}));
+  fireEvent.click(screen.getByRole('button',{name:'Reopen review'}));
+  expect(screen.getByRole('button',{name:'Start new review'})).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Reason'),{target:{value:'Earlier approval has no ledger correction'}});
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button',{name:'Start new review'}));
+  await waitFor(()=>expect(requestDashboardApi).toHaveBeenCalledWith('/payments/mpesa/reconciliation/approval-requests/approval/reopen',
+    expect.objectContaining({body:{reason:'Earlier approval has no ledger correction'}})));
+  expect(await screen.findByRole('status')).toHaveTextContent('Two independent reviews');
 });
