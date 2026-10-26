@@ -36,14 +36,19 @@ export class FeeCreditApplicationService {
               AND (a.student_id::text=$2 OR (a.student_id IS NULL AND original.metadata->>'student_id'=$2))),0) END
           - COALESCE((SELECT sum(applied.amount_minor) FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) applied
             WHERE applied.tenant_id=payment.tenant_id AND applied.source_kind='manual' AND applied.source_id=payment.id),0)
+          - COALESCE((SELECT sum(refund.amount_minor) FROM fee_credit_refunds refund WHERE refund.tenant_id=payment.tenant_id
+            AND refund.source_kind='manual' AND refund.source_id=payment.id AND refund.status IN ('pending','approved','completed')),0)
         )::text AS available
         FROM manual_fee_payments payment LEFT JOIN invoices original ON original.tenant_id=payment.tenant_id AND original.id::text=payment.invoice_id::text
         WHERE payment.tenant_id=$1 AND COALESCE(payment.student_id::text,original.metadata->>'student_id')=$2
           AND payment.status='cleared' AND payment.currency_code='KES'
         ORDER BY payment.created_at,payment.id FOR UPDATE OF payment`,[school,studentId]);
-      const online=await this.prisma.query<CreditSource>(`SELECT id,'online' AS kind,remaining_amount_minor::text AS available
-        FROM student_fee_credits WHERE tenant_id=$1 AND student_id::text=$2 AND remaining_amount_minor>0
-        ORDER BY created_at,id FOR UPDATE`,[school,studentId]);
+      const online=await this.prisma.query<CreditSource>(`SELECT credit.id,'online' AS kind,
+        (credit.remaining_amount_minor-COALESCE((SELECT sum(refund.amount_minor) FROM fee_credit_refunds refund
+          WHERE refund.tenant_id=credit.tenant_id AND refund.source_kind='online' AND refund.source_id=credit.id
+            AND refund.status IN ('pending','approved')),0))::text AS available
+        FROM student_fee_credits credit WHERE credit.tenant_id=$1 AND credit.student_id::text=$2 AND credit.remaining_amount_minor>0
+        ORDER BY credit.created_at,credit.id FOR UPDATE OF credit`,[school,studentId]);
       const sources=[...manual.rows,...online.rows].filter(source=>BigInt(source.available)>0n);
       if(!sources.length) return {applied_amount_minor:'0',applications:[]};
       const invoices=await this.prisma.query<CreditInvoice>(`SELECT id,total_amount_minor::text,amount_paid_minor::text

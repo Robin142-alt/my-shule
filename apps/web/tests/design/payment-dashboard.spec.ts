@@ -13,6 +13,8 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
     test(`${role} payment setup and notification links at ${width}px`, async ({
       page,
     }) => {
+      // This journey now crosses setup, receipts, reconciliation, invoices and refund review.
+      test.setTimeout(60000);
       await page.setViewportSize({ width, height: 900 });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
@@ -81,6 +83,7 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
       };
       let correctionRequested=false,correctionExecuted=false;
       let refundRecorded=role==='principal',refundApproved=false;
+      let creditStatus=role==='principal'?'pending':'approved';
       await page.route("**/api/**", async (route) => {
         if (route.request().headers().accept?.includes('text/event-stream')) {
           await route.fulfill({contentType:'text/event-stream',body:': local dashboard fixture\n\n'});
@@ -96,6 +99,23 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
           response = ["principal_dashboard", "finance", "communication"];
         else if (path.includes("permissions"))
           response = { data: user.permissions };
+        else if(path.endsWith('/billing/student-balances')) response=[{student_id:'refund-learner',student_name:'Linked Learner',currency_code:'KES',invoiced_amount_minor:'10000',paid_amount_minor:'10000',credit_amount_minor:'2000',balance_amount_minor:'-2000'}];
+        else if(path.endsWith('/billing/credit-refunds/sources/refund-learner')) response={items:[{source_kind:'manual',source_id:'00000000-0000-4000-8000-000000000434',receipt_number:'CREDIT-RECEIPT',available_minor:'2000',reserved_minor:'0'}]};
+        else if(path.endsWith('/billing/credit-refunds/credit-refund-fixture/decision')) {
+          expect(role).toBe('principal');expect(route.request().postDataJSON()).toEqual({decision:'approve',reason:'Checked original payer and unused credit'});
+          creditStatus='approved';response={status:creditStatus};
+        }
+        else if(path.endsWith('/billing/credit-refunds/credit-refund-fixture/payout')) {
+          expect(route.request().postDataJSON()).toMatchObject({external_reference:'CREDIT-PAYOUT',evidence_reference:'Bank debit advice in finance register'});
+          creditStatus='completed';response={status:creditStatus};
+        }
+        else if(path.endsWith('/billing/credit-refunds')) {
+          if(route.request().method()==='POST') {
+            expect(route.request().postDataJSON()).toMatchObject({source_kind:'manual',amount_minor:'1200',reason:'Return unused school fees'});
+            creditStatus='pending';response={status:creditStatus};
+          }else response={items:[{id:'credit-refund-fixture',amount_minor:'1200',receipt_number:'CREDIT-RECEIPT',student_name:'Linked Learner',
+            reason:'Return unused school fees',status:creditStatus,can_review:role==='principal'&&creditStatus==='pending',can_cancel:creditStatus!=='completed',can_complete:creditStatus==='approved'}]};
+        }
         else if (path.endsWith('/billing/manual-fee-payments')) response=[{
           id:'00000000-0000-4000-8000-000000000433',receipt_number:'STK-RECEIPT',payment_method:'mpesa_c2b',
           status:'cleared',student_name:'Linked Learner',amount_minor:'15000',received_at:'2026-10-20T08:00:00Z',metadata:{source:'stk_payment'},
@@ -321,6 +341,41 @@ for (const role of ["principal", "accountant", "bursar"] as const) {
         await expect(page.getByRole('button',{name:'Close',exact:true})).toBeInViewport({ratio:1});
         await page.screenshot({path:`../../artifacts/payment-dashboard/stk-review-${role}-${width}.png`});
       }
+      await page.getByRole('button',{name:'Close',exact:true}).click();
+      if(role!=='principal') {
+        await page.goto(`/school/${role}/invoices`);
+        await page.getByRole('button',{name:'Learner balances',exact:true}).click();
+        await page.getByRole('button',{name:'Refund credit',exact:true}).filter({visible:true}).click();
+        await page.getByLabel('Credit receipt').selectOption('manual:00000000-0000-4000-8000-000000000434');
+        await page.getByLabel('Refund amount (KES)').fill('12');
+        await page.getByLabel('Reason',{exact:true}).fill('Return unused school fees');
+        await page.getByRole('dialog').getByRole('checkbox').check();
+        await page.getByRole('button',{name:'Request refund',exact:true}).click();
+        await expect(page.getByText(/Credit reserved for independent Principal review/)).toBeVisible();
+        await page.getByRole('button',{name:'Close',exact:true}).click();
+        creditStatus='approved';
+        await page.goto(`/school/${role}/collections`);
+      }
+      await page.getByRole('button',{name:'Credit refunds',exact:true}).click();
+      if(role==='principal') {
+        await page.getByRole('button',{name:'Review refund',exact:true}).click();
+        await page.getByLabel('Reason',{exact:true}).fill('Checked original payer and unused credit');
+        await page.getByRole('dialog').getByRole('checkbox').check();
+        await page.getByRole('button',{name:'Confirm decision',exact:true}).click();
+        await expect(page.getByText(/Refund approved. Return the approved amount/)).toBeVisible();
+      }
+      await page.getByRole('button',{name:'Record payout',exact:true}).click();
+      await page.getByLabel('Outgoing payment reference').fill('CREDIT-PAYOUT');
+      await page.getByLabel('Paid at',{exact:true}).fill('2026-10-25T10:00');
+      await page.getByLabel('Evidence location and details').fill('Bank debit advice in finance register');
+      await page.getByRole('dialog').getByRole('checkbox').check();
+      await expect(page.getByRole('dialog')).toBeInViewport({ratio:1});
+      await expect(page.getByRole('button',{name:'Confirm payout',exact:true})).toBeInViewport({ratio:1});
+      await page.screenshot({path:`../../artifacts/payment-dashboard/credit-refund-${role}-${width}.png`});
+      await page.getByRole('button',{name:'Confirm payout',exact:true}).click();
+      await expect(page.getByText(/Payout recorded. The fee statement/)).toBeVisible();
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      expect(errors).toEqual([]);
     });
   }
 }

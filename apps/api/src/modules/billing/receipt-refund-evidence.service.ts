@@ -41,6 +41,8 @@ export class ReceiptRefundEvidenceService {
       await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',[`refund:${actor.tenant_id}:${receipt.reversal_ledger_transaction_id}`]);
       // Separate receipt/reference locks prevent two receipts claiming one payout.
       await this.db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))::text',[`refund-reference:${actor.tenant_id}:${reference}`]);
+      if((await this.db.query('SELECT id FROM fee_credit_refunds WHERE tenant_id=$1 AND external_reference=$2',[actor.tenant_id,reference])).rows.length)
+        throw new ConflictException('This outgoing reference already belongs to a credit refund');
       const existing=(await this.db.query<RefundEvidence>(`SELECT *,amount_minor::text FROM receipt_refund_evidence WHERE tenant_id=$1
         AND (reversal_ledger_transaction_id=$2 OR external_reference=$3) AND status IN ('pending_review','approved')`,
         [actor.tenant_id,receipt.reversal_ledger_transaction_id,reference])).rows[0];

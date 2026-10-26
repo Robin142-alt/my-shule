@@ -27,14 +27,17 @@ import { LegacyFeeInvoiceAdoptionService } from './legacy-fee-invoice-adoption.s
 import { FinanceBillingAliasesController } from './finance-billing-aliases.controller';
 import { ReceiptRefundEvidenceController } from './receipt-refund-evidence.controller';
 import { ReceiptRefundEvidenceService } from './receipt-refund-evidence.service';
+import { CreditRefundController } from './credit-refund.controller';
+import { CreditRefundService } from './credit-refund.service';
 
 @Module({
   imports: [FinanceModule, forwardRef(() => PaymentsModule)],
-  controllers: [BillingController, LegacyFeeInvoiceAdoptionController, FinanceBillingAliasesController, ReceiptRefundEvidenceController],
+  controllers: [BillingController, LegacyFeeInvoiceAdoptionController, FinanceBillingAliasesController, ReceiptRefundEvidenceController, CreditRefundController],
   providers: [
     BillingSchemaService,
     BillingService,
     ReceiptRefundEvidenceService,
+    CreditRefundService,
     LegacyFeeInvoiceAdoptionService,
     BillingAccessService,
     BillingLifecycleService,

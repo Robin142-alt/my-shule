@@ -363,7 +363,9 @@ export class ManualFeePaymentsRepository {
               CASE WHEN payment.invoice_id IS NULL AND NOT EXISTS(SELECT 1 FROM manual_fee_payment_allocations allocation
                 WHERE allocation.tenant_id=payment.tenant_id AND allocation.manual_payment_id::text=payment.id::text)
                 THEN payment.amount_minor ELSE 0 END) - COALESCE((SELECT sum(applied.amount_minor) FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) applied
-                  WHERE applied.tenant_id=payment.tenant_id AND applied.source_kind='manual' AND applied.source_id::text=payment.id::text),0))::text
+                  WHERE applied.tenant_id=payment.tenant_id AND applied.source_kind='manual' AND applied.source_id::text=payment.id::text),0)
+                -COALESCE((SELECT sum(refund.amount_minor) FROM fee_credit_refunds refund WHERE refund.tenant_id=payment.tenant_id
+                  AND refund.source_kind='manual' AND refund.source_id::text=payment.id::text AND refund.status='completed'),0))::text
           ) END AS metadata,
           created_by_user_id,
           created_at,

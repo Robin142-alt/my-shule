@@ -290,6 +290,31 @@ describe("School payment balances shared with linked Parent and Student portals"
     expect(configured).toBe(1);
   });
 
+  it.each(['manual','online'])('shows %s partial refund history and remaining credit only to linked portals',async kind=>{
+    const tenant=`refund-${kind}`,owner=randomUUID(),portalUser=randomUUID(),receipt=randomUUID(),source=randomUUID(),refund=randomUUID();
+    await pool.query('INSERT INTO students(id,tenant_id,first_name,last_name) VALUES($1,$2,\'Refund\',\'Learner\')',[owner,tenant]);
+    await pool.query("INSERT INTO student_guardians VALUES($1,$2,$3,'active')",[tenant,owner,portalUser]);
+    await pool.query("INSERT INTO student_portal_access VALUES($1,$2,$3,'active')",[tenant,owner,portalUser]);
+    if(kind==='manual') await pool.query(`INSERT INTO manual_fee_payments(id,tenant_id,student_id,receipt_number,payment_method,amount_minor,status)
+      VALUES($1,$2,$3,'RC-REFUND','bank_deposit',5000,'cleared')`,[receipt,tenant,owner]);
+    else {
+      await pool.query(`INSERT INTO payment_intents(id,tenant_id,student_id,user_id,amount_minor,currency_code,payment_owner,status,ledger_transaction_id)
+        VALUES($1,$2,$3,$4,5000,'KES','tenant','completed',$5)`,[receipt,tenant,owner,portalUser,randomUUID()]);
+      await pool.query('INSERT INTO student_fee_credits(tenant_id,student_id,remaining_amount_minor,payment_intent_id) VALUES($1,$2,3800,$3)',[tenant,owner,receipt]);
+    }
+    await pool.query(`INSERT INTO fee_credit_refunds(id,tenant_id,idempotency_key,source_kind,source_id,receipt_id,student_id,original_ledger_transaction_id,
+      amount_minor,currency_code,reason,requested_by,status,reviewed_by,reviewed_at,decision_reason,external_reference,evidence_reference,paid_at,
+      completed_by,completed_at,ledger_transaction_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,1200,'KES','Unused fees',$9,'completed',$10,now(),
+      'Independent review','REF-PAID','School bank advice',now(),$9,now(),$11)`,[refund,tenant,randomUUID(),kind,kind==='manual'?receipt:source,
+      receipt,owner,randomUUID(),randomUUID(),randomUUID(),randomUUID()]);
+    for(const portal of await as(()=>Promise.all([parent.getFees(),student.getFees()]),tenant,portalUser)) {
+      expect(portal.metrics.balance_minor).toBe(-3800);
+      expect(portal.transactions).toEqual([expect.objectContaining({id:receipt,amount_minor:5000,status:'cleared',
+        credit_refunds:[expect.objectContaining({id:refund,amount_minor:'1200',reference:'REF-PAID'})]})]);
+    }
+    for(const portal of await as(()=>Promise.all([parent.getFees(),student.getFees()]),tenant,user)) expect(portal.transactions).toEqual([]);
+  });
+
   it('shows an older STK receipt and its correction consistently in linked Parent and Student payment histories',async()=>{
     const owner=randomUUID(),portalUser=randomUUID(),intent=randomUUID(),ledger=randomUUID(),target=randomUUID();
     await pool.query("INSERT INTO students(id,tenant_id,admission_number,first_name,last_name) VALUES($1,'school-stk','STK-1','Linked','STK')",[owner]);

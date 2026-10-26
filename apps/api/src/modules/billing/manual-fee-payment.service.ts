@@ -305,6 +305,9 @@ export class ManualFeePaymentService {
       }
 
       if (!this.feeCredits) throw new ConflictException('Credit application service is unavailable; retry when finance services recover');
+      if((await this.prisma.query(`SELECT id FROM fee_credit_refunds WHERE tenant_id=$1 AND source_kind='manual'
+        AND source_id=$2::uuid AND status IN ('pending','approved','completed') LIMIT 1`,[tenantId,lockedPayment.id])).rows.length)
+        throw new ConflictException('This receipt has reserved or refunded credit. Cancel an unpaid refund first; completed refunds require a reconciled correction instead of a full reversal.');
       await this.feeCredits.reverseManualApplications(lockedPayment.id, dto.notes ?? 'Approved receipt reversal');
       const reversalTransaction = await this.postReversalTransaction(lockedPayment, dto);
       const allocations = await this.manualFeePaymentsRepository.listAllocations(

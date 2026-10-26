@@ -1,5 +1,12 @@
 import { ACTIVE_CREDIT_APPLICATION_SQL } from './fee-credit-application-schema';
 
+function refundsFor(receipt:string) {
+  return `COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'amount_minor',r.amount_minor::text,'paid_at',r.paid_at,
+    'reference',r.external_reference,'ledger_transaction_id',r.ledger_transaction_id) ORDER BY r.paid_at,r.id)
+    FROM fee_credit_refunds r WHERE r.tenant_id=${receipt}.tenant_id AND r.receipt_id=${receipt}.id
+      AND r.source_kind='${receipt==='p'?'online':'manual'}' AND r.status='completed'),'[]'::jsonb)`;
+}
+
 /** Read-only receipt projection. STK receipts already posted to the ledger must
  * never be inserted as another manual payment or credited a second time. */
 export const FEE_RECEIPTS_READ_SQL = `
@@ -9,7 +16,8 @@ export const FEE_RECEIPTS_READ_SQL = `
     invoice_id::text, amount_minor, currency_code, payer_name, received_at,
     deposited_at, cleared_at, bounced_at, reversed_at, cheque_number, drawer_bank,
     deposit_reference, external_reference, asset_account_code, fee_control_account_code,
-    ledger_transaction_id::text, reversal_ledger_transaction_id::text, notes, metadata,
+    ledger_transaction_id::text, reversal_ledger_transaction_id::text, notes,
+    metadata || jsonb_build_object('credit_refunds',${refundsFor('manual_fee_payments')}) AS metadata,
     created_by_user_id::text, created_at, updated_at
   FROM manual_fee_payments WHERE tenant_id=$1
   UNION ALL
@@ -24,7 +32,7 @@ export const FEE_RECEIPTS_READ_SQL = `
       ORDER BY mt.created_at LIMIT 1),
     '1110-MPESA-CLEARING', '1100-AR-FEES', p.ledger_transaction_id::text,
     reversal.reversal_ledger_transaction_id::text, NULL::text,
-    jsonb_build_object('source','stk_payment',
+    jsonb_build_object('source','stk_payment','credit_refunds',${refundsFor('p')},
       'invoice_allocations', COALESCE((SELECT jsonb_agg(jsonb_build_object('invoice_id',a.invoice_id,'amount_minor',a.amount_minor::text)) FROM (
         SELECT invoice_id,amount_minor FROM student_fee_payment_allocations WHERE tenant_id=p.tenant_id AND payment_intent_id=p.id
         UNION ALL SELECT applied.invoice_id,applied.amount_minor FROM (${ACTIVE_CREDIT_APPLICATION_SQL}) applied

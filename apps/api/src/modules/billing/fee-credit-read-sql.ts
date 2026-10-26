@@ -23,6 +23,9 @@ export const FEE_CREDIT_READ_SQL = `
   WHERE application.tenant_id=current_setting('app.tenant_id',true)
     AND application.source_kind='manual' AND payment.status='cleared'
   UNION ALL
+  SELECT refund.tenant_id,refund.student_id,-refund.amount_minor FROM fee_credit_refunds refund
+  WHERE refund.tenant_id=current_setting('app.tenant_id',true) AND refund.source_kind='manual' AND refund.status='completed'
+  UNION ALL
   SELECT credit.tenant_id,credit.student_id::text,credit.remaining_amount_minor
   FROM student_fee_credits credit WHERE credit.tenant_id=current_setting('app.tenant_id',true)
     AND credit.remaining_amount_minor>0

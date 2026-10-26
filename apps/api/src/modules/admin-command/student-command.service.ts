@@ -228,6 +228,7 @@ export class StudentCommandService {
       this.executeSql<{
         id: string;
         receipt_number: string;
+        credit_refunds:Array<{id:string;amount_minor:string;reference:string;paid_at:string}>;
         payment_method: string;
         amount_minor: string | number;
         status: string;
@@ -239,6 +240,7 @@ export class StudentCommandService {
             payment.receipt_number,
             payment.payment_method,
             payment.amount_minor,
+            payment.metadata->'credit_refunds' AS credit_refunds,
             payment.status,
             payment.received_at::text
           FROM student_portal_access access

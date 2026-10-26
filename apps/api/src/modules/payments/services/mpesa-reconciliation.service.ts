@@ -1071,6 +1071,11 @@ export class MpesaReconciliationService {
             WHERE reversal.tenant_id=$1 AND reversal.reversal_ledger_transaction_id=ct.transaction_id
               AND reversal.amount_minor=ct.total_amount_minor::bigint AND reversal.currency_code=ct.currency_code
           )
+          AND NOT EXISTS (
+            SELECT 1 FROM fee_credit_refunds refund
+            WHERE refund.tenant_id=$1 AND refund.status='completed' AND refund.ledger_transaction_id=ct.transaction_id::text
+              AND refund.amount_minor=ct.total_amount_minor::bigint AND refund.currency_code=ct.currency_code
+          )
         GROUP BY
           ct.transaction_id,
           ct.reference,

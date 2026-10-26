@@ -1497,6 +1497,14 @@ export class BillingService {
           receipt.received_at,
         ledger_transaction_id: receipt.ledger_transaction_id,
       });
+      const refunds=receipt.metadata?.credit_refunds;
+      if(Array.isArray(refunds)) for(const refund of refunds) {
+        if(!refund||typeof refund.id!=='string'||typeof refund.amount_minor!=='string'||typeof refund.paid_at!=='string') continue;
+        entries.push({id:`credit-refund:${refund.id}`,kind:'adjustment',source_id:refund.id,invoice_id:null,
+          reference:String(refund.reference),description:`Unused credit refunded from ${receipt.receipt_number}`,status:'completed',method:'credit_refund',
+          debit_amount_minor:this.toMinorBigInt(refund.amount_minor),credit_amount_minor:0n,occurred_at:new Date(refund.paid_at),
+          ledger_transaction_id:String(refund.ledger_transaction_id)});
+      }
     }
 
     let runningBalance = 0n;

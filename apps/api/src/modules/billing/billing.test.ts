@@ -849,7 +849,11 @@ test('ManualFeePaymentService reverses a cleared cheque and restores the invoice
 
   const service = new ManualFeePaymentService(
     requestContext,
-    { query: async (sql: string) => ({rows: sql.includes('FROM collection_payments') ? [] : [{approved: true}]}), withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
+    { query: async (sql: string) => {
+      if(sql.includes('FROM collection_payments')||sql.includes('FROM fee_credit_refunds')) return {rows:[]};
+      if(sql.includes('FROM manual_fee_reversal_requests')) return {rows:[{approved:true}]};
+      throw new Error('Unexpected reversal query in test fixture');
+    }, withRequestTransaction: async <T>(callback: () => Promise<T>): Promise<T> => callback() } as never,
     {
       create: async () => clearedPayment,
       list: async () => [],

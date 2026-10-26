@@ -60,7 +60,7 @@ describe('Accountant persisted approvals and atomic reversals', () => {
     await pool.query('CREATE SCHEMA IF NOT EXISTS app');
     await pool.query(FEE_CREDIT_APPLICATION_SCHEMA_SQL);
     await pool.query(STUDENT_FEE_PAYMENT_REVERSAL_SCHEMA);
-    await pool.query(`GRANT ALL ON fee_credit_applications,fee_credit_application_reversals TO ${role}`);
+    await pool.query(`GRANT ALL ON fee_credit_applications,fee_credit_application_reversals,fee_credit_refunds TO ${role}`);
     for(const table of ['school_expenses','manual_fee_payments','manual_fee_payment_allocations']) await pool.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;CREATE POLICY school_only ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
   });
   beforeEach(async()=>{

@@ -109,6 +109,9 @@ export class FinanceCorrectionService {
     const credits=(await this.db.query<{id:string;student_id:string;amount_minor:string;remaining_amount_minor:string;ledger_transaction_id:string}>(`
       SELECT id,student_id::text,amount_minor::text,remaining_amount_minor::text,ledger_transaction_id::text
       FROM student_fee_credits WHERE tenant_id=$1 AND payment_intent_id=$2::uuid ORDER BY created_at,id FOR UPDATE`,[tenant,payment.id])).rows;
+    if((await this.db.query(`SELECT id FROM fee_credit_refunds WHERE tenant_id=$1 AND source_kind='online'
+      AND source_id=ANY($2::uuid[]) AND status IN ('pending','approved','completed') LIMIT 1`,[tenant,credits.map(c=>c.id)])).rows.length)
+      throw new ConflictException('This receipt has reserved or refunded credit. Cancel an unpaid refund first; completed refunds require a reconciled correction instead of a full reversal.');
     const allocations=(await this.db.query<{invoice_id:string;student_id:string;amount_minor:string;ledger_transaction_id:string}>(`
       SELECT invoice_id::text,student_id::text,amount_minor::text,ledger_transaction_id::text FROM student_fee_payment_allocations
       WHERE tenant_id=$1 AND payment_intent_id=$2::uuid`,[tenant,payment.id])).rows;

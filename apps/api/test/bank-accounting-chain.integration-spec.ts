@@ -4,6 +4,7 @@ import { RequestContextService } from '../src/common/request-context/request-con
 import { PrismaService } from '../src/database/prisma.service';
 import { FinanceSchemaService } from '../src/modules/finance/finance-schema.service';
 import { BillingSchemaService } from '../src/modules/billing/billing-schema.service';
+import { BillingService } from '../src/modules/billing/billing.service';
 import { LedgerService } from '../src/modules/finance/ledger.service';
 import { TransactionService } from '../src/modules/finance/transaction.service';
 import { AccountsRepository } from '../src/modules/finance/repositories/accounts.repository';
@@ -24,6 +25,8 @@ import { FinanceCorrectionService } from '../src/modules/payments/finance-correc
 import { MpesaReconciliationService } from '../src/modules/payments/services/mpesa-reconciliation.service';
 import { requestSchoolFeeWaiver, applySchoolFeeWaiver } from '../src/modules/finance/fee-waiver-workflow';
 import { ReceiptRefundEvidenceService } from '../src/modules/billing/receipt-refund-evidence.service';
+import { CreditRefundService } from '../src/modules/billing/credit-refund.service';
+import { FEE_CREDIT_READ_SQL } from '../src/modules/billing/fee-credit-read-sql';
 import { PaymentIngressService } from '../src/modules/payments/ingress/payment-ingress.service';
 import { PAYMENT_CHANNEL_WORKFLOW_SCHEMA } from '../src/modules/tenant-finance/payment-channel-workflow-schema.service';
 import { COLLECTION_PAYMENTS_SCHEMA } from '../src/modules/payments/collection-payments-schema.service';
@@ -308,6 +311,125 @@ describe('Bank collection accounting through the real financial engine', () => {
     return {owner,intent,approval,first,second,posted,allocation,
       execute:()=>as<{reversal_ledger_transaction_id:string}>(()=>service.execute(approval),school,'principal')};
   }
+
+  it.each(['manual','online'] as const)('reserves %s credit, independently approves and records a partial refund exactly once',async kind=>{
+    const item=await historicalStk();
+    let sourceId:string,receiptId=item.intent;
+    if(kind==='online') sourceId=(await pool.query('SELECT id FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].id;
+    else {
+      const payment=await post(transaction('2000',item.owner));
+      sourceId=receiptId=payment.manual_fee_payment_id;
+    }
+    const service=new CreditRefundService(db,context,transactions,schoolEvents as never,{record:(data:unknown)=>effect('credit_refund_audit',data)} as never);
+    const input={source_kind:kind,source_id:sourceId,amount_minor:'1200',reason:'Return unused fees to the original payer',idempotency_key:randomUUID()};
+    const requests=await Promise.all([as(()=>service.request(input)),as(()=>service.request(input))]);
+    expect(requests[0].id).toBe(requests[1].id);
+    await expect(as(()=>service.request({...input,idempotency_key:randomUUID(),amount_minor:'1000'}))).rejects.toThrow(/available/i);
+    await expect(as(()=>service.decide(requests[0].id,'approve','I reviewed the payer and refund'))).rejects.toThrow(/Principal/i);
+    await expect(as(()=>service.decide(requests[0].id,'approve','Other school approval'),other,'principal')).rejects.toThrow();
+    await as(()=>service.decide(requests[0].id,'approve','Verified original payer and unused credit'),school,'principal');
+    const target=await invoice('1000',item.owner);
+    await as(()=>credits.applyAvailable(item.owner,'Apply only unreserved credit'));
+    // For manual sources the independent STK credit can also pay the new invoice;
+    // the reserved manual 1200 must still remain refundable.
+    if(kind==='online') expect((await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[target])).rows[0].amount_paid_minor).toBe('800');
+    const before=(await pool.query('SELECT count(*)::int AS count FROM transactions')).rows[0].count;
+    const proof={external_reference:`REFUND-${randomUUID()}`,evidence_reference:'School bank payout advice attached to finance register',paid_at:new Date().toISOString()};
+    const results=await Promise.all([as(()=>service.complete(requests[0].id,proof)),as(()=>service.complete(requests[0].id,proof))]);
+    expect(results[0].status).toBe('completed');expect(results[0].ledger_transaction_id).toBe(results[1].ledger_transaction_id);
+    expect((await pool.query('SELECT count(*)::int AS count FROM transactions')).rows[0].count).toBe(before+1);
+    const total=(await as(()=>db.query<{amount:string}>(`SELECT COALESCE(sum(amount_minor),0)::text AS amount FROM (${FEE_CREDIT_READ_SQL}) credits WHERE tenant_id=$1 AND student_id=$2`,[school,item.owner]))).rows[0].amount;
+    expect(total).toBe(kind==='online'?'0':'1800');
+    await expect(as(()=>service.complete(requests[0].id,{...proof,external_reference:'OTHER'}))).rejects.toThrow(/already|different/i);
+    const receipts=await as(()=>new ManualFeePaymentsRepository(db).listStudentStatementPayments({tenantId:school,studentId:item.owner,invoiceIds:[item.first,item.second,target]}));
+    const receipt=receipts.find(row=>row.id===receiptId)!;
+    expect(receipt.status).toBe('cleared');expect(receipt.metadata.credit_refunds).toEqual([expect.objectContaining({amount_minor:'1200',ledger_transaction_id:results[0].ledger_transaction_id})]);
+    const invoiceRepo=new InvoicesRepository(db,{decryptNullable:(value:unknown)=>value} as never);
+    const invoiceRows=await as(()=>invoiceRepo.listStudentInvoices(school,item.owner));
+    const statement=(BillingService.prototype as any).buildStudentStatementEntries.call(Object.create(BillingService.prototype),invoiceRows,receipts);
+    expect(statement.filter((row:any)=>row.method==='credit_refund')).toEqual([expect.objectContaining({debit_amount_minor:'1200',credit_amount_minor:'0',ledger_transaction_id:results[0].ledger_transaction_id})]);
+    expect(statement.at(-1).balance_after_minor).toBe(kind==='online'?'200':'-1800');
+    if(kind==='online') await expect(item.execute()).rejects.toThrow(/refund/i);
+    else {
+      const payment=(await pool.query('SELECT id FROM collection_payments WHERE manual_fee_payment_id=$1',[receiptId])).rows[0];
+      const request=await as(()=>collections.requestReversal(payment.id,'Incorrect original receipt needs reversal'));
+      await expect(as(()=>collections.decideReversal(String(request.id),'approve','Reviewed reversal after partial refund'),school,'principal')).rejects.toThrow(/refund/i);
+    }
+    await assertBalanced();
+  });
+
+  it('serializes refund reservation against simultaneous invoice allocation without double spending',async()=>{
+    const item=await historicalStk();
+    const source=(await pool.query('SELECT id FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].id;
+    const service=new CreditRefundService(db,context,transactions,schoolEvents as never,{record:(data:unknown)=>effect('credit_refund_audit',data)} as never);
+    const target=await invoice('2000',item.owner);
+    const results=await Promise.allSettled([
+      as(()=>service.request({source_kind:'online',source_id:source,amount_minor:'1200',reason:'Return unused fees',idempotency_key:randomUUID()})),
+      as(()=>credits.applyAvailable(item.owner,'Apply credit concurrently with refund request')),
+    ]);
+    expect(results[1].status).toBe('fulfilled');
+    const paid=(await pool.query('SELECT amount_paid_minor FROM invoices WHERE id=$1',[target])).rows[0].amount_paid_minor;
+    const reserved=(await pool.query("SELECT COALESCE(sum(amount_minor),0)::text AS amount FROM fee_credit_refunds WHERE source_id=$1 AND status='pending'",[source])).rows[0].amount;
+    expect(BigInt(paid)+BigInt(reserved)).toBe(2000n);
+    expect(['800','2000']).toContain(paid);
+    if(results[0].status==='rejected') expect(results[0].reason.message).toMatch(/available/);
+  });
+
+  it('rejects incomplete credit provenance and missing server capability before reserving money',async()=>{
+    const item=await historicalStk();
+    const source=(await pool.query('SELECT id FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].id;
+    const service=new CreditRefundService(db,context,transactions,schoolEvents as never,{record:(data:unknown)=>effect('credit_refund_audit',data)} as never);
+    const input={source_kind:'online' as const,source_id:source,amount_minor:'1',reason:'Check original credit proof',idempotency_key:randomUUID()};
+    await expect(context.run({tenant_id:school,user_id:accountant,role:'accountant',permissions:[],is_authenticated:true} as never,()=>service.request(input))).rejects.toThrow(/permission/i);
+    await pool.query('UPDATE student_fee_credits SET amount_minor=amount_minor+1 WHERE id=$1',[source]);
+    await expect(as(()=>service.request(input))).rejects.toThrow(/history must reconcile/);
+    expect((await pool.query('SELECT id FROM fee_credit_refunds WHERE source_id=$1',[source])).rows).toEqual([]);
+    await pool.query('UPDATE student_fee_credits SET amount_minor=amount_minor-1 WHERE id=$1',[source]);
+  });
+
+  it('releases rejected or cancelled reservations, forbids own approval and preserves immutable decisions',async()=>{
+    const item=await historicalStk();
+    const source=(await pool.query('SELECT id FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].id;
+    const service=new CreditRefundService(db,context,transactions,schoolEvents as never,{record:(data:unknown)=>effect('credit_refund_audit',data)} as never);
+    const input={source_kind:'online' as const,source_id:source,amount_minor:'2000',reason:'Refund unused term credit',idempotency_key:randomUUID()};
+    await expect(as(()=>service.request(input),other)).rejects.toThrow(/same-school/);
+    await expect(as(()=>service.request(input),school,'teacher')).rejects.toThrow(/permission/i);
+    const own=await as(()=>service.request(input),school,'principal');
+    await expect(as(()=>service.decide(own.id,'approve','Principal cannot approve own request'),school,'principal')).rejects.toThrow(/Independent/);
+    await as(()=>service.decide(own.id,'cancel','No money has left the school'),school,'principal');
+    const second=await as(()=>service.request({...input,idempotency_key:randomUUID()}));
+    await expect(as(()=>service.request({...input,idempotency_key:second.idempotency_key,amount_minor:'1'}))).rejects.toThrow(/different/);
+    await as(()=>service.decide(second.id,'reject','Credit should pay the next term instead'),school,'principal');
+    expect((await as(()=>service.sources(item.owner))).items[0].available_minor).toBe('2000');
+    await expect(pool.query("UPDATE fee_credit_refunds SET amount_minor=1 WHERE id=$1",[second.id])).rejects.toThrow(/immutable/);
+    await expect(pool.query('DELETE FROM fee_credit_refunds WHERE id=$1',[second.id])).rejects.toThrow(/immutable/);
+    await invoice('2000',item.owner);
+    expect((await as(()=>credits.applyAvailable(item.owner,'Apply credit after refund rejected'))).applied_amount_minor).toBe('2000');
+  });
+
+  it('rolls back partial refund ledger, credit and audit atomically, then safely retries and rejects duplicate payout evidence',async()=>{
+    const item=await historicalStk();
+    const source=(await pool.query('SELECT id FROM student_fee_credits WHERE payment_intent_id=$1',[item.intent])).rows[0].id;
+    const service=new CreditRefundService(db,context,transactions,schoolEvents as never,{record:(data:unknown)=>effect('credit_refund_audit',data)} as never);
+    const input={source_kind:'online' as const,source_id:source,amount_minor:'800',reason:'Return unused fees',idempotency_key:randomUUID()};
+    const [first,second]=await Promise.all([as(()=>service.request(input)),as(()=>service.request({...input,idempotency_key:randomUUID()}))]);
+    await as(()=>service.decide(first.id,'approve','Original payer and channel checked'),school,'principal');
+    await as(()=>service.decide(second.id,'approve','Original payer and channel checked'),school,'principal');
+    await expect(as(()=>service.complete(first.id,{external_reference:'REF',evidence_reference:'Official bank payment slip',paid_at:'2020-01-01T00:00:00Z'}))).rejects.toThrow(/predates/);
+    const proof={external_reference:`REF-${randomUUID()}`,evidence_reference:'Official bank payment slip',paid_at:new Date().toISOString()};
+    const before=(await pool.query('SELECT count(*)::int AS count FROM transactions')).rows[0].count;
+    failAudit=true;try{await expect(as(()=>service.complete(first.id,proof))).rejects.toThrow(/Injected/);}finally{failAudit=false;}
+    expect((await pool.query('SELECT count(*)::int AS count FROM transactions')).rows[0].count).toBe(before);
+    expect((await pool.query('SELECT remaining_amount_minor FROM student_fee_credits WHERE id=$1',[source])).rows[0].remaining_amount_minor).toBe('2000');
+    expect((await pool.query('SELECT status FROM fee_credit_refunds WHERE id=$1',[first.id])).rows[0].status).toBe('approved');
+    const done=await as(()=>service.complete(first.id,proof));
+    await expect(as(()=>service.complete(second.id,proof))).rejects.toThrow(/reference/);
+    expect((await as(()=>service.list())).items.find(r=>r.id===done.id)).toMatchObject({status:'completed',can_review:false,can_complete:false});
+    expect((await as(()=>service.list(),other)).items).toEqual([]);
+    await as(()=>service.decide(second.id,'cancel','No second refund was paid'));
+    await expect(as(()=>service.complete(second.id,{...proof,external_reference:`REF-${randomUUID()}`}))).rejects.toThrow(/approval/i);
+    await assertBalanced();
+  });
 
   it('reverses a historical STK receipt, applied and remaining credit once while preserving history and receipt visibility',async()=>{
     const item=await historicalStk();

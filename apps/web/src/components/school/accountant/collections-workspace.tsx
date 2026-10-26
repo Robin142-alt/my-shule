@@ -2,6 +2,7 @@
 import { ManualReversalQueue } from "./manual-reversal-queue";
 import { ReconciliationCorrections } from "./reconciliation-corrections";
 import { RefundEvidence } from "./refund-evidence";
+import { CreditRefunds } from "./credit-refunds";
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -362,6 +363,7 @@ export function CollectionsWorkspace({
       <ManualReversalQueue review={mode === "review"} />
       <ReconciliationCorrections />
       <RefundEvidence />
+      <CreditRefunds />
       <Modal
         open={Boolean(action)}
         title={

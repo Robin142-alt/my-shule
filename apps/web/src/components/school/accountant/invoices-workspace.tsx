@@ -19,6 +19,7 @@ import type { StudentFeeBalanceResponse, StudentFeeStatementResponse } from "@/c
 
 import { BulkFeeBillingDialog } from "./bulk-fee-billing-dialog";
 import { LegacyInvoicesReview } from "./legacy-invoices-review";
+import { CreditRefunds } from "./credit-refunds";
 
 type Invoice = { id: string; invoice_number: string; description: string; status: string; total_amount_minor: string; amount_paid_minor: string; due_at: string; issued_at: string; metadata: { student_id: string; student_name: string; admission_number?: string } };
 const pageSize = 50;
@@ -49,6 +50,7 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
   const [exporting, setExporting] = useState(false);
   const [documentError, setDocumentError] = useState("");
   const [creditTarget, setCreditTarget] = useState<StudentFeeBalanceResponse | null>(null);
+  const [refundTarget,setRefundTarget]=useState<StudentFeeBalanceResponse|null>(null);
   const [creditReason, setCreditReason] = useState("");
   const [creditError, setCreditError] = useState("");
   const [applyingCredit, setApplyingCredit] = useState(false);
@@ -160,7 +162,7 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
       { id: "credit", header: "Credit", render: row => formatMinorKes(row.credit_amount_minor) },
       { id: "balance", header: "Balance", render: row => <strong className="tabular-nums">{formatMinorKes(row.balance_amount_minor)}</strong> },
       { id: "actions", header: "Actions", render: row => <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => viewStatement(row.student_id)}>View statement</Button>
-        {BigInt(row.credit_amount_minor) > BigInt(0) && <Button size="sm" variant="ghost" disabled={!canWrite} onClick={() => { setCreditTarget(row); setCreditReason(""); setCreditError(""); }}>Apply credit</Button>}</div> },
+        {BigInt(row.credit_amount_minor) > BigInt(0) && <><Button size="sm" variant="ghost" disabled={!canWrite} onClick={() => { setCreditTarget(row); setCreditReason(""); setCreditError(""); }}>Apply credit</Button><Button size="sm" variant="ghost" disabled={!canWrite} onClick={()=>setRefundTarget(row)}>Refund credit</Button></>}</div> },
     ]} />}
     <div className="flex flex-wrap items-center justify-end gap-3 text-sm"><span>Page {offset / pageSize + 1}</span><Button variant="secondary" disabled={!offset || activeQuery.isFetching} onClick={() => setOffset(offset - pageSize)}>Previous page</Button><Button variant="secondary" disabled={(activeQuery.data?.length ?? 0) < pageSize || activeQuery.isFetching} onClick={() => setOffset(offset + pageSize)}>Next page</Button></div>
     {dialog === "bulk" && <BulkFeeBillingDialog onClose={() => setDialog(null)} onComplete={result => {
@@ -175,11 +177,12 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
         <label className="block text-sm">Due date (optional)<input name="due" type="date" className="input-base mt-1 w-full" /></label>
       </fieldset></form>
     </Modal>
+    <CreditRefunds student={refundTarget} onClose={()=>setRefundTarget(null)}/>
     <Modal open={Boolean(creditTarget)} title="Apply existing fee credit" onClose={() => { if (!applyingCredit) setCreditTarget(null); }}
       footer={<><Button variant="secondary" disabled={applyingCredit} onClick={() => setCreditTarget(null)}>Cancel</Button>
         <Button disabled={!canWrite || applyingCredit || creditReason.trim().length < 5} onClick={() => void applyCredit()}>{applyingCredit ? "Applying credit…" : "Confirm credit application"}</Button></>}>
       <div className="space-y-4"><p className="text-sm">{creditTarget?.student_name || "This learner"} has {formatMinorKes(creditTarget?.credit_amount_minor || "0")} available.
-        Existing credit will pay eligible invoices in due-date order. Any remainder stays on the learner’s account.</p>
+        Unreserved credit will pay eligible invoices in due-date order. Pending refunds stay reserved until paid, rejected or cancelled.</p>
         <p className="text-sm text-muted">New invoices use eligible credits automatically. This action also reconciles existing unpaid invoices.</p>
         {creditError && <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{creditError}</p>}
         <label className="block text-sm">Reason<textarea className="input-base mt-1 w-full" maxLength={1000} disabled={applyingCredit} value={creditReason} onChange={event => setCreditReason(event.target.value)} /></label>
