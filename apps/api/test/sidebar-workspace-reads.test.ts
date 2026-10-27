@@ -10,6 +10,7 @@ import { Pool } from 'pg';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { REPORT_INFRASTRUCTURE_SCHEMA, REPORT_SOURCE_TRIGGERS } from '../src/modules/exams/services/report-infrastructure-schema';
+import { SYLLABUS_SCHEMA_SQL } from '../src/modules/academics/syllabus-schema';
 
 async function main() {
   if (process.env.MYSHULE_DISPOSABLE_POSTGRES !== '1') throw new Error('Disposable PostgreSQL required');
@@ -56,6 +57,8 @@ async function main() {
       // schema-service discovery above. Principal release reads require them.
       await bootstrapDb.runSchemaBootstrap(REPORT_INFRASTRUCTURE_SCHEMA);
       await bootstrapDb.runSchemaBootstrap(REPORT_SOURCE_TRIGGERS);
+      // Academics creates these after all module initializers have completed.
+      await bootstrapDb.runSchemaBootstrap(SYLLABUS_SCHEMA_SQL);
       fixture = await verifySidebarRecords(pool, SIDEBAR_WORKSPACE_SCHEMA_SQL);
       // A new API process replays bootstrap after compatibility views already exist.
       // Repeated ALTER TYPE text used to crash against timetable_lessons dependencies.
@@ -65,6 +68,7 @@ async function main() {
       }
       await bootstrapDb.runSchemaBootstrap(REPORT_INFRASTRUCTURE_SCHEMA);
       await bootstrapDb.runSchemaBootstrap(REPORT_SOURCE_TRIGGERS);
+      await bootstrapDb.runSchemaBootstrap(SYLLABUS_SCHEMA_SQL);
 
     }
     const retainedCache = await pool.query("SELECT payload FROM principal_dashboard_snapshots WHERE tenant_id='legacy-cache-school'");

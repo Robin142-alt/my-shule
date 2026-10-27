@@ -45,7 +45,7 @@ export class SyllabusService {
         AND ap.status='active' AND ap.effective_from <= CURRENT_DATE AND (ap.effective_to IS NULL OR ap.effective_to >= CURRENT_DATE)
         AND ap.class_section_id IS NULL AND ap.stream_id IS NULL AND s.status='active' AND s.archived_at IS NULL
       UNION
-      SELECT s.id::text, NULL::text FROM subjects s JOIN academics_departments d ON d.tenant_id=s.tenant_id AND d.id=s.department_id
+      SELECT s.id::text, NULL::text FROM subjects s JOIN academics_departments d ON d.tenant_id=s.tenant_id AND d.id::text=s.department_id::text
       WHERE s.tenant_id=$1 AND s.status='active' AND s.archived_at IS NULL AND d.is_active AND d.status='active' AND d.archived_at IS NULL
         AND ((d.head_of_department_user_id::text=$2 AND NOT EXISTS (SELECT 1 FROM academics_department_hod_appointments history
           WHERE history.tenant_id=d.tenant_id AND history.department_id=d.id)) OR EXISTS (

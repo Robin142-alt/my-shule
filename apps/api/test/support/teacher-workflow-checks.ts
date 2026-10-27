@@ -11,6 +11,9 @@ import { SchoolOperationalEventsService } from '../../src/modules/events/school-
 import { EventPublisherService } from '../../src/modules/events/event-publisher.service';
 import { OutboxEventsRepository } from '../../src/modules/events/repositories/outbox-events.repository';
 import { SchoolOperationNotificationsRepository } from '../../src/modules/events/repositories/school-operation-notifications.repository';
+import { SyllabusService } from '../../src/modules/academics/syllabus.service';
+import { AcademicsRepository } from '../../src/modules/academics/repositories/academics.repository';
+import { WorkflowRepository } from '../../src/modules/events/repositories/workflow.repository';
 
 export async function verifyTeacherWorkflows(pool: Pool, fixture: { tenantId: string; userId: string }) {
   const ids = Object.fromEntries(['teacher', 'studentUser', 'year', 'term', 'class', 'subject', 'stream', 'otherStream', 'learner', 'otherLearner', 'level'].map(key => [key, randomUUID()]));
@@ -39,6 +42,8 @@ export async function verifyTeacherWorkflows(pool: Pool, fixture: { tenantId: st
   }
   const role = await pool.query("INSERT INTO roles(tenant_id,code,name,updated_at) VALUES($1,'student','Student',NOW()) RETURNING id", [tenantId]);
   await pool.query("INSERT INTO tenant_memberships(tenant_id,user_id,role_id,status) VALUES($1,$2,$3,'active')", [tenantId, ids.studentUser, role.rows[0].id]);
+  const teacherRole = await pool.query("INSERT INTO roles(tenant_id,code,name,updated_at) VALUES($1,'teacher','Teacher',NOW()) RETURNING id", [tenantId]);
+  await pool.query("INSERT INTO tenant_memberships(tenant_id,user_id,role_id,status) VALUES($1,$2,$3,'active')", [tenantId, ids.teacher, teacherRole.rows[0].id]);
   await pool.query("INSERT INTO student_portal_access(tenant_id,student_id,user_id,status,username,guardian_phone_hash) VALUES($1,$2,$3,'active','qa-learner','fixture-only')", [tenantId, ids.learner, ids.studentUser]);
   await pool.query('GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO sidebar_read_test; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sidebar_read_test');
   const context = { tenant_id: tenantId, user_id: ids.teacher, role: 'teacher', permissions: ['teacher:read', 'teacher:write'], is_authenticated: true, request_id: randomUUID() };
@@ -148,7 +153,12 @@ export async function verifyTeacherWorkflows(pool: Pool, fixture: { tenantId: st
   events.recordSchoolOperation = original;
   assert.equal((await query('SELECT COUNT(*)::int AS count FROM discipline_incidents WHERE tenant_id=$1', [tenantId])).rows[0].count, before);
 
-  const reports = new TeacherCommandService(request as never,db as never,new AdminCommandOperationsService(db as never));
+  context.permissions = ['teacher:read', 'teacher:write', 'academics:read'];
+  const syllabus = new SyllabusService(db as never, request as never, new AcademicsRepository(db as never), publisher, new WorkflowRepository(db as never));
+  const reports = new TeacherCommandService(request as never,db as never,new AdminCommandOperationsService(db as never),syllabus);
+  const coverage = await reports.getSyllabusCoverage();
+  assert.equal(coverage.items.length, 1);
+  assert.equal(coverage.items[0].coverage, 0, 'Lesson logs cannot claim syllabus completion');
   await reports.generateReport();
   const reportId = (await reports.getReports()).items[0].id;
   const report = await reports.getReport(reportId);
