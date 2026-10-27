@@ -62,7 +62,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    await page.getByText('Mathematics', { exact: true }).waitFor();
+    await page.getByRole('table').getByText('Mathematics', { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.deepEqual((await auditWorkspaceContrast(page)).failures, [], 'Metric copy and shared actions must meet WCAG AA');
     for (const name of ['Dark outline', 'Dark ghost', 'Dark archive', 'Nested light outline', 'Nested light ghost', 'Light archive']) {
