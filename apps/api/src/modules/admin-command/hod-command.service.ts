@@ -1,10 +1,10 @@
+import { SyllabusService } from '../academics/syllabus.service';
 import { Injectable, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
 import { AcademicsService } from '../academics/academics.service';
-import { CURRICULUM_COVERAGE_SQL } from './academic-workspace-queries';
 
 @Injectable()
 export class HodCommandService {
@@ -14,7 +14,13 @@ export class HodCommandService {
     private readonly operations: AdminCommandOperationsService,
     @Optional() private readonly examsService?: ExamsService,
     @Optional() private readonly academicsService?: AcademicsService,
+    @Optional() private readonly syllabus?: SyllabusService,
   ) {}
+
+  private syllabusService() {
+    if (!this.syllabus) throw new ServiceUnavailableException('Syllabus coverage is unavailable. Retry after the academic service recovers.');
+    return this.syllabus;
+  }
 
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
@@ -155,12 +161,11 @@ export class HodCommandService {
   }
 
   async getCoverageReview() {
-    const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      CURRICULUM_COVERAGE_SQL,
-      [tenantId]
-    );
-    return res.rows;
+    return (await this.syllabusService().workspace()).items.map(item => ({ ...item,
+      planned_topics: item.progress?.total_topics ?? 0, covered_topics: item.progress?.completed_topics ?? 0,
+      required_subtopics: item.progress?.total ?? 0, completed_subtopics: item.progress?.completed ?? 0,
+      coverage: item.progress?.percentage ?? 0, target: item.progress?.expected_percentage ?? 0,
+      status: item.progress?.status ?? 'Syllabus not set' }));
   }
 
   async getMarksModeration() {

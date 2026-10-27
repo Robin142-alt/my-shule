@@ -4216,21 +4216,10 @@ test('HodCommandService returns tenant-scoped subject allocation options for HOD
   assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
 });
 
-test('HodCommandService does not convert tenant query failures into fake empty workspaces', async () => {
-  const service = new HodCommandService(
-    {
-      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
-    } as never,
-    {
-      query: async (_sql: string, params: unknown[]) => {
-        assert.equal(params[0], 'tenant-a');
-        throw new Error('hod read failed');
-      },
-    } as never,
-    {} as never,
-  );
-
-  await assert.rejects(() => service.getCoverageReview(), /hod read failed/);
+test('HodCommandService preserves governed coverage read failures', async () => {
+  const service=new HodCommandService({} as never,{} as never,{} as never,undefined,undefined,
+    {workspace:async()=>{throw new Error('hod read failed');}} as never);
+  await assert.rejects(()=>service.getCoverageReview(),/hod read failed/);
 });
 
 test('DeanAcademicsCommandService does not convert tenant query failures into fake empty workspaces', async () => {
@@ -4642,61 +4631,33 @@ test('TeacherCommandService lists only the current teacher store requests with a
   assert.match(queries[0].sql, /requested_by_user_id/);
 });
 
-test('TeacherCommandService derives syllabus coverage only from the current teacher active assignments', async () => {
-  const queries: Array<{ sql: string; params: unknown[] }> = [];
-  const service = new TeacherCommandService(
-    {
-      getStore: () => ({
-        tenant_id: 'tenant-a',
-        user_id: '11111111-1111-4111-8111-111111111111',
-      }),
-    } as never,
-    {
-      query: async (sql: string, params: unknown[]) => {
-        queries.push({ sql, params });
-        return {
-          rows: [
-            {
-              id: 'assignment-a',
-              subject: 'Mathematics',
-              class_name: 'Form 2 East',
-              topic: 'Quadratic equations',
-              coverage: 100,
-              target: 100,
-              status: 'On Track',
-            },
-            {
-              id: 'assignment-b',
-              subject: 'Physics',
-              class_name: 'Form 3 North',
-              topic: 'Waves',
-              coverage: 50,
-              target: 100,
-              status: 'Behind',
-            },
-          ],
-          rowCount: 2,
-        };
-      },
-    } as never,
-    {} as never,
+test('Dean overview weights actual completed subtopics across allocations', async () => {
+  const service = new DeanAcademicsCommandService(
+    { getStore: () => ({ tenant_id: 'school-a' }) } as never,
+    { query: async () => ({ rows: [{ totalSubjects: 2, totalTeachers: 2 }] }) } as never,
+    {} as never, {} as never,
+    { workspace: async () => ({ items: [
+      { progress: { total: 2, completed: 2 } },
+      { progress: { total: 8, completed: 0 } },
+      { progress: null },
+    ] }) } as never,
   );
+  assert.equal((await service.getOverview()).metrics.curriculumCoverage, 20);
+});
 
-  const result = await service.getSyllabusCoverage();
-
-  assert.deepEqual(result.metrics, { on_track: 1, behind: 1 });
-  assert.equal(result.items[0].topic, 'Quadratic equations');
-  assert.deepEqual(queries[0].params, [
-    'tenant-a',
-    '11111111-1111-4111-8111-111111111111',
-  ]);
-  assert.match(queries[0].sql, /FROM teacher_subject_assignments assignment/i);
-  assert.match(queries[0].sql, /LEFT JOIN academics_lesson_plans plan/i);
-  assert.match(queries[0].sql, /LEFT JOIN academics_lesson_logs log/i);
-  assert.match(queries[0].sql, /assignment\.tenant_id = \$1/i);
-  assert.match(queries[0].sql, /assignment\.teacher_user_id::text = \$2/i);
-  assert.match(queries[0].sql, /assignment\.effective_from <= CURRENT_DATE/i);
-  assert.match(queries[0].sql, /assignment\.effective_to IS NULL/i);
+test('TeacherCommandService reports actual syllabus progress from the governed coverage service', async () => {
+  let reads=0;
+  const service=new TeacherCommandService({} as never, {query:async()=>{throw new Error('Lesson logs must not determine syllabus completion');}} as never, {} as never,
+    { workspace:async()=>{reads++;return {items:[
+      {id:'a',progress:{percentage:100,expected_percentage:50,status:'Completed',remaining:[]}},
+      {id:'b',progress:{percentage:50,expected_percentage:100,status:'Behind',remaining:[{title:'Fractions'}]}},
+    ]};}} as never);
+  const result=await service.getSyllabusCoverage();
+  assert.equal(reads,1);
+  assert.deepEqual(result.metrics,{on_track:1,behind:1});
+  assert.equal(result.items[0].coverage,100);
+  assert.equal(result.items[1].topic,'Fractions');
+  assert.equal(result.items[1].target,100);
 });
 
 test('TeacherCommandService exposes only active assigned co-curricular duties and published sessions', async () => {

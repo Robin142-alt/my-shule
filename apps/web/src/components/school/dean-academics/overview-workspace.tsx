@@ -25,6 +25,8 @@ export type CoverageRecord = {
   class_name: string;
   planned_topics: number;
   covered_topics: number;
+  required_subtopics: number;
+  completed_subtopics: number;
   coverage: number | string | null;
 };
 
@@ -43,11 +45,11 @@ export function OverviewWorkspace({
   const { userLabel } = useSchoolCommandIdentity();
   const rows = Array.isArray(coverage.data) ? coverage.data : [];
   const planned = rows.reduce(
-    (sum, row) => sum + Number(row.planned_topics),
+    (sum, row) => sum + Number(row.required_subtopics ?? 0),
     0,
   );
   const covered = rows.reduce(
-    (sum, row) => sum + Number(row.covered_topics),
+    (sum, row) => sum + Number(row.completed_subtopics ?? 0),
     0,
   );
   const coverageValue =
@@ -55,7 +57,7 @@ export function OverviewWorkspace({
       ? "—"
       : planned
         ? `${Math.round((covered / planned) * 100)}%`
-        : "No plans";
+        : "Syllabus not set";
   const metrics = workflow.data?.metrics;
   const metric = (value: number | undefined) =>
     workflow.error || workflow.isLoading || value === undefined
@@ -136,11 +138,11 @@ export function OverviewWorkspace({
             icon: FileText,
           },
           {
-            label: "Lesson-plan coverage",
+            label: "Syllabus coverage",
             value: coverageValue,
             detail: planned
-              ? `${covered} of ${planned} plans logged`
-              : "Based on recorded lesson delivery",
+              ? `${covered} of ${planned} required subtopics covered`
+              : "Based on completed required subtopics",
             view: "curriculum-coverage" as const,
             icon: BookOpen,
           },
@@ -285,7 +287,7 @@ export function OverviewWorkspace({
 
       <Panel
         title="Teaching coverage"
-        description="Recorded delivery against lesson plans, starting with the lowest coverage."
+        description="Actual subtopic coverage against shared syllabi, starting with the lowest coverage."
         actions={
           <button
             type="button"
@@ -307,7 +309,7 @@ export function OverviewWorkspace({
         ) : !coverage.error && !rows.length ? (
           <p className="py-6 text-sm text-slate-500">
             No class-subject coverage records yet. Open Curriculum Coverage to
-            check teaching setup and submitted plans.
+            check teacher allocations and shared syllabi.
           </p>
         ) : !coverage.error ? (
           <div className="divide-y divide-slate-100">
@@ -328,9 +330,9 @@ export function OverviewWorkspace({
                     </span>
                   </p>
                   <p className="text-xs text-slate-500">
-                    {row.planned_topics
-                      ? `${row.covered_topics} of ${row.planned_topics} plans logged`
-                      : "Lesson plans needed"}
+                    {row.required_subtopics
+                      ? `${row.completed_subtopics} of ${row.required_subtopics} required subtopics covered`
+                      : "Syllabus needed"}
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">

@@ -994,19 +994,21 @@ export class AdminCommandRepository {
 
     const coverageResult = await this.executeSql(
       `
-        SELECT COALESCE(
-          ROUND(
-            100.0 * COUNT(DISTINCT log.plan_id) FILTER (WHERE log.id IS NOT NULL)
-            / NULLIF(COUNT(DISTINCT plan.id), 0),
-            0
-          ),
-          0
-        )::int AS syllabus_coverage
-        FROM academics_lesson_plans plan
-        LEFT JOIN academics_lesson_logs log
-          ON log.tenant_id::text = plan.tenant_id::text
-         AND log.plan_id = plan.id
-        WHERE plan.tenant_id = $1
+        SELECT COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE coverage.completed) / NULLIF(COUNT(*),0)),0)::int AS syllabus_coverage
+        FROM teacher_subject_assignments assignment
+        JOIN class_sections section ON section.tenant_id=assignment.tenant_id AND section.id::text=assignment.class_section_id::text
+        JOIN academics_syllabi plan ON plan.tenant_id=assignment.tenant_id AND plan.subject_id=assignment.subject_id::text
+          AND plan.academic_year_id=section.academic_year_id::text AND plan.grade_level=section.grade_level
+          AND (assignment.academic_term_id IS NULL OR plan.academic_term_id=assignment.academic_term_id::text)
+        CROSS JOIN LATERAL jsonb_array_elements(plan.topics) topic
+        CROSS JOIN LATERAL jsonb_array_elements(topic->'subtopics') subtopic
+        LEFT JOIN academics_syllabus_coverage coverage ON coverage.tenant_id=assignment.tenant_id
+          AND coverage.syllabus_id=plan.id AND coverage.assignment_id=assignment.id::text
+          AND coverage.teacher_user_id=assignment.teacher_user_id::text AND coverage.subtopic_id=subtopic->>'id'
+        WHERE assignment.tenant_id=$1 AND assignment.status='active' AND assignment.effective_from <= CURRENT_DATE
+          AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
+          AND COALESCE((topic->>'archived')::boolean,false)=false
+          AND COALESCE((subtopic->>'archived')::boolean,false)=false AND (subtopic->>'required')::boolean=true
       `,
       [tenantId],
     );

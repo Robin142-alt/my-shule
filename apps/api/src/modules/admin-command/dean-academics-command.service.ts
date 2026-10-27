@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { SyllabusService } from '../academics/syllabus.service';
+import { BadRequestException, Injectable, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { ExamsService } from '../exams/exams.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
-import { CURRICULUM_COVERAGE_SQL, DEPARTMENT_PERFORMANCE_SQL, TEACHER_WORKLOAD_SQL } from './academic-workspace-queries';
+import { DEPARTMENT_PERFORMANCE_SQL, TEACHER_WORKLOAD_SQL } from './academic-workspace-queries';
 
 @Injectable()
 export class DeanAcademicsCommandService {
@@ -12,7 +13,13 @@ export class DeanAcademicsCommandService {
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
     private readonly examsService: ExamsService,
+    @Optional() private readonly syllabus?: SyllabusService,
   ) {}
+
+  private syllabusService() {
+    if (!this.syllabus) throw new ServiceUnavailableException('Syllabus coverage is unavailable. Retry after the academic service recovers.');
+    return this.syllabus;
+  }
 
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
@@ -35,11 +42,14 @@ export class DeanAcademicsCommandService {
     `, [tenantId]);
 
     const row = metrics.rows[0] || { totalSubjects: 0, totalTeachers: 0 };
+    const coverage = await this.getCurriculumCoverage();
+    const required = coverage.reduce((total, item) => total + item.required_subtopics, 0);
+    const completed = coverage.reduce((total, item) => total + item.completed_subtopics, 0);
     return {
       metrics: {
         totalSubjects: row.totalSubjects || 0,
         totalTeachers: row.totalTeachers || 0,
-        curriculumCoverage: 0,
+        curriculumCoverage: required ? Math.round(1000 * completed / required) / 10 : 0,
       },
       academicCalendar: []
     };
@@ -73,12 +83,11 @@ export class DeanAcademicsCommandService {
   }
 
   async getCurriculumCoverage() {
-    const tenantId = this.requireTenantId();
-    const res = await this.executeSql(
-      CURRICULUM_COVERAGE_SQL,
-      [tenantId]
-    );
-    return res.rows;
+    return (await this.syllabusService().workspace()).items.map(item => ({ ...item,
+      planned_topics: item.progress?.total_topics ?? 0, covered_topics: item.progress?.completed_topics ?? 0,
+      required_subtopics: item.progress?.total ?? 0, completed_subtopics: item.progress?.completed ?? 0,
+      coverage: item.progress?.percentage ?? 0, target: item.progress?.expected_percentage ?? 0,
+      status: item.progress?.status ?? 'Syllabus not set' }));
   }
 
   async getAssessments() {

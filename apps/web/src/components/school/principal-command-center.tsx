@@ -45,6 +45,7 @@ import { OverviewWorkspace as BoardingOverviewWorkspace } from "./boarding-maste
 import { OverviewWorkspace as LibraryOverviewWorkspace } from "./librarian/overview-workspace";
 import { PrincipalAcademicSetupWorkspace } from "./principal-dashboard/academic-setup-workspace";
 import { PrincipalAcademicsWorkspace } from "./principal-dashboard/academics-workspace";
+import { SyllabusWorkspace } from './syllabus-workspace';
 import { PrincipalApprovalsWorkspace } from "./principal-dashboard/approvals-workspace";
 import { PrincipalAttendanceWorkspace } from "./principal-dashboard/attendance-workspace";
 import { PrincipalClassesStreamsWorkspace } from "./principal-dashboard/classes-streams-workspace";
@@ -97,6 +98,7 @@ type PrincipalSection =
   | "sick-bay"
   | "boarding"
   | "academics"
+  | "syllabus-coverage"
   | "timetable"
   | "staff"
   | "transport"
@@ -170,6 +172,7 @@ const PRINCIPAL_NAV_ITEMS: Array<PrincipalNavItem | PrincipalNavGroup> = [
       { id: "classes-streams", label: "Classes & Streams", icon: BookOpen },
       { id: "subjects-departments", label: "Subjects & Departments", icon: Library },
       { id: "academics", label: "Teacher Allocations", icon: UsersRound },
+      { id: "syllabus-coverage", label: "Syllabus Coverage", icon: ClipboardCheck },
     ],
   },
   { id: "staff", label: "Staff", icon: UsersRound },
@@ -470,6 +473,7 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
     if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
     if (activeWorkspace === "academics") return <PrincipalAcademicsWorkspace />;
+    if (activeWorkspace === "syllabus-coverage") return <SyllabusWorkspace />;
     if (activeWorkspace === "staff") return <PrincipalStaffRolesWorkspace />;
     if (activeWorkspace === "communication") return <PrincipalCommunicationWorkspace />;
     if (activeWorkspace === "approvals") return <PrincipalApprovalsWorkspace />;

@@ -16,10 +16,21 @@ const source = value => JSON.stringify(value.replaceAll('\\', '/'));
 fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(out, 'link.tsx'), 'export default function Link({children,...props}) {return <a {...props}>{children}</a>;}');
 fs.writeFileSync(path.join(out, 'session.ts'), 'export const useLiveTenantSession = () => ({session: {tenantId: "visual-fixture", user: {user_id: "visual-teacher"}}, isLoading: false});');
-fs.writeFileSync(path.join(out, 'api.ts'), `export const requestDashboardApi = async () => ({metrics: {on_track: 0, behind: 1}, items: [{id: "fixture", subject: "Mathematics", class_name: "Form 4", topic: "No lesson plan yet", coverage: 0, target: 100, status: "Behind"}]});`);
+const syllabusFixture = { school_id: 'visual-fixture', generated_at: '2026-10-27', generated_by: 'visual-teacher', can_monitor: false,
+  rights: [], subjects: [], years: [], terms: [], grades: [], syllabi: [],
+  items: ['Behind','Completed'].map((status, index) => ({ id: `fixture-${index}`, teacher_user_id: 'visual-teacher', teacher_name: 'Teacher',
+    subject: index ? 'English' : 'Mathematics', subject_id: `subject-${index}`, class_name: 'Form 4', class_section_id: 'form4', grade_level: 'Form 4',
+    stream_id: 'east', stream_name: 'East', academic_year_id: 'year', year_name: '2026', academic_term_id: 'term', term_name: 'Term 3',
+    can_record: false, syllabus_id: null, records: [], progress: { total: 1, completed: index, percentage: 100 * index, expected_percentage: 100,
+      total_topics: 1, completed_topics: index, remaining: index ? [] : [{ title: 'Fractions' }], overdue: index ? [] : [{ title: 'Fractions' }], milestones: [], status } })) };
+fs.writeFileSync(path.join(out, 'api.ts'), `export const requestDashboardApi = async () => (${JSON.stringify(syllabusFixture)});`);
 await new Promise((resolve, reject) => bundledWebpack.webpack({
   mode: 'development', devtool: false, entry: path.join(web, 'tests/design/colour-system.fixture.tsx'),
-  plugins: [new bundledWebpack.webpack.DefinePlugin({ 'process.env': JSON.stringify({ NODE_ENV: 'development' }) })],
+  plugins: [{ apply(compiler) { compiler.hooks.compilation.tap('ColourStyles', compilation => {
+    bundledWebpack.webpack.NormalModule.getCompilationHooks(compilation).loader.tap('ColourStyles', context => {
+      context.currentTraceSpan = require('next/dist/trace').trace('colour-browser-styles');
+    });
+  }); } }, new bundledWebpack.webpack.DefinePlugin({ 'process.env': JSON.stringify({ NODE_ENV: 'development' }) })],
   output: { path: out, filename: 'bundle.js' },
   resolve: { extensions: ['.tsx', '.ts', '.js'], modules: [path.join(web, 'node_modules'), 'node_modules'], alias: {
     'next/link': path.join(out, 'link.tsx'),
@@ -27,7 +38,11 @@ await new Promise((resolve, reject) => bundledWebpack.webpack({
     '@/lib/dashboard/api-client': path.join(out, 'api.ts'),
     '@': path.join(web, 'src'),
   } },
-  module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: [path.join(out, 'loader.cjs')] }] },
+  module: { rules: [{ test: /\.tsx?$/, exclude: /node_modules/, use: [path.join(out, 'loader.cjs')] },
+    { test: /\.css$/, use: [require.resolve('next/dist/build/webpack/loaders/next-style-loader'), {
+      loader: require.resolve('next/dist/build/webpack/loaders/css-loader/src'),
+      options: { modules: { auto: true, getLocalIdent: require('next/dist/build/webpack/config/blocks/css/loaders/getCssModuleLocalIdent').getCssModuleLocalIdent }, postcss: async () => ({ postcss: require('postcss') }) },
+    }] }] },
 }, (error, stats) => error || stats.hasErrors() ? reject(error || new Error(stats.toString({ all: false, errors: true }))) : resolve()));
 const globalsPath = path.join(web, 'src/app/globals.css');
 const globals = fs.readFileSync(globalsPath, 'utf8').replace('@import "tailwindcss";', `@import "tailwindcss" source(none);\n@source ${source(path.join(web, 'src/components'))};\n@source ${source(path.join(web, 'tests/design/colour-system.fixture.tsx'))};`);
@@ -47,7 +62,7 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    await page.getByText('Mathematics', { exact: true }).waitFor();
+    await page.getByRole('table').getByText('Mathematics', { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.deepEqual((await auditWorkspaceContrast(page)).failures, [], 'Metric copy and shared actions must meet WCAG AA');
     for (const name of ['Dark outline', 'Dark ghost', 'Dark archive', 'Nested light outline', 'Nested light ghost', 'Light archive']) {
@@ -57,11 +72,10 @@ try {
     }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Overflow at ${width}px`);
     const fill = locator => locator.evaluate(el => getComputedStyle(el).backgroundColor);
-    assert.notEqual(await fill(page.locator('[data-tone="success"]')), await fill(page.locator('[data-tone="warning"]')), 'On Track and Behind need distinct semantic fills');
-    assert.notEqual(await fill(page.locator('.app-workspace-panel > div').first()), 'rgb(255, 255, 255)', 'Section header must have a visible tint');
-    const status = page.locator('.app-record-table').getByText('Behind', { exact: true });
+    assert.notEqual(await fill(page.locator('[data-status="Completed"]')), await fill(page.locator('[data-status="Behind"]')), 'Completed and Behind need distinct semantic fills');
+    const status = page.locator('[data-status="Behind"]');
     assert.equal(await fill(status), 'rgb(255, 246, 229)', 'Behind must use the warning badge');
-    if (width < 640) assert.equal(await fill(page.locator('.app-record-table td').first()), 'rgb(237, 243, 251)', 'Mobile record heading must retain colour');
+    if (width < 640) assert.equal(await page.getByRole('table').evaluate(el => getComputedStyle(el).display), 'block', 'Teacher coverage uses readable class cards on mobile');
     await page.screenshot({ path: path.join(out, `syllabus-${width}.png`), fullPage: true });
     const workspacePrimary = await fill(page.getByRole('button', { name: 'Primary action', exact: true }));
     await page.getByRole('button', { name: 'Open form', exact: true }).click();

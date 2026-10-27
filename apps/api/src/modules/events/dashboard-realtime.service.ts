@@ -467,6 +467,9 @@ const eventConfigs: Partial<Record<SupportedDomainEventName, DashboardEventConfi
   'academic.department.updated': academicDataChangedConfig('Department setup updated'),
   'academic.hod.reassigned': academicDataChangedConfig('Head of department reassigned'),
   'academic.subject.updated': academicDataChangedConfig('Subject setup updated'),
+  'academic.syllabus.updated': academicDataChangedConfig('Syllabus updated'),
+  'academic.syllabus.coverage_updated': academicDataChangedConfig('Syllabus coverage updated'),
+  'academic.syllabus.exported': academicDataChangedConfig('Syllabus report generated'),
   'academic.teacher_assignment.changed': academicDataChangedConfig('Teacher allocation updated'),
   'academic.cohort.promoted': academicDataChangedConfig('Cohort promoted'),
   'academic.policy.updated': academicDataChangedConfig('Academic policy updated'),
@@ -833,7 +836,7 @@ function academicDataChangedConfig(
     title,
     'academics',
     'academics:read',
-    ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'teacher', 'class-teacher', 'grade-master', 'admissions-officer'],
+    ['principal', 'deputy-principal', 'dean-academics', 'exams-manager', 'hod', 'hos', 'teacher', 'class-teacher', 'grade-master', 'admissions-officer'],
     tone,
   );
   return {

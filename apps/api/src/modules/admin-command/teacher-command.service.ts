@@ -1,7 +1,10 @@
+import { SyllabusService } from '../academics/syllabus.service';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -15,7 +18,13 @@ export class TeacherCommandService {
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
+    @Optional() private readonly syllabus?: SyllabusService,
   ) {}
+
+  private syllabusService() {
+    if (!this.syllabus) throw new ServiceUnavailableException('Syllabus coverage is unavailable. Retry after the academic service recovers.');
+    return this.syllabus;
+  }
 
   private requireTenantId(): string {
     const tenantId = this.requestContext.getStore()?.tenant_id;
@@ -124,85 +133,12 @@ export class TeacherCommandService {
   }
 
   async getSyllabusCoverage() {
-    const tenantId = this.requireTenantId();
-    const userId = this.requireUserId();
-    const res = await this.executeSql(
-      `
-        WITH assigned_subjects AS (
-          SELECT
-            assignment.id,
-            assignment.tenant_id,
-            assignment.class_section_id,
-            assignment.subject_id,
-            assignment.teacher_user_id,
-            subject.name AS subject,
-            class_section.name AS class_name
-          FROM teacher_subject_assignments assignment
-          INNER JOIN subjects subject
-            ON subject.tenant_id = assignment.tenant_id
-           AND subject.id::text = assignment.subject_id::text
-          INNER JOIN class_sections class_section
-            ON class_section.tenant_id = assignment.tenant_id
-           AND class_section.id::text = assignment.class_section_id::text
-          WHERE assignment.tenant_id = $1
-            AND assignment.teacher_user_id::text = $2
-            AND assignment.status = 'active'
-            AND assignment.effective_from <= CURRENT_DATE
-            AND (assignment.effective_to IS NULL OR assignment.effective_to >= CURRENT_DATE)
-        ), coverage AS (
-          SELECT
-            assignment.id,
-            assignment.subject,
-            assignment.class_name,
-            COUNT(DISTINCT plan.id)::int AS planned_topics,
-            COUNT(DISTINCT log.plan_id) FILTER (WHERE log.id IS NOT NULL)::int AS covered_topics,
-            COALESCE(
-              (ARRAY_AGG(log.covered_topics ORDER BY log.log_date DESC)
-                FILTER (WHERE log.covered_topics IS NOT NULL))[1],
-              (ARRAY_AGG(plan.topic ORDER BY plan.updated_at DESC)
-                FILTER (WHERE plan.topic IS NOT NULL))[1],
-              'No lesson plan yet'
-            ) AS topic
-          FROM assigned_subjects assignment
-          LEFT JOIN academics_lesson_plans plan
-            ON plan.tenant_id::text = assignment.tenant_id
-           AND plan.teacher_id::text = assignment.teacher_user_id::text
-           AND plan.class_id::text = assignment.class_section_id::text
-           AND plan.subject_id::text = assignment.subject_id::text
-          LEFT JOIN academics_lesson_logs log
-            ON log.tenant_id::text = assignment.tenant_id
-           AND log.teacher_id::text = assignment.teacher_user_id::text
-           AND log.class_id::text = assignment.class_section_id::text
-           AND log.plan_id = plan.id
-          GROUP BY assignment.id, assignment.subject, assignment.class_name
-        )
-        SELECT
-          id::text,
-          subject,
-          class_name,
-          topic,
-          CASE
-            WHEN planned_topics = 0 THEN 0
-            ELSE LEAST(100, ROUND((covered_topics::numeric / planned_topics::numeric) * 100))::int
-          END AS coverage,
-          100::int AS target,
-          CASE
-            WHEN planned_topics > 0 AND covered_topics >= planned_topics THEN 'On Track'
-            ELSE 'Behind'
-          END AS status
-        FROM coverage
-        ORDER BY subject, class_name
-      `,
-      [tenantId, userId]
-    );
-    const items = res.rows as any[];
-    return {
-      metrics: {
-        on_track: items.filter((item) => String(item.status).toLowerCase() === 'on track').length,
-        behind: items.filter((item) => String(item.status).toLowerCase() === 'behind').length,
-      },
-      items,
-    };
+    const data = await this.syllabusService().workspace();
+    const items = data.items.map(item => ({ ...item, coverage: item.progress?.percentage ?? 0,
+      target: item.progress?.expected_percentage ?? 0, status: item.progress?.status ?? 'Syllabus not set',
+      topic: item.progress?.remaining.map((sub: {title: string}) => sub.title).join(', ') ?? '' }));
+    return { items, metrics: { on_track: items.filter(item => ['On track','Completed'].includes(item.status)).length,
+      behind: items.filter(item => item.status === 'Behind').length } };
   }
 
   async getLessonPlans() {

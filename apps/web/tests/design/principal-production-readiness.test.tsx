@@ -26,6 +26,10 @@ const requestDashboardApiMock = jest.mocked(requestDashboardApi);
 const activeStudentId = "00000000-0000-4000-8000-000000000411";
 
 const canonicalResponses: Record<string, unknown> = {
+  "/academics/syllabus": {
+    school_id: "fixture-tenant", generated_at: "2026-10-27T08:00:00Z", generated_by: "principal",
+    can_monitor: true, rights: [], subjects: [], years: [], terms: [], grades: [], syllabi: [], items: [],
+  },
   "/admissions/foundation": {
     academic_years: [{ id: "year-2026", name: "2026", status: "active", is_current: true }],
     classes: [{ id: "class-grade-7", academic_year_id: "year-2026", name: "Grade 7", grade_level: "Grade 7", curriculum: "CBC", capacity: 45, enrolment_open: true, student_count: 0 }],
@@ -431,7 +435,7 @@ describe("principal production readiness", () => {
     for (const [label, toggleName, children] of [
       ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
       ["Students", "Students", ["Student Directory", "Student Progression & Transitions", "Admit Student", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
-      ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
+      ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations", "Syllabus Coverage"]],
       ["School Setup", "Expand School Setup", ["School Profile"]],
     ] as const) {
       const toggle = within(sidebar).getByRole("button", { name: toggleName });
@@ -454,12 +458,13 @@ describe("principal production readiness", () => {
     "clinic", "sick-bay", "boarding", "academic-setup", "classes-streams", "subjects-departments",
     "academics", "staff", "staff-roles", "visitors", "parents", "transport", "library",
     "users-invitations", "reports", "audit-logs", "setup-checklist", "school-profile", "settings",
-    "subjects", "academic-analytics",
+    "subjects", "academic-analytics", "syllabus-coverage",
   ])("loads Principal %s directly in the current dashboard", async (section) => {
     expect(isSchoolSection(section)).toBe(true);
     expect(isProductionReadyModule(section)).toBe(true);
     renderWithProviders(<SchoolPages role="principal" section={section} tenantSlug="maranda-high" routeMode="public" />);
     expect(await screen.findByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
+    if (section === "syllabus-coverage") expect(await screen.findByText("No teacher allocations in your scope")).toBeVisible();
     expect(screen.queryByRole("alert", { name: "Principal workspace unavailable" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Learner register" })).not.toBeInTheDocument();
   });

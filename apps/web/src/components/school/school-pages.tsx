@@ -761,6 +761,7 @@ const financeRoleDedicatedSectionIds = new Set([
   "reports",
 ]);
 const principalCommandCenterSectionIds = new Set([
+  "syllabus-coverage",
   "student-progression",
   "exam-analytics",
   "payment-setup",

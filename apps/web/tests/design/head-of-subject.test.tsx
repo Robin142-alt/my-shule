@@ -8,7 +8,10 @@ import { hosWorkspaces, isHosSection } from '@/lib/school/hos-workspaces';
 import { isSchoolSection } from '@/lib/routing/experience-routes';
 
 const mockQuery = jest.fn();
-jest.mock('@/lib/data/school-hooks', () => ({ useSchoolQuery: (...args: unknown[]) => mockQuery(...args) }));
+jest.mock('@/lib/data/school-hooks', () => ({
+  useSchoolQuery: (...args: unknown[]) => mockQuery(...args),
+  useSchoolMutation: () => ({ mutateAsync: jest.fn(), isPending: false }),
+}));
 jest.mock('@/lib/auth/csrf-client', () => ({ getCsrfToken: async () => 'csrf-test' }));
 jest.mock('@/components/school/school-pages', () => ({ buildSchoolSectionHref: (role: string, section: string, mode: string) => mode === 'public' ? `/school/${role}/${section}` : `/${section}` }));
 jest.mock('@/components/school/integrated-school-command-header', () => ({ IntegratedSchoolCommandHeader: ({ roleTitle }: { roleTitle: string }) => <h1>{roleTitle}</h1>, SchoolCommandSidebarIdentity: () => <div>School identity</div> }));
@@ -52,12 +55,25 @@ it('explains how to assign an empty subject scope and offers retry on failures',
 it('provides grouped desktop navigation and opens a distinct learner workspace', () => {
   render(<HosCommandCenter routeMode="public" />);
   const menu = screen.getByRole('navigation', { name: 'Head of Subject workspaces' });
-  expect(within(menu).getAllByRole('link')).toHaveLength(12);
+  expect(within(menu).getAllByRole('link')).toHaveLength(13);
+  expect(within(menu).getByRole('link', { name: 'Syllabus Coverage' })).toHaveAttribute('href', '/school/hos/syllabus-coverage');
   expect(within(menu).getByRole('link', { name: 'Exam Analytics' })).toHaveAttribute('href', '/school/hos/exam-analytics');
   fireEvent.click(within(menu).getByRole('link', { name: 'Learners at Risk' }));
   expect(screen.getByTestId('analytics-audience')).toHaveTextContent('At Risk');
   expect(within(menu).getByRole('link', { name: 'Learners at Risk' })).toHaveAttribute('aria-current', 'page');
   expect(window.location.pathname).toBe('/school/hos/at-risk');
+});
+
+it('opens syllabus coverage from the subject-head sidebar with an actionable empty state', () => {
+  mockQuery.mockReturnValue({ data: { school_id: 'school-a', rights: [{ subject_id: 'math', academic_year_id: null }],
+    subjects: [{ id: 'math', name: 'Mathematics' }], years: [], terms: [], grades: [], syllabi: [], items: [] }, refetch: jest.fn() });
+  render(<HosCommandCenter routeMode="public" />);
+  fireEvent.click(screen.getByRole('link', { name: 'Syllabus Coverage' }));
+  expect(screen.getByRole('region', { name: 'Syllabus coverage workspace' })).toBeVisible();
+  expect(screen.getByText('No teacher allocations in your scope')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Define syllabus' }));
+  expect(screen.getByRole('dialog', { name: 'Define shared syllabus' })).toBeVisible();
+  expect(window.location.pathname).toBe('/school/hos/syllabus-coverage');
 });
 
 it('opens the shared mobile menu and selects a workspace', () => {
