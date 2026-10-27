@@ -5,6 +5,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useState } from "react";
 import { toast } from "sonner";
 import { markTeachingAttendance, logTeachingLesson } from "./api-client";
+import { SyllabusWorkspace } from '../syllabus-workspace';
 
 export type TeachingLesson = {
   id: string;
@@ -50,6 +51,7 @@ export function DeputyTeachingWorkspace() {
 
   return (
     <Panel title="Teaching Workspace" description="Manage your assigned classes, attendance, and lesson logs." icon={BookOpen}>
+      <SyllabusWorkspace />
       <div className="grid gap-4 md:grid-cols-2 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">Total Lessons</div>

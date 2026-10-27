@@ -82,6 +82,9 @@ jobs:
       - name: Academic intelligence workspace contracts
         run: npm --prefix apps/web run test:design -- academic-intelligence exam-analytics academic-foundation academic-setup-simplification academic-policy-builders academic-curriculum-builder head-of-subject exams-workspace teacher-exams-marks-workspace dean-review-workflow dean-hod-command-center-contract
 
+      - name: Shared syllabus authoring, teacher checklists and monitoring
+        run: npm --prefix apps/web run test:design -- syllabus-coverage dean-usability principal-page-routes deputy-page-routes
+
       - name: Admissions workflows, drafts and consolidated navigation
         run: npm --prefix apps/web run test:design -- student-record-proxy student-record-workspace admissions-dashboard-routing admissions-consolidated-workflows admissions-empty-state-workflows student-admission-wizard student-bulk-admission-feedback admissions-live-api admissions-workspace feedback-viewport operational-feedback
 
@@ -325,6 +328,12 @@ jobs:
           DATABASE_URL: ""
           NODE_ENV: test
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/academic-intelligence.integration-spec.ts
+
+      - name: Shared syllabus permissions, independent coverage and transactional isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/syllabus-coverage.integration-spec.ts
 
       - name: Calendar progression, history, recovery and school isolation
         env:

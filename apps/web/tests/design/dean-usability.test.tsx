@@ -11,6 +11,7 @@ const mockRequest = jest.fn();
 const mockRefresh = jest.fn();
 jest.mock("@/lib/data/school-hooks", () => ({
   useSchoolQuery: (...args: unknown[]) => mockQuery(...args),
+  useSchoolMutation: () => ({mutateAsync: jest.fn(),isPending:false,error:null}),
 }));
 jest.mock("@/lib/dashboard/api-client", () => ({
   requestDashboardApi: (...args: unknown[]) => mockRequest(...args),
@@ -215,7 +216,7 @@ it("uses actual overview fields and navigates into the daily workspaces", () => 
                 id: "math",
                 subject: "Maths",
                 class_name: "Grade 8",
-                planned_topics: 20,
+                planned_topics: 20,required_subtopics:20,completed_subtopics:5,
                 covered_topics: 5,
                 coverage: "25",
               },
@@ -226,7 +227,7 @@ it("uses actual overview fields and navigates into the daily workspaces", () => 
   renderWithProviders(<OverviewWorkspace onNavigate={onNavigate} />);
   expect(screen.getByRole("button", { name: /Active staff 17/ })).toBeVisible();
   expect(
-    screen.getByRole("button", { name: /Lesson-plan coverage 25%/ }),
+    screen.getByRole("button", { name: /Syllabus coverage 25%/ }),
   ).toBeVisible();
   fireEvent.click(
     screen.getByRole("button", { name: /62 Review submitted marks/ }),
@@ -250,35 +251,19 @@ it("does not turn failed overview reads into zero totals", () => {
   expect(screen.getAllByRole("alert")).toHaveLength(3);
 });
 
-it("renders real curriculum fields and distinguishes absent plans from zero delivery", () => {
-  mockQuery.mockReturnValue(
-    result([
-      {
-        id: "math",
-        subject: "Maths",
-        class_name: "Grade 8",
-        planned_topics: 10,
-        covered_topics: 0,
-        coverage: "0",
-      },
-      {
-        id: "bio",
-        subject: "Biology",
-        class_name: "Grade 9",
-        planned_topics: 0,
-        covered_topics: 0,
-        coverage: null,
-      },
-    ]),
-  );
+it("uses the shared syllabus workspace and distinguishes missing syllabi from untaught subtopics", () => {
+  mockQuery.mockReturnValue(result({rights:[],syllabi:[],subjects:[],years:[],terms:[],grades:[],items:[
+    {id:'math',subject:'Maths',class_name:'Grade 8',teacher_name:'Teacher A',academic_term_id:'term',year_name:'2026',term_name:'Term 1',records:[],progress:{percentage:0,completed:0,total:10,completed_topics:0,expected_percentage:50,remaining:[{id:'sub'}],overdue:[],status:'Behind'}},
+    {id:'bio',subject:'Biology',class_name:'Grade 9',teacher_name:'Teacher B',academic_term_id:'term',year_name:'2026',term_name:'Term 1',records:[],progress:null},
+  ]}));
   renderWithProviders(<CurriculumCoverageWorkspace />);
-  expect(screen.getByText("Grade 8")).toBeVisible();
-  expect(screen.getByRole("progressbar")).toHaveAttribute("value", "0");
-  fireEvent.change(screen.getByLabelText("Show"), {
-    target: { value: "no-plans" },
-  });
-  expect(screen.getByText("Biology")).toBeVisible();
-  expect(screen.queryByText("Maths")).not.toBeInTheDocument();
+  expect(mockQuery).toHaveBeenCalledWith('/academics/syllabus',expect.objectContaining({refetchInterval:15000}));
+  expect(screen.getByText('Grade 8')).toBeVisible();
+  expect(screen.getByRole('progressbar', {name:'Overall actual coverage'})).toHaveAttribute('aria-valuenow','0');
+  expect(screen.getByText('Syllabus not set')).toBeVisible();
+  fireEvent.click(screen.getByLabelText('Behind schedule only'));
+  expect(screen.getByText('Maths')).toBeVisible();
+  expect(screen.queryByText('Biology')).not.toBeInTheDocument();
 });
 
 it("renders actual staff allocations without inventing workload limits", () => {

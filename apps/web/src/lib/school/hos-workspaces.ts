@@ -1,8 +1,9 @@
 import { BarChart3, BookOpen, ChartNoAxesCombined, ClipboardCheck, FileSearch, FileText, GitCompareArrows, HeartHandshake, ShieldAlert, TrendingUp, Users } from "lucide-react";
 
-/** Every HOS entry uses the subject-scoped analytics contract or authenticated appointments. */
+/** HOS workspaces use authenticated appointments and subject-scoped school data. */
 export const hosWorkspaces = [
   { id: "subjects", label: "My Subject Appointments", group: "Command Center", icon: BookOpen, view: null, description: "Your subject responsibilities, dates and appointment history." },
+  { id: "syllabus-coverage", label: "Syllabus Coverage", group: "Academics & Teaching", icon: ClipboardCheck, view: null, description: "Define shared topics, subtopics and milestones; monitor actual teacher coverage." },
   { id: "exam-analytics", label: "Exam Analytics", group: "Academic Results", icon: ChartNoAxesCombined, view: null, description: "Explore the complete analytics library for your appointed subjects, with downloads and printing." },
   { id: "performance-analytics", label: "Subject Performance", group: "Academic Results", icon: BarChart3, view: "Performance", description: "Achievement bands, pass rates and assessment coverage." },
   { id: "comparisons", label: "Compare Results", group: "Academic Results", icon: GitCompareArrows, view: "Comparisons", description: "Compare exams, classes, streams and teacher allocations." },

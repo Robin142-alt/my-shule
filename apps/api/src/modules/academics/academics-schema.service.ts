@@ -4,6 +4,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestj
 import { PrismaService } from '../../database/prisma.service';
 import { COHORT_SCHEMA_SQL } from './cohort-schema';
 import { ensureCohortMigration } from './cohort-configuration';
+import { SYLLABUS_SCHEMA_SQL } from './syllabus-schema';
 
 @Injectable()
 export class AcademicsSchemaService implements OnModuleInit, OnApplicationBootstrap {
@@ -35,6 +36,7 @@ export class AcademicsSchemaService implements OnModuleInit, OnApplicationBootst
   constructor(private readonly prisma: PrismaService) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    await this.prisma.runSchemaBootstrap(SYLLABUS_SCHEMA_SQL);
     // Admissions initializes its annual membership table independently during module initialization.
     await this.prisma.runSchemaBootstrap(COHORT_SCHEMA_SQL);
     const tenants = await this.prisma.$transaction(async (tx: any) => {

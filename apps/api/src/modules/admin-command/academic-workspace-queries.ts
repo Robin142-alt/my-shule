@@ -14,21 +14,6 @@ export const TEACHER_WORKLOAD_SQL = `
   GROUP BY staff.id, staff.display_name ORDER BY staff.display_name
 `;
 
-export const CURRICULUM_COVERAGE_SQL = `
-  SELECT subject.id::text, subject.name AS subject, section.name AS class_name,
-    COUNT(DISTINCT plan.id)::int AS planned_topics,
-    COUNT(DISTINCT log.plan_id)::int AS covered_topics,
-    ROUND(100.0 * COUNT(DISTINCT log.plan_id) / NULLIF(COUNT(DISTINCT plan.id), 0), 1) AS coverage
-  FROM class_subject_assignments offering
-  JOIN subjects subject ON subject.tenant_id = offering.tenant_id AND subject.id::text = offering.subject_id::text
-  JOIN class_sections section ON section.tenant_id = offering.tenant_id AND section.id::text = offering.class_section_id::text
-  LEFT JOIN academics_lesson_plans plan ON plan.tenant_id = offering.tenant_id
-    AND plan.subject_id::text = offering.subject_id::text AND plan.class_id::text = offering.class_section_id::text
-  LEFT JOIN academics_lesson_logs log ON log.tenant_id = plan.tenant_id AND log.plan_id::text = plan.id::text
-  WHERE offering.tenant_id = $1 AND offering.status = 'active'
-  GROUP BY subject.id, subject.name, section.id, section.name ORDER BY subject.name, section.name
-`;
-
 export const DEPARTMENT_PERFORMANCE_SQL = `
   SELECT department.id::text, department.name AS department,
     COUNT(mark.id)::int AS marks_count,

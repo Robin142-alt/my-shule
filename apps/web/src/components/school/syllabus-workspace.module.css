@@ -1,0 +1,75 @@
+.workspace { --syllabus-accent: var(--info, #2456a6); min-width: 0; }
+.header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.eyebrow { margin-bottom: .4rem; color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.primary { background: var(--primary, #12345a); color: var(--primary-foreground, #fff); border-color: transparent; gap: .5rem; }
+.summary { display: grid; grid-template-columns: 2fr 1fr 1fr; border: 1px solid var(--border); border-radius: .9rem; overflow: hidden; }
+.summary > div { padding: 1.1rem 1.25rem; }
+.summary > div + div { border-left: 1px solid var(--border); }
+.summary strong { font-size: 1.8rem; line-height: 1.2; letter-spacing: -.04em; }
+.summary p { font-size: .8rem; color: var(--muted); margin-top: .35rem; }
+.progress { height: .45rem; width: 100%; overflow: hidden; border-radius: 1rem; background: var(--surface-muted, #e9eef5); }
+.progress > span { display: block; height: 100%; border-radius: inherit; background: var(--syllabus-accent, var(--info, #2456a6)); transition: width .2s ease; }
+.badge { display: inline-flex; align-items: center; gap: .35rem; border-radius: 2rem; padding: .3rem .6rem; font-size: .72rem; font-weight: 600; white-space: nowrap; background: var(--surface-muted); color: var(--muted); }
+.badge[data-status="Behind"], .badge[data-status="Overdue"], .badge[data-status="Completed late"] { background: var(--warning-soft); color: var(--warning); }
+.badge[data-status="Completed"], .badge[data-status="On track"] { background: var(--success-soft); color: var(--success); }
+.toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; }
+.toolbar > label:first-child { flex: 1 1 240px; }
+.filters { margin-top: .75rem; padding: 1rem; border-radius: .75rem; background: var(--surface-muted); }
+.filters:not([hidden]) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.table { width: 100%; border-collapse: collapse; text-align: left; font-size: .85rem; }
+.table th { padding: .8rem 1rem; font-size: .72rem; font-weight: 600; color: var(--muted); background: var(--surface-muted); }
+.table td { padding: 1rem; border-top: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:hover { background: var(--surface-muted); }
+.table td:nth-child(4) { min-width: 150px; }
+.table td strong { display: block; font-weight: 650; }
+.table td small { display: block; color: var(--muted); font-size: .75rem; margin-top: .25rem; }
+.table progress { width: 100%; }
+.tableShell { border: 1px solid var(--border); border-radius: .8rem; overflow: hidden; }
+.mobileLabel { display: none; }
+.topic { border: 1px solid var(--border); border-radius: .8rem; padding: .8rem 1rem; }
+.topic > summary { cursor: pointer; min-height: 44px; align-content: center; font-weight: 600; }
+.topic > summary small { display: block; margin: .2rem 0 .5rem 1rem; font-size: .75rem; font-weight: 400; color: var(--muted); }
+.topic[data-complete="true"] { border-color: var(--status-success-border, var(--border)); }
+.checkRow { border-top: 1px solid var(--border); padding: .9rem .15rem; }
+.checkRow > label { cursor: pointer; }
+.checkRow[data-complete="true"] > label > span { color: var(--success); }
+.checkRow input[type="checkbox"] { accent-color: var(--syllabus-accent, var(--info)); }
+.segmented { display: flex; gap: .2rem; padding: .25rem; border-radius: .7rem; background: var(--surface-muted); }
+.segmented button { min-height: 40px; flex: 1; padding: .4rem .7rem; border-radius: .5rem; font-size: .8rem; font-weight: 600; }
+.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--foreground); box-shadow: 0 1px 4px #102d491a; }
+.sectionTitle { display: flex; align-items: center; gap: .6rem; font-weight: 650; }
+.sectionTitle > span { display: inline-grid; place-content: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--info-soft); color: var(--info); font-size: .8rem; }
+.formSection { padding: 1.1rem 0; border-bottom: 1px solid var(--border); }
+.formSection > p { color: var(--muted); font-size: .8rem; margin: .4rem 0 1rem; }
+.formFooter { position: sticky; bottom: -.5rem; padding: 1rem 0 .4rem; background: var(--surface); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; }
+@media (prefers-reduced-motion: reduce) { .progress > span { transition: none; } }
+@media (max-width: 640px) {
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary > div:first-child { grid-column: 1 / -1; border-bottom: 1px solid var(--border); }
+  .summary > div:nth-child(2) { border-left: 0; }
+  .summary > div { padding: .9rem; }
+  .filters:not([hidden]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .formFooter button { flex: 1; }
+}
+/* One table in the DOM becomes readable class cards on small screens. */
+@media (max-width: 1050px) {
+  .tableShell { border: 0; overflow: visible; }
+  .table, .table tbody { display: block; }
+  .table thead { display: none; }
+  .table tbody { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
+  .table tr { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: .8rem; padding: .4rem; }
+  .table td { display: block; border: 0; padding: .6rem; min-width: 0; overflow-wrap: anywhere; }
+  .table td:first-child, .table td:nth-child(4), .table td:last-child { grid-column: 1 / -1; }
+  .table td:last-child button { width: 100%; }
+  .table .mobileLabel { display: block; color: var(--muted); font-size: .7rem; margin-bottom: .25rem; }
+}
+.teaching .tableShell { border: 0; overflow: visible; }
+.teaching .table, .teaching .table tbody { display: block; }
+.teaching .table thead { display: none; }
+.teaching .table tbody { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
+.teaching .table tr { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: .8rem; padding: .5rem; }
+.teaching .table td { display: block; border: 0; padding: .65rem; min-width: 0; }
+.teaching .table td:first-child, .teaching .table td:nth-child(4), .teaching .table td:last-child { grid-column: 1 / -1; }
+.teaching .table td:last-child button { width: 100%; }
+.teaching .table .mobileLabel { display: block; color: var(--muted); font-size: .7rem; margin-bottom: .25rem; }
