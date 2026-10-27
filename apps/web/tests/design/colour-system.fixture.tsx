@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { SchoolTenantScopeProvider } from "@/lib/data/school-tenant-scope";
 
 const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const nav = [
@@ -25,7 +26,7 @@ function Fixture() {
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState(false);
   const [view, setView] = useState("syllabus");
-  return <QueryClientProvider client={client}><AppFrame
+  return <QueryClientProvider client={client}><SchoolTenantScopeProvider tenantId="visual-fixture"><AppFrame
     sidebar={<AppSidebar variant="school" brand={{ title: "School workspace", subtitle: "Teaching and learning" }} navItems={nav.map((item) => ({ ...item, href: `#${item.id}` }))} activeHref="#syllabus" profile={{ name: "Teacher", roleLabel: "Teacher", contextLabel: "School workspace" }} mobileOpen={menu} onClose={() => setMenu(false)} />}
     topbar={<header className="app-workspace-header mb-4">
       <div className="flex items-center justify-between gap-3"><div><p className="text-sm text-muted">Welcome back</p><h1>Teacher Dashboard</h1></div><Button variant="secondary" onClick={() => setModal(true)}>Open form</Button></div>
@@ -54,6 +55,6 @@ function Fixture() {
       <label className="text-sm text-foreground">Name<Input aria-label="Dialog input" placeholder="Enter a name" /></label>
       <Badge variant="warning">Pending</Badge>
     </Modal>
-  </AppFrame></QueryClientProvider>;
+  </AppFrame></SchoolTenantScopeProvider></QueryClientProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);
