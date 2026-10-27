@@ -167,7 +167,7 @@ it('filters the checklist without losing an unsaved teaching note', () => {
   fireEvent.click(screen.getByRole('button',{name:'To teach'}));
   expect(screen.queryByRole('checkbox',{name:/^Integers/})).not.toBeInTheDocument();
   expect(screen.getByRole('checkbox',{name:/^Fractions/})).toBeVisible();
-  fireEvent.click(screen.getByRole('button',{name:'Taught',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:/^Taught$/}));
   expect(screen.getByRole('checkbox',{name:/^Integers/})).toBeVisible();
   expect(screen.getByLabelText('Note for Integers')).toHaveValue('Still editing');
   fireEvent.change(screen.getByLabelText('Find a subtopic'),{target:{value:'no match'}});
