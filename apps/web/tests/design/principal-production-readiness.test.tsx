@@ -26,6 +26,10 @@ const requestDashboardApiMock = jest.mocked(requestDashboardApi);
 const activeStudentId = "00000000-0000-4000-8000-000000000411";
 
 const canonicalResponses: Record<string, unknown> = {
+  "/academics/syllabus": {
+    school_id: "fixture-tenant", generated_at: "2026-10-27T08:00:00Z", generated_by: "principal",
+    can_monitor: true, rights: [], subjects: [], years: [], terms: [], grades: [], syllabi: [], items: [],
+  },
   "/admissions/foundation": {
     academic_years: [{ id: "year-2026", name: "2026", status: "active", is_current: true }],
     classes: [{ id: "class-grade-7", academic_year_id: "year-2026", name: "Grade 7", grade_level: "Grade 7", curriculum: "CBC", capacity: 45, enrolment_open: true, student_count: 0 }],
@@ -460,6 +464,7 @@ describe("principal production readiness", () => {
     expect(isProductionReadyModule(section)).toBe(true);
     renderWithProviders(<SchoolPages role="principal" section={section} tenantSlug="maranda-high" routeMode="public" />);
     expect(await screen.findByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
+    if (section === "syllabus-coverage") expect(await screen.findByText("No teacher allocations in your scope")).toBeVisible();
     expect(screen.queryByRole("alert", { name: "Principal workspace unavailable" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Learner register" })).not.toBeInTheDocument();
   });
