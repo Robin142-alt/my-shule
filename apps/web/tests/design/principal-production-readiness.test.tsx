@@ -431,7 +431,7 @@ describe("principal production readiness", () => {
     for (const [label, toggleName, children] of [
       ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
       ["Students", "Students", ["Student Directory", "Student Progression & Transitions", "Admit Student", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
-      ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations"]],
+      ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations", "Syllabus Coverage"]],
       ["School Setup", "Expand School Setup", ["School Profile"]],
     ] as const) {
       const toggle = within(sidebar).getByRole("button", { name: toggleName });
@@ -454,7 +454,7 @@ describe("principal production readiness", () => {
     "clinic", "sick-bay", "boarding", "academic-setup", "classes-streams", "subjects-departments",
     "academics", "staff", "staff-roles", "visitors", "parents", "transport", "library",
     "users-invitations", "reports", "audit-logs", "setup-checklist", "school-profile", "settings",
-    "subjects", "academic-analytics",
+    "subjects", "academic-analytics", "syllabus-coverage",
   ])("loads Principal %s directly in the current dashboard", async (section) => {
     expect(isSchoolSection(section)).toBe(true);
     expect(isProductionReadyModule(section)).toBe(true);

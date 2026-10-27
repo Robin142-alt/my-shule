@@ -7,6 +7,11 @@ import { dedicatedSchoolWorkspaces } from "@/lib/routing/school-workspace-contra
 
 const school = { kind: "school", mode: "public", role: "teacher" } as const;
 
+test.each(["principal", "hos", "teacher"])("%s syllabus coverage stays inside the persistent school workspace", (role) => {
+  expect(workspaceSection(`/school/${role}/syllabus-coverage`, { ...school, role })).toBe("syllabus-coverage");
+  expect(workspaceSection('/syllabus-coverage', { ...school, role, mode: "hosted" })).toBe("syllabus-coverage");
+});
+
 test("workspace allowlists agree with public and hosted navigation", () => {
   for (const [role, sections] of Object.entries(dedicatedSchoolWorkspaces)) for (const section of sections) {
     expect(workspaceSection(`/school/${role}/${section}`, { ...school, role })).toBe(section);
