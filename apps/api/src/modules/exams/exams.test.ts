@@ -3784,12 +3784,13 @@ test('ExamsRepository validates mark eligibility across legacy text and UUID lea
   assert.match(calls[0]!.sql, /student\.id::text\s*=\s*\$2::text/);
   assert.match(calls[0]!.sql, /membership\.student_id = student\.id::text/);
   assert.match(calls[0]!.sql, /enrollment\.student_id = student\.id::text/);
+  assert.match(calls[0]!.sql, /series\.id=\$5::uuid/);
   assert.deepEqual(calls[0]!.params, [
     'tenant-a',
     '00000000-0000-0000-0000-000000000301',
     '00000000-0000-0000-0000-000000000401',
     '00000000-0000-0000-0000-000000000501',
-    null,
+    '00000000-0000-0000-0000-000000000601',
   ]);
 });
 

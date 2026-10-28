@@ -19,6 +19,7 @@ const passingSources: Record<string, string> = {
   'apps/web/src/app/api/library/scan-issue/route.ts': 'scan-issue circulation/issue',
   'apps/web/src/app/api/library/scan-return/route.ts': 'scan-return circulation/return',
   'apps/api/src/modules/library/library.service.ts': 'calculateFineMinor not available for issue',
+  'apps/api/src/modules/library/smart-library.service.ts': "ORDER BY id FOR UPDATE c.status !== 'available'",
   'apps/api/src/modules/discipline/discipline.service.ts': 'createIncident',
   'apps/api/src/modules/discipline/discipline-schema.service.ts': 'discipline_actions discipline_audit_logs prevent_discipline_audit_mutation parent_acknowledgements',
   'apps/web/src/lib/discipline/discipline-live.ts': 'acknowledgeDisciplineIncident exportDisciplineReport reports',
