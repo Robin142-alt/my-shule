@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { useSchoolCommandIdentity } from "@/components/school/integrated-school-command-header";
+import { Modal } from "@/components/ui/modal";
+import { borrowerReportHtml, loadLibraryReportLogo, printLibraryReport, type BorrowerReport } from "@/lib/library/borrower-report";
 import { api, dateText, errorText, Feedback, Field, inputClass, LoadState, useCommand, useLibraryData, WriteButton, type LibraryRow } from "./smart-library-shared";
 
 export function RenewLoan({loan,onSaved}:{loan:LibraryRow;onSaved:()=>void}) {
   const [open,setOpen]=useState(false),[due,setDue]=useState(""),[reason,setReason]=useState("");const command=useCommand();
   return <div className="mt-2">{loan.renewals?.length>0&&<details className="mb-2 text-xs"><summary className="cursor-pointer">Renewal history ({loan.renewals.length})</summary>{loan.renewals.map((r:LibraryRow,i:number)=><p key={i} className="mt-1">{dateText(r.created_at)}: {dateText(r.previous_due_on)} → {dateText(r.due_on)}{r.reason?` · ${r.reason}`:""}</p>)}</details>}
-    {!loan.returned_at&&<WriteButton variant="secondary" onClick={()=>setOpen(!open)} disabled={command.busy}>Renew loan</WriteButton>}
+    {!loan.returned_at&&<WriteButton variant="secondary" onClick={()=>setOpen(!open)} disabled={command.busy||loan.copy_status==="lost"}>Renew loan</WriteButton>}
+    {!loan.returned_at&&loan.copy_status==="lost"&&<p className="mt-1 text-xs text-muted">Record recovery or resolve the loss before renewing this copy.</p>}
     {open&&<form className="mt-3 space-y-2" onSubmit={e=>{e.preventDefault();void command.run("renew",{loan_id:loan.id,due_on:due,reason},()=>{setOpen(false);onSaved();},"Loan renewed. The original issue record is preserved.");}}>
       <p className="text-xs text-muted">{loan.renewal_count??0} previous renewals · Current due date {dateText(loan.due_on)}</p>
       <Field label={`New due date for ${loan.barcode}`}><input className={inputClass} type="date" required value={due} onChange={e=>setDue(e.target.value)}/></Field>
@@ -46,6 +49,50 @@ export function CopyDetails({copy,onSaved}:{copy:LibraryRow;onSaved:()=>void}) {
 }
 
 export function LibraryExport({path,title,kind}:{path:string;title:string;kind:"loans"|"inventory"}) {
+  return kind==="loans"?<BorrowerReportExport path={path}/>:<InventoryExport path={path} title={title} kind={kind}/>;
+}
+
+function BorrowerReportExport({path}:{path:string}) {
+  const query=new URL(path,"https://library.invalid/").searchParams;
+  const [type,setType]=useState(query.get("status")==="returned"?"history":"outstanding");
+  const [className,setClassName]=useState(""),[stream,setStream]=useState("");
+  const [busy,setBusy]=useState(false),[error,setError]=useState("");
+  const [report,setReport]=useState<BorrowerReport|null>(null),[logo,setLogo]=useState<string|null>(null);
+  const [landscape,setLandscape]=useState(false),[ready,setReady]=useState(""),[printing,setPrinting]=useState(false);
+  const frame=useRef<HTMLIFrameElement>(null),options=useLibraryData<LibraryRow>("classifications");
+  const key=report?`${report.document_number}:${landscape}`:"";
+  const prepare=async()=>{
+    if(busy)return;setBusy(true);setError("");setReady("");
+    try{
+      const value=await api<BorrowerReport>("/api/admin-command/librarian/borrowers/report",{
+        type,subject_id:query.get("subject_id")||undefined,borrower_type:query.get("borrower_type")||undefined,
+        status:query.get("status")||undefined,search:query.get("search")||undefined,
+        class_name:className||undefined,stream_name:stream||undefined,
+      });
+      setLogo(await loadLibraryReportLogo(value.school.logo_url));setReport(value);
+    }catch(e){setError(errorText(e));}finally{setBusy(false);}
+  };
+  const print=async()=>{
+    if(printing||ready!==key)return;setPrinting(true);setError("");
+    try{await printLibraryReport(frame.current);}catch(e){setError(errorText(e));}finally{setPrinting(false);}
+  };
+  return <details className="my-3 rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Export / print this report</summary>
+    <div className="my-3 grid gap-3 sm:grid-cols-3"><Field label="Report type"><select className={inputClass} value={type} onChange={e=>setType(e.target.value)}><option value="outstanding" disabled={query.get("status")==="returned"}>Outstanding library books</option><option value="history">Borrowing history (includes returns)</option></select></Field>
+      {!query.get("subject_id")&&<><Field label="Report Grade/Form"><select className={inputClass} value={className} onChange={e=>{setClassName(e.target.value);setStream("");}}><option value="">Whole school</option>{Array.from(new Set<string>((options.data?.classes??[]).map((c:LibraryRow)=>String(c.name)))).sort().map(name=><option key={name}>{name}</option>)}</select></Field>
+      <Field label="Report stream (optional)"><input className={inputClass} value={stream} onChange={e=>setStream(e.target.value)} placeholder="All streams"/></Field></>}
+    </div><p className="my-2 text-xs text-muted">Includes all matching loans, across every page. The selected borrower, search and loan status filters also apply.</p>
+    <Button variant="secondary" disabled={busy} onClick={()=>void prepare()}>{busy?"Preparing report…":"Prepare report preview"}</Button><Feedback error={error}/>
+    {report&&<Modal open title={`${report.title} preview`} onClose={()=>setReport(null)} size="xl" mobileFullScreen>
+      <div className="flex h-[65dvh] min-h-48 flex-col"><div className="mb-3 flex flex-wrap gap-2"><Field label="Report layout"><select value={landscape?"landscape":"portrait"} onChange={e=>setLandscape(e.target.value==="landscape")} className={inputClass}><option value="portrait">A4 portrait</option><option value="landscape">A4 landscape</option></select></Field>
+        <Button disabled={printing||ready!==key} onClick={()=>void print()}>{printing?"Opening print preview…":"Print / Save as PDF"}</Button>
+        <Button variant="secondary" onClick={()=>downloadCsvFile({filename:`${report.document_number}.csv`,headers:["Borrower","Admission / staff number","Grade/Form","Stream","Book title","Barcode","Date issued","Due date","Status"],rows:report.records.map(r=>[r.student_name,r.admission_no,r.class_name,r.stream_name,r.book_title,r.barcode,r.issue_date,r.due_date??"",r.status])})}>Download complete CSV</Button>
+      </div><p className="mb-2 text-xs text-muted">{report.records.length} records. Save as PDF in the print dialog uses this same document.</p><Feedback error={error}/>
+      <iframe key={key} ref={frame} title={`${report.title} printable document`} srcDoc={borrowerReportHtml(report,logo,landscape)} onLoad={()=>setReady(key)} className="min-h-0 w-full flex-1 rounded-lg border border-border"/>
+      </div></Modal>}
+  </details>;
+}
+
+function InventoryExport({path,title,kind}:{path:string;title:string;kind:"loans"|"inventory"}) {
   const identity=useSchoolCommandIdentity(),[busy,setBusy]=useState(false),[error,setError]=useState("");
   const [preview,setPreview]=useState<{rows:string[][];generated:string;id:string}|null>(null);
   const headers=kind==="loans"?["Title","Barcode","Borrower","Identifier","Issued","Due","Returned","Renewals"]:["Title","Barcode","Status","Condition","Shelf","Borrowable"];

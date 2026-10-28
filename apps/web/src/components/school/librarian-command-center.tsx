@@ -1472,7 +1472,8 @@ function DataBackedLibraryWorkspace({ viewId }: { viewId: LibrarianView }) {
 import { buildSchoolSectionHref } from "./school-pages";
 
 export function LibrarianCommandCenter({ activeSection, routeMode }: { activeSection?: string; routeMode?: "hosted" | "public" }) {
-  const section=useWorkspaceSection(activeSection??"dashboard",{kind:"school",role:"librarian",mode:routeMode??"hosted"});
+  const rawSection=useWorkspaceSection(activeSection??"dashboard",{kind:"school",role:"librarian",mode:routeMode??"hosted"});
+  const section=({"register-books":"add_books","issue-book":"issue","return-book":"return"} as Record<string,string>)[rawSection]??rawSection;
   const router=useWorkspaceRouter();
   const initialView: LibrarianView =
     section && section !== "dashboard" && navItems.some((item) => item.id === section)

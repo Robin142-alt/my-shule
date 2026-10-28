@@ -6,12 +6,13 @@ import { LibrarySchemaService } from '../src/modules/library/library-schema.serv
 import { SmartLibraryService } from '../src/modules/library/smart-library.service';
 import { SMART_LIBRARY_SCHEMA_SQL } from '../src/modules/library/smart-library-schema';
 import { LibraryRepository } from '../src/modules/library/repositories/library.repository';
+import { LibrarianCommandService } from '../src/modules/admin-command/librarian-command.service';
 
 describe('Smart library: real PostgreSQL transactions and RLS',()=>{
   const schema=`library_${randomUUID().replaceAll('-','')}`,role=`${schema}_runtime`;
   const context=new RequestContextService();
   let db:PrismaService;
-  let pool:Pool,service:SmartLibraryService,school:string,other:string,student:string,staff:string;
+  let pool:Pool,service:SmartLibraryService,reports:LibrarianCommandService,school:string,other:string,student:string,staff:string;
   const actor=randomUUID();let failEvent=false;
   const run=<T>(work:()=>Promise<T>,tenant=school)=>context.run({tenant_id:tenant,user_id:actor,role:'librarian',is_authenticated:true} as never,work);
   const allocate=(quantity=3,tenant=school,key=randomUUID())=>run(()=>service.allocate({quantity,request_id:key}),tenant);
@@ -67,11 +68,13 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
       CREATE TABLE subjects(id text PRIMARY KEY,tenant_id text,name text,status text);
       CREATE TABLE class_sections(id text PRIMARY KEY,tenant_id text,name text,grade_level text,stream text,is_active boolean,status text);
       CREATE TABLE student_allocations(tenant_id text,student_id text,class_name text,stream_name text,is_current boolean);
+      CREATE TABLE tenants(tenant_id text PRIMARY KEY,name text,settings jsonb);
+      CREATE TABLE users(id uuid,tenant_id text,display_name text);
       CREATE TABLE evidence(tenant_id text,event jsonb);
       GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role};
       GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA ${schema} TO ${role};
     `);
-    for(const table of ['students','staff_profiles','student_portal_access','student_guardians','tenant_memberships','subjects','class_sections','student_allocations','evidence'])await pool.query(`
+    for(const table of ['students','staff_profiles','student_portal_access','student_guardians','tenant_memberships','subjects','class_sections','student_allocations','tenants','users','evidence'])await pool.query(`
       ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
       CREATE POLICY school_scope ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));
     `);
@@ -81,11 +84,17 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
         await db.query('INSERT INTO evidence VALUES($1,$2::jsonb)',[context.requireStore().tenant_id,JSON.stringify(event)]);
       },
     } as never,new LibraryRepository(db));
+    reports=new LibrarianCommandService(context,db,{
+      uuidOrNull:(value:string)=>/^[0-9a-f-]{36}$/i.test(value??'')?value:null,
+      recordWorkflowAction:async(event:unknown)=>{if(failEvent)throw Error('Injected report audit failure');await db.query('INSERT INTO evidence VALUES($1,$2::jsonb)',[context.requireStore().tenant_id,JSON.stringify(event)]);},
+    } as never);
   },60000);
   beforeEach(async()=>{
     failEvent=false;school=randomUUID();other=randomUUID();student=randomUUID();staff=randomUUID();
     await pool.query(`INSERT INTO students VALUES($1,$2,'Brian','Otieno','2451','active',NULL)`,[student,school]);
     await pool.query(`INSERT INTO staff_profiles VALUES($1,$2,'Amina Teacher','STAFF-1','active',$3)`,[staff,school,actor]);
+    await pool.query(`INSERT INTO tenants VALUES($1,'Library QA School','{}')`,[school]);
+    await pool.query(`INSERT INTO users VALUES($1,$2,'QA Librarian')`,[actor,school]);
   });
   afterAll(async()=>{
     if(db)await db.$disconnect();
@@ -219,9 +228,54 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     const {barcodes,copies}=await register(2);await issue([barcodes[0]]);
     await run(()=>service.returns({barcodes:[barcodes[0]],condition:'lost',reason:'Reported missing',request_id:randomUUID()}));
     expect((await run(()=>service.summary())).lost_copies).toBe(1);
+    expect((await run(()=>service.history({subject_id:student,borrower_type:'student'}))).outstanding).toBe(1);
     expect((await pool.query('SELECT count(*)::int n FROM library_fines WHERE tenant_id=$1',[school])).rows[0].n).toBe(0);
     await run(()=>service.incident({copy_id:copies[0].id,status:'retired',reason:'Replaced',replacement_copy_id:copies[1].id,request_id:randomUUID()}));
+    expect((await run(()=>service.history({subject_id:student,borrower_type:'student'}))).outstanding).toBe(0);
     await expect(run(()=>service.incident({copy_id:copies[0].id,status:'available',reason:'Reuse',request_id:randomUUID()}))).rejects.toThrow('cannot be reused');
+  });
+  it('keeps lost loans outstanding, retries once and recovers a physical copy without duplicate penalties',async()=>{
+    const {barcodes}=await register(1);await issue(barcodes);
+    await pool.query(`INSERT INTO library_fine_rules(tenant_id,rule_type,amount_minor) VALUES($1,'lost',500)`,[school]);
+    const request={barcodes,condition:'lost',reason:'Missing',request_id:randomUUID()};
+    const first=await run(()=>service.returns(request));
+    expect(first.returns[0].returned_at).toBeNull();
+    expect(await run(()=>service.returns(request))).toEqual(JSON.parse(JSON.stringify(first)));
+    await expect(run(()=>service.returns({...request,request_id:randomUUID()}))).rejects.toThrow('already recorded as lost');
+    expect((await pool.query('SELECT count(*)::int n FROM library_fines WHERE tenant_id=$1',[school])).rows[0].n).toBe(1);
+    await run(()=>service.returns({barcodes,condition:'good',request_id:randomUUID()}));
+    expect((await run(()=>service.history({subject_id:student,borrower_type:'student'}))).outstanding).toBe(0);
+    expect((await run(()=>service.scan(barcodes[0]))).status).toBe('available');
+  });
+  it('keeps a zero-loan borrower identifiable and rejects invalid report filters',async()=>{
+    const report=await run(()=>reports.borrowerReport({subject_id:student,borrower_type:'student'}));
+    expect(report.records).toEqual([]);expect(report.totals.outstanding).toBe(0);
+    expect(report.selected_borrower?.borrower_id).toBe(student);
+    for(const filters of [null,{search:[]},{search:'a'.repeat(201)},{type:'unknown'},{type:'outstanding',status:'returned'}]){
+      await expect(run(()=>reports.borrowerReport(filters as never))).rejects.toMatchObject({status:400});
+    }
+  });
+  it('prints all outstanding copies with renewed dates, loss status, class scope, branding and isolated history',async()=>{
+    const {barcodes,copies}=await register(4);const issued=await issue(barcodes);
+    await pool.query(`INSERT INTO student_allocations VALUES($1,$2,'Grade 9','East',true)`,[school,student]);
+    await run(()=>service.renew({loan_id:issued.loans.find((loan:any)=>loan.barcode===barcodes[0]).id,due_on:'2100-01-31',request_id:randomUUID()}));
+    await run(()=>service.returns({barcodes:[barcodes[1]],request_id:randomUUID()}));
+    await run(()=>service.returns({barcodes:[barcodes[2]],condition:'lost',reason:'Missing',request_id:randomUUID()}));
+    const report=await run(()=>reports.borrowerReport({type:'outstanding',subject_id:student,borrower_type:'student'}));
+    expect(report.school.name).toBe('Library QA School');expect(report.generated_by).toBe('QA Librarian');
+    expect(report.totals).toMatchObject({copies:3,outstanding:3,students:1});
+    expect(report.records.find(r=>r.barcode===barcodes[0])?.due_date).toBe('2100-01-31');
+    expect(report.records.find(r=>r.barcode===barcodes[2])?.status).toBe('Lost / unresolved');
+    expect(report.records.some(r=>r.barcode===barcodes[1])).toBe(false);
+    expect((await run(()=>reports.borrowerReport({type:'history'}))).records).toHaveLength(4);
+    expect((await run(()=>reports.borrowerReport({class_name:'Grade 10'}))).records).toHaveLength(0);
+    expect((await run(()=>reports.borrowerReport({class_name:'Grade 9',stream_name:'East'}))).records).toHaveLength(3);
+    expect((await run(()=>reports.borrowerReport({}),other)).records).toHaveLength(0);
+    await expect(run(()=>reports.borrowerReport({subject_id:student,borrower_type:'student'}),other)).rejects.toThrow('not found');
+    await run(()=>service.incident({copy_id:copies[2].id,status:'retired',reason:'Loss resolved',request_id:randomUUID()}));
+    expect((await run(()=>reports.borrowerReport({}))).records).toHaveLength(2);
+    expect((await run(()=>reports.borrowerReport({type:'history'}))).records.find(r=>r.barcode===barcodes[2])?.status).toBe('Resolved loss');
+    failEvent=true;await expect(run(()=>reports.borrowerReport({}))).rejects.toThrow('report audit failure');
   });
   it('applies only configured fines through the deployed legacy finance schema',async()=>{
     const {barcodes}=await register(1);await issue(barcodes);
@@ -298,6 +352,17 @@ describe('Smart library: real PostgreSQL transactions and RLS',()=>{
     expect(await run(()=>service.classifications(),other)).toEqual({subjects:[],classes:[]});
     await run(()=>service.updateTitle({...input,title:'Corrected title',catalog_item_id:a.catalog_item_id,request_id:randomUUID()}));
     expect((await run(()=>service.scan(codes[0]))).title).toBe('Corrected title');
+  });
+  it('returns current title counts when an earlier successful registration is retried',async()=>{
+    const batch=await allocate(2);
+    const codes=(await run(()=>service.barcodes({batch_id:batch.id}))).map((row:any)=>row.barcode);
+    const input={title:'Retry counts',barcode:codes[0],request_id:randomUUID()};
+    const first=await run(()=>service.register(input));
+    expect(first.catalogue.total_copies).toBe(1);
+    await run(()=>service.register({catalog_item_id:first.catalog_item_id,barcode:codes[1],request_id:randomUUID()}));
+    const retry=await run(()=>service.register(input));
+    expect(retry.id).toBe(first.id);expect(retry.catalogue.total_copies).toBe(2);
+    expect(retry.catalogue.available_copies).toBe(2);
   });
   it('registers 1000 reserved copies atomically with retries, rejects occupied ranges and honours copy restrictions',async()=>{
     const original=await register(1),batch=await allocate(1000);
