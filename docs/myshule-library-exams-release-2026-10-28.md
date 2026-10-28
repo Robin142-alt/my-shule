@@ -19,7 +19,7 @@ The user explicitly requested deployment on 28 October 2026 after implementation
 - [x] Prepare a scoped branch in the clean current-main checkout; integrate requested changes while retaining newer production architecture.
 - [ ] Review the release diff and rerun relevant release-source checks. Extend existing CI with new regression coverage.
 - [ ] Record current successful backend/worker/frontend versions for rollback.
-- [ ] Verify the production database contract read-only and create/verify a private backup before additive schema rollout. Never publish credentials or school records in Git/logs.
+- [x] Verify the production database contract read-only and create/verify a private backup before additive schema rollout. Never publish credentials or school records in Git/logs.
 - [ ] Create and attach a reviewable release PR; pass existing CI gates without bypassing checks.
 - [ ] Merge the verified release and verify backend schema/readiness before frontend publication using the established deployment process.
 - [ ] Confirm all required deployed revisions, public/Worker smoke checks, unsigned-request rejection, schema/RLS and error logs.
@@ -51,3 +51,12 @@ All four were successful at source revision `9af9d4617f9936f70753ff4b48fe0a07b29
 - Payments: `d203abc8-1a15-490f-b662-2720eea23d7f`.
 - Reports bulk: `1042a575-15b4-474f-9aeb-a4ba10cebc9b`.
 - Reports interactive: `35a80a52-ea8d-45b5-ba6f-506c28199a65`.
+- Cloudflare Worker version: `8d90389f-29e0-499d-81c1-0b79ad4e3cbe`, recorded in successful main workflow `40523237177`, deployment job `122275713734`. Recheck before publication.
+
+## Current-main verification continuation
+
+- Draft PR [#120](https://github.com/Robin142-alt/my-shule/pull/120) contains the scoped keyboard, examination, library and CI/evidence commits. It is attached to the task. No merge or deployment yet.
+- Frontend TypeScript passed with exit 0. Initial release UI batch: 103 passed, 3 failed. Failures were stale assertions for newest-first payload ordering, unknown-outcome retries, and locked read-only markbook retrieval. Corrected assertions retain exact transaction identity and disabled-write checks. Fresh rerun: **3 suites / 77 tests passed**, 104.064 seconds (`.codex-release-web-retest.log`).
+- First PR pipeline `40749503435`: Cloudflare production build, workerd verification, security audit and CodeQL passed. Quality stopped on an internal-link lint error in a new test. The test now uses the existing Next Link component; all quality gates are rerunning.
+- The restarted disposable database run exposed a report-readiness fixture missing production mark identity/score columns. The fixture now models those columns and explicitly seeds its entered score. No production query or assertion was relaxed. Final integration result and fixture rerun remain pending.
+- Earlier interrupted run `.codex-release-integration-3.log` has no completion result and is excluded from passing totals.

@@ -31,7 +31,8 @@ describe('Exam-specific report-card readiness', () => {
       CREATE TABLE class_sections(tenant_id text,id text,name text,custom_label text);
       CREATE TABLE subjects(tenant_id text,id text,name text);
       CREATE TABLE exam_assessments(tenant_id text,id uuid,exam_series_id uuid,subject_id uuid,class_section_id uuid);
-      CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,class_section_id uuid,subject_id uuid,student_id uuid,status text,assessment_id uuid DEFAULT '${ids.subject}');`);
+      CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,class_section_id uuid,subject_id uuid,student_id uuid,status text,
+        assessment_id uuid DEFAULT '${ids.subject}',id uuid DEFAULT gen_random_uuid(),score numeric,score_status text);`);
     repository = new ExamsRepository({ executeWithTenant: async (tenant: string, actor: unknown, callback: (tx: unknown) => unknown) => {
       expect(tenant).toMatch(/^school-[ab]$/);
       return callback({ $queryRawUnsafe: async (sql: string, ...values: unknown[]) => (await query(sql, values)).rows });
@@ -51,7 +52,7 @@ describe('Exam-specific report-card readiness', () => {
     await query(`INSERT INTO students SELECT 'school-a',id,'active' FROM unnest($1::text[]) id`, [students]);
     await query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,stream_id,status) SELECT 'school-a',id,$2,NULL,'active' FROM unnest($1::text[]) id`, [students, ids.class]);
     await query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id,status) SELECT 'school-a',id,$2,$3,'active' FROM unnest($1::text[]) id`, [students, ids.class, ids.subject]);
-    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status) VALUES ('school-a',$1,$2,$3,$4,'locked')`, [ids.exam, ids.class, ids.subject, students[0]]);
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status,score,score_status) VALUES ('school-a',$1,$2,$3,$4,'locked',75,'entered')`, [ids.exam, ids.class, ids.subject, students[0]]);
   });
 
   it('reports the screenshot case as 49 missing marks and rejects generation before any writes', async () => {
@@ -155,8 +156,8 @@ describe('Exam-specific report-card readiness', () => {
     expect(await eligibility(students[0])).toMatchObject({id:students[0]});
     for(const student of students.slice(1,6)) expect(await eligibility(student)).toBeNull();
     // Saved results outside the eligible roster cannot conceal a missing eligible result.
-    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status)
-      SELECT 'school-a',$1,$2,$3,id::uuid,'locked' FROM unnest($4::text[]) id`,[ids.exam,ids.class,ids.subject,students.slice(1,6)]);
+    await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,class_section_id,subject_id,student_id,status,score,score_status)
+      SELECT 'school-a',$1,$2,$3,id::uuid,'locked',75,'entered' FROM unnest($4::text[]) id`,[ids.exam,ids.class,ids.subject,students.slice(1,6)]);
     expect(await repository.getExamReadinessStats({tenant_id:'school-a',exam_series_id:ids.exam})).toMatchObject({missing_count:44,unapproved_count:0});
   });
 

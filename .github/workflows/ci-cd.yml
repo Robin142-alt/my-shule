@@ -304,7 +304,7 @@ jobs:
         run: npm test
 
       - name: Assisted marks authorization and teacher permission regression
-        run: node --test dist/apps/api/src/modules/exams/assisted-mark-entry.test.js dist/apps/api/src/modules/class-teacher/class-teacher.service.test.js
+        run: node --test dist/apps/api/src/modules/exams/assisted-mark-entry.test.js dist/apps/api/src/modules/exams/class-exam-configuration.test.js dist/apps/api/src/modules/class-teacher/class-teacher.service.test.js
 
       - name: Smart library global barcodes, PDF geometry and transactional isolation
         env:
