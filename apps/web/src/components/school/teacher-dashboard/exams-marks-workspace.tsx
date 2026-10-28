@@ -1,4 +1,5 @@
 import { AlertTriangle, ArrowLeft, Download, FileText, Loader2, RefreshCw, Save, Search, Send } from "lucide-react";
+import { onGridNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -95,6 +96,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [onlyBlank, setOnlyBlank] = useState(false);
+  const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
   const [reviewWindowId, setReviewWindowId] = useState<string | null>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const scoreInputs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -163,7 +165,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const exportUnavailable = !activeWindow || !markRows.length || isSaving || markSheetQuery.isError || markSheetQuery.isLoading;
   const unavailable = !activeWindow || readOnly || !markRows.length || isSaving || pendingMarksQuery.isError
     || markSheetQuery.isError || markSheetQuery.isLoading;
-  const visibleRows = markRows.filter(row => (!onlyBlank || !scoreStatus(activeDrafts[row.student_id]))
+  const visibleRows = markRows.filter(row => (!onlyBlank || row.student_id === focusedStudentId || !scoreStatus(activeDrafts[row.student_id]))
     && `${row.student_name ?? ""} ${row.admission_number ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
 
   function updateDraft(studentId: string, patch: Partial<MarkDraft>) {
@@ -174,7 +176,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
     } }));
   }
   function switchWindow(id: string | null) {
-    setActiveWindowId(id); setReviewWindowId(null); setSearch(""); setOnlyBlank(false); setActionError(""); setNotice("");
+    setActiveWindowId(id); setReviewWindowId(null); setSearch(""); setOnlyBlank(false); setFocusedStudentId(null); setActionError(""); setNotice("");
   }
   function reportInvalidScores() {
     if (!invalidRows.length) return false;
@@ -384,28 +386,32 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
                 <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-info-soft text-info")}>Blank ({blankRows.length})</button>
                 <p className="text-sm text-slate-500" aria-live="polite">{enteredCount} / {markRows.length} entered</p>
               </div>
-              <div role="table" aria-label="Student scores" className="w-full">
+              <p id="marks-keyboard-help" className="px-4 pb-3 text-xs text-slate-500 sm:px-6">Arrow keys move between scores. Type or press F2 to edit; Escape returns to navigation. Enter moves down, Shift + Enter moves up. Tab works normally.</p>
+              <div role="table" aria-label="Student scores" aria-describedby="marks-keyboard-help" className="w-full" onKeyDown={onGridNavigationKeyDown}>
                 <div role="row" className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 border-y border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
                   <span role="columnheader">Student</span><span role="columnheader" className="hidden sm:block">Admission no.</span><span role="columnheader" className="text-center">Score / {activeWindow.outOf}</span>
                 </div>
                 <div role="rowgroup" className="divide-y divide-slate-100">
-                  {visibleRows.map(row => {
+                  {visibleRows.map((row, rowIndex) => {
                     const draft = activeDrafts[row.student_id];
                     const error = scoreError(draft, activeWindow.outOf);
                     const rowReadOnly = readOnly || !editableRows.includes(row);
-                    return <div role="row" key={row.student_id} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1 px-4 py-3 focus-within:bg-info-soft/50 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
+                    return <div role="row" key={row.student_id}
+                      onFocus={() => setFocusedStudentId(row.student_id)}
+                      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocusedStudentId(current => current === row.student_id ? null : current); }}
+                      className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1 px-4 py-3 focus-within:bg-info-soft/50 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
                       <div role="cell" className="min-w-0"><label htmlFor={`score-${row.student_id}`} className="block break-words text-sm font-medium leading-5">{row.student_name ?? "Unnamed student"}</label><p className="mt-1 text-xs text-slate-500 sm:hidden">{row.admission_number ?? "No admission number"}</p>{row.updated_by_name && <p className="mt-1 break-words text-xs text-slate-500">Last saved by {row.updated_by_name}{row.updated_at ? ` · ${markbookDate(row.updated_at)}` : ""}</p>}</div>
                       <span role="cell" className="hidden text-sm text-slate-500 sm:block">{row.admission_number ?? "-"}</span>
                       <div role="cell"><input id={`score-${row.student_id}`} ref={element => { scoreInputs.current[row.student_id] = element; }} aria-label={`${row.student_name ?? "Student"} score`}
                         type="text" inputMode="decimal" autoComplete="off" enterKeyHint="next" value={draft.score} disabled={rowReadOnly || isSaving} readOnly={Boolean(row.categories?.length)}
                         aria-invalid={!!error} aria-describedby={error ? `error-${row.student_id}` : undefined}
                         onChange={event => updateDraft(row.student_id, { score: event.target.value, scoreStatus: event.target.value.trim() ? "entered" : "" })}
-                        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); const next = visibleRows[visibleRows.indexOf(row) + 1]; if (next) scoreInputs.current[next.student_id]?.focus(); } }}
+                        data-grid-row={rowIndex} data-grid-column={0}
                         className={cn("min-h-12 w-full rounded-lg border bg-white px-2 text-center text-base tabular-nums focus:outline-2 focus:outline-blue-600 disabled:bg-slate-50", error ? "border-red-400 text-danger" : "border-slate-300")} />
                       </div>
                       {Boolean(row.categories?.length) && <div className="col-span-full grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2 sm:grid-cols-3">
-                        {row.categories!.map(category => <label key={category.id} className="grid gap-1 text-xs text-slate-600">{category.name} / {category.max_score}
-                          <input aria-label={`${row.student_name} ${category.name} score`} className="min-h-11 min-w-0 rounded-lg border border-slate-300 px-2 text-base" inputMode="decimal" value={draft.categories?.[category.id] ?? ''} disabled={rowReadOnly || isSaving}
+                        {row.categories!.map((category, columnIndex) => <label key={category.id} className="grid gap-1 text-xs text-slate-600">{category.name} / {category.max_score}
+                          <input aria-label={`${row.student_name} ${category.name} score`} data-grid-row={rowIndex} data-grid-column={columnIndex} className="min-h-11 min-w-0 rounded-lg border border-slate-300 px-2 text-base focus:outline-2 focus:outline-blue-600" inputMode="decimal" value={draft.categories?.[category.id] ?? ''} disabled={rowReadOnly || isSaving}
                             aria-invalid={Boolean(scoreError({score:draft.categories?.[category.id] ?? '',scoreStatus:'',remarks:''},Number(category.max_score)))}
                             onChange={event => {
                               const categories = { ...draft.categories, [category.id]: event.target.value };

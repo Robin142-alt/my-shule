@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { useMemo, useRef, useState } from "react";
 import { usePermissions } from "@/components/providers/permission-context";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
@@ -339,7 +340,7 @@ export function ExpensesWorkspace({ review = false }: { review?: boolean }) {
       )}
 
       <Modal open={Boolean(decision)} onClose={() => { if (!submitting) setDecision(null); }} title={`${decision?.decision === "approve" ? "Approve" : "Reject"} expense`}>
-        <form onSubmit={decide} className="space-y-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={decide} className="space-y-4">
           <p>{decision?.row.description} · {decision && formatMinorKes(decision.row.amount_minor)}</p>
           <p className="text-sm text-muted">This saves an approval decision. It does not confirm that money has been paid out.</p>
           {submitError && <p role="alert" className="text-danger">{submitError}</p>}
@@ -361,7 +362,7 @@ export function ExpensesWorkspace({ review = false }: { review?: boolean }) {
           </>
         )}
       >
-        <form id="accountant-expense-form" className="space-y-4" onSubmit={submitExpense}>
+        <form onKeyDown={onFormNavigationKeyDown} id="accountant-expense-form" className="space-y-4" onSubmit={submitExpense}>
           {submitError ? <div className="rounded-lg bg-danger-soft p-3 text-sm font-semibold text-danger" role="alert">{submitError}</div> : null}
           <label className="block space-y-1.5 text-sm font-bold">
             <span>Category</span>

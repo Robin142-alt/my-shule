@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { ClipboardList, Plus, CheckCircle } from "lucide-react";
@@ -190,7 +191,7 @@ export function StocktakeWorkspace() {
         onClose={() => setIsStartOpen(false)}
         title="Start New Stocktake"
       >
-        <form onSubmit={startForm.handleSubmit(onSubmitStartStocktake)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={startForm.handleSubmit(onSubmitStartStocktake)} className="space-y-4 py-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Stocktake Title</label>
             <input

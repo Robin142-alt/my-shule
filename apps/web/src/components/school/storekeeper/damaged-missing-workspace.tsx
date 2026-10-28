@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { ShieldAlert, Plus } from "lucide-react";
@@ -223,7 +224,7 @@ export function DamagedMissingWorkspace() {
         onClose={() => setIsReportOpen(false)}
         title="Report Incident"
       >
-        <form onSubmit={reportForm.handleSubmit(onSubmitReport)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={reportForm.handleSubmit(onSubmitReport)} className="space-y-4 py-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Item Name</label>
             <input
@@ -310,7 +311,7 @@ export function DamagedMissingWorkspace() {
         }}
         title={`Write Off: ${selectedRecord?.item_name || ""}`}
       >
-        <form onSubmit={writeOffForm.handleSubmit(onSubmitWriteOff)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={writeOffForm.handleSubmit(onSubmitWriteOff)} className="space-y-4 py-4">
           <p className="text-sm text-muted">
             Confirm write-off of {selectedRecord?.quantity} {selectedRecord?.unit}(s) of &quot;{selectedRecord?.item_name}&quot;?
           </p>

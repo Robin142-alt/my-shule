@@ -1,4 +1,5 @@
 "use client";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, ShieldCheck } from "lucide-react";
@@ -307,6 +308,7 @@ export function OperationalFormShell({
   return (
     <Card className="p-5">
       <form
+        onKeyDown={onFormNavigationKeyDown}
         ref={formRef}
         id={formId}
         aria-label={contract.title}

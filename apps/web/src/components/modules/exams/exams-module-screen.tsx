@@ -1,5 +1,6 @@
 "use client";
 import { OfficialReportPreview } from "@/components/report-cards/official-report-preview";
+import { onGridNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { requestSchoolApiProxy } from "@/lib/dashboard/school-api-proxy-client";
 import { awaitReportDelivery,openReportDelivery,type ReportDeliveryJob } from "@/lib/report-cards/report-delivery";
 
@@ -9,7 +10,6 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
-  type KeyboardEvent,
 } from "react";
 import {
   AlertCircle,
@@ -182,10 +182,6 @@ function metricIcon(tone: StatusTone) {
   }
 
   return ClipboardCheck;
-}
-
-function getCellKey(rowId: string, fieldId: ExamScoreFieldId) {
-  return `${rowId}:${fieldId}`;
 }
 
 function getSaveLabel(saveState: SaveState) {
@@ -872,7 +868,6 @@ function MarksEntryGrid({
   const [rows, setRows] = useState(initialRows);
   const [searchTerm, setSearchTerm] = useState("");
   const [density, setDensity] = useState<"comfortable" | "compact">("compact");
-  const inputRefs = useRef(new Map<string, HTMLInputElement>());
 
   useEffect(() => {
     if (saveState !== "saving") {
@@ -906,17 +901,6 @@ function MarksEntryGrid({
     marksSummary.invalidScores > 0 ||
     outlierCount > 0;
 
-  function focusCell(rowIndex: number, fieldIndex: number) {
-    const nextRow = filteredRows[rowIndex];
-    const nextField = fields[fieldIndex];
-
-    if (!nextRow || !nextField) {
-      return;
-    }
-
-    inputRefs.current.get(getCellKey(nextRow.id, nextField.id))?.focus();
-  }
-
   function handleScoreChange(rowId: string, fieldId: ExamScoreFieldId, value: string) {
     setRows((currentRows) =>
       currentRows.map((row) =>
@@ -932,35 +916,6 @@ function MarksEntryGrid({
       ),
     );
     setSaveState("saving");
-  }
-
-  function handleCellKeyDown(
-    event: KeyboardEvent<HTMLInputElement>,
-    rowIndex: number,
-    fieldIndex: number,
-  ) {
-    if (event.key === "Enter" || event.key === "ArrowDown") {
-      event.preventDefault();
-      focusCell(rowIndex + 1, fieldIndex);
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      focusCell(rowIndex - 1, fieldIndex);
-      return;
-    }
-
-    if (event.key === "ArrowRight") {
-      event.preventDefault();
-      focusCell(rowIndex, fieldIndex + 1);
-      return;
-    }
-
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      focusCell(rowIndex, fieldIndex - 1);
-    }
   }
 
   function handlePaste(
@@ -1151,7 +1106,7 @@ function MarksEntryGrid({
       </div>
 
       <div className="max-h-[560px] overflow-auto">
-        <table className="min-w-[980px] border-collapse">
+        <table className="min-w-[980px] border-collapse" onKeyDown={onGridNavigationKeyDown}>
           <thead>
             <tr className="bg-surface-muted">
               <th className="sticky left-0 top-0 z-30 w-[128px] border-b border-r border-border bg-surface-muted px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted">
@@ -1197,21 +1152,12 @@ function MarksEntryGrid({
                         className={`${density === "compact" ? "px-2 py-2" : "px-3 py-3"} border-r border-border align-top`}
                       >
                         <input
-                          ref={(node) => {
-                            const key = getCellKey(row.id, field.id);
-
-                            if (node) {
-                              inputRefs.current.set(key, node);
-                            } else {
-                              inputRefs.current.delete(key);
-                            }
-                          }}
                           aria-label={`${row.student} ${field.label} score`}
                           inputMode="decimal"
                           disabled={marksLocked}
                           value={value}
                           onChange={(event) => handleScoreChange(row.id, field.id, event.target.value)}
-                          onKeyDown={(event) => handleCellKeyDown(event, rowIndex, fieldIndex)}
+                          data-grid-row={rowIndex} data-grid-column={fieldIndex}
                           onPaste={(event) => handlePaste(event, rowIndex, fieldIndex)}
                           className={`h-9 w-full rounded-[var(--radius-xs)] border px-2 text-sm font-semibold tabular-nums outline-none transition focus:border-info focus:bg-surface-strong focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)] ${
                             validation.valid

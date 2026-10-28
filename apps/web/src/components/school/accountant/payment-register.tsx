@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -201,14 +202,14 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
     <ManualReversalQueue />
     <RefundEvidence receipt={refund} onClose={()=>setRefund(null)}/>
     <Modal open={Boolean(reversal)} title={`Request reversal · ${reversal?.receipt_number || ""}`} onClose={() => { if (!busy) setReversal(null); }}>
-      <form onSubmit={requestReversal} className="space-y-4"><p>{reversal?.metadata?.source === "stk_payment" ? "Two independent reviewers, including the Principal, must approve in Collections → Financial correction reviews." : "A different Principal must approve."} This request does not change the learner’s balance or send a refund.</p>{error && <p role="alert">{error}</p>}
+      <form onKeyDown={onFormNavigationKeyDown} onSubmit={requestReversal} className="space-y-4"><p>{reversal?.metadata?.source === "stk_payment" ? "Two independent reviewers, including the Principal, must approve in Collections → Financial correction reviews." : "A different Principal must approve."} This request does not change the learner’s balance or send a refund.</p>{error && <p role="alert">{error}</p>}
         <label className="block">Reason<textarea name="reason" required minLength={5} maxLength={512} className="input-base mt-1 w-full" /></label>
         <div className="flex justify-end gap-2"><Button type="button" variant="secondary" disabled={busy} onClick={() => setReversal(null)}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Submitting…" : "Request approval"}</Button></div>
       </form>
     </Modal>
     <Modal open={open} title="Record cash or cheque" onClose={() => { if (!busy) setOpen(false); }}
       footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button><Button form="finance-receipt-form" type="submit" disabled={busy || !learner || !canWrite}>{busy ? "Saving…" : "Save receipt"}</Button></>}>
-      <form id="finance-receipt-form" onSubmit={save} className="space-y-4">
+      <form onKeyDown={onFormNavigationKeyDown} id="finance-receipt-form" onSubmit={save} className="space-y-4">
         {error && <p role="alert" className="text-danger">{error}</p>}
         <LearnerPicker label="Learner name or admission number" tenantSlug={tenantSlug ?? ""} value={learner} onChange={setLearner} />
         <div className="grid gap-4 sm:grid-cols-2"><label>Method<select className="input-base mt-1 w-full" value={method} onChange={e => setMethod(e.target.value)}><option value="cash">Cash</option><option value="cheque">Cheque</option></select></label>
@@ -220,7 +221,7 @@ export function PaymentRegister({ tenantSlug, receiptsOnly = false, onNavigate }
       </form>
     </Modal>
     <Modal open={Boolean(cheque)} title={`${cheque?.receipt.receipt_number ?? "Cheque"} · ${cheque?.action ?? ""}`} onClose={() => { if (!busy) setCheque(null); }}>
-      <form onSubmit={updateCheque} className="space-y-4">
+      <form onKeyDown={onFormNavigationKeyDown} onSubmit={updateCheque} className="space-y-4">
         {error && <p role="alert" className="text-danger">{error}</p>}
         <p className="text-sm">{cheque?.action === "clear" ? "Confirm the bank has cleared this cheque. This will update the learner’s fees." : "Record the bank’s confirmation and keep the reference for audit."}</p>
         <label className="block">Bank reference<input name="reference" required maxLength={96} className="input-base mt-1 w-full" /></label>

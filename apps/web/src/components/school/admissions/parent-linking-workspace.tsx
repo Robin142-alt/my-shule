@@ -1,4 +1,5 @@
 "use client";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { RecordTable } from "@/components/ui/record-table";
 import { useEffect, useState } from "react";
 import { Users, Link2, Send } from "lucide-react";
@@ -91,7 +92,7 @@ export function ParentLinkingWorkspace() {
     <Panel title="Parents & Guardians" description="Link admitted students to their parents/guardians and send portal invitations." icon={Users}>
       <input aria-label="Search parents and learners" placeholder="Search learner or guardian" value={search} onChange={e => setSearch(e.target.value)} className="mb-4 min-h-11 w-full rounded-xl border border-border px-3" />
       {isError ? <div role="alert" className="mb-4 rounded-xl bg-danger-soft p-3 text-danger">Parent records could not be loaded. <button onClick={() => void refetch()} className="underline">Retry</button></div> : null}
-      {linkDraft ? <form className="mb-4 grid gap-3 rounded-xl border border-border p-3" onSubmit={e => { e.preventDefault(); void handleLinkParent(linkDraft); }}>
+      {linkDraft ? <form onKeyDown={onFormNavigationKeyDown} className="mb-4 grid gap-3 rounded-xl border border-border p-3" onSubmit={e => { e.preventDefault(); void handleLinkParent(linkDraft); }}>
         <h3 className="font-bold">Link guardian to {linkDraft.student_name}</h3>
         <label className="grid gap-1">Guardian name<input required value={linkDraft.parent_name} onChange={e => setLinkDraft({ ...linkDraft, parent_name: e.target.value })} className="min-h-11 rounded-lg border p-2" /></label>
         <label className="grid gap-1">Email for portal access<input required type="email" value={linkDraft.parent_email} onChange={e => setLinkDraft({ ...linkDraft, parent_email: e.target.value })} className="min-h-11 rounded-lg border p-2" /></label>
@@ -99,7 +100,7 @@ export function ParentLinkingWorkspace() {
         <label className="grid gap-1">Relationship<select value={linkDraft.relationship.toLowerCase() || "guardian"} onChange={e => setLinkDraft({ ...linkDraft, relationship: e.target.value })} className="min-h-11 rounded-lg border p-2"><option value="mother">Mother</option><option value="father">Father</option><option value="guardian">Guardian</option></select></label>
         <div className="flex gap-2"><button disabled={Boolean(linkingId)} className="min-h-11 rounded-lg bg-primary px-4 text-white">{linkingId ? "Saving…" : "Save guardian link"}</button><button type="button" disabled={Boolean(linkingId)} onClick={() => setLinkDraft(null)} className="min-h-11 rounded-lg border px-4">Cancel</button></div>
       </form> : null}
-      {editing ? <form className="mb-4 grid gap-3 rounded-xl border border-border p-3" onSubmit={async e => {
+      {editing ? <form onKeyDown={onFormNavigationKeyDown} className="mb-4 grid gap-3 rounded-xl border border-border p-3" onSubmit={async e => {
         e.preventDefault();
         try {
           await changePhone.mutateAsync({ student_id: editing.student_id, guardian_phone: phone, reason, confirmed: true });

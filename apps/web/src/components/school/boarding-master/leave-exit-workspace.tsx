@@ -1,4 +1,5 @@
 "use client";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { RecordTable } from "@/components/ui/record-table";
 import { useState, type FormEvent } from "react";
 import { LogOut } from "lucide-react";
@@ -131,7 +132,7 @@ export function LeaveExitWorkspace() {
           No active guardian links are available for these boarders. Link a guardian before creating a leave request.
         </div>
       ) : null}
-      <form onSubmit={handleCreateLeaveRequest} className="mb-6 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-4">
+      <form onKeyDown={onFormNavigationKeyDown} onSubmit={handleCreateLeaveRequest} className="mb-6 grid gap-3 rounded-xl border border-border bg-surface-muted p-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-xs font-bold text-foreground">
           Active boarder
           <select
