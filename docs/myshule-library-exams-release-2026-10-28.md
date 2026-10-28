@@ -18,7 +18,7 @@ The user explicitly requested deployment on 28 October 2026 after implementation
 - [ ] Finish release-checkout lint and production build. Earlier browser/PDF and compiler evidence belongs to the original checkout and must not be represented as final release verification.
 - [x] Prepare a scoped branch in the clean current-main checkout; integrate requested changes while retaining newer production architecture.
 - [ ] Review the release diff and rerun relevant release-source checks. Extend existing CI with new regression coverage.
-- [ ] Record current successful backend/worker/frontend versions for rollback.
+- [x] Record current successful backend/worker/frontend versions for rollback.
 - [x] Verify the production database contract read-only and create/verify a private backup before additive schema rollout. Never publish credentials or school records in Git/logs.
 - [ ] Create and attach a reviewable release PR; pass existing CI gates without bypassing checks.
 - [ ] Merge the verified release and verify backend schema/readiness before frontend publication using the established deployment process.
@@ -65,3 +65,9 @@ All four were successful at source revision `9af9d4617f9936f70753ff4b48fe0a07b29
 - Release PDF checks: all **8 variants passed** (`.codex-release-pdf-verification.log`), including empty/3/60/300-copy reports, individual/class/school scopes, portrait/landscape and logo fallback. The 300-copy report has 27 A4 pages and exactly 300 distinct copy identifiers; no row-free trailing page. The full contact sheet, final page and logo variant were visually inspected.
 - API build (Prisma generation + TypeScript) passed with exit 0 after all backend corrections (`.codex-release-api-build-2.log`).
 - Production browser baseline: public homepage loaded; Dashboard navigated to `/legal/accept`. No agreement was accepted. Further interactive browser inspection became unavailable when browser control was disabled in Work settings. Isolated automated browser evidence above remains separate from live authenticated acceptance.
+
+## CI continuation — 29 October 2026
+
+- PR revision `401ccee2acbf1dcbbb41bb4eaacbb3e07c86bf19`, run `40759405967`: frontend quality (lint, configured component and browser regressions), production Cloudflare build/workerd smoke, and security audit passed. Backend unit stage ran 1,602 tests: 1,593 passed and nine failed. Subsequent backend/integration/deployment stages did not run; this is not a green release.
+- The nine failures used obsolete global-subject payloads, omitted configuration versions/permission context, expected the old Cartesian windows, or counted seven dropdown queries before class offerings were added. Updated fixtures assert exact per-class pairs, preserved window status, version increments, tenant filtering and audit events. A public entry-point regression checks all three write operations reject missing permission before any transaction. Verification is pending.
+- Local module-keyboard batch: six suites passed, with two admissions tests exceeding the default five-second timeout on this machine (39 passed, two failed). Admissions subsequently passed in the complete CI quality job. A redundant isolated local rerun was stopped while stalled before results; it is excluded from passing evidence.

@@ -5187,7 +5187,8 @@ test('ExamsManagerCommandService loads exam setup options from the canonical sta
   assert.deepEqual(options.subjects, []);
   assert.deepEqual(options.classes, []);
   assert.deepEqual(options.gradingSystems, []);
-  assert.equal(reads.length, 7);
+  assert.equal(reads.length, 8);
+  assert.ok(reads.some(read => /FROM class_subject_assignments offering/.test(read.sql)));
   assert.equal(reads.every((read) => read.params[0] === 'tenant-a'), true);
   assert.ok(staffRead);
   assert.match(staffRead.sql, /NULLIF\(display_name, ''\)/i);
@@ -5268,7 +5269,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
           rowCount: 1,
         };
       },
-      readSql: async (sql: string) => /AS valid_term/.test(sql) ? ({ rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 }) : ({
+      readSql: async (sql: string) => /AS valid_term/.test(sql) ? ({ rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 }) : /information_schema.columns/.test(sql) ? ({
         rows: [
           { column_name: 'academic_term_id' },
           { column_name: 'created_by_user_id' },
@@ -5276,7 +5277,7 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
           { column_name: 'updated_at' },
         ],
         rowCount: 4,
-      }),
+      }) : ({ rows: [], rowCount: 0 }),
       recordWorkflowAction: async (input: any) => {
         workflowCalls.push(input);
         return { id: 'workflow-1', ...input };
@@ -5302,8 +5303,8 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
     starts_on: '2026-01-12',
     ends_on: '2026-01-16',
     status: 'scheduled',
-    subject_ids: ['44444444-4444-4444-8444-444444444444'],
-    class_section_ids: ['55555555-5555-4555-8555-555555555555'],
+    class_subjects: [{ class_section_id: '55555555-5555-4555-8555-555555555555',
+      subject_ids: ['44444444-4444-4444-8444-444444444444'] }],
   });
 
   assert.equal(result.success, true);
@@ -5329,6 +5330,20 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
   assert.deepEqual(schoolEventCalls[0].notifications[0].audienceRoles, ['principal', 'dean_academics', 'hod', 'teacher']);
 });
 
+test('ExamsManagerCommandService rejects setup and timetable mutations before opening a transaction without write permission', async () => {
+  let transactions = 0;
+  const service = new ExamsManagerCommandService(
+    { getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111',
+      role: 'exams_manager', permissions: ['exams:read'] }) } as never,
+    { executeWithTenant: async () => { transactions += 1; throw new Error('Unexpected database access'); } } as never,
+    {} as never,
+  );
+  await assert.rejects(service.createExamSetup({}), /Exam write permission is required/);
+  await assert.rejects(service.configureExamSetup('22222222-2222-4222-8222-222222222222', {}), /Exam write permission is required/);
+  await assert.rejects(service.createExamTimetableSlot({}), /Exam write permission is required/);
+  assert.equal(transactions, 0);
+});
+
 test('ExamsManagerCommandService rejects unscoped exam setup before persistence', async () => {
   let writeCount = 0;
   const service = new ExamsManagerCommandService(
@@ -5352,13 +5367,13 @@ test('ExamsManagerCommandService rejects unscoped exam setup before persistence'
   );
 
   await assert.rejects(
-    service.createExamSetup({
+    (service as any).createExamSetupWithinTransaction({
       name: 'Unscoped exam',
       starts_on: '2026-01-12',
       ends_on: '2026-01-16',
       status: 'draft',
     }),
-    /Choose at least one subject and one class/i,
+    /Configure examined subjects separately for each participating class/i,
   );
   assert.equal(writeCount, 0);
 });
@@ -5402,7 +5417,7 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
               { id: 'window-1', subject_id: '44444444-4444-4444-8444-444444444444', class_section_id: '66666666-6666-4666-8666-666666666666' },
               { id: 'window-2', subject_id: '55555555-5555-4555-8555-555555555555', class_section_id: '77777777-7777-4777-8777-777777777777' },
             ],
-            rowCount: 4,
+            rowCount: 2,
           };
         }
         return { rows: [], rowCount: 0 };
@@ -5426,54 +5441,41 @@ test('ExamsManagerCommandService persists selected exam subjects and class mark-
     ends_on: '2026-01-16',
     status: 'submitted',
     max_marks: 80,
-    subject_ids: [
-      '44444444-4444-4444-8444-444444444444',
-      '55555555-5555-4555-8555-555555555555',
-    ],
-    class_section_ids: [
-      '66666666-6666-4666-8666-666666666666',
-      '77777777-7777-4777-8777-777777777777',
+    class_subjects: [
+      { class_section_id: '66666666-6666-4666-8666-666666666666', subject_ids: ['44444444-4444-4444-8444-444444444444'] },
+      { class_section_id: '77777777-7777-4777-8777-777777777777', subject_ids: ['55555555-5555-4555-8555-555555555555'] },
     ],
   });
 
   assert.equal(result.success, true);
   assert.equal((result as any).scope.subjectsConfigured, 2);
-  assert.equal((result as any).scope.markEntryWindowsConfigured, 4);
-  assert.match(writes[1].sql, /INSERT INTO exam_assessments/i);
-  assert.equal(writes[1].params[0], 'kibabi-high');
-  assert.equal(writes[1].params[1], '33333333-3333-4333-8333-333333333333');
-  assert.deepEqual(writes[1].params[2], [
-    '44444444-4444-4444-8444-444444444444',
-    '55555555-5555-4555-8555-555555555555',
-  ]);
-  assert.match(writes[1].sql, /subject\.id::uuid/i);
-  assert.doesNotMatch(writes[1].sql, /\$1::uuid/i);
-  assert.match(writes[1].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.match(writes[1].sql, /NOT EXISTS/i);
-  assert.doesNotMatch(writes[1].sql, /subject\.id\s*=\s*ANY\(\$3::uuid\[\]\)/i);
-  assert.match(writes[1].sql, /ON CONFLICT\s*DO NOTHING/i);
-  assert.match(writes[1].sql, /created_at,\s*updated_at/i);
-  assert.match(writes[1].sql, /NOW\(\),\s*NOW\(\)/i);
-  assert.match(writes[2].sql, /UPDATE exam_assessments/i);
-  assert.match(writes[3].sql, /INSERT INTO exam_mark_entry_windows/i);
-  assert.deepEqual(writes[3].params[3], [
-    '66666666-6666-4666-8666-666666666666',
-    '77777777-7777-4777-8777-777777777777',
-  ]);
-  assert.match(writes[3].sql, /subject\.id::uuid/i);
-  assert.match(writes[3].sql, /section\.id::uuid/i);
-  assert.doesNotMatch(writes[3].sql, /\$1::uuid/i);
-  assert.match(writes[3].sql, /subject\.id::text\s*=\s*ANY\(\$3::text\[\]\)/i);
-  assert.match(writes[3].sql, /section\.id::text\s*=\s*ANY\(\$4::text\[\]\)/i);
-  assert.doesNotMatch(writes[3].sql, /NOT EXISTS/i);
-  assert.doesNotMatch(writes[3].sql, /(?:subject|section)\.id\s*=\s*ANY\(\$[34]::uuid\[\]\)/i);
-  assert.match(writes[3].sql, /ON CONFLICT\s*\(tenant_id, exam_series_id, subject_id, class_section_id\)\s*DO UPDATE/i);
-  assert.match(writes[3].sql, /created_at,\s*updated_at/i);
-  assert.match(writes[3].sql, /NOW\(\),\s*NOW\(\)/i);
-  assert.match(writes[3].sql, /status\s*=\s*EXCLUDED\.status/i);
-  assert.equal(writes[3].params[6], 'open');
+  assert.equal((result as any).scope.markEntryWindowsConfigured, 2);
+  const papers = writes.find(write => /INSERT INTO exam_assessments/i.test(write.sql))!;
+  const windows = writes.find(write => /INSERT INTO exam_mark_entry_windows/i.test(write.sql))!;
+  const expectedPairs = [
+    { class_section_id: '66666666-6666-4666-8666-666666666666', subject_id: '44444444-4444-4444-8444-444444444444', stream_scope: { default: true, overrides: {} } },
+    { class_section_id: '77777777-7777-4777-8777-777777777777', subject_id: '55555555-5555-4555-8555-555555555555', stream_scope: { default: true, overrides: {} } },
+  ];
+  for (const write of [papers, windows]) {
+    assert.equal(write.params[0], 'kibabi-high');
+    assert.equal(write.params[1], '33333333-3333-4333-8333-333333333333');
+    assert.deepEqual(JSON.parse(String(write.params[2])), expectedPairs);
+    assert.match(write.sql, /jsonb_to_recordset/i);
+    assert.doesNotMatch(write.sql, /\$1::uuid/i);
+  }
+  assert.match(papers.sql, /subject\.tenant_id=\$1/);
+  assert.match(papers.sql, /subject\.id::text=selected\.subject_id/);
+  assert.match(papers.sql, /NOT EXISTS/i);
+  assert.match(papers.sql, /ON CONFLICT DO NOTHING/i);
+  assert.equal(papers.params[3], 80);
+  assert.match(windows.sql, /ON CONFLICT \(tenant_id,exam_series_id,subject_id,class_section_id\) DO UPDATE SET stream_scope=EXCLUDED.stream_scope/i);
+  assert.doesNotMatch(windows.sql, /status\s*=\s*EXCLUDED\.status/i);
+  assert.equal(windows.params[6], true);
+  const maximum = writes.find(write => /UPDATE exam_assessments paper/i.test(write.sql))!;
+  assert.equal(maximum.params[2], 80);
+  assert.match(maximum.sql, /NOT EXISTS \(SELECT 1 FROM exam_marks/);
   assert.equal(workflowCalls[0].payload.subjectsConfigured, 2);
-  assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 4);
+  assert.equal(workflowCalls[0].payload.markEntryWindowsConfigured, 2);
 });
 
 test('ExamsManagerCommandService keeps draft mark-entry windows closed using the database lifecycle', async () => {
@@ -5484,6 +5486,7 @@ test('ExamsManagerCommandService keeps draft mark-entry windows closed using the
     } as never,
     {} as never,
     {
+      readSql: async () => ({ rows: [], rowCount: 0 }),
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         return { rows: [{ id: 'saved-row' }], rowCount: 1 };
@@ -5504,15 +5507,17 @@ test('ExamsManagerCommandService keeps draft mark-entry windows closed using the
     '33333333-3333-4333-8333-333333333333',
     {
       status: 'draft',
-      subject_ids: ['44444444-4444-4444-8444-444444444444'],
-      class_section_ids: ['66666666-6666-4666-8666-666666666666'],
+      class_subjects: [{ class_section_id: '66666666-6666-4666-8666-666666666666',
+        subject_ids: ['44444444-4444-4444-8444-444444444444'] }],
     },
     '2026-01-12',
     '2026-01-16',
   );
 
-  assert.equal(writes.length, 3);
-  assert.equal(writes[2].params[6], 'closed');
+  const windows = writes.find(write => /INSERT INTO exam_mark_entry_windows/.test(write.sql))!;
+  assert.equal(windows.params[6], false);
+  assert.match(windows.sql, /CASE WHEN \$7::boolean THEN 'open' ELSE 'closed' END/);
+  assert.doesNotMatch(windows.sql, /status\s*=\s*EXCLUDED\.status/i);
 });
 
 test('ExamsManagerCommandService reads configured windows before teachers enter the first mark', async () => {
@@ -5606,7 +5611,7 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
     {} as never,
     {
       readSql: async (sql: string) => {
-        if (/FOR UPDATE/.test(sql)) return { rows: [{ id: '22222222-2222-4222-8222-222222222222', status: 'draft', academic_term_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
+        if (/FOR UPDATE/.test(sql)) return { rows: [{ id: '22222222-2222-4222-8222-222222222222', status: 'draft', configuration_version: 3, max_marks: 100, academic_term_id: '33333333-3333-4333-8333-333333333333' }], rowCount: 1 };
         if (/AS valid_term/.test(sql)) return { rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 };
         return { rows: [], rowCount: 0 };
       },
@@ -5644,12 +5649,13 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
   );
 
   const result = await (service as any).configureExamSetupWithinTransaction('22222222-2222-4222-8222-222222222222', {
+    configuration_version: 3,
     name: 'Term 1 Midterm',
     starts_on: '2026-02-02',
     ends_on: '2026-02-06',
     status: 'submitted',
-    subject_ids: ['44444444-4444-4444-8444-444444444444'],
-    class_section_ids: ['55555555-5555-4555-8555-555555555555'],
+    class_subjects: [{ class_section_id: '55555555-5555-4555-8555-555555555555',
+      subject_ids: ['44444444-4444-4444-8444-444444444444'] }],
   });
 
   assert.equal(result.success, true);
@@ -5660,6 +5666,7 @@ test('ExamsManagerCommandService configures an existing exam setup inside the cu
   assert.equal(update.params[1], '22222222-2222-4222-8222-222222222222');
   assert.equal(update.params[2], 'Term 1 Midterm');
   assert.equal(update.params[5], 'submitted');
+  assert.match(update.sql, /configuration_version = configuration_version \+ 1/);
   assert.equal(workflowCalls.length, 1);
   assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.configured');
   assert.equal(workflowCalls[0].entityType, 'exam_series');
@@ -5764,7 +5771,8 @@ test('ExamsManagerCommandService returns tenant-scoped exam setup options for hu
     label: 'Mathematics Paper 1',
     subject_id: 'subject-a',
   }]);
-  assert.equal(reads.length, 7);
+  assert.equal(reads.length, 8);
+  assert.ok(reads.some(read => /FROM class_subject_assignments offering/.test(read.sql)));
   assert.ok(reads.every((read) => read.params[0] === 'tenant-a'));
 });
 
@@ -5777,6 +5785,13 @@ test('ExamsManagerCommandService creates a durable tenant-scoped timetable slot 
     } as never,
     {} as never,
     {
+      readSql: async (sql: string, params: unknown[]) => {
+        assert.equal(params[0], 'tenant-a');
+        if (/FOR UPDATE/.test(sql)) return { rows: [{ id: params[1], status: 'draft' }], rowCount: 1 };
+        if (/FROM exam_assessments/.test(sql)) return { rows: [{ id: params[1] }], rowCount: 1 };
+        if (/FROM staff_profiles/.test(sql)) return { rows: [{ user_id: params[1] }], rowCount: 1 };
+        throw new Error('Unexpected timetable validation query');
+      },
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         if (/INSERT INTO exam_timetable_slots/i.test(sql)) {
@@ -5819,7 +5834,7 @@ test('ExamsManagerCommandService creates a durable tenant-scoped timetable slot 
     } as never,
   );
 
-  const result = await (service as any).createExamTimetableSlot({
+  const result = await (service as any).createExamTimetableSlotWithinTransaction({
     exam_series_id: '22222222-2222-4222-8222-222222222222',
     assessment_id: '33333333-3333-4333-8333-333333333333',
     date: '2026-07-20',
@@ -5876,7 +5891,7 @@ test('ExamsManagerCommandService refuses timetable slots whose end time is not a
   );
 
   await assert.rejects(
-    () => (service as any).createExamTimetableSlot({
+    () => (service as any).createExamTimetableSlotWithinTransaction({
       exam_series_id: '22222222-2222-4222-8222-222222222222',
       date: '2026-07-20',
       start_time: '10:00',
