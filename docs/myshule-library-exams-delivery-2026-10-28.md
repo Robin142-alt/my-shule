@@ -32,9 +32,9 @@ No Prisma migration file or destructive data migration was added. The repository
 
 - `exam_series.configuration_version`, nullable `exam_series.class_subjects`, and `exam_mark_entry_windows.stream_scope`.
 - Extended examination parent/tenant/configuration integrity triggers, including timetable paper ownership.
-- A global barcode reservation registry and trigger, with no school/private ownership data in the registry. Existing codes are reserved without rewriting copies. RLS and revoked public privileges protect direct registry access; the owner-controlled trigger reserves new codes.
+- The current production global barcode registry, circulation ledger, loan projection, RLS and command replay remain unchanged as the persistence foundation. This release does not add a second barcode registry or a competing circulation workflow.
 
-Run the approved backend schema bootstrap before enabling the updated frontend, then verify its completion in staging. Back up the database according to the existing deployment process. Review ambiguous legacy exams explicitly. Existing duplicate legacy barcodes must be repaired deliberately when surfaced; this implementation does not silently rewrite them. Retain the additive schema if application code is rolled back.
+The existing backend schema bootstrap runs before the updated frontend is published. Verify its completion and retain the additive columns on rollback. Read-only production preflight and a verified private backup are recorded in the release record. Ambiguous legacy exams require explicit school review; no historical marks or barcode identifiers are silently rewritten.
 
 ## Verification evidence
 
@@ -63,21 +63,20 @@ One combined report-generation run had five failures after real PDF batches exce
 
 The first focused web rerun passed 15/16 cases but the seven-scan interaction test hit the five-second default under host load. That multi-step test now allows 20 seconds, retaining every scan, duplicate, borrower-switch and count assertion. The fresh rerun passed 16/16. It used `TS_NODE_TRANSPILE_ONLY=true` only for the Jest TypeScript configuration loader; the subsequent full `tsc --noEmit` passed independently.
 
-## Main source inventory
+## Current-main release source inventory
 
 Paths below are repository-relative. The workspace contained extensive unrelated changes before this task; this inventory does not claim ownership of the entire Git diff.
 
-- Exam configuration/API: `apps/api/src/modules/exams/class-exam-configuration.ts`, `exam-setup-integrity-schema.ts`, `teacher-mark-scope.ts`, `dto/exams.dto.ts`, `exams.service.ts`, `repositories/exams.repository.ts`; `apps/api/src/modules/admin-command/class-exam-persistence.ts`, `exam-setup-integrity.ts`, `exams-manager-command.service.ts`, `academic-workspace-queries.ts`, `teacher-mark-progress.ts`.
-- Downstream exams: `apps/api/src/modules/exams/report-card-readiness.ts`, `exam-result-query.ts`, `analytics/analytics-query.ts`; `apps/api/src/modules/class-teacher/class-teacher.service.ts`, `exams-manager-marks.controller.ts`, `dto/class-teacher.dto.ts`.
-- Exam UI: `apps/web/src/components/school/exams-manager/class-subject-selection.tsx`, `exam-setup-workspace.tsx`, `api-client.ts`, `marks-entry-workspace.tsx`; `apps/web/src/components/school/teacher-dashboard/exams-marks-workspace.tsx`; `apps/web/src/lib/modules/teacher-live.ts`.
-- Library backend: `apps/api/src/modules/admin-command/librarian-command.service.ts`, `librarian-command.controller.ts`; `apps/api/src/modules/library/library-issue-workflow.ts`, `library.service.ts`, `library.module.ts`, `library-schema.service.ts`, `dto/library.dto.ts`, `repositories/library.repository.ts`; `apps/api/src/scripts/module-certification.ts`.
-- Library UI/reporting: `apps/web/src/components/school/librarian-command-center.tsx`; `apps/web/src/components/school/librarian/books-workspace.tsx`, `issue-book-workspace.tsx`, `return-book-workspace.tsx`, `borrowers-workspace.tsx`, `record-copy-condition.tsx`; `apps/web/src/lib/library/borrower-report.ts`; `apps/web/src/components/school/school-pages.tsx` and `apps/web/src/lib/routing/school-workspace-contract.ts`.
+- Exam configuration/API: `apps/api/src/modules/exams/class-exam-configuration.ts`, `exam-setup-integrity-schema.ts`, `dto/exams.dto.ts`, `exams.service.ts`, `repositories/exams.repository.ts`; `apps/api/src/modules/admin-command/class-exam-persistence.ts`, `exam-setup-integrity.ts`, `exams-manager-command.service.ts`.
+- Downstream exams: `apps/api/src/modules/exams/exam-mark-roster.ts`, `analytics/analytics-query.ts` and the shared exam repository. Current production class-teacher ownership and per-stream submission locking remain authoritative.
+- Exam UI: `apps/web/src/components/school/exams-manager/class-subject-selection.tsx`, `exam-setup-workspace.tsx`, `api-client.ts`; `apps/web/src/components/school/teacher-dashboard/exams-marks-workspace.tsx`, `paper-settings.tsx`; `apps/web/src/lib/routing/workspace-navigation.tsx`.
+- Library backend: `apps/api/src/modules/admin-command/librarian-command.service.ts`, `librarian-command.controller.ts`; `apps/api/src/modules/library/smart-library.service.ts`; `apps/api/src/scripts/module-certification.ts`.
+- Library UI/reporting: `apps/web/src/components/library/smart-library-catalogue.tsx`, `smart-library-shared.tsx`, `smart-library-tools.tsx`, `smart-library-workspaces.tsx`; `apps/web/src/components/school/librarian-command-center.tsx`; `apps/web/src/lib/library/borrower-report.ts`; `apps/web/src/components/school/school-pages.tsx` and `apps/web/src/lib/routing/school-workspace-contract.ts`.
 - Keyboard: `apps/web/src/lib/accessibility/keyboard-navigation.ts` and the existing forms listed in `docs/keyboard-workstream-progress.md`. No new navigation module/page or database model was introduced.
 - Tests/evidence: examination/library PostgreSQL suites under `apps/api/test/`; API unit regressions; focused frontend tests and three browser fixtures under `apps/web/tests/design/`; `scripts/verify-library-print.py`; the implementation checklist and three workstream progress records.
-- A pre-existing unsupported Testing Library `exact` option in `apps/web/tests/design/syllabus-coverage.test.tsx` was replaced with an equivalent anchored accessible-name regex to restore type checking without weakening its assertion.
-- `apps/web/eslint.config.mjs`: scoped React overrides to the file types where the installed Next configuration registers the plugins. Explicit `.cjs` files permit native CommonJS `require`; application rules and severities are preserved.
+- CI: `.github/workflows/ci-cd.yml` includes the new class/keyboard/component/browser tests and retains all existing deployment gates. No lint rule or permission is weakened.
 
-Final lint review also corrected prop reassignment in librarian route alias resolution and extracted the catalogue title card into a pure display component, keeping imperative focus/selection work in handlers. TypeScript caught the alias map's overly broad key type during revalidation; it now accurately represents optional aliases. Neither correction changes the public API or stored data.
+Earlier original-checkout lint, syllabus-test and legacy-library corrections were not carried over where current production already supplied their equivalent. The release inventory above describes the actual diff against production, not every earlier exploratory edit.
 
 ## Remaining verification and deployment dependencies
 
