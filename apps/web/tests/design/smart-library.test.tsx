@@ -375,7 +375,7 @@ it("keeps the selected borrower for multiple scans and submits one atomic issue 
   await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"})).toBeEnabled());
   fireEvent.click(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"}));
   await waitFor(()=>expect(request).toHaveBeenCalledWith("/api/library/smart/issue",expect.objectContaining({
-    method:"POST",body:expect.objectContaining({barcodes:["000001","000002"],subject_id:"student-1",borrower_type:"student",request_id:expect.any(String)}),
+    method:"POST",body:expect.objectContaining({barcodes:["000002","000001"],subject_id:"student-1",borrower_type:"student",request_id:expect.any(String)}),
   })));
   expect(screen.getByText("Brian Otieno")).toBeInTheDocument();
 });
@@ -390,11 +390,11 @@ it("returns only scanned books and retains the pending list on a server error",a
   fireEvent.click(screen.getByRole("button",{name:"Add scan"}));await screen.findByText("Book 000001");
   await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm return of 1 book(s)"})).toBeEnabled());
   fireEvent.click(screen.getByRole("button",{name:"Confirm return of 1 book(s)"}));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Network unavailable");
+  expect(await screen.findByText("Network unavailable; retry this return.")).toBeVisible();
   expect(screen.getByText("Book 000001")).toBeInTheDocument();
   const first=(request.mock.calls.find(([path])=>path.endsWith("/return"))![1]!.body as Record<string,unknown>).request_id;
-  await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm return of 1 book(s)"})).toBeEnabled());
-  fireEvent.click(screen.getByRole("button",{name:"Confirm return of 1 book(s)"}));
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Retry return of 1 book(s)"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Retry return of 1 book(s)"}));
   await waitFor(()=>expect(request.mock.calls.filter(([path])=>path.endsWith("/return"))).toHaveLength(2));
   const next=(request.mock.calls.filter(([path])=>path.endsWith("/return"))[1][1]!.body as Record<string,unknown>).request_id;
   expect(next).toBe(first);

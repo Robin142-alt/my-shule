@@ -611,7 +611,8 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Open Mathematics/ }));
     expect(await screen.findByText(/This exam is locked or published/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
-    expect(fetchTeacherMarkSheetLive).not.toHaveBeenCalled();
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({ view: "all" }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeDisabled();
     expect(saveExamMarksLive).not.toHaveBeenCalled();
   });
 

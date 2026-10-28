@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import Link from 'next/link';
 import { ExamSetupWorkspace } from '@/components/school/exams-manager/exam-setup-workspace';
 import { configureExam, createExam } from '@/components/school/exams-manager/api-client';
 
@@ -162,10 +163,10 @@ it('protects a dirty configuration from cancellable browser navigation', () => {
 it('confirms a legacy-browser workspace link once and still blocks an unapproved programmatic navigation', () => {
   const confirm=jest.spyOn(window,'confirm').mockReturnValue(true);
   let allowed=false;
-  const view=render(<><ExamSetupWorkspace/><a href="/school/exams-manager/overview" onClick={event=>{
+  const view=render(<><ExamSetupWorkspace/><Link href="/school/exams-manager/overview" onClick={event=>{
     event.preventDefault();allowed=window.dispatchEvent(new CustomEvent('myshule:before-workspace-navigation',
       {cancelable:true,detail:{href:'/school/exams-manager/overview'}}));
-  }}>Leave workspace</a></>);
+  }}>Leave workspace</Link></>);
   try {
     fireEvent.click(screen.getByRole('button',{name:'Configure'}));fireEvent.click(screen.getByLabelText('Subject 1'));
     fireEvent.click(screen.getByText('Leave workspace'));
