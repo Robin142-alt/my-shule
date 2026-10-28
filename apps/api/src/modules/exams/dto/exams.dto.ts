@@ -1,6 +1,7 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
@@ -10,6 +11,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  Matches,
   Min,
 } from 'class-validator';
 
@@ -470,11 +472,20 @@ export class LockExamMarksDto {
 }
 
 export class CreateTimetableSlotDto {
+  @IsUUID()
   exam_series_id!: string;
-  assessment_id?: string;
+  @IsUUID()
+  assessment_id!: string;
+  @IsDateString({strict:true})
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   date!: string;
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/)
   start_time!: string;
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/)
   end_time!: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
   room_name?: string;
 }
 

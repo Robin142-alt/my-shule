@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ClipboardList, Plus, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +9,8 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 import { configureExam, createExam, deleteExam } from "./api-client";
 import { Panel, StatusChip, type Tone } from "./shared";
+import { ClassSubjectSelector, type ClassSubjectSelection, type ExamClassOption, type SubjectOffering } from "./class-subject-selection";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 type ExamConfig = {
   id: string;
@@ -31,6 +33,9 @@ type ExamConfig = {
   can_delete: boolean;
   delete_block_reason?: string | null;
   marks_count: number;
+  class_subjects?: ClassSubjectSelection[];
+  configuration_version?: number;
+  requires_subject_review?: boolean;
 };
 
 type ExamSetupData = {
@@ -54,8 +59,9 @@ type ExamManagerOption = {
 type ExamManagerOptions = {
   terms?: ExamManagerOption[];
   subjects?: ExamManagerOption[];
-  classes?: ExamManagerOption[];
+  classes?: ExamClassOption[];
   gradingSystems?: ExamManagerOption[];
+  subject_offerings?: SubjectOffering[];
 };
 
 const toDateInputValue = (value?: string) => value ? value.slice(0, 10) : "";
@@ -69,13 +75,9 @@ const emptyForm = {
   exam_type: "Opener",
   max_marks: "100",
   grading_system_id: "",
-  subject_ids: [] as string[],
   class_section_ids: [] as string[],
+  class_subjects: [] as ClassSubjectSelection[],
 };
-
-function toggleSelection(values: string[], value: string) {
-  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
-}
 
 export function ExamSetupWorkspace() {
   const { data, isLoading, error: setupError, refetch } = useSchoolQuery<ExamSetupData>("/admin-command/exams-manager/exam-setup");
@@ -94,6 +96,48 @@ export function ExamSetupWorkspace() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const configurationLocked = Boolean(configuringExam && ["reviewed", "locked", "published", "archived"].includes(configuringExam.status?.toLowerCase()));
+  const [initialForm, setInitialForm] = useState("");
+  const saving = useRef(false);
+  const dirty = (isCreateOpen || Boolean(configuringExam)) && JSON.stringify(form) !== initialForm;
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    // The browser navigation event also covers router changes and same-document
+    // Back/Forward traversal; retain link/unload guards on older browsers.
+    const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+    let approvedLink: string | null = null;
+    const confirmNavigation = (event: Event) => {
+      if (!event.cancelable || (event as Event & { hashChange?: boolean }).hashChange) return;
+      const href=(event as CustomEvent<{href?:string}>).detail?.href;
+      if(href&&approvedLink===new URL(href,window.location.href).href){approvedLink=null;return;}
+      if (!window.confirm("Discard unsaved examination changes and leave this workspace?")) event.preventDefault();
+    };
+    const navigate = (event: MouseEvent) => {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.hasAttribute("download") || link.target === "_blank" || link.getAttribute("href")?.startsWith("#")) return;
+      if (!window.confirm("Discard unsaved examination changes and leave this workspace?")) { event.preventDefault(); event.stopPropagation(); }
+      else {approvedLink=link.href;queueMicrotask(()=>{approvedLink=null;});}
+    };
+    window.addEventListener("beforeunload", warn);
+    // The shared workspace router also uses same-document History API changes.
+    if(!navigation)window.addEventListener("myshule:before-workspace-navigation",confirmNavigation);
+    if (navigation) navigation.addEventListener("navigate", confirmNavigation);
+    else window.addEventListener("click", navigate, true);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener("myshule:before-workspace-navigation",confirmNavigation);
+      navigation?.removeEventListener("navigate", confirmNavigation);
+      window.removeEventListener("click", navigate, true);
+    };
+  }, [dirty]);
+
+  const closeForm = () => {
+    if (saving.current || (dirty && !window.confirm("Discard unsaved examination changes?"))) return;
+    setIsCreateOpen(false); setConfiguringExam(null);
+  };
 
   const exams = data?.exams || [];
   const canManage = data?.can_manage === true;
@@ -121,19 +165,18 @@ export function ExamSetupWorkspace() {
 
   const openCreateForm = () => {
     setFormError(null);
-    setForm({
+    const next = {
       ...emptyForm,
       academic_term_id: termOptions.find((term) => String(term.status || "").toLowerCase() === "active")?.id ?? termOptions[0]?.id ?? "",
       grading_system_id: gradingSystemOptions[0]?.id ?? "",
-      subject_ids: subjectOptions.map((subject) => subject.id),
-      class_section_ids: classOptions.map((schoolClass) => schoolClass.id),
-    });
+    };
+    setForm(next); setInitialForm(JSON.stringify(next));
     setIsCreateOpen(true);
   };
 
   const openConfigureForm = (exam: ExamConfig) => {
     setFormError(null);
-    setForm({
+    const next = {
       ...emptyForm,
       name: exam.name || "",
       starts_on: toDateInputValue(exam.starts_on),
@@ -143,9 +186,10 @@ export function ExamSetupWorkspace() {
       max_marks: String(exam.max_marks || 100),
       grading_system_id: exam.grading_system_id || "",
       academic_term_id: exam.academic_term_id || "",
-      subject_ids: [...(exam.subject_ids ?? [])],
       class_section_ids: [...(exam.class_section_ids ?? [])],
-    });
+      class_subjects: (exam.class_subjects ?? []).map(row => ({ ...row, subject_ids: [...row.subject_ids], ...(row.stream_subjects ? { stream_subjects: row.stream_subjects.map(stream => ({ ...stream, subject_ids: [...stream.subject_ids] })) } : {}) })),
+    };
+    setForm(next); setInitialForm(JSON.stringify(next));
     setConfiguringExam(exam);
   };
 
@@ -162,8 +206,15 @@ export function ExamSetupWorkspace() {
     if (!hasClasses) return "The Principal must add classes and streams before an exam can be created.";
     if (!form.academic_term_id) return "Choose the academic term for this exam.";
     if (!form.grading_system_id) return "Choose the school grading system for this exam.";
-    if (form.subject_ids.length === 0) return "Choose at least one subject for this exam.";
     if (form.class_section_ids.length === 0) return "Choose at least one class for this exam.";
+    for (const classId of form.status === "draft" ? [] : form.class_section_ids) {
+      if (!form.class_subjects.find(row => row.class_section_id === classId)?.subject_ids.length) {
+        return `Choose at least one subject for ${classOptions.find(c => c.id === classId)?.label ?? "each participating class"}.`;
+      }
+      if (form.class_subjects.find(row => row.class_section_id === classId)?.stream_subjects?.some(stream => stream.subject_ids.length === 0)) {
+        return `Choose at least one subject for each configured stream of ${classOptions.find(c => c.id === classId)?.label ?? "this class"}, or use its class default.`;
+      }
+    }
     return null;
   };
 
@@ -177,13 +228,14 @@ export function ExamSetupWorkspace() {
     exam_type: form.exam_type,
     max_marks: Number(form.max_marks),
     grading_system_id: form.grading_system_id,
-    subject_ids: form.subject_ids,
     class_section_ids: form.class_section_ids,
+    class_subjects: form.class_section_ids.map(id => form.class_subjects.find(row => row.class_section_id === id) ?? { class_section_id: id, subject_ids: [] }),
+    ...(configuringExam ? { configuration_version: configuringExam.configuration_version } : {}),
   });
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isCreating || !canManage) return;
+    if (saving.current || !canManage) return;
     setFormError(null);
     const validation = validateForm();
     if (validation) {
@@ -191,10 +243,10 @@ export function ExamSetupWorkspace() {
       return;
     }
 
-    setIsCreating(true);
+    saving.current = true; setIsCreating(true);
     try {
       await createExam(payload());
-      toast.success("Exam created with the selected subjects and classes.");
+      toast.success("Exam created with each class’s selected subjects.");
       setIsCreateOpen(false);
       await Promise.all([refetch(), refetchOptions()]);
     } catch (error) {
@@ -202,13 +254,13 @@ export function ExamSetupWorkspace() {
       setFormError(message);
       toast.error(message);
     } finally {
-      setIsCreating(false);
+      saving.current = false; setIsCreating(false);
     }
   };
 
   const handleConfigure = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isConfiguring || !canManage) return;
+    if (saving.current || !canManage || configurationLocked) return;
     setFormError(null);
 
     if (!configuringExam) {
@@ -222,7 +274,7 @@ export function ExamSetupWorkspace() {
       return;
     }
 
-    setIsConfiguring(true);
+    saving.current = true; setIsConfiguring(true);
     try {
       await configureExam(configuringExam.id, payload());
       toast.success("Exam configuration saved.");
@@ -233,7 +285,7 @@ export function ExamSetupWorkspace() {
       setFormError(message);
       toast.error(message);
     } finally {
-      setIsConfiguring(false);
+      saving.current = false; setIsConfiguring(false);
     }
   };
 
@@ -267,41 +319,13 @@ export function ExamSetupWorkspace() {
     </div>
   ) : null;
 
-  const renderOptionChecklist = (kind: "subjects" | "classes") => {
-    const list = kind === "subjects" ? subjectOptions : classOptions;
-    const selected = kind === "subjects" ? form.subject_ids : form.class_section_ids;
-    const label = kind === "subjects" ? "Subjects / learning areas" : "Classes / streams";
-    const emptyText = kind === "subjects" ? "No subjects configured yet" : "No classes configured yet";
-
-    return (
-      <fieldset className="rounded-xl border border-border p-3 md:col-span-2">
-        <legend className="px-1 text-sm font-black text-foreground">{label} ({selected.length} selected)</legend>
-        {list.length === 0 ? (
-          <p className="text-sm font-semibold text-warning">{emptyText}. Configure this in Principal setup first.</p>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {list.map((item) => (
-              <label key={item.id} className="flex items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold text-foreground">
-                <input
-                  type="checkbox"
-                  checked={selected.includes(item.id)}
-                  onChange={() => setForm((current) => kind === "subjects"
-                    ? { ...current, subject_ids: toggleSelection(current.subject_ids, item.id) }
-                    : { ...current, class_section_ids: toggleSelection(current.class_section_ids, item.id) })}
-                />
-                <span>{item.label}{item.code ? ` (${item.code})` : ""}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </fieldset>
-    );
-  };
-
   const renderExamFields = () => (
     <div className="space-y-4">
+      {configurationLocked ? <p role="status" className="rounded-lg bg-warning-soft p-3 text-sm text-warning">This exam is {configuringExam?.status}. Configuration is read-only; use the governed exam workflow before making changes.</p> : null}
       {configuringExam && configuringExam.marks_count > 0 ? <p className="text-sm text-warning">This exam has saved results. Their subjects, classes, term, grading system and maximum marks are protected.</p> : null}
 
+      <details open={isCreateOpen} className="rounded-lg border border-border p-3">
+      <summary className="mb-3 cursor-pointer font-bold">Exam details</summary>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm font-bold text-foreground md:col-span-2">
           Exam name
@@ -404,9 +428,12 @@ export function ExamSetupWorkspace() {
           </select>
         </label>
 
-        {renderOptionChecklist("subjects")}
-        {renderOptionChecklist("classes")}
+
       </div>
+      </details>
+      {configuringExam && (configuringExam.requires_subject_review || !configuringExam.class_subjects) ? <p role="status" className="rounded-lg bg-warning-soft p-3 text-sm text-warning">This legacy exam needs class-by-class subject review. Global subjects have not been assigned to every class. Existing marks and reports remain preserved.</p> : null}
+      <ClassSubjectSelector classes={classOptions} subjects={subjectOptions} selectedClasses={form.class_section_ids} selections={form.class_subjects} offerings={options?.subject_offerings} termId={form.academic_term_id}
+        onChange={(class_section_ids, class_subjects) => setForm(current => ({ ...current, class_section_ids, class_subjects }))} />
     </div>
   );
 
@@ -531,14 +558,15 @@ export function ExamSetupWorkspace() {
 
       <Modal
         open={isCreateOpen}
-        onClose={() => !isCreating && setIsCreateOpen(false)}
+        onClose={closeForm}
         title="Create exam cycle"
-        description="Choose the exam details, subjects and classes to prepare for marks entry."
-        size="lg"
+        description="Choose participating classes and their own examined subjects."
+        size="xl"
+        mobileFullScreen
         footer={
           <>
             {formError ? <p role="alert" className="w-full text-sm font-semibold text-danger">{formError}</p> : null}
-            <button type="button" onClick={() => setIsCreateOpen(false)} disabled={isCreating} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
+            <button type="button" onClick={closeForm} disabled={isCreating} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
             <button type="submit" form="exam-setup-create-form" disabled={!canManage || isCreating || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
@@ -547,31 +575,32 @@ export function ExamSetupWorkspace() {
           </>
         }
       >
-        <form id="exam-setup-create-form" onSubmit={handleCreate} className="space-y-4">
+        <form id="exam-setup-create-form" onSubmit={handleCreate} onKeyDown={onFormNavigationKeyDown} className="space-y-4">
           <fieldset disabled={isCreating}>{renderExamFields()}</fieldset>
         </form>
       </Modal>
 
       <Modal
         open={Boolean(configuringExam)}
-        onClose={() => !isConfiguring && setConfiguringExam(null)}
+        onClose={closeForm}
         title="Configure exam cycle"
         description={configuringExam ? `Update ${configuringExam.name} for this school, including subject/class readiness for marks entry.` : "Update this tenant-scoped exam cycle."}
-        size="lg"
+        size="xl"
+        mobileFullScreen
         footer={
           <>
             {formError ? <p role="alert" className="w-full text-sm font-semibold text-danger">{formError}</p> : null}
-            <button type="button" onClick={() => setConfiguringExam(null)} disabled={isConfiguring} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
+            <button type="button" onClick={closeForm} disabled={isConfiguring} className="rounded-lg border border-border bg-white px-4 py-2 text-sm font-bold text-foreground hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" form="exam-setup-configure-form" disabled={!canManage || isConfiguring || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
+            <button type="submit" form="exam-setup-configure-form" disabled={!canManage || isConfiguring || configurationLocked || optionsLoading || Boolean(optionsError)} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-white hover:bg-blue-900 disabled:opacity-50">
               {isConfiguring ? "Saving..." : "Save configuration"}
             </button>
           </>
         }
       >
-        <form id="exam-setup-configure-form" onSubmit={handleConfigure} className="space-y-4">
-          <fieldset disabled={isConfiguring}>{renderExamFields()}</fieldset>
+        <form id="exam-setup-configure-form" onSubmit={handleConfigure} onKeyDown={onFormNavigationKeyDown} className="space-y-4">
+          <fieldset disabled={isConfiguring || configurationLocked}>{renderExamFields()}</fieldset>
         </form>
       </Modal>
       <Modal open={Boolean(deletingExam)} onClose={() => !isDeleting && setDeletingExam(null)}

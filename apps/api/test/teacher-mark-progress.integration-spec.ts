@@ -5,6 +5,8 @@ import { ExamsSchemaService } from '../src/modules/exams/exams-schema.service';
 import { ExamsManagerCommandService } from '../src/modules/admin-command/exams-manager-command.service';
 import { ExamsManagerCommandController } from '../src/modules/admin-command/exams-manager-command.controller';
 import { PERMISSIONS_KEY } from '../src/auth/auth.constants';
+import { teacherMarkStudentScopeSql, teacherMarkSheetSubmittedSql } from '../src/modules/exams/teacher-mark-scope';
+import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
 
 describe('Exams manager teacher mark progress', () => {
   let pool: Pool;
@@ -28,6 +30,7 @@ describe('Exams manager teacher mark progress', () => {
     await pool.query(`
       ALTER TABLE exam_assessments ADD COLUMN IF NOT EXISTS class_section_id uuid;
       CREATE TABLE subjects (id text, tenant_id text, name text);
+      CREATE TABLE academic_terms (id text, tenant_id text, academic_year_id text);
       CREATE TABLE class_sections (id text, tenant_id text, name text);
       CREATE TABLE class_streams (id text, tenant_id text, class_section_id text, name text);
       CREATE TABLE students (id uuid, tenant_id text, status text DEFAULT 'active');
@@ -38,6 +41,7 @@ describe('Exams manager teacher mark progress', () => {
         effective_from date DEFAULT CURRENT_DATE, effective_to date);
       CREATE TABLE staff_profiles (tenant_id text, user_id text, display_name text, staff_number text);
     `);
+    await pool.query(`ALTER TABLE exam_mark_entry_windows ADD COLUMN stream_scope jsonb NOT NULL DEFAULT '{}'::jsonb`);
     service = new ExamsManagerCommandService({ getStore: () => context } as never, {} as never,
       { readSql: (sql: string, params: unknown[]) => pool.query(sql, params) } as never);
   });
@@ -190,5 +194,73 @@ describe('Exams manager teacher mark progress', () => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, ExamsManagerCommandController.prototype.getTeacherMarkProgress)).toEqual(['exams:write']);
     context.tenant_id = '';
     await expect(entries()).rejects.toThrow('Tenant context is required');
+  });
+
+  it('excludes stream exceptions from teacher progress and keeps submitted sheets complete', async () => {
+    await pool.query(`UPDATE exam_mark_entry_windows SET stream_scope='{"default":true,"overrides":{"red":false}}'::jsonb`);
+    await mark(ids.s1,'submitted'); await mark(ids.s2,'submitted','absent',null);
+    const rows=await entries();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({stream:'Blue',total_students:2,submitted:2,missing:0,status:'Submitted'});
+  });
+
+  it('excludes withdrawn, expired, future and prior-year elective enrollments from progress', async () => {
+    await pool.query(`ALTER TABLE student_subject_enrollments ADD academic_year_id text, ADD academic_term_id text,
+      ADD effective_from date, ADD effective_to date;
+      INSERT INTO academic_terms VALUES ('${ids.term}','progress-school-a','current-year');`);
+    await pool.query(`UPDATE student_subject_enrollments SET status='withdrawn' WHERE student_id=$1`, [ids.s1]);
+    await pool.query(`UPDATE student_subject_enrollments SET effective_to=CURRENT_DATE-1 WHERE student_id=$1`, [ids.s2]);
+    await pool.query(`UPDATE student_subject_enrollments SET academic_year_id='previous-year' WHERE student_id=$1`, [ids.s3]);
+    const future = randomUUID();
+    await enroll(future, 'blue');
+    await pool.query(`UPDATE student_subject_enrollments SET effective_from=CURRENT_DATE+8 WHERE student_id=$1`, [future]);
+    await enroll(ids.extra, 'blue');
+    await pool.query(`UPDATE student_subject_enrollments SET academic_year_id='current-year',academic_term_id=$1,
+      effective_from=CURRENT_DATE,effective_to=CURRENT_DATE+7 WHERE student_id=$2`, [ids.term,ids.extra]);
+    await mark(ids.s1, 'submitted'); await mark(ids.s2, 'submitted'); await mark(ids.s3, 'submitted');
+    const rows = await entries();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({stream:'Blue', total_students:1, recorded:0, missing:1});
+    const repository=new ExamsRepository({executeWithTenant:async (_tenant: string,_actor: unknown,callback: (tx: unknown)=>unknown) =>
+      callback({$queryRawUnsafe:async (sql: string,...values: unknown[])=>(await pool.query(sql,values)).rows})} as never);
+    const windows=await repository.getMarkEntryWindows(context.tenant_id,{exam_series_id:ids.exam});
+    expect(windows).toHaveLength(1);
+    expect(windows[0]).toMatchObject({expected_count:1,saved_count:0,submitted_count:0,missing_count:1});
+  });
+
+  it('attributes historical progress to the stream at exam time and ignores later placements', async () => {
+    await pool.query(`ALTER TABLE student_class_assignments ADD academic_year_id text, ADD effective_from date, ADD effective_to date;
+      INSERT INTO academic_terms VALUES ('${ids.term}','progress-school-a','current-year');
+      UPDATE exam_series SET starts_on=CURRENT_DATE-14,ends_on=CURRENT_DATE-7;
+      UPDATE exam_mark_entry_windows SET stream_scope='{"default":false,"overrides":{"blue":true}}';
+      UPDATE student_class_assignments SET academic_year_id='current-year',effective_from=CURRENT_DATE;`);
+    await pool.query(`UPDATE student_class_assignments SET status='transferred',effective_from=CURRENT_DATE-30,
+      effective_to=CURRENT_DATE-1 WHERE student_id=$1`,[ids.s1]);
+    await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,stream_id,status,academic_year_id,effective_from)
+      VALUES ($1,$2,$3,'red','active','current-year',CURRENT_DATE),($1,$2,$3,'red','completed','previous-year',CURRENT_DATE-400)`,
+      [context.tenant_id,ids.s1,ids.class]);
+    await mark(ids.s1,'submitted');
+    const rows=await entries();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({stream:'Blue',teacher_id:ids.teacher,total_students:1,submitted:1,status:'Submitted'});
+    const canEnter=async (teacher: string) => (await pool.query(`SELECT student.id FROM students student
+      CROSS JOIN exam_mark_entry_windows w JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id
+      WHERE student.tenant_id=w.tenant_id AND ${teacherMarkStudentScopeSql('w','series','student.id','$1')}`,[teacher])).rows;
+    expect(await canEnter(ids.teacher)).toEqual([{id:ids.s1}]);
+    expect(await canEnter(ids.teacher2)).toEqual([]);
+  });
+
+  it('keeps submitted sheets locked and exposes missing results when another learner becomes eligible',async()=>{
+    const submitted=async()=> (await pool.query(`SELECT ${teacherMarkSheetSubmittedSql('w','series','$2','$1')} AS complete
+      FROM exam_mark_entry_windows w JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id`,[ids.teacher,ids.paper])).rows[0].complete;
+    await mark(ids.s1,'submitted');await mark(ids.s2,'submitted');
+    expect(await submitted()).toBe(true);
+    await enroll(ids.extra,'blue');
+    expect(await submitted()).toBe(true);
+    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({
+      total_students:3,submitted:2,missing:1,status:'Submitted',
+    });
+    await mark(ids.extra,'submitted','absent',null);
+    expect(await submitted()).toBe(true);
   });
 });

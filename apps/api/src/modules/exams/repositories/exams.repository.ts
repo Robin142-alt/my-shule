@@ -2362,7 +2362,9 @@ export class ExamsRepository {
           WHERE placement.tenant_id = student.tenant_id
             AND placement.student_id = student.id::text
             AND placement.academic_year_id::text = term.academic_year_id::text
-            AND placement.status = 'active'
+            AND placement.status IN ('active','completed','transferred')
+            AND (to_jsonb(placement)->>'effective_from' IS NULL OR (to_jsonb(placement)->>'effective_from')::date <= series.ends_on)
+            AND (to_jsonb(placement)->>'effective_to' IS NULL OR (to_jsonb(placement)->>'effective_to')::date >= series.starts_on)
           ORDER BY placement.updated_at DESC, placement.created_at DESC
           LIMIT 1
         ) assignment ON TRUE
@@ -2396,8 +2398,8 @@ export class ExamsRepository {
             AND appointment.class_section_id::text = assignment.class_section_id::text
             AND appointment.is_active = TRUE
             AND COALESCE(appointment.status, 'active') = 'active'
-            AND (appointment.effective_from IS NULL OR appointment.effective_from <= term.ends_on)
-            AND (appointment.effective_to IS NULL OR appointment.effective_to >= term.starts_on)
+            AND (appointment.effective_from IS NULL OR appointment.effective_from <= series.ends_on)
+            AND (appointment.effective_to IS NULL OR appointment.effective_to >= series.starts_on)
           ORDER BY appointment.updated_at DESC
           LIMIT 1
         ) class_teacher ON TRUE
@@ -2489,7 +2491,9 @@ export class ExamsRepository {
            AND assignment.student_id::text = comment.student_id::text
            AND assignment.academic_year_id::text = term.academic_year_id::text
            AND assignment.class_section_id::text = comment.class_section_id::text
-           AND assignment.status = 'active'
+           AND assignment.status IN ('active','completed','transferred')
+           AND (to_jsonb(assignment)->>'effective_from' IS NULL OR (to_jsonb(assignment)->>'effective_from')::date <= series.ends_on)
+           AND (to_jsonb(assignment)->>'effective_to' IS NULL OR (to_jsonb(assignment)->>'effective_to')::date >= series.starts_on)
           WHERE comment.tenant_id = $1
             AND comment.student_id::text = $3::text
             AND comment.comment_status = 'submitted'
@@ -4457,7 +4461,15 @@ export class ExamsRepository {
     return result.rows[0] ?? null;
   }
 
-  async createTimetableSlot(input: Record<string, unknown>) {
+  async createTimetableSlot(input: Record<string, unknown>, onSaved?: (slot: any, tx: Prisma.TransactionClient) => Promise<unknown>): Promise<any> {
+    if (!this.reportTransaction) {
+      return this.prisma.executeWithTenant(String(input.tenant_id), String(input.actor_user_id), async tx => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId: String(input.tenant_id), client: tx };
+        return scoped.createTimetableSlot(input, onSaved);
+      });
+    }
+    await this.validateTimetableScope(input);
     const result = await this.executeSql(
       `
         INSERT INTO exam_timetable_slots (
@@ -4482,10 +4494,25 @@ export class ExamsRepository {
         input.room_name ?? null,
       ],
     );
+    await this.recordTimetableMutation(input, result.rows[0], 'created', onSaved);
     return result.rows[0];
   }
 
-  async updateTimetableSlot(input: Record<string, unknown>) {
+  async updateTimetableSlot(input: Record<string, unknown>, onSaved?: (slot: any, tx: Prisma.TransactionClient) => Promise<unknown>): Promise<any> {
+    if (!this.reportTransaction) {
+      return this.prisma.executeWithTenant(String(input.tenant_id), String(input.actor_user_id), async tx => {
+        const scoped = new ExamsRepository(this.prisma);
+        scoped.reportTransaction = { tenantId: String(input.tenant_id), client: tx };
+        return scoped.updateTimetableSlot(input, onSaved);
+      });
+    }
+    await this.executeSql(`SELECT series.id FROM exam_series series JOIN exam_timetable_slots slot
+      ON slot.tenant_id=series.tenant_id AND slot.exam_series_id=series.id
+      WHERE slot.tenant_id=$1 AND slot.id=$2::uuid FOR UPDATE OF series`, [input.tenant_id,input.timetable_slot_id]);
+    const { rows: existing } = await this.executeSql(`SELECT *,date::text AS date,start_time::text AS start_time,end_time::text AS end_time
+      FROM exam_timetable_slots WHERE tenant_id=$1 AND id=$2::uuid`, [input.tenant_id,input.timetable_slot_id]);
+    if (!existing[0]) return null;
+    await this.validateTimetableScope({ ...existing[0], ...Object.fromEntries(Object.entries(input).filter(([,value])=>value != null)) });
     const result = await this.executeSql(
       `
         UPDATE exam_timetable_slots
@@ -4509,7 +4536,41 @@ export class ExamsRepository {
         input.status ?? null,
       ],
     );
+    if (result.rows[0]) await this.recordTimetableMutation(input,result.rows[0],'updated',onSaved);
     return result.rows[0] ?? null;
+  }
+
+  private async validateTimetableScope(input: Record<string, unknown>) {
+    const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuid.test(String(input.exam_series_id)) || !uuid.test(String(input.assessment_id)))
+      throw new BadRequestException('Select a valid exam and examined class subject paper.');
+    const { rows: series } = await this.executeSql('SELECT status,locked_at,published_at FROM exam_series WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE',
+      [input.tenant_id,input.exam_series_id]);
+    if (!series[0]) throw new BadRequestException('Exam was not found in this school.');
+    if (series[0].locked_at || series[0].published_at || ['locked','published','archived'].includes(series[0].status))
+      throw new ConflictException('Reopen this exam through the governed workflow before changing its timetable.');
+    if (!input.assessment_id) throw new BadRequestException('Select an examined class subject and paper.');
+    const { rows: papers } = await this.executeSql(`SELECT assessment.id FROM exam_assessments assessment
+      WHERE assessment.tenant_id=$1 AND assessment.exam_series_id=$2::uuid AND assessment.id=$3::uuid
+        AND EXISTS (SELECT 1 FROM exam_mark_entry_windows w WHERE w.tenant_id=assessment.tenant_id
+          AND w.exam_series_id=assessment.exam_series_id AND w.subject_id=assessment.subject_id
+          AND (assessment.class_section_id IS NULL OR w.class_section_id=assessment.class_section_id))`,
+      [input.tenant_id,input.exam_series_id,input.assessment_id]);
+    if (!papers.length) throw new BadRequestException('Select a paper configured for this exam and school.');
+    const date=String(input.date), start=String(input.start_time), end=String(input.end_time);
+    const time=/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
+    const seconds=(value:string)=>Number(value.slice(0,2))*3600+Number(value.slice(3,5))*60+Number(value.slice(6,8)||0);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0,10)!==date
+      || !time.test(start) || !time.test(end) || seconds(end)<=seconds(start))
+      throw new BadRequestException('Enter a valid date and an end time after the start time.');
+  }
+
+  private async recordTimetableMutation(input: Record<string,unknown>, slot: any, action: string,
+    onSaved?: (slot: any, tx: Prisma.TransactionClient) => Promise<unknown>) {
+    await this.executeSql(`INSERT INTO audit_logs(tenant_id,actor_user_id,action,resource_type,resource_id,metadata)
+      VALUES($1,$2::uuid,$3,'exam_timetable_slot',$4::uuid,$5::jsonb)`,
+      [input.tenant_id,input.actor_user_id,`exam.timetable_slot_${action}`,slot.id,JSON.stringify({exam_series_id:slot.exam_series_id,assessment_id:slot.assessment_id})]);
+    if (onSaved) await onSaved(slot,this.reportTransaction!.client);
   }
 
   async assignInvigilator(input: Record<string, unknown>) {

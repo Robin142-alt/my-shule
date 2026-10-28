@@ -14,7 +14,7 @@ const options = {
   terms: [{ id: 'term-new', label: 'Term 3' }, { id: 'term-saved', label: 'Term 2' }],
   gradingSystems: [{ id: 'grading', label: 'School grading' }],
   subjects: [{ id: 'maths', label: 'Maths' }, { id: 'english', label: 'English' }],
-  classes: [{ id: 'form4', label: 'Form 4' }, { id: 'grade10', label: 'Grade 10' }],
+  classes: [{ id: 'form4', label: 'Form 4', subject_ids: ['maths', 'english'] }, { id: 'grade10', label: 'Grade 10', subject_ids: ['english'] }],
 };
 jest.mock('@/lib/data/school-hooks', () => ({
   useSchoolQuery: (url: string) => url.endsWith('/options')
@@ -33,7 +33,7 @@ describe('Exam setup editing and deletion', () => {
     exam = { id: 'exam-1', name: 'End term', term: 'Term 2', academic_term_id: 'term-saved',
       year: 2026, type: 'End Term', max_marks: 100, grading_system: 'School grading', grading_system_id: 'grading',
       status: 'draft', starts_on: '2026-09-01', ends_on: '2026-09-30', subjects_count: 1, classes_count: 1,
-      subject_ids: ['maths'], class_section_ids: ['form4'], marks_count: 0, can_delete: true };
+      subject_ids: ['maths'], class_section_ids: ['form4'], class_subjects: [{ class_section_id: 'form4', subject_ids: ['maths'] }], configuration_version: 1, marks_count: 0, can_delete: true };
     exams = [exam];
     jest.mocked(configureExam).mockResolvedValue({ success: true });
     jest.mocked(createExam).mockResolvedValue({ success: true });
@@ -46,8 +46,8 @@ describe('Exam setup editing and deletion', () => {
     expect(screen.getByLabelText('Exam type')).toHaveValue('End Term');
     expect(screen.getByLabelText('Maths')).toBeChecked();
     expect(screen.getByLabelText('English')).not.toBeChecked();
-    expect(screen.getByLabelText('Form 4')).toBeChecked();
-    expect(screen.getByLabelText('Grade 10')).not.toBeChecked();
+    expect(screen.getByLabelText('Participates: Form 4')).toBeChecked();
+    expect(screen.getByLabelText('Participates: Grade 10')).not.toBeChecked();
   });
   it('saves exact changes, refreshes data, and reopens persisted selections', async () => {
     render(<ExamSetupWorkspace />);
@@ -62,7 +62,7 @@ describe('Exam setup editing and deletion', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
     await waitFor(() => expect(configureExam).toHaveBeenCalledWith('exam-1', expect.objectContaining({
-      academic_term_id: 'term-new', exam_type: 'Mock', subject_ids: ['english'], class_section_ids: ['form4'],
+      academic_term_id: 'term-new', exam_type: 'Mock', class_subjects: [{ class_section_id: 'form4', subject_ids: ['english'] }], class_section_ids: ['form4'], configuration_version: 1,
     })));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(refetch).toHaveBeenCalled();
@@ -72,6 +72,7 @@ describe('Exam setup editing and deletion', () => {
     expect(screen.getByLabelText('Maths')).not.toBeChecked();
   });
   it('keeps validation and backend errors visible with a retryable form', async () => {
+    exam.status = 'submitted';
     render(<ExamSetupWorkspace />);
     fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
     fireEvent.click(screen.getByLabelText('Maths'));

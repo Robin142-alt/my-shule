@@ -1185,14 +1185,18 @@ test('ExamsService deletes subject weightings only inside the current tenant', a
 
 test('ExamsService updates timetable slots only inside the current tenant', async () => {
   const calls: Array<Record<string, unknown>> = [];
+  const events: unknown[] = [];
   const service = new ExamsService(
     { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'exam-manager-1', role: 'exams_officer', permissions: ['exams:write'] }) } as never,
     {
-      updateTimetableSlot: async (input: Record<string, unknown>) => {
+      updateTimetableSlot: async (input: Record<string, unknown>, onSaved: (slot: Record<string,unknown>,tx: unknown)=>Promise<void>) => {
         calls.push(input);
-        return { id: input.timetable_slot_id, date: input.date, start_time: input.start_time, end_time: input.end_time, room_name: input.room_name, status: input.status };
+        const slot={ id: input.timetable_slot_id, date: input.date, start_time: input.start_time, end_time: input.end_time, room_name: input.room_name, status: input.status };
+        await onSaved(slot,{transaction:true});
+        return slot;
       },
     } as never,
+    undefined,undefined,{recordSchoolOperation:async(event:unknown,tx:unknown)=>{events.push(event);assert.deepEqual(tx,{transaction:true});}} as never,
   );
 
   const result = await service.updateTimetableSlot('00000000-0000-0000-0000-000000000097', {
@@ -1209,6 +1213,7 @@ test('ExamsService updates timetable slots only inside the current tenant', asyn
   assert.equal(calls[0].timetable_slot_id, '00000000-0000-0000-0000-000000000097');
   assert.equal(calls[0].room_name, 'Lab 2');
   assert.equal(result.data.status, 'scheduled');
+  assert.equal(events.length,1);
 });
 
 test('ExamsService manages grading policies only inside the current tenant', async () => {
@@ -3772,6 +3777,7 @@ test('ExamsRepository validates mark eligibility across legacy text and UUID lea
     student_id: '00000000-0000-0000-0000-000000000301',
     class_section_id: '00000000-0000-0000-0000-000000000401',
     subject_id: '00000000-0000-0000-0000-000000000501',
+    exam_series_id: '00000000-0000-0000-0000-000000000601',
   });
 
   assert.equal(learner?.id, '00000000-0000-0000-0000-000000000301');

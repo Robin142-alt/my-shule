@@ -8,10 +8,18 @@ export function examRosterSql(window: string, series: string): string {
     JOIN student_class_assignments membership ON membership.tenant_id = student.tenant_id
       AND membership.student_id = student.id::text
       AND membership.class_section_id = ${window}.class_section_id::text
+    LEFT JOIN academic_terms roster_term ON roster_term.tenant_id = ${window}.tenant_id
+      AND roster_term.id::text = ${series}.academic_term_id::text
+    JOIN exam_mark_entry_windows configured_window ON configured_window.tenant_id = ${window}.tenant_id
+      AND configured_window.exam_series_id = ${window}.exam_series_id
+      AND configured_window.class_section_id = ${window}.class_section_id
+      AND configured_window.subject_id = ${window}.subject_id
     LEFT JOIN student_subject_enrollments enrollment ON enrollment.tenant_id = student.tenant_id
       AND enrollment.student_id = student.id::text
       AND enrollment.class_section_id = ${window}.class_section_id::text
       AND enrollment.subject_id = ${window}.subject_id::text
+      AND (to_jsonb(enrollment)->>'academic_year_id' IS NULL
+        OR to_jsonb(enrollment)->>'academic_year_id' = to_jsonb(roster_term)->>'academic_year_id')
       AND (to_jsonb(enrollment)->>'academic_term_id' IS NULL
         OR to_jsonb(enrollment)->>'academic_term_id' = ${series}.academic_term_id::text)
       AND COALESCE((to_jsonb(enrollment)->>'effective_from')::date,
@@ -24,16 +32,27 @@ export function examRosterSql(window: string, series: string): string {
         OR (to_jsonb(enrollment)->>'effective_to' IS NOT NULL
           AND enrollment.status IN ('completed','transferred','inactive','dropped')))
     WHERE student.tenant_id = ${window}.tenant_id
-      AND COALESCE((to_jsonb(membership)->>'created_at')::timestamptz::date, '-infinity'::date) <= ${series}.ends_on
+      AND (to_jsonb(membership)->>'academic_year_id' IS NULL
+        OR to_jsonb(membership)->>'academic_year_id' = to_jsonb(roster_term)->>'academic_year_id')
+      AND COALESCE((to_jsonb(membership)->>'effective_from')::date,
+        (to_jsonb(membership)->>'created_at')::timestamptz::date, '-infinity'::date) <= ${series}.ends_on
+      AND COALESCE((to_jsonb(membership)->>'effective_to')::date, 'infinity'::date) >= ${series}.starts_on
+      AND COALESCE((to_jsonb(configured_window)->'stream_scope'->'overrides'->>membership.stream_id)::boolean,
+        (to_jsonb(configured_window)->'stream_scope'->>'default')::boolean, TRUE)
       AND (membership.status = 'active' OR (membership.status IN ('completed','transferred','inactive')
-        AND (to_jsonb(membership)->>'updated_at')::timestamptz::date >= ${series}.starts_on))
+        AND COALESCE((to_jsonb(membership)->>'effective_to')::date,
+          (to_jsonb(membership)->>'updated_at')::timestamptz::date) >= ${series}.starts_on))
       AND (enrollment.student_id IS NOT NULL OR EXISTS (
         SELECT 1 FROM exam_marks historical_mark
         WHERE historical_mark.tenant_id=${window}.tenant_id
           AND historical_mark.exam_series_id=${window}.exam_series_id
           AND historical_mark.class_section_id=${window}.class_section_id
           AND historical_mark.subject_id=${window}.subject_id
-          AND historical_mark.student_id::text=student.id::text))
+          AND historical_mark.student_id::text=student.id::text
+          AND NOT EXISTS (SELECT 1 FROM student_subject_enrollments known_enrollment
+            WHERE known_enrollment.tenant_id=student.tenant_id AND known_enrollment.student_id=student.id::text
+              AND known_enrollment.class_section_id=${window}.class_section_id::text
+              AND known_enrollment.subject_id=${window}.subject_id::text)))
     ORDER BY student.id, (enrollment.student_id IS NOT NULL) DESC,
       (to_jsonb(membership)->>'created_at')::timestamptz DESC NULLS LAST,
       membership.stream_id NULLS LAST`;

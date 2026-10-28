@@ -3,6 +3,15 @@ import type {
   LiveExamReportCard,
   ReportCardTransitionAction,
 } from '@/lib/modules/exams-client';
+import type { ClassSubjectSelection } from './class-subject-selection';
+
+export type ExamSetupInput = {
+  name: string; starts_on: string; ends_on: string; status: string;
+  academic_term_id: string | null; exam_type: string; type?: string;
+  max_marks: number; grading_system_id: string;
+  class_section_ids: string[]; class_subjects: ClassSubjectSelection[];
+  configuration_version?: number;
+};
 
 // ── Fetch functions ──
 export async function fetchExamsOverview() {
@@ -46,11 +55,11 @@ export async function fetchExamsReports() {
 }
 
 // ── Mutation functions ──
-export async function createExam(data: any) {
+export async function createExam(data: ExamSetupInput) {
   return requestDashboardApi('/admin-command/exams-manager/exam-setup', { method: 'POST', body: data });
 }
 
-export async function configureExam(examId: string, data: any) {
+export async function configureExam(examId: string, data: ExamSetupInput) {
   return requestDashboardApi(`/admin-command/exams-manager/exam-setup/${examId}/configure`, { method: 'POST', body: data });
 }
 
