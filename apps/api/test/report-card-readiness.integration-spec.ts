@@ -117,7 +117,9 @@ describe('Exam-specific report-card readiness', () => {
     expect(scopes).toHaveLength(56);
     expect(scopes.every(row => row.expected_mark_count === 50)).toBe(true);
     expect(scopes.find(row => row.exam_series_id === ids.exam)?.not_ready_mark_count).toBe(49);
-  });
+  // This fixture checks 56 full exam rosters with duplicate memberships and no
+  // production indexes; retain all rows/assertions without a unit-test deadline.
+  }, 60_000);
 
   it('honors stream filtering and keeps empty classes visible without claiming readiness', async () => {
     await query(`INSERT INTO class_streams VALUES ('school-a','north','North');
