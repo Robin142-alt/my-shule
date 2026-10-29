@@ -818,6 +818,9 @@ const nurseCommandCenterSectionIds = new Set([
 ]);
 
 const librarianCommandCenterSectionIds = new Set([
+  "issue-book",
+  "register-books",
+  "return-book",
   "dashboard",
   "overview",
   "issue",

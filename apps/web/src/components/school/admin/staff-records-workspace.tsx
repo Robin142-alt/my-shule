@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { useState } from "react";
 import { UserPlus, CheckCircle, RotateCcw, CalendarDays, Users, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -366,7 +367,7 @@ export function StaffRecordsWorkspace() {
               <UserPlus className="w-4 h-4" />
               Invite New Staff
             </h3>
-            <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-wrap gap-4 items-end" onKeyDown={onFormNavigationKeyDown}>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-700">Display Name</label>
                 <input 
@@ -455,7 +456,7 @@ export function StaffRecordsWorkspace() {
               <Button onClick={handleAssignRole} disabled={assignRoleMutation.isPending}>Save</Button>
             </>
           }>
-            <div className="space-y-4">
+            <div className="space-y-4" onKeyDown={onFormNavigationKeyDown}>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Department</label>
                 <select 
@@ -489,7 +490,7 @@ export function StaffRecordsWorkspace() {
               <Button onClick={handleAssignSalary} disabled={setSalaryMutation.isPending}>Save</Button>
             </>
           }>
-            <div className="space-y-4">
+            <div className="space-y-4" onKeyDown={onFormNavigationKeyDown}>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Payroll Band</label>
                 <select 
@@ -593,7 +594,7 @@ export function StaffRecordsWorkspace() {
               <FileText className="w-4 h-4" />
               Log Leave Request
             </h3>
-            <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex flex-wrap gap-4 items-end" onKeyDown={onFormNavigationKeyDown}>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-700">Staff Member</label>
                 <select 
@@ -702,7 +703,7 @@ export function StaffRecordsWorkspace() {
               <Users className="w-4 h-4" />
               Departments
             </h3>
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4" onKeyDown={onFormNavigationKeyDown}>
               <input 
                 value={newDeptName} 
                 onChange={e => setNewDeptName(e.target.value)} 
@@ -731,7 +732,7 @@ export function StaffRecordsWorkspace() {
               <RotateCcw className="w-4 h-4" />
               Job Titles
             </h3>
-            <div className="flex flex-col gap-2 mb-4">
+            <div className="flex flex-col gap-2 mb-4" onKeyDown={onFormNavigationKeyDown}>
               <div className="flex gap-2">
                 <select 
                   value={newJobDeptId} 
@@ -779,7 +780,7 @@ export function StaffRecordsWorkspace() {
                 <RotateCcw className="w-4 h-4" />
                 Payroll Bands
               </h3>
-              <div className="flex flex-col gap-2 mb-4">
+              <div className="flex flex-col gap-2 mb-4" onKeyDown={onFormNavigationKeyDown}>
                 <input 
                   value={newBandName} 
                   onChange={e => setNewBandName(e.target.value)} 
@@ -818,7 +819,7 @@ export function StaffRecordsWorkspace() {
                 <FileText className="w-4 h-4" />
                 Generate Payslip
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-4" onKeyDown={onFormNavigationKeyDown}>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-slate-700">Staff Member</label>
                   <select 
@@ -932,7 +933,7 @@ export function StaffRecordsWorkspace() {
                 <CheckCircle className="w-4 h-4" />
                 Performance Reviews
               </h3>
-              <div className="space-y-4 mb-6">
+              <div className="space-y-4 mb-6" onKeyDown={onFormNavigationKeyDown}>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-700">Staff Member</label>
@@ -1016,7 +1017,7 @@ export function StaffRecordsWorkspace() {
                 <FileText className="w-4 h-4 text-red-500" />
                 Disciplinary Records
               </h3>
-              <div className="space-y-4 mb-6">
+              <div className="space-y-4 mb-6" onKeyDown={onFormNavigationKeyDown}>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-700">Staff Member</label>
@@ -1108,7 +1109,7 @@ export function StaffRecordsWorkspace() {
         onClose={() => setApproveModalState({ ...approveModalState, open: false })}
         title="Approve Staff Member"
       >
-        <form onSubmit={approveStaffForm.handleSubmit(onSubmitApproveStaff)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={approveStaffForm.handleSubmit(onSubmitApproveStaff)} className="space-y-4 py-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Staff Number</label>
             <input
@@ -1145,7 +1146,7 @@ export function StaffRecordsWorkspace() {
         onClose={() => setLeaveModalState({ ...leaveModalState, open: false })}
         title={leaveModalState.status === "rejected" ? "Reject Leave Request" : "Leave Approval Override"}
       >
-        <form onSubmit={leaveStatusForm.handleSubmit(onSubmitLeaveStatus)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={leaveStatusForm.handleSubmit(onSubmitLeaveStatus)} className="space-y-4 py-4">
           <p className="text-sm text-muted">
             {leaveModalState.status === "rejected"
               ? "Please provide a reason for rejecting this leave request:"

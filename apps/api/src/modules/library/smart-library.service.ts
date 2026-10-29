@@ -282,10 +282,11 @@ export class SmartLibraryService {
   }
   async register(input: Input): Promise<Input> {
     const barcode = assertBarcode(input.barcode);
-    return this.command('copy.register',input,async()=>{
+    const saved=await this.command('copy.register',input,async()=>{
       const item=await this.saveTitle(input),copy=await this.registerCopy(barcode,item,input);
-      return input.catalog_item_id?copy:{...copy,catalogue:(await this.catalogue({id:item.id}))[0]};
+      return copy;
     });
+    return {...saved,catalogue:(await this.catalogue({id:saved.catalog_item_id}))[0]};
   }
   async registrationRange(input:Input) {
     const {tenant}=this.scope();const batch=uuid(input.batch_id,'Barcode batch');
@@ -298,9 +299,9 @@ export class SmartLibraryService {
     if(codes.some(c=>c.copy_id||c.retired_at))throw new ConflictException('The range contains assigned or retired stickers. Choose unused labels.');
     return {barcodes:codes.map(c=>c.barcode),count:codes.length};
   }
-  async registerBatch(input:Input) {
+  async registerBatch(input:Input):Promise<Input> {
     if(!input.catalog_item_id)throw new BadRequestException('Select an existing book title for the entire batch.');
-    return this.command('copy.register_batch',input,async()=>{
+    const saved=await this.command('copy.register_batch',input,async()=>{
       const range=await this.registrationRange(input),item=await this.saveTitle(input);
       const {tenant}=this.scope(),details=this.copyDetails(input);
       const reserved=await this.rows(`SELECT * FROM library_barcode_registry WHERE tenant_id=$1 AND barcode=ANY($2::text[]) ORDER BY barcode FOR UPDATE`,[tenant,range.barcodes]);
@@ -311,6 +312,7 @@ export class SmartLibraryService {
       await this.audit('library.copies_registered',item.id,{catalog_item_id:item.id,copies,batch_id:input.batch_id,message:`${copies.length} copies of ${item.title} registered.`});
       return {count:copies.length,catalog_item_id:item.id};
     });
+    return {...saved,catalogue:(await this.catalogue({id:saved.catalog_item_id}))[0]};
   }
   async scan(code: unknown):Promise<Input> {
     const { tenant } = this.scope(); const barcode = assertBarcode(code);
@@ -459,6 +461,21 @@ export class SmartLibraryService {
       for (const c of copies) {
         const loan = (await this.rows(`SELECT * FROM library_copy_loans WHERE tenant_id=$1 AND copy_id=$2::uuid AND returned_at IS NULL FOR UPDATE`,[tenant,c.id]))[0];
         if (!loan) throw new ConflictException(`Book ${c.barcode} has no active loan. No returns were saved.`);
+        if(condition==='lost'){
+          if(c.status==='lost')throw new ConflictException(`Book ${c.barcode} is already recorded as lost and remains outstanding.`);
+          await this.rows(`UPDATE library_copies SET status='lost',condition='lost',updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid RETURNING id`,[tenant,c.id]);
+          const incident=await this.one(`INSERT INTO library_copy_incidents(tenant_id,copy_id,action,reason,actor_user_id)
+            VALUES($1,$2::uuid,'lost',$3,$4::uuid) RETURNING id,created_at`,[tenant,c.id,input.reason,actor]);
+          const rule=await this.one(`SELECT COALESCE(max(amount_minor),0)::int AS amount FROM library_fine_rules WHERE tenant_id=$1 AND rule_type='lost'`,[tenant]);
+          if(rule.amount>0){
+            const fine=await this.one(`INSERT INTO library_fines(tenant_id,borrower_id,copy_id,reason,amount_minor)
+              VALUES($1,$2::uuid,$3::uuid,'lost',$4) RETURNING id`,[tenant,loan.borrower_id,c.id,rule.amount]);
+            await this.audit('library.fine_created',fine.id,{amount_minor:rule.amount,loan_id:loan.id},loan.borrower_id);
+          }
+          await this.audit('library.book_lost',incident.id,{loan_id:loan.id,barcode:c.barcode,message:`Book ${c.barcode} recorded as lost; it remains outstanding until resolved.`},loan.borrower_id);
+          returns.push({id:incident.id,loan_id:loan.id,barcode:c.barcode,returned_at:null,reported_at:incident.created_at,condition});
+          continue;
+        }
         const ledger = await this.one(`INSERT INTO library_circulation_ledger(tenant_id,copy_id,borrower_id,action,metadata)
           VALUES($1,$2::uuid,$3::uuid,'return',$4::jsonb) RETURNING *`,[tenant,c.id,loan.borrower_id,
           JSON.stringify({loan_id:loan.id,condition,returned_by_user_id:actor,transaction_id:input.request_id,notes:input.reason ?? null})]);
@@ -518,12 +535,18 @@ export class SmartLibraryService {
     if (!['lost','damaged','available','retired'].includes(status)) throw new BadRequestException('Choose lost, damaged, repaired/found or retired.');
     return this.command('copy.incident',input,async()=>{
       const copy=await this.one(`SELECT * FROM library_copies WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE`,[tenant,id]);
-      const active=(await this.rows(`SELECT id FROM library_copy_loans WHERE tenant_id=$1 AND copy_id=$2::uuid AND returned_at IS NULL`,[tenant,id]))[0];
-      if (active) throw new ConflictException('This copy has an active borrower. Record its return or loss at the return desk first.');
+      const active=(await this.rows(`SELECT id,borrower_id FROM library_copy_loans WHERE tenant_id=$1 AND copy_id=$2::uuid AND returned_at IS NULL FOR UPDATE`,[tenant,id]))[0];
+      if (active && !(copy.status==='lost'&&status==='retired')) throw new ConflictException('This copy has an active borrower. Return a recovered copy at the return desk, or explicitly retire an unresolved lost copy.');
       if(copy.status==='retired') throw new ConflictException('Retired copies and their barcodes cannot be reused.');
       if(input.replacement_copy_id) {
         if(uuid(input.replacement_copy_id,'Replacement copy')===id) throw new BadRequestException('Select a different replacement copy.');
         await this.one(`SELECT id FROM library_copies WHERE tenant_id=$1 AND id=$2::uuid AND status='available'`,[tenant,input.replacement_copy_id]);
+      }
+      if(active){
+        await this.rows(`INSERT INTO library_circulation_ledger(tenant_id,copy_id,borrower_id,action,metadata)
+          VALUES($1,$2::uuid,$3::uuid,'return',$4::jsonb) RETURNING id`,[tenant,id,active.borrower_id,
+          JSON.stringify({loan_id:active.id,condition:'resolved_loss',returned_by_user_id:actor,transaction_id:input.request_id,reason,replacement_copy_id:input.replacement_copy_id??null})]);
+        await this.audit('library.book_loss_resolved',active.id,{copy_id:id,reason,replacement_copy_id:input.replacement_copy_id??null,message:`Loss of ${copy.barcode} resolved through retirement.`},active.borrower_id);
       }
       await this.rows(`UPDATE library_copies SET status=$3,condition=CASE WHEN $3='available' THEN 'good' WHEN $3='damaged' THEN 'damaged' ELSE condition END,updated_at=now() WHERE tenant_id=$1 AND id=$2::uuid RETURNING id`,[tenant,id,status]);
       const incident=await this.one(`INSERT INTO library_copy_incidents(tenant_id,copy_id,action,reason,actor_user_id,replacement_copy_id)

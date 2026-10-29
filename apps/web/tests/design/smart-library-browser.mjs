@@ -126,7 +126,7 @@ async function run(){
    await scan('000001');await scan('000002');await page.getByText('English',{exact:true}).waitFor();
    await check('return');await page.getByRole('button',{name:'Confirm return of 2 book(s)'}).click();
    await page.getByText('2 book(s) returned successfully.',{exact:true}).waitFor();
-   assert.deepEqual((await page.evaluate(()=>window.__libraryCommands.find(c=>c.route==='return').body.barcodes)),['000001','000002']);
+   assert.deepEqual((await page.evaluate(()=>window.__libraryCommands.find(c=>c.route==='return').body.barcodes)),['000002','000001']);
    await navigate('Register Books');
    await page.getByRole('button',{name:/Mathematics/}).click();
    const registration=page.getByLabel('Scan a sticker to register',{exact:true});

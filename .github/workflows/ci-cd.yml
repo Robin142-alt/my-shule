@@ -118,7 +118,10 @@ jobs:
         run: npm --prefix apps/web run test:design -- report-card-generation-readiness live-report-card-actions official-report-preview class-teacher-name-title report-card-scopes report-regeneration-job report-card-api-contract report-card-signatures report-card-reference-layout exams-manager-entry-controls exams-manager-command-center academic-office-production-readiness
 
       - name: Exam setup configuration and deletion controls
-        run: npm --prefix apps/web run test:design -- exam-setup-edit-delete exams-manager-human-workflows exams-manager-routing
+        run: |
+          npm --prefix apps/web run test:design -- exam-setup-edit-delete exam-class-subjects keyboard-navigation exams-manager-human-workflows exams-manager-routing
+          node apps/web/tests/design/exam-class-configuration-browser.mjs
+          node apps/web/tests/design/keyboard-navigation-browser.mjs
 
       - name: Teacher assignments, discipline and class-teacher register restrictions
         run: |
@@ -137,10 +140,22 @@ jobs:
 
       - name: Smart library circulation, scanner and responsive workspaces
         run: |
-          npm --prefix apps/web run test:design -- --runTestsByPath tests/design/smart-library.test.tsx tests/design/librarian-live-workspaces.test.tsx tests/design/librarian-human-workflows.test.ts tests/design/library-workspace.test.tsx tests/design/library-module-access.test.ts
+          npm --prefix apps/web run test:design -- --runTestsByPath tests/design/smart-library.test.tsx tests/design/library-desk.test.tsx tests/design/librarian-live-workspaces.test.tsx tests/design/librarian-human-workflows.test.ts tests/design/library-workspace.test.tsx tests/design/library-module-access.test.ts
           node apps/web/tests/design/smart-library-browser.mjs
+          node apps/web/tests/design/library-desk-browser.mjs
           npm --prefix apps/web run test:design -- --runTestsByPath tests/design/librarian-reports.test.tsx tests/design/report-artifact-download.test.ts
           npm run test:library-reports:browser
+
+      - name: Keep library, exam and keyboard acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-exams-acceptance
+          path: |
+            output/library-desk
+            output/exam-class-configuration
+            output/keyboard-navigation
+          retention-days: 7
 
   cloudflare-build:
     runs-on: ubuntu-latest
@@ -289,7 +304,7 @@ jobs:
         run: npm test
 
       - name: Assisted marks authorization and teacher permission regression
-        run: node --test dist/apps/api/src/modules/exams/assisted-mark-entry.test.js dist/apps/api/src/modules/class-teacher/class-teacher.service.test.js
+        run: node --test dist/apps/api/src/modules/exams/assisted-mark-entry.test.js dist/apps/api/src/modules/exams/class-exam-configuration.test.js dist/apps/api/src/modules/class-teacher/class-teacher.service.test.js
 
       - name: Smart library global barcodes, PDF geometry and transactional isolation
         env:

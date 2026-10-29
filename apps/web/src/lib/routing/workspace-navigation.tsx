@@ -39,6 +39,8 @@ export function WorkspaceNavigation({ scope, children }: { scope: WorkspaceScope
     if (workspaceSection(window.location.pathname, scope) === null) return false;
     const next = url.pathname + url.search;
     if (next !== window.location.pathname + window.location.search) {
+      const event=new CustomEvent("myshule:before-workspace-navigation",{cancelable:true,detail:{href:next}});
+      if(!window.dispatchEvent(event))return true;
       // Next's supported History API integration updates pathname/search hooks
       // without fetching an identical server shell or resetting its providers.
       window.history[replace ? "replaceState" : "pushState"](null, "", next);

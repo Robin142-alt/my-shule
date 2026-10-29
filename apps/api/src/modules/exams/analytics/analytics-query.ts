@@ -1,3 +1,5 @@
+import { examMembershipScopeSql } from '../class-exam-configuration';
+import { examRosterSql } from '../exam-mark-roster';
 import { examGradeOverrideSql, paperClassScopeSql } from '../exam-result-policy';
 import { analyticsScopeSql, type ExamAnalyticsScopeLevel } from './analytics-scope';
 
@@ -28,23 +30,14 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     SELECT mark.tenant_id, mark.exam_series_id, mark.assessment_id, mark.student_id::text, mark.class_section_id::text
     FROM exam_marks mark WHERE mark.tenant_id = $1 AND mark.exam_series_id IN (SELECT id FROM exam_context)
     UNION
-    SELECT mark_window.tenant_id, mark_window.exam_series_id, assessment.id, enrollment.student_id::text, mark_window.class_section_id::text
+    SELECT mark_window.tenant_id, mark_window.exam_series_id, assessment.id, roster.student_id, mark_window.class_section_id::text
     FROM exam_mark_entry_windows mark_window
     JOIN exam_context series ON series.tenant_id = mark_window.tenant_id AND series.id = mark_window.exam_series_id
     JOIN exam_assessments assessment ON assessment.tenant_id = mark_window.tenant_id
       AND assessment.exam_series_id = mark_window.exam_series_id AND assessment.subject_id = mark_window.subject_id
       AND ${paperClassScopeSql('assessment', 'mark_window.class_section_id')}
-    JOIN student_subject_enrollments enrollment ON enrollment.tenant_id = mark_window.tenant_id
-      AND enrollment.class_section_id::text = mark_window.class_section_id::text AND enrollment.subject_id::text = mark_window.subject_id::text
-      AND enrollment.academic_year_id::text = series.academic_year_id
-      AND enrollment.status = 'active'
-      AND (enrollment.academic_term_id IS NULL OR enrollment.academic_term_id::text = series.academic_term_id::text)
-      AND (enrollment.effective_from IS NULL OR enrollment.effective_from <= series.ends_on)
-      AND (enrollment.effective_to IS NULL OR enrollment.effective_to >= series.starts_on)
+    JOIN LATERAL (${examRosterSql('mark_window','series')}) roster ON TRUE
     WHERE mark_window.tenant_id = $1
-      AND EXISTS (SELECT 1 FROM student_class_assignments placement WHERE placement.tenant_id = enrollment.tenant_id
-        AND placement.student_id::text = enrollment.student_id::text AND placement.class_section_id::text = enrollment.class_section_id::text
-        AND placement.academic_year_id::text = series.academic_year_id AND placement.status IN ('active','completed','transferred'))
   ), evidence AS (
     SELECT key.*, assessment.subject_id::text, assessment.max_score, COALESCE(assessment.weight,assessment.max_score) AS weight,
       series.name AS exam_name, series.status AS exam_status, series.starts_on::text AS exam_date, series.ends_on, series.academic_term_id::text,
@@ -69,7 +62,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
       AND mark.exam_series_id=key.exam_series_id AND mark.class_section_id::text=key.class_section_id
     LEFT JOIN LATERAL (
       SELECT p.stream_id, to_jsonb(p)->>'cohort_id' AS cohort_id FROM student_class_assignments p WHERE p.tenant_id = key.tenant_id AND p.student_id::text = key.student_id
-        AND p.class_section_id::text = key.class_section_id AND p.academic_year_id::text = series.academic_year_id
+        AND ${examMembershipScopeSql('p', 'key')}
       ORDER BY p.updated_at DESC, p.id DESC LIMIT 1
     ) placement ON TRUE
     LEFT JOIN class_streams stream ON stream.tenant_id = key.tenant_id AND stream.id::text = placement.stream_id::text

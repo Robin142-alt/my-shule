@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -47,7 +48,7 @@ export function FeeStructureForm({ onClose, onSaved }: { onClose: () => void; on
 
   return <Modal open size="lg" mobileFullScreen title="Create fee structure" description="Set the charges once. Choose classes or individual learners when issuing invoices."
     onClose={() => { if (!busy) onClose(); }} footer={<><Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button><Button type="submit" form="fee-structure-form" disabled={busy || !hasPermission("billing:write") || !grades.size || Boolean(options.error)}>{busy ? "Saving…" : "Save fee structure"}</Button></>}>
-    <form id="fee-structure-form" onSubmit={save}><fieldset disabled={busy} className="space-y-5">
+    <form onKeyDown={onFormNavigationKeyDown} id="fee-structure-form" onSubmit={save}><fieldset disabled={busy} className="space-y-5">
       {error && <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{error}</p>}
       <label className="block text-sm font-medium">Fee name<input required maxLength={160} name="name" className="input-base mt-1 w-full" placeholder="e.g. Term 3 day school fees" /></label>
       <div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm">Academic year<input required type="number" min="2000" max="2200" name="year" defaultValue={new Date().getFullYear()} className="input-base mt-1 w-full" /></label>

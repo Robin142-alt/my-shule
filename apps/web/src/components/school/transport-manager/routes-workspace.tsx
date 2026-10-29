@@ -1,4 +1,5 @@
 "use client";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
@@ -110,7 +111,7 @@ export function RoutesWorkspace() {
       }
     >
       {showForm ? (
-        <div className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
+        <div onKeyDown={onFormNavigationKeyDown} className="mb-6 rounded-xl border border-info-border bg-info-soft p-4">
           <h3 className="text-sm font-black text-foreground">Create transport route</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <label className="text-xs font-bold text-foreground">

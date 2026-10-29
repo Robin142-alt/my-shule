@@ -26,6 +26,10 @@ import { REPORT_INFRASTRUCTURE_SCHEMA, REPORT_SOURCE_TRIGGERS } from '../src/mod
 import { ReportCardArtifactsService } from '../src/modules/exams/services/report-card-artifacts.service';
 import { DatabaseFileStorageService } from '../src/common/uploads/database-file-storage.service';
 
+// These tests render and persist real PDFs. A unit-test timeout can let an
+// unfinished batch write into the following test after its tables are reset.
+jest.setTimeout(60000);
+
 describe('Report generation with the production staff schema', () => {
   let pool: Pool;
   let repository: ExamsRepository;
@@ -65,7 +69,7 @@ describe('Report generation with the production staff schema', () => {
       CREATE TABLE students(tenant_id text,id text PRIMARY KEY,status text,first_name text,middle_name text,last_name text,admission_number text,
         upi_number text,gender text,boarding_status text,created_at timestamptz DEFAULT NOW());
       CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,stream_id text,status text,
-        academic_year_id text,updated_at timestamptz DEFAULT NOW(),created_at timestamptz DEFAULT NOW());
+        academic_year_id text,effective_from date,effective_to date,updated_at timestamptz DEFAULT NOW(),created_at timestamptz DEFAULT NOW());
       CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,class_section_id text,subject_id text,status text);
       CREATE TABLE class_sections(tenant_id text,id text,name text,custom_label text);
       CREATE TABLE class_streams(tenant_id text,id text,name text);
@@ -516,6 +520,26 @@ describe('Report generation with the production staff schema', () => {
     }
   });
 
+  it('regenerates real PDF artifacts for X and Y and restores the grade after resolution', async () => {
+    try {
+      for (const status of ['X', 'Y', 'entered']) {
+        await query(`UPDATE exam_marks SET score=$2,score_status=$3 WHERE tenant_id='school-a' AND student_id=$1`,
+          [students[0], status === 'entered' ? 84 : null, status]);
+        const card = await generation.generateStudentReportCard({ ...studentInput(), reuse_existing: true });
+        const totals = (card.metadata as any).report_card.totals;
+        expect(totals.overall_grade).toBe(status === 'entered' ? 'A' : status);
+        expect(totals.percentage).toBe(status === 'entered' ? 84 : null);
+        if (status !== 'entered') {
+          expect(totals.class_position).toBeNull();
+          expect(totals.total_score).toBeNull();
+        }
+        expect((await artifacts.read(String(card.id))).content.subarray(0, 4).toString()).toBe('%PDF');
+      }
+    } finally {
+      await query(`UPDATE exam_marks SET score=84,score_status='entered' WHERE tenant_id='school-a' AND student_id=$1`, [students[0]]);
+    }
+  });
+
   it('migrates an identical legacy published report through class generation without changing its academic identity',async()=>{
     const first=await generation.generateStudentReportCard(studentInput());
     await query(`UPDATE student_report_cards SET status='published',published_at=now(),
@@ -551,6 +575,29 @@ describe('Report generation with the production staff schema', () => {
     expect(Number(rejected.blocked_count)).toBe(11);expect(rejected.series_published).toBe(false);
     await query("UPDATE tenants SET name='Test School' WHERE tenant_id='school-a'");
     await query("UPDATE exam_marks SET status='locked' WHERE tenant_id='school-a'");
+  });
+
+  it('keeps historical report identity and comments on the examination placement after a later transfer', async () => {
+    const laterClass=randomUUID(), oldStream=randomUUID(), laterStream=randomUUID();
+    await query("INSERT INTO class_sections VALUES ('school-a',$1,'Later class',NULL)",[laterClass]);
+    await query("INSERT INTO class_streams VALUES ('school-a',$1,'Exam stream'),('school-a',$2,'Later stream')",[oldStream,laterStream]);
+    await query(`UPDATE student_class_assignments SET status='transferred',stream_id=$2,effective_to='2026-10-31'
+      WHERE tenant_id='school-a' AND student_id=$1`,[students[0],oldStream]);
+    await query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,stream_id,status,academic_year_id,effective_from)
+      VALUES ('school-a',$1,$2,$3,'active',$4,'2026-11-01')`,[students[0],laterClass,laterStream,ids.year]);
+    await query(`INSERT INTO report_card_comments VALUES
+      ('school-a',$1,$2,$4,'Exam-time teacher comment','submitted',NOW()-INTERVAL '1 day',NOW()),
+      ('school-a',$1,$3,$4,'Later class comment','submitted',NOW(),NOW())`,[students[0],ids.class,laterClass,ids.term]);
+    try {
+      const data=await repository.loadReportCardData(studentInput());
+      expect(data.student).toMatchObject({stream_name:'Exam stream',class_teacher_name:'Assigned Teacher'});
+      expect((data.student as any).class_name).not.toBe('Later class');
+      expect(data.comments).toMatchObject({class_teacher:'Exam-time teacher comment',class_teacher_source:'class_teacher_submitted'});
+    } finally {
+      await query("DELETE FROM report_card_comments WHERE tenant_id='school-a' AND student_id=$1",[students[0]]);
+      await query("DELETE FROM student_class_assignments WHERE tenant_id='school-a' AND student_id=$1 AND class_section_id=$2",[students[0],laterClass]);
+      await query("UPDATE student_class_assignments SET status='active',stream_id=NULL,effective_to=NULL WHERE tenant_id='school-a' AND student_id=$1",[students[0]]);
+    }
   });
 
   it('shares school/series reads only inside the supplied batch and never across schools', async () => {
@@ -594,5 +641,7 @@ describe('Report generation with the production staff schema', () => {
     if (process.env.REPORT_GENERATION_BENCHMARK_OUTPUT) {
       await writeFile(process.env.REPORT_GENERATION_BENCHMARK_OUTPUT, JSON.stringify(measurement, null, 2));
     }
-  }, 60000);
+  // This benchmark creates 100 real seven-subject PDFs plus their durable
+  // manifests/events. Allow slower local disks without changing its assertions.
+  }, 180000);
 });

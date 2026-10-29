@@ -1079,7 +1079,7 @@ export class ExamsService {
           );
         }
 
-        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId, teacherUserId ?? undefined);
+        const entry = await this.validateMarkEntry(normalized, tenantId, actorUserId, teacherUserId);
         validEntries.push({ row_number: rowNumber, entry });
       } catch (error) {
         validationErrors.push({
@@ -2443,7 +2443,7 @@ export class ExamsService {
     dto: EnterExamMarkDto,
     tenantId: string,
     actorUserId: string,
-    teacherUserId?: string,
+    teacherUserId?: string | null,
   ): Promise<ValidatedMarkEntry> {
     if (teacherUserId || !this.isExamsOfficer()) {
       const assignment = await this.repository.findTeacherAssignment({
@@ -3691,16 +3691,24 @@ export class ExamsService {
   }
 
   async createTimetableSlot(dto: CreateTimetableSlotDto) {
+    if (!this.hasPermission('exams:write')) throw new ForbiddenException('Exam write permission is required to create timetable slots');
+    if (!this.schoolEvents) throw new ServiceUnavailableException('Exam event recording is unavailable.');
     const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
     const result = await this.repository.createTimetableSlot({
       tenant_id: tenantId,
+      actor_user_id: actorUserId,
       exam_series_id: this.requireText(dto.exam_series_id, 'Exam series'),
       assessment_id: dto.assessment_id,
       date: this.requireText(dto.date, 'Date'),
       start_time: this.requireText(dto.start_time, 'Start time'),
       end_time: this.requireText(dto.end_time, 'End time'),
       room_name: dto.room_name,
-    });
+    }, (slot,tx) => this.schoolEvents!.recordSchoolOperation({event:{
+      id:slot.id,type:'exam.timetable_slot_created',module:'exams',
+      actorRole:this.currentRole(),title:'Exam timetable slot created',body:'A configured exam paper was scheduled.',
+      entityId:slot.id,severity:'info',payload:{exam_series_id:slot.exam_series_id,assessment_id:slot.assessment_id},
+    }},tx));
     return { success: true, message: 'Timetable slot created', data: result };
   }
 
@@ -3734,10 +3742,12 @@ export class ExamsService {
     if (!this.isExamsOfficer()) {
       throw new ForbiddenException('Exam write permission is required to update timetable slots');
     }
+    if (!this.schoolEvents) throw new ServiceUnavailableException('Exam event recording is unavailable.');
 
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
     const slotId = this.requireText(slotIdValue, 'Timetable slot');
+    if (!isUuid(slotId)) throw new BadRequestException('Choose a valid timetable slot.');
     const status = dto.status ? this.requireText(dto.status, 'Timetable slot status').toLowerCase() : undefined;
 
     if (status && !EXAM_TIMETABLE_SLOT_STATUSES.has(status)) {
@@ -3753,13 +3763,7 @@ export class ExamsService {
       end_time: this.optionalText(dto.end_time),
       room_name: this.optionalText(dto.room_name),
       status,
-    });
-
-    if (!result) {
-      throw new NotFoundException('Timetable slot was not found for this school');
-    }
-
-    await this.schoolEvents?.recordSchoolOperation({ event: {
+    }, async (result,tx) => this.schoolEvents!.recordSchoolOperation({ event: {
       id: `timetable-slot-updated-${result.id}-${String(result.updated_at ?? Date.now())}`,
       type: 'exam.timetable_slot_updated',
       module: 'exams',
@@ -3777,7 +3781,11 @@ export class ExamsService {
         start_time: result.start_time,
         end_time: result.end_time,
       },
-    }});
+    }},tx));
+
+    if (!result) {
+      throw new NotFoundException('Timetable slot was not found for this school');
+    }
 
     return { success: true, message: 'Timetable slot updated', data: result };
   }

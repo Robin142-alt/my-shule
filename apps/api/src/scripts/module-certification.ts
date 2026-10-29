@@ -84,7 +84,7 @@ const CERTIFICATIONS: Record<ModuleCertificationName, WorkflowDefinition[]> = {
     ]),
     workflow('fines-and-stock', 'Overdue fines and stock status updates', [
       check('overdue-fine', 'Return flow calculates overdue fines', 'apps/api/src/modules/library/library.service.ts', /calculateFineMinor/),
-      check('prevent-duplicate-issue', 'Unavailable copies cannot be issued', 'apps/api/src/modules/library/library.service.ts', /not available for issue/),
+      check('prevent-duplicate-issue', 'Unavailable copies cannot be issued', 'apps/api/src/modules/library/smart-library.service.ts', /ORDER BY id FOR UPDATE[\s\S]+c.status !== 'available'/),
       check('lost-damaged', 'Lost and damaged states are represented', 'apps/api/src/modules/library/library-schema.service.ts', /lost[\s\S]+damaged|damaged[\s\S]+lost/),
     ]),
   ],

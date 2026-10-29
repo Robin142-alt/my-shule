@@ -1,3 +1,4 @@
+import { examStreamStudentScopeSql, examEnrollmentScopeSql } from '../exams/class-exam-configuration';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { openMarkEntry, validateEntryRequest } from './mark-entry-access';
 import { OpenMarkEntryDto } from './open-mark-entry.dto';
@@ -9,6 +10,8 @@ import { AdminCommandOperationsService } from './admin-command-operations.servic
 import { TEACHER_MARK_PROGRESS_SQL, TeacherMarkProgress } from './teacher-mark-progress';
 import { deleteExamSetupRecords, examDeletionBlock, examSetupTransaction, EXAM_RECORD_COUNTS_SQL, lockExam, reconcileExamScope, validateExamSelection } from './exam-setup-integrity';
 import type { Prisma } from '@prisma/client';
+import { normalizeClassExamConfiguration, classExamWindows } from '../exams/class-exam-configuration';
+import { validateClassExamConfiguration, persistClassExamWindows } from './class-exam-persistence';
 
 type SqlResult<T> = { rows: T[]; rowCount: number };
 
@@ -237,17 +240,14 @@ export class ExamsManagerCommandService {
   }
 
   private requireExamScopeSelection(dto: any) {
-    const subjectIds = this.uniqueUuidArray(dto?.subject_ids ?? dto?.subjectIds, 'Subjects');
-    const classSectionIds = this.uniqueUuidArray(
-      dto?.class_section_ids ?? dto?.classSectionIds ?? dto?.class_ids ?? dto?.classIds,
-      'Classes',
-    );
-    if (subjectIds.length === 0 || classSectionIds.length === 0) {
-      throw new BadRequestException(
-        'Choose at least one subject and one class before creating or configuring an exam cycle.',
-      );
+    const classSubjects = normalizeClassExamConfiguration(dto?.class_subjects);
+    const windows = classExamWindows(classSubjects);
+    if (this.normalizeStatus(dto?.status) !== 'draft' && classSubjects.some(c => !c.subject_ids.length
+      || c.stream_subjects?.some(stream => !stream.subject_ids.length))) {
+      throw new BadRequestException('Select examined subjects for every participating class and stream before opening marks.');
     }
-    return { subjectIds, classSectionIds };
+    return { classSubjects, subjectIds: [...new Set(windows.map(w => w.subject_id))],
+      classSectionIds: classSubjects.map(c => c.class_section_id) };
   }
 
   private positiveNumber(value: unknown, fallback: number, label: string) {
@@ -258,133 +258,26 @@ export class ExamsManagerCommandService {
     return numberValue;
   }
 
-  private async syncExamScope(
-    tenantId: string,
-    examSeriesId: string,
-    dto: any,
-    startsOn: string,
-    endsOn: string,
-    updateMaxScores = true,
-  ) {
-    const { subjectIds, classSectionIds } = this.requireExamScopeSelection(dto);
-
-    const actorUserId = this.actorUserId();
-    if (!actorUserId) {
-      throw new BadRequestException('User context is required to configure exam subjects and classes.');
-    }
-
-    const maxMarks = this.positiveNumber(dto?.max_marks ?? dto?.maxMarks, 100, 'Max marks');
-    const status = this.normalizeStatus(dto?.status);
-    const windowStatus = status === 'submitted' ? 'open' : 'closed';
-
-    const assessments = await this.operations.writeSql<{
-      id: string;
-      subject_id: string;
-    }>(
-      `
-        INSERT INTO exam_assessments (
-          tenant_id,
-          exam_series_id,
-          subject_id,
-          name,
-          max_score,
-          weight,
-          created_by_user_id,
-          created_at,
-          updated_at
-        )
-        SELECT
-          $1,
-          $2::uuid,
-          subject.id::uuid,
-          CONCAT(subject.name, ' Main Paper'),
-          $4::numeric,
-          NULL,
-          $5::uuid,
-          NOW(),
-          NOW()
-        FROM subjects subject
-        WHERE subject.tenant_id = $1
-          AND subject.id::text = ANY($3::text[])
-          AND NOT EXISTS (SELECT 1 FROM exam_assessments existing
-            WHERE existing.tenant_id = $1 AND existing.exam_series_id = $2::uuid AND existing.subject_id = subject.id::uuid)
-        ON CONFLICT DO NOTHING
-        RETURNING id::text, subject_id::text
-      `,
-      [tenantId, examSeriesId, subjectIds, maxMarks, actorUserId],
-    );
-
-    // Keep custom papers and their weights; only update the overall maximum on unmarked papers.
-    if (updateMaxScores) await this.operations.writeSql(`UPDATE exam_assessments assessment SET max_score = $3::numeric, updated_at = NOW()
-      WHERE assessment.tenant_id = $1 AND assessment.exam_series_id = $2::uuid AND assessment.class_section_id IS NULL
-        AND NOT EXISTS (SELECT 1 FROM exam_marks mark WHERE mark.tenant_id = assessment.tenant_id AND mark.assessment_id = assessment.id)
-        AND (SELECT COUNT(*) FROM exam_assessments paper WHERE paper.tenant_id = assessment.tenant_id
-          AND paper.exam_series_id = assessment.exam_series_id AND paper.subject_id = assessment.subject_id) = 1`,
-    [tenantId, examSeriesId, maxMarks]);
-
-    const windows = await this.operations.writeSql<{
-      id: string;
-      subject_id: string;
-      class_section_id: string;
-    }>(
-      `
-        INSERT INTO exam_mark_entry_windows (
-          tenant_id,
-          exam_series_id,
-          subject_id,
-          class_section_id,
-          opens_at,
-          closes_at,
-          status,
-          last_action,
-          last_action_at,
-          last_action_by_user_id,
-          created_at,
-          updated_at
-        )
-        SELECT
-          $1,
-          $2::uuid,
-          subject.id::uuid,
-          section.id::uuid,
-          CASE WHEN $7 = 'open' THEN LEAST($5::date, NOW()) ELSE $5::date END,
-          ($6::date + INTERVAL '1 day' - INTERVAL '1 second'),
-          $7,
-          CASE WHEN $7 = 'open' THEN 'opened' ELSE 'locked' END,
-          NOW(),
-          $8::uuid,
-          NOW(),
-          NOW()
-        FROM subjects subject
-        CROSS JOIN class_sections section
-        WHERE subject.tenant_id = $1
-          AND section.tenant_id = $1
-          AND subject.id::text = ANY($3::text[])
-          AND section.id::text = ANY($4::text[])
-          AND LOWER(COALESCE(section.status, 'active')) = 'active'
-        ON CONFLICT (tenant_id, exam_series_id, subject_id, class_section_id) DO UPDATE
-        SET opens_at = EXCLUDED.opens_at,
-            closes_at = EXCLUDED.closes_at,
-            status = EXCLUDED.status,
-            last_action = EXCLUDED.last_action,
-            last_action_at = EXCLUDED.last_action_at,
-            last_action_by_user_id = EXCLUDED.last_action_by_user_id,
-            updated_at = NOW()
-        RETURNING id::text, subject_id::text, class_section_id::text
-      `,
-      [tenantId, examSeriesId, subjectIds, classSectionIds, startsOn, endsOn, windowStatus, actorUserId],
-    );
-
-    return {
-      subjectsConfigured: subjectIds.length,
-      markEntryWindowsConfigured: windows.rowCount,
-      assessmentsInserted: assessments.rowCount,
-    };
+  private async syncExamScope(tenantId: string, examSeriesId: string, dto: any, startsOn: string, endsOn: string, updateMaxScores = true) {
+    const selection = this.requireExamScopeSelection(dto);
+    const actor = this.actorUserId();
+    if (!actor) throw new UnauthorizedException('User context is required.');
+    const result=await persistClassExamWindows(this.operations, {tenant:tenantId,exam:examSeriesId,actor,
+      config:selection.classSubjects,starts:startsOn,ends:endsOn,open:this.normalizeStatus(dto?.status)==='submitted',
+      max:this.positiveNumber(dto?.max_marks ?? dto?.maxMarks,100,'Max marks')});
+    if (updateMaxScores) await this.operations.writeSql(`UPDATE exam_assessments paper SET max_score=$3::numeric,updated_at=NOW()
+      WHERE paper.tenant_id=$1 AND paper.exam_series_id=$2::uuid
+        AND NOT EXISTS (SELECT 1 FROM exam_marks mark WHERE mark.tenant_id=paper.tenant_id AND mark.assessment_id=paper.id)
+        AND NOT EXISTS (SELECT 1 FROM exam_assessments sibling WHERE sibling.tenant_id=paper.tenant_id
+          AND sibling.exam_series_id=paper.exam_series_id AND sibling.subject_id=paper.subject_id
+          AND sibling.class_section_id IS NOT DISTINCT FROM paper.class_section_id AND sibling.id<>paper.id)`,
+      [tenantId,examSeriesId,this.positiveNumber(dto?.max_marks ?? dto?.maxMarks,100,'Max marks')]);
+    return result;
   }
 
   async getExamSetupOptions() {
     const tenantId = this.requireTenantId();
-    const [terms, subjects, classes, gradingSystems, staff, examSeries, assessments] = await Promise.all([
+    const [terms, subjects, classes, gradingSystems, staff, examSeries, assessments, offerings] = await Promise.all([
       this.readSql(
         `
           SELECT
@@ -400,7 +293,7 @@ export class ExamsManagerCommandService {
       ),
       this.readSql(
         `
-          SELECT id::text, COALESCE(NULLIF(code, ''), name) AS code, name AS label
+          SELECT id::text, CASE WHEN code ~* '^(SUB-)?[0-9a-f]{8}-' THEN NULL ELSE NULLIF(code, '') END AS code, name AS label
           FROM subjects
           WHERE tenant_id = $1
           ORDER BY name ASC
@@ -412,7 +305,11 @@ export class ExamsManagerCommandService {
         `
           SELECT
             id::text,
-            COALESCE(NULLIF(CONCAT_WS(' ', grade_level, stream), ''), name) AS label
+            COALESCE(NULLIF(CONCAT_WS(' ', grade_level, stream), ''), name) AS label, grade_level, stream,
+            ARRAY(SELECT DISTINCT offering.subject_id FROM class_subject_assignments offering WHERE offering.tenant_id=class_sections.tenant_id
+              AND offering.class_section_id=class_sections.id::text AND offering.status='active' AND offering.is_examinable=TRUE) AS subject_ids,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',child.id,'label',child.name) ORDER BY child.name) FROM class_streams child
+              WHERE child.tenant_id=class_sections.tenant_id AND child.class_section_id=class_sections.id::text),'[]'::jsonb) AS streams
           FROM class_sections
           WHERE tenant_id = $1
             AND LOWER(COALESCE(status, 'active')) = 'active'
@@ -484,11 +381,15 @@ export class ExamsManagerCommandService {
         `,
         [tenantId],
       ),
+      this.readSql(`SELECT offering.class_section_id,offering.subject_id,offering.academic_term_id,
+        to_jsonb(offering)->>'stream_id' AS stream_id FROM class_subject_assignments offering
+        WHERE offering.tenant_id=$1 AND offering.status='active' AND offering.is_examinable=TRUE`,[tenantId]),
     ]);
 
     return {
       terms: terms.rows,
       subjects: subjects.rows,
+      subject_offerings: offerings.rows,
       classes: classes.rows,
       gradingSystems: gradingSystems.rows,
       staff: staff.rows,
@@ -546,6 +447,11 @@ export class ExamsManagerCommandService {
       `
         SELECT
           series.id::text,
+          series.configuration_version,
+          series.class_subjects IS NULL AS requires_subject_review,
+          COALESCE(series.class_subjects,(SELECT jsonb_agg(jsonb_build_object('class_section_id',evidence.class_section_id,'subject_ids',evidence.subject_ids))
+            FROM (SELECT class_section_id::text, jsonb_agg(DISTINCT subject_id::text) AS subject_ids FROM exam_marks
+              WHERE tenant_id=series.tenant_id AND exam_series_id=series.id GROUP BY class_section_id) evidence),'[]'::jsonb) AS class_subjects,
           series.name,
           CONCAT(series.starts_on::text, ' - ', series.ends_on::text) AS term,
           COALESCE(series.status, 'draft') AS status,
@@ -607,6 +513,9 @@ export class ExamsManagerCommandService {
       ends_on: string;
       academic_term_id: string | null;
       subject_ids: string[];
+      class_subjects: unknown[];
+      configuration_version: number;
+      requires_subject_review: boolean;
       class_section_ids: string[];
       marks_count: number;
       reports_count: number;
@@ -615,6 +524,11 @@ export class ExamsManagerCommandService {
       `
         SELECT
           series.id::text,
+          series.configuration_version,
+          series.class_subjects IS NULL AS requires_subject_review,
+          COALESCE(series.class_subjects,(SELECT jsonb_agg(jsonb_build_object('class_section_id',evidence.class_section_id,'subject_ids',evidence.subject_ids))
+            FROM (SELECT class_section_id::text, jsonb_agg(DISTINCT subject_id::text) AS subject_ids FROM exam_marks
+              WHERE tenant_id=series.tenant_id AND exam_series_id=series.id GROUP BY class_section_id) evidence),'[]'::jsonb) AS class_subjects,
           series.name,
           COALESCE(term.name, CONCAT(series.starts_on::text, ' - ', series.ends_on::text)) AS term,
           series.academic_term_id::text,
@@ -625,7 +539,7 @@ export class ExamsManagerCommandService {
           COALESCE(series_grading.id::text, default_grading.id::text) AS grading_system_id,
           COALESCE(series.status, 'scheduled') AS status,
           (SELECT COUNT(DISTINCT assessment.subject_id)::int FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id) AS subjects_count,
-          (SELECT COUNT(DISTINCT entry_window.class_section_id)::int FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id) AS classes_count,
+          COALESCE(jsonb_array_length(series.class_subjects),(SELECT COUNT(DISTINCT entry_window.class_section_id)::int FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id)) AS classes_count,
           ARRAY(SELECT DISTINCT assessment.subject_id::text FROM exam_assessments assessment WHERE assessment.tenant_id = series.tenant_id AND assessment.exam_series_id = series.id) AS subject_ids,
           ARRAY(SELECT DISTINCT entry_window.class_section_id::text FROM exam_mark_entry_windows entry_window WHERE entry_window.tenant_id = series.tenant_id AND entry_window.exam_series_id = series.id) AS class_section_ids,
           record_counts.*,
@@ -672,8 +586,14 @@ export class ExamsManagerCommandService {
   }
 
   async createExamSetup(dto: any) {
+    this.requireExamWritePermission();
     this.requireExamScopeSelection(dto);
     return this.mutateExamSetup('created', dto);
+  }
+
+  private requireExamWritePermission() {
+    const permissions=this.requestContext.getStore()?.permissions ?? [];
+    if (!permissions.some(p => ['exams:write','exams:*','*:*'].includes(p))) throw new ForbiddenException('Exam write permission is required.');
   }
 
   private async mutateExamSetup(operation: 'created' | 'configured', dto: any, id?: string) {
@@ -717,6 +637,7 @@ export class ExamsManagerCommandService {
         throw new BadRequestException('Create or activate an academic term before creating an exam cycle.');
       }
       await validateExamSelection(this.operations, tenantId, selection.subjectIds, selection.classSectionIds, academicTermId);
+      await validateClassExamConfiguration(this.operations,tenantId,academicTermId,selection.classSubjects,startsOn,endsOn);
       insertColumns.splice(1, 0, 'academic_term_id');
       params.splice(1, 0, academicTermId);
       placeholders.splice(1, 0, '$2::uuid');
@@ -810,6 +731,7 @@ export class ExamsManagerCommandService {
   }
 
   async configureExamSetup(id: string, dto: any) {
+    this.requireExamWritePermission();
     this.uniqueUuidArray([id], 'Exam');
     return this.mutateExamSetup('configured', dto, id);
   }
@@ -817,6 +739,9 @@ export class ExamsManagerCommandService {
   private async configureExamSetupWithinTransaction(id: string, dto: any) {
     const tenantId = this.requireTenantId();
     const current = await lockExam(this.operations, tenantId, id);
+    if (!Number.isInteger(dto?.configuration_version) || dto.configuration_version !== current.configuration_version) {
+      throw new ConflictException('Another administrator changed this examination, or its version is missing. Refresh before saving.');
+    }
     const name = this.operations.requiredText(dto?.name, 'Exam name');
     const startsOn = this.requireDate(dto?.starts_on ?? dto?.startsOn, 'Start date');
     const endsOn = this.requireDate(dto?.ends_on ?? dto?.endsOn, 'End date');
@@ -829,8 +754,9 @@ export class ExamsManagerCommandService {
     const maxMarks = this.positiveNumber(dto?.max_marks, Number(current.max_marks ?? 100), 'Max marks');
     const academicTermId = this.optionalText(dto?.academic_term_id) ?? current.academic_term_id;
     await validateExamSelection(this.operations, tenantId, selection.subjectIds, selection.classSectionIds, academicTermId);
-    if (['published', 'archived'].includes(current.status) || current.published_at) {
-      throw new ConflictException('Published or archived exam configuration is read-only.');
+    await validateClassExamConfiguration(this.operations,tenantId,academicTermId,selection.classSubjects,startsOn,endsOn);
+    if (['reviewed', 'locked', 'published', 'archived'].includes(current.status) || current.published_at || current.locked_at) {
+      throw new ConflictException('Reviewed, locked, published or archived exam configuration is read-only. Use the governed reopening workflow first.');
     }
     if ((!['draft', 'submitted'].includes(status) && status !== current.status) || (current.locked_at && status !== current.status)) {
       throw new ConflictException('Use the exam review and publishing workflow to change this status.');
@@ -862,10 +788,11 @@ export class ExamsManagerCommandService {
             ${gradingSystemUpdate},
             academic_term_id = $${termParameter}::uuid,
             exam_type = $${termParameter + 1},
+            configuration_version = configuration_version + 1,
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
-        RETURNING id::text, name, starts_on::text, ends_on::text, COALESCE(status, 'draft') AS status, updated_at::text
+        RETURNING id::text, name, starts_on::text, ends_on::text, COALESCE(status, 'draft') AS status, updated_at::text, configuration_version
       `,
       updateParams,
     );
@@ -876,6 +803,9 @@ export class ExamsManagerCommandService {
 
     const exam = updated.rows[0];
     const scope = await this.syncExamScope(tenantId, id, { ...dto, max_marks: maxMarks }, startsOn, endsOn, maxMarks !== Number(current.max_marks));
+    if (current.status==='draft' && status==='submitted') await this.operations.writeSql(`UPDATE exam_mark_entry_windows
+      SET status='open',opens_at=LEAST(opens_at,NOW()),last_action='opened',last_action_at=NOW(),last_action_by_user_id=$3::uuid
+      WHERE tenant_id=$1 AND exam_series_id=$2::uuid`,[tenantId,id,this.actorUserId()]);
     await this.operations.recordWorkflowAction({
       tenantId,
       actorUserId: this.actorUserId(),
@@ -1000,6 +930,17 @@ export class ExamsManagerCommandService {
   }
 
   async createExamTimetableSlot(dto: any) {
+    this.requireExamWritePermission();
+    const tenantId = this.requireTenantId();
+    const actorId = this.actorUserId();
+    if (!actorId) throw new UnauthorizedException('User context is required.');
+    return examSetupTransaction(this.prisma, tenantId, actorId, async operations => {
+      const service = new ExamsManagerCommandService(this.requestContext, this.prisma, operations, this.examsService);
+      return service.createExamTimetableSlotWithinTransaction(dto);
+    });
+  }
+
+  private async createExamTimetableSlotWithinTransaction(dto: any) {
     const tenantId = this.requireTenantId();
     const examSeriesId = this.operations.requiredText(dto?.exam_series_id ?? dto?.examSeriesId, 'Exam cycle');
     const assessmentId = this.optionalText(dto?.assessment_id ?? dto?.assessmentId);
@@ -1012,6 +953,24 @@ export class ExamsManagerCommandService {
 
     if (this.timeToMinutes(endTime) <= this.timeToMinutes(startTime)) {
       throw new BadRequestException('End time must be after start time');
+    }
+
+    this.uniqueUuidArray([examSeriesId, ...(assessmentId ? [assessmentId] : [])], 'Exam and assessment');
+    const series = await lockExam(this.operations, tenantId, examSeriesId);
+    if (series.locked_at || series.published_at || ['locked','published','archived'].includes(series.status)) {
+      throw new ConflictException('This exam is locked. Reopen it through the governed workflow before changing its timetable.');
+    }
+    if (!assessmentId) throw new BadRequestException('Select an examined class subject and paper.');
+    const paper = await this.operations.readSql(`SELECT assessment.id FROM exam_assessments assessment
+      WHERE assessment.tenant_id=$1 AND assessment.id=$2::uuid AND assessment.exam_series_id=$3::uuid
+        AND EXISTS (SELECT 1 FROM exam_mark_entry_windows w WHERE w.tenant_id=assessment.tenant_id
+          AND w.exam_series_id=assessment.exam_series_id AND w.subject_id=assessment.subject_id
+          AND (assessment.class_section_id IS NULL OR w.class_section_id=assessment.class_section_id))`, [tenantId,assessmentId,examSeriesId]);
+    if (!paper.rowCount) throw new BadRequestException('Select a paper configured for this exam and school.');
+    if (staffUserId) {
+      this.uniqueUuidArray([staffUserId], 'Invigilator');
+      const staff = await this.operations.readSql(`SELECT user_id FROM staff_profiles WHERE tenant_id=$1 AND user_id=$2::uuid`,[tenantId,staffUserId]);
+      if (!staff.rowCount) throw new BadRequestException('Choose an invigilator from this school.');
     }
 
     const created = await this.operations.writeSql<{

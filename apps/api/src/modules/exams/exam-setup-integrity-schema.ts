@@ -1,6 +1,10 @@
+import { examStreamStudentScopeSql } from './class-exam-configuration';
 // Serialize child writes with configuration/deletion without validating historical legacy rows.
 export const EXAM_SETUP_INTEGRITY_SCHEMA = `
   ALTER TABLE exam_series ADD COLUMN IF NOT EXISTS exam_type text NOT NULL DEFAULT 'Exam cycle';
+  ALTER TABLE exam_series ADD COLUMN IF NOT EXISTS configuration_version integer NOT NULL DEFAULT 1;
+  ALTER TABLE exam_series ADD COLUMN IF NOT EXISTS class_subjects jsonb;
+  ALTER TABLE exam_mark_entry_windows ADD COLUMN IF NOT EXISTS stream_scope jsonb NOT NULL DEFAULT '{}'::jsonb;
   CREATE OR REPLACE FUNCTION enforce_exam_setup_parent() RETURNS trigger LANGUAGE plpgsql AS $$
   DECLARE series_id uuid;
   BEGIN
@@ -34,6 +38,29 @@ export const EXAM_SETUP_INTEGRITY_SCHEMA = `
         AND NOT EXISTS (SELECT 1 FROM exam_mark_entry_windows WHERE tenant_id = NEW.tenant_id
           AND exam_series_id = series_id AND subject_id = NEW.subject_id AND class_section_id = NEW.class_section_id) THEN
         RAISE EXCEPTION 'Class and subject are no longer configured for this exam' USING ERRCODE = '23503';
+      END IF;
+      IF EXISTS (SELECT 1 FROM exam_series WHERE tenant_id=NEW.tenant_id AND id=series_id AND class_subjects IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM exam_mark_entry_windows w WHERE w.tenant_id=NEW.tenant_id AND w.exam_series_id=series_id
+          AND w.subject_id=NEW.subject_id AND w.class_section_id=NEW.class_section_id
+          AND (w.stream_scope='{}'::jsonb OR (w.stream_scope->'overrides'='{}'::jsonb AND (w.stream_scope->>'default')::boolean)
+            OR ${examStreamStudentScopeSql('w', 'NEW.student_id')})) THEN
+        RAISE EXCEPTION 'This subject is not examined by the student class or stream' USING ERRCODE='23514';
+      END IF;
+    END IF;
+    IF TG_TABLE_NAME='exam_assessments' THEN
+      IF EXISTS (SELECT 1 FROM exam_series WHERE tenant_id=NEW.tenant_id AND id=series_id AND class_subjects IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM exam_mark_entry_windows w WHERE w.tenant_id=NEW.tenant_id AND w.exam_series_id=series_id
+          AND w.subject_id=NEW.subject_id AND (NEW.class_section_id IS NULL OR w.class_section_id=NEW.class_section_id)) THEN
+        RAISE EXCEPTION 'Select this subject for its class in Exam Setup first' USING ERRCODE='23514';
+      END IF;
+    END IF;
+    IF TG_TABLE_NAME='exam_timetable_slots' THEN
+      IF NEW.assessment_id IS NOT NULL THEN
+        PERFORM assessment.id FROM exam_assessments assessment WHERE assessment.tenant_id=NEW.tenant_id
+          AND assessment.id=NEW.assessment_id AND assessment.exam_series_id=series_id;
+        IF NOT FOUND THEN
+          RAISE EXCEPTION 'Timetable paper does not belong to this exam and school' USING ERRCODE='23503';
+        END IF;
       END IF;
     END IF;
     RETURN NEW;

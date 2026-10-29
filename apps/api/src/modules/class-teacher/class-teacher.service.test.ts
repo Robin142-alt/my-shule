@@ -955,3 +955,18 @@ test('only Class Teacher can read or write registers even with a teaching alloca
     for(const call of [()=>service.getRegister('school','user','class'),()=>service.getAttendance('school','user','class'),()=>service.saveAttendance('school','user','class',[]),()=>service.getClassRegisterOverview('school','user'),()=>service.getPendingAttendance('school','user')]) await assert.rejects(call,/Only an appointed Class Teacher/);
   }
 });
+
+
+test('mark-window lookup binds the school UUID as tenant context, never the exam-window UUID', async () => {
+  const tenantId = '11111111-1111-4111-8111-111111111111';
+  const windowId = '22222222-2222-4222-8222-222222222222';
+  const scopes: string[] = [];
+  const service = new ClassTeacherService({ executeWithTenant: async (scope: string, _actor: unknown, read: (tx: unknown) => Promise<unknown>) => {
+    scopes.push(scope);
+    return read({ $queryRawUnsafe: async (_sql: string, ...params: unknown[]) => {
+      assert.equal(params[0], tenantId); assert.equal(params[1], windowId); return [];
+    } });
+  } } as never, {} as never, {} as never);
+  await assert.rejects(() => service.saveMarks(tenantId, 'teacher-a', { examId: windowId, classSectionId: 'class-a', marks: {} }), /closed, invalid/);
+  assert.deepEqual(scopes, [tenantId]);
+});

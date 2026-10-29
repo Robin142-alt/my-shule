@@ -65,7 +65,7 @@ export function examDeletionBlock(exam: Record<string, any>): string | null {
 export async function reconcileExamScope(operations: AdminCommandOperationsService, tenantId: string, examId: string,
   subjects: string[], classes: string[], maxMarks: number, termId: string | null, gradingId: string | null) {
   const multiplePapers = await operations.readSql(`SELECT subject_id FROM exam_assessments WHERE tenant_id = $1 AND exam_series_id = $2::uuid
-    GROUP BY subject_id HAVING COUNT(*) > 1 AND
+    GROUP BY subject_id,class_section_id HAVING (COUNT(*) > 1 OR BOOL_OR(weight IS NOT NULL)) AND
       (SELECT MAX(max_score) FROM exam_assessments WHERE tenant_id = $1 AND exam_series_id = $2::uuid) <> $3::numeric LIMIT 1`, [tenantId, examId, maxMarks]);
   if (multiplePapers.rowCount) throw new ConflictException('This exam has multiple papers. Change each paper maximum in assessment setup.');
   const protectedRows = await operations.readSql(`SELECT 1 FROM exam_marks mark

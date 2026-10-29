@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 
 import { ExamsMarksWorkspace } from "@/components/school/teacher-dashboard/exams-marks-workspace";
@@ -213,6 +213,22 @@ describe("teacher exams and marks workspace", () => {
     expect(saveExamMarksLive).not.toHaveBeenCalled();
   });
 
+  it("moves through only the current eligible score rows with arrows and reverse Enter without saving", async () => {
+    await openWorkspace();
+    const first = screen.getByLabelText("Asha Njeri score");
+    const second = screen.getByLabelText("Brian Otieno score");
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(second).toHaveFocus();
+    fireEvent.keyDown(second, { key: "Enter", shiftKey: true });
+    expect(first).toHaveFocus();
+    fireEvent.change(screen.getByLabelText("Find student"), { target: { value: "Asha" } });
+    first.focus(); fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(first).toHaveFocus();
+    expect(screen.queryByLabelText("Brian Otieno score")).not.toBeInTheDocument();
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+  });
+
   it("shows one compact score input per student without evidence, remarks, policy or validation panels", async () => {
     await openWorkspace();
     expect(fetchPendingMarksLive).toHaveBeenCalledWith(mockSession, true, true);
@@ -301,6 +317,22 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Blank scores (1)" }));
     expect(screen.queryByLabelText("Asha Njeri score")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Brian Otieno score")).toBeVisible();
+  });
+
+  it("keeps the focused blank row while typing a full score, then moves to the next blank row without losing the draft", async () => {
+    await openWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "Blank scores (2)" }));
+    const score = screen.getByLabelText("Asha Njeri score");
+    act(() => score.focus());
+    fireEvent.change(score, { target: { value: "7" } });
+    expect(score).toHaveFocus(); expect(score).toBeInTheDocument();
+    fireEvent.change(score, { target: { value: "74" } });
+    fireEvent.keyDown(score, { key: "Enter" });
+    expect(screen.getByLabelText("Brian Otieno score")).toHaveFocus();
+    expect(screen.queryByLabelText("Asha Njeri score")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Blank scores (1)" }));
+    expect(screen.getByLabelText("Asha Njeri score")).toHaveValue("74");
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
   });
 
   it("preserves entry on save failure and disables edits and duplicate submits during a save", async () => {
@@ -528,6 +560,44 @@ describe("teacher exams and marks workspace", () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({
       action: 'draft', marks: { 'student-2': { score: 71, score_status: 'entered', expected_updated_at: null } },
+    })));
+  });
+
+  it("shows locked markbooks without enabling assisted entry", async () => {
+    const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({ ...result, windows: [{ ...result.windows[0], canEnter: false, entryState: "Locked", status: "Locked" }] });
+    renderWithProviders(createElement(ExamsMarksWorkspace, { assistance: {
+      teacherUserId: "teacher-1", teacherName: "Teacher Robini", examSeriesId: "series-1",
+      classSectionId: "class-2-blue", subjectId: "subject-maths", onClose: jest.fn(),
+    } }));
+    fireEvent.click(await screen.findByRole("button", { name: /Open Mathematics/ }));
+    expect(await screen.findByText(/This exam is locked or published/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({ view: "all" }));
+    expect(await screen.findByLabelText("Asha Njeri score")).toBeDisabled();
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+  });
+
+  it("uses the selected teacher scope while keeping the manager session for reading and saving", async () => {
+    const managerSession = { ...mockSession, user: { ...mockSession.user, user_id: "manager-1", role: "exams_manager" } };
+    (useLiveTenantSession as jest.Mock).mockReturnValue({ session: managerSession, isLoading: false });
+    const onClose = jest.fn();
+    renderWithProviders(createElement(ExamsMarksWorkspace, { assistance: {
+      teacherUserId: "teacher-1", teacherName: "Teacher Robini", examSeriesId: "series-1",
+      classSectionId: "class-2-blue", subjectId: "subject-maths", onClose,
+    } }));
+    fireEvent.click(await screen.findByRole("button", { name: /Open Mathematics/ }));
+    expect(fetchPendingMarksLive).toHaveBeenCalledWith(managerSession, true, true, "teacher-1");
+    await screen.findByLabelText("Asha Njeri score");
+    expect(fetchTeacherMarkSheetLive).toHaveBeenCalledWith(managerSession, expect.objectContaining({ teacherUserId: "teacher-1" }));
+    fireEvent.change(screen.getByLabelText("Asha Njeri score"), { target: { value: "63" } });
+    fireEvent.click(screen.getByRole("button", { name: "Change teacher or exam" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/You have unsaved marks/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(managerSession, expect.objectContaining({
+      teacherUserId: "teacher-1", action: "draft", marks: expect.objectContaining({ "student-1": { score: 63, score_status: "entered", expected_updated_at: null } }),
     })));
   });
 

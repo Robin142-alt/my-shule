@@ -36,45 +36,66 @@ export function SmartCirculation({mode}:{mode:"issue"|"return"}) {
   const [due,setDue]=useState(()=>dateText(new Date(Date.now()+14*86400000).toISOString()));
   const [condition,setCondition]=useState("good"),[reason,setReason]=useState("");
   const [pendingScans,setPendingScans]=useState(0);
+  const [latest,setLatest]=useState<string|null>(null),[changingBorrower,setChangingBorrower]=useState(false),[unresolved,setUnresolved]=useState(false);
+  const list=useRef<HTMLUListElement>(null),attempt=useRef<LibraryRow|null>(null);
   const scanned=useRef(new Set<string>()),command=useCommand();
+  const locked=command.busy||unresolved;
+  useEffect(()=>{if(!latest)return;const timer=setTimeout(()=>setLatest(null),1800);return()=>clearTimeout(timer);},[latest]);
+  useEffect(()=>{if(latest&&list.current)list.current.scrollTop=0;},[latest]);
   const scan=async(code:string)=>{
+    if(attempt.current)throw new Error("Resolve the pending transaction before scanning more books.");
     if(scanned.current.has(code))throw new Error(`${code} is already in this list.`);
     scanned.current.add(code);
     try{
       const book=await api<LibraryRow>(`scan?barcode=${encodeURIComponent(code)}`);
       if(mode==="issue"&&book.status!=="available")throw new Error(`${book.title} (${code}) is ${book.status}.`);
       if(mode==="return"&&!book.loan)throw new Error(`${book.title} has no active loan.`);
-      setBasket(rows=>[...rows,book]);setReceipt(null);
+      setBasket(rows=>[book,...rows]);setLatest(book.id);setReceipt(null);
     }catch(e){scanned.current.delete(code);throw e;}
   };
-  const submit=()=>void command.run(mode,{barcodes:basket.map(b=>b.barcode),
-    ...(mode==="issue"?{borrower_type:borrower?.borrower_type,subject_id:borrower?.subject_id,due_on:due}:{condition,reason})},result=>{
-      setReceipt({...result,books:basket,borrower,mode});setBasket([]);scanned.current.clear();
-    },`${basket.length} book(s) ${mode==="issue"?"issued":"returned"} successfully.`);
+  const submit=async()=>{
+    if(command.busy||pendingScans>0||!basket.length)return;
+    const payload=attempt.current??{barcodes:basket.map(b=>b.barcode),
+      ...(mode==="issue"?{borrower_type:borrower?.borrower_type,subject_id:borrower?.subject_id,due_on:due}:{condition,reason})};
+    attempt.current=payload;
+    const result=await command.run(mode,payload,saved=>{
+      setReceipt({...saved,books:basket,borrower,mode});setBasket([]);scanned.current.clear();attempt.current=null;setUnresolved(false);
+    },`${basket.length} book(s) ${mode==="issue"?"issued":condition==="lost"?"recorded as lost; loans remain outstanding":"returned"} successfully.`);
+    if(result==="rejected")attempt.current=null;
+    setUnresolved(result==="unknown");
+  };
   const printReceipt=()=>{
     if(!receipt)return;
-    const rows=receipt.books.map((book:LibraryRow)=>({label:`${book.title} — ${book.barcode}`,
-      value:`${receipt.borrower?.name??book.loan?.borrower_name??""} · ${mode==="issue"?`Due ${receipt.loans?.[0]?.due_on}`:`Returned ${dateText(receipt.returns?.[0]?.returned_at)}`}`}));
-    openPrintDocument({eyebrow:identity.schoolName,logoUrl:identity.logoUrl,title:`Library ${mode} slip`,subtitle:`Transaction ${receipt.transaction_id}`,rows,footer:`Generated ${new Date().toLocaleString()} by ${identity.userLabel}. This slip reflects the saved library transaction.`});
+    const lost=receipt.returns?.some((item:LibraryRow)=>item.condition==="lost");
+    const rows=receipt.books.map((book:LibraryRow)=>{
+      const saved=(receipt.loans??receipt.returns??[]).find((item:LibraryRow)=>item.barcode===book.barcode);
+      const outcome=mode==="issue"?`Due ${dateText(saved?.due_on)}`:saved?.condition==="lost"
+        ?`Lost / unresolved · Reported ${dateText(saved.reported_at)} · Loan remains outstanding`
+        :`Returned ${dateText(saved?.returned_at)}`;
+      return {label:`${book.title} — ${book.barcode}`,value:`${receipt.borrower?.name??book.loan?.borrower_name??""} · ${outcome}`};
+    });
+    openPrintDocument({eyebrow:identity.schoolName,logoUrl:identity.logoUrl,title:lost?"Library loss notice":`Library ${mode} slip`,subtitle:`Transaction ${receipt.transaction_id}`,rows,footer:`Generated ${new Date().toLocaleString()} by ${identity.userLabel}. This slip reflects the saved library transaction.`});
   };
   return <LibraryPanel title={mode==="issue"?"Issue books":"Return books"} description={mode==="issue"?"Choose the borrower once. Scan each physical book, review the list and confirm.":"Scan one or several returned books. All other loans stay with their borrowers."}>
     <Feedback error={command.error} success={command.success}/>
     {receipt&&<div className="mb-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={printReceipt}><Printer size={16}/> Preview / print slip</Button><Button variant="secondary" onClick={()=>downloadCsvFile({filename:`library-${mode}-${receipt.transaction_id}.csv`,headers:["Book","Barcode","Borrower"],rows:receipt.books.map((b:LibraryRow)=>[b.title,b.barcode,receipt.borrower?.name??b.loan?.borrower_name??""])})}><Download size={16}/> Download slip</Button></div>}
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"><div className="space-y-5">
-      {mode==="issue"&&<BorrowerPicker key={receipt?.transaction_id??"pending"} selected={borrower} onSelect={person=>{if(!command.busy&&pendingScans===0){setBorrower(person);setReceipt(null);}}}/>}
-      <ScannerInput key={mode} autoFocus onScan={scan} onPendingChange={setPendingScans} disabled={command.busy||(mode==="issue"&&!borrower)} label="Scan a book"/>
-      {mode==="issue"?<Field label="Due date for this issue"><input type="date" required className={inputClass} value={due} onChange={e=>setDue(e.target.value)} disabled={command.busy}/></Field>:<>
-        <Field label="Condition of selected returned books"><select className={inputClass} value={condition} onChange={e=>setCondition(e.target.value)} disabled={command.busy}><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option><option value="lost">Lost — close loan and record loss</option></select></Field>
-        {["damaged","lost"].includes(condition)&&<Field label="Incident notes (required)"><textarea className={inputClass} value={reason} onChange={e=>setReason(e.target.value)}/></Field>}
+      {mode==="issue"&&<BorrowerPicker key={receipt?.transaction_id??"pending"} selected={borrower} onSelect={person=>{if(locked||pendingScans>0||attempt.current)return;if(basket.length){setChangingBorrower(true);return;}setBorrower(person);setReceipt(null);}}/>}
+      {changingBorrower&&<div role="alert" className="rounded-lg border border-warning-border p-3 text-sm"><p>{basket.length} queued books belong to the session for {borrower?.name}. Keep this session or discard its queue before choosing another borrower.</p><div className="mt-3 flex flex-wrap gap-2"><Button onClick={()=>setChangingBorrower(false)}>Keep {borrower?.name}</Button><Button variant="secondary" disabled={locked} onClick={()=>{setBasket([]);scanned.current.clear();setBorrower(null);setChangingBorrower(false);}}>Discard queue and change borrower</Button></div></div>}
+      <ScannerInput key={mode} autoFocus onScan={scan} onPendingChange={setPendingScans} disabled={locked||changingBorrower||(mode==="issue"&&!borrower)} label="Scan a book"/>
+      {mode==="issue"?<Field label="Due date for this issue"><input type="date" required className={inputClass} value={due} onChange={e=>setDue(e.target.value)} disabled={locked}/></Field>:<>
+        <Field label="Condition of selected returned books"><select className={inputClass} value={condition} onChange={e=>setCondition(e.target.value)} disabled={locked}><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option><option value="lost">Lost — keep outstanding until resolved</option></select></Field>
+        {["damaged","lost"].includes(condition)&&<Field label="Incident notes (required)"><textarea disabled={locked} className={inputClass} value={reason} onChange={e=>setReason(e.target.value)}/></Field>}
         <p className="text-xs text-muted">Return different conditions in separate groups. Only existing school fine rules apply.</p></>}
     </div><div className="rounded-xl border border-border bg-surface-muted p-4">
-      <h3 className="mb-4 font-bold">{basket.length} book(s) ready to {mode}</h3>
+      <div className="mb-3 space-y-2"><h3 className="font-bold">Ready to {mode} — {basket.length} book(s)</h3>
+      {unresolved&&<p role="alert" className="text-sm">The server response could not be confirmed. Retry this same transaction before changing the borrower or queued books.</p>}
+      <WriteButton className="w-full" disabled={command.busy||pendingScans>0||changingBorrower||!basket.length||(mode==="issue"&&(!borrower||!due))||(["lost","damaged"].includes(condition)&&!reason.trim())} onClick={()=>void submit()}>
+        {command.busy?"Saving…":unresolved?`Retry ${mode} of ${basket.length} book(s)`:`Confirm ${mode} of ${basket.length} book(s)`}</WriteButton></div>
       {!basket.length&&<p className="py-8 text-sm text-muted">Scanned books appear here. Scan the barcode sticker on each physical copy.</p>}
-      <ul className="space-y-2">{basket.map(book=><li key={book.id} className="flex items-start justify-between gap-3 rounded-xl bg-surface p-3"><div className="min-w-0"><strong className="block break-words">{book.title}</strong><code className="text-sm">{book.barcode}</code>
+      <ul ref={list} aria-label="Queued books" className="max-h-[min(52vh,32rem)] space-y-2 overflow-y-auto overscroll-contain">{basket.map(book=><li key={book.id} data-latest-scan={latest===book.id?"true":undefined} className={`flex items-start justify-between gap-3 rounded-xl border p-3 ${latest===book.id?"border-primary bg-info-soft":"border-transparent bg-surface"}`}><div className="min-w-0"><strong className="block break-words">{book.title}</strong><code className="text-sm">{book.barcode}</code>
         {mode==="return"&&<p className="mt-1 text-sm text-muted">{book.loan.borrower_name} · {book.loan.borrower_number} · Due {dateText(book.loan.due_on)}{book.loan.overdue?" · Overdue":""}</p>}</div>
-        <Button variant="ghost" size="icon" disabled={command.busy} aria-label={`Remove ${book.barcode}`} onClick={()=>{scanned.current.delete(book.barcode);setBasket(list=>list.filter(b=>b.id!==book.id));}}><X size={16}/></Button></li>)}</ul>
-      <WriteButton className="mt-5 w-full" disabled={command.busy||pendingScans>0||!basket.length||(mode==="issue"&&(!borrower||!due))||(["lost","damaged"].includes(condition)&&!reason.trim())} onClick={submit}>
-        {command.busy?"Saving…":`Confirm ${mode} of ${basket.length} book(s)`}</WriteButton>
+        <Button variant="ghost" size="icon" disabled={locked} aria-label={`Remove ${book.barcode}`} onClick={()=>{scanned.current.delete(book.barcode);setBasket(list=>list.filter(b=>b.id!==book.id));}}><X size={16}/></Button></li>)}</ul>
     </div></div>
   </LibraryPanel>;
 }
@@ -156,12 +177,13 @@ export function SmartBorrowerRecords({loansOnly=false}:{loansOnly?:boolean}) {
   return <LibraryPanel title={loansOnly?"Loans & overdue books":"Borrower book history"} description="See the exact copies each student or staff member holds, with independent issue dates, due dates and returns.">
     <Feedback error={command.error} success={command.success}/>
     {!loansOnly&&<BorrowerPicker includeInactive selected={selected} onSelect={p=>{setSelected(p);setOffset(0);}}/>}
+    {!selected&&!loansOnly&&<LibraryExport path="loans" title="Outstanding library books" kind="loans"/>}
     {(selected||loansOnly)&&<><div className="my-4 grid gap-3 sm:grid-cols-2">{loansOnly&&<Field label="Search loans"><input className={inputClass} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} placeholder="Borrower, admission number, barcode or title"/></Field>}
       <Field label="Loan status"><select className={inputClass} value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">All history</option><option value="active">Currently borrowed</option><option value="overdue">Overdue</option><option value="returned">Returned</option></select></Field></div>
       {path&&<LibraryExport key={path} path={path} title={loansOnly?"Library loans":"Borrower book history"} kind="loans"/>}
       <LoadState resource={data}><div className="space-y-2">{rows.map(row=><div key={row.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border p-4">
         <div><strong className="block">{row.title}</strong><code>{row.barcode||row.accession_number}</code><p className="mt-1 text-sm text-muted">{row.borrower_name} · {row.borrower_number}</p></div>
-        <div className="text-sm"><p>Issued {dateText(row.issued_at)} · Due {dateText(row.due_on)}</p><p className={row.overdue?"font-semibold text-danger":"text-muted"}>{row.returned_at?`Returned ${dateText(row.returned_at)} (${row.return_condition||"recorded"})`:row.overdue?"Overdue — still with borrower":"Currently borrowed"}</p><RenewLoan loan={row} onSaved={data.refresh}/>
+        <div className="text-sm"><p>Issued {dateText(row.issued_at)} · Due {dateText(row.due_on)}</p><p className={row.overdue?"font-semibold text-danger":"text-muted"}>{row.return_condition==="resolved_loss"?`Loss resolved ${dateText(row.returned_at)}`:row.copy_status==="lost"&&(!row.returned_at||row.return_condition==="lost")?"Lost / unresolved — outstanding":row.returned_at?`Returned ${dateText(row.returned_at)} (${row.return_condition||"recorded"})`:row.overdue?"Overdue — still with borrower":"Currently borrowed"}</p><RenewLoan loan={row} onSaved={data.refresh}/>
           {row.overdue&&!row.returned_at&&<WriteButton variant="secondary" className="mt-2" disabled={command.busy} onClick={()=>void command.run(`/api/admin-command/librarian/overdue-books/${encodeURIComponent(row.id)}/remind`,{},()=>data.refresh(),"Overdue reminder queued for the exact active borrower or linked guardian accounts.")}>{command.busy?"Queuing reminder…":"Send overdue reminder"}</WriteButton>}</div>
       </div>)}{!rows.length&&<p className="p-5 text-sm text-muted">No matching loans. Use Issue Books to record a borrower’s first loan.</p>}</div><Pager offset={offset} setOffset={setOffset} count={rows.length}/></LoadState></>}
   </LibraryPanel>;

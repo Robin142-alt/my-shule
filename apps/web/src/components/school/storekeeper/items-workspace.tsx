@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { RecordTable } from "@/components/ui/record-table";
 import { useState } from "react";
 import { Package, Plus, Search } from "lucide-react";
@@ -289,7 +290,7 @@ export function ItemsWorkspace() {
         onClose={() => setIsAddItemOpen(false)}
         title="Add Item"
       >
-        <form onSubmit={addItemForm.handleSubmit(onSubmitAddItem)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={addItemForm.handleSubmit(onSubmitAddItem)} className="space-y-4 py-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Item Name</label>
             <input
@@ -391,7 +392,7 @@ export function ItemsWorkspace() {
         }}
         title={`Receive Stock: ${selectedItem?.name || ""}`}
       >
-        <form onSubmit={receiveForm.handleSubmit(onSubmitReceive)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={receiveForm.handleSubmit(onSubmitReceive)} className="space-y-4 py-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Quantity to Receive ({selectedItem?.unit})</label>
             <input
@@ -452,7 +453,7 @@ export function ItemsWorkspace() {
         }}
         title={`Issue Stock: ${selectedItem?.name || ""}`}
       >
-        <form onSubmit={issueForm.handleSubmit(onSubmitIssue)} className="space-y-4 py-4">
+        <form onKeyDown={onFormNavigationKeyDown} onSubmit={issueForm.handleSubmit(onSubmitIssue)} className="space-y-4 py-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Quantity to Issue ({selectedItem?.unit})</label>
             <input

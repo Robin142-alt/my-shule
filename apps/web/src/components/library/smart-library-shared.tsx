@@ -5,6 +5,7 @@ import { ScanBarcode, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
 import { usePermissions } from "@/components/providers/permission-context";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 export type LibraryRow = Record<string, any>;
 export const inputClass = "min-h-11 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-foreground focus:outline-2 focus:outline-primary";
@@ -27,8 +28,8 @@ export function useCommand() {
     pending.current=true;setBusy(true);setError("");setSuccess("");
     const fingerprint=JSON.stringify({path,body});
     const requestId=requests.current.get(fingerprint)??newRequest();requests.current.set(fingerprint,requestId);
-    try{const result=await api<LibraryRow>(path,{...body,request_id:requestId});requests.current.delete(fingerprint);setSuccess(message);onSuccess(result);}
-    catch(e){if(propagate)throw e;setError(errorText(e));}
+    try{const result=await api<LibraryRow>(path,{...body,request_id:requestId});requests.current.delete(fingerprint);setSuccess(message);onSuccess(result);return "saved" as const;}
+    catch(e){if(propagate)throw e;setError(errorText(e));return /^Request failed: 4(?!08)\d\d\b/.test(errorText(e))?"rejected" as const:"unknown" as const;}
     finally{pending.current=false;setBusy(false);}
   };
   return {busy,error,success,run};
@@ -50,7 +51,7 @@ export function useLibraryData<T>(path: string | null) {
   return {data,error,loading,refresh};
 }
 export function LibraryPanel({title,description,children,actions}:{title:string;description:string;children:ReactNode;actions?:ReactNode}) {
-  return <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
+  return <section onKeyDown={onFormNavigationKeyDown} className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold text-foreground">{title}</h2><p className="mt-1 max-w-3xl text-sm text-muted">{description}</p></div>{actions}</div>{children}
   </section>;
 }
@@ -137,7 +138,7 @@ export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFoc
   },[error,errorDurationMs]);
   // Focus only on workspace activation, becoming enabled, or an explicit title
   // selection. Ordinary form edits and background refreshes never steal focus.
-  useEffect(()=>{if(autoFocus&&!disabled)field.current?.focus();},[autoFocus,disabled,focusKey]);
+  useEffect(()=>{if(autoFocus&&!disabled)field.current?.focus({preventScroll:true});},[autoFocus,disabled,focusKey]);
   useEffect(()=>{onPendingChange?.(pending);},[pending,onPendingChange]);
   useEffect(()=>{
     const blur=()=>setFocused(false),focus=()=>setFocused(document.activeElement===field.current);
@@ -147,7 +148,7 @@ export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFoc
   const scan=(completion:ScanCompletion)=>{
     if(disabled)return;
     const code=(field.current?.value??value).replace(/[\r\n]+$/,"");if(!code)return;
-    setValue("");setError(null);field.current?.focus();
+    setValue("");setError(null);field.current?.focus({preventScroll:true});
     // Unlock audio during the input gesture, before a queued network request.
     // Audio and browser-storage failures must never reject the scan queue.
     void prepareScannerAudio();
@@ -165,7 +166,7 @@ export function ScannerInput({onScan,disabled=false,label="Scan barcode",autoFoc
   // pointer-down and pointer-up on narrow screens.
   return <div className="space-y-2"><p role="status" className={`min-h-10 text-sm ${focused&&!disabled?"text-success":"text-muted"}`}>
     {disabled?"Scanner input is paused.":focused?"Ready for scanner input.":"Scanner input is not focused."}</p>
-  <form onSubmit={event=>{event.preventDefault();scan("button");}} className="flex flex-wrap items-end gap-2">
+  <form data-keyboard-navigation="off" onSubmit={event=>{event.preventDefault();scan("button");}} className="flex flex-wrap items-end gap-2">
     <label className="min-w-0 flex-1 basis-full text-sm font-medium sm:basis-0"><span className="mb-1 flex items-center gap-2"><ScanBarcode size={18}/>{label}</span>
       <input ref={field} autoFocus={autoFocus} aria-label={label} aria-describedby={hintId} value={value} onChange={e=>setValue(e.target.value)} disabled={disabled}
         onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} onKeyDown={e=>{

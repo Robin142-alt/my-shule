@@ -20,6 +20,10 @@ export class LibrarianCommandController {
     return this.service.getBooks();
   }
 
+  @Post('borrowers/report')
+  @Permissions('library:read')
+  borrowerReport(@Body() dto: any) { return this.service.borrowerReport(dto); }
+
   @Post('books')
   @Permissions('library:write')
   addBook(@Body() dto: any) {

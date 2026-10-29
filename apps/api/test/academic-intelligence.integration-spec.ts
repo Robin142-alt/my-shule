@@ -31,7 +31,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         CREATE TABLE class_sections(tenant_id text,id text,name text,grade_level text);
         CREATE TABLE students(tenant_id text,id text,first_name text,middle_name text,last_name text,admission_number text);
         CREATE TABLE class_streams(tenant_id text,id text,name text);
-        CREATE TABLE student_class_assignments(tenant_id text,id text,student_id text,class_section_id text,academic_year_id text,stream_id text,status text,updated_at timestamptz,cohort_id text);
+        CREATE TABLE student_class_assignments(tenant_id text,id text,student_id text,class_section_id text,academic_year_id text,stream_id text,status text,updated_at timestamptz,cohort_id text,effective_from date,effective_to date);
         CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,class_section_id text,subject_id text,academic_year_id text,academic_term_id text,status text,effective_from date,effective_to date);
         CREATE TABLE student_report_cards(tenant_id text,exam_series_id uuid,student_id uuid,is_current boolean,status text,grading_policy_id uuid,grading_policy_version int);
         CREATE TABLE exam_grading_policies(tenant_id text,id uuid,exam_series_id uuid,reporting_mode text,version int,status text,effective_from timestamptz,effective_to timestamptz);
@@ -56,7 +56,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         await c.query("INSERT INTO exam_grading_policy_boundaries VALUES ($1,$2,'A',80,100,12,true),($1,$2,'C',50,79.99,6,true),($1,$2,'E',0,49.99,1,false)",[tenant,ids.policy]);
         for(const who of ['learner','second','missing']) {
           await c.query('INSERT INTO students VALUES ($1,$2,$3,NULL,$4,$5)',[tenant,ids[who],tenant==='school-a'?who:'FOREIGN',who,'ADM-'+who]);
-          await c.query("INSERT INTO student_class_assignments VALUES ($1,$2,$3,$4,$5,$6,'active',NOW(),NULL)",[tenant,randomUUID(),ids[who],ids.class,ids.year,who==='second'?ids.red:ids.blue]);
+          await c.query("INSERT INTO student_class_assignments(tenant_id,id,student_id,class_section_id,academic_year_id,stream_id,status,updated_at,cohort_id) VALUES ($1,$2,$3,$4,$5,$6,'active',NOW(),NULL)",[tenant,randomUUID(),ids[who],ids.class,ids.year,who==='second'?ids.red:ids.blue]);
         }
         for(const subject of ['math','bio'])await c.query('INSERT INTO subjects VALUES ($1,$2,$3,$4)',[tenant,ids[subject],subject,ids.department]);
         for(const exam of ['old','exam']) {
@@ -85,7 +85,9 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query("ALTER TABLE academics_role_appointments ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN appointment_type text DEFAULT 'permanent'");
       await c.query("UPDATE exam_series SET status='published'; UPDATE exam_marks SET status='published'; UPDATE student_report_cards SET status='published'");
       await c.query("ALTER TABLE student_report_cards ADD COLUMN metadata jsonb DEFAULT '{}'::jsonb");
-      await c.query(`ALTER TABLE exam_marks ADD COLUMN updated_by_user_id uuid, ADD COLUMN reviewed_at timestamptz, ADD COLUMN locked_at timestamptz, ADD COLUMN updated_at timestamptz;
+      await c.query(`ALTER TABLE exam_marks ADD COLUMN subject_id uuid, ADD COLUMN updated_by_user_id uuid, ADD COLUMN reviewed_at timestamptz, ADD COLUMN locked_at timestamptz, ADD COLUMN updated_at timestamptz;
+        UPDATE exam_marks mark SET subject_id=assessment.subject_id FROM exam_assessments assessment
+          WHERE assessment.tenant_id=mark.tenant_id AND assessment.id=mark.assessment_id;
         CREATE TABLE exam_mark_audit_logs(id uuid DEFAULT gen_random_uuid(), tenant_id text, mark_id uuid, exam_series_id uuid, assessment_id uuid, student_id uuid,
           action text, actor_user_id uuid, previous_score numeric, new_score numeric, reason text, metadata jsonb);`);
       const tables=await c.query('SELECT tablename FROM pg_tables WHERE schemaname=$1',[schema]);
@@ -298,5 +300,49 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
     const plan=result.rows[0]['QUERY PLAN'];
     expect(plan[0]['Execution Time']).toBeGreaterThanOrEqual(0);
     mkdirSync('output',{recursive:true});writeFileSync('output/academic-intelligence-query-plan.json',JSON.stringify(plan,null,2));
+  });
+
+  it('excludes withdrawn, expired, future and prior-year electives while retaining saved historical marks',async()=>{
+    const evidence=async()=> (await repository.executeSql(analyticsQuery('school'),['school-a',ids.principal,JSON.stringify({exam_series_id:ids.exam})])).rows;
+    const client=await pool.connect();
+    try {
+      await client.query(`SET search_path TO ${schema}`);
+      expect((await evidence()).some(row=>row.exam_series_id===ids.exam&&row.student_id===ids.missing)).toBe(true);
+      for(const invalid of [
+        {status:'withdrawn',year:ids.year,term:ids.term,from:null,to:null},
+        {status:'active',year:ids.year,term:ids.term,from:null,to:'2026-02-28'},
+        {status:'active',year:ids.year,term:ids.term,from:'2026-03-11',to:null},
+        {status:'active',year:randomUUID(),term:null,from:null,to:null},
+        {status:'active',year:ids.year,term:randomUUID(),from:null,to:null},
+      ]) {
+        await client.query(`UPDATE student_subject_enrollments SET status=$1,academic_year_id=$2,academic_term_id=$3,effective_from=$4,effective_to=$5
+          WHERE tenant_id='school-a' AND student_id=$6`,[invalid.status,invalid.year,invalid.term,invalid.from,invalid.to,ids.missing]);
+        const rows=await evidence();
+        expect(rows.some(row=>row.exam_series_id===ids.exam&&row.student_id===ids.missing)).toBe(false);
+        expect(rows.filter(row=>row.exam_series_id===ids.exam&&row.student_id===ids.learner)).toHaveLength(2);
+      }
+    }finally{
+      await client.query(`UPDATE student_subject_enrollments SET status='active',academic_year_id=$1,academic_term_id=$2,effective_from=NULL,effective_to=NULL
+        WHERE tenant_id='school-a' AND student_id=$3`,[ids.year,ids.term,ids.missing]);client.release();
+    }
+  });
+
+  it('keeps historical analytics in the exam-time stream after a later same-year transfer',async()=>{
+    const client=await pool.connect(),later=randomUUID();
+    try {
+      await client.query(`SET search_path TO ${schema}`);
+      await client.query(`UPDATE student_class_assignments SET status='transferred',effective_to='2026-03-15'
+        WHERE tenant_id='school-a' AND student_id=$1`,[ids.learner]);
+      await client.query(`INSERT INTO student_class_assignments(tenant_id,id,student_id,class_section_id,academic_year_id,stream_id,status,updated_at,effective_from)
+        VALUES ('school-a',$1,$2,$3,$4,$5,'active',NOW()+INTERVAL '1 day','2026-03-16')`,[later,ids.learner,ids.class,ids.year,ids.red]);
+      const rows=(await repository.executeSql(analyticsQuery('school'),['school-a',ids.principal,JSON.stringify({exam_series_id:ids.exam})])).rows;
+      const learner=rows.filter(row=>row.student_id===ids.learner);
+      expect(learner).toHaveLength(4);
+      expect(learner.every(row=>row.stream_id===ids.blue)).toBe(true);
+      expect(JSON.stringify(rows)).not.toContain('FOREIGN');
+    }finally{
+      await client.query(`DELETE FROM student_class_assignments WHERE tenant_id='school-a' AND id=$1`,[later]);
+      await client.query(`UPDATE student_class_assignments SET status='active',effective_to=NULL WHERE tenant_id='school-a' AND student_id=$1`,[ids.learner]);client.release();
+    }
   });
 });

@@ -54,7 +54,7 @@ test.each(["public", "hosted"] as const)("live %s navigation retains one borrowe
   }
   await waitFor(() => expect(screen.getByRole("button", { name: "Confirm issue of 2 book(s)" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Confirm issue of 2 book(s)" }));
-  await waitFor(() => expect(request).toHaveBeenCalledWith("/api/library/smart/issue", expect.objectContaining({ body: expect.objectContaining({ subject_id: "student-1", barcodes: ["000001", "000002"] }) })));
+  await waitFor(() => expect(request).toHaveBeenCalledWith("/api/library/smart/issue", expect.objectContaining({ body: expect.objectContaining({ subject_id: "student-1", barcodes: ["000002", "000001"] }) })));
   const nav = within(screen.getByRole("navigation", { name: "Librarian workspace navigation" }));
   fireEvent.click(nav.getByRole("button", { name: "Return Books" }));
   expect(await screen.findByLabelText("Scan a book")).toBeVisible();

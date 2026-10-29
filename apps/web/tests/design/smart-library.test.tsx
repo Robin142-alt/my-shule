@@ -2,6 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@te
 import { dateText, ScannerInput, useCommand } from "@/components/library/smart-library-shared";
 import { SmartCirculation, SmartBarcodeWorkspace, SmartBorrowerRecords, SmartScannerSettings } from "@/components/library/smart-library-workspaces";
 import { requestDashboardApi } from "@/lib/dashboard/api-client";
+import { openPrintDocument } from "@/lib/dashboard/export";
 import { SmartCatalogue } from "@/components/library/smart-library-catalogue";
 import { RenewLoan } from "@/components/library/smart-library-tools";
 import { isSchoolWorkspaceSection } from "@/lib/routing/school-workspace-contract";
@@ -12,6 +13,91 @@ const request=jest.mocked(requestDashboardApi);
 const borrower={subject_id:"student-1",borrower_type:"student",name:"Brian Otieno",identifier:"2451"};
 const book=(code:string)=>({id:code,title:`Book ${code}`,barcode:code,status:"available"});
 beforeEach(()=>{request.mockReset();localStorage.clear();});
+it("prints a loss notice with the saved incident date and keeps loss renewal unavailable",async()=>{
+  request.mockImplementation(async path=>{
+    if(String(path).includes('/scan?'))return {...book('LOST-1'),status:'issued',loan:{borrower_name:'Brian Otieno',borrower_number:'2451'}};
+    if(String(path).endsWith('/return'))return {transaction_id:'loss-transaction',returns:[{barcode:'LOST-1',condition:'lost',returned_at:null,reported_at:'2026-10-28T10:00:00Z'}]};
+    return [];
+  });
+  const view=render(<SmartCirculation mode="return"/>);
+  const field=screen.getByLabelText('Scan a book');fireEvent.change(field,{target:{value:'LOST-1'}});fireEvent.keyDown(field,{key:'Enter'});
+  fireEvent.change(screen.getByLabelText('Condition of selected returned books'),{target:{value:'lost'}});
+  fireEvent.change(screen.getByLabelText('Incident notes (required)'),{target:{value:'Reported missing'}});
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Confirm return of 1 book(s)'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:'Confirm return of 1 book(s)'}));
+  fireEvent.click(await screen.findByRole('button',{name:'Preview / print slip'}));
+  expect(openPrintDocument).toHaveBeenLastCalledWith(expect.objectContaining({title:'Library loss notice',
+    rows:[expect.objectContaining({value:expect.stringContaining('Lost / unresolved · Reported 2026-10-28')})]}));
+  view.unmount();render(<RenewLoan loan={{id:'loan',copy_status:'lost'}} onSaved={()=>{}}/>);
+  expect(screen.getByRole('button',{name:'Renew loan'})).toBeDisabled();
+});
+it("keeps seven successful scans newest first and requires a borrower queue decision",async()=>{
+  request.mockImplementation(async path=>String(path).includes('/borrowers?')?[borrower]:String(path).includes('/history?')?{loans:[]}:
+    String(path).includes('/scan?')?book(new URL(String(path),'https://test.invalid').searchParams.get('barcode')!):[]);
+  render(<SmartCirculation mode="issue"/>);
+  fireEvent.click(await screen.findByRole('button',{name:/Brian Otieno/}));
+  const field=screen.getByLabelText('Scan a book');
+  for(let i=1;i<=7;i++){fireEvent.change(field,{target:{value:`COPY-${i}`}});fireEvent.keyDown(field,{key:'Enter'});}
+  const queue=screen.getByRole('list',{name:'Queued books'});
+  await waitFor(()=>expect(within(queue).getAllByRole('listitem')).toHaveLength(7));
+  expect(within(queue).getAllByRole('listitem').map(r=>r.querySelector('code')?.textContent)).toEqual([7,6,5,4,3,2,1].map(i=>`COPY-${i}`));
+  expect(within(queue).getAllByRole('listitem')[0]).toHaveAttribute('data-latest-scan','true');
+  const confirm=screen.getByRole('button',{name:'Confirm issue of 7 book(s)'});
+  expect(confirm.compareDocumentPosition(queue)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.change(field,{target:{value:'COPY-7'}});fireEvent.keyDown(field,{key:'Enter'});
+  await screen.findByText(/already in this list/);expect(within(queue).getAllByRole('listitem')).toHaveLength(7);
+  fireEvent.click(screen.getByRole('button',{name:'Change borrower'}));
+  expect(screen.getByRole('button',{name:'Keep Brian Otieno'})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Keep Brian Otieno'}));
+  expect(within(queue).getAllByRole('listitem')).toHaveLength(7);
+  fireEvent.click(screen.getByRole('button',{name:'Remove COPY-4'}));
+  expect(screen.getByRole('button',{name:'Confirm issue of 6 book(s)'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button',{name:'Change borrower'}));
+  fireEvent.click(screen.getByRole('button',{name:'Discard queue and change borrower'}));
+  expect(within(queue).queryAllByRole('listitem')).toHaveLength(0);
+});
+it("locks an uncertain issue to its original borrower, date, queue and request ID until retried",async()=>{
+  let attempts=0;
+  request.mockImplementation(async(path,options)=>{
+    if(String(path).includes('/borrowers?'))return [borrower];
+    if(String(path).includes('/history?'))return {loans:[]};
+    if(String(path).includes('/scan?'))return book('COPY-1');
+    if(String(path).endsWith('/issue')){attempts++;if(attempts===1)throw Error('Connection interrupted');throw Error('Request failed: 409 — Copy unavailable');}
+    return [];
+  });
+  render(<SmartCirculation mode="issue"/>);fireEvent.click(await screen.findByRole('button',{name:/Brian Otieno/}));
+  const field=screen.getByLabelText('Scan a book');fireEvent.change(field,{target:{value:'COPY-1'}});fireEvent.keyDown(field,{key:'Enter'});
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Confirm issue of 1 book(s)'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:'Confirm issue of 1 book(s)'}));
+  const retry=await screen.findByRole('button',{name:'Retry issue of 1 book(s)'});
+  expect(field).toBeDisabled();expect(screen.getByLabelText('Due date for this issue')).toBeDisabled();
+  expect(screen.getByRole('button',{name:'Remove COPY-1'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:'Change borrower'}));expect(screen.queryByLabelText('Find a borrower')).not.toBeInTheDocument();
+  fireEvent.click(retry);
+  await waitFor(()=>expect(screen.getByRole('button',{name:'Remove COPY-1'})).toBeEnabled());
+  const calls=request.mock.calls.filter(([path])=>String(path).endsWith('/issue'));
+  expect(calls[1][1]?.body).toEqual(calls[0][1]?.body);
+});
+it("pins the selected title across filters and pages and refreshes its counts after registration",async()=>{
+  const titles=Array.from({length:50},(_,i)=>({id:`title-${i}`,title:`Title ${i}`,subjects:[],classes:[],total_copies:0,available_copies:0}));
+  request.mockImplementation(async(path,options)=>{
+    if(String(path).includes('/catalogue?'))return String(path).includes('offset=50')?[{...titles[0],id:'page-two',title:'Page two title'}]:String(path).includes('search=nothing')?[]:titles;
+    if(String(path).endsWith('/classifications'))return {subjects:[],classes:[]};
+    if(String(path).endsWith('/register'))return {catalog_item_id:'page-two',catalogue:{...titles[0],id:'page-two',title:'Page two title',total_copies:1,available_copies:1}};
+    return [];
+  });
+  render(<SmartCatalogue registration/>);
+  await screen.findByRole('button',{name:/Title 49/});fireEvent.click(screen.getByRole('button',{name:'Next'}));
+  fireEvent.click(await screen.findByRole('button',{name:/Page two title/}));
+  expect(screen.queryByRole('button',{name:/Page two title/})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Previous'}));
+  await screen.findByRole('button',{name:/Title 49/});
+  fireEvent.change(screen.getByLabelText('Find an existing title'),{target:{value:'nothing'}});
+  expect(screen.getByLabelText('Selected title')).toHaveTextContent('Page two title');
+  const field=screen.getByLabelText('Scan a sticker to register');fireEvent.change(field,{target:{value:'COPY-1'}});fireEvent.keyDown(field,{key:'Enter'});
+  await waitFor(()=>expect(screen.getByLabelText('Selected title')).toHaveTextContent('1 available / 1 copies'));
+  expect(field).toHaveFocus();
+});
 it("retains the failed scan request ID even after another registration succeeds",async()=>{
   request.mockRejectedValueOnce(new Error("Connection interrupted")).mockResolvedValue({id:"copy"});
   const {result}=renderHook(()=>useCommand()),saved=jest.fn();
@@ -289,7 +375,7 @@ it("keeps the selected borrower for multiple scans and submits one atomic issue 
   await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"})).toBeEnabled());
   fireEvent.click(screen.getByRole("button",{name:"Confirm issue of 2 book(s)"}));
   await waitFor(()=>expect(request).toHaveBeenCalledWith("/api/library/smart/issue",expect.objectContaining({
-    method:"POST",body:expect.objectContaining({barcodes:["000001","000002"],subject_id:"student-1",borrower_type:"student",request_id:expect.any(String)}),
+    method:"POST",body:expect.objectContaining({barcodes:["000002","000001"],subject_id:"student-1",borrower_type:"student",request_id:expect.any(String)}),
   })));
   expect(screen.getByText("Brian Otieno")).toBeInTheDocument();
 });
@@ -304,11 +390,11 @@ it("returns only scanned books and retains the pending list on a server error",a
   fireEvent.click(screen.getByRole("button",{name:"Add scan"}));await screen.findByText("Book 000001");
   await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm return of 1 book(s)"})).toBeEnabled());
   fireEvent.click(screen.getByRole("button",{name:"Confirm return of 1 book(s)"}));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Network unavailable");
+  expect(await screen.findByText("Network unavailable; retry this return.")).toBeVisible();
   expect(screen.getByText("Book 000001")).toBeInTheDocument();
   const first=(request.mock.calls.find(([path])=>path.endsWith("/return"))![1]!.body as Record<string,unknown>).request_id;
-  await waitFor(()=>expect(screen.getByRole("button",{name:"Confirm return of 1 book(s)"})).toBeEnabled());
-  fireEvent.click(screen.getByRole("button",{name:"Confirm return of 1 book(s)"}));
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Retry return of 1 book(s)"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Retry return of 1 book(s)"}));
   await waitFor(()=>expect(request.mock.calls.filter(([path])=>path.endsWith("/return"))).toHaveLength(2));
   const next=(request.mock.calls.filter(([path])=>path.endsWith("/return"))[1][1]!.body as Record<string,unknown>).request_id;
   expect(next).toBe(first);

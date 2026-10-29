@@ -53,6 +53,9 @@ describe('Created exams reach assigned subject teachers', () => {
     }
     await pool.query(`
       ALTER TABLE exam_series ADD COLUMN exam_type text DEFAULT 'Exam cycle';
+      ALTER TABLE exam_series ADD COLUMN configuration_version integer NOT NULL DEFAULT 1;
+      ALTER TABLE exam_series ADD COLUMN class_subjects jsonb;
+      ALTER TABLE exam_mark_entry_windows ADD COLUMN stream_scope jsonb NOT NULL DEFAULT '{}';
       CREATE TABLE academic_terms (id uuid PRIMARY KEY, tenant_id text);
       CREATE TABLE workflow_events (id uuid DEFAULT gen_random_uuid(), tenant_id text, source_user_id uuid, source_role text, target_roles jsonb, event_type text, entity_type text, entity_id text, title text, message text, priority text, payload jsonb);
       CREATE TABLE audit_logs (tenant_id text, actor_user_id uuid, request_id text, action text, resource_type text, resource_id uuid, metadata jsonb);
@@ -76,6 +79,9 @@ describe('Created exams reach assigned subject teachers', () => {
         admission_number text, first_name text, middle_name text, last_name text, created_at timestamptz DEFAULT NOW());
       CREATE TABLE student_class_assignments (tenant_id text, student_id text, class_section_id text, stream_id text, status text DEFAULT 'active');
       CREATE TABLE student_subject_enrollments (tenant_id text, student_id text, class_section_id text, subject_id text, status text DEFAULT 'active');
+      CREATE TABLE class_subject_assignments (tenant_id text, class_section_id text, subject_id text,
+        academic_term_id text, status text DEFAULT 'active', is_examinable boolean DEFAULT TRUE,
+        effective_from date, effective_to date, stream_id text);
     `);
     await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Form 1'),($2,'school-a','Form 2')`, [ids.class, ids.secondClass]);
     await pool.query(`INSERT INTO subjects VALUES ($1,'school-a','Mathematics')`, [ids.subject]);
@@ -139,14 +145,45 @@ describe('Created exams reach assigned subject teachers', () => {
   });
 
   async function createExam(status = 'submitted', classes = [ids.class]) {
+    await offer(classes, [ids.subject]);
     return manager.createExamSetup({ name: `Future exam ${++serial}`, academic_term_id: ids.term,
       starts_on: futureDate(7), ends_on: futureDate(14), status,
-      subject_ids: [ids.subject], class_section_ids: classes, max_marks: 80 });
+      class_subjects: classes.map(class_section_id => ({ class_section_id, subject_ids: [ids.subject] })), max_marks: 80 });
+  }
+
+  async function offer(classes: string[], subjects: string[]) {
+    for (const classId of classes) for (const subjectId of subjects) {
+      await pool.query(`INSERT INTO class_subject_assignments(tenant_id,class_section_id,subject_id)
+        SELECT 'school-a',$1,$2 WHERE NOT EXISTS (SELECT 1 FROM class_subject_assignments
+          WHERE tenant_id='school-a' AND class_section_id=$1 AND subject_id=$2)`, [classId,subjectId]);
+    }
   }
 
   async function windowFor(examId: string, classId = ids.class) {
     return (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.find(window => window.examSeriesId === examId && window.classSectionId === classId)!;
   }
+
+  it('lets an authorized manager enter an examined subject with no assigned teacher and records the actual editor', async () => {
+    const classId = randomUUID(), learner = randomUUID();
+    await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Unassigned Grade 10')`, [classId]);
+    await pool.query(`INSERT INTO students(id,tenant_id,first_name) VALUES ($1,'school-a','Eligible learner')`, [learner]);
+    await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id) VALUES ('school-a',$1,$2)`, [learner,classId]);
+    await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id) VALUES ('school-a',$1,$2,$3)`, [learner,classId,ids.subject]);
+    const created = await createExam('submitted', [classId]);
+    activeContext = managerContext;
+    try {
+      const assignments = await teacher.getAssistedMarkAssignments();
+      expect(assignments.assignments).toEqual(expect.arrayContaining([expect.objectContaining({ exam_id: created.exam.id, teacher_user_id: null })]));
+      const sheet = (await teacher.getAssistedMarkbooks()).windows.find(w => w.examSeriesId === created.exam.id)!;
+      expect(sheet).toMatchObject({ totalStudents: 1, canEnter: true });
+      await teacher.saveAssistedMarks(undefined, { examId: sheet.id, classSectionId: classId, assessmentId: sheet.assessmentId,
+        action: 'submit', marks: { [learner]: { score: 64, score_status: 'entered' } } });
+      expect((await pool.query('SELECT status,entered_by_user_id,assigned_teacher_user_id FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows)
+        .toEqual([{ status: 'submitted', entered_by_user_id: ids.manager, assigned_teacher_user_id: null }]);
+      expect((await teacher.getAssistedMarkbooks()).windows.find(w => w.examSeriesId === created.exam.id)?.status).toBe('Submitted');
+    } finally { activeContext = teacherContext; }
+    expect(() => teacher.getAssistedMarkbooks(undefined)).toThrow(/permission|role|manager/i);
+  });
 
   async function save(window: any, action: 'draft' | 'submit' = 'draft', studentId = ids.student, score = 74) {
     return teacher.saveMarks('school-a', ids.teacher, { examId: window.id, classSectionId: window.classSectionId,
@@ -179,17 +216,19 @@ describe('Created exams reach assigned subject teachers', () => {
       await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id)
         VALUES ('school-a',$1,$2,$3)`, [student.id, student.classId, fixture.subject]);
     }
+    await offer([fixture.class, fixture.secondClass], [fixture.subject]);
     const created = await manager.createExamSetup({ name: `Protected correction ${++serial}`, academic_term_id: ids.term,
       starts_on: futureDate(7), ends_on: futureDate(14), status: 'submitted', subject_ids: [fixture.subject],
-      class_section_ids: [fixture.class, fixture.secondClass], max_marks: 80 });
+      class_subjects: [fixture.class, fixture.secondClass].map(class_section_id => ({ class_section_id, subject_ids: [fixture.subject] })), max_marks: 80 });
     const examId = created.exam.id;
-    const assessmentId = (await pool.query('SELECT id FROM exam_assessments WHERE exam_series_id=$1', [examId])).rows[0].id;
+    const assessments = (await pool.query('SELECT id,class_section_id FROM exam_assessments WHERE exam_series_id=$1', [examId])).rows;
+    const assessmentId = assessments.find(row => row.class_section_id === fixture.class).id;
     const windows = (await pool.query('SELECT id, class_section_id FROM exam_mark_entry_windows WHERE exam_series_id=$1', [examId])).rows;
     for (const student of students) {
       await pool.query(`INSERT INTO exam_marks(tenant_id,exam_series_id,assessment_id,academic_term_id,class_section_id,subject_id,
         student_id,score,status,entered_by_user_id,submitted_at,reviewed_at,locked_at,published_at)
         VALUES ('school-a',$1,$2,$3,$4,$5,$6,50,$7,$8,NOW(),NOW(),NOW(),CASE WHEN $7='published' THEN NOW() END)`,
-      [examId, assessmentId, ids.term, student.classId, fixture.subject, student.id, status, student.enteredBy]);
+      [examId, assessments.find(row => row.class_section_id === student.classId).id, ids.term, student.classId, fixture.subject, student.id, status, student.enteredBy]);
       await pool.query(`INSERT INTO student_report_cards(tenant_id,exam_series_id,student_id,report_snapshot_id,status,
         revision_number,published_at,published_by_user_id)
         VALUES ('school-a',$1,$2::uuid,$2::text,$3,2,CASE WHEN $3='published' THEN NOW() END,$4)`,
@@ -206,7 +245,7 @@ describe('Created exams reach assigned subject teachers', () => {
     await pool.query(`UPDATE exam_mark_entry_windows SET status='open',opens_at=NOW()-INTERVAL '1 day',
       closes_at=NOW()+INTERVAL '7 days',teacher_entry_deadlines=jsonb_build_object($2::text,$3::text) WHERE exam_series_id=$1`,
     [examId, ids.otherTeacher, new Date(Date.now() + 7 * 86400000).toISOString()]);
-    return { ...fixture, examId, assessmentId, students, windows };
+    return { ...fixture, examId, assessmentId, assessments, students, windows };
   }
 
   async function saveCorrection(fixture: Awaited<ReturnType<typeof protectedExam>>, studentId: string, userId = ids.teacher) {
@@ -216,7 +255,7 @@ describe('Created exams reach assigned subject teachers', () => {
     teacherContext.user_id = userId;
     try {
       return await teacher.saveMarks('school-a', userId, { examId: window.id, classSectionId: student.classId,
-        assessmentId: fixture.assessmentId, action: 'draft', marks: { [studentId]: { score: 65, score_status: 'entered' } } });
+        assessmentId: fixture.assessments.find(row => row.class_section_id === student.classId).id, action: 'draft', marks: { [studentId]: { score: 65, score_status: 'entered' } } });
     } finally { teacherContext.user_id = previousUser; }
   }
 
@@ -250,8 +289,8 @@ describe('Created exams reach assigned subject teachers', () => {
     const created = await createExam();
     const first = await windowFor(created.exam.id);
     const secondPaper = randomUUID();
-    await pool.query(`INSERT INTO exam_assessments(id,tenant_id,exam_series_id,subject_id,name,max_score,weight)
-      VALUES ($1,'school-a',$2,$3,'Paper 2',60,100)`, [secondPaper, created.exam.id, ids.subject]);
+    await pool.query(`INSERT INTO exam_assessments(id,tenant_id,exam_series_id,subject_id,name,max_score,weight,class_section_id)
+      VALUES ($1,'school-a',$2,$3,'Paper 2',60,100,$4)`, [secondPaper, created.exam.id, ids.subject, ids.class]);
     const sheets = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
     expect(sheets).toHaveLength(2);
     expect(new Set(sheets.map(sheet => sheet.sheetId)).size).toBe(2);
@@ -285,9 +324,10 @@ describe('Created exams reach assigned subject teachers', () => {
       VALUES ('school-a',$1,$2,$3)`, [ids.class, subject, ids.teacher]);
     await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id)
       VALUES ('school-a',$1,$2,$3)`, [ids.student, ids.class, subject]);
+    await offer([ids.class], [ids.subject, subject]);
     const created = await manager.createExamSetup({ name: 'Two subjects', academic_term_id: ids.term,
       starts_on: futureDate(7), ends_on: futureDate(14), status: 'submitted',
-      subject_ids: [ids.subject, subject], class_section_ids: [ids.class], max_marks: 80 });
+      class_subjects: [{ class_section_id: ids.class, subject_ids: [ids.subject, subject] }], max_marks: 80 });
     const sheets = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.filter(sheet => sheet.examSeriesId === created.exam.id);
     expect(sheets).toHaveLength(2);
     await save(sheets.find(sheet => sheet.subjectId === ids.subject), 'submit');
@@ -312,7 +352,7 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await teacher.getPendingMarks('school-a', ids.teacher)).windows.some(row => row.id === window.id)).toBe(false);
     await expect(save(window)).rejects.toThrow(/closed/);
     await manager.configureExamSetup(created.exam.id, { name: created.exam.name, starts_on: futureDate(7), ends_on: futureDate(14),
-      status: 'submitted', subject_ids: [ids.subject], class_section_ids: [ids.class] });
+      status: 'submitted', configuration_version: 1, class_subjects: [{ class_section_id: ids.class, subject_ids: [ids.subject] }] });
     window = await windowFor(created.exam.id);
     expect(window.canEnter).toBe(true);
     await save(window);
@@ -608,8 +648,9 @@ describe('Created exams reach assigned subject teachers', () => {
       await pool.query(`INSERT INTO student_subject_enrollments VALUES ('school-a',$1,$2,$3,'active')`,[studentId,classId,subjectId]);
     }
     await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id,stream_id) VALUES ('school-a',$1,$2,$3,'blue')`,[classId,subjectId,ids.teacher]);
+    await offer([classId],[subjectId]);
     const created=await manager.createExamSetup({name:`Unassigned stream ${++serial}`,academic_term_id:ids.term,
-      starts_on:futureDate(0),ends_on:futureDate(7),status:'submitted',subject_ids:[subjectId],class_section_ids:[classId],max_marks:80});
+      starts_on:futureDate(0),ends_on:futureDate(7),status:'submitted',class_subjects:[{class_section_id:classId,subject_ids:[subjectId]}],max_marks:80});
     activeContext=managerContext;
     try {
       const choices=(await teacher.getAssistedMarkAssignments()).assignments.filter(row=>row.exam_id===created.exam.id);
@@ -642,8 +683,9 @@ describe('Created exams reach assigned subject teachers', () => {
     await pool.query(`INSERT INTO students(id,tenant_id,first_name) VALUES ($1,'school-a','Unassigned learner')`,[studentId]);
     await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id) VALUES ('school-a',$1,$2)`,[studentId,classId]);
     await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id) VALUES ('school-a',$1,$2,$3)`,[studentId,classId,subjectId]);
+    await offer([classId],[subjectId]);
     const created=await manager.createExamSetup({name:`Never assigned ${state} ${++serial}`,academic_term_id:ids.term,
-      starts_on:futureDate(0),ends_on:futureDate(7),status:state==='draft'?'draft':'submitted',subject_ids:[subjectId],class_section_ids:[classId],max_marks:80});
+      starts_on:futureDate(0),ends_on:futureDate(7),status:state==='draft'?'draft':'submitted',class_subjects:[{class_section_id:classId,subject_ids:[subjectId]}],max_marks:80});
     activeContext=managerContext;
     try {
       let book=(await teacher.getAssistedMarkbooks()).windows.find(row=>row.examSeriesId===created.exam.id)!;
@@ -654,7 +696,7 @@ describe('Created exams reach assigned subject teachers', () => {
       if(state!=='open') {
         await expect(teacher.saveAssistedMarks(undefined,payload)).rejects.toThrow();
         if(state==='draft') await manager.configureExamSetup(created.exam.id,{name:`Opened draft ${serial}`,status:'submitted',
-          starts_on:futureDate(0),ends_on:futureDate(7),subject_ids:[subjectId],class_section_ids:[classId],max_marks:80});
+          starts_on:futureDate(0),ends_on:futureDate(7),configuration_version:1,class_subjects:[{class_section_id:classId,subject_ids:[subjectId]}],max_marks:80});
         await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'class',class_section_id:classId,closes_at:new Date(Date.now()+86400000).toISOString()});
       }
       await teacher.saveAssistedMarks(undefined,payload);

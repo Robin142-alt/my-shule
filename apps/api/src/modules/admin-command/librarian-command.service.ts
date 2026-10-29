@@ -54,6 +54,79 @@ export class LibrarianCommandService {
     return this.prisma.query<T>(query, params);
   }
 
+  async borrowerReport(dto: { type?: string; borrower_id?: string; subject_id?: string; borrower_type?: string; class_name?: string; stream_name?: string; search?: string; status?: string }) {
+    if(!dto||typeof dto!=='object'||Array.isArray(dto))throw new BadRequestException('Choose valid report filters.');
+    for(const key of ['type','borrower_id','subject_id','borrower_type','class_name','stream_name','search','status'] as const){
+      if(dto[key]!==undefined&&(typeof dto[key]!=='string'||dto[key]!.length>200))throw new BadRequestException('Report filters must be text of up to 200 characters.');
+    }
+    const tenant=this.requireTenantId(),actor=this.requireUserId(),type=dto.type??'outstanding';
+    if(!['outstanding','history'].includes(type))throw new BadRequestException('Select outstanding books or borrowing history.');
+    if((dto.borrower_id&&!this.operations.uuidOrNull(dto.borrower_id))||(dto.subject_id&&!this.operations.uuidOrNull(dto.subject_id)))throw new BadRequestException('Select a valid borrower.');
+    if(dto.subject_id&&!['student','staff'].includes(dto.borrower_type??''))throw new BadRequestException('Select the borrower type.');
+    if(dto.status&&!['active','overdue','returned','lost'].includes(dto.status))throw new BadRequestException('Select a valid loan status.');
+    if(type==='outstanding'&&dto.status==='returned')throw new BadRequestException('Returned loans belong in borrowing history.');
+    return this.prisma.withRequestTransaction(async()=>{
+      let subject=dto.subject_id??null,borrowerType=dto.borrower_type??null;
+      if(dto.borrower_id){
+        const {rows}=await this.executeSql('SELECT subject_id::text,borrower_type FROM library_borrowers WHERE tenant_id=$1 AND id=$2::uuid',[tenant,dto.borrower_id]);
+        if(!rows[0])throw new NotFoundException('Borrower was not found in this school');
+        subject=rows[0].subject_id;borrowerType=rows[0].borrower_type;
+      }
+      let selectedBorrower=null;
+      if(subject){
+        const {rows}=await this.executeSql(`SELECT student.id::text AS borrower_id,'student' AS borrower_type,
+          CONCAT_WS(' ',student.first_name,to_jsonb(student)->>'middle_name',student.last_name) AS student_name,student.admission_number AS admission_no,
+          COALESCE(allocation.class_name,'') AS class_name,COALESCE(to_jsonb(allocation)->>'stream_name','') AS stream_name
+          FROM students student LEFT JOIN LATERAL (SELECT * FROM student_allocations a WHERE a.tenant_id=student.tenant_id AND a.student_id::text=student.id::text AND a.is_current=TRUE ORDER BY (to_jsonb(a)->>'updated_at') DESC NULLS LAST LIMIT 1) allocation ON TRUE
+          WHERE student.tenant_id=$1 AND student.id::text=$2::text AND $3='student'
+          UNION ALL SELECT staff.id::text,'staff',staff.display_name,staff.staff_number,'','' FROM staff_profiles staff
+          WHERE staff.tenant_id=$1 AND staff.id::text=$2::text AND $3='staff'`,[tenant,subject,borrowerType]);
+        if(!rows[0])throw new NotFoundException('Borrower was not found in this school');
+        selectedBorrower=rows[0];
+      }
+      const {rows:records}=await this.executeSql(`WITH memberships AS (
+        SELECT *,FIRST_VALUE(id) OVER(PARTITION BY tenant_id,borrower_type,subject_id ORDER BY created_at,id) AS canonical_id
+        FROM library_borrowers WHERE tenant_id=$1
+      ), loans AS (
+        SELECT loan.id::text,loan.copy_id::text,borrower.canonical_id::text AS borrower_id,borrower.borrower_type,
+          item.title AS book_title,COALESCE(NULLIF(copy.barcode,''),copy.accession_number) AS barcode,
+          (loan.issued_at AT TIME ZONE 'Africa/Nairobi')::date::text AS issue_date,loan.due_on::text AS due_date,
+          COALESCE(NULLIF(CONCAT_WS(' ',student.first_name,to_jsonb(student)->>'middle_name',student.last_name),''),staff.display_name,'Name not recorded') AS student_name,
+          COALESCE(student.admission_number,staff.staff_number,'') AS admission_no,
+          COALESCE(allocation.class_name,'') AS class_name,COALESCE(to_jsonb(allocation)->>'stream_name','') AS stream_name,
+          CASE WHEN loan.returned_at IS NOT NULL AND loan.return_condition='resolved_loss' THEN 'Resolved loss'
+            WHEN loan.returned_at IS NOT NULL AND NOT (
+              LOWER(COALESCE(loan.return_condition,''))='lost' AND copy.status='lost'
+              AND NOT EXISTS(SELECT 1 FROM library_copy_loans newer WHERE newer.tenant_id=loan.tenant_id AND newer.copy_id=loan.copy_id AND newer.issued_at>loan.issued_at)
+            ) THEN 'Returned'
+            WHEN copy.status='lost' THEN 'Lost / unresolved'
+            WHEN loan.due_on<(NOW() AT TIME ZONE 'Africa/Nairobi')::date THEN 'Overdue' ELSE 'Borrowed' END AS status
+        FROM library_copy_loans loan
+        JOIN library_copies copy ON copy.tenant_id=loan.tenant_id AND copy.id=loan.copy_id
+        JOIN library_catalog_items item ON item.tenant_id=copy.tenant_id AND item.id=copy.catalog_item_id
+        JOIN memberships borrower ON borrower.tenant_id=loan.tenant_id AND borrower.id=loan.borrower_id
+        LEFT JOIN students student ON student.tenant_id=borrower.tenant_id AND student.id::text=borrower.subject_id::text AND borrower.borrower_type='student'
+        LEFT JOIN staff_profiles staff ON staff.tenant_id=borrower.tenant_id AND staff.id::text=borrower.subject_id::text AND borrower.borrower_type='staff'
+        LEFT JOIN LATERAL(SELECT * FROM student_allocations a WHERE a.tenant_id=student.tenant_id AND a.student_id::text=student.id::text AND a.is_current=TRUE ORDER BY (to_jsonb(a)->>'updated_at') DESC NULLS LAST LIMIT 1) allocation ON TRUE
+        WHERE loan.tenant_id=$1 AND ($2::uuid IS NULL OR borrower.subject_id=$2::uuid AND borrower.borrower_type=$3)
+          AND ($4::text IS NULL OR allocation.class_name=$4) AND ($5::text IS NULL OR to_jsonb(allocation)->>'stream_name'=$5)
+      ) SELECT * FROM loans WHERE ($6='history' OR status IN ('Borrowed','Overdue','Lost / unresolved'))
+        AND ($7='' OR book_title ILIKE '%'||$7||'%' OR barcode=$7 OR admission_no=$7 OR student_name ILIKE '%'||$7||'%')
+        AND ($8='' OR $8='active' AND status IN ('Borrowed','Overdue','Lost / unresolved') OR $8='overdue' AND status='Overdue' OR $8='returned' AND status='Returned' OR $8='lost' AND status='Lost / unresolved')
+        ORDER BY class_name,stream_name,student_name,borrower_id,issue_date,barcode`,
+        [tenant,subject,borrowerType,dto.class_name||null,dto.stream_name||null,type,dto.search??'',dto.status??'']);
+      const {rows:schools}=await this.executeSql(`SELECT name,COALESCE(NULLIF(to_jsonb(tenants)->'settings'->>'logo_storage_path',''),NULLIF(to_jsonb(tenants)->'settings'->>'logo_url',''),to_jsonb(tenants)->>'logo_url','') AS logo_url FROM tenants WHERE tenant_id=$1`,[tenant]);
+      const {rows:users}=await this.executeSql('SELECT display_name FROM users WHERE tenant_id=$1 AND id=$2::uuid',[tenant,actor]);
+      const report={type,title:type==='outstanding'?'OUTSTANDING LIBRARY BOOKS':'LIBRARY BORROWING HISTORY',
+        document_number:`LIB-${randomUUID().slice(0,8).toUpperCase()}`,generated_at:new Date().toISOString(),generated_by:users[0]?.display_name??'Library staff',
+        school:{name:schools[0]?.name||'School name not configured',logo_url:schools[0]?.logo_url||null},selected_borrower:selectedBorrower,
+        scope:[subject?'Individual borrower':[dto.class_name,dto.stream_name].filter(Boolean).join(' / ')||'Whole school',dto.search?`Search: ${dto.search}`:'',dto.status?`Status: ${dto.status}`:''].filter(Boolean).join(' · '),records,
+        totals:{copies:records.length,outstanding:records.filter(r=>['Borrowed','Overdue','Lost / unresolved'].includes(r.status)).length,students:new Set(records.filter(r=>r.borrower_type==='student').map(r=>r.borrower_id)).size,overdue:records.filter(r=>r.status==='Overdue').length}};
+      await this.operations.recordWorkflowAction({tenantId:tenant,actorUserId:actor,sourceRole:this.requestContext.getStore()?.role??'librarian',eventType:'library.report.generated',entityType:'library_report',title:report.title,payload:{document_number:report.document_number,scope:dto,totals:report.totals}});
+      return report;
+    });
+  }
+
   async getOverview() {
     const tenantId = this.requireTenantId();
     const metrics = await this.executeSql(`

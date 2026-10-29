@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fetchPaperConfiguration, savePaperConfiguration, type PaperConfiguration } from '@/lib/modules/teacher-live';
 import type { LiveAuthSession } from '@/lib/dashboard/api-client';
+import { onFormNavigationKeyDown } from '@/lib/accessibility/keyboard-navigation';
 
 const control = 'min-h-11 min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50';
 
@@ -41,7 +42,7 @@ export function PaperSettings({ session, windowId, disabled, onSaved }: {
       {disabled && <p role="status" className="text-amber-800">Save any unsaved scores before changing paper settings. Submitted sheets must be returned for correction first.</p>}
       {query.isLoading && <p role="status">Loading paper settings…</p>}
       {query.isError && <div role="alert"><p>{query.error.message}</p><button type="button" className={control} onClick={() => void query.refetch()}>Retry settings</button></div>}
-      {data && <fieldset disabled={saving || disabled} className="space-y-3">
+      {data && <fieldset onKeyDown={onFormNavigationKeyDown} disabled={saving || disabled} className="space-y-3">
         {data.papers.map((paper, index) => <div key={paper.id ?? `new-${index}`} className="space-y-2 rounded-lg border border-slate-200 p-3">
           <div className="flex flex-wrap items-end gap-2">
             <label className="grid min-w-36 flex-1 gap-1">Paper name<input aria-label={`Paper ${index + 1} name`} list="exam-paper-names" className={control} value={paper.name} maxLength={100} onChange={event => change(index, { name: event.target.value })} /></label>

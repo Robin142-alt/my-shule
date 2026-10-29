@@ -1,4 +1,5 @@
 "use client";
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
@@ -784,7 +785,7 @@ export function StudentAdmissionWizard({
         Your saved draft could not be loaded. Retry to protect any details already saved.
         <button type="button" className="ml-2 min-h-11 underline" onClick={() => void draftQuery.refetch()}>Retry saved draft</button>
       </div> : null}
-      <form onSubmit={(event) => void saveAdmissionSettings(event)}>
+      <form onKeyDown={onFormNavigationKeyDown} onSubmit={(event) => void saveAdmissionSettings(event)}>
           <fieldset disabled={closingDraft || discardingDraft} className="mt-4 grid min-w-0 gap-3 md:grid-cols-3 xl:grid-cols-4">
             <Field label="Admission number mode">
               <select name="admission_number_mode" defaultValue={admissionSettings.admission_number_mode}>
@@ -853,7 +854,7 @@ export function StudentAdmissionWizard({
         </div>
       ) : (
         <>
-          <div ref={stepContent} role="group" aria-label={steps[step]} tabIndex={-1} className="scroll-mt-24 outline-none" onChange={() => { clearFormError(); setPreflight(null); }}>
+          <div ref={stepContent} role="group" aria-label={steps[step]} tabIndex={-1} className="scroll-mt-24 outline-none" onKeyDown={onFormNavigationKeyDown} onChange={() => { clearFormError(); setPreflight(null); }}>
           <fieldset disabled={actionPending} className="min-w-0">
           {step === 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

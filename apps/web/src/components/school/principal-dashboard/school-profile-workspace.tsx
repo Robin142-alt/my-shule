@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { AlertCircle, Building2, CheckCircle2, Loader2, PenTool, Save, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -211,7 +212,7 @@ export function PrincipalSchoolProfileWorkspace() {
     : null;
 
   return (
-    <form onSubmit={handleSave} className="space-y-5">
+    <form onKeyDown={onFormNavigationKeyDown} onSubmit={handleSave} className="space-y-5">
       <SchoolProfileHeading />
       <Card className="border border-white/10 bg-white/5 p-5 text-white">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

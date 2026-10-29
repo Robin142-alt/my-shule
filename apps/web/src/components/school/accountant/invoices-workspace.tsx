@@ -1,5 +1,6 @@
 "use client";
 
+import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -171,7 +172,7 @@ export function InvoicesWorkspace({ tenantSlug, onNavigate }: {
     }} />}
     <Modal open={dialog === "single"} title="Create learner invoice" onClose={() => { if (!busy) setDialog(null); }}
       footer={<><Button type="button" variant="secondary" disabled={busy} onClick={() => setDialog(null)}>Cancel</Button><Button form="learner-invoice-form" type="submit" disabled={busy || !canWrite}>{busy ? "Creating invoice…" : "Create invoice"}</Button></>}>
-      <form id="learner-invoice-form" onSubmit={save} className="space-y-4"><fieldset disabled={busy} className="space-y-4">
+      <form onKeyDown={onFormNavigationKeyDown} id="learner-invoice-form" onSubmit={save} className="space-y-4"><fieldset disabled={busy} className="space-y-4">
         {error && <p role="alert" className="rounded-lg bg-danger-soft p-3 text-sm">{error}</p>}
         <LearnerPicker label="Learner name or admission number" tenantSlug={tenantSlug || ""} value={learner} onChange={setLearner} />
         <label className="block text-sm">Amount (KES)<input required name="amount" inputMode="decimal" className="input-base mt-1 w-full" /></label>
