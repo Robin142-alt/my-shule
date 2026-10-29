@@ -1,6 +1,6 @@
 # MyShule library, keyboard navigation and class-specific examinations
 
-Status: implementation and final verification in progress. This report does not claim deployment or live production verification. Both supplied specifications remain in scope.
+Status: historical implementation/evidence report. The release was subsequently deployed and verified; see `myshule-library-exams-final-acceptance-2026-10-29.md` for final current-main results, deployment evidence and explicit live-school/device limits. Both specifications were included.
 
 Release integration note: verification totals below record the original checkout. The current-main release checkout is being revalidated; its authoritative status is [the release record](myshule-library-exams-release-2026-10-28.md). Library changes have been ported onto production Smart Library components, its existing global barcode registry and loan projection. Removed legacy desk helpers are not release components. Checked implementation coverage does not establish final release acceptance.
 
