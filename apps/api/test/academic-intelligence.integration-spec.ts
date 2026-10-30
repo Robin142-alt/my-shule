@@ -21,6 +21,7 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
       await c.query(`CREATE SCHEMA ${schema}; SET search_path TO ${schema}; CREATE ROLE ${role} NOLOGIN;`);
       await c.query(`
         CREATE TABLE academic_years(tenant_id text,id text,name text);
+        CREATE TABLE report_source_versions(tenant_id text,scope_key text,version bigint,PRIMARY KEY(tenant_id,scope_key));
         CREATE TABLE academic_terms(tenant_id text,id text,name text,academic_year_id text);
         CREATE TABLE exam_series(tenant_id text,id uuid,academic_term_id uuid,name text,starts_on date,ends_on date,status text DEFAULT 'locked');
         CREATE TABLE exam_assessments(tenant_id text,id uuid,exam_series_id uuid,subject_id uuid,max_score numeric,weight numeric,class_section_id uuid);

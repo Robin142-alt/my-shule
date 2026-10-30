@@ -17,14 +17,15 @@ const out = path.resolve(web, papers ? '../../output/flexible-exam-papers-ui' : 
 fs.mkdirSync(out, { recursive: true });
 const source = value => JSON.stringify(value.replaceAll('\\', '/'));
 fs.writeFileSync(path.join(out, 'loader.cjs'), `const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
-const exam = { id: 'window-1', examSeriesId: 'exam-1', academicTermId: 'term-3', examName: 'End Term Exams', className: 'Form 4 Blue', classSectionId: 'form-4', subjectId: 'agriculture', subjectName: 'Agriculture', assessmentId: 'paper-1', paperName: 'Main Paper', outOf: 100, deadline: '20 Sep 2026', enteredCount: 4, totalStudents: 6, savedCount: 4, status: 'Draft', canEnter: true, entryState: 'Open' };
-const names = ['Asha Njeri', 'Brian Otieno', 'Faith Wanjiku', 'James Kamau', 'Mercy Akinyi', 'Samuel Kiptoo'];
-const roster = names.map((name, index) => ({ id: index < 2 ? null : `mark-${index}`, student_id: `student-${index}`, student_name: name, admission_number: `ADM-00${index + 1}`, score: index < 2 ? null : 70 + index, score_status: 'entered', status: 'draft', remarks: null }));
+const exam = { id: 'window-1', examSeriesId: 'exam-1', academicTermId: 'term-3', examName: 'End Term Exams', className: 'Form 4 Blue', classSectionId: 'form-4', subjectId: 'agriculture', subjectName: 'Agriculture', assessmentId: 'paper-1', paperName: 'Main Paper', outOf: 100, deadline: '20 Sep 2026', enteredCount: 38, totalStudents: 40, savedCount: 38, status: 'Draft', canEnter: true, entryState: 'Open', paperConfigVersion: 1 };
+const names = ['Asha Njeri', 'Brian Otieno', 'Faith Wanjiku', 'James Kamau', 'Mercy Akinyi', 'Samuel Kiptoo', ...Array.from({length: 34}, (_, index) => `Learner ${index + 7}`)];
+const roster = names.map((name, index) => ({ id: index < 2 ? null : `mark-${index}`, student_id: `student-${index}`, student_name: name, admission_number: `ADM-${String(index + 1).padStart(3, '0')}`, score: index < 2 ? null : 60 + index % 30, score_status: 'entered', status: 'draft', remarks: null, can_edit_reason: true, paper_config_version: 1, updated_at: index < 2 ? null : '2026-10-29T08:00:00Z', class_name: 'Form 4', stream_name: 'Blue', subject_name: 'Agriculture', assessment_name: 'Main Paper', exam_series_name: 'End Term Exams' }));
 fs.writeFileSync(path.join(out, 'session.ts'), `export function useLiveTenantSession(){return {isLoading:false,session:{tenantId:'qa-school',user:{user_id:'qa-teacher'}}};}`);
 fs.writeFileSync(path.join(out, 'live.ts'), `let submitted=false;let rows=${JSON.stringify(roster)};const exam=${JSON.stringify(exam)};const extras=[{...exam,id:'bio4',subjectId:'biology',subjectName:'Biology',status:'Pending',savedCount:0},{...exam,id:'agri3',className:'Form 3 Blue',classSectionId:'form-3',status:'Draft',savedCount:2},{...exam,id:'bio3',subjectId:'biology',subjectName:'Biology',className:'Form 3 Blue',classSectionId:'form-3',status:'Pending',savedCount:0}];
 export async function fetchPendingMarksLive(){return {stats:{totalWindows:1,nearingDeadline:0},windows:[{...exam,id:'old',examName:'Completed old exam',status:'Completed',canEnter:false},submitted?{...exam,status:'Submitted',canEnter:false,submittedAt:new Date().toISOString()}:exam,...extras]};}
 export async function fetchTeacherMarkSheetLive(){return rows;}
-export async function saveExamMarksLive(session,payload){window.__payload=payload; if(payload.action==='submit'){submitted=true;rows=rows.map(row=>({...row,...payload.marks[row.student_id],status:'submitted'}));}else rows=rows.map(row=>({...row,...payload.marks[row.student_id],id:row.id||row.student_id}));return {success:true};}
+export async function saveExamMarksLive(session,payload){window.__payload=payload;window.__sheetSaves=(window.__sheetSaves||0)+1; if(payload.action==='submit'){submitted=true;rows=rows.map(row=>({...row,...payload.marks[row.student_id],id:row.id||row.student_id,status:'submitted'}));}else rows=rows.map(row=>({...row,...payload.marks[row.student_id],id:row.id||row.student_id}));return {success:true};}
+export async function saveMissingMarkReasonLive(session,payload){window.__reasonPayload=payload;window.__reasonSaves=(window.__reasonSaves||0)+1;const row=rows.find(row=>row.student_id===payload.student_id);Object.assign(row,{score:null,score_status:payload.score_status,updated_at:'2026-10-29T10:01:00Z'});return {success:true,data:{...row}};}
 export async function fetchPaperConfiguration(){return {version:1,papers:[{id:'paper-1',name:'Main Paper',max_score:100,weight:null,categories:[]}]};}
 export async function savePaperConfiguration(session,id,data){window.__config=data;exam.outOf=data.papers[0].max_score;exam.paperName=data.papers[0].name;exam.paperConfigVersion=2;rows=rows.map(row=>({...row,id:null,score:null,score_status:'not_assessed',category_scores:{},categories:data.papers[0].categories.map((c,i)=>({...c,id:'category-'+i})),paper_config_version:2}));return {...data,version:2};}`);
 fs.writeFileSync(path.join(out, 'api-client.ts'), `export async function requestDashboardApi(){throw new Error('Unexpected API request in isolated browser QA');}`);
@@ -43,7 +44,7 @@ async function run() {
   const tailwind = require('@tailwindcss/postcss');
   const globalsPath = path.join(web, 'src/app/globals.css');
   const globals = fs.readFileSync(globalsPath, 'utf8').replace('@import "tailwindcss";', `@import "tailwindcss" source(none);\n@source ${source(path.join(web, 'src/components/school/teacher-dashboard/exams-marks-workspace.tsx'))};\n@source ${source(path.join(web, 'src/components/school/teacher-dashboard/markbook-list.tsx'))};\n@source ${source(path.join(web, 'src/components/school/exams-manager'))};\n@source ${source(path.join(out, 'entry.tsx'))};`);
-  const css = (await postcss([tailwind()]).process(globals+`\n@source ${source(path.join(web,'src/components/school/teacher-dashboard/paper-settings.tsx'))};`, { from: globalsPath })).css;
+  const css = (await postcss([tailwind()]).process(globals+`\n@source ${source(path.join(web,'src/components/school/teacher-dashboard/paper-settings.tsx'))};\n@source ${source(path.join(web,'src/components/school/teacher-dashboard/missing-marks-panel.tsx'))};`, { from: globalsPath })).css;
   fs.writeFileSync(path.join(out, 'styles.css'), css);
   const server = http.createServer((req, res) => {
     if (req.url === '/bundle.js') { res.setHeader('Content-Type', 'application/javascript; charset=utf-8'); res.end(fs.readFileSync(path.join(out, 'bundle.js'))); }
@@ -96,8 +97,16 @@ async function run() {
         await page.getByRole('button',{name:/Open Agriculture Form 4 Blue/}).click();
         await page.getByLabel('Asha Njeri Reading score').fill('12');
         assert.equal(await asha.inputValue(),'X');
-        await page.getByLabel('Asha Njeri Writing score').fill('8');
+        await page.getByLabel('Asha Njeri Reading score').press('ArrowRight');
+        assert.equal(await page.getByLabel('Asha Njeri Writing score').evaluate(element => element === document.activeElement), true);
+        await page.keyboard.type('8');
         assert.equal(await asha.inputValue(),'20');
+        await page.keyboard.press('ArrowDown');
+        assert.equal(await page.getByLabel('Brian Otieno Writing score').evaluate(element => element === document.activeElement), true);
+        await page.keyboard.press('Shift+Enter');
+        assert.equal(await page.getByLabel('Asha Njeri Writing score').evaluate(element => element === document.activeElement && element.selectionStart === 0 && element.selectionEnd === 1), true);
+        await page.keyboard.press('ArrowLeft');
+        assert.equal(await page.getByLabel('Asha Njeri Reading score').evaluate(element => element === document.activeElement && element.selectionStart === 0 && element.selectionEnd === 2), true);
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Categories overflow at ${width}px`);
         await page.getByRole('button',{name:'Save draft',exact:true}).click();
         await page.getByText(/draft saved. You can continue editing/).waitFor();
@@ -112,10 +121,26 @@ async function run() {
       }
       assert.equal(await page.getByRole('option', { name: /Completed old exam/ }).count(), 0);
       assert.equal(await page.getByText(/Main Paper/i).count(), 0);
-      assert.equal(await page.getByRole('option', { name: /End Term Exams.*Agriculture/ }).count(), 1);
+      assert.equal(await page.getByRole('option', { name: /End Term Exams.*Form 4 Blue.*Agriculture/ }).count(), 1);
       assert.equal(await page.getByText(/evidence|remarks|policy result|validation/i).count(), 0);
       const bounds = await asha.boundingBox();
       assert.ok(bounds.height >= 44 && bounds.x >= 0 && bounds.x + bounds.width <= width, `Input does not fit at ${width}px`);
+      assert.equal(await page.locator('input[data-grid-row][data-grid-column]').count(), 40);
+      await asha.click();
+      await asha.pressSequentially('67');
+      await asha.press('ArrowDown');
+      await page.keyboard.type('72');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.type('81');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.type('56');
+      await page.keyboard.press('ArrowUp');
+      assert.deepEqual(await Promise.all(names.slice(0, 4).map(name => page.getByLabel(`${name} score`, {exact: true}).inputValue())), ['67', '72', '81', '56']);
+      assert.equal(await page.getByLabel('Faith Wanjiku score', {exact: true}).evaluate(element => element === document.activeElement && element.selectionStart === 0 && element.selectionEnd === 2), true);
+      assert.equal(await page.evaluate(() => window.__sheetSaves || 0), 0);
+      await page.getByLabel('Brian Otieno score', {exact: true}).fill('');
+      await page.getByLabel('Faith Wanjiku score', {exact: true}).fill('62');
+      await page.getByLabel('James Kamau score', {exact: true}).fill('63');
       await asha.fill('0');
       await asha.press('Enter');
       assert.equal(await page.getByLabel('Brian Otieno score', { exact: true }).evaluate(element => element === document.activeElement), true);
@@ -152,6 +177,25 @@ async function run() {
       assert.equal(await asha.isDisabled(), true);
       assert.equal(await page.getByRole('button', { name: 'Save draft', exact: true }).count(), 0);
       await page.screenshot({ path: path.join(out, `history-${width}.png`), fullPage: true });
+      const savesBeforeCorrection = await page.evaluate(() => window.__sheetSaves);
+      await page.getByRole('button', {name: /^Missing Marks/}).click();
+      await page.getByLabel('Find missing marks', {exact: true}).fill('ADM-002');
+      await page.getByRole('button', {name: 'Edit reason for Brian Otieno', exact: true}).click();
+      assert.equal(await page.getByLabel('Brian Otieno missing reason', {exact: true}).inputValue(), 'absent');
+      await page.getByLabel('Brian Otieno missing reason', {exact: true}).selectOption('Y');
+      await page.getByRole('button', {name: 'Save reason', exact: true}).click();
+      await page.getByText(/Reason saved for Brian Otieno/).waitFor();
+      assert.equal(await page.evaluate(() => window.__reasonPayload.score_status), 'Y');
+      assert.equal(await page.evaluate(() => window.__sheetSaves), savesBeforeCorrection);
+      assert.equal(await page.evaluate(() => window.__reasonSaves), 1);
+      if (assisted && !unassigned) assert.equal(await page.evaluate(() => window.__reasonPayload.teacher_user_id), 'teacher-1');
+      if (unassigned) assert.deepEqual(await page.evaluate(() => window.__reasonPayload.stream_ids), ['']);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Missing marks overflow at ${width}px`);
+      await page.screenshot({path: path.join(out, `missing-reason-${width}.png`), fullPage: true});
+      await page.getByRole('button', {name: 'Scores', exact: true}).click();
+      assert.equal(await page.getByLabel('Brian Otieno score', {exact: true}).inputValue(), 'Y');
+      assert.equal(await asha.inputValue(), '0');
+      assert.equal(await page.getByRole('button', {name: 'Submit results', exact: true}).count(), 0);
       assert.deepEqual(errors, []);
       await page.close();
       console.log(`Marks entry and submission ${width}px: passed`);

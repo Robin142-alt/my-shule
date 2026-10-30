@@ -351,7 +351,9 @@ export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
 
 export interface TeacherMarkSheetRow {
   stream_id?: string | null;
+  stream_name?: string | null;
   can_edit?: boolean;
+  can_edit_reason?: boolean;
   category_scores?: Record<string, number | null | 'X' | 'Y'>;
   categories?: Array<{ id: string; name: string; max_score: number }>;
   paper_config_version?: number;
@@ -399,6 +401,7 @@ export async function fetchTeacherMarkSheetLive(
     assessmentId: string;
     view?: 'active' | 'submitted' | 'all';
     teacherUserId?: string | null;
+    studentId?: string;
   },
 ): Promise<TeacherMarkSheetRow[]> {
   const query = new URLSearchParams({
@@ -410,6 +413,7 @@ export async function fetchTeacherMarkSheetLive(
   });
   if (filters.view) query.set('view', filters.view);
   if (filters.teacherUserId) query.set('teacher_user_id', filters.teacherUserId);
+  if (filters.studentId) query.set('student_id', filters.studentId);
   // The API pages at 100 students. Submission needs the entire assigned roster,
   // including large classes, before it can ask about every missing score.
   const rows: TeacherMarkSheetRow[] = [];
@@ -429,6 +433,24 @@ export interface TeacherMarkDraftInput {
   score?: number | null;
   score_status: ExamScoreStatus;
   remarks?: string;
+}
+
+export interface MissingMarkReasonPayload extends Record<string, unknown> {
+  mark_entry_window_id: string;
+  assessment_id: string;
+  student_id: string;
+  score_status: Exclude<ExamScoreStatus, 'entered'>;
+  expected_updated_at: string | null;
+  paper_config_version: number;
+  teacher_user_id?: string;
+  stream_ids?: string[];
+}
+
+export type MissingMarkReasonResult = { success: boolean; data: Pick<TeacherMarkSheetRow,
+  'id' | 'student_id' | 'score' | 'score_status' | 'status' | 'updated_at'> & Partial<TeacherMarkSheetRow> };
+
+export function saveMissingMarkReasonLive(session: LiveAuthSession, data: MissingMarkReasonPayload): Promise<MissingMarkReasonResult> {
+  return withSession(session, '/exams/marks/missing-reason', {method: 'PATCH', body: data});
 }
 
 export interface SaveTeacherMarksPayload extends Record<string, unknown> {

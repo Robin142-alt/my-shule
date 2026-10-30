@@ -1,5 +1,6 @@
 import {
   ArrayMinSize,
+  ArrayMaxSize,
   IsArray,
   IsDateString,
   IsIn,
@@ -13,6 +14,7 @@ import {
   MaxLength,
   Matches,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export const EXAM_SCORE_STATUSES = [
@@ -29,6 +31,40 @@ export const EXAM_SCORE_STATUSES = [
 ] as const;
 
 export type ExamScoreStatus = (typeof EXAM_SCORE_STATUSES)[number];
+
+export class CorrectMissingMarkReasonDto {
+  @IsUUID()
+  mark_entry_window_id!: string;
+
+  @IsUUID()
+  assessment_id!: string;
+
+  @IsUUID()
+  student_id!: string;
+
+  @IsIn(EXAM_SCORE_STATUSES.filter(status => status !== 'entered'))
+  score_status!: Exclude<ExamScoreStatus, 'entered'>;
+
+  // Null means the learner had no saved mark when the editor was opened.
+  @ValidateIf((_object, value) => value !== null)
+  @IsDateString()
+  expected_updated_at!: string | null;
+
+  @IsInt()
+  @Min(1)
+  paper_config_version!: number;
+
+  @IsOptional()
+  @IsUUID()
+  teacher_user_id?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  stream_ids?: string[];
+}
 
 export const ACADEMIC_INTERVENTION_SOURCES = [
   'manual',

@@ -28,6 +28,7 @@ import {
   AddAcademicInterventionUpdateDto,
   ACADEMIC_INTERVENTION_STATUSES,
   CorrectLockedExamMarkDto,
+  CorrectMissingMarkReasonDto,
   CreateAcademicInterventionDto,
   CreateExamAssessmentDto,
   CreateExamSeriesDto,
@@ -1393,6 +1394,45 @@ export class ExamsService {
     return { success: true, message: 'Marks submitted for review', data: result };
   }
 
+  async correctMissingMarkReason(dto: CorrectMissingMarkReasonDto) {
+    const context = this.requestContext.getStore();
+    if (!context?.is_authenticated || !this.hasPermission('exams:enter-marks')) {
+      throw new ForbiddenException('Mark-entry permission is required to correct a missing reason.');
+    }
+    const tenantId = this.requireTenantId();
+    const actorUserId = this.requireUserId();
+    const manager = this.isExamsOfficer();
+    if (EXAMS_MANAGER_ROLES.has(this.currentRole()) && !manager) {
+      throw new ForbiddenException('Exam write permission is required to correct missing reasons.');
+    }
+    if (!manager && dto.teacher_user_id && dto.teacher_user_id !== actorUserId) {
+      throw new ForbiddenException('You may only correct reasons in your assigned markbooks.');
+    }
+    if (!EXAM_SCORE_STATUSES.includes(dto.score_status) || String(dto.score_status) === 'entered'
+      || dto.expected_updated_at === undefined || !Number.isInteger(dto.paper_config_version)
+      || dto.paper_config_version < 1) {
+      throw new BadRequestException('Select a missing-mark reason and refresh the markbook before saving.');
+    }
+    if (!this.schoolEvents) throw new ServiceUnavailableException('Exam event recording is unavailable. Retry before saving.');
+    const data = await this.repository.correctMissingMarkReason({
+      ...dto, tenant_id: tenantId, actor_user_id: actorUserId,
+      teacher_user_id: manager ? dto.teacher_user_id ?? null : actorUserId,
+    }, async (mark, previous, tx) => {
+      await this.schoolEvents!.recordSchoolOperation({ event: {
+        id: `missing-mark-reason-${randomUUID()}`, type: 'exam.missing_reason_corrected', module: 'exams',
+        actorRole: this.currentRole(), title: 'Missing-mark reason corrected',
+        body: 'One learner’s missing-mark reason was updated. The markbook submission state is unchanged.',
+        entityId: mark.id, severity: 'info', payload: {
+          mark_id: mark.id, student_id: mark.student_id, exam_series_id: mark.exam_series_id,
+          assessment_id: mark.assessment_id, class_section_id: mark.class_section_id,
+          previous_reason: previous?.score_status ?? null, new_reason: mark.score_status,
+          source_dashboard: manager ? 'exams-manager' : 'teacher',
+        },
+      } }, tx);
+    });
+    return { success: true, data };
+  }
+
   async correctLockedMark(dto: CorrectLockedExamMarkDto) {
     if (!this.canApproveExamCorrections()) {
       throw new ForbiddenException('Exam officer approval is required to correct locked marks');
@@ -2517,7 +2557,11 @@ export class ExamsService {
       if (!assessmentScope?.uses_categories) throw new BadRequestException('This paper does not use categories.');
       try {
         const calculated = categoryResult(dto.category_scores, assessmentScope.categories as Array<{ id: string; max_score: number }>);
+        const missingReason = scoreEvidence.score_status;
         if (scoreEvidence.score_status !== 'exempt') Object.assign(scoreEvidence, calculated);
+        if (calculated.score_status === 'X' && !['entered','X','Y','exempt'].includes(missingReason)) {
+          scoreEvidence.score_status = missingReason;
+        }
         Object.assign(normalizedDto, scoreEvidence);
       } catch (error) { throw new BadRequestException(errorMessage(error)); }
     }
@@ -5255,7 +5299,10 @@ export class ExamsService {
     normalizedFilters.limit = this.parsePageLimit(filters.limit, 100, 100);
     normalizedFilters.offset = this.parsePageOffset(filters.offset);
 
-    const data = await this.repository.getMarks(tenantId, normalizedFilters);
+    const rows = await this.repository.getMarks(tenantId, normalizedFilters);
+    const canCorrectReason = this.hasPermission('exams:enter-marks')
+      && (!EXAMS_MANAGER_ROLES.has(this.currentRole()) || this.isExamsOfficer());
+    const data = rows.map(row => ({ ...row, can_edit_reason: canCorrectReason && row.can_edit_reason === true }));
     return { success: true, data };
   }
 

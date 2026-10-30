@@ -1,5 +1,6 @@
 import { FLEXIBLE_EXAM_PAPERS_SCHEMA } from '../src/modules/exams/flexible-exam-papers-schema';
 import { EXAM_RESULT_REFRESH_SCHEMA, examResultCtes } from '../src/modules/exams/exam-result-query';
+import { REPORT_SOURCE_TRIGGERS } from '../src/modules/exams/services/report-infrastructure-schema';
 import { ExamPaperConfigurationService } from '../src/modules/exams/exam-paper-configuration.service';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
@@ -13,6 +14,7 @@ import { ExamsManagerCommandService } from '../src/modules/admin-command/exams-m
 import { ClassTeacherService } from '../src/modules/class-teacher/class-teacher.service';
 import { ExamsSchemaService } from '../src/modules/exams/exams-schema.service';
 import { ExamsService } from '../src/modules/exams/exams.service';
+import { ExamsController } from '../src/modules/exams/exams.controller';
 import { ExamsRepository } from '../src/modules/exams/repositories/exams.repository';
 import { SchoolOperationalEventsService } from '../src/modules/events/school-operational-events.service';
 
@@ -1054,6 +1056,245 @@ describe('Created exams reach assigned subject teachers', () => {
       expect(marks).toHaveLength(1);expect([40,50]).toContain(Number(marks[0].score));
       await pool.query(FLEXIBLE_EXAM_PAPERS_SCHEMA);await pool.query(EXAM_RESULT_REFRESH_SCHEMA);
       expect((await paperConfiguration.read(window.id)).version).toBe(before.version+1);
+    });
+  });
+
+  describe('individual missing-mark reason corrections', () => {
+    beforeAll(async () => {
+      await pool.query(FLEXIBLE_EXAM_PAPERS_SCHEMA);
+      await pool.query(EXAM_RESULT_REFRESH_SCHEMA);
+      await pool.query(`CREATE TABLE IF NOT EXISTS report_source_versions (
+        tenant_id text NOT NULL,scope_key text NOT NULL,version bigint NOT NULL DEFAULT 1,
+        PRIMARY KEY(tenant_id,scope_key))`);
+      await pool.query(REPORT_SOURCE_TRIGGERS);
+    });
+
+    async function missingReasonFixture(submit = true) {
+      const classId = randomUUID(), learner = randomUUID(), peer = randomUUID();
+      await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Reason corrections')`, [classId]);
+      await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,class_section_id,subject_id,teacher_user_id)
+        VALUES ('school-a',$1,$2,$3)`, [classId,ids.subject,ids.teacher]);
+      for (const student of [learner,peer]) {
+        await pool.query(`INSERT INTO students(id,tenant_id,first_name,admission_number) VALUES ($1::uuid,'school-a','Reason learner',$1::text)`, [student]);
+        await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id) VALUES ('school-a',$1,$2)`, [student,classId]);
+        await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id)
+          VALUES ('school-a',$1,$2,$3)`, [student,classId,ids.subject]);
+      }
+      const created = await createExam('submitted',[classId]);
+      const window = await windowFor(created.exam.id,classId);
+      const paper = await paperConfiguration.read(window.id);
+      if (submit) await teacher.saveMarks('school-a',ids.teacher,{
+        examId:window.id,classSectionId:classId,assessmentId:window.assessmentId,action:'submit',
+        marks:{[learner]:{score:null,score_status:'X'},[peer]:{score:67,score_status:'entered'}},
+      });
+      const marks = () => pool.query(`SELECT *,updated_at::text AS exact_updated_at FROM exam_marks
+        WHERE tenant_id='school-a' AND exam_series_id=$1 ORDER BY student_id`,[created.exam.id]).then(result=>result.rows);
+      const command = async (score_status = 'Y') => ({
+        mark_entry_window_id:window.id,assessment_id:window.assessmentId,student_id:learner,score_status,
+        expected_updated_at:(await marks()).find(row=>row.student_id===learner)?.exact_updated_at ?? null,
+        paper_config_version:paper.version,
+      });
+      return {classId,learner,peer,window,examId:created.exam.id,marks,command};
+    }
+
+    // The public service is intentionally exercised rather than bypassing its permission guard.
+    const correctReason = (dto: Record<string,unknown>) => (exams as any).correctMissingMarkReason(dto);
+
+    it('persists an individual submitted correction through the guarded HTTP contract and rejects forged or stale requests', async () => {
+      const fixture = await missingReasonFixture();
+      const dto = await fixture.command('absent');
+      const module = await Test.createTestingModule({controllers:[ExamsController],
+        providers:[{provide:ExamsService,useValue:exams}]}).compile();
+      const app = module.createNestApplication();
+      app.useGlobalGuards(new RbacGuard(new Reflector(),{requireStore:()=>activeContext} as never));
+      app.useGlobalPipes(new ValidationPipe({transform:true,whitelist:true,forbidNonWhitelisted:true}));
+      await app.init();
+      try {
+        const patch = (body: object) => request(app.getHttpServer()).patch('/exams/marks/missing-reason').send(body);
+        await patch({...dto,tenant_id:'school-b'}).expect(400);
+        activeContext={...teacherContext,permissions:[]};
+        await patch(dto).expect(403);
+        activeContext={...teacherContext,tenant_id:'school-b'};
+        await patch(dto).expect(403);
+        activeContext=teacherContext;
+        const response=await patch(dto).expect(200);
+        expect(response.body.data).toMatchObject({student_id:fixture.learner,score_status:'absent',status:'submitted',score:null});
+        await patch(dto).expect(409);
+        expect((await fixture.marks()).find(row=>row.student_id===fixture.learner).score_status).toBe('absent');
+      } finally {activeContext=teacherContext;await app.close();}
+    });
+
+    it('saves and replaces a blank student reason before submission without creating other marks', async () => {
+      const fixture = await missingReasonFixture(false);
+      await correctReason(await fixture.command('medical_exception'));
+      expect(await fixture.marks()).toEqual([expect.objectContaining({
+        student_id:fixture.learner,score:null,score_status:'medical_exception',status:'draft',
+        entered_by_user_id:ids.teacher,updated_by_user_id:ids.teacher,
+      })]);
+      await correctReason(await fixture.command('absent'));
+      expect(await fixture.marks()).toEqual([expect.objectContaining({score_status:'absent',status:'draft'})]);
+    });
+
+    it.each(['teacher','manager'])('corrects a submitted reason as %s without resubmission or changing other marks', async role => {
+      const fixture = await missingReasonFixture();
+      const before = await fixture.marks();
+      const submissionsBefore = submissions.length;
+      const windowBefore = (await pool.query('SELECT * FROM exam_mark_entry_windows WHERE id=$1',[fixture.window.id])).rows[0];
+      activeContext = role === 'manager' ? managerContext : teacherContext;
+      try {
+        await correctReason({...await fixture.command(),...(role==='manager'?{teacher_user_id:ids.teacher}:{})});
+      } finally { activeContext = teacherContext; }
+      const after = await fixture.marks();
+      expect(after).toHaveLength(2);
+      expect(after.find(row=>row.student_id===fixture.peer)).toEqual(before.find(row=>row.student_id===fixture.peer));
+      const original = before.find(row=>row.student_id===fixture.learner);
+      expect(after.find(row=>row.student_id===fixture.learner)).toMatchObject({
+        id:original.id,score:null,score_status:'Y',status:'submitted',submitted_at:original.submitted_at,
+        entered_by_user_id:ids.teacher,updated_by_user_id:role==='manager'?ids.manager:ids.teacher,
+      });
+      expect(submissions).toHaveLength(submissionsBefore);
+      expect((await pool.query('SELECT * FROM exam_mark_entry_windows WHERE id=$1',[fixture.window.id])).rows[0]).toEqual(windowBefore);
+      const audit = (await pool.query(`SELECT * FROM exam_mark_audit_logs WHERE mark_id=$1 ORDER BY created_at DESC`,[original.id])).rows[0];
+      expect(audit).toMatchObject({student_id:fixture.learner,exam_series_id:fixture.examId,
+        actor_user_id:role==='manager'?ids.manager:ids.teacher,metadata:expect.objectContaining({previous_score_status:'X',new_score_status:'Y'})});
+      expect(audit.created_at).toBeInstanceOf(Date);
+    });
+
+    it('retains manager provenance when an unassigned missing reason is later handed to the assigned teacher', async () => {
+      const fixture = await missingReasonFixture(false);
+      await pool.query(`UPDATE teacher_subject_assignments SET status='inactive' WHERE class_section_id=$1`,[fixture.classId]);
+      activeContext=managerContext;
+      try {await correctReason(await fixture.command('absent'));}
+      finally {activeContext=teacherContext;}
+      const original=(await fixture.marks())[0];
+      expect(original).toMatchObject({assigned_teacher_user_id:null,entered_by_user_id:ids.manager});
+      await pool.query(`UPDATE teacher_subject_assignments SET status='active' WHERE class_section_id=$1`,[fixture.classId]);
+      await correctReason(await fixture.command('medical_exception'));
+      const updated=(await fixture.marks())[0];
+      expect(updated).toMatchObject({id:original.id,entered_by_user_id:ids.manager,updated_by_user_id:ids.teacher,score_status:'medical_exception'});
+      await teacher.saveMarks('school-a',ids.teacher,{examId:fixture.window.id,classSectionId:fixture.classId,
+        assessmentId:fixture.window.assessmentId,action:'draft',marks:{[fixture.learner]:{
+          score:67,score_status:'entered',expected_updated_at:updated.exact_updated_at}}});
+      expect((await fixture.marks())[0]).toMatchObject({score:'67.00',entered_by_user_id:ids.manager,updated_by_user_id:ids.teacher});
+    });
+
+    it('rejects another school, unassigned teacher, missing capability and forged manager assistance', async () => {
+      const fixture = await missingReasonFixture(); const dto = await fixture.command(); const before = await fixture.marks();
+      for (const context of [
+        {...teacherContext,tenant_id:'school-b'}, {...teacherContext,user_id:ids.otherTeacher},
+        {...teacherContext,permissions:[]}, {...managerContext,permissions:['exams:enter-marks']},
+      ]) {
+        activeContext = context;
+        try { await expect(correctReason(dto)).rejects.toThrow(); } finally { activeContext = teacherContext; }
+      }
+      await expect(correctReason({...dto,teacher_user_id:ids.otherTeacher})).rejects.toThrow();
+      expect(await fixture.marks()).toEqual(before);
+    });
+
+    it('rejects a different paper, class learner, numeric mark and unsupported reason', async () => {
+      const fixture = await missingReasonFixture(); const dto = await fixture.command(); const before = await fixture.marks();
+      const other = await missingReasonFixture();
+      for (const patch of [
+        {assessment_id:other.window.assessmentId}, {student_id:other.learner},
+        {student_id:fixture.peer,expected_updated_at:before.find(row=>row.student_id===fixture.peer).exact_updated_at},
+        {score_status:'entered'}, {score_status:'invented_reason'},
+      ]) await expect(correctReason({...dto,...patch})).rejects.toThrow();
+      expect(await fixture.marks()).toEqual(before);
+    });
+
+    it.each(['reviewed','locked','published'])('requires controlled correction for %s marks', async status => {
+      const fixture = await missingReasonFixture();
+      await pool.query('UPDATE exam_marks SET status=$2 WHERE exam_series_id=$1',[fixture.examId,status]);
+      const before = await fixture.marks(); activeContext = managerContext;
+      try { await expect(correctReason(await fixture.command())).rejects.toThrow(); }
+      finally { activeContext = teacherContext; }
+      expect(await fixture.marks()).toEqual(before);
+    });
+
+    it.each(['locked','published','archived'])('rejects reason edits when the examination is %s', async status => {
+      const fixture = await missingReasonFixture();
+      await pool.query('UPDATE exam_series SET status=$2 WHERE id=$1',[fixture.examId,status]);
+      const before = await fixture.marks(); activeContext = managerContext;
+      try { await expect(correctReason(await fixture.command())).rejects.toThrow(); }
+      finally { activeContext = teacherContext; }
+      expect(await fixture.marks()).toEqual(before);
+    });
+
+    it('rejects closed entry and stale paper configuration without changing the reason', async () => {
+      const fixture = await missingReasonFixture(); const dto = await fixture.command(); const before = await fixture.marks();
+      await expect(correctReason({...dto,paper_config_version:dto.paper_config_version+1})).rejects.toThrow();
+      await pool.query(`UPDATE exam_mark_entry_windows SET status='closed' WHERE id=$1`,[fixture.window.id]);
+      await expect(correctReason(dto)).rejects.toThrow();
+      expect(await fixture.marks()).toEqual(before);
+    });
+
+    it('uses optimistic concurrency for simultaneous reason corrections and does not duplicate marks', async () => {
+      const fixture = await missingReasonFixture(); const dto = await fixture.command();
+      const writes = await Promise.allSettled(['Y','absent'].map(score_status=>correctReason({...dto,score_status})));
+      expect(writes.filter(result=>result.status==='fulfilled')).toHaveLength(1);
+      const failed = writes.filter(result=>result.status==='rejected') as PromiseRejectedResult[];
+      expect(failed).toHaveLength(1);
+      expect(failed[0].reason.getStatus()).toBe(409);
+      const marks = await fixture.marks(); expect(marks).toHaveLength(2);
+      expect(['Y','absent']).toContain(marks.find(row=>row.student_id===fixture.learner).score_status);
+      await expect(correctReason({...dto,expected_updated_at:null})).rejects.toThrow();
+    });
+
+    it('rolls back the correction and its audit when event recording fails, then allows a retry', async () => {
+      const fixture = await missingReasonFixture(); const dto = await fixture.command(); const before = await fixture.marks();
+      const auditsBefore = (await pool.query('SELECT * FROM exam_mark_audit_logs WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows;
+      rejectSchoolEvent = true;
+      try { await expect(correctReason(dto)).rejects.toThrow('Outbox unavailable'); }
+      finally { rejectSchoolEvent = false; }
+      expect(await fixture.marks()).toEqual(before);
+      expect((await pool.query('SELECT * FROM exam_mark_audit_logs WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows).toEqual(auditsBefore);
+      await correctReason(dto);
+      expect((await fixture.marks()).find(row=>row.student_id===fixture.learner).score_status).toBe('Y');
+    });
+
+    it('preserves numeric category marks when correcting irregularity to an absence reason', async () => {
+      const fixture = await missingReasonFixture(false);
+      const configured = await paperConfiguration.save(fixture.window.id, {version:(await fixture.command()).paper_config_version,papers:[{
+        id:fixture.window.assessmentId,name:'Main Paper',max_score:80,weight:null,
+        categories:[{name:'Theory',max_score:50},{name:'Practical',max_score:30}],
+      }]});
+      const paper = (await paperConfiguration.read(fixture.window.id)).papers[0];
+      const categories = {[paper.categories[0].id]:30,[paper.categories[1].id]:'Y' as const};
+      await teacher.saveMarks('school-a',ids.teacher,{examId:fixture.window.id,classSectionId:fixture.classId,
+        assessmentId:fixture.window.assessmentId,paperConfigVersion:configured.version,action:'draft',
+        marks:{[fixture.learner]:{score:null,score_status:'Y',category_scores:categories}}});
+      await correctReason({...await fixture.command('absent'),paper_config_version:configured.version});
+      const saved = (await fixture.marks())[0];
+      expect(saved).toMatchObject({score:null,score_status:'absent',category_scores:{[paper.categories[0].id]:30,[paper.categories[1].id]:null}});
+      await teacher.saveMarks('school-a',ids.teacher,{examId:fixture.window.id,classSectionId:fixture.classId,
+        assessmentId:fixture.window.assessmentId,paperConfigVersion:configured.version,action:'draft',
+        marks:{[fixture.learner]:{score:null,score_status:'absent',category_scores:saved.category_scores,expected_updated_at:saved.exact_updated_at}}});
+      expect((await fixture.marks())[0].score_status).toBe('absent');
+    });
+
+    it('blocks a released report even when its mark and series were left submitted', async () => {
+      const fixture = await missingReasonFixture();
+      await pool.query(`INSERT INTO student_report_cards(tenant_id,exam_series_id,student_id,report_snapshot_id,status)
+        VALUES ('school-a',$1,$2,'published-reason-guard','published')`,[fixture.examId,fixture.learner]);
+      const before = await fixture.marks();
+      await expect(correctReason(await fixture.command())).rejects.toThrow(/controlled correction/);
+      expect(await fixture.marks()).toEqual(before);
+    });
+
+    it('refreshes X/Y results and invalidates report sources immediately after a reason correction', async () => {
+      const fixture = await missingReasonFixture();
+      const batch = (await pool.query(`INSERT INTO report_card_generation_batches(tenant_id,exam_series_id,class_section_id,status,requested_by_user_id)
+        VALUES ('school-a',$1,$2,'draft_generated',$3) RETURNING id`,[fixture.examId,fixture.classId,ids.manager])).rows[0];
+      await repository.processResultBatch({tenant_id:'school-a',actor_user_id:ids.manager,batch_id:batch.id,mode:'rankings'});
+      const snapshot = () => pool.query('SELECT * FROM exam_result_snapshots WHERE batch_id=$1 AND student_id=$2',[batch.id,fixture.learner]).then(result=>result.rows[0]);
+      const revision = () => pool.query(`SELECT version FROM report_source_versions WHERE tenant_id='school-a' AND scope_key=$1`,[`student:${fixture.learner}`]).then(result=>Number(result.rows[0]?.version ?? 0));
+      const before = await revision();
+      expect(await snapshot()).toMatchObject({grade_label:'X',average_percentage:null,class_rank:null});
+      await correctReason(await fixture.command('Y'));
+      expect(await snapshot()).toMatchObject({grade_label:'Y',average_percentage:null,raw_total:null,class_rank:null});
+      expect(await revision()).toBeGreaterThan(before);
+      await correctReason(await fixture.command('X'));
+      expect(await snapshot()).toMatchObject({grade_label:'X',average_percentage:null,class_rank:null});
     });
   });
 });
