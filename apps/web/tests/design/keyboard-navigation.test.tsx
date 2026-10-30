@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { onFormNavigationKeyDown, onGridNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 describe("opt-in data entry keyboard navigation", () => {
@@ -65,7 +67,7 @@ describe("opt-in data entry keyboard navigation", () => {
     expect(fireEvent.keyDown(screen.getByLabelText("Reference"), { key: "Enter" })).toBe(false);
   });
 
-  it("ends grid edit mode when focus leaves and preserves Escape when already navigating", () => {
+  it("does not require or capture F2 or Escape before moving between score cells", () => {
     render(<div onKeyDown={onGridNavigationKeyDown}>
       <input aria-label="First cell" data-grid-row="0" data-grid-column="0" />
       <input aria-label="Second cell" data-grid-row="1" data-grid-column="0" />
@@ -73,8 +75,7 @@ describe("opt-in data entry keyboard navigation", () => {
     const first = screen.getByLabelText("First cell"); const second = screen.getByLabelText("Second cell");
     first.focus();
     expect(fireEvent.keyDown(first, { key: "Escape" })).toBe(true);
-    fireEvent.keyDown(first, { key: "F2" });
-    second.focus(); first.focus();
+    expect(fireEvent.keyDown(first, { key: "F2" })).toBe(true);
     fireEvent.keyDown(first, { key: "ArrowDown" }); expect(second).toHaveFocus();
   });
 
@@ -92,20 +93,86 @@ describe("opt-in data entry keyboard navigation", () => {
     fireEvent.keyDown(screen.getByLabelText("2-0"), { key: "ArrowDown" }); expect(screen.getByLabelText("2-0")).toHaveFocus();
   });
 
-  it("preserves a cell's text caret while editing and restores navigation after Escape or Enter", () => {
+  it("preserves partial selections and text carets, but navigates horizontally at boundaries or a full selection", () => {
     render(<div onKeyDown={onGridNavigationKeyDown}>
-      <input aria-label="Cell" defaultValue="42" data-grid-row="0" data-grid-column="0" />
-      <input aria-label="Next row" data-grid-row="1" data-grid-column="0" />
+      <input aria-label="First paper" defaultValue="42" data-grid-row="0" data-grid-column="0" />
+      <input aria-label="Second paper" defaultValue="123" data-grid-row="0" data-grid-column="1" />
     </div>);
-    const cell = screen.getByLabelText("Cell") as HTMLInputElement; cell.focus(); cell.setSelectionRange(1, 1);
+    const cell = screen.getByLabelText("First paper") as HTMLInputElement;
+    const next = screen.getByLabelText("Second paper") as HTMLInputElement;
+    cell.focus(); cell.setSelectionRange(1, 1);
     expect(fireEvent.keyDown(cell, { key: "ArrowLeft" })).toBe(true);
-    fireEvent.keyDown(cell, { key: "F2" });
-    expect(fireEvent.keyDown(cell, { key: "ArrowDown" })).toBe(true); expect(cell).toHaveFocus();
-    fireEvent.keyDown(cell, { key: "Escape" });
-    fireEvent.keyDown(cell, { key: "ArrowDown" }); expect(screen.getByLabelText("Next row")).toHaveFocus();
-    cell.focus(); fireEvent.keyDown(cell, { key: "5" });
-    expect(fireEvent.keyDown(cell, { key: "ArrowDown" })).toBe(true);
-    fireEvent.keyDown(cell, { key: "Enter" }); expect(screen.getByLabelText("Next row")).toHaveFocus();
+    expect(fireEvent.keyDown(cell, { key: "ArrowRight" })).toBe(true);
+    cell.setSelectionRange(2, 2);
+    fireEvent.keyDown(cell, { key: "ArrowRight" }); expect(next).toHaveFocus();
+    expect([next.selectionStart, next.selectionEnd]).toEqual([0, 3]);
+    next.setSelectionRange(0, 2);
+    expect(fireEvent.keyDown(next, { key: "ArrowLeft" })).toBe(true);
+    next.select(); fireEvent.keyDown(next, { key: "ArrowLeft" }); expect(cell).toHaveFocus();
+    expect([cell.selectionStart, cell.selectionEnd]).toEqual([0, 2]);
     expect(cell).toHaveValue("42");
+  });
+
+  it("supports uninterrupted 40-student entry and selects saved marks for replacement without saving", async () => {
+    const user = userEvent.setup();
+    const submit = jest.fn(event => event.preventDefault());
+    function Marks() {
+      const [scores, setScores] = useState<Record<number, string>>({ 1: '12', 2: 'X', 3: 'Y' });
+      return <form onKeyDown={onGridNavigationKeyDown} onSubmit={submit}>
+        {Array.from({ length: 40 }, (_, row) => <input key={row} aria-label={`Student ${row}`}
+          data-grid-row={row} data-grid-column="0" value={scores[row] ?? ''}
+          onChange={event => setScores(values => ({ ...values, [row]: event.target.value }))} />)}
+        <button>Submit marks</button>
+      </form>;
+    }
+    render(<Marks />);
+    await user.click(screen.getByLabelText('Student 0'));
+    await user.keyboard('67{ArrowDown}72{ArrowDown}81{ArrowDown}56{ArrowUp}');
+    expect(screen.getByLabelText('Student 2')).toHaveFocus();
+    ['67', '72', '81', '56'].forEach((value, row) => expect(screen.getByLabelText(`Student ${row}`)).toHaveValue(value));
+    await user.keyboard('X{Enter}Y{Shift>}{Enter}{/Shift}');
+    expect(screen.getByLabelText('Student 2')).toHaveFocus();
+    expect(screen.getByLabelText('Student 2')).toHaveValue('X');
+    expect(screen.getByLabelText('Student 3')).toHaveValue('Y');
+    await user.tab(); expect(screen.getByLabelText('Student 3')).toHaveFocus();
+    await user.tab({ shift: true }); expect(screen.getByLabelText('Student 2')).toHaveFocus();
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    for (let row = 4; row < 40; row++) await user.keyboard(`${row}{ArrowDown}`);
+    expect(screen.getByLabelText('Student 39')).toHaveFocus();
+    for (let row = 4; row < 40; row++) expect(screen.getByLabelText(`Student ${row}`)).toHaveValue(String(row));
+    await user.keyboard('{Enter}'); expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("uses the current filtered rows and skips readonly, hidden and disabled cells", () => {
+    const cells = (filtered: boolean) => <div onKeyDown={onGridNavigationKeyDown}>
+      <input key="first" aria-label="First" data-grid-row="0" data-grid-column="0" />
+      {!filtered && <input key="filtered" aria-label="Filtered" data-grid-row="1" data-grid-column="0" />}
+      <input key="readonly" aria-label="Read only" readOnly data-grid-row="2" data-grid-column="0" />
+      <input key="hidden" aria-label="Hidden" hidden data-grid-row="3" data-grid-column="0" />
+      <input key="disabled" aria-label="Disabled" disabled data-grid-row="4" data-grid-column="0" />
+      <input key="last" aria-label="Last" data-grid-row="5" data-grid-column="0" defaultValue="72" />
+    </div>;
+    const { rerender } = render(cells(false));
+    const first = screen.getByLabelText('First'); first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' }); expect(screen.getByLabelText('Filtered')).toHaveFocus();
+    rerender(cells(true)); first.focus();
+    fireEvent.keyDown(first, { key: 'ArrowDown' }); expect(screen.getByLabelText('Last')).toHaveFocus();
+    fireEvent.keyDown(screen.getByLabelText('Last'), { key: 'ArrowUp' }); expect(first).toHaveFocus();
+  });
+
+  it("preserves IME composition, modified arrows, native widgets and child-handled events in a grid", () => {
+    render(<div onKeyDown={onGridNavigationKeyDown}>
+      <input aria-label="Score" data-grid-row="0" data-grid-column="0" />
+      <input aria-label="Next" data-grid-row="1" data-grid-column="0" />
+      <input aria-label="Handled" data-grid-row="2" data-grid-column="0" onKeyDown={event => event.preventDefault()} />
+    </div>);
+    const cell = screen.getByLabelText('Score'); cell.focus();
+    for (const modifiers of [{ isComposing: true }, { keyCode: 229 }, { ctrlKey: true }, { metaKey: true }, { altKey: true }, { shiftKey: true }]) {
+      expect(fireEvent.keyDown(cell, { key: 'ArrowDown', ...modifiers })).toBe(true);
+      expect(cell).toHaveFocus();
+    }
+    expect(fireEvent.keyDown(cell, { key: 'Tab' })).toBe(true);
+    const handled = screen.getByLabelText('Handled'); handled.focus();
+    fireEvent.keyDown(handled, { key: 'ArrowUp' }); expect(handled).toHaveFocus();
   });
 });

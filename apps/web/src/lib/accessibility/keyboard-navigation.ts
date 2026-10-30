@@ -3,20 +3,6 @@ import type { KeyboardEvent } from "react";
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 const fieldSelector = "input, select, textarea";
 const textTypes = new Set(["text", "email", "tel", "url", "password", "search"]);
-const editingCells = new WeakMap<HTMLInputElement, () => void>();
-
-function stopEditing(field: HTMLInputElement) {
-  const onBlur = editingCells.get(field);
-  if (onBlur) field.removeEventListener("blur", onBlur);
-  editingCells.delete(field);
-}
-
-function startEditing(field: HTMLInputElement) {
-  if (editingCells.has(field)) return;
-  const onBlur = () => stopEditing(field);
-  editingCells.set(field, onBlur);
-  field.addEventListener("blur", onBlur, { once: true });
-}
 
 function available(field: Element): field is Field {
   if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return false;
@@ -78,23 +64,18 @@ export function onFormNavigationKeyDown(event: KeyboardEvent<HTMLElement>) {
 
 /** Mark editable inputs with data-grid-row/column. Coordinates follow the rendered,
  * eligible rows, so filtering and class-specific subjects cannot navigate stale cells.
- * F2/typing enters edit mode; Escape returns to navigation; Enter moves vertically.
- * Horizontal arrows always preserve an active text selection/caret within the value.
+ * Up/Down and Enter move immediately while typing; no editing mode is required.
+ * Horizontal arrows preserve an interior caret/partial selection. A whole-value
+ * selection or boundary caret permits movement to the adjacent score column.
  */
 export function onGridNavigationKeyDown(event: KeyboardEvent<HTMLElement>) {
   if (!usableEvent(event)) return;
   const field = event.target;
   if (!field.hasAttribute("data-grid-row") || !field.hasAttribute("data-grid-column")) return;
-  if (event.key === "F2") { startEditing(field); event.preventDefault(); return; }
-  if (event.key === "Escape") {
-    if (editingCells.has(field)) { stopEditing(field); event.preventDefault(); }
-    return;
-  }
-  if (event.key.length === 1 || event.key === "Backspace" || event.key === "Delete") { startEditing(field); return; }
   if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) return;
   if (event.shiftKey && event.key !== "Enter") return;
-  if (editingCells.has(field) && event.key !== "Enter") return;
-  if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && field.value
+  const fullySelected = field.selectionStart === 0 && field.selectionEnd === field.value.length;
+  if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && field.value && !fullySelected
     && (field.selectionStart !== field.selectionEnd
       || (event.key === "ArrowLeft" ? field.selectionStart !== 0 : field.selectionEnd !== field.value.length))) return;
   const row = Number(field.dataset.gridRow); const column = Number(field.dataset.gridColumn);
@@ -103,10 +84,11 @@ export function onGridNavigationKeyDown(event: KeyboardEvent<HTMLElement>) {
   const backwards = event.key === "ArrowUp" || event.key === "ArrowLeft" || (event.key === "Enter" && event.shiftKey);
   const coordinate = vertical ? "gridRow" : "gridColumn";
   const current = vertical ? row : column;
-  const candidates = Array.from(event.currentTarget.querySelectorAll<HTMLInputElement>("input[data-grid-row][data-grid-column]"))
-    .filter(available).filter(cell => (vertical ? Number(cell.dataset.gridColumn) === column : Number(cell.dataset.gridRow) === row)
+  const next = Array.from(event.currentTarget.querySelectorAll<HTMLInputElement>("input[data-grid-row][data-grid-column]"))
+    .filter(cell => (vertical ? Number(cell.dataset.gridColumn) === column : Number(cell.dataset.gridRow) === row)
       && (backwards ? Number(cell.dataset[coordinate]) < current : Number(cell.dataset[coordinate]) > current))
-    .sort((a, b) => (Number(a.dataset[coordinate]) - Number(b.dataset[coordinate])) * (backwards ? -1 : 1));
-  event.preventDefault(); stopEditing(field);
-  if (candidates[0]) { stopEditing(candidates[0]); focusField(candidates[0]); }
+    .sort((a, b) => (Number(a.dataset[coordinate]) - Number(b.dataset[coordinate])) * (backwards ? -1 : 1))
+    .find(available);
+  event.preventDefault();
+  if (next) { focusField(next); next.select(); }
 }
