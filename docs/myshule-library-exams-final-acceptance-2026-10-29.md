@@ -2,6 +2,8 @@
 
 Status: both specifications implemented; production deployment and automated/read-only production verification completed on 29 October 2026. Live authenticated school/device acceptance limits remain below.
 
+31 October follow-up: production revision `018608749eafd86f0516563bb917d8642008472b` retains both specifications and adds individual missing-reason correction plus direct score-input arrow navigation. PR #121 and production CI passed; all four backend services and Cloudflare are deployed. The original library/print and class-exam regressions passed again. See [the current marks-entry release report](marks-entry-reasons-navigation-2026-10-29.md) for final test totals, deployment identifiers, browser verification and remaining acceptance limits. The historical 29 October evidence below is retained.
+
 Both supplied master specifications remain mandatory. This report describes the current-main release checkout, not the earlier development checkout. Review: https://github.com/Robin142-alt/my-shule/pull/120. Tested candidate revision: `77a1535deb41d394130c116ce1cbc605e09dac3b`. Merge revision: `19c7ea4abcd5b4bd0e93712b3c67829ce9bcb073`, 29 October 2026 at 10:02 EAT. The merge tree is identical to the tested candidate.
 
 ## Specification A
