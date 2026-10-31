@@ -9,6 +9,7 @@ import {
   BulkExamMarkUploadDto,
   AddAcademicInterventionUpdateDto,
   CorrectLockedExamMarkDto,
+  CorrectMissingMarkReasonDto,
   CreateAcademicInterventionDto,
   CreateExamAssessmentDto,
   CreateExamSeriesDto,
@@ -118,6 +119,12 @@ export class ExamsController {
   @Permissions('exams:approve')
   correctLockedMark(@Body() dto: CorrectLockedExamMarkDto) {
     return this.examsService.correctLockedMark(dto);
+  }
+
+  @Patch('marks/missing-reason')
+  @Permissions('exams:enter-marks')
+  correctMissingMarkReason(@Body() dto: CorrectMissingMarkReasonDto) {
+    return this.examsService.correctMissingMarkReason(dto);
   }
 
   @Post('configuration')

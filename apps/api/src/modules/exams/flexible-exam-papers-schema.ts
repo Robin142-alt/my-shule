@@ -49,7 +49,9 @@ export const FLEXIBLE_EXAM_PAPERS_SCHEMA = `
         END IF;
       END LOOP;
       IF NEW.score_status<>'exempt' THEN
-        NEW.score_status := CASE WHEN irregular THEN 'Y' WHEN missing THEN 'X' ELSE 'entered' END;
+        NEW.score_status := CASE WHEN irregular THEN 'Y'
+          WHEN missing THEN CASE WHEN NEW.score_status IN ('absent','not_assessed','incomplete','withheld','medical_exception','transfer_student')
+            THEN NEW.score_status ELSE 'X' END ELSE 'entered' END;
         NEW.score := CASE WHEN irregular OR missing THEN NULL ELSE total END;
       END IF;
     ELSIF NOT paper.uses_categories AND NEW.category_scores <> '{}'::jsonb THEN

@@ -224,8 +224,10 @@ describe('Report generation with the production staff schema', () => {
   async function addStudents(learners: string[]) {
     await query(`INSERT INTO students(tenant_id,id,status,first_name,last_name,admission_number)
       SELECT 'school-a',id,'active','Test','Learner',id FROM unnest($1::text[]) id`, [learners]);
-    await query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,status,academic_year_id)
-      SELECT 'school-a',id,$2,'active',$3 FROM unnest($1::text[]) id`, [learners, ids.class, ids.year]);
+    // These learners belong to the fixed historical exam, even when this suite
+    // runs after its end date. Do not let today's created_at imply a later admission.
+    await query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,status,academic_year_id,effective_from)
+      SELECT 'school-a',id,$2,'active',$3,'2026-09-01'::date FROM unnest($1::text[]) id`, [learners, ids.class, ids.year]);
     await query(`INSERT INTO student_subject_enrollments SELECT 'school-a',id,$2,$3,'active' FROM unnest($1::text[]) id`, [learners, ids.class, ids.subject]);
     await query(`INSERT INTO exam_marks(tenant_id,exam_series_id,assessment_id,class_section_id,subject_id,student_id,score,score_status,status,entered_by_user_id,academic_term_id)
       SELECT 'school-a',$2,$3,$4,$5,id::uuid,84,'entered','locked',$6,$7 FROM unnest($1::text[]) id`, [learners, ids.exam, ids.assessment, ids.class, ids.subject, ids.actor, ids.term]);

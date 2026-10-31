@@ -1,6 +1,6 @@
 # Library and class-specific exams — production release record
 
-Status: release preparation in progress; nothing from this task has been deployed yet.
+Status: production deployment and automated/read-only verification completed on 29 October 2026. Final acceptance and explicit live-session/device limits: `myshule-library-exams-final-acceptance-2026-10-29.md`. The dated entries below retain earlier evidence.
 
 The user explicitly requested deployment on 28 October 2026 after implementation and local verification. Both master specifications remain mandatory. The implementation/evidence report is `myshule-library-exams-delivery-2026-10-28.md`.
 
@@ -15,15 +15,15 @@ The user explicitly requested deployment on 28 October 2026 after implementation
 
 ## Release checklist
 
-- [ ] Finish release-checkout lint and production build. Earlier browser/PDF and compiler evidence belongs to the original checkout and must not be represented as final release verification.
+- [x] Finish release-checkout lint and production build; release-specific browser/PDF and compiler evidence recorded separately from original-checkout evidence.
 - [x] Prepare a scoped branch in the clean current-main checkout; integrate requested changes while retaining newer production architecture.
-- [ ] Review the release diff and rerun relevant release-source checks. Extend existing CI with new regression coverage.
+- [x] Review the release diff and rerun relevant release-source checks. Extend existing CI with new regression coverage.
 - [x] Record current successful backend/worker/frontend versions for rollback.
 - [x] Verify the production database contract read-only and create/verify a private backup before additive schema rollout. Never publish credentials or school records in Git/logs.
-- [ ] Create and attach a reviewable release PR; pass existing CI gates without bypassing checks.
-- [ ] Merge the verified release and verify backend schema/readiness before frontend publication using the established deployment process.
-- [ ] Confirm all required deployed revisions, public/Worker smoke checks, unsigned-request rejection, schema/RLS and error logs.
-- [ ] Update consolidated acceptance, deployment evidence and remaining device/authenticated-workflow limitations.
+- [x] Create and attach release PR #120; all PR checks passed without bypasses at 77a1535d.
+- [x] Merge the verified release and verify backend schema/readiness before frontend publication using the established deployment process.
+- [x] Confirm all required deployed revisions, public/Worker smoke checks, unsigned-request rejection, schema/RLS and error logs.
+- [x] Update consolidated acceptance, deployment evidence and remaining device/authenticated-workflow limitations.
 
 ## Rollback policy
 
@@ -74,3 +74,21 @@ All four were successful at source revision `9af9d4617f9936f70753ff4b48fe0a07b29
 
 - Revision `2c271c9d`, run `40774611490`: full frontend quality, production Worker build, security and CodeQL passed. Backend unit and all integration stages through exam setup/visibility/progress passed. Report generation passed (100 real seven-subject PDFs, 12.524 seconds). Readiness had one five-second timeout in its 56-exam/duplicate-enrollment case; combined report run: 35 passed, one timeout. This same case previously passed in the 60-second local readiness run. Give only this large unindexed-fixture test an explicit 60-second timeout, retaining every row and assertion. Remaining CI rerun is required.
 - Focused affected exam-service rerun completed **13/13 passed** (`.codex-release-exam-unit-focus.log`). No production implementation was changed for the fixture corrections.
+
+## Production rollout — 29 October 2026
+
+- PR CI run `40778510709` passed in full. Backend logs contain 2,274 Node test executions (including the core 1,603) and 556 Jest integration test executions across 38 suite executions. Repeated workflow gates mean these are execution totals, not unique cases. The scoped readiness rerun also passed locally: 9/9, 290.021 seconds including startup.
+- Refreshed private backup: `2026-10-28T22:30:44.232Z` (29 October 01:30 EAT), 5,469,306 bytes, 5,079 entries; full archive-read verification passed. SHA-256 `5349336a62b6d59d8f8a87d3bf927adc9e509d514453feda63389dfcd8825d44`. Earlier archive preserved.
+- Merged PR #120 on 29 October at 10:02 EAT. Merge `19c7ea4abcd5b4bd0e93712b3c67829ce9bcb073` has the exact tested candidate tree. Main pipeline `40832937008` is in progress; no gate bypassed.
+- All four Railway services deployed successfully at the merge revision: API `885df653-df00-4fb2-9d1d-2b95e313d75f`; payments `779696b8-0c61-4960-9113-76b2d9016b79`; reports bulk `2ea312e5-c95a-425d-b65c-cfcd9029ed57`; reports interactive `4c47f174-2b37-4f5c-b385-da712fe36124`.
+- Operator read-only postflight passed (`.codex-release-postflight.json`): all three added columns present, 17 enabled guards with the new stream/timetable logic, forced RLS on all 13 inspected tables, runtime role without superuser/bypass, shared worker database, signed gateway acceptance and forged rejection. `/health` and `/health/ready` returned 200; unsigned exam setup and library catalogue returned 401.
+- Bounded startup/live logs from all four deployments show successful startup with no error-level entries in the inspected samples. No production test mutations or legal acceptance were performed.
+- Remaining: main-branch-only integration gates, Cloudflare artifact publication/version and live domain smoke, final consolidated report. Current report: `output/library-exams-release-acceptance.md`.
+
+- Main pipeline `40832937008` passed frontend quality, Cloudflare build, security, and the complete backend build/unit/workflow integration job. Main-only integration and container publication are running; frontend publication remains gated on main integration.
+
+## Final release outcome
+
+Production run `40832937008` succeeded, including main-only integrations and container publication. Cloudflare deployed `b04a3f20-3df0-40ce-9103-ec942d5cf8e5` on 29 October at 10:26 EAT. Its CI smoke tests and independent follow-up smoke tests passed on the public domain and workers.dev host. Four exam/library anonymous probes returned 401 with private/no-store caching at 10:28 EAT. Main-only integration added 59 passing tests; the final 100-card real PDF benchmark took 8.085 seconds. The optional deploy-railway workflow job was skipped by its existing condition; Railway Git deployment independently succeeded for all four services.
+
+Final evidence is consolidated in `myshule-library-exams-final-acceptance-2026-10-29.md` and `output/library-exams-release-acceptance.md`. No pending deployment step remains. Live authenticated school acceptance, physical scanner/printer and assistive-technology verification are not claimed; existing ambiguous exam mappings require school review. Production code remains revision `19c7ea4a`; subsequent documentation updates do not change runtime artifacts.

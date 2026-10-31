@@ -1,4 +1,7 @@
 import { examStudentEligibleSql, examRosterSql, recordedMarkSql } from '../exam-mark-roster';
+import { missingReasonEditableSql } from '../missing-mark-reason-policy';
+import { REPORT_SCHOOL_REVISION_SQL } from '../services/report-infrastructure-schema';
+import type { CorrectMissingMarkReasonDto } from '../dto/exams.dto';
 import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
 import { examResultCtes } from '../exam-result-query';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
@@ -574,6 +577,92 @@ export class ExamsRepository {
     );
 
     return result.rows[0];
+  }
+
+  async correctMissingMarkReason(
+    input: Omit<CorrectMissingMarkReasonDto, 'teacher_user_id'> & {
+      tenant_id: string; actor_user_id: string; teacher_user_id: string | null;
+    },
+    onSaved: (mark: Record<string, any>, previous: Record<string, any> | null, tx: Prisma.TransactionClient) => Promise<void>,
+  ) {
+    const result = await this.prisma.executeWithTenant(input.tenant_id, input.actor_user_id, async tx => {
+      // Match the lock order used by full-sheet saves, configuration, moderation and publication.
+      await tx.$queryRawUnsafe(`SELECT series.id FROM exam_series series JOIN exam_mark_entry_windows w
+        ON w.tenant_id=series.tenant_id AND w.exam_series_id=series.id
+        WHERE series.tenant_id=$1 AND w.id=$2::uuid FOR UPDATE OF series`, input.tenant_id, input.mark_entry_window_id);
+      await tx.$queryRawUnsafe(`SELECT id FROM exam_mark_entry_windows WHERE tenant_id=$1 AND id=$2::uuid FOR UPDATE`,
+        input.tenant_id, input.mark_entry_window_id);
+      const scopes = await tx.$queryRawUnsafe<Array<Record<string, any>>>(`SELECT
+          w.exam_series_id, w.class_section_id, w.subject_id, series.academic_term_id,
+          w.paper_config_version, assessment.uses_categories,
+          ${missingReasonEditableSql('w','series','mark','$4','$5')} AS editable,
+          mark.updated_at IS NOT DISTINCT FROM $6::timestamptz AS version_matches,
+          CASE WHEN mark.id IS NOT NULL THEN to_jsonb(mark) END AS previous,
+          COALESCE($5::uuid,(SELECT CASE WHEN COUNT(DISTINCT assigned.teacher_user_id)=1
+            THEN MIN(assigned.teacher_user_id)::uuid END FROM teacher_subject_assignments assigned
+            WHERE assigned.tenant_id=w.tenant_id AND assigned.class_section_id=w.class_section_id::text
+              AND assigned.subject_id=w.subject_id::text
+              AND ${teacherMarkStudentScopeSql('w','series','$4','assigned.teacher_user_id')})) AS assigned_teacher,
+          ${markStreamSubmittedSql('w','series','assessment.id','$4')} AS stream_submitted
+        FROM exam_mark_entry_windows w JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id
+        JOIN exam_assessments assessment ON assessment.tenant_id=w.tenant_id AND assessment.id=$3::uuid
+          AND assessment.exam_series_id=w.exam_series_id AND assessment.subject_id=w.subject_id
+          AND ${paperClassScopeSql('assessment','w.class_section_id')}
+        LEFT JOIN exam_marks mark ON mark.tenant_id=w.tenant_id AND mark.assessment_id=assessment.id
+          AND mark.student_id=$4::uuid AND mark.exam_series_id=w.exam_series_id
+          AND mark.class_section_id=w.class_section_id AND mark.subject_id=w.subject_id
+        WHERE w.tenant_id=$1 AND w.id=$2::uuid
+          AND ${examStudentEligibleSql('w','series','$4','$7')}
+          AND ($5::uuid IS NULL OR ${teacherMarkStudentScopeSql('w','series','$4','$5')})`,
+        input.tenant_id, input.mark_entry_window_id, input.assessment_id, input.student_id,
+        input.teacher_user_id, input.expected_updated_at, input.stream_ids ?? null);
+      const scope = scopes[0];
+      if (!scope) throw new ForbiddenException('This learner or paper is outside your school and mark-entry assignment.');
+      if (!scope.editable) throw new ForbiddenException('Reason correction is unavailable. Reviewed, locked or published results require the controlled correction workflow; closed entry must be reopened by the Exams Manager.');
+      if (!scope.version_matches || scope.paper_config_version !== input.paper_config_version) {
+        throw new ConflictException('This mark or paper configuration changed. Refresh the record and review the latest reason before saving.');
+      }
+      const previous = scope.previous;
+      let categories = previous?.category_scores ?? {};
+      if (scope.uses_categories && input.score_status !== 'exempt') {
+        const components = await tx.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id::text FROM exam_assessment_components
+          WHERE tenant_id=$1 AND assessment_id=$2::uuid ORDER BY component_code`, input.tenant_id, input.assessment_id);
+        if (components.length && components.every(c => typeof categories[c.id] === 'number')) {
+          throw new ConflictException('All category scores are entered. Use the score correction workflow to change those scores.');
+        }
+        // Retain all numeric marks. Only missing/irregular evidence adopts the corrected reason.
+        categories = Object.fromEntries(components.map(c => [c.id, typeof categories[c.id] === 'number'
+          ? categories[c.id] : input.score_status === 'Y' ? 'Y' : input.score_status === 'X' ? 'X' : null]));
+      }
+      const marks = await tx.$queryRawUnsafe<Array<Record<string, any>>>(`INSERT INTO exam_marks (
+          tenant_id,exam_series_id,assessment_id,academic_term_id,class_section_id,subject_id,student_id,
+          score,score_status,status,entered_by_user_id,updated_by_user_id,assigned_teacher_user_id,category_scores,submitted_at)
+        VALUES ($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6::uuid,$7::uuid,NULL,$8,$9,$10::uuid,$10::uuid,$11::uuid,$12::jsonb,
+          CASE WHEN $9='submitted' THEN NOW() END)
+        ON CONFLICT (tenant_id,assessment_id,student_id) DO UPDATE SET score_status=EXCLUDED.score_status,
+          category_scores=EXCLUDED.category_scores,updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at=clock_timestamp()
+        WHERE exam_marks.score IS NULL AND exam_marks.status IN ('draft','submitted')
+          AND exam_marks.updated_at IS NOT DISTINCT FROM $13::timestamptz
+        RETURNING exam_marks.*,exam_marks.updated_at::text AS updated_at`, input.tenant_id, scope.exam_series_id,
+        input.assessment_id, scope.academic_term_id, scope.class_section_id, scope.subject_id, input.student_id,
+        input.score_status, previous?.status ?? (scope.stream_submitted ? 'submitted' : 'draft'), input.actor_user_id,
+        scope.assigned_teacher, JSON.stringify(categories), input.expected_updated_at);
+      const mark = marks[0];
+      if (!mark) throw new ConflictException('This mark changed. Refresh the record before saving.');
+      await tx.$queryRawUnsafe(`INSERT INTO exam_mark_audit_logs (tenant_id,mark_id,exam_series_id,assessment_id,student_id,
+          action,actor_user_id,previous_score,new_score,reason,metadata)
+        VALUES ($1,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$8,$6::uuid,NULL,NULL,'Missing-mark reason correction',$7::jsonb)
+        RETURNING id`, input.tenant_id, mark.id, mark.exam_series_id, mark.assessment_id, mark.student_id, input.actor_user_id,
+        JSON.stringify({ source: input.teacher_user_id === input.actor_user_id ? 'teacher_mark_sheet' : 'exams_manager_mark_sheet',
+          correction_type: 'missing_mark_reason', source_window_id: input.mark_entry_window_id,
+          previous_score_status: previous?.score_status ?? null, new_score_status: mark.score_status,
+          previous_category_scores: previous?.category_scores ?? {}, category_scores: mark.category_scores,
+          previous_status: previous?.status ?? null, status: mark.status }), previous ? 'grade.updated' : 'grade.created');
+      await onSaved(mark, previous, tx);
+      return mark;
+    });
+    this.analyticsReads.clear();
+    return result;
   }
 
   async saveTeacherMarkSheet(input: {
@@ -5698,6 +5787,8 @@ export class ExamsRepository {
         student.id::text AS student_id,
         student.admission_number,
         roster.stream_id,
+        (SELECT stream.name FROM class_streams stream WHERE stream.tenant_id=mark_window.tenant_id
+          AND stream.class_section_id=mark_window.class_section_id::text AND stream.id=roster.stream_id LIMIT 1) AS stream_name,
         NULLIF(BTRIM(CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name)), '') AS student_name,
         mark.score::float AS score,
         mark.category_scores, mark_window.paper_config_version,
@@ -5718,6 +5809,7 @@ export class ExamsRepository {
           AND ${markEntryAccessSql('mark_window','series','$4')}
           AND COALESCE(mark.status,'draft')='draft'
           AND NOT ${markStreamSubmittedSql('mark_window','series','assessment.id','student.id')}) AS can_edit,
+        ${missingReasonEditableSql('mark_window','series','mark','student.id','$4')} AS can_edit_reason,
         mark_window.opens_at::text,
         mark_window.closes_at::text
       FROM exam_mark_entry_windows mark_window
@@ -6407,7 +6499,9 @@ export class ExamsRepository {
       examCatalog=metadata.rows;
     }
     const cacheable=filters.analytics_mode==='library'&&scope.level==='school'&&!!scope.actor_user_id&&!forReport;
-    const cacheKey=JSON.stringify([tenantId,scope.actor_user_id,scope.role,scope.level,filters.academic_year_id,filters.academic_term_id,filters.exam_series_id,filters.comparison_exam_id,filters.history_limit,filters.refresh_key]);
+    // Database revisions also invalidate a cache held by a different API instance.
+    const revision = cacheable ? (await this.executeSql<{revision: string}>(REPORT_SCHOOL_REVISION_SQL, [tenantId])).rows[0]?.revision : undefined;
+    const cacheKey=JSON.stringify([tenantId,scope.actor_user_id,scope.role,scope.level,filters.academic_year_id,filters.academic_term_id,filters.exam_series_id,filters.comparison_exam_id,filters.history_limit,filters.refresh_key,revision]);
     for(const [key,entry] of this.analyticsReads)if(entry.expires<=Date.now())this.analyticsReads.delete(key);
     let read=cacheable?this.analyticsReads.get(cacheKey):undefined;
     if(!read){

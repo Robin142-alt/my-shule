@@ -1,6 +1,6 @@
 # Library, keyboard navigation, and class-specific examinations
 
-Status: implementation in progress. No deployment or production verification claimed.
+Status: implementation and deployment completed; automated and read-only production verification passed. Final evidence and live-school/device limits: `myshule-library-exams-final-acceptance-2026-10-29.md`. Dated entries below retain the execution history.
 
 Both supplied master specifications are mandatory. This file records acceptance coverage and outstanding work across sessions. Existing payment plans in `tasks/` and pre-existing uncommitted changes are preserved.
 
@@ -31,7 +31,7 @@ Both supplied master specifications are mandatory. This file records acceptance 
 - [x] A5.4–5: Visible focus, logical dynamic order, hidden/disabled/readonly skipping, values/validation/accessibility preserved, minimal scrolling, scanner suffix precedence, no accidental submission.
 - [x] A6–8: Consistent existing design/mobile/workspaces; no competing modules, fake actions, record loss, unnecessary dependencies or destructive migrations; permissions/events/audits maintained.
 - [x] A7: Tenant isolation, global barcode uniqueness, duplicate registration/loans prevented, return consistency, school-safe exports and concurrency tests.
-- [ ] A9–10: Execute registration/scan/50+ queue/printing (3/many/hundreds, long titles, same title copies, missing/present logo)/keyboard/module regression acceptance tests; report actual results.
+- [x] A9–10: Execute registration/scan/50+ queue/printing (3/many/hundreds, long titles, same title copies, missing/present logo)/keyboard/module regression acceptance tests; report actual results.
 
 ## B — Examination acceptance checklist
 
@@ -47,7 +47,7 @@ Both supplied master specifications are mandatory. This file records acceptance 
 - [x] B7: Clean subject labels/meaningful codes without generated technical identifiers; valid custom subjects retained.
 - [x] B8: Create → class selection → independent subjects → stream review → save/reopen/edit → marks → moderation/publication/report cards works end to end.
 - [x] B9: Isolated Form4=9 / Grade9=7 / Grade10=6 fixture, independent edits and eligible counts; failures rollback, repeat/concurrent saves, absent/withdrawn/elective/stream/zero/missing-curriculum/published cases and cross-school access tested.
-- [ ] B10: Tests/typechecks/lint/build/migration/browser evidence, regressions fixed, rollout dependencies documented without false production claims.
+- [x] B10: Tests/typechecks/lint/build/migration/browser evidence, regressions fixed, rollout dependencies documented without false production claims.
 
 ## Verification record
 
@@ -115,3 +115,7 @@ Each entry states actual results. Checked implementation items are supported by 
 - Final exam browser checks passed at **320/390/768/1440px** and keyboard checks at **375/1280px**. Updated exam mobile screenshot inspected; Save remains reachable and class selections remain separate.
 - Library browser passed at **390/1440px** with 56 queued copies, 300 preview rows and a verified print call. PDF inspection caught a footer-only trailing page; fixed using the print page margin, with added assertions and empty/individual/class report variants. Final PDF regeneration remains pending.
 - Latest full inventory and evidence: `docs/myshule-library-exams-delivery-2026-10-28.md`. Final focused web tests, TypeScript, lint, production build and PDF regeneration are running sequentially. No live school or production database was touched.
+
+## Final acceptance record — 29 October 2026
+
+Both implementation checklists are covered by the final release report. All automated release gates passed; code is deployed at `19c7ea4a` with Cloudflare version `b04a3f20-3df0-40ce-9103-ec942d5cf8e5`. See `myshule-library-exams-final-acceptance-2026-10-29.md` for exact results, file inventory, schema rollout, production checks and remaining live authenticated/device limits. Checked automated acceptance does not claim physical scanner/printer or live-school mutation acceptance.

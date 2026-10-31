@@ -7,6 +7,7 @@ import {
   fetchPendingMarksLive,
   fetchTeacherMarkSheetLive,
   saveExamMarksLive,
+  saveMissingMarkReasonLive,
   fetchPaperConfiguration,
   savePaperConfiguration,
 } from "@/lib/modules/teacher-live";
@@ -21,6 +22,7 @@ jest.mock("@/lib/modules/teacher-live", () => ({
   fetchPendingMarksLive: jest.fn(),
   fetchTeacherMarkSheetLive: jest.fn(),
   saveExamMarksLive: jest.fn(),
+  saveMissingMarkReasonLive: jest.fn(),
   fetchPaperConfiguration: jest.fn(),
   savePaperConfiguration: jest.fn(),
 }));
@@ -181,6 +183,106 @@ describe("teacher exams and marks workspace", () => {
     await screen.findByLabelText("Asha Njeri score");
   }
 
+  it('corrects one submitted missing reason immediately without resubmitting the class', async () => {
+    const pending = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({...pending, windows: [{...pending.windows[0], status: 'Submitted', canEnter: false}]});
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map((row, index) => ({...row, id: `mark-${index}`, score: index ? 65 : null,
+      score_status: index ? 'entered' : 'X', status: 'submitted', can_edit: false, can_edit_reason: !index,
+      paper_config_version: 2, updated_at: '2026-10-29T10:00:00Z', stream_name: 'Blue'})));
+    jest.mocked(saveMissingMarkReasonLive).mockResolvedValue({success: true, data: {id: 'mark-0', student_id: 'student-1', score: null,
+      score_status: 'Y', status: 'submitted', updated_at: '2026-10-29T10:01:00Z'}});
+    renderWithProviders(<ExamsMarksWorkspace />);
+    fireEvent.click(await screen.findByRole('button', {name: 'Submitted (1)'}));
+    fireEvent.click(await screen.findByRole('button', {name: /^Open Mathematics/}));
+    fireEvent.click(await screen.findByRole('button', {name: /^Missing Marks/}));
+    fireEvent.change(screen.getByLabelText('Find missing marks'), {target: {value: 'ADM-001'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Edit reason for Asha Njeri'}));
+    expect(screen.getByLabelText('Asha Njeri missing reason')).toHaveValue('X');
+    fireEvent.change(screen.getByLabelText('Asha Njeri missing reason'), {target: {value: 'Y'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Save reason'}));
+    await waitFor(() => expect(saveMissingMarkReasonLive).toHaveBeenCalledWith(mockSession, {
+      mark_entry_window_id: 'window-1', assessment_id: 'assessment-paper-1', student_id: 'student-1', score_status: 'Y',
+      expected_updated_at: '2026-10-29T10:00:00Z', paper_config_version: 2,
+    }));
+    expect(await screen.findByText(/Reason saved for Asha Njeri/)).toBeInTheDocument();
+    expect(screen.getByText('Current reason:').parentElement).toHaveTextContent('Y — Examination irregularity');
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', {name: 'Submit results'})).not.toBeInTheDocument();
+  });
+
+  it('saves a blank student’s reason before submission while preserving another student’s unsaved score', async () => {
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map(row => ({...row, can_edit_reason: true, paper_config_version: 1})));
+    jest.mocked(saveMissingMarkReasonLive).mockResolvedValue({success: true, data: {id: 'new-mark', student_id: 'student-2', score: null,
+      score_status: 'absent', status: 'draft', updated_at: '2026-10-29T10:01:00Z'}});
+    await openWorkspace();
+    fireEvent.change(screen.getByLabelText('Asha Njeri score'), {target: {value: '67'}});
+    fireEvent.click(screen.getByRole('button', {name: /^Missing Marks/}));
+    expect(screen.getByRole('button', {name: 'Edit reason for Asha Njeri'})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', {name: 'Edit reason for Brian Otieno'}));
+    fireEvent.change(screen.getByLabelText('Brian Otieno missing reason'), {target: {value: 'absent'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Save reason'}));
+    await screen.findByText(/Reason saved for Brian Otieno/);
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', {name: 'Scores'}));
+    expect(screen.getByLabelText('Asha Njeri score')).toHaveValue('67');
+    fireEvent.click(screen.getByRole('button', {name: 'Save draft'}));
+    await waitFor(() => expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession, expect.objectContaining({marks: {
+      'student-1': expect.objectContaining({score: 67, score_status: 'entered', expected_updated_at: null}),
+      'student-2': expect.objectContaining({score: null, score_status: 'absent', expected_updated_at: '2026-10-29T10:01:00Z'}),
+    }})));
+  });
+
+  it('keeps the selected reason on a failed request, prevents double saving and reloads a conflicting record explicitly', async () => {
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    const saved = rows.map(row => ({...row, id: row.student_id, score_status: 'X' as const, can_edit_reason: true,
+      paper_config_version: 3, updated_at: '2026-10-29T10:00:00Z'}));
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(saved);
+    let rejectSave!: (error: Error) => void;
+    jest.mocked(saveMissingMarkReasonLive).mockImplementation(() => new Promise((_resolve, reject) => {rejectSave = reject;}));
+    await openWorkspace();
+    fireEvent.click(screen.getByRole('button', {name: /^Missing Marks/}));
+    fireEvent.click(screen.getByRole('button', {name: 'Edit reason for Asha Njeri'}));
+    fireEvent.change(screen.getByLabelText('Asha Njeri missing reason'), {target: {value: 'Y'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Save reason'}));
+    expect(screen.getByRole('button', {name: 'Saving…'})).toBeDisabled();
+    expect(saveMissingMarkReasonLive).toHaveBeenCalledTimes(1);
+    await act(async () => rejectSave(new Error('This mark changed. Reload before retrying.')));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This mark changed');
+    expect(screen.getByLabelText('Asha Njeri missing reason')).toHaveValue('Y');
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue([{...saved[0], score_status: 'medical_exception', updated_at: '2026-10-29T10:05:00Z'}]);
+    fireEvent.click(screen.getByRole('button', {name: 'Reload this record'}));
+    await waitFor(() => expect(screen.queryByLabelText('Asha Njeri missing reason')).not.toBeInTheDocument());
+    expect(fetchTeacherMarkSheetLive).toHaveBeenLastCalledWith(mockSession, expect.objectContaining({studentId: 'student-1', view: 'all'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Edit reason for Asha Njeri'}));
+    expect(screen.getByLabelText('Asha Njeri missing reason')).toHaveValue('medical_exception');
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+  });
+
+  it('filters unassigned, assigned, X and Y reasons and keeps protected records visible without editing', async () => {
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue([
+      {...rows[0], can_edit_reason: true, paper_config_version: 1},
+      {...rows[1], id: 'locked', status: 'locked', score_status: 'Y', can_edit_reason: false, paper_config_version: 1},
+    ]);
+    await openWorkspace();
+    fireEvent.click(screen.getByRole('button', {name: /^Missing Marks/}));
+    expect(screen.getByRole('button', {name: 'Edit reason for Brian Otieno'})).toBeDisabled();
+    expect(screen.getByText(/Dean’s controlled correction|Dean's controlled correction/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Missing marks filter'), {target: {value: 'unassigned'}});
+    expect(screen.getByRole('button', {name: 'Edit reason for Asha Njeri'})).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Edit reason for Brian Otieno'})).not.toBeInTheDocument();
+    for (const filter of ['assigned', 'Y']) {
+      fireEvent.change(screen.getByLabelText('Missing marks filter'), {target: {value: filter}});
+      expect(screen.getByRole('button', {name: 'Edit reason for Brian Otieno'})).toBeDisabled();
+      expect(screen.queryByRole('button', {name: 'Edit reason for Asha Njeri'})).not.toBeInTheDocument();
+    }
+    fireEvent.change(screen.getByLabelText('Missing marks filter'), {target: {value: 'X'}});
+    expect(screen.getByText(/No missing marks match/)).toBeInTheDocument();
+    expect(saveMissingMarkReasonLive).not.toHaveBeenCalled();
+  });
+
   it('shows only the selected unassigned stream and never saves another stream', async()=>{
     const rows=await jest.mocked(fetchTeacherMarkSheetLive)(mockSession,{examSeriesId:'series-1',classSectionId:'class-2-blue',subjectId:'subject-maths',assessmentId:'assessment-paper-1'});
     jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map((row,index)=>({...row,stream_id:index===0?'white':'blue'})));
@@ -217,13 +319,13 @@ describe("teacher exams and marks workspace", () => {
     await openWorkspace();
     const first = screen.getByLabelText("Asha Njeri score");
     const second = screen.getByLabelText("Brian Otieno score");
-    first.focus();
+    act(() => first.focus());
     fireEvent.keyDown(first, { key: "ArrowDown" });
     expect(second).toHaveFocus();
     fireEvent.keyDown(second, { key: "Enter", shiftKey: true });
     expect(first).toHaveFocus();
     fireEvent.change(screen.getByLabelText("Find student"), { target: { value: "Asha" } });
-    first.focus(); fireEvent.keyDown(first, { key: "ArrowDown" });
+    act(() => first.focus()); fireEvent.keyDown(first, { key: "ArrowDown" });
     expect(first).toHaveFocus();
     expect(screen.queryByLabelText("Brian Otieno score")).not.toBeInTheDocument();
     expect(saveExamMarksLive).not.toHaveBeenCalled();
@@ -396,7 +498,7 @@ describe("teacher exams and marks workspace", () => {
   it.each([
     ["Draft", /must select Open for marks/i], ["Scheduled", /can open it earlier/i],
     ["Closed", /Ask the Exams Manager to open/i], ["Deadline passed", /extend the end date/i],
-    ["Locked", /Ask the Exams Manager to reopen mark entry/i],
+    ["Locked", /controlled correction workflow/i],
   ])("explains %s exams and blocks entry", async (entryState, reason) => {
     const result = await jest.mocked(fetchPendingMarksLive)(mockSession, true);
     jest.mocked(fetchPendingMarksLive).mockClear();

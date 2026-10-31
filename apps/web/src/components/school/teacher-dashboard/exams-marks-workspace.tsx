@@ -8,28 +8,17 @@ import { cn } from "./shared-components";
 import { TeacherAction, TeacherView } from "./types";
 import { useLiveTenantSession } from "@/hooks/use-live-tenant-session";
 import {
-  fetchPendingMarksLive, fetchTeacherMarkSheetLive, saveExamMarksLive,
+  fetchPendingMarksLive, fetchTeacherMarkSheetLive, saveExamMarksLive, saveMissingMarkReasonLive,
   type ExamScoreStatus, type PendingMarksWindow, type TeacherMarkSheetRow,
 } from "@/lib/modules/teacher-live";
 import { downloadCsvFile, openPrintDocument } from "@/lib/dashboard/export";
 import { MarkbookList, sheetKey, isSubmitted, markbookDate, type MarkbookView } from "./markbook-list";
 import { PaperSettings } from './paper-settings';
 import { markbookPaperLabel } from '@/lib/modules/markbook-labels';
+import { MissingMarksPanel, MISSING_MARK_REASONS as REASONS, type MissingMarkReason } from './missing-marks-panel';
 
-type MarkDraft = { score: string; scoreStatus: ExamScoreStatus | ""; remarks: string; categories?: Record<string, string> };
+type MarkDraft = { score: string; scoreStatus: ExamScoreStatus | ""; remarks: string; categories?: Record<string, string>; expectedUpdatedAt?: string | null };
 type DraftsByStudent = Record<string, MarkDraft>;
-type MissingMarkReason = Exclude<ExamScoreStatus, "entered">;
-const REASONS: Array<{ value: MissingMarkReason; label: string }> = [
-  { value: "X", label: "X — Missing marks" },
-  { value: "Y", label: "Y — Examination irregularity" },
-  { value: "absent", label: "Absent" },
-  { value: "exempt", label: "Exempt" },
-  { value: "not_assessed", label: "Not assessed" },
-  { value: "incomplete", label: "Incomplete" },
-  { value: "withheld", label: "Withheld" },
-  { value: "medical_exception", label: "Medical exception" },
-  { value: "transfer_student", label: "Transfer student" },
-];
 const EMPTY_WINDOWS: PendingMarksWindow[] = [];
 const EMPTY_ROWS: TeacherMarkSheetRow[] = [];
 const buttonClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50";
@@ -40,13 +29,13 @@ function entryUnavailableReason(windowTask: PendingMarksWindow) {
     case "Draft": return "The Exams Manager must select Open for marks in Exam Setup before you can enter scores.";
     case "Scheduled": return `Marks entry starts ${windowTask.opensAt ? new Date(windowTask.opensAt).toLocaleString() : "on the scheduled date"}. The Exams Manager can open it earlier from Exam Setup.`;
     case "Deadline passed": return "The deadline has passed. Ask the Exams Manager to extend the end date and open entry again.";
-    case "Locked": return "This exam is locked or published. Ask the Exams Manager to reopen mark entry for changes.";
+    case "Locked": return "This exam is locked or published. Ask the Dean of Academics to use the controlled correction workflow and required report approvals.";
     default: return "Marks entry is closed. Ask the Exams Manager to open this exam for marks.";
   }
 }
 function draftFromRow(row: TeacherMarkSheetRow): MarkDraft {
   return { score: row.score === null ? ['X', 'Y'].includes(row.score_status) ? row.score_status : "" : String(row.score), scoreStatus: row.id ? row.score_status : "", remarks: row.remarks ?? "",
-    categories: Object.fromEntries(Object.entries(row.category_scores ?? {}).map(([id, value]) => [id, value === null ? '' : String(value)])) };
+    categories: Object.fromEntries(Object.entries(row.category_scores ?? {}).map(([id, value]) => [id, value === null ? '' : String(value)])), expectedUpdatedAt: row.updated_at };
 }
 function scoreError(draft: MarkDraft, outOf: number) {
   if (!draft.score.trim()) return "";
@@ -96,6 +85,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [onlyBlank, setOnlyBlank] = useState(false);
+  const [markbookSection, setMarkbookSection] = useState<'scores' | 'missing'>('scores');
   const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
   const [reviewWindowId, setReviewWindowId] = useState<string | null>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
@@ -134,10 +124,11 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
     return () => window.removeEventListener("beforeunload", warn);
   }, [hasUnsavedChanges]);
 
-  const markSheetQuery = useQuery({
-    queryKey: ["teacher-mark-sheet", liveSession.session?.tenantId, viewerScope,
+  const markSheetKey = ["teacher-mark-sheet", liveSession.session?.tenantId, viewerScope,
       activeWindow?.examSeriesId, activeWindow?.classSectionId, activeWindow?.subjectId, activeWindow?.assessmentId,
-      submittedView ? "submitted" : "active"],
+      submittedView ? "submitted" : "active"];
+  const markSheetQuery = useQuery({
+    queryKey: markSheetKey,
     queryFn: () => fetchTeacherMarkSheetLive(liveSession.session!, {
       examSeriesId: activeWindow!.examSeriesId, classSectionId: activeWindow!.classSectionId,
       subjectId: activeWindow!.subjectId, assessmentId: activeWindow!.assessmentId,
@@ -176,7 +167,45 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
     } }));
   }
   function switchWindow(id: string | null) {
-    setActiveWindowId(id); setReviewWindowId(null); setSearch(""); setOnlyBlank(false); setFocusedStudentId(null); setActionError(""); setNotice("");
+    setActiveWindowId(id); setReviewWindowId(null); setMarkbookSection('scores'); setSearch(""); setOnlyBlank(false); setFocusedStudentId(null); setActionError(""); setNotice("");
+  }
+  async function saveReason(row: TeacherMarkSheetRow, reason: MissingMarkReason) {
+    if (!activeWindow || !liveSession.session || savingRef.current || row.can_edit_reason !== true
+      || draftMarks[sheetKey(activeWindow)]?.[row.student_id]) throw new Error('Save this student’s draft or reload the record before correcting its reason.');
+    const paperVersion = row.paper_config_version ?? activeWindow.paperConfigVersion;
+    if (paperVersion === undefined) throw new Error('Reload the markbook to obtain the current paper settings before saving.');
+    savingRef.current = true; setIsSaving(true); setNotice('');
+    try {
+      const result = await saveMissingMarkReasonLive(liveSession.session, {
+        mark_entry_window_id: activeWindow.id, assessment_id: activeWindow.assessmentId,
+        student_id: row.student_id, score_status: reason, expected_updated_at: row.updated_at,
+        paper_config_version: paperVersion,
+        ...(assistance?.teacherUserId ? {teacher_user_id: assistance.teacherUserId} : {}),
+        ...(assistance?.streamIds ? {stream_ids: assistance.streamIds.map(id => id ?? '')} : {}),
+      });
+      if (!result.success) throw new Error('The reason was not saved. Please retry.');
+      await queryClient.cancelQueries({queryKey: markSheetKey, exact: true});
+      queryClient.setQueryData<TeacherMarkSheetRow[]>(markSheetKey, current => current?.map(saved => saved.student_id === row.student_id
+        ? {...saved, ...result.data, updated_by_user_id: liveSession.session!.user.user_id, updated_by_name: liveSession.session!.user.display_name} : saved));
+      setSavedDrafts(current => {
+        const next = {...current}; const sheet = {...next[sheetKey(activeWindow)]}; delete sheet[row.student_id];
+        if (Object.keys(sheet).length) next[sheetKey(activeWindow)] = sheet; else delete next[sheetKey(activeWindow)];
+        return next;
+      });
+      // Invalidate dependent school views without replacing other students' local drafts or their versions.
+      void queryClient.invalidateQueries({predicate: query => query.queryKey[1] === liveSession.session!.tenantId
+        && (query.queryKey[0] === 'pending-marks' || query.queryKey[0] === 'school' && /exams|report-card/.test(String(query.queryKey[4] ?? '')))});
+      setNotice(`Reason saved for ${row.student_name ?? 'student'}. ${result.data.status === 'submitted' ? 'The sheet remains submitted.' : 'Other students’ marks are unchanged.'}`);
+    } finally {savingRef.current = false; setIsSaving(false);}
+  }
+  async function reloadReason(studentId: string) {
+    if (!liveSession.session || !activeWindow) throw new Error('Open this markbook again to reload the record.');
+    const rows = await fetchTeacherMarkSheetLive(liveSession.session, {examSeriesId: activeWindow.examSeriesId,
+      classSectionId: activeWindow.classSectionId, subjectId: activeWindow.subjectId, assessmentId: activeWindow.assessmentId,
+      studentId, view: 'all', ...(assistance ? {teacherUserId: assistance.teacherUserId} : {})});
+    const fresh = rows.find(row => row.student_id === studentId);
+    if (!fresh) throw new Error('This student is no longer available in this markbook. Refresh the exam list.');
+    queryClient.setQueryData<TeacherMarkSheetRow[]>(markSheetKey, current => current?.map(row => row.student_id === studentId ? fresh : row));
   }
   function reportInvalidScores() {
     if (!invalidRows.length) return false;
@@ -200,7 +229,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       if (!status) return [];
       return [[row.student_id, { score: status === "entered" ? Number(draft.score) : null,
         score_status: status, ...(draft.remarks.trim() ? { remarks: draft.remarks.trim() } : {}),
-        ...(row.updated_at !== undefined ? {expected_updated_at:row.updated_at} : {}),
+        ...(draft.expectedUpdatedAt !== undefined ? {expected_updated_at:draft.expectedUpdatedAt} : row.updated_at !== undefined ? {expected_updated_at:row.updated_at} : {}),
         ...(draft.categories && Object.keys(draft.categories).length ? { category_scores: Object.fromEntries((row.categories ?? []).map((c): [string, number | null | 'X' | 'Y'] => {
           const value = draft.categories?.[c.id]?.trim().toUpperCase() ?? '';
           return [c.id, value === '' ? null : value === 'X' || value === 'Y' ? value : Number(value)];
@@ -346,6 +375,10 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
           {!submittedView && liveSession.session && <div className="px-3 pt-3 sm:px-6"><PaperSettings key={activeWindow.id} session={liveSession.session} windowId={activeWindow.id}
             disabled={readOnly || hasUnsavedChanges || isSaving} onSaved={() => { setDraftMarks({}); setSavedDrafts({}); switchWindow(null); setNotice('Paper settings saved. Choose a markbook to continue entering scores.'); }} /></div>}
           <p className="px-4 pt-3 text-xs text-slate-500 sm:px-6">Enter a score, X for missing marks, or Y for examination irregularity. Any required X/Y sets the overall exam grade; Y takes priority.</p>
+          <div aria-label="Markbook sections" className="flex flex-wrap gap-2 px-3 pt-3 sm:px-6">
+            <button type="button" className={buttonClass} aria-pressed={markbookSection === 'scores'} disabled={isSaving} onClick={() => setMarkbookSection('scores')}>Scores</button>
+            <button type="button" className={buttonClass} aria-pressed={markbookSection === 'missing'} disabled={isSaving} onClick={() => {setMarkbookSection('missing'); setReviewWindowId(null);}}>Missing Marks ({markRows.filter(row => row.score === null).length})</button>
+          </div>
           {actionError && <p role="alert" className="mx-4 mt-4 flex items-start gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{actionError}</p>}
           {activeWindow.canEnter === false && !submittedView && (
             <div role="status" className="m-4 rounded-lg border border-warning-border bg-warning-soft p-4"><h3 className="font-semibold">{activeWindow.entryState || "Entry unavailable"}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{entryUnavailableReason(activeWindow)}</p></div>
@@ -359,6 +392,9 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
             </div>
           ) : !markRows.length ? (
             <div className="p-6"><h3 className="font-semibold">No active subject-enrolled learners in this markbook.</h3><p className="mt-2 text-sm text-slate-500">Ask the Deputy Principal or HOD to check enrolment for {activeWindow.className}, {activeWindow.subjectName}, then refresh the exam list.</p></div>
+          ) : markbookSection === 'missing' ? (
+            <MissingMarksPanel key={sheetKey(activeWindow)} rows={markRows} dirtyStudentIds={Object.keys(draftMarks[sheetKey(activeWindow)] ?? {})}
+              busy={isSaving} onSave={saveReason} onReload={reloadReason} />
           ) : reviewing ? (
             <section aria-labelledby="missing-scores-title" className="p-4 sm:px-6">
               <button type="button" onClick={() => { setReviewWindowId(null); setActionError(""); }} disabled={isSaving} className={buttonClass}><ArrowLeft className="h-4 w-4" /> Back to scores</button>
@@ -379,14 +415,13 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
             </section>
           ) : (
             <>
-              {readOnly && activeWindow.canEnter !== false && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
-              {submittedView && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted results are read-only. The Exams Manager must return the sheet before you can edit it.</p>}
+              {readOnly && (submittedView || activeWindow.canEnter !== false) && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted scores are read-only. {markRows.some(row => row.can_edit_reason === true) ? 'Use Missing Marks to correct a reason individually without resubmitting the class.' : 'Reason corrections follow the examination’s entry and approval rules.'} Numeric score changes require the existing return or controlled correction workflow.</p>}
               <div className="flex flex-wrap items-center gap-2 p-3 sm:gap-3 sm:p-4 sm:px-6">
                 <label className="relative min-w-0 flex-1 basis-48"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input type="search" aria-label="Find student" placeholder="Name or admission number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-base focus:outline-blue-600" /></label>
                 <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-info-soft text-info")}>Blank ({blankRows.length})</button>
                 <p className="text-sm text-slate-500" aria-live="polite">{enteredCount} / {markRows.length} entered</p>
               </div>
-              <p id="marks-keyboard-help" className="px-4 pb-3 text-xs text-slate-500 sm:px-6">Arrow keys move between scores. Type or press F2 to edit; Escape returns to navigation. Enter moves down, Shift + Enter moves up. Tab works normally.</p>
+              <p id="marks-keyboard-help" className="px-4 pb-3 text-xs text-slate-500 sm:px-6">↑ / ↓ move between students while typing. Enter moves down; Shift + Enter moves up. ← / → move between score columns at the edge of a value. The next value is selected for replacement. Tab works normally.</p>
               <div role="table" aria-label="Student scores" aria-describedby="marks-keyboard-help" className="w-full" onKeyDown={onGridNavigationKeyDown}>
                 <div role="row" className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 border-y border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500 sm:grid-cols-[minmax(0,1fr)_9rem_7rem] sm:px-6">
                   <span role="columnheader">Student</span><span role="columnheader" className="hidden sm:block">Admission no.</span><span role="columnheader" className="text-center">Score / {activeWindow.outOf}</span>
@@ -437,7 +472,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
               {!visibleRows.length && <div className="p-6 text-center"><p className="text-sm text-slate-500">No students match these filters.</p><button type="button" onClick={() => { setSearch(""); setOnlyBlank(false); }} className={cn(buttonClass, "mt-3")}>Clear filters</button></div>}
             </>
           )}
-          {!submittedView && <footer className="sticky bottom-0 z-10 grid grid-cols-2 items-center gap-2 rounded-b-xl border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:px-6">
+          {!submittedView && markbookSection === 'scores' && <footer className="sticky bottom-0 z-10 grid grid-cols-2 items-center gap-2 rounded-b-xl border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:px-6">
             <p className="col-span-2 text-xs text-slate-500 empty:hidden sm:mr-auto">{isSaving ? "Saving results..." : activeWindow && draftMarks[sheetKey(activeWindow)] ? "Unsaved changes — save before leaving" : "Saved drafts remain editable until you submit."}</p>
             {!reviewing && <button type="button" onClick={() => void persistScores("draft")} disabled={unavailable} className={buttonClass}><Save className="h-4 w-4" /> Save draft</button>}
             <button type="button" onClick={() => reviewing ? void persistScores("submit") : submitResults()} disabled={unavailable} className={cn(primaryClass, reviewing && "col-span-2")}>
