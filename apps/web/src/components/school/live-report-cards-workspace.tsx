@@ -1,6 +1,7 @@
 "use client";
 
 import { OfficialReportPreview } from "@/components/report-cards/official-report-preview";
+import { ReportGenerationFailures } from "./report-generation-failures";
 import {
   ChevronRight,
   Download,
@@ -266,6 +267,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   const [feedback, setFeedback] = useState<{ tone: "ok" | "critical"; message: string } | null>(null);
   const [rowFeedback, setRowFeedback] = useState<Record<string, { tone: "ok" | "critical"; message: string }>>({});
   const [batchStatus, setBatchStatus] = useState<LiveReportCardBatchStatus | null>(null);
+  const [batchJobId, setBatchJobId] = useState("");
   const [bulkResult, setBulkResult] = useState<BulkTransitionResult | null>(null);
   const [bulkReason, setBulkReason] = useState("");
   const [regenerationReason, setRegenerationReason] = useState("");
@@ -553,6 +555,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
     }
 
     setBusyAction("generate-batch");
+    setBatchJobId("");
     setFeedback(null);
     setBatchStatus(null);
     let progress: LiveReportCardBatchStatus = {
@@ -566,6 +569,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
         method:"POST",body:{ exam_series_id:batchScope.exam_series_id,class_section_id:batchScope.class_section_id,
           ...(scope.streamLabel ? { stream_name:scope.streamLabel } : {}) },
         onProgress:value=>{
+          if (value.job_id) setBatchJobId(String(value.job_id));
           progress={ ...progress,id:String(value.job_id ?? progress.id),
             completed_students:Number(value.completed_students ?? progress.completed_students),
             failed_students:Number(value.failed_students ?? progress.failed_students ?? 0) };
@@ -595,6 +599,33 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
   }
 
   // --- Comments ---
+  async function retryBatch(jobId: string) {
+    if (busyAction) return;
+    setBusyAction("retry-batch");
+    setFeedback(null);
+    setBatchJobId(jobId);
+    try {
+      const result = await requestSchoolApiProxy<LiveReportCardBatchStatus>(`/exams/report-cards/jobs/${encodeURIComponent(jobId)}/retry`, {
+        method: "POST", onProgress: value => setBatchStatus(current => current ? {
+          ...current, queue_status: "running",
+          completed_students: Number(value.completed_students ?? current.completed_students),
+          failed_students: Number(value.failed_students ?? current.failed_students ?? 0),
+        } : current),
+      });
+      const pending = Math.max(0, result.total_students - result.completed_students - (result.failed_students ?? 0));
+      const failed = Boolean(result.failed_students || pending);
+      setBatchStatus({ ...result, queue_status: failed ? "failed" : "completed" });
+      setFeedback({ tone: failed ? "critical" : "ok", message: failed
+        ? `${result.completed_students} report cards ready; ${result.failed_students ?? 0} failed and ${pending} pending.`
+        : `${result.completed_students} report cards ready.${result.reused_students ? ` ${result.reused_students} unchanged cards reused.` : ""}` });
+    } catch (error) {
+      setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Report retry failed." });
+    } finally {
+      await Promise.allSettled([refreshAll(), recentJobs.refetch(), generationQuery.refetch()]);
+      setBusyAction("");
+    }
+  }
+
   async function saveComments() {
     if (!selectedReport) return;
     if (!classTeacherComment.trim() && !principalComment.trim()) {
@@ -847,16 +878,9 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
             {batchStatus.duration_ms ? `Processing time: ${(batchStatus.duration_ms / 1000).toFixed(1)} seconds.` : ""}
           </p>
           {batchStatus.failures?.length ? (
-            <div className="rounded-lg border border-danger-border bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-              <p className="font-black">Generation issues</p>
-              <ul className="mt-1 list-disc space-y-1 pl-5">
-                {batchStatus.failures.map((failure) => (
-                  <li key={`${failure.student_id}:${failure.message}`}>
-                    <span className="font-black">{failure.student_name || `Learner ${failure.student_id}`}:</span> {failure.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ReportGenerationFailures count={batchStatus.failed_students ?? batchStatus.failures.length}
+              failures={batchStatus.failures} busy={Boolean(busyAction)}
+              onRetry={batchJobId ? () => void retryBatch(batchJobId) : undefined} />
           ) : null}
         </div>
       ) : null}
@@ -869,6 +893,7 @@ export function LiveReportCardsWorkspace({ audience }: { audience: ReportCardAud
           {(job.state === "completed" || job.state === "failed") && job.kind.startsWith("generate_") ? <Button size="sm" variant="secondary" onClick={() => void requestSchoolApiProxy<{result?: LiveReportCardBatchStatus}>(`/exams/report-cards/jobs/${job.job_id}`).then(value => {
             if (!value.result || typeof value.result.total_students !== "number") throw new Error("No batch results are available for this task. Refresh reports to see saved cards.");
             setBatchStatus({ ...value.result, id: job.job_id });
+            setBatchJobId(job.job_id);
           }).catch(error => setFeedback({ tone: "critical", message: error instanceof Error ? error.message : "Task results could not be loaded." }))}>View results</Button> : null}
           {job.state==="failed" ? <Button size="sm" variant="secondary" onClick={()=>void requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}/retry`,{ method:"POST" }).then(()=>recentJobs.refetch()).catch(error=>setFeedback({ tone:"critical",message:error instanceof Error ? error.message : "Retry failed" }))}>Retry task</Button> : null}
           {job.state==="completed" && (job.kind==="pdf" || job.kind==="export") ? <Button size="sm" variant="secondary" onClick={()=>void requestSchoolApiProxy<ReportDeliveryJob>(`/exams/report-cards/jobs/${job.job_id}`).then(result=>{

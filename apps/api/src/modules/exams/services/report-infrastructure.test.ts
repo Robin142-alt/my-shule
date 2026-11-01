@@ -253,7 +253,7 @@ test('artifact identity is stable across JSON key order and approval, but change
   changed.metadata.report_card.template_fields.principal_comment = 'Changed';
   assert.notEqual(reportPdfIdentity(card), reportPdfIdentity(changed));
 });
-test('artifact reuse performs no rendering and rejects stale, foreign and withdrawn reports', async () => {
+test('released artifacts survive pending corrections while generation reuse rejects stale inputs', async () => {
   const card = {
     id: 'one',
     tenant_id: 'a',
@@ -299,19 +299,28 @@ test('artifact reuse performs no rendering and rejects stale, foreign and withdr
   card.metadata.renderer_version = 'pdfkit-report-card-5';
   assert.equal((await artifacts.load('one')).status, 'published', 'the expanded subject key preserves approval validity');
   card.metadata.renderer_version = 'pdfkit-report-card-3';
-  await assert.rejects(() => artifacts.load('one'), /changed/);
+  assert.equal((await artifacts.load('one')).status, 'published');
+  assert.equal(await artifacts.reusableSnapshot('a', 'exam', 'student'), null);
   card.metadata.renderer_version = REPORT_RENDERER_VERSION;
   versionRows = [{ scope_key: 'school', version: '2' }];
+  assert.equal((await artifacts.prepare('one')).state, 'ready');
+  assert.equal(await artifacts.reusableSnapshot('a', 'exam', 'student'), null);
+  card.is_current = false;
+  assert.equal((await artifacts.prepare('one')).state, 'ready');
+  card.status = 'draft_generated';
+  await assert.rejects(() => artifacts.prepare('one'), /superseded/);
+  card.is_current = true;
   await assert.rejects(() => artifacts.prepare('one'), /changed/);
   versionRows = [];
   card.status = 'withdrawn';
   await assert.rejects(() => artifacts.prepare('one'), /withdrawn/);
   card.status = 'published';
   (card.metadata as any).source_valid_until = '2020-01-01T00:00:00Z';
-  await assert.rejects(() => artifacts.prepare('one'), /grading policy/);
+  assert.equal((await artifacts.prepare('one')).state, 'ready');
+  assert.equal(await artifacts.reusableSnapshot('a', 'exam', 'student'), null);
   tenant = 'b';
   await assert.rejects(() => artifacts.prepare('one'), /not found/);
-  assert.equal(signed, 1);
+  assert.equal(signed, 4);
 });
 
 test('legacy migration certifies identical payloads without changing approval or verification and rejects changed inputs', async () => {

@@ -5,7 +5,29 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { BadRequestException } from '@nestjs/common';
 import { classifyReportCardFailure, ReportCardWorkLimiter } from './report-card-generation-resilience';
 import { ReportCardGenerationService } from './report-card-generation.service';
+import { ObjectStorageFailure } from '../../../common/uploads/s3-object-storage.service';
 import type { ReportWorkHandler, ReportWorkRow } from './report-work.service';
+
+test('13 shared credential failures stop after one attempt and a repaired retry generates all 13', async () => {
+  let repaired = false;
+  let attempts = 0;
+  const service = new ReportCardGenerationService({
+    getReportCardBatchReadiness: async () => ({ expected_mark_count: 13, not_ready_mark_count: 0 }),
+    listStudentsForReportCardBatch: async () => Array.from({ length: 13 }, (_, i) => ({ id: String(i) })),
+    createReportCardGenerationBatch: async () => ({ id: 'batch' }),
+    updateReportCardGenerationBatch: async (input: any) => ({ ...input, id: 'batch' }),
+  } as never, {} as never);
+  service.generateStudentReportCard = async () => { attempts++; if (!repaired) throw new ObjectStorageFailure('download', 403); return { id: 'card' }; };
+  const input = { tenant_id: 'school-a', actor_user_id: 'manager', exam_series_id: 'exam' };
+  const failed = await service.generateReportCardBatch(input);
+  assert.equal(failed.failed_students, 13);
+  assert.equal(attempts, 13);
+  assert.ok(failed.failures!.every(failure => failure.code === 'REPORT_STORAGE_CONFIGURATION' && !failure.retryable));
+  repaired = true;
+  const result = await service.generateReportCardBatch(input);
+  assert.equal(result.completed_students, 13);
+  assert.equal(result.failed_students, 0);
+});
 
 test('scoped regeneration resumes confirmed targets across chunks with partial failures and safe reuse', async () => {
   const handlers = new Map<string, ReportWorkHandler>();

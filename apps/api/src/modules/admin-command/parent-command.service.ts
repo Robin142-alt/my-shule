@@ -5,6 +5,8 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { notificationRecipientPredicate } from '../notifications/notification-recipient-predicate';
+import { latestPublishedReportSql } from '../exams/report-card-scope';
+import { PUBLISHED_STUDENT_RESULTS_JOIN } from '../exams/published-student-results';
 
 type ParentIdentity = {
   tenantId: string;
@@ -331,14 +333,12 @@ export class ParentCommandService {
           JOIN students student
             ON student.tenant_id = guardian.tenant_id
            AND student.id = guardian.student_id
-          JOIN exam_marks mark
-            ON mark.tenant_id = student.tenant_id
-           AND mark.student_id::text = student.id::text
+          ${PUBLISHED_STUDENT_RESULTS_JOIN}
           LEFT JOIN subjects subject
-            ON subject.tenant_id = mark.tenant_id
+            ON subject.tenant_id = student.tenant_id
            AND subject.id::text = mark.subject_id::text
           LEFT JOIN exam_series series
-            ON series.tenant_id = mark.tenant_id
+            ON series.tenant_id = student.tenant_id
            AND series.id = mark.exam_series_id
           LEFT JOIN users actor
             ON actor.id = mark.entered_by_user_id
@@ -385,7 +385,7 @@ export class ParentCommandService {
           WHERE guardian.tenant_id = $1
             AND guardian.user_id = $2::uuid
             AND guardian.status = 'active'
-            AND report_card.status = 'published'
+            AND ${latestPublishedReportSql('report_card')}
             AND student.deleted_at IS NULL
           ORDER BY report_card.published_at DESC NULLS LAST, report_card.updated_at DESC
           LIMIT 100
@@ -561,7 +561,7 @@ export class ParentCommandService {
         WHERE guardian.tenant_id = $1
           AND guardian.user_id = $2::uuid
           AND guardian.status = 'active'
-          AND report_card.status = 'published'
+          AND ${latestPublishedReportSql('report_card')}
           AND student.deleted_at IS NULL
         ORDER BY report_card.published_at DESC NULLS LAST, report_card.updated_at DESC
         LIMIT 100

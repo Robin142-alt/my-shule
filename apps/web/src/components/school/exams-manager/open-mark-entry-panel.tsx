@@ -66,7 +66,7 @@ export function OpenMarkEntryPanel({ entries, unavailable, onOpened }: {
           <input aria-label="Mark entry deadline" type="datetime-local" required className={field} value={deadline} onChange={event => { setDeadline(event.target.value); resetFeedback(); }} />
         </label>
       </fieldset>
-      <p className="text-sm text-slate-600">{examId && (scope === "everyone" || target) ? `${windowCount} subject/class windows selected. ` : ""}Selected marks reopen as drafts. Affected report cards need regeneration and Principal release. For locked or published exams, only the selected scope reopens.</p>
+      <p className="text-sm text-slate-600">{examId && (scope === "everyone" || target) ? `${windowCount} subject/class windows selected. ` : ""}This grants teacher editing access. Unchanged markbooks keep their submissions and reports. Actual corrections require resubmission and, for released results, Principal approval. Exams Manager editing is always available independently.</p>
       {unavailable ? <p className="text-sm text-warning">Load teacher progress below before choosing who can enter marks.</p> : null}
       {feedback ? <p role={feedback.error ? "alert" : "status"} className={`rounded-lg p-3 text-sm ${feedback.error ? "bg-danger-soft text-danger" : "bg-success-soft text-success"}`}>{feedback.text}</p> : null}
       <button type="submit" disabled={busy || unavailable || !windowCount || !deadline} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Unlock className="h-4 w-4" />{busy ? "Opening…" : "Open mark entry"}</button>

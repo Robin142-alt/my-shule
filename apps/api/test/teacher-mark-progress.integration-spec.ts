@@ -82,7 +82,7 @@ describe('Exams manager teacher mark progress', () => {
   it('names teachers with zero marks, scopes their rosters to streams, and never joins another school', async () => {
     const rows = await entries();
     expect(rows).toHaveLength(2);
-    expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ teacher: 'Amina Otieno', stream: 'Blue', total_students: 2, recorded: 0, missing: 2, status: 'Not started' });
+    expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ teacher: 'Amina Otieno', stream: 'Blue', total_students: 2, recorded: 0, missing: 2, status: 'Outstanding' });
     expect(rows.find(row => row.teacher_id === ids.teacher2)).toMatchObject({ teacher: 'Brian Kamau', stream: 'Red', total_students: 1, missing: 1 });
     expect(JSON.stringify(rows)).not.toContain('Private');
     context.tenant_id = 'other-school';
@@ -94,7 +94,7 @@ describe('Exams manager teacher mark progress', () => {
     await enroll('legacy-student-number', 'blue');
     await mark(ids.s1, 'submitted', 'entered', 0);
     const row = (await entries()).find(item => item.teacher_id === ids.teacher);
-    expect(row).toMatchObject({ total_students: 3, recorded: 1, submitted: 1, missing: 2, status: 'Submitted' });
+    expect(row).toMatchObject({ total_students: 3, recorded: 1, submitted: 1, missing: 2, status: 'Resubmission Required' });
   });
 
   it('keeps saved drafts outstanding and checks every paper separately', async () => {
@@ -102,8 +102,8 @@ describe('Exams manager teacher mark progress', () => {
     await pool.query(`INSERT INTO exam_assessments(id,tenant_id,exam_series_id,subject_id,name) VALUES ($1,$2,$3,$4,'Paper 2')`, [ids.paper2, context.tenant_id, ids.exam, ids.subject]);
     const rows = (await entries()).filter(row => row.teacher_id === ids.teacher);
     expect(rows).toHaveLength(2);
-    expect(rows.find(row => row.paper === 'Paper 1')).toMatchObject({ status: 'Awaiting submission', missing: 0, submitted: 0, recorded: 2 });
-    expect(rows.find(row => row.paper === 'Paper 2')).toMatchObject({ status: 'Not started', missing: 2 });
+    expect(rows.find(row => row.paper === 'Paper 1')).toMatchObject({ status: 'In Progress', missing: 0, submitted: 0, recorded: 2 });
+    expect(rows.find(row => row.paper === 'Paper 2')).toMatchObject({ status: 'Outstanding', missing: 2 });
   });
 
   it('recognizes zero scores and recorded absence; completed sheets stay completed after the deadline', async () => {
@@ -112,12 +112,12 @@ describe('Exams manager teacher mark progress', () => {
     await pool.query(`UPDATE exam_mark_entry_windows SET opens_at=NOW()-INTERVAL '3 days',closes_at=NOW()-INTERVAL '1 day'`);
     const rows = await entries();
     expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ entered: 1, recorded: 2, submitted: 2, status: 'Submitted', overdue: false });
-    expect(rows.find(row => row.teacher_id === ids.teacher2)).toMatchObject({ status: 'Not started', overdue: true });
+    expect(rows.find(row => row.teacher_id === ids.teacher2)).toMatchObject({ status: 'Outstanding', overdue: true });
   });
 
   it('ignores marks outside the enrolled roster and counts explicit incomplete reasons as recorded outcomes', async () => {
     await mark(ids.s1); await mark(ids.s2, 'draft', 'incomplete', null); await mark(ids.extra, 'submitted');
-    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, entered: 1, recorded: 2, missing: 0, status: 'Awaiting submission' });
+    expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, entered: 1, recorded: 2, missing: 0, status: 'In Progress' });
   });
 
   it('exposes unassigned students and excludes expired, wrong-term and disabled teaching assignments', async () => {
@@ -126,7 +126,7 @@ describe('Exams manager teacher mark progress', () => {
       VALUES ($1,$2,$3,$4,'red',CURRENT_DATE-1)`, [context.tenant_id, ids.teacher2, ids.class, ids.subject]);
     await pool.query(`INSERT INTO teacher_subject_assignments(tenant_id,teacher_user_id,class_section_id,subject_id,stream_id,academic_term_id)
       VALUES ($1,$2,$3,$4,'red',$5)`, [context.tenant_id, ids.teacher2, ids.class, ids.subject, randomUUID()]);
-    expect((await entries()).find(row => row.stream === 'Red')).toMatchObject({ teacher_id: null, teacher: 'Unassigned', total_students: 1, status: 'Unassigned' });
+    expect((await entries()).find(row => row.stream === 'Red')).toMatchObject({ teacher_id: null, teacher: 'Unassigned', total_students: 1, status: 'Outstanding' });
   });
 
   it('does not inflate counts for duplicate assignments or treat locked unfinished work as completed', async () => {
@@ -135,7 +135,7 @@ describe('Exams manager teacher mark progress', () => {
     await pool.query(`UPDATE exam_mark_entry_windows SET status='closed'`);
     const rows = await entries();
     expect(rows).toHaveLength(2);
-    expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, recorded: 1, missing: 1, window_closed: true, status: 'In progress' });
+    expect(rows.find(row => row.teacher_id === ids.teacher)).toMatchObject({ total_students: 2, recorded: 1, missing: 1, window_closed: true, status: 'In Progress' });
   });
 
   it('preserves a historical marked learner after a later class transfer rewrites their subject selection', async () => {
@@ -147,12 +147,12 @@ describe('Exams manager teacher mark progress', () => {
     });
   });
 
-  it('separates draft and explicitly scheduled exams from outstanding work', async () => {
+  it('tracks outstanding submissions independently of draft and scheduled access', async () => {
     await pool.query(`UPDATE exam_series SET status='draft'`);
-    expect((await entries()).every(row => row.status === 'Draft' && !row.overdue)).toBe(true);
+    expect((await entries()).every(row => row.status === 'Outstanding' && !row.overdue)).toBe(true);
     await pool.query(`UPDATE exam_series SET status='submitted'`);
     await pool.query(`UPDATE exam_mark_entry_windows SET opens_at=NOW()+INTERVAL '1 day', last_action='scheduled'`);
-    expect((await entries()).every(row => row.status === 'Scheduled')).toBe(true);
+    expect((await entries()).every(row => row.status === 'Outstanding')).toBe(true);
   });
 
   it('retains an eligible learner and their genuine blank after transfer during an ongoing exam', async () => {
@@ -164,7 +164,7 @@ describe('Exams manager teacher mark progress', () => {
     await pool.query(`UPDATE student_subject_enrollments SET status='transferred',effective_to=CURRENT_DATE WHERE student_id=$1`, [ids.s2]);
     await mark(ids.s1, 'submitted');
     expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({
-      total_students: 2, recorded: 1, missing: 1, status: 'Submitted',
+      total_students: 2, recorded: 1, missing: 1, status: 'Resubmission Required',
     });
   });
 
@@ -180,9 +180,9 @@ describe('Exams manager teacher mark progress', () => {
     expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({total_students:original,recorded:original,missing:0,status:'Submitted'});
   });
 
-  it('keeps submitted status with genuine eligible blanks and records X and Y outcomes', async()=>{
+  it('requires resubmission for genuine eligible blanks and accepts complete X and Y outcomes', async()=>{
     await mark(ids.s1,'submitted','entered',0);
-    expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({total_students:2,recorded:1,missing:1,status:'Submitted',overdue:false});
+    expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({total_students:2,recorded:1,missing:1,status:'Resubmission Required',overdue:false});
     await pool.query(`ALTER TABLE exam_marks DROP CONSTRAINT IF EXISTS exam_marks_score_status_check`);
     await mark(ids.s2,'submitted','Y',null);
     expect((await entries()).find(row=>row.teacher_id===ids.teacher)).toMatchObject({recorded:2,missing:0,status:'Submitted'});
@@ -250,15 +250,15 @@ describe('Exams manager teacher mark progress', () => {
     expect(await canEnter(ids.teacher2)).toEqual([]);
   });
 
-  it('keeps submitted sheets locked and exposes missing results when another learner becomes eligible',async()=>{
+  it('requires resubmission when another eligible learner is missing from a submitted sheet',async()=>{
     const submitted=async()=> (await pool.query(`SELECT ${teacherMarkSheetSubmittedSql('w','series','$2','$1')} AS complete
       FROM exam_mark_entry_windows w JOIN exam_series series ON series.tenant_id=w.tenant_id AND series.id=w.exam_series_id`,[ids.teacher,ids.paper])).rows[0].complete;
     await mark(ids.s1,'submitted');await mark(ids.s2,'submitted');
     expect(await submitted()).toBe(true);
     await enroll(ids.extra,'blue');
-    expect(await submitted()).toBe(true);
+    expect(await submitted()).toBe(false);
     expect((await entries()).find(row => row.teacher_id === ids.teacher)).toMatchObject({
-      total_students:3,submitted:2,missing:1,status:'Submitted',
+      total_students:3,submitted:2,missing:1,status:'Resubmission Required',
     });
     await mark(ids.extra,'submitted','absent',null);
     expect(await submitted()).toBe(true);

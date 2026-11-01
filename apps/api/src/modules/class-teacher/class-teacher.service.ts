@@ -1,3 +1,4 @@
+import { teacherSeriesAccessSql, teacherScopedReopenSql } from '../exams/markbook-integrity';
 import { examRosterSql, examStudentEligibleSql, recordedMarkSql, markSheetStatusSql } from '../exams/exam-mark-roster';
 import { randomUUID } from 'node:crypto';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../academics/class-teacher-appointment-scope';
@@ -581,9 +582,15 @@ export class ClassTeacherService {
     return { assignments: rows };
   }
 
+  submitAssistedMarkbook(input: import('../exams/dto/submit-administrative-markbook.dto').SubmitAdministrativeMarkbookDto) {
+    requireAssistedMarkEntryScope(this.requestContext?.getStore());
+    if (!this.examsService) throw new ServiceUnavailableException('The exams workflow is unavailable. Retry shortly.');
+    return this.examsService.submitAdministrativeMarkbook(input);
+  }
+
   getAssistedMarkbooks(teacherUserId?: string, streamIds?: string[]) {
     const { tenantId } = requireAssistedMarkEntryScope(this.requestContext?.getStore());
-    return this.getPendingMarks(tenantId, teacherUserId ?? null, true, true, streamIds);
+    return this.getPendingMarks(tenantId, teacherUserId ?? null, true, true, streamIds, true);
   }
 
   saveAssistedMarks(teacherUserId: string | undefined, payload: SaveTeacherMarksDto, streamIds?: string[]) {
@@ -591,10 +598,14 @@ export class ClassTeacherService {
     return this.saveMarks(tenantId, teacherUserId ?? null, payload, actorUserId, streamIds);
   }
 
-  async getPendingMarks(tenantId: string, userId: string | null, includeUnavailable = false, includeSubmitted = false, streamIds?: string[]) {
+  async getPendingMarks(tenantId: string, userId: string | null, includeUnavailable = false, includeSubmitted = false, streamIds?: string[], managerEntry = false) {
+    const reopened = teacherScopedReopenSql('w','$2',`COALESCE((SELECT MAX(GREATEST(prior.submitted_at,prior.reviewed_at,prior.locked_at,prior.published_at,prior.created_at))
+      FROM exam_marks prior WHERE prior.tenant_id=w.tenant_id AND prior.assessment_id=assessment.id
+        AND prior.class_section_id=w.class_section_id
+        AND COALESCE(prior.assigned_teacher_user_id,prior.entered_by_user_id)::text=$2),es.created_at)`);
     const query = `WITH sheets AS (
       SELECT DISTINCT
-        w.id as window_id, w.last_action, es.status AS exam_status,
+        w.id as window_id, w.last_action, es.status AS exam_status, ${reopened} AS explicitly_reopened,
         CASE WHEN $2::text IS NOT NULL OR tsa.teacher_user_id IS NOT NULL THEN 'assigned' END AS scope_teacher,
         (${markEntryHasStartedSql('w','es')} OR ${teacherEntryDeadlineSql('w','$2')} IS NOT NULL) AS has_started,
         w.exam_series_id,
@@ -656,8 +667,7 @@ export class ClassTeacherService {
         ) as total_students,
         w.status as window_status,
         CASE
-          WHEN es.locked_at IS NOT NULL OR es.published_at IS NOT NULL
-            OR es.status IN ('locked', 'published', 'archived') THEN 'Locked'
+          WHEN NOT ${teacherSeriesAccessSql('w','es','$2')} THEN 'Locked'
           WHEN es.status = 'draft' AND w.status <> 'open' THEN 'Draft'
           WHEN ${markEntryAccessSql('w', 'es', '$2')} THEN 'Open'
           WHEN w.status <> 'open' THEN 'Closed'
@@ -688,11 +698,10 @@ export class ClassTeacherService {
         AND (tsa.effective_to IS NULL OR tsa.effective_to >= CURRENT_DATE)
       WHERE w.tenant_id::text = $1::text
         AND ($2::text IS NULL OR tsa.teacher_user_id = $2)
-        AND ($4::boolean OR NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2', '$5')})
+        AND ($4::boolean OR ${reopened} OR NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$2', '$5')})
         AND ($3::boolean OR (
           ${markEntryAccessSql('w', 'es', '$2')}
-          AND es.locked_at IS NULL AND es.published_at IS NULL
-          AND es.status NOT IN ('locked', 'published', 'archived')
+          AND ${teacherSeriesAccessSql('w','es','$2')}
         ))
       ) SELECT sheets.*, ${markSheetStatusSql({total:'total_students',recorded:'entered_count',submitted:'is_submitted',examStatus:'exam_status',started:'has_started',closed:"entry_state IN ('Closed','Locked','Published','Deadline passed')",teacher:'scope_teacher',lastAction:'last_action'})} AS sheet_status
       FROM sheets ORDER BY deadline ASC
@@ -725,7 +734,7 @@ export class ClassTeacherService {
         deadline: new Date(r.deadline).toISOString(),
         enteredCount: parseInt(r.entered_count),
         totalStudents: parseInt(r.total_students),
-        canEnter: !r.is_submitted && r.entry_state === 'Open',
+        canEnter: managerEntry ? r.exam_status !== 'archived' : r.entry_state === 'Open' && (!r.is_submitted || r.explicitly_reopened),
         entryState: r.entry_state,
         opensAt: new Date(r.opens_at).toISOString(),
         status: r.sheet_status,
@@ -1251,8 +1260,8 @@ export class ClassTeacherService {
         AND w.tenant_id = $1
         AND ($3::text IS NULL OR tsa.teacher_user_id = $3)
         AND w.class_section_id = $4
-        AND NOT ${teacherMarkSheetSubmittedSql('w', 'es', 'assessment.id', '$3')}
-        AND ${markEntryAccessSql('w', 'es', '$3')}
+        AND es.status <> 'archived'
+        AND ($6::boolean OR ${markEntryAccessSql('w', 'es', '$3')})
     `;
     const { rows: windows } = await this.executeSql(windowQuery, [
       tenantId,
@@ -1260,6 +1269,7 @@ export class ClassTeacherService {
       userId,
       payload.classSectionId,
       payload.assessmentId?.trim() || null,
+      Boolean(assistedActorUserId),
     ]);
     if (windows.length === 0) {
       throw new BadRequestException(

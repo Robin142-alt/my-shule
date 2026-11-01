@@ -1,4 +1,5 @@
-import { examRosterSql, recordedMarkSql, markSheetStatusSql } from '../exams/exam-mark-roster';
+import { markbookRevisionSql } from '../exams/markbook-integrity';
+import { examRosterSql, recordedMarkSql } from '../exams/exam-mark-roster';
 import { paperClassScopeSql } from '../exams/exam-result-policy';
 import { markEntryHasStartedSql, teacherEntryDeadlineSql, effectiveEntryDeadlineSql } from '../exams/mark-entry-window-policy';
 
@@ -23,6 +24,8 @@ export type TeacherMarkProgress = {
   submitted: number;
   missing: number;
   status: string;
+  revision: string;
+  submission_state: 'submitted' | 'outstanding' | 'in_progress' | 'resubmission_required';
   assessment_id: string;
   is_submitted: boolean;
   outstanding: boolean;
@@ -51,7 +54,10 @@ export const TEACHER_MARK_PROGRESS_SQL = `
       COUNT(DISTINCT roster.student_id) FILTER (WHERE mark.status IN ('submitted','reviewed','approved','locked','published')
         AND ${recordedMarkSql('mark')})::int AS submitted,
       (BOOL_OR(mark.status IN ('submitted','reviewed','approved','locked','published'))
-        AND NOT COALESCE(BOOL_OR(mark.status = 'draft'), FALSE)) AS is_submitted,
+        AND NOT COALESCE(BOOL_OR(mark.status = 'draft'), FALSE)
+        AND COUNT(DISTINCT mark.id)=COUNT(DISTINCT roster.student_id)) AS is_submitted,
+      COALESCE(BOOL_OR(mark.submitted_at IS NOT NULL OR mark.status IN ('submitted','reviewed','approved','locked','published')),FALSE) AS previously_submitted,
+      ${markbookRevisionSql('w','assessment.id','roster.student_id','mark')} AS revision,
       w.last_action,
       MAX(mark.updated_at)::text AS last_activity,
       (w.status = 'closed' AND COALESCE(${teacherEntryDeadlineSql('w', 'owner.teacher_user_id')} < NOW(), TRUE))
@@ -91,10 +97,13 @@ export const TEACHER_MARK_PROGRESS_SQL = `
   )
   SELECT CONCAT(window_id, ':', assessment_id, ':', COALESCE(teacher_id::text, 'unassigned'), ':', COALESCE(stream_id, 'class')) AS id,
     assessment_id::text, window_id::text, class_section_id::text, subject_id::text, stream_id, exam_id::text, exam_name, subject, paper, paper_count, class_name, stream,
-    teacher_id::text, teacher, total_students, entered, recorded, submitted,
+    teacher_id::text, teacher, total_students, entered, recorded, submitted, revision,
+    CASE WHEN is_submitted THEN 'submitted' WHEN previously_submitted THEN 'resubmission_required'
+      WHEN recorded>0 THEN 'in_progress' ELSE 'outstanding' END AS submission_state,
     (total_students - recorded)::int AS missing, deadline::text, window_closed, last_activity, COALESCE(is_submitted,FALSE) AS is_submitted,
-    (total_students > 0 AND NOT COALESCE(is_submitted,FALSE) AND exam_status <> 'draft' AND has_started) AS outstanding,
-    ${markSheetStatusSql({total:'total_students',recorded:'recorded',submitted:'is_submitted',examStatus:'exam_status',started:'has_started',closed:'window_closed',teacher:'teacher_id',lastAction:'last_action'})} AS status,
+    (total_students > 0 AND NOT COALESCE(is_submitted,FALSE)) AS outstanding,
+    CASE WHEN is_submitted THEN 'Submitted' WHEN previously_submitted THEN 'Resubmission Required'
+      WHEN recorded>0 THEN 'In Progress' ELSE 'Outstanding' END AS status,
     (NOT COALESCE(is_submitted,FALSE) AND total_students > 0 AND exam_status <> 'draft'
       AND deadline < NOW()) AS overdue
   FROM progress

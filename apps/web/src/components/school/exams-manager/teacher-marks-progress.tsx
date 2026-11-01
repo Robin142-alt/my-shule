@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Lock, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { lockMarksEntry } from "./api-client";
+import { lockMarksEntry, submitAssistedMarkbook } from "./api-client";
 import { StatusChip, type Tone } from "./shared";
 import { OpenMarkEntryPanel } from "./open-mark-entry-panel";
 import { markbookPaperLabel } from "@/lib/modules/markbook-labels";
@@ -18,6 +18,8 @@ export type TeacherMarkSheet = {
   class_name: string; stream: string | null; total_students: number;
   entered: number; recorded: number; submitted: number; missing: number;
   is_submitted?: boolean; outstanding?: boolean;
+  revision?: string;
+  submission_state?: 'submitted' | 'outstanding' | 'in_progress' | 'resubmission_required';
   status: string; overdue: boolean; deadline: string;
   window_closed: boolean; last_activity: string | null;
 };
@@ -27,6 +29,7 @@ const PAGE_SIZE = 8;
 const control = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50";
 
 export function isOutstandingSheet(sheet: TeacherMarkSheet) {
+  if (sheet.submission_state) return sheet.total_students > 0 && sheet.submission_state !== 'submitted';
   return sheet.outstanding ?? (sheet.total_students > 0 && !sheet.is_submitted && !["Submitted", "Completed", "Approved", "Published", "Draft", "Scheduled", "No students"].includes(sheet.status));
 }
 
@@ -41,8 +44,8 @@ function dateLabel(value: string | null, time = false) {
 function tone(sheet: TeacherMarkSheet): Tone {
   if (sheet.overdue) return "danger";
   if (["Submitted", "Completed"].includes(sheet.status)) return "success";
-  if (["Awaiting submission", "Unassigned"].includes(sheet.status)) return "warning";
-  return sheet.status === "In progress" ? "info" : "neutral";
+  if (["Awaiting submission", "Unassigned", "Outstanding", "Resubmission Required"].includes(sheet.status)) return "warning";
+  return ["In progress", "In Progress"].includes(sheet.status) ? "info" : "neutral";
 }
 
 export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup, onOpenMarkbook }: {
@@ -58,6 +61,10 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup, 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [lockingWindow, setLockingWindow] = useState<string | null>(null);
   const [confirmWindow, setConfirmWindow] = useState<string | null>(null);
+  const [confirmSheet, setConfirmSheet] = useState<TeacherMarkSheet | null>(null);
+  const [submittingSheet, setSubmittingSheet] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+  const [submissionError, setSubmissionError] = useState<{ id: string; message: string } | null>(null);
   const entries = data?.entries ?? [];
   const exams = Array.from(new Map(entries.map(sheet => [sheet.exam_id, sheet.exam_name])).entries());
   const examSheets = entries.filter(sheet => !examId || sheet.exam_id === examId);
@@ -72,6 +79,21 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup, 
   });
   const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1));
   const visible = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+  async function handleSubmit(sheet: TeacherMarkSheet) {
+    if (submittingRef.current || !sheet.assessment_id || !sheet.revision) return;
+    submittingRef.current = true; setSubmittingSheet(sheet.id); setSubmissionError(null);
+    try {
+      const result = await submitAssistedMarkbook({ mark_entry_window_id: sheet.window_id, assessment_id: sheet.assessment_id,
+        teacher_user_id: sheet.teacher_id, stream_ids: [sheet.stream_id ?? ''], expected_revision: sheet.revision });
+      if (!result.success) throw new Error('Marks were not submitted. Refresh the markbook and retry.');
+      toast.success(`${sheet.subject}, ${sheet.class_name}: marks submitted.`);
+      setConfirmSheet(null);
+      await refetch();
+    } catch (error) {
+      setSubmissionError({ id: sheet.id, message: error instanceof Error ? error.message : 'Marks could not be submitted. Retry or open the markbook to review its entries.' });
+    } finally { submittingRef.current = false; setSubmittingSheet(null); }
+  }
 
   async function handleLock(windowId: string) {
     if (lockingWindow) return;
@@ -119,12 +141,12 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup, 
       ) : filtered.length === 0 ? (
         <div className="border-t border-slate-100 px-5 py-10 text-center">
           <p className="font-medium text-slate-900">{!entries.length ? "No mark-entry sheets yet" : query ? "No matching teachers or sheets" : filter === "outstanding" ? "No outstanding mark-entry sheets" : filter === "unassigned" ? "No unassigned sheets" : "No sheets for this exam"}</p>
-          <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-slate-500">{!entries.length ? "Create an exam with subjects and classes to start tracking teacher submissions." : query ? "Try a different teacher name, class or subject, or clear the search." : filter === "outstanding" ? "All open sheets are submitted. Draft and scheduled exams are available under All sheets." : "Adjust the filters to view other exam sheets."}</p>
+          <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-slate-500">{!entries.length ? "Create an exam with subjects and classes to start tracking teacher submissions." : query ? "Try a different teacher name, class or subject, or clear the search." : filter === "outstanding" ? "No markbooks need submission in this selection. View All sheets to review submitted marks." : "Adjust the filters to view other exam sheets."}</p>
           {!entries.length && onOpenSetup ? <button className={`${control} mt-4`} onClick={onOpenSetup}>Open exam setup</button> : entries.length > 0 ? <button className={`${control} mt-4`} onClick={() => { setFilter("all"); setSearch(""); setExamId(""); setPage(0); }}>View all sheets</button> : null}
         </div>
       ) : (
         <>
-          <div className="hidden grid-cols-[1.35fr_1.3fr_1fr_1fr_auto] gap-4 border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-medium uppercase tracking-wide text-slate-500 xl:grid" aria-hidden="true"><span>Teacher / class</span><span>Exam / subject</span><span>Entry progress</span><span>Status / deadline</span><span>Details</span></div>
+          <div className="hidden grid-cols-[1.35fr_1.3fr_1fr_1fr_auto] gap-4 border-y border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-medium uppercase tracking-wide text-slate-500 xl:grid" aria-hidden="true"><span>Teacher / class</span><span>Exam / subject</span><span>Entry progress</span><span>Status / deadline</span><span>{onOpenMarkbook ? 'Actions' : 'Details'}</span></div>
           <ul className="divide-y divide-slate-100">
             {visible.map(sheet => (
               <li key={sheet.id} className="px-4 py-4 sm:px-5">
@@ -133,16 +155,28 @@ export function TeacherMarksProgress({ showWindowControls = false, onOpenSetup, 
                   <div className="min-w-0"><p className="break-words text-sm font-medium text-slate-800">{sheet.subject}{markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count) && <span className="font-normal text-slate-500"> · {markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count)}</span>}</p><p className="mt-1 text-xs text-slate-500">{sheet.exam_name}</p></div>
                   <div><p className="text-sm tabular-nums text-slate-700">{sheet.recorded}<span className="text-slate-400"> / {sheet.total_students}</span> recorded</p><p className={`mt-1 text-xs ${sheet.missing ? "font-medium text-danger" : "text-slate-500"}`}>{sheet.missing ? `${sheet.missing} missing` : `${sheet.submitted} submitted`}</p></div>
                   <div className="col-span-2 sm:col-span-1"><StatusChip label={sheet.status} tone={tone(sheet)} /><p className={`mt-1 text-xs ${sheet.overdue ? "font-medium text-danger" : "text-slate-500"}`}>{sheet.overdue ? "Overdue · " : "Due "}{dateLabel(sheet.deadline)}</p></div>
-                  <button type="button" aria-label={`Details for ${[sheet.teacher, sheet.subject, markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count), sheet.class_name, sheet.stream].filter(Boolean).join(', ')}`} aria-expanded={expandedId === sheet.id} onClick={() => { setExpandedId(expandedId === sheet.id ? null : sheet.id); setConfirmWindow(null); }} className={`${control} col-span-2 xl:col-span-1`}><span className="xl:sr-only">Details</span><ChevronDown className={`h-4 w-4 ${expandedId === sheet.id ? "rotate-180" : ""}`} /></button>
+                  <div className="col-span-2 flex min-w-0 flex-wrap gap-2 xl:col-span-1 xl:flex-col">
+                    {onOpenMarkbook && sheet.class_section_id && sheet.subject_id && sheet.assessment_id ? <>
+                      <button type="button" className={control} disabled={Boolean(submittingSheet)} onClick={() => onOpenMarkbook(sheet)}>Enter / Edit Marks</button>
+                      {isOutstandingSheet(sheet) ? <button type="button" className={control} disabled={Boolean(submittingSheet) || !sheet.revision}
+                        title={!sheet.revision ? 'Refresh to load the current markbook revision.' : undefined}
+                        onClick={() => { setConfirmSheet(sheet); setSubmissionError(null); }}>Submit Marks</button> : null}
+                    </> : null}
+                    <button type="button" aria-label={`Details for ${[sheet.teacher, sheet.subject, markbookPaperLabel(sheet.subject,sheet.paper,sheet.paper_count), sheet.class_name, sheet.stream].filter(Boolean).join(', ')}`} aria-expanded={expandedId === sheet.id} onClick={() => { setExpandedId(expandedId === sheet.id ? null : sheet.id); setConfirmWindow(null); }} className={control}><span>Details</span><ChevronDown className={`h-4 w-4 ${expandedId === sheet.id ? "rotate-180" : ""}`} /></button>
+                  </div>
                 </div>
+                {confirmSheet?.id === sheet.id ? <div className="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" role="group" aria-label="Confirm markbook submission">
+                  <p>Submit marks for {confirmSheet.exam_name} · {confirmSheet.class_name}{confirmSheet.stream ? ` · ${confirmSheet.stream}` : ''} · {confirmSheet.subject}{markbookPaperLabel(confirmSheet.subject,confirmSheet.paper,confirmSheet.paper_count) ? ` · ${markbookPaperLabel(confirmSheet.subject,confirmSheet.paper,confirmSheet.paper_count)}` : ''}? The saved markbook will be validated before submission.</p>
+                  {submissionError?.id === sheet.id ? <p role="alert" className="break-words text-danger">{submissionError.message}</p> : null}
+                  <div className="flex flex-wrap gap-2"><button type="button" className={control} disabled={Boolean(submittingSheet)} onClick={() => void handleSubmit(confirmSheet)}>{submittingSheet === sheet.id ? 'Submitting…' : 'Confirm submission'}</button>
+                    <button type="button" className={control} disabled={Boolean(submittingSheet)} onClick={() => { setConfirmSheet(null); setSubmissionError(null); }}>Cancel</button></div>
+                </div> : null}
                 {expandedId === sheet.id ? (
                   <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     <p><strong className="font-medium text-slate-800">{sheet.is_submitted || sheet.status === "Submitted" ? "Sheet submitted." : `${sheet.total_students - sheet.submitted} awaiting submission.`}</strong> {sheet.entered} scores entered; {sheet.recorded - sheet.entered} absence or other recorded outcomes. Missing and incomplete entries still need attention.</p>
                     <p>Last activity: {dateLabel(sheet.last_activity, true)}. Deadline: {dateLabel(sheet.deadline, true)} (East Africa Time).</p>
                     {!sheet.teacher_id ? <p className="text-warning">No subject teacher is assigned. An Exams Manager can use Enter Marks above; a teacher can be assigned later.</p> : null}
-                    {onOpenMarkbook && sheet.class_section_id && sheet.subject_id && sheet.assessment_id ?
-                      <button type="button" className={control} onClick={() => onOpenMarkbook(sheet)}>Open markbook</button> : null}
-                    {sheet.window_closed ? <p className="text-warning">This mark-entry window is locked. Outstanding work needs an authorized review before it can continue.</p> : null}
+                    {sheet.window_closed ? <p className="text-warning">Teacher entry is closed. Exams Manager corrections remain available through Enter / Edit Marks.</p> : null}
                     {showWindowControls ? confirmWindow === sheet.window_id ? (
                       <div className="space-y-3"><p className="font-medium text-amber-900">Lock all papers and teachers for {sheet.subject}, {sheet.class_name} in {sheet.exam_name}? This closes the whole class window, including any unfinished sheets.</p><div className="flex flex-wrap gap-2"><button className={control} disabled={Boolean(lockingWindow)} onClick={() => void handleLock(sheet.window_id)}>{lockingWindow ? "Locking…" : "Confirm lock"}</button><button className={control} disabled={Boolean(lockingWindow)} onClick={() => setConfirmWindow(null)}>Cancel</button></div></div>
                     ) : <button type="button" className={control} disabled={sheet.window_closed || Boolean(lockingWindow) || sheet.status === "Draft"} onClick={() => setConfirmWindow(sheet.window_id)}><Lock className="h-4 w-4" />{sheet.window_closed ? "Window locked" : "Lock class window"}</button> : null}

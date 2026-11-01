@@ -95,7 +95,7 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       CREATE TABLE exam_marks(tenant_id text,student_id uuid,score integer,status text,updated_at timestamptz DEFAULT now());
       CREATE TABLE student_report_cards(tenant_id text,id uuid,student_id uuid,metadata jsonb,
         status text DEFAULT 'draft_generated',is_current boolean DEFAULT true,verification_code text DEFAULT 'VERIFY');
-      CREATE TABLE report_card_artifacts(tenant_id text,report_card_id uuid,artifact_type text,storage_key text,metadata jsonb);
+      CREATE TABLE report_card_artifacts(tenant_id text,report_card_id uuid,artifact_type text,storage_key text,metadata jsonb,verification_code text);
       CREATE TABLE file_objects(id uuid DEFAULT gen_random_uuid(),tenant_id text,storage_path text,original_file_name text,
         mime_type text,size_bytes bigint,sha256 text,content bytea,metadata jsonb DEFAULT '{}',storage_backend text,
         object_storage_provider text,object_storage_bucket text,object_storage_key text,object_storage_etag text,

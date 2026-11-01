@@ -1037,6 +1037,7 @@ test('ExamsRepository treats an explicitly opened future mark window as open for
     '00000000-0000-0000-0000-000000000104',
     '00000000-0000-0000-0000-000000000105',
     null,
+    false,
   ]);
 });
 
@@ -2603,7 +2604,7 @@ test('ExamsRepository publishes a series only when every current report card is 
   ]);
 });
 
-test('ExamsRepository withdraws only current tenant-published report cards and relocks marks', async () => {
+test('ExamsRepository withdraws all tenant-published report revisions and relocks marks', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
     executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
@@ -2641,7 +2642,7 @@ test('ExamsRepository withdraws only current tenant-published report cards and r
   assert.match(calls[0]!.sql, /series\.tenant_id = \$1/);
   assert.match(calls[0]!.sql, /series\.status = 'published'/);
   assert.match(calls[0]!.sql, /card\.tenant_id = \$1/);
-  assert.match(calls[0]!.sql, /card\.is_current = TRUE/);
+  assert.doesNotMatch(calls[0]!.sql, /card\.is_current = TRUE/);
   assert.match(calls[0]!.sql, /card\.status = 'published'/);
   assert.match(calls[0]!.sql, /SET status = 'withdrawn'/);
   assert.match(calls[0]!.sql, /INSERT INTO student_report_card_audit_logs/);
@@ -3756,6 +3757,7 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
     null,
     false,
     false,
+    false,
   ]);
 });
 
@@ -3997,7 +3999,8 @@ query: async (text: string, values: unknown[]) => {
     /student\.tenant_id = card\.tenant_id[\s\S]*student\.id = card\.student_id::text/,
   );
   assert.doesNotMatch(reportCardsQuery, /student\.id = card\.student_id(?:\s|$)/);
-  assert.match(reportCardsQuery, /card\.is_current = TRUE/);
+  assert.match(reportCardsQuery, /card\.status = 'published'/);
+  assert.match(reportCardsQuery, /newer_release\.revision_number > card\.revision_number/);
   assert.match(reportCardsQuery, /LIMIT \$3::integer/);
   assert.match(reportCardsQuery, /OFFSET \$4::integer/);
   assert.deepEqual(queries[0]?.values, [

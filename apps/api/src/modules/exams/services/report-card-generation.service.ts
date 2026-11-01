@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { SchoolOperationalEventsService } from '../../events/school-operational-events.service';
-import { classifyReportCardFailure, ReportCardWorkLimiter, type ReportCardFailure } from './report-card-generation-resilience';
+import { classifyReportCardFailure, reportFailureDiagnostics, ReportProcessingFailure, ReportCardWorkLimiter, type ReportCardFailure } from './report-card-generation-resilience';
 
 import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { createPdfReportArtifact } from './report-card-pdf-artifact';
@@ -203,7 +203,8 @@ export class ReportCardGenerationService implements OnModuleInit {
     const pdfArtifact = await createPdfReportArtifact(
       renderPayload,
       verificationCode,
-    );
+    ).catch(error => { throw new ReportProcessingFailure('REPORT_PDF_RENDERING_FAILED',
+      'The report PDF could not be rendered. Contact the administrator with the batch reference before retrying.', false, error); });
     const snapshot = {
       tenant_id: input.tenant_id,
       actor_user_id: input.actor_user_id,
@@ -367,7 +368,9 @@ export class ReportCardGenerationService implements OnModuleInit {
               failures.push({ student_id: String(student.id), student_name: student.student_name,
                 ...failure, attempts: attempt });
               this.logger.error(
-                `Report-card generation failed: batch ${batch.id}, tenant ${input.tenant_id}, series ${input.exam_series_id}, student ${student.id}, code ${failure.code}, attempt ${attempt}`,
+                JSON.stringify({ event: 'report_card.generation_failed', batch_id: batch.id, tenant_id: input.tenant_id,
+                  exam_series_id: input.exam_series_id, student_id: student.id, code: failure.code, attempt,
+                  retryable: failure.retryable, ...reportFailureDiagnostics(error) }),
                 error instanceof Error ? error.stack : undefined,
               );
               break;

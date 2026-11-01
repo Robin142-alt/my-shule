@@ -18,8 +18,8 @@ export function teacherMarkStudentScopeSql(window: string, series: string, stude
   )`;
 }
 
-// Each stream is submitted independently. An unresolved blank in a submitted
-// stream stays protected, while a different stream with no marks remains open.
+// Each stream is submitted independently. Every eligible assessment record must
+// exist before the stream is complete; accepted rows remain protected individually.
 export function teacherMarkSheetSubmittedSql(window: string, series: string, assessmentId: string, teacherId: string, streamIds?: string): string {
   return submittedStreamsSql(window, series, assessmentId, teacherId, undefined, streamIds);
 }
@@ -32,7 +32,8 @@ function submittedStreamsSql(window: string, series: string, assessmentId: strin
   return `(WITH sheet_roster AS MATERIALIZED (${examRosterSql(window, series)})
     SELECT COALESCE(BOOL_AND(stream_state.submitted), FALSE) FROM (
       SELECT COALESCE(BOOL_OR(completed_mark.status IN ('submitted','reviewed','approved','locked','published')),FALSE)
-        AND NOT COALESCE(BOOL_OR(completed_mark.status='draft'),FALSE) AS submitted
+        AND NOT COALESCE(BOOL_OR(completed_mark.status='draft'),FALSE)
+        AND COUNT(completed_mark.id)=COUNT(*) AS submitted
       FROM sheet_roster member
       LEFT JOIN exam_marks completed_mark ON completed_mark.tenant_id=${window}.tenant_id
         AND completed_mark.exam_series_id=${window}.exam_series_id

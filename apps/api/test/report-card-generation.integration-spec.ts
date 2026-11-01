@@ -25,6 +25,7 @@ import { SchoolOperationNotificationsRepository } from '../src/modules/events/re
 import { REPORT_INFRASTRUCTURE_SCHEMA, REPORT_SOURCE_TRIGGERS } from '../src/modules/exams/services/report-infrastructure-schema';
 import { ReportCardArtifactsService } from '../src/modules/exams/services/report-card-artifacts.service';
 import { DatabaseFileStorageService } from '../src/common/uploads/database-file-storage.service';
+import { PUBLISHED_STUDENT_RESULTS_JOIN } from '../src/modules/exams/published-student-results';
 
 // These tests render and persist real PDFs. A unit-test timeout can let an
 // unfinished batch write into the following test after its tables are reset.
@@ -487,17 +488,58 @@ describe('Report generation with the production staff schema', () => {
     const current = (await query('SELECT updated_at::text FROM student_report_cards WHERE id=$1',[first.id])).rows[0];
     const regenerated = await generation.generateStudentReportCard({ ...studentInput(), regeneration_reason: 'Latest saved results',
       reuse_existing: true, expected_report_card_id: first.id as string, expected_updated_at: current.updated_at });
-    expect(regenerated.status).toBe('published');
+    expect(regenerated.status).toBe('draft_generated');
     expect(regenerated.id).not.toBe(first.id);
     expect(regenerated.supersedes_report_card_id).toBe(first.id);
     expect(regenerated.revision_number).toBe(2);
-    expect(regenerated.published_at).toBeTruthy();
+    expect(regenerated.published_at).toBeNull();
+    expect(regenerated.published_by_user_id).toBeNull();
+    expect(regenerated.approved_at).toBeNull();
+    expect(regenerated.approved_by_user_id).toBeNull();
+    expect(regenerated.submitted_at).toBeNull();
+    expect(await repository.transitionReportCard({ tenant_id: 'school-a', actor_user_id: ids.principal,
+      actor_role: 'principal', report_card_id: String(regenerated.id), action: 'publish' })).toBeNull();
     expect((regenerated.metadata as any).report_card.subjects[0]).toMatchObject({ score: 83, remarks: 'Latest teacher remark' });
     expect((regenerated.metadata as any).report_card.totals.percentage).toBe(83);
     expect((await query('SELECT * FROM exam_marks WHERE student_id=$1', [students[0]])).rows).toEqual(marksBefore);
     expect((await query('SELECT status FROM exam_series WHERE id=$1', [ids.exam])).rows[0].status).toBe(examStatus);
     expect((await query('SELECT is_current,status FROM student_report_cards WHERE id=$1', [first.id])).rows[0]).toEqual({ is_current: false, status: 'published' });
+    const released = await artifacts.read(String(first.id));
+    expect(released.content.subarray(0, 4).toString()).toBe('%PDF');
+    expect((await artifacts.load(String(first.id))).metadata.report_card).toEqual((first.metadata as any).report_card);
+    const portal = await query(`SELECT mark.score FROM students student ${PUBLISHED_STUDENT_RESULTS_JOIN}
+      WHERE student.tenant_id='school-a' AND student.id=$1`, [students[0]]);
+    expect(Number(portal.rows[0].score)).toBe((first.metadata as any).report_card.subjects[0].score);
     expect((await query("SELECT action FROM student_report_card_audit_logs WHERE report_card_id=$1", [regenerated.id])).rows).toEqual([{ action: 'report_card.regenerated' }]);
+    await query("UPDATE exam_marks SET score=84,status='locked',remarks=NULL WHERE student_id=$1", [students[0]]);
+    await query("UPDATE exam_series SET status='draft' WHERE id=$1", [ids.exam]);
+  });
+
+  it('keeps the released portal result until Principal publication of the corrected revision', async () => {
+    const first = await generation.generateStudentReportCard(studentInput());
+    const command = { tenant_id: 'school-a', exam_series_id: ids.exam,
+      actor_user_id: ids.principal, actor_role: 'principal' };
+    await repository.publishExamSeries(command);
+    const firstScore = (first.metadata as any).report_card.subjects[0].score;
+    await query("UPDATE exam_marks SET score=73,status='locked' WHERE student_id=$1", [students[0]]);
+    const revised = await generation.generateStudentReportCard({ ...studentInput(),
+      regeneration_reason: 'Approved mark correction', reuse_existing: true });
+    expect(revised.status).toBe('draft_generated');
+    const studentCards = () => repository.listStudentReportCards({ tenant_id: 'school-a', student_id: students[0] });
+    expect((await studentCards()).map(card => card.id)).toEqual([first.id]);
+    expect(await repository.findReportCardForStudent({ tenant_id: 'school-a', student_id: students[0],
+      report_card_id: String(revised.id) })).toBeNull();
+    const portal = () => query(`SELECT mark.score FROM students student ${PUBLISHED_STUDENT_RESULTS_JOIN}
+      WHERE student.tenant_id='school-a' AND student.id=$1`, [students[0]]);
+    expect(Number((await portal()).rows[0].score)).toBe(firstScore);
+    await repository.publishExamSeries(command);
+    expect((await studentCards()).map(card => card.id)).toEqual([revised.id]);
+    expect(Number((await portal()).rows[0].score)).toBe(73);
+    expect((await artifacts.read(String(first.id))).content.subarray(0, 4).toString()).toBe('%PDF');
+    await repository.unpublishExamSeries({ ...command, reason: 'Withdraw all released revisions' });
+    expect(await studentCards()).toEqual([]);
+    expect((await portal()).rows).toEqual([]);
+    await expect(artifacts.read(String(first.id))).rejects.toThrow(/withdrawn/);
     await query("UPDATE exam_marks SET score=84,status='locked',remarks=NULL WHERE student_id=$1", [students[0]]);
     await query("UPDATE exam_series SET status='draft' WHERE id=$1", [ids.exam]);
   });
@@ -571,7 +613,7 @@ describe('Report generation with the production staff schema', () => {
     expect((await generation.verifyPrintedReportCard({tenant_id:'school-a',verification_code:card.verification_code})).status).toBe('valid');
     expect((await generation.verifyPrintedReportCard({tenant_id:'school-b',verification_code:card.verification_code})).status).toBe('not_found');
     await query("UPDATE tenants SET name='Changed branding' WHERE tenant_id='school-a'");
-    expect((await generation.verifyPrintedReportCard({tenant_id:'school-a',verification_code:card.verification_code})).status).toBe('not_found');
+    expect((await generation.verifyPrintedReportCard({tenant_id:'school-a',verification_code:card.verification_code})).status).toBe('valid');
     const rejected=await repository.publishExamSeries(command);
     assert.ok(rejected, 'The stale fixture exam must remain visible to its school');
     expect(Number(rejected.blocked_count)).toBe(11);expect(rejected.series_published).toBe(false);
@@ -615,7 +657,7 @@ describe('Report generation with the production staff schema', () => {
     expect(own.attendance).toMatchObject({ total_days: 3, days_present: 2, days_absent: 1, late_arrivals: 1 });
   });
 
-  it('measures a complete 100-learner batch with real PDF generation and PostgreSQL persistence', async () => {
+  it('generates 13 real PDFs then recovers a 100-learner batch while reusing all 95 completed reports', async () => {
     await query(`UPDATE exam_series SET status='draft',locked_at=NULL,published_at=NULL WHERE tenant_id='school-a' AND id=$1`,[ids.exam]);
     await addStudents(Array.from({ length: 89 }, () => randomUUID()));
     for (let index = 0; index < 6; index++) {
@@ -631,10 +673,34 @@ describe('Report generation with the production staff schema', () => {
         [ids.exam, assessment, ids.class, subject, ids.actor, ids.term]);
     }
     const start = performance.now();
+    const thirteen = await generation.generateReportCardBatch({ ...scope, batch_size: 13 });
+    expect(thirteen).toMatchObject({ total_students: 13, completed_students: 13, failed_students: 0 });
+    expect(await count('report_card_artifacts')).toBe(13);
+    const failureIds = new Set((await query(`SELECT student.id FROM students student
+      WHERE student.tenant_id='school-a' AND NOT EXISTS (SELECT 1 FROM student_report_cards card
+        WHERE card.tenant_id=student.tenant_id AND card.student_id::text=student.id) LIMIT 5`)).rows.map(row => row.id));
+    const generate = generation.generateStudentReportCard.bind(generation);
+    generation.generateStudentReportCard = async input => {
+      if (failureIds.has(input.student_id)) throw Object.assign(new Error('Injected storage timeout'), { code: 'ETIMEDOUT' });
+      return generate(input);
+    };
+    let partial;
+    try { partial = await generation.generateReportCardBatch({ ...scope, batch_size: 100 }); }
+    finally { generation.generateStudentReportCard = generate; }
+    expect(partial).toMatchObject({ total_students: 100, completed_students: 95, failed_students: 5 });
+    expect(await count('report_card_artifacts')).toBe(95);
+    const completed = (await query(`SELECT card.id,card.verification_code,card.updated_at,artifact.checksum_sha256,artifact.storage_key
+      FROM student_report_cards card JOIN report_card_artifacts artifact ON artifact.report_card_id=card.id
+      AND artifact.tenant_id=card.tenant_id WHERE card.tenant_id='school-a' ORDER BY card.id`)).rows;
     const result = await generation.generateReportCardBatch({ ...scope, batch_size: 100 });
     const elapsed = performance.now() - start;
-    expect(result).toMatchObject({ total_students: 100, completed_students: 100, failed_students: 0 });
+    expect(result).toMatchObject({ total_students: 100, completed_students: 100, failed_students: 0, reused_students: 95 });
     expect(await count('report_card_artifacts')).toBe(100);
+    const preserved = (await query(`SELECT card.id,card.verification_code,card.updated_at,artifact.checksum_sha256,artifact.storage_key
+      FROM student_report_cards card JOIN report_card_artifacts artifact ON artifact.report_card_id=card.id
+      AND artifact.tenant_id=card.tenant_id WHERE card.tenant_id='school-a' AND card.id=ANY($1::uuid[]) ORDER BY card.id`,
+    [completed.map(card => card.id)])).rows;
+    expect(preserved).toEqual(completed);
     const measurement = { benchmark: 'local PostgreSQL + real PDF + stored bytes + audit/outbox, 7 subjects per card', cards: 100,
       elapsed_ms: Math.round(elapsed), cards_per_second: Number((100000 / elapsed).toFixed(2)), sql_operations: sqlReads,
       rss_mb:Math.round(process.memoryUsage().rss/1024/1024),heap_used_mb:Math.round(process.memoryUsage().heapUsed/1024/1024),

@@ -6,6 +6,7 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ClassTeacherService } from './class-teacher.service';
 import { SaveTeacherMarksDto } from './dto/class-teacher.dto';
+import { SubmitAdministrativeMarkbookDto } from '../exams/dto/submit-administrative-markbook.dto';
 
 export class AssistedTeacherQuery {
   @IsOptional()
@@ -63,5 +64,10 @@ export class ExamsManagerMarksController {
   @Post()
   save(@Body() body: SaveAssistedMarksDto) {
     return this.service.saveAssistedMarks(body.teacherUserId, body, body.streamIds);
+  }
+
+  @Post('submit')
+  submit(@Body() body: SubmitAdministrativeMarkbookDto) {
+    return this.service.submitAssistedMarkbook(body);
   }
 }
