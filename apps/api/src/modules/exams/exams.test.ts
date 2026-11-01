@@ -2190,6 +2190,7 @@ test('ExamsService blocks regular mark mutation after lock and allows audited of
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'locked', locked_at: '2026-05-14T08:00:00.000Z', published_at: null }),
+      findOpenMarkEntryWindow: async () => null,
     } as never,
   );
 
@@ -3999,8 +4000,7 @@ query: async (text: string, values: unknown[]) => {
     /student\.tenant_id = card\.tenant_id[\s\S]*student\.id = card\.student_id::text/,
   );
   assert.doesNotMatch(reportCardsQuery, /student\.id = card\.student_id(?:\s|$)/);
-  assert.match(reportCardsQuery, /card\.status = 'published'/);
-  assert.match(reportCardsQuery, /newer_release\.revision_number > card\.revision_number/);
+  assert.match(reportCardsQuery, /card\.is_current = TRUE/);
   assert.match(reportCardsQuery, /LIMIT \$3::integer/);
   assert.match(reportCardsQuery, /OFFSET \$4::integer/);
   assert.deepEqual(queries[0]?.values, [

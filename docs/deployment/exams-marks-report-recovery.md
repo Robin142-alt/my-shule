@@ -21,6 +21,17 @@ the API and both report lanes, then deploy those services. Do not rotate keys,
 replace storage, reset academic records or publish reports as part of recovery.
 Never include secret values, object paths or learner details in incident output.
 
+The configuration repair was deployed to the API and both report workers on
+1 November 2026. Retrying the original durable job generated all 13 cards in
+7,714 ms with zero failures (batch `939366dd-e4b0-4b24-8626-75c1e42912f4`).
+All 13 PDFs passed stored-byte checksum and signed HTTP download verification,
+totalling 10,198,560 bytes. All cards remained current revision-one drafts, and
+all 261 marks remained locked. This production recovery preceded the code release.
+
+A separate 24-learner request was correctly rejected because an 8-4-4 grading
+policy had been selected for a CBC class. It requires the school to select a
+CBC grading policy; retrying storage cannot resolve that academic configuration.
+
 ## Workflow guarantees
 
 - Reopening teacher access changes access and its audit record only. It does not
