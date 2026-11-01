@@ -3,7 +3,20 @@ import type { AdminCommandOperationsService } from './admin-command-operations.s
 import { classExamWindows, ClassExamConfiguration, examStreamStudentScopeSql } from '../exams/class-exam-configuration';
 
 export async function validateClassExamConfiguration(ops: AdminCommandOperationsService, tenant: string, term: string,
-  config: ClassExamConfiguration[], startsOn: string, endsOn: string) {
+  config: ClassExamConfiguration[], startsOn: string, endsOn: string, requireSubjects = false) {
+  if (requireSubjects) {
+    const empty = await ops.readSql(`SELECT section.name, stream.name AS stream_name
+      FROM jsonb_to_recordset($2::jsonb) requested(class_section_id text,subject_ids jsonb,stream_subjects jsonb)
+      JOIN class_sections section ON section.tenant_id=$1 AND section.id::text=requested.class_section_id
+      LEFT JOIN class_streams stream ON stream.tenant_id=section.tenant_id AND stream.class_section_id=section.id::text
+        AND COALESCE(to_jsonb(stream)->>'status','active')='active' AND to_jsonb(stream)->>'archived_at' IS NULL
+      WHERE (stream.id IS NULL OR jsonb_array_length(requested.subject_ids)>0 OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(requested.stream_subjects,'[]'::jsonb)) override WHERE override->>'stream_id'=stream.id::text))
+        AND jsonb_array_length(COALESCE((SELECT override->'subject_ids'
+        FROM jsonb_array_elements(COALESCE(requested.stream_subjects,'[]'::jsonb)) override
+        WHERE override->>'stream_id'=stream.id::text),requested.subject_ids,'[]'::jsonb))=0 LIMIT 1`,
+    [tenant, JSON.stringify(config)]);
+    if (empty.rowCount) throw new BadRequestException(`Choose at least one subject for ${empty.rows[0].name}${empty.rows[0].stream_name ? ` — ${empty.rows[0].stream_name}` : ''}, or set its class default.`);
+  }
   const pairs = classExamWindows(config);
   const result = await ops.readSql(`SELECT requested.class_section_id, requested.subject_id
     FROM jsonb_to_recordset($3::jsonb) requested(class_section_id text,subject_id text,stream_scope jsonb)
@@ -18,6 +31,7 @@ export async function validateClassExamConfiguration(ops: AdminCommandOperations
   const invalidStreamOffering=await ops.readSql(`SELECT requested.subject_id
     FROM jsonb_to_recordset($3::jsonb) requested(class_section_id text,subject_id text,stream_scope jsonb)
     JOIN class_streams stream ON stream.tenant_id=$1 AND stream.class_section_id=requested.class_section_id
+      AND COALESCE(to_jsonb(stream)->>'status','active')='active' AND to_jsonb(stream)->>'archived_at' IS NULL
     WHERE COALESCE((requested.stream_scope->'overrides'->>stream.id::text)::boolean,(requested.stream_scope->>'default')::boolean,TRUE)
       AND NOT EXISTS (SELECT 1 FROM class_subject_assignments offering WHERE offering.tenant_id=$1
         AND offering.class_section_id=requested.class_section_id AND offering.subject_id=requested.subject_id
@@ -31,7 +45,7 @@ export async function validateClassExamConfiguration(ops: AdminCommandOperations
   if (streams.length) {
     const invalid = await ops.readSql(`SELECT requested.stream_id FROM jsonb_to_recordset($2::jsonb) requested(class_section_id text,stream_id text)
       WHERE NOT EXISTS (SELECT 1 FROM class_streams stream WHERE stream.tenant_id=$1 AND stream.id::text=requested.stream_id
-        AND stream.class_section_id=requested.class_section_id)`,[tenant,JSON.stringify(streams)]);
+        AND stream.class_section_id=requested.class_section_id AND COALESCE(to_jsonb(stream)->>'status','active')='active' AND to_jsonb(stream)->>'archived_at' IS NULL)`,[tenant,JSON.stringify(streams)]);
     if (invalid.rowCount) throw new BadRequestException('Choose streams belonging to their class in this school.');
   }
 }

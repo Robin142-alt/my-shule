@@ -231,7 +231,8 @@ test('the existing report layout retains Overall Grade and the separate right-ha
   assert.equal(calls[grade + 1][0], 'B');
   assert.ok(calls.findIndex(call => call[0] === 'Average: ') < grade);
   assert.ok(calls.findIndex(call => call[0] === 'Total Score: ') > grade);
-  assert.ok(calls.findIndex(call => String(call[0]).startsWith('Learning Areas and Competency Progress:')) > grade);
+  assert.equal(calls.findIndex(call => String(call[0]).startsWith('Learning Areas and Competency Progress:')), -1);
+  assert.ok(calls.findIndex(call => call[0] === 'SUBJECT RESULTS VS CLASS AVERAGE') > grade);
   assert.ok(calls.findIndex(call => call[0] === 'COMMENTS') > calls.indexOf(overview));
 });
 
@@ -317,7 +318,7 @@ for (const examName of ['End Term 1', 'Mid Term', 'End Term 3', 'CAT 1']) {
     const html = new ReportCardTemplateService().renderHtml(payload, 'RC-2026-0001').toString('utf8');
     const table = html.match(/<table>[\s\S]*?<\/table>/)?.[0] ?? '';
     assert.deepEqual([...table.matchAll(/<th>(.*?)<\/th>/g)].map((match) => match[1]), [
-      'Subject', examName, 'Grade', 'Achievement Level',
+      'Subject', 'Marks', 'Grade', 'Achievement Level',
     ]);
     assert.equal((table.match(/<tr>/g) ?? []).length, 8);
     assert.equal((table.match(/<td>/g) ?? []).length, 28);
@@ -333,7 +334,7 @@ for (const examName of ['End Term 1', 'Mid Term', 'End Term 3', 'CAT 1']) {
     const academicTable = printed.slice(printed.indexOf('ACADEMIC PERFORMANCE') + 1, printed.indexOf('Average: '));
     assert.deepEqual(academicTable, [
       examName.toUpperCase(),
-      'Subject', examName, 'Grade', 'Achievement Level',
+      'Subject', 'Marks', 'Grade', 'Achievement Level',
       ...payload.subjects.flatMap((subject) => [subject.subject_name, `${subject.percentage}%`, subject.grade_label, subject.descriptor]),
     ]);
     assert.equal((artifact.content.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length, 1);

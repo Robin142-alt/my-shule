@@ -1,3 +1,4 @@
+import { academicCurriculumGradingSql } from '../../academics/curriculum-grading';
 import { examMembershipScopeSql } from '../class-exam-configuration';
 import { examRosterSql } from '../exam-mark-roster';
 import { examGradeOverrideSql, paperClassScopeSql } from '../exam-result-policy';
@@ -112,17 +113,19 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
       WHERE all_evidence.tenant_id=result.tenant_id AND all_evidence.exam_series_id::text=result.exam_series_id AND all_evidence.student_id=result.student_id) AS overall_override,
     COALESCE((SELECT weighting.weight::float FROM exam_subject_weightings weighting WHERE weighting.tenant_id=result.tenant_id
       AND weighting.grading_policy_id=policy.id AND weighting.subject_id::text=result.subject_id),1) AS subject_weight,
-    policy.id::text AS policy_id, CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END AS reporting_mode,
+    COALESCE(policy.id::text,academic.id::text) AS policy_id, CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE COALESCE(policy.reporting_mode,academic.reporting_mode) END AS reporting_mode,
     COALESCE((SELECT settings.show_rank FROM academics_report_card_settings settings
       WHERE settings.tenant_id = result.tenant_id AND settings.is_active = TRUE AND settings.archived_at IS NULL
-      ORDER BY settings.updated_at DESC, settings.id DESC LIMIT 1),FALSE) AND (CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE policy.reporting_mode END) = 'traditional' AS ranking_enabled,
-    COALESCE(boundaries.items,'[]'::jsonb) AS boundaries,
+      ORDER BY settings.updated_at DESC, settings.id DESC LIMIT 1),FALSE) AND (CASE WHEN result.grading_snapshot->>'source' = 'academic_setup' THEN result.grading_snapshot->>'reporting_mode' ELSE COALESCE(policy.reporting_mode,academic.reporting_mode) END) = 'traditional' AS ranking_enabled,
+    COALESCE(boundaries.items,academic.rules,'[]'::jsonb) AS boundaries,
     COALESCE(teachers.items,'[]'::jsonb) AS teachers,
     COALESCE(subject_heads.items,'[]'::jsonb) AS heads_of_subject,
     COALESCE(interventions.items,'[]'::jsonb) AS interventions
   FROM subject_results result
+  JOIN class_sections result_class ON result_class.tenant_id=result.tenant_id AND result_class.id::text=result.class_section_id
   LEFT JOIN LATERAL (
     SELECT p.* FROM exam_grading_policies p WHERE p.tenant_id = result.tenant_id
+      AND (CASE WHEN upper(to_jsonb(result_class)->>'curriculum_model') IN ('CBC','CBE') THEN p.reporting_mode IN ('cbc_competency','competency','hybrid') ELSE p.reporting_mode='traditional' END)
       AND ((result.grading_policy_id IS NOT NULL AND p.id = result.grading_policy_id
         AND (result.grading_policy_version IS NULL OR p.version = result.grading_policy_version))
         OR (result.grading_policy_id IS NULL AND (p.exam_series_id::text = result.exam_series_id OR p.exam_series_id IS NULL)
@@ -130,6 +133,11 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
           AND (p.effective_to IS NULL OR p.effective_to::date >= result.ends_on)))
     ORDER BY (p.exam_series_id::text = result.exam_series_id) DESC NULLS LAST, p.version DESC, p.id LIMIT 1
   ) policy ON TRUE
+  LEFT JOIN LATERAL (
+    ${academicCurriculumGradingSql('result.tenant_id', "to_jsonb(result_class)->>'curriculum_model'", 'CURRENT_DATE', `(SELECT COALESCE(
+      (SELECT to_jsonb(series)->>'grading_system_id' FROM exam_series series WHERE series.tenant_id=result.tenant_id AND series.id::text=result.exam_series_id),
+      (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings WHERE settings.tenant_id=result.tenant_id AND settings.is_active=TRUE ORDER BY settings.updated_at DESC LIMIT 1)))`)}
+  ) academic ON policy.id IS NULL
   LEFT JOIN LATERAL (
     SELECT jsonb_agg(jsonb_build_object('label',b.label,'min',b.min_score,'max',b.max_score,'points',b.points,'is_pass',b.is_pass)
       ORDER BY b.min_score DESC) AS items

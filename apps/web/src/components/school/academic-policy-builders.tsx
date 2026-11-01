@@ -331,6 +331,9 @@ export function AcademicGradeBandsEditor({
     }
     return saved;
   }, [curriculumName, defaultValue, defaultRulesByCurriculum, defaultCurriculum, initialPreset, buildInitialCurricula]);
+  const missingSavedCurricula = Array.isArray(defaultValue) && defaultValue.length
+    ? buildInitialCurricula().filter(key => !Array.isArray(defaultRulesByCurriculum?.[key])
+      && key !== (buildInitialCurricula().length === 1 ? defaultCurriculum || inferBandCurriculum(defaultValue) : inferBandCurriculum(defaultValue))) : [];
   const [bandsByCurriculum, setBandsByCurriculum] = useState<Record<string, GradeBandState[]>>(buildInitialRows);
   const initialCustomCurriculum = curricula.find((value) => !["CBC", "8-4-4"].includes(value)) ?? "";
   const [customEnabled, setCustomEnabled] = useState(Boolean(initialCustomCurriculum));
@@ -370,6 +373,7 @@ export function AcademicGradeBandsEditor({
         <fieldset className="mb-4 space-y-2">
           <legend className={`text-sm font-black ${styles.label}`}>Curriculum for this grading policy</legend>
           <p className={`text-xs ${styles.muted}`}>Select curricula to edit their grade bands independently. Reports use the bands matching each class.</p>
+          {missingSavedCurricula.length ? <p role="status" className={`text-xs ${styles.muted}`}>{missingSavedCurricula.join(", ")} is enabled but has no saved grade bands. Review the suggested bands below and save this policy.</p> : null}
           <input type="hidden" name={curriculumName} value={curricula[0] ?? ""} />
           <input type="hidden" name="curriculum_models" value={JSON.stringify(curricula)} />
           <input type="hidden" name="rules_by_curriculum" value={JSON.stringify(serializedByCurriculum)} />

@@ -328,4 +328,20 @@ describe('Exam configuration and empty-exam deletion', () => {
     failAudit=false;
     expect(await saved(draft.exam.id)).toEqual(before);
   });
+  it('creates an open exam from stream overrides with no class defaults and persists exact effective windows', async () => {
+    const yellow=randomUUID(), red=randomUUID();
+    await query(`INSERT INTO class_streams VALUES ($1,'school-a','Yellow',$2),($3,'school-a','Red',$2)`,[yellow,ids.class2,red]);
+    const config=[{class_section_id:ids.class2,subject_ids:[],stream_subjects:[
+      {stream_id:yellow,subject_ids:[ids.subject,ids.subject2]}, {stream_id:red,subject_ids:[ids.subject2]},
+    ]}];
+    const exam=await create({status:'submitted',class_subjects:config});
+    expect((await saved(exam.exam.id)).class_subjects).toEqual(expect.arrayContaining([expect.objectContaining({subject_ids:[],stream_subjects:expect.arrayContaining(config[0].stream_subjects.map(stream=>({...stream,subject_ids:[...stream.subject_ids].sort()})))})]));
+    const windows=(await query('SELECT subject_id::text,stream_scope FROM exam_mark_entry_windows WHERE exam_series_id=$1',[exam.exam.id])).rows;
+    expect(windows).toHaveLength(2);
+    expect(windows.find(w=>w.subject_id===ids.subject).stream_scope).toEqual({default:false,overrides:{[yellow]:true,[red]:false}});
+    const yellowOnly=await create({status:'submitted',class_subjects:[{...config[0],stream_subjects:[config[0].stream_subjects[0]]}]});
+    expect((await saved(yellowOnly.exam.id)).subjects_count).toBe(2);
+    await expect(create({status:'submitted',class_subjects:[{...config[0],stream_subjects:[config[0].stream_subjects[0],{stream_id:red,subject_ids:[]}]}]})).rejects.toThrow(/every participating/);
+  });
+
 });

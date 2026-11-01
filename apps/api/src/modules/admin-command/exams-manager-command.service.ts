@@ -242,7 +242,7 @@ export class ExamsManagerCommandService {
   private requireExamScopeSelection(dto: any) {
     const classSubjects = normalizeClassExamConfiguration(dto?.class_subjects);
     const windows = classExamWindows(classSubjects);
-    if (this.normalizeStatus(dto?.status) !== 'draft' && classSubjects.some(c => !c.subject_ids.length
+    if (this.normalizeStatus(dto?.status) !== 'draft' && classSubjects.some(c => !classExamWindows([c]).length
       || c.stream_subjects?.some(stream => !stream.subject_ids.length))) {
       throw new BadRequestException('Select examined subjects for every participating class and stream before opening marks.');
     }
@@ -282,7 +282,7 @@ export class ExamsManagerCommandService {
         `
           SELECT
             id::text,
-            CONCAT(name, ' (', to_char(starts_on, 'YYYY-MM-DD'), ' to ', to_char(ends_on, 'YYYY-MM-DD'), ')') AS label,
+            CONCAT(name, ' (', to_char(starts_on, 'YYYY-MM-DD'), ' to ', to_char(ends_on, 'YYYY-MM-DD'), ')') AS label, academic_year_id,
             status
           FROM academic_terms
           WHERE tenant_id = $1
@@ -305,11 +305,12 @@ export class ExamsManagerCommandService {
         `
           SELECT
             id::text,
-            COALESCE(NULLIF(CONCAT_WS(' ', grade_level, stream), ''), name) AS label, grade_level, stream,
+            COALESCE(NULLIF(CONCAT_WS(' ', grade_level, stream), ''), name) AS label, grade_level, stream, academic_year_id,
             ARRAY(SELECT DISTINCT offering.subject_id FROM class_subject_assignments offering WHERE offering.tenant_id=class_sections.tenant_id
               AND offering.class_section_id=class_sections.id::text AND offering.status='active' AND offering.is_examinable=TRUE) AS subject_ids,
             COALESCE((SELECT jsonb_agg(jsonb_build_object('id',child.id,'label',child.name) ORDER BY child.name) FROM class_streams child
-              WHERE child.tenant_id=class_sections.tenant_id AND child.class_section_id=class_sections.id::text),'[]'::jsonb) AS streams
+              WHERE child.tenant_id=class_sections.tenant_id AND child.class_section_id=class_sections.id::text
+                AND child.status='active' AND child.archived_at IS NULL),'[]'::jsonb) AS streams
           FROM class_sections
           WHERE tenant_id = $1
             AND LOWER(COALESCE(status, 'active')) = 'active'
@@ -382,7 +383,8 @@ export class ExamsManagerCommandService {
         [tenantId],
       ),
       this.readSql(`SELECT offering.class_section_id,offering.subject_id,offering.academic_term_id,
-        to_jsonb(offering)->>'stream_id' AS stream_id FROM class_subject_assignments offering
+        to_jsonb(offering)->>'stream_id' AS stream_id, offering.effective_from, offering.effective_to
+        FROM class_subject_assignments offering
         WHERE offering.tenant_id=$1 AND offering.status='active' AND offering.is_examinable=TRUE`,[tenantId]),
     ]);
 
@@ -637,7 +639,7 @@ export class ExamsManagerCommandService {
         throw new BadRequestException('Create or activate an academic term before creating an exam cycle.');
       }
       await validateExamSelection(this.operations, tenantId, selection.subjectIds, selection.classSectionIds, academicTermId);
-      await validateClassExamConfiguration(this.operations,tenantId,academicTermId,selection.classSubjects,startsOn,endsOn);
+      await validateClassExamConfiguration(this.operations,tenantId,academicTermId,selection.classSubjects,startsOn,endsOn,status !== 'draft');
       insertColumns.splice(1, 0, 'academic_term_id');
       params.splice(1, 0, academicTermId);
       placeholders.splice(1, 0, '$2::uuid');
@@ -754,7 +756,7 @@ export class ExamsManagerCommandService {
     const maxMarks = this.positiveNumber(dto?.max_marks, Number(current.max_marks ?? 100), 'Max marks');
     const academicTermId = this.optionalText(dto?.academic_term_id) ?? current.academic_term_id;
     await validateExamSelection(this.operations, tenantId, selection.subjectIds, selection.classSectionIds, academicTermId);
-    await validateClassExamConfiguration(this.operations,tenantId,academicTermId,selection.classSubjects,startsOn,endsOn);
+    await validateClassExamConfiguration(this.operations,tenantId,academicTermId,selection.classSubjects,startsOn,endsOn,status !== 'draft');
     if (['reviewed', 'locked', 'published', 'archived'].includes(current.status) || current.published_at || current.locked_at) {
       throw new ConflictException('Reviewed, locked, published or archived exam configuration is read-only. Use the governed reopening workflow first.');
     }

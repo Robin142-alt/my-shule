@@ -32,7 +32,8 @@ export async function validateExamSelection(operations: AdminCommandOperationsSe
   const result = await operations.readSql(`SELECT
     (SELECT COUNT(*)::int FROM subjects WHERE tenant_id = $1 AND id::text = ANY($2::text[])) AS subjects,
     (SELECT COUNT(*)::int FROM class_sections WHERE tenant_id = $1 AND id::text = ANY($3::text[])
-      AND LOWER(COALESCE(status, 'active')) = 'active') AS classes,
+      AND LOWER(COALESCE(status, 'active')) = 'active'
+      AND ($4::text IS NULL OR to_jsonb(class_sections)->>'academic_year_id' IS NULL OR to_jsonb(class_sections)->>'academic_year_id'=(SELECT to_jsonb(academic_terms)->>'academic_year_id' FROM academic_terms WHERE tenant_id=$1 AND id::text=$4))) AS classes,
     ($4::text IS NULL OR EXISTS (SELECT 1 FROM academic_terms WHERE tenant_id = $1 AND id::text = $4)) AS valid_term`,
   [tenantId, subjects, classes, termId || null]);
   const row = result.rows[0];

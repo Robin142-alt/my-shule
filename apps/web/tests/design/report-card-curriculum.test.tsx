@@ -265,7 +265,7 @@ describe("curriculum-aware report cards", () => {
     const legacyReport = buildReportCardDocument({ data, row: legacyRow! });
 
     const { rerender } = renderWithProviders(<ReportCardDocument report={hybridReport} />);
-    expect(screen.getByTestId("report-card-document")).toHaveTextContent("Learning Areas and Competency Progress");
+    expect(screen.getByTestId("report-card-document")).toHaveTextContent("LEARNING AREA RESULTS VS CLASS AVERAGE");
     expect(screen.getByTestId("report-card-document")).toHaveTextContent("Marks-Based Assessment Supplement");
     expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Descriptor Legend");
     expect(screen.getByTestId("report-card-document")).not.toHaveTextContent("Grading Scale");

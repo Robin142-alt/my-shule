@@ -156,7 +156,6 @@ function StudentInformation({ report }: { report: ReportCardDocumentData }) {
 
 function MarksTable({ report }: { report: ReportCardDocumentData }) {
   const legacy = report.curriculum.reportCardType === "LEGACY_844_KCSE";
-  const examName = report.academic.reportingPeriod.trim() || "Assessment";
   return (
     <>
       <p className="sr-only">{legacy ? "Legacy Subject Results" : "Marks-Based Assessment Supplement"}</p>
@@ -164,7 +163,7 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
         <thead>
           <tr className="bg-[#eef5fb] text-foreground">
             <th className="border border-slate-200 px-2 py-1 text-left">Subject</th>
-            <th className="border border-slate-200 px-1 py-1">{examName}</th>
+            <th className="border border-slate-200 px-1 py-1">Marks</th>
             <th className="border border-slate-200 px-1 py-1">Grade</th>
             <th className="border border-slate-200 px-2 py-1">Achievement Level</th>
           </tr>
@@ -176,7 +175,7 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
             const displayScore = scorePercentage === null ? result ?? row.score : `${scorePercentage}%`;
             return (
               <tr key={`${row.subjectName}-${index}`} className="even:bg-slate-50/60">
-                <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.subjectName}
+                <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.subjectName}<ComparisonIndicator report={report} name={row.subjectName} />
                   {(row.assessmentComponents?.length ?? 0) > 1 && <div className="mt-1 space-y-0.5 font-normal text-slate-600">
                     {row.assessmentComponents!.map((paper, i) => <p key={i}>{paper.name}: {paper.percentage ?? paper.status}</p>)}
                   </div>}
@@ -191,9 +190,9 @@ function MarksTable({ report }: { report: ReportCardDocumentData }) {
       </table>
       {report.academicSummary ? (
         <div className="grid divide-x divide-[#e6b54b] rounded-b-lg border border-[#e6b54b] bg-[#fff9ec] text-center text-[8px] text-foreground" style={{ gridTemplateColumns: `repeat(${[report.academicSummary.percentage ?? report.academicSummary.meanScore, report.academicSummary.overallGrade, report.academicSummary.classPosition ?? report.academicSummary.totalScore].filter(Boolean).length}, minmax(0, 1fr))` }}>
-          {report.academicSummary.percentage ?? report.academicSummary.meanScore ? <p className="p-1.5">Average: <strong className="text-[11px]">{report.academicSummary.percentage ?? report.academicSummary.meanScore}</strong></p> : null}
-          {report.academicSummary.overallGrade ? <p className="p-1.5">Overall Grade: <strong className="text-[11px]">{report.academicSummary.overallGrade}</strong></p> : null}
-          {report.academicSummary.classPosition ?? report.academicSummary.totalScore ? <p className="p-1.5">{report.academicSummary.classPosition ? "Class Position" : "Total Score"}: <strong className="text-[11px]">{report.academicSummary.classPosition ?? report.academicSummary.totalScore}</strong></p> : null}
+          {report.academicSummary.percentage ?? report.academicSummary.meanScore ? <p className="p-1.5">Average: <strong className="text-[13px]">{report.academicSummary.percentage ?? report.academicSummary.meanScore}</strong></p> : null}
+          {report.academicSummary.overallGrade ? <p className="p-1.5">Overall Grade: <strong className="text-[13px]">{report.academicSummary.overallGrade}</strong></p> : null}
+          {report.academicSummary.classPosition ?? report.academicSummary.totalScore ? <p className="p-1.5">{report.academicSummary.classPosition ? "Class Position" : "Total Score"}: <strong className="text-[13px]">{report.academicSummary.classPosition ?? report.academicSummary.totalScore}</strong></p> : null}
         </div>
       ) : null}
     </>
@@ -214,7 +213,7 @@ function CompetencyTable({ report }: { report: ReportCardDocumentData }) {
         <tbody>
           {report.learningAreas.length ? report.learningAreas.map((row, index) => (
             <tr key={`${row.learningArea}-${index}`} className="even:bg-slate-50/60">
-              <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.learningArea}</td>
+              <td className="border border-slate-200 px-2 py-[3px] font-semibold">{row.learningArea}<ComparisonIndicator report={report} name={row.learningArea} /></td>
               <td className="border border-slate-200 px-2 py-[3px]">{row.task}</td>
               <td className="border border-slate-200 px-2 py-[3px]">{row.performanceLevel}</td>
               <td className="border border-slate-200 px-2 py-[3px]">{row.descriptor}</td>
@@ -227,12 +226,35 @@ function CompetencyTable({ report }: { report: ReportCardDocumentData }) {
   );
 }
 
+const comparisonStyles = {
+  above: { symbol: "▲", label: "Above Average", color: "#2f7d49", background: "#edf6ec" },
+  near: { symbol: "◆", label: "Near Average", color: "#346ba3", background: "#edf3fa" },
+  below: { symbol: "▼", label: "Below Average", color: "#b05a58", background: "#faeeee" },
+} as const;
+function ComparisonIndicator({report, name}: {report: ReportCardDocumentData; name: string}) {
+  const category = report.analytics?.classComparisons?.find(row => row.subjectName === name)?.category;
+  return category ? <span className="float-right ml-1" style={{color:comparisonStyles[category].color}} aria-label={comparisonStyles[category].label}>{comparisonStyles[category].symbol}</span> : null;
+}
+function ClassComparison({report}: {report: ReportCardDocumentData}) {
+  const rows = report.analytics?.classComparisons ?? [];
+  const counts = { above: 0, near: 0, below: 0 };
+  rows.forEach(row => { if (row.category) counts[row.category]++; });
+  const total = counts.above + counts.near + counts.below;
+  return <section data-report-section="class-comparison" className="space-y-1.5">
+    <h2 className="text-[9px] font-black text-foreground">{report.curriculum.reportCardType === "LEGACY_844_KCSE" ? "SUBJECT" : "LEARNING AREA"} RESULTS VS CLASS AVERAGE</h2>
+    <div className="grid grid-cols-3 gap-2">{(Object.keys(comparisonStyles) as Array<keyof typeof comparisonStyles>).map(category => {
+      const style = comparisonStyles[category];
+      return <div key={category} className="flex items-center gap-2 rounded px-2 py-2 text-[8px] font-bold" style={{color:style.color,backgroundColor:style.background}}>
+        <span>{style.symbol}</span><span>{style.label}</span><strong className="ml-auto text-[16px]">{counts[category]}</strong>
+      </div>;
+    })}</div>
+    <div className="flex h-1.5 overflow-hidden rounded bg-slate-50">{total ? (Object.keys(counts) as Array<keyof typeof counts>).map(category => <span key={category} style={{width:`${counts[category]/total*100}%`,backgroundColor:comparisonStyles[category].color}} />) : null}</div>
+    <p className="text-[6px] text-slate-500">{total ? `${total} subjects compared${rows.length > total ? `; ${rows.length-total} unavailable` : ""}` : "Class-average comparison unavailable"}</p>
+  </section>;
+}
+
 function AcademicPerformance({ report }: { report: ReportCardDocumentData }) {
   const showMarks = report.curriculum.reportCardType !== "CBC_CBE_COMPETENCY" && report.permissions.canViewMarksSupplement;
-  const learningAreaSummary = report.learningAreas.slice(0, 4).map((area) => {
-    const result = area.performanceLevel ?? area.descriptor;
-    return result ? `${area.learningArea} - ${result}` : null;
-  }).filter((item): item is string => item !== null);
   if (showMarks ? !report.marksSupplement.length : !report.learningAreas.length) {
     return <div className="sr-only"><p>{showMarks ? "Legacy Subject Results" : "Learning Areas and Competency Progress"}</p>{report.gradingScale.length ? <p>Grading Scale</p> : null}{report.descriptorLegend.length ? <p>Descriptor Legend</p> : null}</div>;
   }
@@ -243,9 +265,6 @@ function AcademicPerformance({ report }: { report: ReportCardDocumentData }) {
         <span className="text-[6px] font-semibold uppercase tracking-[0.12em] text-blue-100">{report.academic.reportingPeriod}</span>
       </div>
       {showMarks ? <MarksTable report={report} /> : <CompetencyTable report={report} />}
-      {showMarks && learningAreaSummary.length ? (
-        <div className="border-t border-slate-200 bg-[#f8fbff] px-3 py-1.5 text-[7px]"><strong className="text-foreground">Learning Areas and Competency Progress:</strong> {learningAreaSummary.join(" | ")}</div>
-      ) : null}
       {report.gradingScale.length ? <div className="border-t border-slate-200 px-3 py-1 text-[6.5px] text-slate-500"><strong className="text-foreground">Grading Scale:</strong> {report.gradingScale.map((item) => `${item.grade} ${item.range}`).join(" | ")}</div> : null}
       {report.descriptorLegend.length ? <div className="border-t border-slate-200 px-3 py-1 text-[6.5px] text-slate-500"><strong className="text-foreground">Descriptor Legend:</strong> {report.descriptorLegend.map((item) => `${item.code} - ${item.label}`).join(" | ")}</div> : null}
     </section>
@@ -295,8 +314,8 @@ function Analytics({ report }: { report: ReportCardDocumentData }) {
   const improvement = report.analytics?.improvement;
   const conduct = report.permissions.canViewConduct ? report.analytics?.conduct ?? report.conduct?.generalConduct : undefined;
   const currentAverage = numeric(report.academicSummary?.percentage ?? report.academicSummary?.meanScore);
-  const persistedTerms = [...(report.analytics?.termHistory ?? [])].reverse();
-  const currentTermLabel = report.academic.term || report.academic.reportingPeriod;
+  const persistedTerms = [...(report.analytics?.termHistory ?? [])].slice(0,3).reverse();
+  const currentTermLabel = report.academic.reportingPeriod || report.academic.term;
   const termHistory = persistedTerms.length
     ? persistedTerms
     : currentAverage !== null && currentTermLabel
@@ -406,6 +425,7 @@ export function ReportCardDocument({ report }: { report: ReportCardDocumentData 
         <Header report={report} />
         <StudentInformation report={report} />
         <AcademicPerformance report={report} />
+        <ClassComparison report={report} />
         <Development report={report} />
         <Analytics report={report} />
         <Comments report={report} />

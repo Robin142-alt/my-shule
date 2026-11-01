@@ -45,6 +45,8 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
         CREATE TABLE staff_profiles(tenant_id text,user_id uuid,display_name text);
         CREATE TABLE tenant_memberships(tenant_id text,user_id uuid,status text);
         CREATE TABLE academics_report_card_settings(tenant_id text,id text,show_rank boolean,is_active boolean,archived_at timestamptz,updated_at timestamptz);
+        CREATE TABLE academics_grading_systems(tenant_id text,id uuid,name text,version int,is_active boolean,effective_from date,effective_to date,rules jsonb,updated_at timestamptz,curriculum_model text,curriculum_models jsonb,rules_by_curriculum jsonb);
+        ALTER TABLE academics_report_card_settings ADD COLUMN grading_system_id uuid;
         CREATE TABLE academic_interventions(tenant_id text,id uuid,student_id text,class_section_id text,subject_id text,status text,due_on date,starts_on date,completed_at timestamptz,baseline jsonb,target jsonb,outcome jsonb);
       `);
       for(const tenant of ['school-a','school-b']) {

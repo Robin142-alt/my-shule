@@ -389,11 +389,17 @@ export function mapPersistedReportCardDocument(
       reportStatus: reportStatus(card.status),
     },
     analytics: {
+      classComparisons: subjects.map(subject => {
+        const score = numberValue(subject.score), max = numberValue(subject.max_score), average = numberValue(subject.class_average);
+        const value = numberValue(subject.percentage) ?? (score !== null && max && max > 0 ? score / max * 100 : null);
+        const difference = value !== null && average !== null && text(subject.score_status, "entered") === "entered" ? value-average : null;
+        return { subjectName: text(subject.subject_name), category: difference === null ? null : difference > 5 ? "above" : difference < -5 ? "below" : "near" };
+      }),
       attendancePercentage: formatPercentage(attendancePercentage),
       bestSubject: enteredSubjects[0]?.name || undefined,
       improvement: overallOverride?undefined:text(totals.improvement) || undefined,
       conduct: text(fields.conduct_summary) || undefined,
-      termHistory,
+      termHistory: [{ examSeriesId: text(series.id, card.exam_series_id), label: text(fields.exam_series, text(series.name)), percentage: overallPercentage }, ...termHistory.filter(row => row.examSeriesId !== text(series.id, card.exam_series_id))].filter((row): row is { examSeriesId: string; label: string; percentage: number } => Boolean(row.examSeriesId && row.label) && row.percentage !== null).slice(0, 3),
       subjectHistory,
     },
     cbcProgress: {
