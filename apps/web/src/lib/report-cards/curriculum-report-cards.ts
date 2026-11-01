@@ -154,6 +154,7 @@ export interface ReportCardDocumentData {
     classPosition?: string;
   };
   analytics?: {
+    classComparisons?: Array<{ subjectName: string; category: "above" | "near" | "below" | null }>;
     attendancePercentage?: string;
     bestSubject?: string;
     improvement?: string;

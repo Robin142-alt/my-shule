@@ -236,6 +236,56 @@ describe('Report generation with the production staff schema', () => {
   const studentInput = () => ({ ...scope, student_id: students[0] });
   const count = async (table: string) => Number((await query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count);
 
+  it.each(['CBC','8-4-4'])('uses the same %s bands for marks, snapshots and PDFs in a mixed policy', async curriculum => {
+    const old=(await query('SELECT * FROM academics_grading_systems WHERE id=$1',[ids.grading])).rows[0];
+    const scales={'8-4-4':[{label:'A',min:0,max:100,points:12,remark:'Legacy achievement'}],CBC:[{label:'ME1',min:0,max:100,points:6,remark:'CBC achievement'}]};
+    try {
+      await query('UPDATE class_sections SET curriculum_model=$1 WHERE id=$2',[curriculum,ids.class]);
+      await query("INSERT INTO exam_grade_boundaries(tenant_id,exam_series_id,label,min_score,max_score,remarks) VALUES('school-a',$1,'Legacy',0,100,'Old generic remark')",[ids.exam]);
+      await query(`UPDATE academics_grading_systems SET curriculum_model='8-4-4',curriculum_models='["8-4-4","CBC"]',rules_by_curriculum=$1,rules=$2 WHERE id=$3`,[JSON.stringify(scales),JSON.stringify(scales['8-4-4']),ids.grading]);
+      const boundary=await repository.findGradeBoundaryForScore({tenant_id:'school-a',exam_series_id:ids.exam,class_section_id:ids.class,score:42,max_score:50});
+      expect(boundary.boundary).toMatchObject({label:curriculum==='CBC'?'ME1':'A',points:curriculum==='CBC'?6:12});
+      const data=await repository.loadReportCardData(studentInput());
+      expect((data.subjects as any[])[0]).toMatchObject({grade_label:curriculum==='CBC'?'ME1':'A',points:curriculum==='CBC'?6:12,class_average:84,remarks:curriculum==='CBC'?'CBC achievement':'Legacy achievement'});
+      const generated=await generation.generateReportCardBatch(scope);
+      expect(generated.failed_students).toBe(0);
+      await repository.processResultBatch({tenant_id:'school-a',actor_user_id:ids.actor,batch_id:generated.id,mode:'rankings'});
+      const snapshots=(await query('SELECT grade_label FROM exam_result_snapshots WHERE batch_id=$1',[generated.id])).rows;
+      expect(snapshots.length).toBeGreaterThan(0);
+      expect(snapshots.every(row=>row.grade_label===(curriculum==='CBC'?'ME1':'A'))).toBe(true);
+    } finally {
+      await query("DELETE FROM exam_grade_boundaries WHERE tenant_id='school-a' AND exam_series_id=$1 AND label='Legacy'",[ids.exam]);
+      await query("UPDATE class_sections SET curriculum_model='8-4-4' WHERE id=$1",[ids.class]);
+      await query('UPDATE academics_grading_systems SET curriculum_model=$1,curriculum_models=$2,rules_by_curriculum=$3,rules=$4 WHERE id=$5',[old.curriculum_model,JSON.stringify(old.curriculum_models),JSON.stringify(old.rules_by_curriculum),JSON.stringify(old.rules),ids.grading]);
+    }
+  });
+
+  it('recovers all 24 CBC reports after saving the missing curriculum scale without replacing 8-4-4', async () => {
+    const added=Array.from({length:13},()=>randomUUID());
+    const old=(await query('SELECT * FROM academics_grading_systems WHERE id=$1',[ids.grading])).rows[0];
+    try {
+      await addStudents(added);
+      await query("UPDATE class_sections SET curriculum_model='CBC' WHERE id=$1",[ids.class]);
+      await query(`UPDATE academics_grading_systems SET curriculum_model='8-4-4',curriculum_models='["8-4-4","CBC"]',rules_by_curriculum='{}' WHERE id=$1`,[ids.grading]);
+      const failed=await generation.generateReportCardBatch(scope);
+      expect(failed.failed_students).toBe(24);
+      expect(failed.failures?.[0].message).toMatch(/CBC.*no saved grade bands/);
+      const legacy=old.rules;
+      await academicRepository.updateGradingSystem('school-a',ids.grading,null,null,{rules_by_curriculum:{'8-4-4':legacy,CBC:[{label:'EE1',min:0,max:100,points:8,remark:'Exceeding Expectation'}]}});
+      const recovered=await generation.generateReportCardBatch(scope);
+      expect(recovered).toMatchObject({total_students:24,completed_students:24,failed_students:0});
+      expect((await query('SELECT rules FROM academics_grading_systems WHERE id=$1',[ids.grading])).rows[0].rules).toEqual(legacy);
+      expect((await query("SELECT COUNT(*)::int count FROM exam_marks WHERE student_id=ANY($1::uuid[]) AND status='locked'",[added])).rows[0].count).toBe(13);
+    } finally {
+      await query('DELETE FROM exam_marks WHERE student_id=ANY($1::uuid[])',[added]);
+      await query('DELETE FROM student_subject_enrollments WHERE student_id=ANY($1::text[])',[added]);
+      await query('DELETE FROM student_class_assignments WHERE student_id=ANY($1::text[])',[added]);
+      await query('DELETE FROM students WHERE id=ANY($1::text[])',[added]);
+      await query("UPDATE class_sections SET curriculum_model='8-4-4' WHERE id=$1",[ids.class]);
+      await query('UPDATE academics_grading_systems SET curriculum_model=$1,curriculum_models=$2,rules_by_curriculum=$3,rules=$4 WHERE id=$5',[old.curriculum_model,JSON.stringify(old.curriculum_models),JSON.stringify(old.rules_by_curriculum),JSON.stringify(old.rules),ids.grading]);
+    }
+  });
+
   it('persists independent school policies, preserves disabled scales and resolves the latest published-policy revision', async () => {
     const service = new AcademicsService({ getStore: () => context } as never, academicRepository,
       {} as never, { publish: async () => {} } as never, {} as never);
@@ -728,4 +778,5 @@ describe('Report generation with the production staff schema', () => {
   // This benchmark creates 100 real seven-subject PDFs plus their durable
   // manifests/events. Allow slower local disks without changing its assertions.
   }, 180000);
+
 });

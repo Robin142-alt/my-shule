@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validate } from 'class-validator';
-import { normalizeCurricula, normalizeCurriculum, validateGradingRules } from './curriculum-grading';
+import { normalizeCurricula, normalizeCurriculum, validateGradingRules, prepareCurriculumGrading } from './curriculum-grading';
 import { AcademicRoleAppointmentDto, CreateClassSectionDto } from './dto/academic.dto';
 import { AcademicsService } from './academics.service';
 import { ExamsRepository } from '../exams/repositories/exams.repository';
@@ -12,6 +12,18 @@ const rules = [
   { label: 'High', min: 60, max: 100, points: 8, remark: 'Meeting Expectation', is_pass: true },
   { label: 'Low', min: 0, max: 59, points: 1, remark: 'Below Expectation', is_pass: false },
 ];
+
+test('a shared policy with no saved CBC bands identifies the missing configuration even if another year has CBC', async () => {
+  await assert.rejects(reportRepository('CBC', { preferredSystemId: 'old', gradingSystems: [
+    { id: 'old', name: '2026 Academic Year', curriculum_model: '8-4-4', curriculum_models: ['8-4-4', 'CBC'], rules_by_curriculum: {}, rules: [{ label: 'A', min: 0, max: 100 }] },
+    { id: 'new', name: '2027 Academic Year', curriculum_model: 'CBC', rules: [{ label: 'ME1', min: 0, max: 100 }] },
+  ] }).loadReportCardData({ tenant_id: 'school-a', exam_series_id: 'exam', student_id: 'student' }), /2026 Academic Year.*CBC.*no saved grade bands/i);
+});
+
+test('legacy clients cannot enable two curricula with only one scale or assign ambiguous bands to the first curriculum', () => {
+  assert.throws(() => prepareCurriculumGrading(['8-4-4', 'CBC'], { rules: [{ label: 'A', min: 0, max: 100 }] }), /CBC.*grade bands/);
+  assert.throws(() => prepareCurriculumGrading(['8-4-4', 'CBC'], { rules }), /curriculum|grade bands/i);
+});
 
 test('curriculum and grade validation accepts custom systems and rejects incomplete or overlapping policies', () => {
   assert.equal(normalizeCurriculum(' 844 '), '8-4-4');
@@ -50,7 +62,7 @@ test('saving a curriculum policy persists the binding with tenant-scoped audit a
     { publish: async (value: any) => { events.push(value); } } as never, {} as never,
   );
   await service.createGradingSystem({
-    name: 'Junior grading', curriculum_model: '844', curriculum_models: ['844', 'CBC', '8-4-4'], rules,
+    name: 'Junior grading', curriculum_model: '844', curriculum_models: ['844', 'CBC', '8-4-4'], rules, rules_by_curriculum: { '8-4-4': rules, CBC: rules },
   });
   assert.equal(writes[0].tenant, 'school-a');
   assert.equal(writes[0].options.curriculum_model, '8-4-4');
@@ -268,5 +280,5 @@ test('legacy shared competency bands cannot silently grade an 8-4-4 class', asyn
   await assert.rejects(reportRepository('8-4-4', { preferredSystemId: 'legacy-shared', gradingSystem: {
     id: 'legacy-shared', name: 'Shared legacy', curriculum_model: '8-4-4', curriculum_models: ['8-4-4','CBC'], version: 1,
     rules: [{ label: 'EE1', min: 0, max: 100, points: 8 }],
-  }}).loadReportCardData({tenant_id:'school-a',exam_series_id:'exam',student_id:'student'}), /CBC grading bands.*8-4-4/i);
+  }}).loadReportCardData({tenant_id:'school-a',exam_series_id:'exam',student_id:'student'}), /8-4-4.*no saved grade bands/i);
 });

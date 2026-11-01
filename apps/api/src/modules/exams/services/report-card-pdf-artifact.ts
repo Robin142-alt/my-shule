@@ -1,3 +1,4 @@
+import { classComparison, classComparisonCounts, COMPARISON_STYLES } from './report-card-class-comparison';
 import { createHash } from 'node:crypto';
 import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdtemp, unlink, rmdir } from 'node:fs/promises';
@@ -151,7 +152,8 @@ function renderReportCardPageContent(
   const headerBottom = drawHeader(document, payload, verificationCode);
   const informationBottom = drawStudentInformation(document, payload, headerBottom + 8);
   const performanceBottom = drawAcademicPerformance(document, payload, informationBottom + 8);
-  const analyticsBottom = drawAnalyticsAndOverview(document, payload, performanceBottom + 8);
+  const comparisonBottom = drawClassComparison(document, payload, performanceBottom + 8);
+  const analyticsBottom = drawAnalyticsAndOverview(document, payload, comparisonBottom + 8);
   drawCommentsAndSignatures(document, payload, analyticsBottom + 8);
   drawFooter(document, verificationCode, generatedAt);
   drawPaperDetails(document, payload, verificationCode, generatedAt);
@@ -361,7 +363,8 @@ function drawStudentInformation(document: PDFKit.PDFDocument, payload: ReportCar
 
 function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
   const subjectCount = Math.max(payload.subjects.length, 1);
-  const rowHeight = subjectCount > 8 ? 12 : 17;
+  const commentLength = Math.max(payload.template_fields.class_teacher_comment?.length ?? 0, payload.template_fields.principal_comment?.length ?? 0);
+  const rowHeight = subjectCount > 8 ? 12 : subjectCount > 6 && commentLength > 300 ? 14 : 17;
   const rowPadding = subjectCount > 8 ? 3 : 5;
   const enteredSubjects = payload.subjects.filter(isEntered);
   const totals = asRecord(payload.totals);
@@ -372,15 +375,15 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
   const classPosition = recordText(totals, 'class_position', 'position');
   if (classPosition) summary.push(['Class Position', classPosition]);
   else if (payload.totals.total_score !== null && payload.totals.total_max_score !== null && payload.totals.total_max_score > 0) summary.push(['Total Score', `${formatNumber(payload.totals.total_score)} / ${formatNumber(payload.totals.total_max_score)}`]);
-  const summaryHeight = summary.length ? 23 : 0;
+  const summaryHeight = summary.length ? 25 : 0;
   const examName = recordText(payload.template_fields, 'exam_series')
     ?? recordText(payload.exam_series, 'name') ?? 'Assessment';
   const titleHeight = Math.max(19, document.font('MyShule-Bold').fontSize(5.7).heightOfString(examName.toUpperCase(), { width: 215 }) + 8);
   const columns = [
-    { key: 'subject', label: 'Subject', weight: 1 },
-    { key: 'result', label: examName, weight: 1 },
-    { key: 'grade', label: 'Grade', weight: 1 },
-    { key: 'achievement', label: 'Achievement Level', weight: 1 },
+    { key: 'subject', label: ['CBC','CBE'].includes(String(payload.exam_series.curriculum_model).toUpperCase()) ? 'Learning Area' : 'Subject', weight: 1.5 },
+    { key: 'result', label: 'Marks', weight: 0.6 },
+    { key: 'grade', label: 'Grade', weight: 0.6 },
+    { key: 'achievement', label: 'Achievement Level', weight: 1.3 },
   ];
   const totalWeight = columns.reduce((sum, column) => sum + column.weight, 0);
   const columnWidths = columns.map((column) => (CONTENT_WIDTH * column.weight) / totalWeight);
@@ -393,11 +396,7 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
   });
   const rowHeights = data.map(row => Math.max(rowHeight, ...row.map((value, index) => document.font(index === 0 ? 'MyShule-Bold' : 'MyShule-Regular').fontSize(8).heightOfString(value, { width: columnWidths[index] - 8 }) + rowPadding)));
   const rowsHeight = rowHeights.reduce((sum, value) => sum + value, 0);
-  const learningAreas = payload.subjects.slice(0, 4).filter(isEntered).map(subject =>
-    [subject.subject_name, subject.grade_label ?? subject.descriptor].filter(Boolean).join(' - ')).join(' | ');
-  const learningText = learningAreas ? `Learning Areas and Competency Progress: ${learningAreas}` : '';
-  const learningHeight = learningText ? document.font('MyShule-Regular').fontSize(6).heightOfString(learningText, { width: CONTENT_WIDTH - 18 }) + 10 : 0;
-  const height = titleHeight + tableHeaderHeight + rowsHeight + summaryHeight + learningHeight;
+  const height = titleHeight + tableHeaderHeight + rowsHeight + summaryHeight;
   if (y + height > 545) throw new Error('Report content exceeds a readable single A4 page. Shorten subject descriptions or comments and regenerate; no content has been clipped.');
 
   drawCard(document, MARGIN, y, CONTENT_WIDTH, height);
@@ -420,7 +419,10 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
         achievement: entered ? subject.descriptor ?? subject.remarks ?? '' : scoreStatus(subject.score_status),
       };
       const row = columns.map((column) => rowValues[column.key] ?? '');
-      drawTableRow(document, row, columnWidths, MARGIN, tableY + tableHeaderHeight + rowHeights.slice(0, index).reduce((sum, value) => sum + value, 0), rowHeights[index], false);
+      const rowY = tableY + tableHeaderHeight + rowHeights.slice(0, index).reduce((sum, value) => sum + value, 0);
+      drawTableRow(document, row, columnWidths, MARGIN, rowY, rowHeights[index], false);
+      const comparison = classComparison(subject);
+      if (comparison) drawComparisonSymbol(document, comparison, MARGIN + columnWidths[0] - 9, rowY + rowHeights[index] / 2, 3);
     });
   }
 
@@ -431,17 +433,9 @@ function drawAcademicPerformance(document: PDFKit.PDFDocument, payload: ReportCa
     summary.forEach(([label, display], index) => {
       const x = MARGIN + (index * summaryWidth);
       if (index > 0) document.moveTo(x, summaryY).lineTo(x, summaryY + summaryHeight).lineWidth(0.6).strokeColor(GOLD).stroke();
-      const prefixWidth = document.font('MyShule-Regular').fontSize(7.5).widthOfString(`${label}: `);
-      const displayWidth = document.font('MyShule-Bold').fontSize(11).widthOfString(display);
-      const startX = x + ((summaryWidth - prefixWidth - displayWidth) / 2);
-      document.font('MyShule-Regular').fontSize(7.5).fillColor(INK).text(`${label}: `, startX, summaryY + 7, { lineBreak: false });
-      document.font('MyShule-Bold').fontSize(11).fillColor(NAVY).text(display, startX + prefixWidth, summaryY + 4.5, { lineBreak: false });
+      document.font('MyShule-Bold').fontSize(6.7).fillColor(MUTED).text(`${label}: `, x, summaryY+1, {width:summaryWidth,align:'center'});
+      document.font('MyShule-Bold').fontSize(12).fillColor(NAVY).text(display,x,summaryY+9,{width:summaryWidth,align:'center'});
     });
-  }
-  if (learningHeight) {
-    const learningY = summaryY + summaryHeight;
-    document.rect(MARGIN, learningY, CONTENT_WIDTH, learningHeight).fill(SOFT);
-    document.font('MyShule-Regular').fontSize(6).fillColor(INK).text(learningText, MARGIN + 9, learningY + 5, { width: CONTENT_WIDTH - 18 });
   }
   return y + height;
 }
@@ -464,11 +458,45 @@ function drawTableRow(
       .fontSize(header ? 7.5 : 8)
       .fillColor(header ? NAVY : INK)
       .text(display, cursor + 4, y + Math.max(2, (height - document.heightOfString(display, { width: width - 8 })) / 2), {
-        width: width - 8,
+        width: width - (index === 0 && !header ? 20 : 8),
         align: index === 0 ? 'left' : 'center',
       });
     cursor += width;
   });
+}
+
+function drawComparisonSymbol(document: PDFKit.PDFDocument, status: keyof typeof COMPARISON_STYLES, x: number, y: number, size: number) {
+  document.save().fillColor(COMPARISON_STYLES[status].color);
+  if (status === 'near') document.moveTo(x, y-size).lineTo(x+size,y).lineTo(x,y+size).lineTo(x-size,y).closePath().fill();
+  else { const direction = status === 'above' ? -1 : 1; document.moveTo(x,y+direction*size).lineTo(x+size,y-direction*size).lineTo(x-size,y-direction*size).closePath().fill(); }
+  document.restore();
+}
+
+function drawClassComparison(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
+  const counts = classComparisonCounts(payload.subjects);
+  const cbc = ['CBC','CBE'].includes(String(payload.exam_series.curriculum_model).toUpperCase());
+  document.font('MyShule-Bold').fontSize(7.5).fillColor(NAVY).text(`${cbc ? 'LEARNING AREA' : 'SUBJECT'} RESULTS VS CLASS AVERAGE`, MARGIN+8, y, { lineBreak: false });
+  const width = (CONTENT_WIDTH-32)/3;
+  (Object.keys(COMPARISON_STYLES) as Array<keyof typeof COMPARISON_STYLES>).forEach((status,index) => {
+    const style = COMPARISON_STYLES[status], x = MARGIN+8+index*(width+8);
+    document.rect(x,y+12,width,22).fill(style.background);
+    document.font('MyShule-Bold').fontSize(12).fillColor(style.color).text(String(counts[status]),x,y+13,{width,align:'center'});
+    const labelWidth = document.fontSize(6.5).widthOfString(style.label);
+    const labelX = x+(width-labelWidth)/2+4;
+    drawComparisonSymbol(document,status,labelX-7,y+29,2.5);
+    document.text(style.label,labelX,y+25,{width:labelWidth+2});
+  });
+  let x = MARGIN+8;
+  document.rect(x,y+37,CONTENT_WIDTH-16,4).fill(SOFT);
+  if (counts.total) for (const status of Object.keys(COMPARISON_STYLES) as Array<keyof typeof COMPARISON_STYLES>) {
+    const width = (CONTENT_WIDTH-16)*counts[status]/counts.total;
+    if (width) document.rect(x,y+37,width,4).fill(COMPARISON_STYLES[status].color);
+    x += width;
+  }
+  const missing = payload.subjects.length-counts.total;
+  document.font('MyShule-Regular').fontSize(6).fillColor(MUTED).text(counts.total ? `${counts.total} ${cbc ? 'learning areas' : 'subjects'} compared${missing ? `; ${missing} unavailable` : ''}` : 'Class-average comparison unavailable',MARGIN+8,y+43,{lineBreak:false});
+  if (counts.total) document.text(`${counts.above} of ${counts.total} above class average`,MARGIN+CONTENT_WIDTH/2,y+43,{width:CONTENT_WIDTH/2-8,align:'right'});
+  return y+50;
 }
 
 function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportCardPayload, y: number) {
@@ -484,10 +512,13 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
   const chartWidth = (leftWidth - 30 - chartGap) / 2;
   const subjectWidth = chartWidth;
   const graph = subjectComparison(payload);
+  const wideLegend = graph.subjects.length > 8 || (graph.subjects.length > 6 && y > 440);
+  const legendColumns = wideLegend ? 3 : 2;
+  const legendWidth = wideLegend ? leftWidth-22 : subjectWidth-16;
   document.font('MyShule-Regular').fontSize(6);
-  const legendRows = Array.from({ length: Math.ceil(graph.subjects.length / 2) }, (_, row) => {
-    const names = graph.subjects.slice(row * 2, row * 2 + 2);
-    return Math.max(10, ...names.map(subject => document.heightOfString(subject.name, { width: (subjectWidth - 16) / 2 - 14, lineGap: 1 }) + 3));
+  const legendRows = Array.from({ length: Math.ceil(graph.subjects.length / legendColumns) }, (_, row) => {
+    const names = graph.subjects.slice(row * legendColumns, (row+1) * legendColumns);
+    return Math.max(10, ...names.map(subject => document.heightOfString(subject.name, { width: legendWidth / legendColumns - 14, lineGap: 1 }) + 3));
   });
   const legendHeight = legendRows.reduce((total, row) => total + row, 0);
   const subjectLabelsHeight = Math.max(16, ...graph.exams.map(exam => document.font('MyShule-Bold').fontSize(6.8).heightOfString(exam.label, { width: (subjectWidth - 16) / graph.exams.length })));
@@ -502,14 +533,14 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
   const availableOverview = overview.filter((entry): entry is [string, string] => Boolean(entry[1]));
   const overviewHeights = availableOverview.map(([, display]) => Math.max(30,
     document.font('MyShule-Bold').fontSize(8).heightOfString(display, { width: rightWidth - 52 }) + 20));
-  const height = Math.max(180, 124 + Math.max(subjectLabelsHeight + legendHeight, termLabelsHeight),
+  const height = Math.max(180, (wideLegend ? 132 : 124) + Math.max(subjectLabelsHeight + legendHeight, termLabelsHeight),
     35 + overviewHeights.reduce((sum, value) => sum + value + 5, 0));
   drawCard(document, MARGIN, y, leftWidth, height);
   drawCard(document, MARGIN + leftWidth + gap, y, rightWidth, height);
   drawSectionTitle(document, 'PERFORMANCE ANALYTICS', MARGIN + 12, y + 8);
   drawSectionTitle(document, 'SUMMARY OVERVIEW', MARGIN + leftWidth + gap + 12, y + 8);
   const chartY = y + 27;
-  const chartHeight = height - 38;
+  const chartHeight = height - 38 - (wideLegend ? legendHeight + 8 : 0);
   drawTermTrendChart(document, MARGIN + 11, chartY, chartWidth, chartHeight, termHistory);
   drawSubjectPerformanceChart(
     document,
@@ -518,9 +549,17 @@ function drawAnalyticsAndOverview(document: PDFKit.PDFDocument, payload: ReportC
     subjectWidth,
     chartHeight,
     graph,
-    legendRows,
+    wideLegend ? [] : legendRows,
     subjectLabelsHeight,
   );
+
+  if (wideLegend) graph.subjects.forEach((subject,index) => {
+    const x=MARGIN+11+(index%legendColumns)*(legendWidth/legendColumns);
+    const legendY=y+height-legendHeight-8+legendRows.slice(0,Math.floor(index/legendColumns)).reduce((sum,h)=>sum+h,0);
+    const colors=[NAVY,GOLD,'#6fa83a','#7244b8','#c43c39','#00838f','#a05178','#76552b','#3b78bc','#db6b20','#4c6b35','#c34f91'];
+    document.moveTo(x,legendY+3).lineTo(x+8,legendY+3).lineWidth(1.5).strokeColor(colors[index%colors.length]).stroke();
+    document.font('MyShule-Regular').fontSize(6).fillColor(INK).text(subject.name,x+11,legendY,{width:legendWidth/legendColumns-14,lineGap:1});
+  });
 
   availableOverview.forEach(([label, display], index) => {
     const cardX = MARGIN + leftWidth + gap + 9;
@@ -599,12 +638,14 @@ function drawSubjectPerformanceChart(
       document.restore();
     }
     points.forEach((point) => document.circle(point.x, point.y, 2.4).fill(color));
+    if (legendRows.length) {
     const legendX = x + 8 + ((subjectIndex % 2) * ((width - 16) / 2));
     const legendY = plot.y + plot.height + labelHeight + 10 + legendRows.slice(0, Math.floor(subjectIndex / 2)).reduce((total, row) => total + row, 0);
     document.save();
     document.moveTo(legendX, legendY + 4).lineTo(legendX + 8, legendY + 4).lineWidth(1.1).strokeColor(color).stroke();
     document.restore();
     document.font('MyShule-Regular').fontSize(6).fillColor(INK).text(subject.name, legendX + 12, legendY, { width: (width - 16) / 2 - 14, lineGap: 1 });
+    }
   });
   terms.forEach((term, index) => {
     const labelWidth = (width - 16) / terms.length;
@@ -683,11 +724,11 @@ function drawCommentsAndSignatures(document: PDFKit.PDFDocument, payload: Report
 
 function drawComment(document: PDFKit.PDFDocument, x: number, y: number, width: number, height: number, label: string, comment: string) {
   const textHeight = document.font('MyShule-Regular').fontSize(7.5).heightOfString(comment, { width: width - 17 });
-  if (height < textHeight + 24) throw new Error('Comments exceed the available single A4 page. Shorten the comments and regenerate; no text has been clipped.');
+  if (height < textHeight + 18) throw new Error('Comments exceed the available single A4 page. Shorten the comments and regenerate; no text has been clipped.');
   document.roundedRect(x, y, width, height, 4).fill(SOFT);
   document.rect(x, y, 3, height).fill(GOLD);
-  document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text(label, x + 9, y + 7, { lineBreak: false });
-  document.font('MyShule-Regular').fontSize(7.5).fillColor(INK).text(comment, x + 9, y + 17, {
+  document.font('MyShule-Bold').fontSize(6.5).fillColor(NAVY).text(label, x + 9, y + 4, { lineBreak: false });
+  document.font('MyShule-Regular').fontSize(7.5).fillColor(INK).text(comment, x + 9, y + 13, {
     width: width - 17,
   });
 }

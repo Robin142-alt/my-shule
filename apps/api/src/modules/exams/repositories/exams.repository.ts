@@ -1,3 +1,4 @@
+import { CLASS_AVERAGE_SQL } from '../services/report-card-class-comparison';
 import { examStudentEligibleSql, examRosterSql, recordedMarkSql } from '../exam-mark-roster';
 import { markbookRevisionSql, teacherCorrectionAccessSql, teacherScopedReopenSql, teacherSeriesAccessSql } from '../markbook-integrity';
 import { missingReasonEditableSql } from '../missing-mark-reason-policy';
@@ -6,7 +7,7 @@ import type { CorrectMissingMarkReasonDto } from '../dto/exams.dto';
 import { comparisonExams, REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../services/report-card-comparison';
 import { examResultCtes } from '../exam-result-query';
 import { CLASS_TEACHER_APPOINTMENT_SCOPE_SQL } from '../../academics/class-teacher-appointment-scope';
-import { gradingRulesForCurriculum, inferLegacyGradingCurriculum } from '../../academics/curriculum-grading';
+import { gradingRulesForCurriculum, inferLegacyGradingCurriculum, missingCurriculumBands, academicCurriculumGradingSql } from '../../academics/curriculum-grading';
 import { paperClassScopeSql, examGradeOverrideSql } from '../exam-result-policy';
 import { PRINCIPAL_SIGNATURE_ROLES } from '../services/report-card-signature-policy';
 import { reportPdfIdentity } from '../services/report-artifact-identity';
@@ -2522,6 +2523,7 @@ export class ExamsRepository {
           NULLIF(student.gender, 'undisclosed') AS gender,
           student.boarding_status::text AS boarding_status,
           student.status,
+          class_section.id::text AS report_class_section_id,
           class_section.name AS class_name,
           /*
            * Read the optional curriculum metadata through the row JSON so
@@ -2782,6 +2784,7 @@ export class ExamsRepository {
             to_jsonb(system) -> 'curriculum_models' AS curriculum_models,
             to_jsonb(system) -> 'rules_by_curriculum' AS rules_by_curriculum,
             preferred.grading_system_id AS preferred_grading_system_id,
+            (system.id::text IN (SELECT id FROM preferred_family)) AS is_preferred_family,
             system.version,
             system.effective_from::text,
             system.effective_to::text,
@@ -2803,9 +2806,9 @@ export class ExamsRepository {
               OR system.id::text = preferred.grading_system_id
               OR NULLIF(btrim(to_jsonb(system) ->> 'curriculum_model'), '') IS NULL
             )
-            AND system.is_active = TRUE
-            AND (system.effective_from IS NULL OR system.effective_from <= CURRENT_DATE)
-            AND (system.effective_to IS NULL OR system.effective_to >= CURRENT_DATE)
+            AND system.is_active = TRUE AND to_jsonb(system)->>'archived_at' IS NULL
+            AND (system.effective_from IS NULL OR system.effective_from <= (SELECT ends_on FROM exam_series WHERE tenant_id=$1 AND id=$2::uuid))
+            AND (system.effective_to IS NULL OR system.effective_to >= (SELECT ends_on FROM exam_series WHERE tenant_id=$1 AND id=$2::uuid))
           ORDER BY
             COALESCE((
               NULLIF($3::text, '') IS NOT NULL
@@ -2827,15 +2830,18 @@ export class ExamsRepository {
       );
     const normalizeCurriculumKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
     const gradingSystemCurriculum = (system: Record<string, unknown>) => {
-      if (classCurriculum && gradingRulesForCurriculum(system, classCurriculum)) return classCurriculum;
+      if (classCurriculum && gradingRulesForCurriculum(system, classCurriculum)?.length) return classCurriculum;
       const inferred = inferLegacyGradingCurriculum(classCurriculum, system.rules);
       return Array.isArray(system.curriculum_models) && system.curriculum_models.length > 1
         ? inferred || system.curriculum_model : system.curriculum_model || inferred;
     };
+    const preferredFamily = academicGradingSystemResult.rows.filter(system => system.is_preferred_family || system.id === system.preferred_grading_system_id);
+    if (classCurriculum && preferredFamily.length && !preferredFamily.some(system => gradingRulesForCurriculum(system, classCurriculum)?.length)) {
+      const problem = preferredFamily.map(system => missingCurriculumBands(system, classCurriculum)).find(Boolean);
+      if (problem) throw new BadRequestException(problem);
+    }
     let academicGradingSystem = classCurriculum
-      ? academicGradingSystemResult.rows.find((system) =>
-        normalizeCurriculumKey(gradingSystemCurriculum(system)) === normalizeCurriculumKey(classCurriculum),
-      ) ?? null
+      ? academicGradingSystemResult.rows.find(system => gradingRulesForCurriculum(system, classCurriculum)?.length) ?? null
       : academicGradingSystemResult.rows[0] ?? null;
     const incompatiblePreferredSystem = classCurriculum
       ? academicGradingSystemResult.rows.find((system) =>
@@ -2844,6 +2850,8 @@ export class ExamsRepository {
       ) ?? null
       : null;
     if (gradingPolicyResult.rows.length === 0 && classCurriculum && !academicGradingSystem) {
+      const missingBands = academicGradingSystemResult.rows.map(system => missingCurriculumBands(system, classCurriculum)).find(Boolean);
+      if (missingBands) throw new BadRequestException(missingBands);
       if (incompatiblePreferredSystem) {
         const policyCurriculum = gradingSystemCurriculum(incompatiblePreferredSystem) || 'unclassified';
         throw new BadRequestException(
@@ -3008,6 +3016,8 @@ export class ExamsRepository {
       `,
       [input.tenant_id, input.exam_series_id, input.student_id],
     );
+    const classAverages = studentRow?.report_class_section_id
+      ? (await readShared(CLASS_AVERAGE_SQL, [input.tenant_id,input.exam_series_id,studentRow.report_class_section_id])).rows : [];
     const termHistory = await this.loadReportCardTrend(input.tenant_id, input.exam_series_id, input.student_id);
     const subjectHistory = await this.loadReportCardComparison(input.tenant_id, input.exam_series_id, input.student_id);
 
@@ -3048,7 +3058,7 @@ export class ExamsRepository {
       student: studentRow,
       grading_policy: gradingPolicyResult.rows[0]
         ?? normalizeAcademicGradingPolicy(academicGradingSystem),
-      subjects,
+      subjects: subjects.map(subject => ({ ...subject, class_average: classAverages.find(row => row.subject_id === subject.subject_id)?.class_average ?? null })),
       attendance: schoolPolicyResult.rows[0]?.show_attendance === false
         ? null
         : attendanceResult.rows[0] ?? null,
@@ -3549,7 +3559,45 @@ export class ExamsRepository {
     tenant_id: string;
     exam_series_id: string;
     score: number;
+    class_section_id?: string;
+    max_score?: number;
   }) {
+    if (input.class_section_id) {
+      const context = await this.executeSql(`SELECT to_jsonb(section)->>'curriculum_model' AS curriculum,
+        academic.*, policy.boundaries AS exam_boundaries
+        FROM exam_series series JOIN class_sections section ON section.tenant_id=series.tenant_id AND section.id::text=$3
+        LEFT JOIN LATERAL (
+          SELECT p.id, (SELECT jsonb_agg(jsonb_build_object('label',b.label,'min',b.min_score,'max',b.max_score,'points',b.points,'remark',b.remark))
+            FROM exam_grading_policy_boundaries b WHERE b.tenant_id=p.tenant_id AND b.grading_policy_id=p.id) AS boundaries
+          FROM exam_grading_policies p WHERE p.tenant_id=series.tenant_id AND p.status='active'
+            AND (p.exam_series_id=series.id OR p.exam_series_id IS NULL)
+            AND (p.effective_from IS NULL OR p.effective_from<=NOW()) AND (p.effective_to IS NULL OR p.effective_to>NOW())
+            AND (CASE WHEN upper(to_jsonb(section)->>'curriculum_model') IN ('CBC','CBE')
+              THEN p.reporting_mode IN ('cbc_competency','competency','hybrid') ELSE p.reporting_mode='traditional' END)
+          ORDER BY (p.exam_series_id=series.id) DESC NULLS LAST,p.version DESC LIMIT 1
+        ) policy ON TRUE
+        LEFT JOIN LATERAL (${academicCurriculumGradingSql('series.tenant_id', "to_jsonb(section)->>'curriculum_model'", 'series.ends_on', `COALESCE(to_jsonb(series)->>'grading_system_id',
+          (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings WHERE settings.tenant_id=series.tenant_id AND settings.is_active=TRUE ORDER BY settings.updated_at DESC LIMIT 1))`)}) academic ON policy.id IS NULL
+        WHERE series.tenant_id=$1 AND series.id=$2::uuid`, [input.tenant_id,input.exam_series_id,input.class_section_id]);
+      const selected = context.rows[0];
+      if (selected?.id || selected?.exam_boundaries) {
+        const bands = normalizeAcademicRules(selected.exam_boundaries ?? selected.rules);
+        if (!bands.length) throw new BadRequestException(`Grading policy "${selected.name}" has no saved grade bands for ${selected.curriculum}. Save its ${selected.curriculum} bands in Academic Setup.`);
+        const percentage = input.score / (input.max_score ?? 100) * 100;
+        const matches = bands.filter(band => {
+          const min = Number(band.min ?? band.min_score);
+          const max = Number(band.max ?? band.max_score);
+          // Academic ranges cover whole marks, so 74.99 is in the band ending at 74.
+          return percentage >= min && (selected.exam_boundaries ? percentage <= max : percentage < max + 1);
+        });
+        const boundary = matches[0];
+        return { configured_count: bands.length, match_count: matches.length,
+          boundary: boundary ? { ...boundary, remarks: boundary.remark } : null };
+      }
+      if (['CBC','CBE','8-4-4'].includes(String(selected?.curriculum))) {
+        throw new BadRequestException(`Save a grading policy for the class curriculum (${selected.curriculum}) before entering marks.`);
+      }
+    }
     const result = await this.executeSql(
       `
         WITH configured AS (
@@ -6656,7 +6704,8 @@ function applyAcademicGradingRule(
     .find((item) => percentage >= item.minimum);
   if (!rule) return subject;
 
-  const currentRemarks = String(subject.remarks ?? '').trim();
+  // Only an explicit teacher remark may override the selected curriculum's band.
+  const currentRemarks = String(subject.manual_remarks ?? '').trim();
   const ruleRemark = String(rule.remark ?? rule.descriptor ?? '').trim();
   const points = rule.points === null || rule.points === undefined || rule.points === ''
     ? null

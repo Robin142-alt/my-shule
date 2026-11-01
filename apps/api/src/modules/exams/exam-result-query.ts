@@ -1,3 +1,4 @@
+import { academicCurriculumGradingSql } from '../academics/curriculum-grading';
 import { examGradeOverrideSql, paperClassScopeSql } from './exam-result-policy';
 import { examRosterSql } from './exam-mark-roster';
 
@@ -6,15 +7,20 @@ export function examResultCtes(tenant: string, batch: string, mode: string): str
   return `batch_scope AS (
     SELECT id, exam_series_id, class_section_id FROM report_card_generation_batches
     WHERE tenant_id=${tenant} AND id=${batch}::uuid
-  ), selected_policy AS (
-    SELECT policy.* FROM exam_grading_policies policy CROSS JOIN batch_scope batch
-    WHERE policy.tenant_id=${tenant} AND policy.status='active'
-      AND (policy.exam_series_id=batch.exam_series_id OR policy.exam_series_id IS NULL)
-      AND (policy.effective_from IS NULL OR policy.effective_from<=NOW())
-      AND (policy.effective_to IS NULL OR policy.effective_to>NOW())
-    ORDER BY (policy.exam_series_id=batch.exam_series_id) DESC NULLS LAST, policy.version DESC,
-      policy.activated_at DESC NULLS LAST, policy.created_at DESC LIMIT 1
-  ), expected_keys AS (
+  ), class_policies AS (
+    SELECT section.id AS learner_class, chosen.* FROM class_sections section CROSS JOIN batch_scope batch
+    LEFT JOIN LATERAL (
+      SELECT policy.* FROM exam_grading_policies policy
+      WHERE policy.tenant_id=${tenant} AND policy.status='active'
+        AND (policy.exam_series_id=batch.exam_series_id OR policy.exam_series_id IS NULL)
+        AND (policy.effective_from IS NULL OR policy.effective_from<=NOW())
+        AND (policy.effective_to IS NULL OR policy.effective_to>NOW())
+        AND (CASE WHEN upper(to_jsonb(section)->>'curriculum_model') IN ('CBC','CBE')
+          THEN policy.reporting_mode IN ('cbc_competency','competency','hybrid')
+          ELSE policy.reporting_mode='traditional' END)
+      ORDER BY (policy.exam_series_id=batch.exam_series_id) DESC NULLS LAST,policy.version DESC,policy.activated_at DESC NULLS LAST,policy.created_at DESC LIMIT 1
+    ) chosen ON TRUE WHERE section.tenant_id=${tenant}
+  ), selected_policy AS (SELECT * FROM class_policies WHERE id IS NOT NULL  ), expected_keys AS (
     SELECT batch.*,mark.student_id,mark.subject_id,mark.class_section_id AS learner_class
     FROM batch_scope batch JOIN exam_marks mark ON mark.tenant_id=${tenant} AND mark.exam_series_id=batch.exam_series_id
       AND (batch.class_section_id IS NULL OR mark.class_section_id=batch.class_section_id)
@@ -44,38 +50,36 @@ export function examResultCtes(tenant: string, batch: string, mode: string): str
       CASE WHEN ${examGradeOverrideSql('override_grade')} IS NULL THEN ROUND(
         SUM(percentage*COALESCE(weighting.weight,1))/NULLIF(SUM(COALESCE(weighting.weight,1)) FILTER(WHERE percentage IS NOT NULL),0),2) END AS average_percentage
     FROM subject_scores LEFT JOIN exam_subject_weightings weighting ON weighting.tenant_id=${tenant}
-      AND weighting.grading_policy_id=(SELECT id FROM selected_policy) AND weighting.subject_id=subject_scores.subject_id
+      AND weighting.grading_policy_id=(SELECT id FROM selected_policy WHERE learner_class::text=subject_scores.learner_class::text) AND weighting.subject_id=subject_scores.subject_id
     GROUP BY batch_id,exam_series_id,class_section_id,learner_class,student_id
   ), ranked AS (
-    SELECT scores.*,CASE WHEN ${mode}='rankings' AND override_grade IS NULL AND average_percentage IS NOT NULL
-      THEN DENSE_RANK() OVER(PARTITION BY learner_class ORDER BY average_percentage DESC NULLS LAST)::int END AS class_rank,
-      COALESCE(override_grade,boundary.label,legacy.label,academic.label) AS grade_label
-    FROM scores LEFT JOIN LATERAL (
+    SELECT scores.*,CASE WHEN ${mode}='rankings' AND upper(COALESCE(to_jsonb(section)->>'curriculum_model','')) NOT IN ('CBC','CBE') AND override_grade IS NULL AND average_percentage IS NOT NULL
+      THEN DENSE_RANK() OVER(PARTITION BY scores.learner_class ORDER BY average_percentage DESC NULLS LAST)::int END AS class_rank,
+      COALESCE(override_grade,boundary.label,academic.label,legacy.label) AS grade_label
+    FROM scores
+    JOIN exam_series result_series ON result_series.tenant_id=${tenant} AND result_series.id=scores.exam_series_id
+    JOIN class_sections section ON section.tenant_id=${tenant} AND section.id::text=scores.learner_class::text
+    LEFT JOIN selected_policy policy ON policy.learner_class::text=scores.learner_class::text
+    LEFT JOIN LATERAL (
       SELECT label FROM exam_grading_policy_boundaries boundary WHERE boundary.tenant_id=${tenant}
-        AND boundary.grading_policy_id=(SELECT id FROM selected_policy) AND average_percentage>=min_score
+        AND boundary.grading_policy_id=policy.id AND average_percentage>=min_score
       ORDER BY min_score DESC LIMIT 1
     ) boundary ON TRUE
     LEFT JOIN LATERAL (
       SELECT label FROM exam_grade_boundaries boundary WHERE boundary.tenant_id=${tenant}
         AND boundary.exam_series_id=scores.exam_series_id AND average_percentage BETWEEN min_score AND max_score
       ORDER BY min_score DESC LIMIT 1
-    ) legacy ON NOT EXISTS(SELECT 1 FROM selected_policy)
+    ) legacy ON policy.id IS NULL AND NULLIF(to_jsonb(section)->>'curriculum_model','') IS NULL
     LEFT JOIN LATERAL (
       SELECT rule->>'label' AS label FROM (
-        SELECT system.rules FROM academics_grading_systems system
-        CROSS JOIN (SELECT COALESCE(
-          (SELECT NULLIF(to_jsonb(series)->>'grading_system_id','') FROM exam_series series
-            WHERE series.tenant_id=${tenant} AND series.id=scores.exam_series_id),
-          (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings
-            WHERE settings.tenant_id=${tenant} AND settings.is_active=TRUE ORDER BY settings.updated_at DESC,settings.created_at DESC LIMIT 1)
-        ) AS id) preferred
-        WHERE system.tenant_id=${tenant} AND system.is_active=TRUE AND (preferred.id IS NULL OR system.id::text=preferred.id)
-        ORDER BY system.updated_at DESC,system.id LIMIT 1
+        ${academicCurriculumGradingSql(tenant, "to_jsonb(section)->>'curriculum_model'", 'result_series.ends_on', `(SELECT COALESCE(
+          (SELECT NULLIF(to_jsonb(series)->>'grading_system_id','') FROM exam_series series WHERE series.tenant_id=${tenant} AND series.id=scores.exam_series_id),
+          (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings WHERE settings.tenant_id=${tenant} AND settings.is_active=TRUE ORDER BY settings.updated_at DESC LIMIT 1)))`)}
       ) grading CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(grading.rules)='array' THEN grading.rules ELSE '[]'::jsonb END) rule
       WHERE COALESCE(rule->>'min',rule->>'min_score') ~ '^[0-9]+([.][0-9]+)?$'
         AND average_percentage>=COALESCE(rule->>'min',rule->>'min_score')::numeric
       ORDER BY COALESCE(rule->>'min',rule->>'min_score')::numeric DESC LIMIT 1
-    ) academic ON NOT EXISTS(SELECT 1 FROM selected_policy)
+    ) academic ON policy.id IS NULL
   )`;
 }
 

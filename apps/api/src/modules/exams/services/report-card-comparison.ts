@@ -1,4 +1,5 @@
 import type { ReportCardPayload } from './report-card-template.service';
+import { examEnrollmentScopeSql, examMembershipScopeSql } from '../class-exam-configuration';
 import { examGradeOverrideSql, paperClassScopeSql } from '../exam-result-policy';
 
 // Compare exam chronology, never the time a teacher last corrected a mark.
@@ -31,10 +32,10 @@ WITH current_exam AS (
   JOIN student_subject_enrollments enrollment ON enrollment.tenant_id = entry_window.tenant_id
     AND enrollment.student_id = $3::text AND enrollment.class_section_id = entry_window.class_section_id::text
     AND enrollment.subject_id = entry_window.subject_id::text AND enrollment.status = 'active'
-    AND (to_jsonb(enrollment)->>'academic_term_id' IS NULL OR to_jsonb(enrollment)->>'academic_term_id' = exam.academic_term_id::text)
+    AND ${examEnrollmentScopeSql('enrollment', 'entry_window')}
   WHERE entry_window.tenant_id = $1 AND EXISTS (SELECT 1 FROM student_class_assignments placement
     WHERE placement.tenant_id = $1 AND placement.student_id = enrollment.student_id
-      AND placement.class_section_id = enrollment.class_section_id AND placement.status IN ('active', 'completed', 'transferred'))
+      AND ${examMembershipScopeSql('placement','entry_window')})
 )
 SELECT series.id::text AS exam_series_id, series.label, series.exam_at, series.created_at, key.subject_id::text,
   COALESCE(subject.name, MAX(assessment.name), '') AS subject_name,

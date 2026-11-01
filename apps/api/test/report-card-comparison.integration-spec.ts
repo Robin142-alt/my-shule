@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { REPORT_COMPARISON_SQL, REPORT_TREND_SQL } from '../src/modules/exams/services/report-card-comparison';
+import { CLASS_AVERAGE_SQL } from '../src/modules/exams/services/report-card-class-comparison';
 
 describe('Report comparison chronology and school isolation', () => {
   let pool: Pool;
@@ -12,13 +13,14 @@ describe('Report comparison chronology and school isolation', () => {
     if (!['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.includes('disposable')) throw new Error('Use disposable local PostgreSQL');
     pool = new Pool({ connectionString: url.toString(), options: '-c search_path=report_comparison,public' });
     await pool.query(`CREATE SCHEMA report_comparison;
-      CREATE TABLE exam_series(tenant_id text,id uuid,name text,starts_on date,created_at timestamptz,academic_term_id uuid);
+      CREATE TABLE exam_series(tenant_id text,id uuid,name text,starts_on date,created_at timestamptz,academic_term_id uuid,ends_on date);
+      CREATE TABLE academic_terms(tenant_id text,id text,academic_year_id text);
       CREATE TABLE subjects(tenant_id text,id text,name text);
       CREATE TABLE exam_assessments(tenant_id text,id uuid,name text,max_score numeric,weight numeric,exam_series_id uuid,subject_id uuid,class_section_id uuid);
       CREATE TABLE exam_result_snapshots(tenant_id text,exam_series_id uuid,student_id uuid,average_percentage numeric,processed_at timestamptz,grade_label text);
       CREATE TABLE exam_mark_entry_windows(tenant_id text,exam_series_id uuid,subject_id uuid,class_section_id uuid);
       CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,subject_id text,class_section_id text,status text);
-      CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,status text);
+      CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,status text,stream_id text);
       CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,student_id uuid,subject_id uuid,assessment_id uuid,
         status text,score_status text,score numeric,updated_at timestamptz DEFAULT '2099-01-01',class_section_id uuid);`);
     for (const tenant of ['school-a', 'school-b']) {
@@ -88,5 +90,28 @@ describe('Report comparison chronology and school isolation', () => {
       await pool.query('UPDATE exam_result_snapshots SET average_percentage=NULL,grade_label=$1 WHERE tenant_id=$2 AND exam_series_id=$3', [status, 'school-a', current]);
       expect((await pool.query(REPORT_TREND_SQL, ['school-a', current, learner])).rows[0].percentage).toBeNull();
     } finally { await pool.query('ROLLBACK'); }
+  });
+
+  it('compares finalized complete subject results within the same exam, class and school', async () => {
+    const client = await pool.connect();
+    await client.query('BEGIN');
+    try {
+      for (const [classId, status, first, second] of [
+        [classroom, 'locked', 40, 100], // Weighted result 85, combined with the original 65 gives 75.
+        [classroom, 'draft', 100, 100],
+        [classroom, 'locked', 100, null],
+        [randomUUID(), 'locked', 0, 0],
+      ] as const) {
+        const student = randomUUID();
+        await client.query(`INSERT INTO exam_marks VALUES
+          ('school-a',$1,$2,$3,$4,$5,'entered',$6,DEFAULT,$9),
+          ('school-a',$1,$2,$3,$7,$5,'entered',$8,DEFAULT,$9)`,
+        [current, student, subject, paper1, status, first, paper2, second, classId]);
+      }
+      expect((await client.query(CLASS_AVERAGE_SQL, ['school-a', current, classroom])).rows)
+        .toEqual([{ subject_id: subject, class_average: 75, compared_learners: 2 }]);
+      expect((await client.query(CLASS_AVERAGE_SQL, ['school-b', current, classroom])).rows)
+        .toEqual([{ subject_id: subject, class_average: 100, compared_learners: 1 }]);
+    } finally { await client.query('ROLLBACK'); client.release(); }
   });
 });

@@ -1,3 +1,4 @@
+import { classComparison, classComparisonCounts } from './report-card-class-comparison';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { hydrateReportComparison, subjectComparison, termComparison, REPORT_COMPARISON_SQL } from './report-card-comparison';
@@ -72,4 +73,21 @@ test('legacy artifacts hydrate comparison metadata without changing approved aca
   assert.deepEqual(hydrated.totals, report.totals);
   assert.equal(await hydrateReportComparison(hydrated, async () => { reads++; return []; }), hydrated);
   assert.equal(reads, 1);
+});
+
+
+test('class comparisons share the five-point tolerance, ignore missing evidence and have matching counts', () => {
+  const report=payload();
+  const subject=report.subjects[0];
+  const rows=[6,5,-5,-6].map(delta=>({...subject,class_average:78-delta}));
+  assert.deepEqual(rows.map(classComparison),['above','near','near','below']);
+  const missing=[{...subject,class_average:null},{...subject,score:null,score_status:'X',class_average:50}];
+  assert.deepEqual(missing.map(classComparison),[null,null]);
+  assert.deepEqual(classComparisonCounts([...rows,...missing]),{above:1,near:2,below:1,total:4});
+});
+
+test('Improvement retains its percent symbol and uses the current result minus the actual previous exam', () => {
+  const report=new ReportCardTemplateService().buildPayload({exam_series:{id:'current'},subjects:[{subject_id:'math',score:65.33,max_score:100}],
+    analytics:{term_history:[{exam_series_id:'previous',label:'End Term 3',percentage:71},{exam_series_id:'older',label:'Mid Term 3',percentage:74}]}},'2026-11-01');
+  assert.equal(report.totals.improvement,'-5.67%');
 });

@@ -1,3 +1,5 @@
+import { classComparison, classComparisonCounts, COMPARISON_STYLES } from './report-card-class-comparison';
+import { termComparison } from './report-card-comparison';
 import { Injectable } from '@nestjs/common';
 import { combinePapers, examGradeOverride } from '../exam-result-policy';
 
@@ -13,6 +15,7 @@ export interface ReportCardSubjectPayload {
   score_status: string;
   max_score: number;
   percentage?: number | null;
+  class_average?: number | null;
   grade_label: string | null;
   remarks: string | null;
   manual_remarks?: string | null;
@@ -119,10 +122,9 @@ export class ReportCardTemplateService {
     const snapshotGrade = text(resultSnapshot.grade_label);
     const overallGrade = override ?? (percentage === null ? null : resolveOverallGrade(gradingPolicy, percentage)
       ?? (examGradeOverride([snapshotGrade]) ? null : snapshotGrade));
-    const persistedImprovement = text(analytics.improvement) ?? text(analytics.improvement_percentage);
-    const derivedImprovement = termHistory.length > 1
-      ? `${termHistory[0]!.percentage - termHistory[1]!.percentage >= 0 ? '+' : ''}${formatNumber(termHistory[0]!.percentage - termHistory[1]!.percentage)}%`
-      : null;
+    const previousExam = termHistory.find(exam => exam.exam_series_id !== String(series.id ?? ''));
+    const derivedImprovement = percentage !== null && previousExam
+      ? `${percentage - previousExam.percentage >= 0 ? '+' : ''}${formatNumber(percentage - previousExam.percentage)}%` : null;
     const generatedComments = buildPersonalizedReportCardComments({
       student,
       subjects,
@@ -158,7 +160,7 @@ export class ReportCardTemplateService {
         class_position: position !== null
           ? `${Math.trunc(position)}${cohortSize !== null ? ` of ${Math.trunc(cohortSize)}` : ''}`
           : null,
-        improvement: override ? null : persistedImprovement ?? derivedImprovement,
+        improvement: override ? null : derivedImprovement,
       },
       template_fields: {
         school_name: text(school.name) ?? '',
@@ -227,7 +229,7 @@ export class ReportCardTemplateService {
     const schoolInitials = initials(fields.school_name);
     const generatedLabel = formatReportDate(payload.generated_at);
     const examName = text(fields.exam_series) ?? text(series.name) ?? 'Assessment';
-    const headers = ['Subject', examName, 'Grade', 'Achievement Level'];
+    const headers = [['CBC','CBE'].includes(String(curriculumModel).toUpperCase()) ? 'Learning Area' : 'Subject', 'Marks', 'Grade', 'Achievement Level'];
     const rows = payload.subjects.map((subject) => {
       const entered = isEnteredSubject(subject);
       const percentage = entered ? reportSubjectPercentage(subject) : null;
@@ -237,10 +239,12 @@ export class ReportCardTemplateService {
         entered ? subject.grade_label ?? '' : '',
         entered ? subject.descriptor ?? subject.remarks ?? '' : scoreEvidenceLabel(subject),
       ];
+      const comparison = classComparison(subject);
+      const indicator = comparison ? `<span style="float:right;color:${COMPARISON_STYLES[comparison].color}">${COMPARISON_STYLES[comparison].symbol}</span>` : '';
       const papers = getReportCardAssessmentComponents(subject);
       const paperDetails = papers.length > 1 ? `<div style="font-size:7pt;font-weight:normal">${papers.map(paper =>
         `${escapeHtml(paper.name)}: ${paper.percentage === null ? escapeHtml(scoreStatusLabel(paper.score_status)) : formatPercentage(paper.percentage)}`).join('<br>')}</div>` : '';
-      return `<tr>${values.map((value, index) => `<td>${escapeHtml(value)}${index === 0 ? paperDetails : ''}</td>`).join('')}</tr>`;
+      return `<tr>${values.map((value, index) => `<td>${escapeHtml(value)}${index === 0 ? indicator + paperDetails : ''}</td>`).join('')}</tr>`;
     }).join('');
     const contactItems = [fields.school_address, fields.school_email, fields.school_phone].filter((item): item is string => Boolean(item));
     const summaryItems: Array<[string, string | null]> = [
@@ -254,6 +258,13 @@ export class ReportCardTemplateService {
       ['Improvement', improvement],
       ['Conduct', conduct],
     ];
+    const counts = classComparisonCounts(payload.subjects);
+    const classComparisonHtml = `<section class="class-comparison"><h2 class="section-title">${['CBC','CBE'].includes(String(curriculumModel).toUpperCase()) ? 'LEARNING AREA' : 'SUBJECT'} RESULTS VS CLASS AVERAGE</h2>
+      <div style="display:flex;gap:8pt">${(Object.keys(COMPARISON_STYLES) as Array<keyof typeof COMPARISON_STYLES>).map(status => {
+        const style = COMPARISON_STYLES[status];
+        return `<div style="flex:1;padding:8pt;background:${style.background};color:${style.color};border-radius:4pt;font-weight:bold">${style.symbol} ${style.label}<strong style="float:right;font-size:15pt">${counts[status]}</strong></div>`;
+      }).join('')}</div><div style="display:flex;height:5pt;margin-top:5pt;background:#f4f8fc">${counts.total ? (Object.keys(COMPARISON_STYLES) as Array<keyof typeof COMPARISON_STYLES>).map(status => `<span style="width:${counts[status]/counts.total*100}%;background:${COMPARISON_STYLES[status].color}"></span>`).join('') : ''}</div>
+      <p style="font-size:6pt;color:#607087">${counts.total ? `${counts.total} subjects compared` : 'Class-average comparison unavailable'}</p></section>`;
     const termChart = renderTermHistoryChart(payload);
     const subjectChart = renderSubjectHistoryChart(payload, enteredSubjects);
 
@@ -315,7 +326,7 @@ export class ReportCardTemplateService {
     .performance-row span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
     .performance-row b { color:var(--navy); text-align:right; }
     .performance-track { height:1.7mm; overflow:hidden; border-radius:2mm; background:#e5eaf1; }
-    .performance-track i { display:block; height:100%; border-radius:2mm; background:linear-gradient(90deg,var(--gold),#f5c34b); }
+    .performance-track i { display:block; height:100%; border-radius:2mm; background:var(--gold); }
     .overview { display:grid; grid-template-columns:1fr 1fr; gap:1.5mm; padding:1mm 2mm 2mm; }
     .overview div { min-height:10mm; padding:1.4mm 1.8mm; border:.3mm solid var(--line); border-radius:1.8mm; background:var(--soft); }
     .overview label { display:block; color:var(--muted); font-size:1.85mm; font-weight:800; text-transform:uppercase; }
@@ -372,7 +383,7 @@ export class ReportCardTemplateService {
     </section>
 
     <section class="performance">
-      <h2 class="section-title navy">Academic Performance</h2>
+      <h2 class="section-title navy">Academic Performance<span style="float:right;font-size:7pt">${escapeHtml(examName)}</span></h2>
       <table>
         <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
         <tbody>${rows}</tbody>
@@ -382,6 +393,7 @@ export class ReportCardTemplateService {
       </div>
     </section>
 
+    ${classComparisonHtml}
     <div class="analytics-grid">
       <section class="section">
         <h2 class="section-title">Performance Analytics</h2>
@@ -485,6 +497,7 @@ export class ReportCardTemplateService {
         score_status: scoreStatus,
         max_score: Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100,
         percentage: numberOrNull(row.percentage),
+        class_average: numberOrNull(row.class_average),
         grade_label: text(row.grade_label),
         remarks: text(row.remarks),
         manual_remarks: text(row.manual_remarks),
@@ -932,16 +945,7 @@ function htmlOverview(label: string, value: string | number | null | undefined):
 }
 
 function renderTermHistoryChart(payload: ReportCardPayload): string {
-  const persisted = payload.analytics?.term_history ?? [];
-  const history = persisted.length
-    ? [...persisted].reverse()
-    : (payload.totals.total_max_score ?? 0) > 0
-      ? [{
-          exam_series_id: recordText(payload.exam_series, 'id') ?? 'current',
-          label: payload.template_fields.term ?? payload.template_fields.exam_series ?? '',
-          percentage: payload.totals.percentage,
-        }].filter((entry): entry is typeof entry & { percentage: number } => Boolean(entry.label) && entry.percentage !== null)
-      : [];
+  const history = termComparison(payload).filter((entry): entry is typeof entry & { percentage: number } => entry.percentage !== null);
   if (!history.length) return '';
   const points = history.map((entry, index) => ({
     ...entry,

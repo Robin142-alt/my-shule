@@ -3,9 +3,30 @@
 import { useState } from "react";
 
 export type ExamSubjectOption = { id: string; label: string; code?: string | null };
-export type ExamClassOption = { id: string; label: string; grade_level?: string | null; stream?: string | null; subject_ids?: string[]; streams?: { id: string; label: string }[] };
+export type ExamClassOption = { id: string; label: string; academic_year_id?: string; grade_level?: string | null; stream?: string | null; subject_ids?: string[]; streams?: { id: string; label: string }[] };
 export type ClassSubjectSelection = { class_section_id: string; subject_ids: string[]; stream_subjects?: { stream_id: string; subject_ids: string[] }[] };
-export type SubjectOffering = { class_section_id: string; subject_id: string; academic_term_id?: string | null; stream_id?: string | null };
+export type SubjectOffering = { class_section_id: string; subject_id: string; academic_term_id?: string | null; stream_id?: string | null; effective_from?: string | null; effective_to?: string | null };
+
+export function effectiveExamSubjects(selection: ClassSubjectSelection | undefined, streamId?: string) {
+  return selection?.stream_subjects?.find(stream => stream.stream_id === streamId)?.subject_ids ?? selection?.subject_ids ?? [];
+}
+
+function classSubjectCount(item: ExamClassOption, selection: ClassSubjectSelection | undefined) {
+  return new Set(item.streams?.length ? item.streams.flatMap(stream => effectiveExamSubjects(selection, stream.id)) : effectiveExamSubjects(selection)).size;
+}
+
+export function examSelectionError(classes: ExamClassOption[], selectedClasses: string[], selections: ClassSubjectSelection[]) {
+  for (const id of selectedClasses) {
+    const item = classes.find(c => c.id === id);
+    const selection = selections.find(c => c.class_section_id === id);
+    if (item?.streams?.length) {
+      const empty = item.streams.find(stream => (Boolean(selection?.subject_ids.length) || selection?.stream_subjects?.some(row => row.stream_id === stream.id)) && !effectiveExamSubjects(selection, stream.id).length);
+      if (!classSubjectCount(item, selection)) return `Choose at least one subject for ${item.label}, using class defaults or stream overrides.`;
+      if (empty) return `Choose at least one subject for ${item.label} — ${empty.label}, or set its class default.`;
+    } else if (!effectiveExamSubjects(selection).length) return `Choose at least one subject for ${item?.label ?? "each participating class"}.`;
+  }
+  return null;
+}
 
 export function subjectLabel(subject: ExamSubjectOption) {
   const code = subject.code?.trim();
@@ -13,13 +34,15 @@ export function subjectLabel(subject: ExamSubjectOption) {
     ? `${subject.label} (${code})` : subject.label;
 }
 
-export function ClassSubjectSelector({ classes, subjects, selectedClasses, selections, onChange, offerings, termId }: {
+export function ClassSubjectSelector({ classes, subjects, selectedClasses, selections, onChange, offerings, termId, startsOn, endsOn }: {
   classes: ExamClassOption[];
   subjects: ExamSubjectOption[];
   selectedClasses: string[];
   selections: ClassSubjectSelection[];
   offerings?: SubjectOffering[];
   termId?: string;
+  startsOn?: string;
+  endsOn?: string;
   onChange: (classIds: string[], selections: ClassSubjectSelection[]) => void;
 }) {
   const [active, setActive] = useState<string>(classes.find(c => selectedClasses.includes(c.id))?.id ?? classes[0]?.id ?? "");
@@ -33,7 +56,9 @@ export function ClassSubjectSelector({ classes, subjects, selectedClasses, selec
   };
   const offeredIds = currentClass ? offerings
     ? offerings.filter(row => row.class_section_id === currentClass.id && (!row.academic_term_id || row.academic_term_id === termId)
-      && (!row.stream_id || row.stream_id === streamId)).map(row => row.subject_id)
+      && (!endsOn || !row.effective_from || row.effective_from.slice(0, 10) <= endsOn)
+      && (!startsOn || !row.effective_to || row.effective_to.slice(0, 10) >= startsOn)
+      && (!streamId || !row.stream_id || row.stream_id === streamId)).map(row => row.subject_id)
     : currentClass.subject_ids ?? [] : [];
   const offered = subjects.filter(s => offeredIds.includes(s.id));
   const visible = offered.filter(s => subjectLabel(s).toLowerCase().includes(search.trim().toLowerCase()));
@@ -65,13 +90,15 @@ export function ClassSubjectSelector({ classes, subjects, selectedClasses, selec
       <div className="space-y-2">
         {classes.map(item => {
           const enabled = selectedClasses.includes(item.id);
-          const count = selected(item.id).length;
+          const row = selections.find(s => s.class_section_id === item.id);
+          const count = classSubjectCount(item, row);
           return <div key={item.id} className={`flex items-center gap-2 rounded-lg border p-2 ${currentClass?.id === item.id ? "border-info bg-info-soft" : "border-border"}`}>
             <input type="checkbox" aria-label={`Participates: ${item.label}`} checked={enabled}
               onChange={e => { participate([item.id], e.target.checked); chooseGroup(item.id); }} />
             <button type="button" aria-pressed={currentClass?.id === item.id} onClick={() => chooseGroup(item.id)} className="min-h-11 min-w-0 flex-1 rounded px-1 text-left text-sm focus-visible:outline-2 focus-visible:outline-primary">
               <span className="block font-bold">{item.label} — {count} subjects</span>
               <span className="text-xs text-muted">{!enabled ? "Not participating" : count > 0 ? "Configured" : "Choose subjects"}</span>
+              {enabled && item.streams?.length ? <span className="block text-xs text-muted">{row?.subject_ids.length ?? 0} class defaults · {row?.stream_subjects?.length ?? 0} stream overrides</span> : null}
             </button>
           </div>;
         })}
@@ -81,10 +108,10 @@ export function ClassSubjectSelector({ classes, subjects, selectedClasses, selec
         {!participating ? <p className="text-sm text-muted">Select this class as participating to configure its examined subjects.</p> : <>
           {currentClass.streams?.length ? <details className="rounded-lg bg-surface-muted p-3">
             <summary className="cursor-pointer text-sm font-semibold">Streams and exceptions</summary>
-            <p className="my-2 text-sm text-muted">Streams use the class selection unless an exception is configured. Adjust a stream only when its subjects differ.</p>
+            <p className="my-2 text-sm text-muted">Streams use the class selection unless an exception is configured. Adjust a stream only when its subjects differ. With no class defaults, only streams with an override participate.</p>
             <label className="block text-sm font-semibold">Configure subjects for
               <select className={`${field} mt-1 w-full`} value={streamId} onChange={e => { setStreamId(e.target.value); setSearch(""); }}>
-                <option value="">Class default</option>{currentClass.streams.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                <option value="">Class default</option>{currentClass.streams.map(c => <option key={c.id} value={c.id}>{c.label} ({selected(currentClass.id, c.id).length} subjects)</option>)}
               </select>
             </label>
             {streamId && selections.find(s => s.class_section_id === currentClass.id)?.stream_subjects?.some(s => s.stream_id === streamId) ? <button type="button" className={`${field} mt-2`} onClick={() => onChange(selectedClasses, selections.map(s => s.class_section_id === currentClass.id ? { ...s, stream_subjects: s.stream_subjects?.filter(row => row.stream_id !== streamId) } : s))}>Use class default</button> : null}
@@ -114,8 +141,8 @@ export function ClassSubjectSelector({ classes, subjects, selectedClasses, selec
     {selectedClasses.length ? <details className="rounded-lg border border-border p-3">
       <summary className="cursor-pointer text-sm font-semibold">Review all class selections ({selectedClasses.length})</summary>
       <ul className="mt-3 space-y-2 text-sm">{classes.filter(c => selectedClasses.includes(c.id)).map(c => <li key={c.id}>
-        <strong>{c.label} ({selected(c.id).length}): </strong>{selected(c.id).map(id => subjects.find(s => s.id === id)?.label ?? "Unavailable subject").join(", ") || "No subjects selected"}
-        {selections.find(s => s.class_section_id === c.id)?.stream_subjects?.map(s => <p className="mt-1 pl-3" key={s.stream_id}>{c.streams?.find(stream => stream.id === s.stream_id)?.label ?? "Stream"} ({s.subject_ids.length}): {s.subject_ids.map(id => subjects.find(subject => subject.id === id)?.label ?? "Unavailable subject").join(", ") || "No subjects selected"}</p>)}
+        <strong>{c.label} ({classSubjectCount(c, selections.find(s => s.class_section_id === c.id))} subjects): </strong>Class defaults ({selected(c.id).length}): {selected(c.id).map(id => subjects.find(s => s.id === id)?.label ?? "Unavailable subject").join(", ") || "None"}
+        {c.streams?.map(stream => <p className="mt-1 pl-3" key={stream.id}>{stream.label} ({selected(c.id, stream.id).length}) — {selections.find(s => s.class_section_id === c.id)?.stream_subjects?.some(s => s.stream_id === stream.id) ? "Override" : selected(c.id).length ? "Class default" : "Not participating"}: {selected(c.id, stream.id).map(id => subjects.find(subject => subject.id === id)?.label ?? "Unavailable subject").join(", ") || "No subjects selected"}</p>)}
       </li>)}</ul>
     </details> : null}
   </section>;

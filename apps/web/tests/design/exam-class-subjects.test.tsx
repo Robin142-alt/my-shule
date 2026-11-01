@@ -30,6 +30,39 @@ beforeEach(() => {
   jest.mocked(createExam).mockResolvedValue({ success: true });
 });
 
+it('opens Form 4 with zero defaults and ten Yellow subjects, preserves the override across switching and saves it', async () => {
+  const chosen = subjects.slice(0, 10).map(s => s.id);
+  options.classes = [{ ...classes[0], streams: [{ id: 'yellow', label: 'Yellow' }] }, classes[2]];
+  options.subject_offerings = chosen.map(subject_id => ({ class_section_id: 'f4', subject_id, stream_id: 'yellow', academic_term_id: 'term' }));
+  exam.status = 'submitted';
+  exam.class_section_ids = ['f4'];
+  exam.class_subjects = [{ class_section_id: 'f4', subject_ids: [], stream_subjects: [{ stream_id: 'yellow', subject_ids: chosen }] }];
+  render(<ExamSetupWorkspace />);
+  fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+  expect(screen.getByRole('button', { name: /Form 4.*10 subjects/ })).toBeVisible();
+  expect(screen.queryByText(/No academic subjects are mapped/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Subject 1')).not.toBeChecked();
+  fireEvent.change(screen.getByLabelText('Configure subjects for'), { target: { value: 'yellow' } });
+  expect(screen.getByLabelText('Subject 1')).toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: /Grade 10/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Form 4.*10 subjects/ }));
+  fireEvent.change(screen.getByLabelText('Configure subjects for'), { target: { value: 'yellow' } });
+  expect(screen.getByLabelText('Subject 10')).toBeChecked();
+  fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+  await waitFor(() => expect(configureExam).toHaveBeenCalledWith('exam', expect.objectContaining({ class_subjects: exam.class_subjects })));
+});
+
+it('validates the effective subjects of every stream instead of just the class defaults', async () => {
+  options.classes = [{ ...classes[2], streams: [{ id: 'red', label: 'Red' }, { id: 'yellow', label: 'Yellow' }] }];
+  exam.status = 'submitted'; exam.class_section_ids = ['g10'];
+  exam.class_subjects = [{ class_section_id: 'g10', subject_ids: [], stream_subjects: [{ stream_id: 'red', subject_ids: ['s9'] }, { stream_id: 'yellow', subject_ids: [] }] }];
+  render(<ExamSetupWorkspace />);
+  fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save configuration' }));
+  expect(configureExam).not.toHaveBeenCalled();
+  expect(screen.getByText(/Choose at least one subject for Grade 10.*Yellow/)).toBeVisible();
+});
+
 it('edits Grade 9 independently while preserving the 9/7/6 class selections and version', async () => {
   render(<ExamSetupWorkspace />);
   fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
@@ -97,7 +130,7 @@ it('preserves class defaults while saving a stream exception and filters curricu
   exam = { ...exam, class_section_ids: ['f4'], class_subjects: [{ class_section_id: 'f4', subject_ids: ['s0'] }] };
   render(<ExamSetupWorkspace />);
   fireEvent.click(screen.getByRole('button', { name: 'Configure' }));
-  expect(screen.queryByLabelText('Subject 2')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Subject 2')).not.toBeChecked();
   fireEvent.click(screen.getByText('Streams and exceptions'));
   fireEvent.change(screen.getByLabelText('Configure subjects for'), { target: { value: 'east' } });
   fireEvent.click(screen.getByLabelText('Subject 2'));

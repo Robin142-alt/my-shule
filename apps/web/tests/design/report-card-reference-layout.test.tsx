@@ -203,7 +203,7 @@ describe("reference report-card layout", () => {
     const academicPerformance = getReportSection("academic-performance");
     expect(academicPerformance).toHaveTextContent(/academic performance/i);
     expect(within(academicPerformance).getAllByRole("columnheader")).toHaveLength(4);
-    for (const heading of ["Subject", "Term 2, 2026", "Grade", "Achievement Level"]) {
+    for (const heading of ["Subject", "Marks", "Grade", "Achievement Level"]) {
       expect(within(academicPerformance).getByRole("columnheader", { name: heading })).toBeVisible();
     }
     expect(academicPerformance).toHaveTextContent("82.6%");
@@ -227,7 +227,7 @@ describe("reference report-card layout", () => {
     expect(getReportSection("footer")).toHaveTextContent(/generated securely by myshule/i);
   });
 
-  it.each(["End Term 1", "Mid Term", "End Term 3", "CAT 1"])("keeps %s as the score column and shows paper percentages within each subject", (examName) => {
+  it.each(["End Term 1", "Mid Term", "End Term 3", "CAT 1"])("keeps %s in the header and Marks as the score column and shows paper percentages within each subject", (examName) => {
     const report = {
       ...referenceReport,
       academic: { ...referenceReport.academic, reportingPeriod: examName },
@@ -242,7 +242,7 @@ describe("reference report-card layout", () => {
     renderWithProviders(<ReportCardDocument report={report} />);
     const table = within(getReportSection("academic-performance")).getByRole("table");
     expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent))
-      .toEqual(["Subject", examName, "Grade", "Achievement Level"]);
+      .toEqual(["Subject", "Marks", "Grade", "Achievement Level"]);
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent)))
       .toEqual([

@@ -88,7 +88,7 @@ export function gradingRulesForCurriculum(system: Record<string, any>, curriculu
   }
   const inferred = inferLegacyGradingCurriculum(curriculum, system.rules);
   const sharedLegacy = Array.isArray(system.curriculum_models) && system.curriculum_models.length > 1;
-  const declared = sharedLegacy ? inferred || system.curriculum_model : system.curriculum_model || inferred;
+  const declared = sharedLegacy ? inferred : system.curriculum_model || inferred;
   return key(declared) === key(curriculum) && Array.isArray(system.rules) ? system.rules : null;
 }
 
@@ -98,7 +98,7 @@ export function prepareCurriculumGrading(
   const stored: Record<string, unknown> = { ...(previous.rules_by_curriculum ?? {}) };
   const inferred = inferLegacyGradingCurriculum(previous.curriculum_model, previous.rules);
   const legacyCurriculum = Array.isArray(previous.curriculum_models) && previous.curriculum_models.length > 1
-    ? inferred || previous.curriculum_model : previous.curriculum_model || inferred;
+    ? inferred : previous.curriculum_model || inferred;
   if (legacyCurriculum && Array.isArray(previous.rules) && previous.rules.length && !stored[legacyCurriculum]) {
     stored[legacyCurriculum] = previous.rules;
   }
@@ -119,24 +119,70 @@ export function prepareCurriculumGrading(
   // Compatibility for older clients: never replace another curriculum's saved scale.
   if (input.rules !== undefined) {
     const bands = validateGradingRules(input.rules);
-    const target = curricula.length === 1 ? curricula[0] : inferLegacyGradingCurriculum(curricula[0], bands) || curricula[0];
-    if (target) stored[target] = bands;
-    return { rules: bands, rules_by_curriculum: stored };
+    const target = curricula.length === 1 ? curricula[0] : inferLegacyGradingCurriculum(curricula.find(c => ['CBC', 'CBE'].includes(c)), bands);
+    if (!target) throw new BadRequestException('Provide grade bands separately for each selected curriculum.');
+    if (!curricula.includes(target)) throw new BadRequestException(`Grade bands for ${target} do not match the selected curricula.`);
+    stored[target] = bands;
+    for (const curriculum of curricula) {
+      if (!stored[curriculum]) throw new BadRequestException(`${curriculum}: add grade bands before saving this policy.`);
+      stored[curriculum] = validateGradingRules(stored[curriculum]);
+    }
+    return { rules: stored[curricula[0]], rules_by_curriculum: stored };
+  }
+  if (curricula.length > 1 && (!previous.id || ('curriculum_models' in input || 'curriculum_model' in input))) {
+    for (const name of curricula) {
+      if (!Array.isArray(stored[name]) || !(stored[name] as unknown[]).length) throw new BadRequestException(`${name}: add grade bands before saving this policy.`);
+    }
   }
   return { rules: previous.rules ?? [], rules_by_curriculum: stored };
 }
 
-/** Expressions are static SQL from repository code, never request values.
- * The newest applicable school policy is selected independently for each class curriculum.
- */
-export function academicCurriculumGradingSql(tenant: string, curriculum: string, asOf = 'CURRENT_DATE'): string {
-  return `SELECT system.*,
-      CASE WHEN upper(system.curriculum_model) IN ('CBC', 'CBE') THEN 'competency' ELSE 'traditional' END AS reporting_mode
+export function missingCurriculumBands(system: Record<string, any>, curriculum: string): string | null {
+  const selected = system.curriculum_models?.length ? system.curriculum_models : [system.curriculum_model];
+  const key = (value: unknown) => String(value ?? '').toLowerCase().replace(/[_\s-]/g, '');
+  if (selected.some((value: unknown) => key(value) === key(curriculum)) && !gradingRulesForCurriculum(system, curriculum)?.length) {
+    return `Grading policy "${system.name}" enables ${curriculum} but has no saved grade bands for ${curriculum}. Open Academic Setup, enter and save its ${curriculum} grade bands before generating report cards.`;
+  }
+  return null;
+}
+
+/** Repository-owned SQL expressions only; curriculum keys have the same normalization as the editor. */
+export function curriculumKeySql(value: string): string {
+  return `regexp_replace(lower(btrim(COALESCE(${value},''))), '[-_[:space:]]', '', 'g')`;
+}
+
+export function academicRulesSql(system: string, curriculum: string): string {
+  const key = curriculumKeySql(curriculum);
+  const declared = curriculumKeySql(`to_jsonb(${system})->>'curriculum_model'`);
+  const selected = `CASE WHEN jsonb_typeof(to_jsonb(${system})->'curriculum_models')='array' THEN to_jsonb(${system})->'curriculum_models' ELSE '[]'::jsonb END`;
+  const legacy = `CASE WHEN jsonb_typeof(${system}.rules)='array' THEN ${system}.rules ELSE '[]'::jsonb END`;
+  const supported = `(${declared}=${key} OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(${selected}) selected(value) WHERE ${curriculumKeySql('selected.value')}=${key}))`;
+  return `CASE WHEN (jsonb_array_length(${selected})=0 AND ${declared}='') OR ${supported} THEN
+    CASE WHEN EXISTS (SELECT 1 FROM jsonb_each(COALESCE(to_jsonb(${system})->'rules_by_curriculum','{}'::jsonb)) band WHERE ${curriculumKeySql('band.key')}=${key})
+      THEN (SELECT value FROM jsonb_each(COALESCE(to_jsonb(${system})->'rules_by_curriculum','{}'::jsonb)) band WHERE ${curriculumKeySql('band.key')}=${key} LIMIT 1)
+      WHEN jsonb_array_length(${selected})<=1 AND ${declared}=${key} THEN ${legacy}
+      WHEN jsonb_array_length(${legacy})>0 AND (
+        ${key}='844' AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(${legacy}) band WHERE COALESCE(upper(band->>'label'),'') !~ '^[A-E][+-]?$')
+        OR ${key} IN ('cbc','cbe') AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(${legacy}) band WHERE COALESCE(upper(band->>'label'),'') !~ '^(EE|ME|AE|BE)[12]?$')) THEN ${legacy}
+    END END`;
+}
+
+/** A selected policy family takes precedence; a missing scale must not borrow another year's policy. */
+export function academicCurriculumGradingSql(tenant: string, curriculum: string, asOf = 'CURRENT_DATE', preferred = 'NULL'): string {
+  return `WITH RECURSIVE preferred_family AS (
+      SELECT (${preferred})::text AS id, ARRAY[(${preferred})::text] AS visited
+      UNION ALL SELECT child.id::text,family.visited||child.id::text FROM academics_grading_systems child
+        JOIN preferred_family family ON to_jsonb(child)->>'based_on_id'=family.id
+        WHERE child.tenant_id=${tenant} AND NOT child.id::text=ANY(family.visited)
+    ) SELECT system.id,system.name,system.version,${academicRulesSql('system', curriculum)} AS rules,
+      CASE WHEN upper(${curriculum}) IN ('CBC','CBE') THEN 'competency' ELSE 'traditional' END AS reporting_mode
     FROM academics_grading_systems system
-    WHERE system.tenant_id = ${tenant}
-      AND lower(system.curriculum_model) = lower(${curriculum})
-      AND system.is_active = TRUE AND system.archived_at IS NULL
-      AND (system.effective_from IS NULL OR system.effective_from <= ${asOf})
-      AND (system.effective_to IS NULL OR system.effective_to >= ${asOf})
-    ORDER BY system.updated_at DESC, system.version DESC, system.id DESC LIMIT 1`;
+    WHERE system.tenant_id=${tenant} AND system.is_active=TRUE AND to_jsonb(system)->>'archived_at' IS NULL
+      AND (system.effective_from IS NULL OR system.effective_from<=${asOf})
+      AND (system.effective_to IS NULL OR system.effective_to>=${asOf})
+      AND (${academicRulesSql('system', curriculum)} IS NOT NULL
+        OR ${curriculumKeySql("to_jsonb(system)->>'curriculum_model'")}=${curriculumKeySql(curriculum)}
+        OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(to_jsonb(system)->'curriculum_models','[]'::jsonb)) selected(value)
+          WHERE ${curriculumKeySql('selected.value')}=${curriculumKeySql(curriculum)}))
+    ORDER BY (system.id::text IN (SELECT id FROM preferred_family)) DESC,system.updated_at DESC,system.version DESC,system.id DESC LIMIT 1`;
 }

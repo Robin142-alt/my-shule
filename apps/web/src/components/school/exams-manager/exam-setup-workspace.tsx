@@ -9,7 +9,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 
 import { configureExam, createExam, deleteExam } from "./api-client";
 import { Panel, StatusChip, type Tone } from "./shared";
-import { ClassSubjectSelector, type ClassSubjectSelection, type ExamClassOption, type SubjectOffering } from "./class-subject-selection";
+import { ClassSubjectSelector, examSelectionError, type ClassSubjectSelection, type ExamClassOption, type SubjectOffering } from "./class-subject-selection";
 import { onFormNavigationKeyDown } from "@/lib/accessibility/keyboard-navigation";
 
 type ExamConfig = {
@@ -53,6 +53,7 @@ type ExamManagerOption = {
   id: string;
   label: string;
   code?: string | null;
+  academic_year_id?: string;
   status?: string | null;
 };
 
@@ -143,7 +144,8 @@ export function ExamSetupWorkspace() {
   const canManage = data?.can_manage === true;
   const termOptions = options?.terms || [];
   const subjectOptions = options?.subjects || [];
-  const classOptions = options?.classes || [];
+  const selectedYear = termOptions.find(term => term.id === form.academic_term_id)?.academic_year_id;
+  const classOptions = (options?.classes || []).filter(c => !selectedYear || !c.academic_year_id || c.academic_year_id === selectedYear || form.class_section_ids.includes(c.id));
   const gradingSystemOptions = options?.gradingSystems || [];
   const hasTerms = termOptions.length > 0;
   const hasSubjects = subjectOptions.length > 0;
@@ -207,14 +209,7 @@ export function ExamSetupWorkspace() {
     if (!form.academic_term_id) return "Choose the academic term for this exam.";
     if (!form.grading_system_id) return "Choose the school grading system for this exam.";
     if (form.class_section_ids.length === 0) return "Choose at least one class for this exam.";
-    for (const classId of form.status === "draft" ? [] : form.class_section_ids) {
-      if (!form.class_subjects.find(row => row.class_section_id === classId)?.subject_ids.length) {
-        return `Choose at least one subject for ${classOptions.find(c => c.id === classId)?.label ?? "each participating class"}.`;
-      }
-      if (form.class_subjects.find(row => row.class_section_id === classId)?.stream_subjects?.some(stream => stream.subject_ids.length === 0)) {
-        return `Choose at least one subject for each configured stream of ${classOptions.find(c => c.id === classId)?.label ?? "this class"}, or use its class default.`;
-      }
-    }
+    if (form.status !== "draft") return examSelectionError(classOptions, form.class_section_ids, form.class_subjects);
     return null;
   };
 
@@ -432,7 +427,7 @@ export function ExamSetupWorkspace() {
       </div>
       </details>
       {configuringExam && (configuringExam.requires_subject_review || !configuringExam.class_subjects) ? <p role="status" className="rounded-lg bg-warning-soft p-3 text-sm text-warning">This legacy exam needs class-by-class subject review. Global subjects have not been assigned to every class. Existing marks and reports remain preserved.</p> : null}
-      <ClassSubjectSelector classes={classOptions} subjects={subjectOptions} selectedClasses={form.class_section_ids} selections={form.class_subjects} offerings={options?.subject_offerings} termId={form.academic_term_id}
+      <ClassSubjectSelector classes={classOptions} subjects={subjectOptions} selectedClasses={form.class_section_ids} selections={form.class_subjects} offerings={options?.subject_offerings} termId={form.academic_term_id} startsOn={form.starts_on} endsOn={form.ends_on}
         onChange={(class_section_ids, class_subjects) => setForm(current => ({ ...current, class_section_ids, class_subjects }))} />
     </div>
   );
