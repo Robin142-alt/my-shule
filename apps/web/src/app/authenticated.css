@@ -96,7 +96,7 @@
     .app-sidebar a { min-height: 44px; }
     .authenticated-app :where(.app-table-scroll) { border-radius: 12px; }
   }
-  @media (max-width: 1279px) {
+  @media (max-width: 1023px) {
     .app-principal-sidebar:not([data-open="true"]) { visibility: hidden; }
     .app-principal-sidebar { width: min(78vw, 280px); padding-top: max(.75rem, env(safe-area-inset-top)); padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
   }

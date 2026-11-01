@@ -254,10 +254,10 @@ export function DeputyPrincipalCommandCenter({
   };
 
   return (
-    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="authenticated-app min-h-dvh bg-background pb-6">
-      <div className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+    <div data-route-mode={routeMode} data-testid="deputy-principal-command-center" className="authenticated-app min-h-dvh bg-background pb-6 lg:pb-0">
+      <div className="grid gap-5 p-3 md:p-5 dashboard-rail-layout">
         {/* Sidebar */}
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-[var(--radius-xl)] border border-border-strong/50 bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+        <aside className="dashboard-rail hidden rounded-[var(--radius-xl)] border border-border-strong/50 bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.22)]">
           <div className="rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
             <div className="flex items-center gap-3">
               {schoolIdentity?.logoUrl && failedLogoUrl !== schoolIdentity.logoUrl ? (
@@ -331,7 +331,7 @@ export function DeputyPrincipalCommandCenter({
             </div>
           </header>
 
-          <div className="xl:hidden">
+          <div className="dashboard-rail-mobile">
             <MobileWorkspaceNavigation
               label="Deputy workspace"
               items={navItems}

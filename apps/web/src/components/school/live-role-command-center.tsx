@@ -593,8 +593,8 @@ export function LiveRoleCommandCenter({
       data-role={role}
       className="authenticated-app app-padded min-h-dvh bg-background p-3 md:p-5"
     >
-      <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)] xl:sticky xl:top-5 xl:flex xl:flex-col">
+      <div className="mx-auto grid max-w-[1800px] gap-5 dashboard-rail-layout">
+        <aside className="dashboard-rail hidden rounded-2xl bg-primary p-4 text-white shadow-[0_24px_70px_rgba(7,29,73,0.24)]">
           <SchoolCommandSidebarIdentity
             eyebrow={config.eyebrow}
             title={config.roleLabel}
@@ -660,7 +660,7 @@ export function LiveRoleCommandCenter({
             )}
           />
 
-          <div className="xl:hidden">
+          <div className="dashboard-rail-mobile">
             <MobileWorkspaceNavigation
               label={`${config.roleLabel} workspace`}
               items={navItems}

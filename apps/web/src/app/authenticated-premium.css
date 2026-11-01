@@ -270,7 +270,7 @@
     .authenticated-app .app-workspace-heading > h2, .authenticated-app .app-workspace-surface > .app-workspace-title { color: var(--surface); }
     .authenticated-app .app-workspace-heading > p { color: var(--sidebar-muted); }
   }
-  @media (max-width: 1279px) {
+  @media (max-width: 1023px) {
     .authenticated-app .app-principal-sidebar { padding-inline: 12px; border-radius: 0 16px 16px 0; }
     .authenticated-app .app-principal-nav-heading .app-sidebar-brand { padding: 0; border: 0; }
     .authenticated-app .app-principal-nav-identity { padding: 10px; border-radius: 10px; }

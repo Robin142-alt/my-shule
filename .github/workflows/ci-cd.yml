@@ -196,6 +196,14 @@ jobs:
           npx playwright install --with-deps chromium
           mkdir -p ../../tmp
           NAVIGATION_BASE_URL=http://127.0.0.1:8787 NAVIGATION_ROLES=principal,dean-academics,grade-master NAVIGATION_CSS_DELAY_MS=1500 node tests/workspace-navigation-audit.mjs ../../tmp/worker-navigation.json
+          NAVIGATION_BASE_URL=http://127.0.0.1:8787 NAVIGATION_LIMIT=2 node tests/desktop-layout-audit.mjs ../../tmp/worker-desktop-layout.json
+      - name: Keep desktop and mobile layout measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-layout-measurements
+          path: tmp/worker-desktop-layout.json
+          retention-days: 7
       - name: Keep Worker diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4

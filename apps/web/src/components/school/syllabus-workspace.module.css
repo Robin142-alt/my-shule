@@ -25,7 +25,7 @@
 .table td strong { display: block; font-weight: 650; }
 .table td small { display: block; color: var(--muted); font-size: .75rem; margin-top: .25rem; }
 .table progress { width: 100%; }
-.tableShell { border: 1px solid var(--border); border-radius: .8rem; overflow: hidden; }
+.tableShell { border: 1px solid var(--border); border-radius: .8rem; overflow-x: auto; }
 .mobileLabel { display: none; }
 .topic { border: 1px solid var(--border); border-radius: .8rem; padding: .8rem 1rem; }
 .topic > summary { cursor: pointer; min-height: 44px; align-content: center; font-weight: 600; }
@@ -53,7 +53,7 @@
   .formFooter button { flex: 1; }
 }
 /* One table in the DOM becomes readable class cards on small screens. */
-@media (max-width: 1050px) {
+@media (max-width: 1023px) {
   .tableShell { border: 0; overflow: visible; }
   .table, .table tbody { display: block; }
   .table thead { display: none; }
@@ -63,13 +63,6 @@
   .table td:first-child, .table td:nth-child(4), .table td:last-child { grid-column: 1 / -1; }
   .table td:last-child button { width: 100%; }
   .table .mobileLabel { display: block; color: var(--muted); font-size: .7rem; margin-bottom: .25rem; }
+  .teaching .table tr { padding: .5rem; }
+  .teaching .table td { padding: .65rem; }
 }
-.teaching .tableShell { border: 0; overflow: visible; }
-.teaching .table, .teaching .table tbody { display: block; }
-.teaching .table thead { display: none; }
-.teaching .table tbody { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .8rem; }
-.teaching .table tr { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: .8rem; padding: .5rem; }
-.teaching .table td { display: block; border: 0; padding: .65rem; min-width: 0; }
-.teaching .table td:first-child, .teaching .table td:nth-child(4), .teaching .table td:last-child { grid-column: 1 / -1; }
-.teaching .table td:last-child button { width: 100%; }
-.teaching .table .mobileLabel { display: block; color: var(--muted); font-size: .7rem; margin-bottom: .25rem; }
