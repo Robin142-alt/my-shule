@@ -299,8 +299,8 @@ export function AccountantCommandCenter({
       data-testid="accountant-command-center"
       className="authenticated-app app-padded min-h-dvh bg-background p-3 md:p-5"
     >
-      <div className="mx-auto grid max-w-[1800px] gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="hidden h-[calc(100dvh-40px)] rounded-xl border border-border bg-surface p-3 text-foreground xl:sticky xl:top-5 xl:flex xl:flex-col">
+      <div className="mx-auto grid max-w-[1800px] gap-5 dashboard-rail-layout [--dashboard-rail-width:250px]">
+        <aside className="dashboard-rail hidden rounded-xl border border-border bg-surface p-3 text-foreground">
           <SchoolCommandSidebarIdentity
             tone="light"
             eyebrow="Finance command"
@@ -366,7 +366,7 @@ export function AccountantCommandCenter({
             )}
           />
 
-          <div className="xl:hidden">
+          <div className="dashboard-rail-mobile">
             <MobileWorkspaceNavigation
               label="Finance workspace"
               items={ACCOUNTANT_NAV_ITEMS}

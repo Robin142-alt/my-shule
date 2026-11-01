@@ -28,7 +28,7 @@ await fs.writeFile(hooks,`import {useState,useEffect} from 'react';
 const listeners=new Set();
 export function useSchoolQuery(){const [data,setData]=useState(null);const [error,setError]=useState(null);const refetch=async()=>{try{const response=await fetch('/fixture');setData(await response.json());setError(null);}catch(error){setError(error);}};useEffect(()=>{void refetch();listeners.add(refetch);return()=>listeners.delete(refetch);},[]);return {data,error,isPending:!data&&!error,isFetching:false,refetch};}
 export function useSchoolMutation(path,method){const [isPending,setPending]=useState(false);const [error,setError]=useState(null);return {isPending,error,mutateAsync:async(body)=>{setPending(true);setError(null);try{const response=await fetch('/command'+path,{method,headers:{'content-type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw new Error(result.message);await Promise.all([...listeners].map(read=>read()));return result;}catch(error){setError(error);throw error;}finally{setPending(false);}}};}`);
-await fs.writeFile(path.join(out,'entry.tsx'),`import React from 'react';import {createRoot} from 'react-dom/client';import {SyllabusWorkspace} from '${path.join(root,'apps/web/src/components/school/syllabus-workspace').replaceAll('\\','/')}';createRoot(document.getElementById('root')).render(<SyllabusWorkspace/>);`);
+await fs.writeFile(path.join(out,'entry.tsx'),`import React from 'react';import {createRoot} from 'react-dom/client';import {SyllabusWorkspace} from '${path.join(root,'apps/web/src/components/school/syllabus-workspace').replaceAll('\\','/')}';createRoot(document.getElementById('root')).render(<SyllabusWorkspace mode={location.search.includes('teaching')?'teaching':'monitor'}/>);`);
 await build({entryPoints:[path.join(out,'entry.tsx')],bundle:true,outfile:path.join(out,'bundle.js'),platform:'browser',format:'iife',jsx:'automatic',
   alias:{'@/lib/data/school-hooks':hooks,'@':path.join(root,'apps/web/src'),'react':path.dirname(webRequire.resolve('react/package.json')),'react-dom/client':webRequire.resolve('react-dom/client')},nodePaths:[path.join(root,'apps/web/node_modules')],define:{'process.env.NODE_ENV':'"development"'},logLevel:'silent'});
 const staticRoot=path.join(root,'apps/web/.next/static');
@@ -69,10 +69,17 @@ try {
   const page=await browser.newPage();page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{if(message.type()==='error'&&!message.text().includes('503'))errors.push(message.text());});
   await page.goto(base);await page.getByRole('button',{name:/Record coverage for/}).waitFor();
-  for(const width of [320,768,1024,1440]){
-    await page.setViewportSize({width,height:1000});
-    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Page overflows at ${width}px`);
-    await page.screenshot({path:path.join(out,`coverage-${width}.png`),fullPage:true});
+  const viewports=[320,390,768,1024,1280,1366,1440,1536];
+  for(const mode of ['teaching','monitor']){
+    await page.goto(base+'?'+mode);await page.getByRole('button',{name:/Record coverage for/}).waitFor();
+    for(const width of viewports){
+      await page.setViewportSize({width,height:1000});
+      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`${mode} page overflows at ${width}px`);
+      const display=await page.locator('table').first().evaluate(table=>({table:getComputedStyle(table).display,head:getComputedStyle(table.querySelector('thead')).display}));
+      assert.equal(display.table,width>=1024?'table':'block',`${mode} uses the wrong table layout at ${width}px`);
+      assert.equal(display.head,width>=1024?'table-header-group':'none');
+      await page.screenshot({path:path.join(out,`coverage-${mode}-${width}.png`),fullPage:true});
+    }
   }
   await page.getByRole('button',{name:'Define syllabus'}).click();
   await page.getByRole('dialog').getByRole('combobox',{name:/^Term/}).selectOption('term');
@@ -90,8 +97,10 @@ try {
   assert(await page.getByRole('checkbox',{name:/^Integers/}).isDisabled());
   await page.getByRole('button',{name:'Close dialog'}).click();
   await page.getByRole('button',{name:/Record coverage for/}).click();
-  await page.getByRole('checkbox',{name:/^Fractions/}).check();
+  // This controlled checkbox changes only after the saved response is refetched.
+  await page.getByRole('checkbox',{name:/^Fractions/}).click();
   await page.getByText('100% covered',{exact:true}).waitFor();
+  assert(await page.getByRole('checkbox',{name:/^Fractions/}).isChecked());
   await page.getByText('Teaching note (optional)',{exact:true}).first().click();
   await page.getByLabel('Note for Fractions').fill('Practical examples completed.');
   await page.getByRole('button',{name:'Save note'}).click();
@@ -104,6 +113,6 @@ try {
   assert(await page.getByRole('checkbox',{name:/^Integers/}).isChecked(),'Failed mutation changed the displayed completion');
   assert.equal(data.items[1].progress.percentage,0,'One stream inherited another stream completion');
   assert.deepEqual(errors,[]);
-  await fs.writeFile(path.join(out,'result.json'),JSON.stringify({viewports:[320,768,1024,1440],consoleErrors:errors,coverage:data.items.map(item=>({stream:item.stream_name,percentage:item.progress.percentage})),checks:['checkbox persistence','notes','independent streams','read-only monitoring','truthful failed write','mobile overflow']},null,2));
+  await fs.writeFile(path.join(out,'result.json'),JSON.stringify({viewports,modes:['teaching','monitor'],consoleErrors:errors,coverage:data.items.map(item=>({stream:item.stream_name,percentage:item.progress.percentage})),checks:['desktop tables and mobile cards','checkbox persistence','notes','independent streams','read-only monitoring','truthful failed write','mobile overflow']},null,2));
   console.log(`Syllabus browser checks passed. Evidence: ${out}`);
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve));}

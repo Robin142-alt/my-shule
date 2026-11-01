@@ -96,6 +96,24 @@
   }
 }
 
+/* The principal, deputy, finance and shared staff/portal grids use the same
+   desktop boundary as the mobile drawer. Each keeps its historical rail width. */
+@media screen and (min-width: 1024px) {
+  .dashboard-rail-layout {
+    grid-template-columns: var(--dashboard-rail-width, 300px) minmax(0, 1fr);
+  }
+  .dashboard-rail-layout > .dashboard-rail {
+    position: sticky;
+    top: 1.25rem;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: calc(100dvh - 2.5rem);
+  }
+  .dashboard-rail-mobile { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :is(.authenticated-app, .app-navigation-sheet) .dashboard-navigation .dashboard-nav-item { transition: none; }
 }

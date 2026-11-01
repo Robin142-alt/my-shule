@@ -322,7 +322,7 @@ export function PrincipalCommandCenter({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const mobileSidebarRef = useModalLayer<HTMLElement>(mobileSidebarOpen, () => setMobileSidebarOpen(false));
   useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 1280px)");
+    const desktop = window.matchMedia("(min-width: 1024px)");
     const closeOnDesktop = () => { if (desktop.matches) setMobileSidebarOpen(false); };
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
@@ -568,19 +568,19 @@ export function PrincipalCommandCenter({
         <div
           data-testid={activeWorkspace === "exams-reports" ? undefined : "role-operational-command-center"}
           data-route-mode={routeMode ?? "hosted"}
-          className="authenticated-app min-h-dvh bg-background pb-6"
+          className="authenticated-app min-h-dvh bg-background pb-6 lg:pb-0"
         >
           {mobileSidebarOpen ? (
             <button
               type="button"
               aria-label="Close principal navigation overlay"
-              className="fixed inset-0 z-30 bg-slate-950/45 xl:hidden"
+              className="fixed inset-0 z-30 bg-slate-950/45 dashboard-rail-mobile"
               onClick={() => setMobileSidebarOpen(false)}
             />
           ) : null}
           <div
             data-testid="principal-practical-command-center"
-            className="grid gap-5 p-3 md:p-5 xl:grid-cols-[300px_minmax(0,1fr)]"
+            className="grid gap-5 p-3 md:p-5 dashboard-rail-layout"
           >
             <aside
               ref={mobileSidebarRef}
@@ -590,13 +590,13 @@ export function PrincipalCommandCenter({
               aria-label="Principal navigation"
               tabIndex={-1}
               className={cn(
-                "app-principal-sidebar fixed inset-y-0 left-0 z-40 flex w-[min(88vw,320px)] min-h-0 flex-col overflow-hidden border-r border-border-strong/30 bg-primary p-4 text-white shadow-2xl outline-none transition-transform duration-200 xl:sticky xl:top-5 xl:z-auto xl:h-[calc(100dvh-40px)] xl:w-auto xl:translate-x-0 xl:rounded-[var(--radius-xl)] xl:border-border-strong/50 xl:shadow-[0_24px_70px_rgba(7,29,73,0.22)]",
+                "app-principal-sidebar dashboard-rail fixed inset-y-0 left-0 z-40 flex w-[min(88vw,320px)] min-h-0 flex-col overflow-hidden border-r border-border-strong/30 bg-primary p-4 text-white shadow-2xl outline-none transition-transform duration-200 lg:z-auto lg:w-auto lg:translate-x-0 lg:rounded-[var(--radius-xl)] lg:border-border-strong/50 lg:shadow-[0_24px_70px_rgba(7,29,73,0.22)]",
                 mobileSidebarOpen ? "translate-x-0" : "-translate-x-full",
               )}
             >
               <div className="app-principal-nav-heading flex shrink-0 items-center justify-between gap-2 mb-3">
                 <div className="app-sidebar-brand px-2"><MyShuleBrand markSize={30} nameClassName="text-base" /></div>
-                <button type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm font-semibold xl:hidden">Close</button>
+                <button type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm font-semibold dashboard-rail-mobile">Close</button>
               </div>
               <div className="app-principal-nav-identity rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
                 <div className="flex items-center gap-3">
@@ -674,7 +674,7 @@ export function PrincipalCommandCenter({
                       type="button"
                       aria-label="Open principal navigation"
                       aria-expanded={mobileSidebarOpen}
-                      className="rounded-xl border border-border-strong bg-surface-muted px-3 py-2 text-sm font-black text-foreground xl:hidden"
+                      className="rounded-xl border border-border-strong bg-surface-muted px-3 py-2 text-sm font-black text-foreground dashboard-rail-mobile"
                       onClick={() => setMobileSidebarOpen(true)}
                     >
                       <Menu className="mr-2 inline h-4 w-4" aria-hidden="true" />
