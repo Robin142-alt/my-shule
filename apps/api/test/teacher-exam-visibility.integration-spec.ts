@@ -984,7 +984,12 @@ describe('Created exams reach assigned subject teachers', () => {
       expect(await paperConfiguration.read(window.id)).toEqual(before);
     });
 
-    it('processes unequal papers and suppresses overall scores and ranks for X and Y', async () => {
+    it.each(['CBC', '8-4-4'])('processes unequal %s papers and suppresses overall scores and ranks for X and Y', async curriculum => {
+      const legacyPolicy = randomUUID();
+      await pool.query('UPDATE class_sections SET curriculum_model=$1 WHERE id=$2', [curriculum, ids.class]);
+      if (curriculum === '8-4-4') await pool.query(`INSERT INTO academics_grading_systems(id,tenant_id,curriculum_model,rules)
+        VALUES($1,'school-a','8-4-4','[{"label":"A","min":0,"max":100,"points":12}]')`, [legacyPolicy]);
+      try {
       const created=await createExam(); const window=await windowFor(created.exam.id); const before=await paperConfiguration.read(window.id);
       const configured=await paperConfiguration.save(window.id,{version:before.version,papers:[{id:before.papers[0].id,name:'Paper 1',max_score:20},{name:'Paper 2',max_score:80}]});
       for (const [index,paper] of configured.papers.entries()) {
@@ -996,7 +1001,7 @@ describe('Created exams reach assigned subject teachers', () => {
         await repository.processResultBatch({tenant_id:'school-a',actor_user_id:ids.manager,batch_id:batch.id,mode:'rankings'});
         return (await pool.query('SELECT * FROM exam_result_snapshots WHERE batch_id=$1 AND student_id=$2',[batch.id,ids.student])).rows[0];
       };
-      expect(await process()).toMatchObject({average_percentage:'70.00',class_rank:1});
+      expect(await process()).toMatchObject({average_percentage:'70.00',class_rank:curriculum === 'CBC' ? null : 1});
       const refreshed=async()=>(await pool.query('SELECT * FROM exam_result_snapshots WHERE batch_id=$1 AND student_id=$2',[batch.id,ids.student])).rows[0];
       await pool.query(`UPDATE exam_marks SET score=NULL,score_status='X' WHERE assessment_id=$1`,[configured.papers[0].id]);
       expect(await refreshed()).toMatchObject({average_percentage:null,raw_total:null,grade_label:'X',class_rank:null});
@@ -1005,10 +1010,14 @@ describe('Created exams reach assigned subject teachers', () => {
       expect(evidence).toEqual(expect.arrayContaining([expect.objectContaining({grade_label:'Y'})]));
       expect(await refreshed()).toMatchObject({average_percentage:null,grade_label:'Y',class_rank:null});
       await pool.query(`UPDATE exam_marks SET score=CASE WHEN assessment_id=$1 THEN 10 ELSE 60 END,score_status='entered' WHERE exam_series_id=$2`,[configured.papers[0].id,created.exam.id]);
-      expect(await refreshed()).toMatchObject({average_percentage:'70.00',class_rank:1});
+      expect(await refreshed()).toMatchObject({average_percentage:'70.00',class_rank:curriculum === 'CBC' ? null : 1});
       const beforePublish=await refreshed();
       await pool.query(`UPDATE exam_marks SET status='published',published_at=NOW() WHERE exam_series_id=$1`,[created.exam.id]);
       expect((await refreshed()).processed_at).toEqual(beforePublish.processed_at);
+      } finally {
+        await pool.query("UPDATE class_sections SET curriculum_model='CBC' WHERE id=$1", [ids.class]);
+        await pool.query('DELETE FROM academics_grading_systems WHERE id=$1', [legacyPolicy]);
+      }
     });
 
     it('serializes concurrent first entries and configuration edits without losing a score',async()=>{
