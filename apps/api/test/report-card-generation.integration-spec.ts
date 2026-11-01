@@ -544,6 +544,21 @@ describe('Report generation with the production staff schema', () => {
     await query("UPDATE exam_series SET status='draft' WHERE id=$1", [ids.exam]);
   });
 
+  it('blocks publication of a fresh correction when a required paper has no mark row', async () => {
+    const first = await generation.generateStudentReportCard(studentInput());
+    const paper = randomUUID();
+    await query(`INSERT INTO exam_assessments(id,tenant_id,exam_series_id,subject_id,name,max_score,weight)
+      VALUES ($1,'school-a',$2,$3,'Required second paper',100,100)`,[paper,ids.exam,ids.subject]);
+    try {
+      const revised = await generation.generateStudentReportCard({...studentInput(), regeneration_reason:'Second paper added'});
+      expect(revised.id).toBeDefined();
+      expect((revised.metadata as any).awaiting_final_marks).toBe(true);
+      expect(await repository.transitionReportCard({tenant_id:'school-a',actor_user_id:ids.principal,actor_role:'principal',
+        report_card_id:String(revised.id),action:'publish'})).toBeNull();
+      expect(first.status).toBe('draft_generated');
+    } finally { await query('DELETE FROM exam_assessments WHERE tenant_id=$1 AND id=$2',['school-a',paper]); }
+  });
+
   it('regenerates real PDF artifacts for X and Y and restores the grade after resolution', async () => {
     try {
       for (const status of ['X', 'Y', 'entered']) {

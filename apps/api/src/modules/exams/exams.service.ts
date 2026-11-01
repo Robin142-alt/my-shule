@@ -1036,7 +1036,7 @@ export class ExamsService {
     if (scope.revision !== input.expected_revision || scope.is_submitted) {
       throw new ConflictException('This markbook changed or was already submitted. Refresh before submitting.');
     }
-    const missing = scope.marks.filter((mark: any) => !mark.mark_id || !mark.score_status).length;
+    const missing = scope.marks.filter((mark: any) => !mark.mark_id || !mark.score_status || (mark.score_status === 'entered' && mark.score == null)).length;
     if (missing) throw new BadRequestException(`${missing} learner mark ${missing === 1 ? 'entry is' : 'entries are'} missing. Enter marks or an assessment reason before submitting.`);
     return this.saveTeacherMarkEntries(scope.marks.map((mark: any,index: number) => ({
       ...mark,row_number:index+1,exam_series_id:scope.exam_series_id,assessment_id:input.assessment_id,
@@ -1110,7 +1110,7 @@ export class ExamsService {
 
     if (validationErrors.length > 0) {
       throw new BadRequestException({
-        message: 'Mark sheet contains invalid learner entries',
+        message: expectedRevision ? `Row ${validationErrors[0].row_number}: ${validationErrors[0].message}` : 'Mark sheet contains invalid learner entries',
         errors: validationErrors,
       });
     }

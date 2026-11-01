@@ -691,7 +691,8 @@ export class ExamsRepository {
     const sql = `SELECT w.id AS window_id,w.exam_series_id,w.class_section_id,w.subject_id,series.academic_term_id,
         ${markbookRevisionSql('w','assessment.id','roster.student_id','mark')} AS revision,
         (COALESCE(BOOL_OR(mark.status IN ('submitted','reviewed','approved','locked','published')),FALSE)
-          AND NOT COALESCE(BOOL_OR(mark.status='draft'),FALSE) AND COUNT(mark.id)=COUNT(*)) AS is_submitted,
+          AND NOT COALESCE(BOOL_OR(mark.status='draft'),FALSE)
+          AND COUNT(mark.id) FILTER (WHERE ${recordedMarkSql('mark')})=COUNT(*)) AS is_submitted,
         JSONB_AGG(JSONB_BUILD_OBJECT('student_id',roster.student_id,'mark_id',mark.id,'score',mark.score,
           'score_status',mark.score_status,'remarks',mark.remarks,'category_scores',mark.category_scores,
           'expected_updated_at',mark.updated_at::text,'paper_config_version',w.paper_config_version)
@@ -843,14 +844,14 @@ export class ExamsRepository {
                score_status = EXCLUDED.score_status,
                remarks = EXCLUDED.remarks,
                updated_by_user_id = EXCLUDED.updated_by_user_id,
-               assigned_teacher_user_id = COALESCE(EXCLUDED.assigned_teacher_user_id, exam_marks.assigned_teacher_user_id),
+               assigned_teacher_user_id = COALESCE(exam_marks.assigned_teacher_user_id, EXCLUDED.assigned_teacher_user_id),
                category_scores = EXCLUDED.category_scores,
                status = 'draft', updated_at = clock_timestamp()
              WHERE exam_marks.exam_series_id = EXCLUDED.exam_series_id
                AND exam_marks.academic_term_id = EXCLUDED.academic_term_id
                AND exam_marks.class_section_id = EXCLUDED.class_section_id
                AND exam_marks.subject_id = EXCLUDED.subject_id
-               AND ($5::uuid IS NULL OR $2::uuid <> $5::uuid
+               AND ($7::boolean OR $5::uuid IS NULL
                  OR COALESCE(exam_marks.assigned_teacher_user_id,exam_marks.entered_by_user_id) = $5::uuid
                  OR (exam_marks.assigned_teacher_user_id IS NULL AND EXISTS (
                    SELECT 1 FROM exam_mark_audit_logs origin WHERE origin.tenant_id=exam_marks.tenant_id
@@ -942,7 +943,7 @@ export class ExamsRepository {
         const stateResult = await tx.$queryRawUnsafe(
           `SELECT
              COUNT(student.id)::integer AS expected_count,
-             COUNT(mark.id)::integer AS evidence_count,
+             COUNT(mark.id) FILTER (WHERE ${recordedMarkSql('mark')})::integer AS evidence_count,
              COUNT(mark.id) FILTER (
                WHERE $2::uuid IS NOT NULL AND mark.assigned_teacher_user_id IS NOT NULL AND mark.assigned_teacher_user_id IS DISTINCT FROM $2::uuid
              )::integer AS foreign_owner_count,
@@ -1026,7 +1027,7 @@ export class ExamsRepository {
                  updated_at = NOW()
              WHERE tenant_id = $1
                AND id = ANY($3::uuid[])
-               AND ($5::uuid IS NULL OR assigned_teacher_user_id IS NULL OR assigned_teacher_user_id = $5::uuid)
+               AND ($6::boolean OR $5::uuid IS NULL OR assigned_teacher_user_id IS NULL OR assigned_teacher_user_id = $5::uuid)
                AND status = 'draft'
              RETURNING *
            ), audits AS (
@@ -2273,6 +2274,8 @@ export class ExamsRepository {
          AND card.metadata->>'generation_source_version' = $7
          AND card.metadata->'report_card' IS NOT NULL
          AND (SELECT COUNT(DISTINCT artifact.artifact_type) FROM report_card_artifacts artifact
+           JOIN file_objects stored ON stored.tenant_id=artifact.tenant_id AND stored.storage_path=artifact.storage_key
+             AND stored.retention_expires_at IS NULL AND stored.sha256=artifact.checksum_sha256
            WHERE artifact.tenant_id = card.tenant_id AND artifact.report_card_id = card.id
              AND artifact.verification_code = card.verification_code
              AND artifact.artifact_type = 'pdf') = 1

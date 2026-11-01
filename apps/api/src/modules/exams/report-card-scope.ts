@@ -133,11 +133,11 @@ export function reportCardIneligibilitySql(action: string, preserveReleased = tr
     NULLIF(BTRIM(card.metadata->'report_card'->'template_fields'->>'class_teacher_comment'), '') IS NULL
     OR NULLIF(BTRIM(card.metadata->'report_card'->'template_fields'->>'principal_comment'), '') IS NULL
   ) THEN 'Complete the class teacher and principal comments'
-  WHEN ${action} IN ('submit', 'publish') AND EXISTS (
+  WHEN ${action} IN ('submit', 'approve', 'publish') AND (card.metadata->>'awaiting_final_marks'='true' OR EXISTS (
     SELECT 1 FROM exam_marks mark WHERE mark.tenant_id = card.tenant_id
     AND mark.exam_series_id = card.exam_series_id AND mark.student_id = card.student_id
     AND mark.status NOT IN ('locked', 'published')
-  ) THEN 'Marks must be reviewed and locked before release'
+  )) THEN 'Marks must be reviewed and locked before release'
   ELSE NULL END`;
 }
 // A draft may be current for staff workflows while the prior Principal release

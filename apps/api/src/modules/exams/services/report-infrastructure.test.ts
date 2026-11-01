@@ -385,7 +385,10 @@ test('legacy migration certifies identical payloads without changing approval or
   let rendered=0;
   artifacts.ensurePdf=async()=>{rendered++;return 'tenant/a/legacy.pdf';};
   artifacts.cachedPath=async()=> 'tenant/a/legacy.pdf';
+  let verifiedPath = '';
+  artifacts.verifyStoredPdf=async(_tenant, path)=>{verifiedPath=path;};
   const certified = await artifacts.reusableSnapshot('a','exam','student',true);
+  assert.equal(verifiedPath,'tenant/a/legacy.pdf');
   assert.ok(certified);
   assert.equal(rendered,1);
   assert.equal(certified.status, 'published');
@@ -399,6 +402,12 @@ test('legacy migration certifies identical payloads without changing approval or
   );
   assert.equal(mutations, 2);
 });
+test('refuses to count a readable non-PDF object as a stored report', async () => {
+  const storage = {readForTenant: async () => ({mime_type:'application/pdf',content:Buffer.from('incorrect file')})};
+  const artifacts = new ReportCardArtifactsService({} as never,storage as never,{} as never,{} as never,{} as never);
+  await assert.rejects(() => artifacts.verifyStoredPdf('a','tenant/a/report.pdf'), /stored report document is invalid/);
+});
+
 test('renderer bounds pages and bytes and surfaces storage-image failures', async () => {
   async function* entries() {
     for (let i = 0; i < 3; i++)

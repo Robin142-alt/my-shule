@@ -55,7 +55,7 @@ export const TEACHER_MARK_PROGRESS_SQL = `
         AND ${recordedMarkSql('mark')})::int AS submitted,
       (BOOL_OR(mark.status IN ('submitted','reviewed','approved','locked','published'))
         AND NOT COALESCE(BOOL_OR(mark.status = 'draft'), FALSE)
-        AND COUNT(DISTINCT mark.id)=COUNT(DISTINCT roster.student_id)) AS is_submitted,
+        AND COUNT(DISTINCT mark.id) FILTER (WHERE ${recordedMarkSql('mark')}) = COUNT(DISTINCT roster.student_id)) AS is_submitted,
       COALESCE(BOOL_OR(mark.submitted_at IS NOT NULL OR mark.status IN ('submitted','reviewed','approved','locked','published')),FALSE) AS previously_submitted,
       ${markbookRevisionSql('w','assessment.id','roster.student_id','mark')} AS revision,
       w.last_action,

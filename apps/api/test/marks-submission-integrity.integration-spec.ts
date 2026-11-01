@@ -149,6 +149,16 @@ describe('Marks access and submission integrity', () => {
     expect((await repository.loadAdministrativeMarkbook(scopeInput)).revision).not.toBe(scope.revision);
   });
 
+  it('preserves original teacher attribution when an administrator submits a reassigned markbook', async () => {
+    const originalTeacher = randomUUID();
+    await query('UPDATE exam_marks SET assigned_teacher_user_id=$1 WHERE assessment_id=$2',[originalTeacher,sheets[0].paper]);
+    await save(67);
+    const scope = await repository.loadAdministrativeMarkbook({tenant_id:tenant, mark_entry_window_id:sheets[0].window,
+      assessment_id:sheets[0].paper, teacher_user_id:ids.teacher, stream_ids:['']});
+    await save(67,true,undefined,0,{submit:true,stream_ids:[''],expected_revision:scope.revision});
+    expect(await mark()).toMatchObject({status:'submitted', assigned_teacher_user_id:originalTeacher, updated_by_user_id:ids.manager});
+  });
+
   it('requires resubmission when a newly eligible assessment record is missing',async()=>{
     const scopeInput={tenant_id:tenant,mark_entry_window_id:sheets[0].window,assessment_id:sheets[0].paper,
       teacher_user_id:ids.teacher,stream_ids:['']};

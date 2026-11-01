@@ -4,7 +4,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { examGradeOverride } from '../exam-result-policy';
 import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { DatabaseService } from '../../../database/database.service';
@@ -24,6 +24,7 @@ import {
 } from './report-card-template.service';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
 import { hydrateReportComparison } from './report-card-comparison';
+import { ReportProcessingFailure } from './report-card-generation-resilience';
 
 @Injectable()
 export class ReportCardArtifactsService implements OnModuleInit {
@@ -150,8 +151,18 @@ export class ReportCardArtifactsService implements OnModuleInit {
       if (error instanceof ConflictException) return null;
       throw error;
     }
-    if (!(await this.cachedPath(card))) return null;
+    const path = await this.cachedPath(card);
+    if (!path) return null;
+    if (certifyLegacy) await this.verifyStoredPdf(tenant, path);
     return { ...card, reused: true };
+  }
+  async verifyStoredPdf(tenant: string, path: string) {
+    const file = await this.storage.readForTenant({ tenantId: tenant, storagePath: path });
+    if (file.mime_type !== 'application/pdf' || file.content.subarray(0, 5).toString() !== '%PDF-'
+      || file.content.length !== Number(file.size_bytes) || createHash('sha256').update(file.content).digest('hex') !== file.sha256) {
+      throw new ReportProcessingFailure('REPORT_STORAGE_CONFIGURATION',
+        'The stored report document is invalid. Repair the file before retrying this batch.', false);
+    }
   }
   async cachedPath(card: Record<string, any>): Promise<string | null> {
     const identity = reportPdfIdentity(card);

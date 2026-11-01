@@ -1,4 +1,4 @@
-import { examRosterSql } from './exam-mark-roster';
+import { examRosterSql, recordedMarkSql } from './exam-mark-roster';
 // SQL fragments are supplied only by repository code, never by request input.
 export function teacherMarkStudentScopeSql(window: string, series: string, studentId: string, teacherId: string): string {
   return `EXISTS (
@@ -33,7 +33,7 @@ function submittedStreamsSql(window: string, series: string, assessmentId: strin
     SELECT COALESCE(BOOL_AND(stream_state.submitted), FALSE) FROM (
       SELECT COALESCE(BOOL_OR(completed_mark.status IN ('submitted','reviewed','approved','locked','published')),FALSE)
         AND NOT COALESCE(BOOL_OR(completed_mark.status='draft'),FALSE)
-        AND COUNT(completed_mark.id)=COUNT(*) AS submitted
+        AND COUNT(completed_mark.id) FILTER (WHERE ${recordedMarkSql('completed_mark')})=COUNT(*) AS submitted
       FROM sheet_roster member
       LEFT JOIN exam_marks completed_mark ON completed_mark.tenant_id=${window}.tenant_id
         AND completed_mark.exam_series_id=${window}.exam_series_id

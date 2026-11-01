@@ -164,6 +164,12 @@ export class ReportCardGenerationService implements OnModuleInit {
     if (!data.student || !data.exam_series) {
       throw new NotFoundException("Learner or exam was not found in this school");
     }
+    // A working correction may include draft scores or still-missing papers.
+    // Record readiness from the full eligible roster, including absent rows.
+    const correctionReadiness = input.regeneration_reason
+      ? await this.repository.getReportCardStudentReadiness(input) : null;
+    const awaitingFinalMarks = Boolean(input.regeneration_reason) &&
+      (!Number(correctionReadiness?.expected_mark_count) || Number(correctionReadiness?.not_ready_mark_count) > 0);
     const payload = this.templateService.buildPayload(data, generatedAt);
     this.assertReportCardGradeBoundaries(payload);
     const gradingPolicy = asRecord(data.grading_policy);
@@ -193,7 +199,13 @@ export class ReportCardGenerationService implements OnModuleInit {
       ...input, verification_code: verificationCode, approved_result_version: approvedResultVersion,
       generation_source_version: generationSourceVersion,
     });
-    if (reusable) return reusable;
+    if (reusable) {
+      if (this.artifactStore) {
+        const pdf = reusable.artifacts.find((artifact: { artifact_type: string }) => artifact.artifact_type === 'pdf');
+        await this.artifactStore.verifyStoredPdf(input.tenant_id, pdf.storage_key);
+      }
+      return reusable;
+    }
     const renderPayload = await hydrateReportCardLogoForRendering(
       payload,
       input.tenant_id,
@@ -221,6 +233,7 @@ export class ReportCardGenerationService implements OnModuleInit {
         generated_by: input.actor_user_id,
         generated_at: generatedAt,
         regeneration_reason: input.regeneration_reason ?? null,
+        ...(input.regeneration_reason ? { awaiting_final_marks: awaitingFinalMarks } : {}),
         grading_policy: gradingPolicy,
         template_version: templateVersion,
         approved_result_version: approvedResultVersion,
