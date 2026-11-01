@@ -6275,7 +6275,7 @@ test('StudentCommandService shares only current-class assignments and preserves 
             rowCount: 1,
           };
         }
-        if (/JOIN exam_marks mark/.test(sql)) {
+        if (/mark\.score_status/.test(sql)) {
           return {
             rows: [{
               id: 'mark-a',
@@ -6314,7 +6314,9 @@ test('StudentCommandService shares only current-class assignments and preserves 
   }
   assert.match(queries[0].sql, /student_class_assignments/);
   assert.match(queries[0].sql, /academics_assignment_submissions/);
-  assert.match(queries[2].sql, /report_card\.is_current = TRUE/);
+  assert.match(queries[1].sql, /jsonb_array_elements/);
+  assert.match(queries[2].sql, /report_card\.status = 'published'/);
+  assert.match(queries[2].sql, /newer_release\.revision_number > report_card\.revision_number/);
 });
 
 test('StudentCommandService keeps database failures visible to the portal', async () => {
