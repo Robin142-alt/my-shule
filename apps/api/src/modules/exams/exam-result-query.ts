@@ -57,6 +57,7 @@ export function examResultCtes(tenant: string, batch: string, mode: string): str
       THEN DENSE_RANK() OVER(PARTITION BY scores.learner_class ORDER BY average_percentage DESC NULLS LAST)::int END AS class_rank,
       COALESCE(override_grade,boundary.label,academic.label,legacy.label) AS grade_label
     FROM scores
+    JOIN exam_series result_series ON result_series.tenant_id=${tenant} AND result_series.id=scores.exam_series_id
     JOIN class_sections section ON section.tenant_id=${tenant} AND section.id::text=scores.learner_class::text
     LEFT JOIN selected_policy policy ON policy.learner_class::text=scores.learner_class::text
     LEFT JOIN LATERAL (
@@ -71,7 +72,7 @@ export function examResultCtes(tenant: string, batch: string, mode: string): str
     ) legacy ON policy.id IS NULL AND NULLIF(to_jsonb(section)->>'curriculum_model','') IS NULL
     LEFT JOIN LATERAL (
       SELECT rule->>'label' AS label FROM (
-        ${academicCurriculumGradingSql(tenant, "to_jsonb(section)->>'curriculum_model'", 'CURRENT_DATE', `(SELECT COALESCE(
+        ${academicCurriculumGradingSql(tenant, "to_jsonb(section)->>'curriculum_model'", 'result_series.ends_on', `(SELECT COALESCE(
           (SELECT NULLIF(to_jsonb(series)->>'grading_system_id','') FROM exam_series series WHERE series.tenant_id=${tenant} AND series.id=scores.exam_series_id),
           (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings WHERE settings.tenant_id=${tenant} AND settings.is_active=TRUE ORDER BY settings.updated_at DESC LIMIT 1)))`)}
       ) grading CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(grading.rules)='array' THEN grading.rules ELSE '[]'::jsonb END) rule

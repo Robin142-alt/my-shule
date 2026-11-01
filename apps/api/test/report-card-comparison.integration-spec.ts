@@ -12,13 +12,14 @@ describe('Report comparison chronology and school isolation', () => {
     if (!['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.includes('disposable')) throw new Error('Use disposable local PostgreSQL');
     pool = new Pool({ connectionString: url.toString(), options: '-c search_path=report_comparison,public' });
     await pool.query(`CREATE SCHEMA report_comparison;
-      CREATE TABLE exam_series(tenant_id text,id uuid,name text,starts_on date,created_at timestamptz,academic_term_id uuid);
+      CREATE TABLE exam_series(tenant_id text,id uuid,name text,starts_on date,created_at timestamptz,academic_term_id uuid,ends_on date);
+      CREATE TABLE academic_terms(tenant_id text,id text,academic_year_id text);
       CREATE TABLE subjects(tenant_id text,id text,name text);
       CREATE TABLE exam_assessments(tenant_id text,id uuid,name text,max_score numeric,weight numeric,exam_series_id uuid,subject_id uuid,class_section_id uuid);
       CREATE TABLE exam_result_snapshots(tenant_id text,exam_series_id uuid,student_id uuid,average_percentage numeric,processed_at timestamptz,grade_label text);
       CREATE TABLE exam_mark_entry_windows(tenant_id text,exam_series_id uuid,subject_id uuid,class_section_id uuid);
       CREATE TABLE student_subject_enrollments(tenant_id text,student_id text,subject_id text,class_section_id text,status text);
-      CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,status text);
+      CREATE TABLE student_class_assignments(tenant_id text,student_id text,class_section_id text,status text,stream_id text);
       CREATE TABLE exam_marks(tenant_id text,exam_series_id uuid,student_id uuid,subject_id uuid,assessment_id uuid,
         status text,score_status text,score numeric,updated_at timestamptz DEFAULT '2099-01-01',class_section_id uuid);`);
     for (const tenant of ['school-a', 'school-b']) {

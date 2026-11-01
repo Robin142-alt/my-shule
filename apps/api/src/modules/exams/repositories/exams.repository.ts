@@ -2807,8 +2807,8 @@ export class ExamsRepository {
               OR NULLIF(btrim(to_jsonb(system) ->> 'curriculum_model'), '') IS NULL
             )
             AND system.is_active = TRUE AND to_jsonb(system)->>'archived_at' IS NULL
-            AND (system.effective_from IS NULL OR system.effective_from <= CURRENT_DATE)
-            AND (system.effective_to IS NULL OR system.effective_to >= CURRENT_DATE)
+            AND (system.effective_from IS NULL OR system.effective_from <= (SELECT ends_on FROM exam_series WHERE tenant_id=$1 AND id=$2::uuid))
+            AND (system.effective_to IS NULL OR system.effective_to >= (SELECT ends_on FROM exam_series WHERE tenant_id=$1 AND id=$2::uuid))
           ORDER BY
             COALESCE((
               NULLIF($3::text, '') IS NOT NULL
@@ -2830,7 +2830,7 @@ export class ExamsRepository {
       );
     const normalizeCurriculumKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_\s-]/g, '');
     const gradingSystemCurriculum = (system: Record<string, unknown>) => {
-      if (classCurriculum && gradingRulesForCurriculum(system, classCurriculum)) return classCurriculum;
+      if (classCurriculum && gradingRulesForCurriculum(system, classCurriculum)?.length) return classCurriculum;
       const inferred = inferLegacyGradingCurriculum(classCurriculum, system.rules);
       return Array.isArray(system.curriculum_models) && system.curriculum_models.length > 1
         ? inferred || system.curriculum_model : system.curriculum_model || inferred;
@@ -2841,9 +2841,7 @@ export class ExamsRepository {
       if (problem) throw new BadRequestException(problem);
     }
     let academicGradingSystem = classCurriculum
-      ? academicGradingSystemResult.rows.find((system) =>
-        normalizeCurriculumKey(gradingSystemCurriculum(system)) === normalizeCurriculumKey(classCurriculum),
-      ) ?? null
+      ? academicGradingSystemResult.rows.find(system => gradingRulesForCurriculum(system, classCurriculum)?.length) ?? null
       : academicGradingSystemResult.rows[0] ?? null;
     const incompatiblePreferredSystem = classCurriculum
       ? academicGradingSystemResult.rows.find((system) =>
@@ -2852,6 +2850,8 @@ export class ExamsRepository {
       ) ?? null
       : null;
     if (gradingPolicyResult.rows.length === 0 && classCurriculum && !academicGradingSystem) {
+      const missingBands = academicGradingSystemResult.rows.map(system => missingCurriculumBands(system, classCurriculum)).find(Boolean);
+      if (missingBands) throw new BadRequestException(missingBands);
       if (incompatiblePreferredSystem) {
         const policyCurriculum = gradingSystemCurriculum(incompatiblePreferredSystem) || 'unclassified';
         throw new BadRequestException(
@@ -3576,7 +3576,7 @@ export class ExamsRepository {
               THEN p.reporting_mode IN ('cbc_competency','competency','hybrid') ELSE p.reporting_mode='traditional' END)
           ORDER BY (p.exam_series_id=series.id) DESC NULLS LAST,p.version DESC LIMIT 1
         ) policy ON TRUE
-        LEFT JOIN LATERAL (${academicCurriculumGradingSql('series.tenant_id', "to_jsonb(section)->>'curriculum_model'", 'CURRENT_DATE', `COALESCE(to_jsonb(series)->>'grading_system_id',
+        LEFT JOIN LATERAL (${academicCurriculumGradingSql('series.tenant_id', "to_jsonb(section)->>'curriculum_model'", 'series.ends_on', `COALESCE(to_jsonb(series)->>'grading_system_id',
           (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings WHERE settings.tenant_id=series.tenant_id AND settings.is_active=TRUE ORDER BY settings.updated_at DESC LIMIT 1))`)}) academic ON policy.id IS NULL
         WHERE series.tenant_id=$1 AND series.id=$2::uuid`, [input.tenant_id,input.exam_series_id,input.class_section_id]);
       const selected = context.rows[0];
@@ -3584,8 +3584,14 @@ export class ExamsRepository {
         const bands = normalizeAcademicRules(selected.exam_boundaries ?? selected.rules);
         if (!bands.length) throw new BadRequestException(`Grading policy "${selected.name}" has no saved grade bands for ${selected.curriculum}. Save its ${selected.curriculum} bands in Academic Setup.`);
         const percentage = input.score / (input.max_score ?? 100) * 100;
-        const boundary = [...bands].sort((a,b) => Number(b.min ?? b.min_score)-Number(a.min ?? a.min_score)).find(band => percentage >= Number(band.min ?? band.min_score));
-        return { configured_count: bands.length, match_count: boundary ? 1 : 0,
+        const matches = bands.filter(band => {
+          const min = Number(band.min ?? band.min_score);
+          const max = Number(band.max ?? band.max_score);
+          // Academic ranges cover whole marks, so 74.99 is in the band ending at 74.
+          return percentage >= min && (selected.exam_boundaries ? percentage <= max : percentage < max + 1);
+        });
+        const boundary = matches[0];
+        return { configured_count: bands.length, match_count: matches.length,
           boundary: boundary ? { ...boundary, remarks: boundary.remark } : null };
       }
       if (['CBC','CBE','8-4-4'].includes(String(selected?.curriculum))) {

@@ -134,7 +134,7 @@ export function analyticsQuery(level: ExamAnalyticsScopeLevel, publishedOnly = f
     ORDER BY (p.exam_series_id::text = result.exam_series_id) DESC NULLS LAST, p.version DESC, p.id LIMIT 1
   ) policy ON TRUE
   LEFT JOIN LATERAL (
-    ${academicCurriculumGradingSql('result.tenant_id', "to_jsonb(result_class)->>'curriculum_model'", 'CURRENT_DATE', `(SELECT COALESCE(
+    ${academicCurriculumGradingSql('result.tenant_id', "to_jsonb(result_class)->>'curriculum_model'", 'result.ends_on', `(SELECT COALESCE(
       (SELECT to_jsonb(series)->>'grading_system_id' FROM exam_series series WHERE series.tenant_id=result.tenant_id AND series.id::text=result.exam_series_id),
       (SELECT settings.grading_system_id::text FROM academics_report_card_settings settings WHERE settings.tenant_id=result.tenant_id AND settings.is_active=TRUE ORDER BY settings.updated_at DESC LIMIT 1)))`)}
   ) academic ON policy.id IS NULL

@@ -287,7 +287,6 @@ export class ExamsManagerCommandService {
           FROM academic_terms
           WHERE tenant_id = $1
           ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, starts_on DESC
-          LIMIT 24
         `,
         [tenantId],
       ),
@@ -297,7 +296,6 @@ export class ExamsManagerCommandService {
           FROM subjects
           WHERE tenant_id = $1
           ORDER BY name ASC
-          LIMIT 200
         `,
         [tenantId],
       ),
@@ -315,7 +313,6 @@ export class ExamsManagerCommandService {
           WHERE tenant_id = $1
             AND LOWER(COALESCE(status, 'active')) = 'active'
           ORDER BY grade_level ASC, stream ASC, name ASC
-          LIMIT 200
         `,
         [tenantId],
       ),

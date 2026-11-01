@@ -31,7 +31,7 @@ export function classComparison(subject: ReportCardSubjectPayload): keyof typeof
   if (subject.score_status !== 'entered' || subject.score === null || !(subject.max_score > 0)
     || typeof subject.class_average !== 'number' || !Number.isFinite(subject.class_average)) return null;
   const percentage = subject.percentage ?? subject.score / subject.max_score * 100;
-  const difference = percentage - subject.class_average;
+  const difference = Math.round((percentage - subject.class_average) * 100) / 100;
   return difference > CLASS_AVERAGE_TOLERANCE ? 'above' : difference < -CLASS_AVERAGE_TOLERANCE ? 'below' : 'near';
 }
 
