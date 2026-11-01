@@ -62,7 +62,7 @@ async function record(page, role, workspace, measurements) {
       await page.waitForTimeout(120);
       const scrolled = await page.evaluate(measure);
       // A sticky rail may move from its initial document offset to its sticky top.
-      if (!scrolled.rail || scrolled.rail[1]<-1 || scrolled.rail[1]>sample.rail[1]+2) failures.push({role,workspace,width,issues:['desktop sidebar moved out of place while scrolling']});
+      if (!scrolled.rail || scrolled.rail[1]<-1 || scrolled.rail[1]>sample.rail[1]+2) failures.push({role,workspace,width,before:sample.rail,after:scrolled.rail,issues:['desktop sidebar moved out of place while scrolling']});
       await page.mouse.wheel(0,-10000);
       await page.waitForTimeout(120);
     }
@@ -82,6 +82,12 @@ try {
       await page.goto(base+home);
       const nav = page.locator('aside nav.dashboard-navigation:visible').first();
       await nav.waitFor();
+      // School/portal fixtures deliberately reject the realtime stream. Wait for
+      // its status banner before comparing positions across a scroll; otherwise
+      // the banner's insertion is incorrectly reported as a moving sidebar.
+      if (!['superadmin','system-monitor'].includes(role)) {
+        await page.getByText('Live updates are reconnecting. Refresh the workspace to check for recent changes.',{exact:true}).waitFor();
+      }
       await documentFontsReady(page);
       const groups = nav.locator('button[aria-expanded]');
       for (const group of await groups.all()) {
