@@ -62,7 +62,7 @@ describe('Created exams reach assigned subject teachers', () => {
       CREATE TABLE workflow_events (id uuid DEFAULT gen_random_uuid(), tenant_id text, source_user_id uuid, source_role text, target_roles jsonb, event_type text, entity_type text, entity_id text, title text, message text, priority text, payload jsonb);
       CREATE TABLE audit_logs (tenant_id text, actor_user_id uuid, request_id text, action text, resource_type text, resource_id uuid, metadata jsonb);
       CREATE TABLE class_sections (id text PRIMARY KEY, tenant_id text, name text, status text DEFAULT 'active', curriculum_model text DEFAULT 'CBC');
-      CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text,
+      CREATE TABLE academics_grading_systems (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id text, name text DEFAULT 'CBC policy',
         curriculum_model text, rules jsonb, is_active boolean DEFAULT TRUE, archived_at timestamptz,
         effective_from date, effective_to date, updated_at timestamptz DEFAULT NOW(), version integer DEFAULT 1);
       CREATE TABLE academics_report_card_settings (tenant_id text,grading_system_id uuid,is_active boolean,
