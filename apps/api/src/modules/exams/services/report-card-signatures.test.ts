@@ -254,6 +254,8 @@ test('report HTTP endpoints deliver signature and PDF bytes through the global r
     assert.equal((await fetch(signatureUrl, { headers: { 'x-test-tenant': 'school-b' } })).status, 404);
     assert.equal((await fetch(`${base}/${card.id}/signatures/invalid`)).status, 400);
     card.metadata.source_revision = 'old';
-    assert.equal((await fetch(signatureUrl)).status, 409, 'stale reports still require controlled regeneration');
+    assert.equal((await fetch(signatureUrl)).status, 200, 'a released snapshot remains available during pending corrections');
+    card.status = 'draft_generated';
+    assert.equal((await fetch(signatureUrl)).status, 409, 'stale unpublished reports still require controlled regeneration');
   } finally { await app.close(); }
 });

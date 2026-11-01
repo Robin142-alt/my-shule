@@ -1037,6 +1037,7 @@ test('ExamsRepository treats an explicitly opened future mark window as open for
     '00000000-0000-0000-0000-000000000104',
     '00000000-0000-0000-0000-000000000105',
     null,
+    false,
   ]);
 });
 
@@ -2189,6 +2190,7 @@ test('ExamsService blocks regular mark mutation after lock and allows audited of
     {
       findTeacherAssignment: async () => ({ id: 'assignment-1' }),
       findSeriesState: async () => ({ status: 'locked', locked_at: '2026-05-14T08:00:00.000Z', published_at: null }),
+      findOpenMarkEntryWindow: async () => null,
     } as never,
   );
 
@@ -2603,7 +2605,7 @@ test('ExamsRepository publishes a series only when every current report card is 
   ]);
 });
 
-test('ExamsRepository withdraws only current tenant-published report cards and relocks marks', async () => {
+test('ExamsRepository withdraws all tenant-published report revisions and relocks marks', async () => {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new ExamsRepository({
     executeWithTenant: async function(tenantId: string, ctx: any, cb: any) {
@@ -2641,7 +2643,7 @@ test('ExamsRepository withdraws only current tenant-published report cards and r
   assert.match(calls[0]!.sql, /series\.tenant_id = \$1/);
   assert.match(calls[0]!.sql, /series\.status = 'published'/);
   assert.match(calls[0]!.sql, /card\.tenant_id = \$1/);
-  assert.match(calls[0]!.sql, /card\.is_current = TRUE/);
+  assert.doesNotMatch(calls[0]!.sql, /card\.is_current = TRUE/);
   assert.match(calls[0]!.sql, /card\.status = 'published'/);
   assert.match(calls[0]!.sql, /SET status = 'withdrawn'/);
   assert.match(calls[0]!.sql, /INSERT INTO student_report_card_audit_logs/);
@@ -3754,6 +3756,7 @@ test('ExamsRepository derives teacher mark-entry rows from open windows, assessm
     0,
     null,
     null,
+    false,
     false,
     false,
   ]);

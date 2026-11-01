@@ -102,13 +102,13 @@ export const REPORT_CARD_TRANSITION_TARGET_STATUS: Record<string, string> = {
   submit: 'under_review', approve: 'approved', recall: 'draft_generated', publish: 'published', unpublish: 'withdrawn',
 };
 // Shared by preview, individual transitions and batch transitions. NULL means eligible.
-export function reportCardIneligibilitySql(action: string): string {
+export function reportCardIneligibilitySql(action: string, preserveReleased = true): string {
   return `CASE
-  WHEN NOT card.is_current THEN 'This revision has been superseded'
+  WHEN NOT card.is_current AND NOT (${action} = 'export' AND card.status = 'published') THEN 'This revision has been superseded'
   WHEN ${action} = 'regenerate' THEN NULL
   WHEN ${action} = 'export' AND card.status NOT IN ('draft_generated','draft','under_review','approved','published')
     THEN 'This report was withdrawn or needs regeneration'
-  WHEN ${action} IN ('export','submit','approve','publish') AND (
+  WHEN ${action} IN ('export','submit','approve','publish') AND NOT (${preserveReleased ? 'TRUE' : 'FALSE'} AND ${action} = 'export' AND card.status = 'published') AND (
     COALESCE(card.metadata->>'renderer_version','') NOT IN (${COMPATIBLE_REPORT_RENDERER_VERSIONS.map(version => `'${version}'`).join(',')})
     OR (card.metadata->>'source_valid_until')::timestamptz <= now()
     OR COALESCE(card.metadata->>'source_revision','null')::jsonb IS DISTINCT FROM
@@ -133,13 +133,26 @@ export function reportCardIneligibilitySql(action: string): string {
     NULLIF(BTRIM(card.metadata->'report_card'->'template_fields'->>'class_teacher_comment'), '') IS NULL
     OR NULLIF(BTRIM(card.metadata->'report_card'->'template_fields'->>'principal_comment'), '') IS NULL
   ) THEN 'Complete the class teacher and principal comments'
-  WHEN ${action} IN ('submit', 'publish') AND EXISTS (
+  WHEN ${action} IN ('submit', 'approve', 'publish') AND (card.metadata->>'awaiting_final_marks'='true' OR EXISTS (
     SELECT 1 FROM exam_marks mark WHERE mark.tenant_id = card.tenant_id
     AND mark.exam_series_id = card.exam_series_id AND mark.student_id = card.student_id
     AND mark.status NOT IN ('locked', 'published')
-  ) THEN 'Marks must be reviewed and locked before release'
+  )) THEN 'Marks must be reviewed and locked before release'
   ELSE NULL END`;
 }
+// A draft may be current for staff workflows while the prior Principal release
+// remains the official student/guardian result.
+export function latestPublishedReportSql(alias = 'card'): string {
+  return `${alias}.status = 'published' AND NOT EXISTS (
+    SELECT 1 FROM student_report_cards newer_release
+    WHERE newer_release.tenant_id = ${alias}.tenant_id
+      AND newer_release.exam_series_id = ${alias}.exam_series_id
+      AND newer_release.student_id = ${alias}.student_id
+      AND newer_release.status IN ('published', 'withdrawn')
+      AND newer_release.revision_number > ${alias}.revision_number
+  )`;
+}
+
 export function reportCardPreviewToken(scope: ReportCardScope, action: string, cards: Record<string, any>[]) {
   return createHash('sha256').update(JSON.stringify({ scope, action, cards: cards.map(card => [card.id, card.workflow_version, card.updated_at, card.ineligible_reason]) })).digest('hex');
 }

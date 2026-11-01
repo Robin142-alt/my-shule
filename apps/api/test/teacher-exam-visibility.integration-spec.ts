@@ -279,7 +279,8 @@ describe('Created exams reach assigned subject teachers', () => {
     expect(await windowFor(created.exam.id)).toBeUndefined();
     expect((await teacher.getPendingMarks('school-a', ids.teacher)).windows.some(row => row.id === window.id)).toBe(false);
     expect((await exams.getMarks({ exam_series_id: created.exam.id })).data).toHaveLength(0);
-    await expect(save(window)).rejects.toThrow();
+    await save(window); // An identical save preserves submission.
+    await expect(save(window,'draft',ids.student,73)).rejects.toThrow();
     expect((await pool.query(`SELECT status FROM exam_marks WHERE exam_series_id=$1`, [created.exam.id])).rows[0].status).toBe('submitted');
     expect((await pool.query(`SELECT action FROM exam_mark_audit_logs WHERE exam_series_id=$1`, [created.exam.id])).rows.map(row => row.action)).toEqual(expect.arrayContaining(['grade.created', 'grade.submitted']));
     expect((await pool.query('SELECT event_type FROM workflow_events WHERE entity_id=$1', [created.exam.id])).rows).toEqual(expect.arrayContaining([expect.objectContaining({ event_type: 'exams.exam-setup.created' })]));
@@ -509,7 +510,7 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'everyone',closes_at:deadline})).window_count).toBe(2);
     expect(await windowFor(created.exam.id,ids.secondClass)).toMatchObject({canEnter:true});
     expect(await windowFor(other.exam.id)).toMatchObject({canEnter:false});
-    expect((await pool.query('SELECT status FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].status).toBe('draft');
+    expect((await pool.query('SELECT status FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].status).toBe('locked');
     await save(first, 'draft', ids.student, 65);
     expect((await pool.query('SELECT score::float FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].score).toBe(65);
   });
@@ -530,66 +531,41 @@ describe('Created exams reach assigned subject teachers', () => {
     expect((await pool.query(`SELECT COUNT(*)::int AS n FROM exam_mark_audit_logs WHERE exam_series_id=$1 AND action='mark_entry.opened'`,[created.exam.id])).rows[0].n).toBe(0);
   });
 
-  it.each(['locked', 'published'] as const)('reopens a %s exam only for the selected teacher, preserving other ownership and streams', async status => {
+  it.each(['locked', 'published'] as const)('grants selected teacher correction access to a %s exam without invalidating unchanged results', async status => {
     const fixture = await protectedExam(status);
-    const opened = await manager.openMarksEntry({ exam_series_id: fixture.examId, scope: 'teacher', teacher_user_id: ids.teacher,
-      closes_at: new Date(Date.now() + 86400000).toISOString() });
-    expect(opened).toMatchObject({ success: true, window_count: 1 });
-    expect((await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.find(row => row.examSeriesId === fixture.examId))
-      .toMatchObject({ canEnter: true, classSectionId: fixture.class });
-    const marks = (await pool.query(`SELECT student_id,status,locked_at,published_at FROM exam_marks WHERE tenant_id='school-a' AND exam_series_id=$1`, [fixture.examId])).rows;
-    expect(marks.find(row => row.student_id === fixture.student)).toMatchObject({ status: 'draft', locked_at: null, published_at: null });
-    expect(marks.filter(row => row.student_id !== fixture.student).map(row => row.status)).toEqual([status, status, status]);
-    const roster = await repository.getMarks('school-a', { exam_series_id: fixture.examId, teacher_user_id: ids.teacher });
-    expect(roster.map(row => row.student_id)).toContain(fixture.student);
-    expect(roster.map(row => row.student_id)).not.toContain(fixture.otherStreamStudent);
-    expect(roster.map(row => row.student_id)).not.toContain(fixture.secondStudent);
-    await saveCorrection(fixture, fixture.student);
-    await expect(saveCorrection(fixture, fixture.sharedStudent)).rejects.toThrow();
-    await expect(saveCorrection(fixture, fixture.otherStreamStudent)).rejects.toThrow();
-    await expect(saveCorrection(fixture, fixture.secondStudent, ids.otherTeacher)).rejects.toThrow();
-    expect(await repository.getMarks('school-a', { exam_series_id: fixture.examId, teacher_user_id: ids.otherTeacher })).toHaveLength(0);
-    const remainingWindows = (await pool.query(`SELECT status,teacher_entry_deadlines FROM exam_mark_entry_windows WHERE exam_series_id=$1`, [fixture.examId])).rows;
-    expect(remainingWindows.every(row => row.status === 'closed')).toBe(true);
-    expect(remainingWindows.every(row => !(ids.otherTeacher in row.teacher_entry_deadlines))).toBe(true);
-    expect((await pool.query(`SELECT actor_user_id,metadata FROM exam_mark_audit_logs
-      WHERE tenant_id='school-a' AND exam_series_id=$1 AND action='mark_entry.reopened'`, [fixture.examId])).rows)
-      .toEqual([expect.objectContaining({ actor_user_id: ids.manager, metadata: expect.objectContaining({ previous_status: status, scope: 'teacher' }) })]);
-    const cards = (await pool.query(`SELECT tenant_id,student_id,status,is_current FROM student_report_cards WHERE exam_series_id=$1`, [fixture.examId])).rows;
-    expect(cards.filter(row => row.tenant_id === 'school-a' && row.is_current && [fixture.student, fixture.sharedStudent].includes(row.student_id))
-      .map(row => row.status)).toEqual(['regeneration_required', 'regeneration_required']);
-    expect(cards.filter(row => row.tenant_id === 'school-a' && row.is_current && [fixture.otherStreamStudent, fixture.secondStudent].includes(row.student_id))
-      .map(row => row.status)).toEqual([status === 'published' ? 'published' : 'approved', status === 'published' ? 'published' : 'approved']);
-    expect(cards.filter(row => row.tenant_id === 'school-b' || !row.is_current).map(row => row.status)).toEqual(['published', 'published']);
-    expect((await pool.query(`SELECT actor_user_id FROM student_report_card_audit_logs WHERE exam_series_id=$1
-      AND tenant_id='school-a' AND action='report_card.regeneration_required'`, [fixture.examId])).rows)
-      .toEqual([expect.objectContaining({ actor_user_id: ids.manager }), expect.objectContaining({ actor_user_id: ids.manager })]);
-    expect((await pool.query(`SELECT status,score::float FROM exam_marks WHERE tenant_id='school-b' AND exam_series_id=$1`, [fixture.examId])).rows)
-      .toEqual([{ status: 'published', score: 42 }]);
-    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ event: expect.objectContaining({
-      type: 'exam.mark_entry_opened', entityId: fixture.examId,
-    }), notifications: expect.arrayContaining([expect.objectContaining({ targetUserId: ids.teacher })]) })]));
+    const beforeMarks=(await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows;
+    const beforeCards=(await pool.query('SELECT * FROM student_report_cards WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows;
+    await manager.openMarksEntry({exam_series_id:fixture.examId,scope:'teacher',teacher_user_id:ids.teacher,
+      closes_at:new Date(Date.now()+86400000).toISOString()});
+    expect((await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows).toEqual(beforeMarks);
+    expect((await pool.query('SELECT * FROM student_report_cards WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows).toEqual(beforeCards);
+    expect((await pool.query('SELECT status FROM exam_series WHERE id=$1',[fixture.examId])).rows[0].status).toBe(status);
+    expect((await teacher.getPendingMarks('school-a',ids.teacher,true)).windows.find(row=>row.examSeriesId===fixture.examId))
+      .toMatchObject({canEnter:true,classSectionId:fixture.class});
+    await saveCorrection(fixture,fixture.student);
+    await expect(saveCorrection(fixture,fixture.sharedStudent)).rejects.toThrow();
+    await expect(saveCorrection(fixture,fixture.otherStreamStudent)).rejects.toThrow();
+    await expect(saveCorrection(fixture,fixture.secondStudent,ids.otherTeacher)).rejects.toThrow();
+    expect((await pool.query('SELECT status FROM exam_marks WHERE tenant_id=\'school-a\' AND exam_series_id=$1 AND student_id=$2',[fixture.examId,fixture.student])).rows[0].status).toBe('draft');
+    const changed=(await pool.query("SELECT * FROM student_report_cards WHERE tenant_id='school-a' AND exam_series_id=$1 AND student_id=$2 AND is_current",[fixture.examId,fixture.student])).rows[0];
+    expect(changed.status).toBe(status==='published'?'published':'regeneration_required');
+    expect(changed.metadata.correction_pending).toBe(true);
+    expect((await pool.query("SELECT status,score::float FROM exam_marks WHERE tenant_id='school-b' AND exam_series_id=$1",[fixture.examId])).rows)
+      .toEqual([{status:'published',score:42}]);
   });
 
-  it.each(['class', 'everyone'] as const)('opens %s scope on a published exam for real corrections and invalidates only affected current cards', async scope => {
-    const fixture = await protectedExam('published', ids.otherTeacher);
-    await manager.openMarksEntry({ exam_series_id: fixture.examId, scope,
-      ...(scope === 'class' ? { class_section_id: fixture.class } : {}),
-      closes_at: new Date(Date.now() + 86400000).toISOString() });
-    const selectedStudents = fixture.students.filter(row => scope === 'everyone' || row.classId === fixture.class);
-    expect((await pool.query(`SELECT COUNT(*)::int AS n FROM exam_marks WHERE tenant_id='school-a' AND exam_series_id=$1 AND status='draft'`, [fixture.examId])).rows[0].n)
-      .toBe(selectedStudents.length);
-    expect((await pool.query(`SELECT COUNT(*)::int AS n FROM student_report_cards WHERE tenant_id='school-a' AND exam_series_id=$1 AND is_current AND status='regeneration_required'`, [fixture.examId])).rows[0].n)
-      .toBe(selectedStudents.length);
-    await saveCorrection(fixture, fixture.student);
-    await saveCorrection(fixture, fixture.otherStreamStudent, ids.otherTeacher);
-    await expect(saveCorrection(fixture, fixture.sharedStudent)).rejects.toThrow();
-    if (scope === 'class') {
-      await expect(saveCorrection(fixture, fixture.secondStudent, ids.otherTeacher)).rejects.toThrow();
-      expect((await pool.query(`SELECT status FROM exam_marks WHERE tenant_id='school-a' AND exam_series_id=$1 AND student_id=$2`, [fixture.examId, fixture.secondStudent])).rows[0].status).toBe('published');
-    } else {
-      await saveCorrection(fixture, fixture.secondStudent, ids.otherTeacher);
-    }
+  it.each(['class','everyone'] as const)('grants %s correction access while preserving all unchanged published marks and reports',async scope=>{
+    const fixture=await protectedExam('published',ids.otherTeacher);
+    const beforeMarks=(await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows;
+    const beforeCards=(await pool.query('SELECT * FROM student_report_cards WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows;
+    await manager.openMarksEntry({exam_series_id:fixture.examId,scope,...(scope==='class'?{class_section_id:fixture.class}:{}),closes_at:new Date(Date.now()+86400000).toISOString()});
+    expect((await pool.query('SELECT * FROM exam_marks WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows).toEqual(beforeMarks);
+    expect((await pool.query('SELECT * FROM student_report_cards WHERE exam_series_id=$1 ORDER BY id',[fixture.examId])).rows).toEqual(beforeCards);
+    await saveCorrection(fixture,fixture.student);
+    await saveCorrection(fixture,fixture.otherStreamStudent,ids.otherTeacher);
+    await expect(saveCorrection(fixture,fixture.sharedStudent)).rejects.toThrow();
+    if(scope==='class')await expect(saveCorrection(fixture,fixture.secondStudent,ids.otherTeacher)).rejects.toThrow();
+    else await saveCorrection(fixture,fixture.secondStudent,ids.otherTeacher);
   });
 
   it('rolls back protected marks, current cards and series access when reopening cannot emit its event', async () => {
@@ -672,13 +648,13 @@ describe('Created exams reach assigned subject teachers', () => {
       await teacher.saveAssistedMarks(undefined,{examId:book.id,classSectionId:classId,assessmentId:book.assessmentId,
         action:'submit',marks:{[white]:{score:0,score_status:'entered'}}},['white']);
       expect((await teacher.getAssistedMarkbooks(undefined,['white'])).windows.find(row=>row.examSeriesId===created.exam.id))
-        .toMatchObject({totalStudents:1,enteredCount:1,status:'Submitted',canEnter:false});
+        .toMatchObject({totalStudents:1,enteredCount:1,status:'Submitted',canEnter:true});
       expect((await teacher.getAssistedMarkbooks(ids.teacher,['blue'])).windows.find(row=>row.examSeriesId===created.exam.id))
         .toMatchObject({totalStudents:1,enteredCount:0,status:'Not started',canEnter:true});
     } finally {activeContext=teacherContext;}
   });
 
-  it.each(['open','draft','closed','submitted-sheet','locked','published'] as const)('saves and submits a never-assigned subject after authorized opening from %s', async state => {
+  it.each(['open','draft','closed','submitted-sheet','locked','published'] as const)('saves and submits a never-assigned subject administratively from %s', async state => {
     const classId=randomUUID(),subjectId=randomUUID(),studentId=randomUUID();
     await pool.query(`INSERT INTO class_sections(id,tenant_id,name) VALUES ($1,'school-a','Never assigned class')`,[classId]);
     await pool.query(`INSERT INTO subjects VALUES ($1,'school-a','Never assigned subject')`,[subjectId]);
@@ -695,23 +671,18 @@ describe('Created exams reach assigned subject teachers', () => {
       if(state==='submitted-sheet') await teacher.saveAssistedMarks(undefined,{...payload,action:'submit'});
       if(state==='closed') await pool.query(`UPDATE exam_mark_entry_windows SET status='closed' WHERE id=$1`,[book.id]);
       if(state==='locked'||state==='published') await pool.query(`UPDATE exam_series SET status=$2,locked_at=NOW(),published_at=CASE WHEN $2='published' THEN NOW() END WHERE id=$1`,[created.exam.id,state]);
-      if(state!=='open') {
-        await expect(teacher.saveAssistedMarks(undefined,payload)).rejects.toThrow();
-        if(state==='draft') await manager.configureExamSetup(created.exam.id,{name:`Opened draft ${serial}`,status:'submitted',
-          starts_on:futureDate(0),ends_on:futureDate(7),configuration_version:1,class_subjects:[{class_section_id:classId,subject_ids:[subjectId]}],max_marks:80});
-        await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'class',class_section_id:classId,closes_at:new Date(Date.now()+86400000).toISOString()});
-      }
       await teacher.saveAssistedMarks(undefined,payload);
       await teacher.saveAssistedMarks(undefined,{...payload,marks:{[studentId]:{score:64,score_status:'entered'}}});
       await teacher.saveAssistedMarks(undefined,{...payload,action:'submit',marks:{[studentId]:{score:64,score_status:'entered'}}});
       book=(await teacher.getAssistedMarkbooks()).windows.find(row=>row.examSeriesId===created.exam.id)!;
-      expect(book).toMatchObject({status:'Submitted',enteredCount:1,totalStudents:1,canEnter:false});
+      expect(book).toMatchObject({status:'Submitted',enteredCount:1,totalStudents:1,canEnter:true});
       expect((await repository.getMarks('school-a',{exam_series_id:created.exam.id,view:'all'}))).toEqual([
         expect.objectContaining({score:64,status:'submitted',entered_by_user_id:ids.manager,updated_by_user_id:ids.manager,assigned_teacher_user_id:null}),
       ]);
       expect((await pool.query(`SELECT COUNT(*)::int AS n FROM teacher_subject_assignments WHERE tenant_id='school-a' AND class_section_id=$1`,[classId])).rows[0].n).toBe(0);
       expect((await manager.getTeacherMarkProgress()).entries.find(row=>row.exam_id===created.exam.id)).toMatchObject({recorded:1,missing:0,is_submitted:true,status:'Submitted'});
-      await expect(teacher.saveAssistedMarks(undefined,payload)).rejects.toThrow();
+      await teacher.saveAssistedMarks(undefined,payload);
+      expect((await manager.getTeacherMarkProgress()).entries.find(row=>row.exam_id===created.exam.id)).toMatchObject({status:'Resubmission Required'});
     } finally {activeContext=teacherContext;}
   });
 
@@ -748,7 +719,7 @@ describe('Created exams reach assigned subject teachers', () => {
     }
   });
 
-  it('shows genuinely blank learners on submitted sheets instead of shrinking the roster',async()=>{
+  it('shows genuinely blank learners in the outstanding roster when a submitted sheet becomes incomplete',async()=>{
     const created=await createExam(); const window=await windowFor(created.exam.id);
     await save(window,'submit');
     const student=randomUUID();
@@ -756,14 +727,14 @@ describe('Created exams reach assigned subject teachers', () => {
     await pool.query(`INSERT INTO student_class_assignments(tenant_id,student_id,class_section_id,stream_id) SELECT 'school-a',$1,$2,stream_id FROM student_class_assignments WHERE tenant_id='school-a' AND student_id=$3 LIMIT 1`,[student,ids.class,ids.student]);
     await pool.query(`INSERT INTO student_subject_enrollments(tenant_id,student_id,class_section_id,subject_id) VALUES ('school-a',$1,$2,$3)`,[student,ids.class,ids.subject]);
     try{
-      const rows=await repository.getMarks('school-a',{exam_series_id:created.exam.id,assessment_id:window.assessmentId,teacher_user_id:ids.teacher,view:'submitted'});
+      const rows=await repository.getMarks('school-a',{exam_series_id:created.exam.id,assessment_id:window.assessmentId,teacher_user_id:ids.teacher,view:'all'});
       expect(rows).toHaveLength(2);expect(rows.find(row=>row.student_id===student)).toMatchObject({id:null,score:null});
     }finally{
       await pool.query('DELETE FROM student_subject_enrollments WHERE student_id=$1',[student]);await pool.query('DELETE FROM student_class_assignments WHERE student_id=$1',[student]);await pool.query('DELETE FROM students WHERE id=$1',[student]);
     }
   });
 
-  it('allows manager entry in an unassigned stream while protecting a submitted stream and its unresolved blanks', async () => {
+  it('allows manager corrections in assigned and unassigned streams while preserving existing submitted scores', async () => {
     const created = await createExam('submitted', [ids.secondClass]); const window = await windowFor(created.exam.id, ids.secondClass);
     const red = randomUUID(); const blankBlue = randomUUID();
     await pool.query(`UPDATE student_class_assignments SET stream_id='blue' WHERE student_id=$1`, [ids.secondStudent]);
@@ -782,12 +753,12 @@ describe('Created exams reach assigned subject teachers', () => {
     try {
       await command(red,'draft');
       const rows = await repository.getMarks('school-a',{exam_series_id:created.exam.id,view:'all'});
-      expect(rows.find(row=>row.student_id===blankBlue)).toMatchObject({id:null,can_edit:false});
+      expect(rows.find(row=>row.student_id===blankBlue)).toMatchObject({id:null,can_edit:true});
       expect(rows.find(row=>row.student_id===red)).toMatchObject({can_edit:true});
-      await expect(command(blankBlue,'draft')).rejects.toThrow();
+      await command(blankBlue,'draft');
       await command(red,'submit');
       expect((await pool.query(`SELECT status FROM exam_marks WHERE exam_series_id=$1 AND student_id=$2`,[created.exam.id,red])).rows[0].status).toBe('submitted');
-      expect((await pool.query(`SELECT id FROM exam_marks WHERE exam_series_id=$1 AND student_id=$2`,[created.exam.id,blankBlue])).rowCount).toBe(0);
+      expect((await pool.query(`SELECT id FROM exam_marks WHERE exam_series_id=$1 AND student_id=$2`,[created.exam.id,blankBlue])).rowCount).toBe(1);
     } finally {
       activeContext=teacherContext;
       for (const student of [red,blankBlue]) {
@@ -815,7 +786,8 @@ describe('Created exams reach assigned subject teachers', () => {
     expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ event: expect.objectContaining({
       actorRole: 'exams_manager', payload: expect.objectContaining({ assigned_teacher_user_id: ids.teacher }),
     }), notifications: expect.arrayContaining([expect.objectContaining({ targetUserId: ids.teacher })]) })]));
-    await expect(assist(window)).rejects.toThrow();
+    await assist(window);
+    expect((await pool.query('SELECT status FROM exam_marks WHERE exam_series_id=$1',[created.exam.id])).rows[0].status).toBe('draft');
   });
 
   it('keeps a teacher as original editor when a manager edits and submits their draft', async () => {
@@ -841,24 +813,24 @@ describe('Created exams reach assigned subject teachers', () => {
       .toEqual({ score: 62, status: 'draft' });
   });
 
-  it.each(['locked', 'published', 'archived'] as const)('denies assisted writes to %s exams', async status => {
+  it.each(['archived'] as const)('denies assisted writes to %s exams', async status => {
     const created = await createExam(); const window = await windowFor(created.exam.id);
     await pool.query('UPDATE exam_series SET status=$2 WHERE id=$1', [created.exam.id, status]);
     await expect(assist(window)).rejects.toThrow();
     expect((await pool.query('SELECT id FROM exam_marks WHERE exam_series_id=$1', [created.exam.id])).rows).toHaveLength(0);
   });
 
-  it('respects closed windows, teacher-specific extensions, score bounds and stream assignments', async () => {
+  it('preserves administrative access independently of locks while enforcing score bounds and stream assignments', async () => {
     const fixture = await protectedExam('locked');
     await manager.openMarksEntry({ exam_series_id: fixture.examId, scope: 'teacher', teacher_user_id: ids.teacher,
       closes_at: new Date(Date.now() + 86400000).toISOString() });
     const window = (await teacher.getPendingMarks('school-a', ids.teacher, true)).windows.find(row => row.examSeriesId === fixture.examId)!;
     await expect(assist(window, fixture.student, 81)).rejects.toThrow();
     await expect(assist(window, fixture.otherStreamStudent)).rejects.toThrow();
-    await expect(assist(window, fixture.otherStreamStudent, 61, ids.otherTeacher)).rejects.toThrow();
+    await assist(window, fixture.otherStreamStudent, 61, ids.otherTeacher);
     await assist(window, fixture.student, 61);
     await manager.lockMarksEntry(window.id);
-    await expect(assist(window, fixture.student)).rejects.toThrow();
+    await assist(window, fixture.student);
   });
 
   it('isolates assisted discovery and mutations to the authenticated school and assigned teacher', async () => {
@@ -1087,6 +1059,7 @@ describe('Created exams reach assigned subject teachers', () => {
         examId:window.id,classSectionId:classId,assessmentId:window.assessmentId,action:'submit',
         marks:{[learner]:{score:null,score_status:'X'},[peer]:{score:67,score_status:'entered'}},
       });
+      if (submit) await manager.openMarksEntry({exam_series_id:created.exam.id,scope:'teacher',teacher_user_id:ids.teacher,closes_at:new Date(Date.now()+86400000).toISOString()});
       const marks = () => pool.query(`SELECT *,updated_at::text AS exact_updated_at FROM exam_marks
         WHERE tenant_id='school-a' AND exam_series_id=$1 ORDER BY student_id`,[created.exam.id]).then(result=>result.rows);
       const command = async (score_status = 'Y') => ({
@@ -1118,7 +1091,7 @@ describe('Created exams reach assigned subject teachers', () => {
         await patch(dto).expect(403);
         activeContext=teacherContext;
         const response=await patch(dto).expect(200);
-        expect(response.body.data).toMatchObject({student_id:fixture.learner,score_status:'absent',status:'submitted',score:null});
+        expect(response.body.data).toMatchObject({student_id:fixture.learner,score_status:'absent',status:'draft',score:null});
         await patch(dto).expect(409);
         expect((await fixture.marks()).find(row=>row.student_id===fixture.learner).score_status).toBe('absent');
       } finally {activeContext=teacherContext;await app.close();}
@@ -1135,7 +1108,7 @@ describe('Created exams reach assigned subject teachers', () => {
       expect(await fixture.marks()).toEqual([expect.objectContaining({score_status:'absent',status:'draft'})]);
     });
 
-    it.each(['teacher','manager'])('corrects a submitted reason as %s without resubmission or changing other marks', async role => {
+    it.each(['teacher','manager'])('requires resubmission after a real submitted reason correction by %s while preserving other marks', async role => {
       const fixture = await missingReasonFixture();
       const before = await fixture.marks();
       const submissionsBefore = submissions.length;
@@ -1149,7 +1122,7 @@ describe('Created exams reach assigned subject teachers', () => {
       expect(after.find(row=>row.student_id===fixture.peer)).toEqual(before.find(row=>row.student_id===fixture.peer));
       const original = before.find(row=>row.student_id===fixture.learner);
       expect(after.find(row=>row.student_id===fixture.learner)).toMatchObject({
-        id:original.id,score:null,score_status:'Y',status:'submitted',submitted_at:original.submitted_at,
+        id:original.id,score:null,score_status:'Y',status:'draft',submitted_at:original.submitted_at,
         entered_by_user_id:ids.teacher,updated_by_user_id:role==='manager'?ids.manager:ids.teacher,
       });
       expect(submissions).toHaveLength(submissionsBefore);
@@ -1202,28 +1175,32 @@ describe('Created exams reach assigned subject teachers', () => {
       expect(await fixture.marks()).toEqual(before);
     });
 
-    it.each(['reviewed','locked','published'])('requires controlled correction for %s marks', async status => {
-      const fixture = await missingReasonFixture();
+    it.each(['reviewed','locked','published'])('permits audited administrative reason correction of %s marks',async status=>{
+      const fixture=await missingReasonFixture();
       await pool.query('UPDATE exam_marks SET status=$2 WHERE exam_series_id=$1',[fixture.examId,status]);
-      const before = await fixture.marks(); activeContext = managerContext;
-      try { await expect(correctReason(await fixture.command())).rejects.toThrow(); }
-      finally { activeContext = teacherContext; }
-      expect(await fixture.marks()).toEqual(before);
+      activeContext=managerContext;
+      try { await correctReason(await fixture.command()); } finally {activeContext=teacherContext;}
+      expect((await fixture.marks()).find(row=>row.student_id===fixture.learner)).toMatchObject({score_status:'Y',status:'draft'});
     });
-
-    it.each(['locked','published','archived'])('rejects reason edits when the examination is %s', async status => {
-      const fixture = await missingReasonFixture();
+    it.each(['locked','published'])('permits administrative reason correction in a %s examination',async status=>{
+      const fixture=await missingReasonFixture();
       await pool.query('UPDATE exam_series SET status=$2 WHERE id=$1',[fixture.examId,status]);
-      const before = await fixture.marks(); activeContext = managerContext;
-      try { await expect(correctReason(await fixture.command())).rejects.toThrow(); }
-      finally { activeContext = teacherContext; }
+      activeContext=managerContext;
+      try { await correctReason(await fixture.command()); } finally {activeContext=teacherContext;}
+      expect((await fixture.marks()).find(row=>row.student_id===fixture.learner)).toMatchObject({score_status:'Y',status:'draft'});
+    });
+    it('rejects administrative corrections in archived examinations',async()=>{
+      const fixture=await missingReasonFixture();
+      await pool.query("UPDATE exam_series SET status='archived' WHERE id=$1",[fixture.examId]);
+      const before=await fixture.marks();activeContext=managerContext;
+      try{await expect(correctReason(await fixture.command())).rejects.toThrow();}finally{activeContext=teacherContext;}
       expect(await fixture.marks()).toEqual(before);
     });
 
     it('rejects closed entry and stale paper configuration without changing the reason', async () => {
       const fixture = await missingReasonFixture(); const dto = await fixture.command(); const before = await fixture.marks();
       await expect(correctReason({...dto,paper_config_version:dto.paper_config_version+1})).rejects.toThrow();
-      await pool.query(`UPDATE exam_mark_entry_windows SET status='closed' WHERE id=$1`,[fixture.window.id]);
+      await pool.query(`UPDATE exam_mark_entry_windows SET status='closed',teacher_entry_deadlines='{}'::jsonb WHERE id=$1`,[fixture.window.id]);
       await expect(correctReason(dto)).rejects.toThrow();
       expect(await fixture.marks()).toEqual(before);
     });

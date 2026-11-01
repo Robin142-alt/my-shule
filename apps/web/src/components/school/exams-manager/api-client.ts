@@ -75,6 +75,14 @@ export async function submitMarks(data: any) {
   return requestDashboardApi('/admin-command/exams-manager/marks-entry', { method: 'POST', body: data });
 }
 
+export async function submitAssistedMarkbook(data: {
+  mark_entry_window_id: string; assessment_id: string; teacher_user_id: string | null;
+  stream_ids: string[]; expected_revision: string;
+}) {
+  return requestDashboardApi<{ success: boolean; message: string; data: { status: string; submitted_count: number } }>(
+    '/exams/assisted-marks-entry/submit', { method: 'POST', body: data });
+}
+
 export async function lockMarksEntry(examId: string) {
   return requestDashboardApi(`/admin-command/exams-manager/marks-entry/${examId}/lock`, { method: 'POST' });
 }

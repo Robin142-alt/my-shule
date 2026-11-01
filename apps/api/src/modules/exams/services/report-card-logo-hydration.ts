@@ -1,6 +1,7 @@
 import type { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import type { ReportCardPayload } from './report-card-template.service';
-import { BadRequestException,ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
+import { classifyReportCardFailure, ReportProcessingFailure } from './report-card-generation-resilience';
 
 type ReportCardImageStorage = Pick<DatabaseFileStorageService, 'readForTenant'>;
 
@@ -40,8 +41,15 @@ export async function hydrateReportCardLogoForRendering(
     let storedImage: Awaited<ReturnType<ReportCardImageStorage['readForTenant']>>;
     try {
       storedImage = await fileStorage.readForTenant({ tenantId, storagePath });
-    } catch {
-      if (strict) throw new ServiceUnavailableException('A report signature or school logo could not be read. Retry after storage recovers.');
+    } catch (error) {
+      if (strict) {
+        if (error instanceof BadRequestException) throw new ReportProcessingFailure('REPORT_IMAGE_CONFIGURATION',
+          'A required report logo or signature is missing or invalid. Repair the school image before retrying.', false, error);
+        const failure = classifyReportCardFailure(error);
+        if (failure.code !== 'REPORT_GENERATION_ERROR') throw new ReportProcessingFailure(failure.code, failure.message, failure.retryable, error);
+        throw new ReportProcessingFailure('REPORT_STORAGE_UNAVAILABLE',
+          'A report signature or school logo could not be read. Retry after storage recovers.', true, error);
+      }
       return;
     }
     const mimeType = storedImage.mime_type.trim().toLowerCase();
@@ -50,7 +58,7 @@ export async function hydrateReportCardLogoForRendering(
       storedImage.stored_path !== storagePath
       || !IMAGE_MIME_TYPE_PATTERN.test(mimeType)
     ) {
-      if (strict) throw new ServiceUnavailableException('A report image is invalid. Repair the image and regenerate the report.');
+      if (strict) throw new ReportProcessingFailure('REPORT_IMAGE_CONFIGURATION', 'A report image is invalid. Repair the image and regenerate the report.', false);
       return;
     }
 

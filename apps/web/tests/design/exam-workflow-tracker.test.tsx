@@ -70,6 +70,24 @@ function renderWorkspace(element: ReactElement) {
 
 beforeEach(() => jest.clearAllMocks());
 
+it("offers Principal release for corrected draft cards in an already published exam", async () => {
+  mockRequest.mockImplementation(async (path) => {
+    if (path === "/exams/workflow") return workflow([]);
+    if (path === "/admin-command/principal/exams") return {
+      status: "active", activeExams: 0, reportsPending: 1, missingMarksAlerts: 0,
+      averageScore: 0, performanceTrend: [], recentResults: [{
+        id: "exam-1", title: "Corrected term results", status: "published",
+        startsOn: "2026-09-01", endsOn: "2026-09-19", totalReportCards: 11,
+        approvedReportCards: 1, publishedReportCards: 10, blockedReportCards: 0, canPublish: true,
+      }],
+    };
+    if (path === "/academics/academic-years" || path === "/academics/academic-terms") return [];
+    throw new Error(`Unexpected request: ${path}`);
+  });
+  renderWorkspace(<PrincipalExamsReportsWorkspace />);
+  expect(await screen.findByRole("button", { name: "Publish generated cards" })).toBeEnabled();
+});
+
 it("moves directly from generated cards to Principal release while retaining Dean mark review and locking", async () => {
   const generated = exam("principal_release", "Generated cards ready for release");
   generated.counts.approved_report_cards = 0;

@@ -1,4 +1,21 @@
 import { BadRequestException, ConflictException, HttpException, NotFoundException } from '@nestjs/common';
+import { ObjectStorageFailure } from '../../../common/uploads/s3-object-storage.service';
+
+export class ReportProcessingFailure extends Error {
+  constructor(readonly code: string, message: string, readonly retryable: boolean, readonly cause?: unknown) {
+    super(message);
+    this.name = 'ReportProcessingFailure';
+  }
+}
+
+export function reportFailureDiagnostics(error: unknown) {
+  let current = error;
+  for (let depth = 0; current && depth < 5; depth++) {
+    if (current instanceof ObjectStorageFailure) return { operation: current.operation, storage_status: current.storageStatus ?? null };
+    current = typeof current === 'object' ? (current as { cause?: unknown }).cause : undefined;
+  }
+  return {};
+}
 
 export interface ReportCardFailure {
   student_id: string;
@@ -10,6 +27,13 @@ export interface ReportCardFailure {
 }
 
 export function classifyReportCardFailure(error: unknown) {
+  if (error instanceof ReportProcessingFailure) return { code: error.code, message: error.message, retryable: error.retryable };
+  if (error instanceof ObjectStorageFailure) {
+    if (error.storageStatus && error.storageStatus >= 400 && error.storageStatus < 500 && ![408, 429].includes(error.storageStatus)) {
+      return { code: 'REPORT_STORAGE_CONFIGURATION', message: 'Report storage credentials, permissions or a required file need repair. Contact the administrator with the batch reference, then retry.', retryable: false };
+    }
+    return { code: 'REPORT_STORAGE_UNAVAILABLE', message: 'Report storage is temporarily unavailable. Retry; current completed cards will be reused.', retryable: true };
+  }
   const record = error && typeof error === 'object' ? error as Record<string, any> : {};
   // Prisma wraps PostgreSQL SQLSTATE in meta; never send SQL or driver messages to the browser.
   const code = String(record.meta?.code ?? record.meta?.driverAdapterError?.cause?.originalCode ?? record.code ?? '');

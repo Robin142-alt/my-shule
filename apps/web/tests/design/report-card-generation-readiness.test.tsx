@@ -167,5 +167,6 @@ it('stops subsequent pages on a schema failure and identifies the affected learn
   await user.click(screen.getByRole('button', { name: 'Generate class report cards' }));
   await waitFor(() => expect(screen.getByText(/24 cards ready, 1 failed and 35 not yet processed/)).toBeVisible());
   expect(requestSchoolApiProxy).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByText('Individual failure details (1)'));
   expect(screen.getByText('Test Learner:')).toBeVisible();
 });

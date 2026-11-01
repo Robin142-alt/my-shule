@@ -1029,12 +1029,29 @@ export class ExamsService {
     return this.persistValidatedMark(validated, tenantId, actorUserId, 'grade.updated');
   }
 
+  async submitAdministrativeMarkbook(input: import('./dto/submit-administrative-markbook.dto').SubmitAdministrativeMarkbookDto) {
+    const { tenantId } = requireAssistedMarkEntryScope(this.requestContext.getStore());
+    const scope = await this.repository.loadAdministrativeMarkbook({ ...input,tenant_id:tenantId });
+    if (!scope) throw new BadRequestException('This markbook has no eligible learners in this school. Refresh the panel.');
+    if (scope.revision !== input.expected_revision || scope.is_submitted) {
+      throw new ConflictException('This markbook changed or was already submitted. Refresh before submitting.');
+    }
+    const missing = scope.marks.filter((mark: any) => !mark.mark_id || !mark.score_status || (mark.score_status === 'entered' && mark.score == null)).length;
+    if (missing) throw new BadRequestException(`${missing} learner mark ${missing === 1 ? 'entry is' : 'entries are'} missing. Enter marks or an assessment reason before submitting.`);
+    return this.saveTeacherMarkEntries(scope.marks.map((mark: any,index: number) => ({
+      ...mark,row_number:index+1,exam_series_id:scope.exam_series_id,assessment_id:input.assessment_id,
+      academic_term_id:scope.academic_term_id,class_section_id:scope.class_section_id,subject_id:scope.subject_id,
+      remarks:mark.remarks ?? undefined,category_scores:mark.category_scores ?? {},
+    })),input.mark_entry_window_id,true,input.teacher_user_id ?? null,input.stream_ids,input.expected_revision);
+  }
+
   async saveTeacherMarkEntries(
     rowsValue: BulkExamMarkUploadRowDto[],
     sourceWindowIdValue: string,
     submit = false,
     teacherUserId?: string | null,
     streamIds?: string[],
+    expectedRevision?: string,
   ) {
     const tenantId = this.requireTenantId();
     const actorUserId = this.requireUserId();
@@ -1093,7 +1110,7 @@ export class ExamsService {
 
     if (validationErrors.length > 0) {
       throw new BadRequestException({
-        message: 'Mark sheet contains invalid learner entries',
+        message: expectedRevision ? `Row ${validationErrors[0].row_number}: ${validationErrors[0].message}` : 'Mark sheet contains invalid learner entries',
         errors: validationErrors,
       });
     }
@@ -1106,6 +1123,7 @@ export class ExamsService {
       ...(teacherUserId !== undefined && streamIds ? { stream_ids: streamIds } : {}),
       source_window_id: sourceWindowId,
       submit,
+      ...(expectedRevision ? {expected_revision: expectedRevision} : {}),
       rows: validEntries.map(({ row_number, entry }) => ({
         row_number,
         exam_series_id: entry.dto.exam_series_id,
@@ -1416,6 +1434,7 @@ export class ExamsService {
     if (!this.schoolEvents) throw new ServiceUnavailableException('Exam event recording is unavailable. Retry before saving.');
     const data = await this.repository.correctMissingMarkReason({
       ...dto, tenant_id: tenantId, actor_user_id: actorUserId,
+      manager_entry: manager && EXAMS_MANAGER_ROLES.has(this.currentRole()),
       teacher_user_id: manager ? dto.teacher_user_id ?? null : actorUserId,
     }, async (mark, previous, tx) => {
       await this.schoolEvents!.recordSchoolOperation({ event: {
@@ -2485,6 +2504,8 @@ export class ExamsService {
     actorUserId: string,
     teacherUserId?: string | null,
   ): Promise<ValidatedMarkEntry> {
+    const managerEntry = teacherUserId !== undefined;
+    if (managerEntry) requireAssistedMarkEntryScope(this.requestContext.getStore());
     if (teacherUserId || !this.isExamsOfficer()) {
       const assignment = await this.repository.findTeacherAssignment({
         tenant_id: tenantId,
@@ -2504,18 +2525,18 @@ export class ExamsService {
       exam_series_id: dto.exam_series_id,
     });
 
-    if (series && (series.locked_at || series.published_at || ['locked', 'published'].includes(series.status))) {
-      throw new ForbiddenException('Exam series is locked; use an audited correction workflow');
-    }
-
     const markEntryWindow = await this.repository.findOpenMarkEntryWindow({
       tenant_id: tenantId,
+      ...(managerEntry ? {manager_entry: true} : {}),
       teacher_user_id: teacherUserId ?? actorUserId,
       exam_series_id: dto.exam_series_id,
       academic_term_id: dto.academic_term_id,
       class_section_id: dto.class_section_id,
       subject_id: dto.subject_id,
     });
+
+    if (!managerEntry && series && (series.locked_at || series.published_at || ['locked','published'].includes(series.status))
+      && !markEntryWindow?.allows_protected_correction) throw new ForbiddenException('Exam series is locked; use an audited correction workflow');
 
     if (!markEntryWindow) {
       throw new ForbiddenException('Mark-entry window is not open for this exam, class section, and subject');
@@ -5291,6 +5312,7 @@ export class ExamsService {
     if (subjectId) normalizedFilters.subject_id = subjectId;
 
     if (this.isExamsOfficer()) {
+      if (EXAMS_MANAGER_ROLES.has(this.currentRole()) && this.hasPermission('exams:enter-marks')) normalizedFilters.manager_entry = 1;
       if (teacherUserId) normalizedFilters.teacher_user_id = teacherUserId;
     } else {
       normalizedFilters.teacher_user_id = this.requireUserId();

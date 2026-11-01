@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { SchoolOperationalEventsService } from '../../events/school-operational-events.service';
-import { classifyReportCardFailure, ReportCardWorkLimiter, type ReportCardFailure } from './report-card-generation-resilience';
+import { classifyReportCardFailure, reportFailureDiagnostics, ReportProcessingFailure, ReportCardWorkLimiter, type ReportCardFailure } from './report-card-generation-resilience';
 
 import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { createPdfReportArtifact } from './report-card-pdf-artifact';
@@ -164,6 +164,12 @@ export class ReportCardGenerationService implements OnModuleInit {
     if (!data.student || !data.exam_series) {
       throw new NotFoundException("Learner or exam was not found in this school");
     }
+    // A working correction may include draft scores or still-missing papers.
+    // Record readiness from the full eligible roster, including absent rows.
+    const correctionReadiness = input.regeneration_reason
+      ? await this.repository.getReportCardStudentReadiness(input) : null;
+    const awaitingFinalMarks = Boolean(input.regeneration_reason) &&
+      (!Number(correctionReadiness?.expected_mark_count) || Number(correctionReadiness?.not_ready_mark_count) > 0);
     const payload = this.templateService.buildPayload(data, generatedAt);
     this.assertReportCardGradeBoundaries(payload);
     const gradingPolicy = asRecord(data.grading_policy);
@@ -193,7 +199,13 @@ export class ReportCardGenerationService implements OnModuleInit {
       ...input, verification_code: verificationCode, approved_result_version: approvedResultVersion,
       generation_source_version: generationSourceVersion,
     });
-    if (reusable) return reusable;
+    if (reusable) {
+      if (this.artifactStore) {
+        const pdf = reusable.artifacts.find((artifact: { artifact_type: string }) => artifact.artifact_type === 'pdf');
+        await this.artifactStore.verifyStoredPdf(input.tenant_id, pdf.storage_key);
+      }
+      return reusable;
+    }
     const renderPayload = await hydrateReportCardLogoForRendering(
       payload,
       input.tenant_id,
@@ -203,7 +215,8 @@ export class ReportCardGenerationService implements OnModuleInit {
     const pdfArtifact = await createPdfReportArtifact(
       renderPayload,
       verificationCode,
-    );
+    ).catch(error => { throw new ReportProcessingFailure('REPORT_PDF_RENDERING_FAILED',
+      'The report PDF could not be rendered. Contact the administrator with the batch reference before retrying.', false, error); });
     const snapshot = {
       tenant_id: input.tenant_id,
       actor_user_id: input.actor_user_id,
@@ -220,6 +233,7 @@ export class ReportCardGenerationService implements OnModuleInit {
         generated_by: input.actor_user_id,
         generated_at: generatedAt,
         regeneration_reason: input.regeneration_reason ?? null,
+        ...(input.regeneration_reason ? { awaiting_final_marks: awaitingFinalMarks } : {}),
         grading_policy: gradingPolicy,
         template_version: templateVersion,
         approved_result_version: approvedResultVersion,
@@ -367,7 +381,9 @@ export class ReportCardGenerationService implements OnModuleInit {
               failures.push({ student_id: String(student.id), student_name: student.student_name,
                 ...failure, attempts: attempt });
               this.logger.error(
-                `Report-card generation failed: batch ${batch.id}, tenant ${input.tenant_id}, series ${input.exam_series_id}, student ${student.id}, code ${failure.code}, attempt ${attempt}`,
+                JSON.stringify({ event: 'report_card.generation_failed', batch_id: batch.id, tenant_id: input.tenant_id,
+                  exam_series_id: input.exam_series_id, student_id: student.id, code: failure.code, attempt,
+                  retryable: failure.retryable, ...reportFailureDiagnostics(error) }),
                 error instanceof Error ? error.stack : undefined,
               );
               break;

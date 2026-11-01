@@ -52,7 +52,7 @@ export function MissingMarksPanel({rows, dirtyStudentIds, busy, onSave, onReload
   }
 
   return <section aria-label="Missing Marks" className="space-y-4 p-3 sm:px-6 sm:py-4">
-    <div><h3 className="text-lg font-semibold">Missing Marks</h3><p className="mt-1 text-sm text-slate-600">Find students without a saved numeric score and save a reason individually. Submitted sheets stay submitted.</p></div>
+    <div><h3 className="text-lg font-semibold">Missing Marks</h3><p className="mt-1 text-sm text-slate-600">Find students without a saved numeric score and save a reason individually. Changing assessed evidence requires resubmission; saving an unchanged reason preserves submission.</p></div>
     <div className="grid gap-2 sm:grid-cols-2">
       <label className="grid gap-1 text-sm">Find student<input type="search" aria-label="Find missing marks" placeholder="Name or admission number" value={search} disabled={disabled}
         onChange={event => setSearch(event.target.value)} className={control} /></label>

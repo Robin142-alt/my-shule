@@ -339,7 +339,7 @@ export function PrincipalExamsReportsWorkspace() {
           ) : (
             <div className="space-y-3 overflow-y-auto pr-1">
               {results.map((series) => {
-                const isPublished = series.status.toLowerCase() === "published" || series.publishedReportCards === series.totalReportCards && series.totalReportCards > 0;
+                const isPublished = series.publishedReportCards === series.totalReportCards && series.totalReportCards > 0;
                 const guidance = series.totalReportCards === 0
                   ? "Generate report cards in the Exams Manager workspace."
                   : series.blockedReportCards > 0

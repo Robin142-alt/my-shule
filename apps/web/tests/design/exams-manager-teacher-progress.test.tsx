@@ -49,8 +49,7 @@ describe("Teacher mark entry follow-up", () => {
     const open = jest.fn();
     render(<TeacherMarksProgress onOpenMarkbook={open}/>);
     fireEvent.click(screen.getByRole('button',{name:'Unassigned'}));
-    fireEvent.click(screen.getByRole('button',{name:/Details for Unassigned/}));
-    fireEvent.click(screen.getByRole('button',{name:'Open markbook'}));
+    fireEvent.click(screen.getByRole('button',{name:'Enter / Edit Marks'}));
     expect(open).toHaveBeenCalledWith(unassigned);
     expect(screen.queryByText(/Assign a subject teacher.*Academic Setup/)).not.toBeInTheDocument();
   });

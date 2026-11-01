@@ -5,6 +5,13 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 
+/** Retain HTTP evidence without exposing object paths, credentials or provider bodies. */
+export class ObjectStorageFailure extends ServiceUnavailableException {
+  constructor(readonly operation: 'upload' | 'download' | 'delete', readonly storageStatus?: number, cause?: unknown) {
+    super(`Object storage ${operation} failed`, { cause });
+  }
+}
+
 export interface ObjectStoragePutInput {
   tenantId: string;
   storagePath: string;
@@ -104,10 +111,10 @@ export class S3CompatibleObjectStorageService {
     stream.on('error', () => undefined);
     try {
       const response = await fetchImpl(`${config.endpoint.origin}${objectPath}`, { method: 'PUT_FILE', headers, body: stream });
-      if (!response.ok) throw new Error('Upload rejected');
+      if (!response.ok) throw new ObjectStorageFailure('upload', response.status);
       return { provider: config.provider, bucket: config.bucket, key: input.storagePath,
         storage_path: input.storagePath, sha256, size_bytes: size, etag: normalizeEtag(response.headers?.get('etag') ?? undefined) };
-    } catch { throw new ServiceUnavailableException('Report object storage upload failed; the job will retry'); }
+    } catch (error) { throw error instanceof ObjectStorageFailure ? error : new ObjectStorageFailure('upload', undefined, error); }
     finally { stream.destroy(); await closed; }
   }
 
@@ -174,12 +181,12 @@ export class S3CompatibleObjectStorageService {
         headers,
         body: input.buffer,
       });
-    } catch {
-      throw new ServiceUnavailableException('Object storage upload failed');
+    } catch (error) {
+      throw new ObjectStorageFailure('upload', undefined, error);
     }
 
     if (!response.ok) {
-      throw new ServiceUnavailableException('Object storage upload failed');
+      throw new ObjectStorageFailure('upload', response.status);
     }
 
     const etag = normalizeEtag(response.headers?.get('etag') ?? undefined);
@@ -236,12 +243,12 @@ export class S3CompatibleObjectStorageService {
         method: 'GET',
         headers,
       });
-    } catch {
-      throw new ServiceUnavailableException('Object storage download failed');
+    } catch (error) {
+      throw new ObjectStorageFailure('download', undefined, error);
     }
 
     if (!response.ok || !response.arrayBuffer) {
-      throw new ServiceUnavailableException('Object storage download failed');
+      throw new ObjectStorageFailure('download', response.status);
     }
 
     const content = Buffer.from(await response.arrayBuffer());
@@ -290,12 +297,12 @@ export class S3CompatibleObjectStorageService {
         method: 'DELETE',
         headers,
       });
-    } catch {
-      throw new ServiceUnavailableException('Object storage delete failed');
+    } catch (error) {
+      throw new ObjectStorageFailure('delete', undefined, error);
     }
 
     if (!response.ok) {
-      throw new ServiceUnavailableException('Object storage delete failed');
+      throw new ObjectStorageFailure('delete', response.status);
     }
   }
 

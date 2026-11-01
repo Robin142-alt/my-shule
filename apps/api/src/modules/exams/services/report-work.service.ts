@@ -23,6 +23,7 @@ import type { RequestContextSeed } from '../../../common/request-context/request
 import { RedisService } from '../../../infrastructure/redis/redis.service';
 import { ModuleAccessService } from '../../module-access/module-access.service';
 import { SchoolOperationalEventsService } from '../../events/school-operational-events.service';
+import { classifyReportCardFailure } from './report-card-generation-resilience';
 import {
   REPORT_INFRASTRUCTURE_SCHEMA,
   REPORT_SOURCE_TRIGGERS,
@@ -595,8 +596,10 @@ export class ReportWorkService
           }),
         );
       } catch (error) {
+        const failure = classifyReportCardFailure(error);
         const permanent =
-          error instanceof HttpException && error.getStatus() < 500;
+          (error instanceof HttpException && error.getStatus() < 500)
+          || ['REPORT_STORAGE_CONFIGURATION', 'REPORT_IMAGE_CONFIGURATION', 'REPORT_PDF_RENDERING_FAILED'].includes(failure.code);
         await this.db.withRequestTransaction(async () => {
           const failed = await this.db.query(
             `UPDATE report_work SET state=$4,error_code=$5,lease_until=NULL,
@@ -609,7 +612,7 @@ export class ReportWorkService
               permanent || row.attempts >= 3 ? 'failed' : 'queued',
               error instanceof ConflictException
                 ? 'REPORT_CHANGED'
-                : 'REPORT_UNAVAILABLE',
+                : failure.code,
               Math.min(60, 3 * 2 ** row.attempts),
             ],
           );

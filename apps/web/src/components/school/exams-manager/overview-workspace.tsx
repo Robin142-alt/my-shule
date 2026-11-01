@@ -1,9 +1,12 @@
 "use client";
 
 import { ArrowRight, Plus, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
+import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
 import { StatusChip } from "./shared";
-import { TeacherMarksProgress } from "./teacher-marks-progress";
+import { TeacherMarksProgress, type TeacherMarkSheet } from "./teacher-marks-progress";
+import { ExamsMarksWorkspace } from "../teacher-dashboard/exams-marks-workspace";
 
 type OverviewData = {
   metrics: { active_exams: number; pending_moderation: number; published_results: number; total_report_cards: number };
@@ -14,6 +17,9 @@ export function OverviewWorkspace({ onNavigate }: {
   onNavigate: (view: "exam-setup" | "exam-workflow" | "moderation" | "report-cards") => void;
 }) {
   const { data, error, isLoading, isFetching, refetch } = useSchoolQuery<OverviewData>("/admin-command/exams-manager/overview");
+  const tenantId = useOptionalSchoolTenantId();
+  const [selection, setSelection] = useState<{ tenantId: string | null; sheet: TeacherMarkSheet } | null>(null);
+  const opened = selection?.tenantId === tenantId ? selection?.sheet : null;
   const metrics = data?.metrics;
   const cards = [
     { label: "Exam cycles", value: metrics?.active_exams, view: "exam-setup" as const, hint: "Configure and schedule" },
@@ -21,6 +27,11 @@ export function OverviewWorkspace({ onNavigate }: {
     { label: "Report cards", value: metrics?.total_report_cards, view: "report-cards" as const, hint: "Prepare student reports" },
     { label: "Published reports", value: metrics?.published_results, view: "report-cards" as const, hint: "Released to families" },
   ];
+  if (opened?.class_section_id && opened.subject_id && opened.assessment_id) return <ExamsMarksWorkspace assistance={{
+    teacherUserId: opened.teacher_id, teacherName: opened.teacher_id ? opened.teacher : '', examSeriesId: opened.exam_id,
+    classSectionId: opened.class_section_id, subjectId: opened.subject_id, assessmentId: opened.assessment_id,
+    windowId: opened.window_id, streamIds: [opened.stream_id ?? null], onClose: () => setSelection(null),
+  }} />;
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -31,7 +42,7 @@ export function OverviewWorkspace({ onNavigate }: {
       <div className="app-metric-grid grid grid-cols-2 gap-3 xl:grid-cols-4">
         {cards.map(card => <button key={card.label} type="button" onClick={() => onNavigate?.(card.view)} className="rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-400"><span className="text-xs font-medium text-slate-500">{card.label}</span><span className="mt-2 block text-2xl font-semibold tabular-nums text-slate-900">{isLoading ? "…" : error || !metrics ? "—" : card.value ?? 0}</span><span className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500">{card.hint}<ArrowRight className="h-3.5 w-3.5 shrink-0" /></span></button>)}
       </div>
-      <TeacherMarksProgress onOpenSetup={() => onNavigate?.("exam-setup")} />
+      <TeacherMarksProgress onOpenSetup={() => onNavigate?.("exam-setup")} onOpenMarkbook={sheet => setSelection({ tenantId, sheet })} />
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4 sm:px-5"><h2 className="text-base font-semibold text-slate-900">Recent exam cycles</h2><button onClick={() => onNavigate?.("exam-setup")} className="min-h-10 text-sm font-medium text-info">Manage exams</button></div>
         {isLoading ? <p className="p-5 text-sm text-slate-500">Loading exam cycles…</p> : error ? <p className="p-5 text-sm text-danger">Exam cycles are unavailable. Retry the summary above.</p> : !data?.recent_exams?.length ? <p className="p-5 text-sm text-slate-500">No exams yet. Select Set up exam to create your first cycle.</p> : <ul className="divide-y divide-slate-100">{data.recent_exams.slice(0, 5).map(exam => <li key={exam.id} className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5"><div><p className="text-sm font-medium text-slate-900">{exam.name}</p><p className="mt-1 text-xs text-slate-500">{exam.term}</p></div><StatusChip label={exam.status.replaceAll("_", " ")} tone={exam.status === "published" ? "success" : "neutral"} /></li>)}</ul>}

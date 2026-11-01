@@ -166,7 +166,10 @@ it('previews all regeneration targets in the exam and requires a reason before q
   await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/regeneration-scope',expect.objectContaining({method:'POST',
     body:{scope_type:'school',exam_series_id:'exam1',preview_token:'server-token',reason:'Update signatures'}})));
   expect(await screen.findByText(/121 report cards ready.*20 unchanged cards reused.*1 failed/)).toBeVisible();
-  expect(screen.getByText('Marks changed. Refresh and retry.')).toBeVisible();
+  expect(screen.getByText('Marks changed. Refresh and retry.', { selector: 'p' })).toBeVisible();
+  expect(screen.getByText('Cara:')).not.toBeVisible();
+  await user.click(screen.getByText('Individual failure details (1)'));
+  expect(screen.getByText('Cara:')).toBeVisible();
 });
 
 it('keeps regeneration scoped to the chosen class and disables it for All exams',async()=>{
@@ -193,7 +196,7 @@ it('reopens persisted partial results after returning to the handoff page',async
   const user=userEvent.setup();render(<PublishingWorkspace/>);
   await user.click(screen.getByText('Recent report tasks'));
   await user.click(screen.getByRole('button',{name:'View results'}));
-  expect(await screen.findByText('Complete the missing marks.')).toBeVisible();
+  expect(await screen.findByText('Complete the missing marks.', { selector: 'p' })).toBeVisible();
   expect(request).toHaveBeenCalledWith('/exams/report-cards/jobs/saved-job');
   expect(screen.getByText(/Batch reference: saved-job/)).toBeVisible();
 });

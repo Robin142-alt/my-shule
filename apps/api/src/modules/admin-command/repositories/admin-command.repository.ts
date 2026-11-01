@@ -1166,7 +1166,7 @@ export class AdminCommandRepository {
           COUNT(card.id)::int AS total_report_cards,
           COUNT(card.id) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL)::int AS approved_report_cards,
           COUNT(card.id) FILTER (WHERE card.status = 'published')::int AS published_report_cards,
-          COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'")}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::int AS blocked_report_cards
+          COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'", false)}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::int AS blocked_report_cards
         FROM exam_series series
         LEFT JOIN student_report_cards card
           ON card.tenant_id = series.tenant_id
@@ -1193,18 +1193,18 @@ export class AdminCommandRepository {
           COUNT(card.id)::int AS total_report_cards,
           COUNT(card.id) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL)::int AS approved_report_cards,
           COUNT(card.id) FILTER (WHERE card.status = 'published')::int AS published_report_cards,
-          COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'")}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::int AS blocked_report_cards
+          COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'", false)}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL)::int AS blocked_report_cards
         FROM exam_series series
         JOIN student_report_cards card
           ON card.tenant_id = series.tenant_id
          AND card.exam_series_id = series.id
          AND card.is_current = TRUE
         WHERE series.tenant_id = $1
-          AND lower(series.status) NOT IN ('archived', 'published')
+          AND lower(series.status) <> 'archived'
         GROUP BY series.id, series.name, series.status, series.starts_on, series.ends_on, series.created_at
         HAVING COUNT(card.id) > 0
            AND COUNT(card.id) FILTER (WHERE (${reportCardIneligibilitySql("'publish'")}) IS NULL) > 0
-           AND COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'")}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL) = 0
+           AND COUNT(card.id) FILTER (WHERE (CASE WHEN card.status = 'published' THEN (${reportCardIneligibilitySql("'export'", false)}) ELSE (${reportCardIneligibilitySql("'publish'")}) END) IS NOT NULL) = 0
         ORDER BY series.created_at DESC
       `,
       [tenantId],
@@ -1228,8 +1228,7 @@ export class AdminCommandRepository {
         blockedReportCards,
         canPublish: totalReportCards > 0
           && approvedReportCards > 0
-          && blockedReportCards === 0
-          && row.status !== 'published',
+          && blockedReportCards === 0,
       };
     };
     const recentResults = recentSeriesResult.rows.map(mapSeriesResult);

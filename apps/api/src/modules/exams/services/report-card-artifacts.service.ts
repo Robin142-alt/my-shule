@@ -4,7 +4,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { examGradeOverride } from '../exam-result-policy';
 import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { DatabaseService } from '../../../database/database.service';
@@ -24,6 +24,7 @@ import {
 } from './report-card-template.service';
 import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
 import { hydrateReportComparison } from './report-card-comparison';
+import { ReportProcessingFailure } from './report-card-generation-resilience';
 
 @Injectable()
 export class ReportCardArtifactsService implements OnModuleInit {
@@ -57,9 +58,9 @@ export class ReportCardArtifactsService implements OnModuleInit {
     await this.assertFresh(card, allowLegacy);
     return card;
   }
-  async assertFresh(card: Record<string, any>, allowLegacy = false) {
+  async assertFresh(card: Record<string, any>, allowLegacy = false, requireCurrentInputs = false) {
     if (
-      !card.is_current ||
+      (!card.is_current && (card.status !== 'published' || requireCurrentInputs)) ||
       ![
         'draft_generated',
         'draft',
@@ -77,6 +78,10 @@ export class ReportCardArtifactsService implements OnModuleInit {
       !card.verification_code
     )
       throw new ConflictException('Regenerate this report before downloading');
+    // Official releases are immutable snapshots. Pending corrections and newer
+    // draft revisions must not remove access to the previously released document.
+    // Generation reuse explicitly opts into current-input validation below.
+    if (card.status === 'published' && !requireCurrentInputs) return;
     const payload=extractPersistedReportCardPayload(card.metadata)!;
     const override=examGradeOverride(payload.subjects.flatMap(subject=>[subject.score_status,
       ...(subject.assessment_components??[]).map(paper=>paper.score_status)]));
@@ -138,7 +143,7 @@ export class ReportCardArtifactsService implements OnModuleInit {
         card = await this.certifyLegacySnapshot(card);
         await this.ensurePdf(card);
       }
-      await this.assertFresh(card);
+      await this.assertFresh(card, false, true);
       if (certifyLegacy && card.metadata?.renderer_version !== REPORT_RENDERER_VERSION) {
         await this.ensurePdf(card);
       }
@@ -146,8 +151,18 @@ export class ReportCardArtifactsService implements OnModuleInit {
       if (error instanceof ConflictException) return null;
       throw error;
     }
-    if (!(await this.cachedPath(card))) return null;
+    const path = await this.cachedPath(card);
+    if (!path) return null;
+    if (certifyLegacy) await this.verifyStoredPdf(tenant, path);
     return { ...card, reused: true };
+  }
+  async verifyStoredPdf(tenant: string, path: string) {
+    const file = await this.storage.readForTenant({ tenantId: tenant, storagePath: path });
+    if (file.mime_type !== 'application/pdf' || file.content.subarray(0, 5).toString() !== '%PDF-'
+      || file.content.length !== Number(file.size_bytes) || createHash('sha256').update(file.content).digest('hex') !== file.sha256) {
+      throw new ReportProcessingFailure('REPORT_STORAGE_CONFIGURATION',
+        'The stored report document is invalid. Repair the file before retrying this batch.', false);
+    }
   }
   async cachedPath(card: Record<string, any>): Promise<string | null> {
     const identity = reportPdfIdentity(card);
@@ -159,21 +174,22 @@ export class ReportCardArtifactsService implements OnModuleInit {
       UNION ALL SELECT artifact.storage_key FROM report_card_artifacts artifact
       JOIN file_objects file ON file.tenant_id=artifact.tenant_id AND file.storage_path=artifact.storage_key
       WHERE artifact.tenant_id=$1 AND artifact.report_card_id=$2::uuid AND artifact.artifact_type='pdf'
-        AND artifact.metadata->>'pdf_identity'=$3 AND file.retention_expires_at IS NULL LIMIT 1`,
-      [card.tenant_id, card.id, identity],
+        AND (artifact.metadata->>'pdf_identity'=$3 OR ($4::boolean AND artifact.verification_code=$5))
+        AND file.retention_expires_at IS NULL LIMIT 1`,
+      [card.tenant_id, card.id, identity, card.status === 'published', card.verification_code],
     );
     return result.rows[0]?.storage_path ?? null;
   }
   async prepare(id: string) {
     const card = await this.load(id, true);
+    const path = await this.cachedPath(card);
+    if (path) return { state: 'ready', ...(await this.delivery(card, path)) };
     if (!card.metadata?.source_revision)
       return this.work.submit(
         'pdf',
         { report_card_id: id, identity: reportPdfIdentity(card) },
         [id, reportPdfIdentity(card), 'legacy'],
       );
-    const path = await this.cachedPath(card);
-    if (path) return { state: 'ready', ...(await this.delivery(card, path)) };
     return this.work.submit(
       'pdf',
       { report_card_id: id, identity: reportPdfIdentity(card) },
@@ -285,7 +301,8 @@ export class ReportCardArtifactsService implements OnModuleInit {
   async ensurePdf(card: Record<string, any>) {
     const existing = await this.cachedPath(card);
     if (existing) return existing;
-    const payload = await hydrateReportComparison(extractPersistedReportCardPayload(card.metadata)!,
+    const payload = card.status === 'published' ? extractPersistedReportCardPayload(card.metadata)!
+      : await hydrateReportComparison(extractPersistedReportCardPayload(card.metadata)!,
       () => this.repository.loadReportCardComparison(card.tenant_id, card.exam_series_id, card.student_id),
       () => this.repository.loadReportCardTrend(card.tenant_id, card.exam_series_id, card.student_id));
     const rendered = await createReportCardPdfArtifact(

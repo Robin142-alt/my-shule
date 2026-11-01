@@ -109,11 +109,11 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       setActiveWindowId(sheetKey(firstAssistedSheet));
     }
   }, [assistance?.assessmentId, firstAssistedSheet]);
-  const windows = sheets.filter(sheet => view === "submitted" ? isSubmitted(sheet) : !isSubmitted(sheet));
+  const windows = sheets.filter(sheet => (assistance && sheetKey(sheet) === activeWindowId) || (view === "submitted" ? isSubmitted(sheet) : !isSubmitted(sheet)));
   const activeWindow = windows.find(windowTask => sheetKey(windowTask) === activeWindowId) ?? null;
   const activePaperLabel = activeWindow ? markbookPaperLabel(activeWindow.subjectName,activeWindow.paperName,activeWindow.paperCount) : '';
   const submittedView = !!activeWindow && isSubmitted(activeWindow);
-  const reviewing = !!activeWindow && !submittedView && reviewWindowId === sheetKey(activeWindow);
+  const reviewing = !!activeWindow && reviewWindowId === sheetKey(activeWindow);
   useEffect(() => { if (reviewing) reviewHeading.current?.focus(); }, [reviewing]);
 
   const hasUnsavedChanges = Object.keys(draftMarks).length > 0;
@@ -143,16 +143,16 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
   const markRows = (markSheetQuery.data ?? EMPTY_ROWS).filter(row => !assistance?.streamIds
     || assistance.streamIds.includes(row.stream_id ?? null));
   const activeDrafts = Object.fromEntries(markRows.map(row => [row.student_id,
-    (!submittedView && activeWindow && (draftMarks[sheetKey(activeWindow)]?.[row.student_id]
+    (activeWindow && (draftMarks[sheetKey(activeWindow)]?.[row.student_id]
       || savedDrafts[sheetKey(activeWindow)]?.[row.student_id])) || draftFromRow(row),
   ])) as DraftsByStudent;
   const blankRows = markRows.filter(row => !scoreStatus(activeDrafts[row.student_id]));
-  const editableRows = markRows.filter(row => row.can_edit !== false && (!row.id || row.status === "draft"));
+  const editableRows = markRows.filter(row => row.can_edit === true || (row.can_edit !== false && (!row.id || row.status === "draft")));
   const editableBlankRows = blankRows.filter(row => editableRows.includes(row));
   const invalidRows = editableRows.filter(row => scoreError(activeDrafts[row.student_id], activeWindow?.outOf ?? 100)
     || row.categories?.some(c => scoreError({ score: activeDrafts[row.student_id].categories?.[c.id] ?? '', scoreStatus: '', remarks: '' }, Number(c.max_score))));
   const enteredCount = markRows.length - blankRows.length;
-  const readOnly = submittedView || activeWindow?.canEnter === false || !editableRows.length;
+  const readOnly = activeWindow?.canEnter === false || (submittedView && activeWindow?.canEnter !== true) || !editableRows.length;
   const exportUnavailable = !activeWindow || !markRows.length || isSaving || markSheetQuery.isError || markSheetQuery.isLoading;
   const unavailable = !activeWindow || readOnly || !markRows.length || isSaving || pendingMarksQuery.isError
     || markSheetQuery.isError || markSheetQuery.isLoading;
@@ -195,7 +195,8 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       // Invalidate dependent school views without replacing other students' local drafts or their versions.
       void queryClient.invalidateQueries({predicate: query => query.queryKey[1] === liveSession.session!.tenantId
         && (query.queryKey[0] === 'pending-marks' || query.queryKey[0] === 'school' && /exams|report-card/.test(String(query.queryKey[4] ?? '')))});
-      setNotice(`Reason saved for ${row.student_name ?? 'student'}. ${result.data.status === 'submitted' ? 'The sheet remains submitted.' : 'Other students’ marks are unchanged.'}`);
+      const changedSubmission = result.data.status === 'draft' && ['submitted', 'reviewed', 'locked', 'published'].includes(row.status);
+      setNotice(`Reason saved for ${row.student_name ?? 'student'}. ${changedSubmission ? 'Resubmission required for this markbook.' : result.data.status === 'submitted' ? 'The sheet remains submitted.' : 'Other students’ marks are unchanged.'}`);
     } finally {savingRef.current = false; setIsSaving(false);}
   }
   async function reloadReason(studentId: string) {
@@ -262,14 +263,14 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
       } else {
         // Keep the confirmed server draft visible even if the subsequent refresh fails.
         setSavedDrafts(current => ({ ...current, [sheetKey(activeWindow)]: activeDrafts }));
-        queryClient.setQueryData(["teacher-mark-sheet", liveSession.session.tenantId,
-          viewerScope, activeWindow.examSeriesId, activeWindow.classSectionId,
-          activeWindow.subjectId, activeWindow.assessmentId, "active"], markRows.map(row => marks[row.student_id]
+        queryClient.setQueryData(markSheetKey, markRows.map(row => marks[row.student_id]
             ? { ...row, score: marks[row.student_id].score, score_status: marks[row.student_id].score_status,
-              remarks: marks[row.student_id].remarks ?? null, status: "draft" } : row));
+              remarks: marks[row.student_id].remarks ?? null } : row));
+        // Saving may be a no-op on a submitted markbook. Only the server can
+        // decide whether persisted changes invalidate its submission.
         queryClient.setQueryData(pendingKey, (current: typeof pendingMarksQuery.data) => current ? {
           ...current, windows: current.windows.map(sheet => sheetKey(sheet) === sheetKey(activeWindow)
-            ? { ...sheet, status: "Draft", savedCount: Object.keys(marks).length } : sheet),
+            ? { ...sheet, savedCount: Object.keys(marks).length } : sheet),
         } : current);
       }
       await Promise.all([
@@ -279,15 +280,13 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
         queryClient.invalidateQueries({ queryKey: ["pending-marks", liveSession.session.tenantId] }),
         queryClient.invalidateQueries({ queryKey: ["teacher-mark-sheet", liveSession.session.tenantId] }),
       ]);
-      const sheetState = queryClient.getQueryState(["teacher-mark-sheet", liveSession.session.tenantId,
-        viewerScope, activeWindow.examSeriesId, activeWindow.classSectionId,
-        activeWindow.subjectId, activeWindow.assessmentId, "active"]);
+      const sheetState = queryClient.getQueryState(markSheetKey);
       if (action === "submit" || sheetState?.status === "success") {
         setSavedDrafts(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
       }
       setDraftMarks(current => { const next = { ...current }; delete next[sheetKey(activeWindow)]; return next; });
       const label = `${assistance?.teacherName ? `On behalf of ${assistance.teacherName}: ` : ""}${[activeWindow.subjectName,activeWindow.className,activePaperLabel].filter(Boolean).join(' · ')}`;
-      const message = action === "submit" ? `${label}: submitted for moderation. Choose your next markbook below.` : `${label}: draft saved. You can continue editing or return later.`;
+      const message = action === "submit" ? `${label}: submitted for moderation. Choose your next markbook below.` : submittedView ? `${label}: changes saved. Submission status reflects the saved marks.` : `${label}: draft saved. You can continue editing or return later.`;
       setNotice(message); toast.success(message);
       onStartAction?.("marks", "exams-marks", message);
     } catch (error) {
@@ -332,7 +331,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
         </button>
       </header>
       {assistance && <div className="space-y-2 border-b border-slate-200 p-4 sm:px-6">
-        <p className="text-sm text-slate-600">{assistance.teacherName ? `Entering on behalf of ${assistance.teacherName}.` : "Entering marks as Exams Manager."} Changes are recorded under your account. Exam locks and submission rules still apply.</p>
+        <p className="text-sm text-slate-600">{assistance.teacherName ? `Entering on behalf of ${assistance.teacherName}.` : "Entering marks as Exams Manager."} Changes are recorded under your account. Teacher deadlines and entry locks do not restrict your administrative access. Corrections require resubmission; revised published results still require Principal approval.</p>
         <button type="button" className={buttonClass} disabled={isSaving} onClick={() => hasUnsavedChanges ? setExitRequested(true) : assistance.onClose()}>Change teacher or exam</button>
         {exitRequested && <div role="alert" className="space-y-2 rounded-lg bg-warning-soft p-3 text-sm">
           <p>You have unsaved marks. Save your draft before changing teacher, or discard these changes.</p>
@@ -415,7 +414,7 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
             </section>
           ) : (
             <>
-              {readOnly && (submittedView || activeWindow.canEnter !== false) && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted scores are read-only. {markRows.some(row => row.can_edit_reason === true) ? 'Use Missing Marks to correct a reason individually without resubmitting the class.' : 'Reason corrections follow the examination’s entry and approval rules.'} Numeric score changes require the existing return or controlled correction workflow.</p>}
+              {readOnly && (submittedView || activeWindow.canEnter !== false) && <p role="status" className="m-4 rounded-lg bg-success-soft p-3 text-sm text-emerald-900">Submitted scores are read-only. {markRows.some(row => row.can_edit_reason === true) ? 'Use Missing Marks to correct a reason individually. Changed assessed evidence requires resubmission.' : 'Reason corrections follow the examination’s entry and approval rules.'} Numeric score changes require the existing return or controlled correction workflow.</p>}
               <div className="flex flex-wrap items-center gap-2 p-3 sm:gap-3 sm:p-4 sm:px-6">
                 <label className="relative min-w-0 flex-1 basis-48"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-slate-400" /><input type="search" aria-label="Find student" placeholder="Name or admission number" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-base focus:outline-blue-600" /></label>
                 <button type="button" aria-label={`Blank scores (${blankRows.length})`} aria-pressed={onlyBlank} onClick={() => setOnlyBlank(value => !value)} className={cn(buttonClass, onlyBlank && "border-blue-600 bg-info-soft text-info")}>Blank ({blankRows.length})</button>
@@ -472,9 +471,9 @@ function TeacherMarkbooks({ liveSession, onStartAction, assistance }: {
               {!visibleRows.length && <div className="p-6 text-center"><p className="text-sm text-slate-500">No students match these filters.</p><button type="button" onClick={() => { setSearch(""); setOnlyBlank(false); }} className={cn(buttonClass, "mt-3")}>Clear filters</button></div>}
             </>
           )}
-          {!submittedView && markbookSection === 'scores' && <footer className="sticky bottom-0 z-10 grid grid-cols-2 items-center gap-2 rounded-b-xl border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:px-6">
-            <p className="col-span-2 text-xs text-slate-500 empty:hidden sm:mr-auto">{isSaving ? "Saving results..." : activeWindow && draftMarks[sheetKey(activeWindow)] ? "Unsaved changes — save before leaving" : "Saved drafts remain editable until you submit."}</p>
-            {!reviewing && <button type="button" onClick={() => void persistScores("draft")} disabled={unavailable} className={buttonClass}><Save className="h-4 w-4" /> Save draft</button>}
+          {(!submittedView || !readOnly) && markbookSection === 'scores' && <footer className="sticky bottom-0 z-10 grid grid-cols-2 items-center gap-2 rounded-b-xl border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:flex-wrap sm:justify-end sm:px-6">
+            <p className="col-span-2 text-xs text-slate-500 empty:hidden sm:mr-auto">{isSaving ? "Saving results..." : activeWindow && draftMarks[sheetKey(activeWindow)] ? "Unsaved changes — save before leaving" : submittedView ? "Unchanged marks keep their submission. Corrections require resubmission." : "Saved drafts remain editable until you submit."}</p>
+            {!reviewing && <button type="button" onClick={() => void persistScores("draft")} disabled={unavailable} className={buttonClass}><Save className="h-4 w-4" /> {submittedView ? 'Save changes' : 'Save draft'}</button>}
             <button type="button" onClick={() => reviewing ? void persistScores("submit") : submitResults()} disabled={unavailable} className={cn(primaryClass, reviewing && "col-span-2")}>
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="hidden h-4 w-4 sm:block" />}{reviewing ? "Confirm submission" : "Submit results"}
             </button>

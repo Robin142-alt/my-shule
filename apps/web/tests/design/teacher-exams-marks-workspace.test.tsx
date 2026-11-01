@@ -41,6 +41,49 @@ const mockSession = {
 };
 
 describe("teacher exams and marks workspace", () => {
+  it('lets an authorized administrator correct a submitted paper without reopening teacher access', async () => {
+    const pending = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
+    const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({...pending, windows:[{...pending.windows[0],status:'Submitted',canEnter:true,entryState:'Locked'}]});
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map((row,index)=>({...row,id:`mark-${index}`,score:60,
+      status:'published',can_edit:true,updated_at:'2026-10-29T10:00:00Z'})));
+    renderWithProviders(<ExamsMarksWorkspace assistance={{teacherUserId:'teacher-1',teacherName:'Teacher Robini',
+      examSeriesId:'series-1',classSectionId:'class-2-blue',subjectId:'subject-maths',assessmentId:'assessment-paper-1',windowId:'window-1',onClose:jest.fn()}}/>);
+    const score = await screen.findByLabelText('Asha Njeri score');
+    expect(score).toBeEnabled();
+    fireEvent.change(score,{target:{value:'62'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save changes'}));
+    await waitFor(()=>expect(saveExamMarksLive).toHaveBeenCalledWith(mockSession,expect.objectContaining({teacherUserId:'teacher-1',
+      marks:expect.objectContaining({'student-1':expect.objectContaining({score:62,expected_updated_at:'2026-10-29T10:00:00Z'})})})));
+  });
+
+  it('keeps backend-denied submitted records read-only even inside the assisted editor',async()=>{
+    const pending=await jest.mocked(fetchPendingMarksLive)(mockSession,true,true);
+    const rows=await jest.mocked(fetchTeacherMarkSheetLive)(mockSession,{} as never);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({...pending,windows:[{...pending.windows[0],status:'Submitted',canEnter:true}]});
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map(row=>({...row,id:'saved',status:'submitted',score:60,can_edit:false})));
+    renderWithProviders(<ExamsMarksWorkspace assistance={{teacherUserId:null,teacherName:'',examSeriesId:'series-1',
+      classSectionId:'class-2-blue',subjectId:'subject-maths',assessmentId:'assessment-paper-1',windowId:'window-1',onClose:jest.fn()}}/>);
+    expect(await screen.findByLabelText('Asha Njeri score')).toBeDisabled();
+    expect(saveExamMarksLive).not.toHaveBeenCalled();
+  });
+
+  it('preserves a reopened teacher submission after saving identical marks',async()=>{
+    const pending=await jest.mocked(fetchPendingMarksLive)(mockSession,true,true);
+    const rows=await jest.mocked(fetchTeacherMarkSheetLive)(mockSession,{} as never);
+    jest.mocked(fetchPendingMarksLive).mockResolvedValue({...pending,windows:[{...pending.windows[0],status:'Submitted',canEnter:true}]});
+    jest.mocked(fetchTeacherMarkSheetLive).mockResolvedValue(rows.map((row,index)=>({...row,id:`saved-${index}`,status:'submitted',score:60,can_edit:true})));
+    renderWithProviders(<ExamsMarksWorkspace/>);
+    fireEvent.click(await screen.findByRole('button',{name:'Submitted (1)'}));
+    fireEvent.click(screen.getByRole('button',{name:/^Open Mathematics/}));
+    expect(await screen.findByLabelText('Asha Njeri score')).toBeEnabled();
+    fireEvent.click(screen.getByRole('button',{name:'Save changes'}));
+    await screen.findByText(/changes saved. Submission status reflects the saved marks/);
+    fireEvent.click(screen.getByRole('button',{name:'All markbooks'}));
+    expect(screen.getByRole('button',{name:'Submitted (1)'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Saved drafts (0)'})).toBeInTheDocument();
+  });
+
   it('keeps paper settings optional, persists custom papers and sums category maxima',async()=>{
     jest.mocked(fetchPaperConfiguration).mockResolvedValue({version:2,papers:[{id:'paper-1',name:'Paper 1',max_score:80,weight:null,categories:[]}]});
     jest.mocked(savePaperConfiguration).mockResolvedValue({version:3,papers:[]});
@@ -183,7 +226,7 @@ describe("teacher exams and marks workspace", () => {
     await screen.findByLabelText("Asha Njeri score");
   }
 
-  it('corrects one submitted missing reason immediately without resubmitting the class', async () => {
+  it('corrects one submitted missing reason and shows the server-required resubmission', async () => {
     const pending = await jest.mocked(fetchPendingMarksLive)(mockSession, true, true);
     const rows = await jest.mocked(fetchTeacherMarkSheetLive)(mockSession, {} as never);
     jest.mocked(fetchPendingMarksLive).mockResolvedValue({...pending, windows: [{...pending.windows[0], status: 'Submitted', canEnter: false}]});
@@ -191,7 +234,7 @@ describe("teacher exams and marks workspace", () => {
       score_status: index ? 'entered' : 'X', status: 'submitted', can_edit: false, can_edit_reason: !index,
       paper_config_version: 2, updated_at: '2026-10-29T10:00:00Z', stream_name: 'Blue'})));
     jest.mocked(saveMissingMarkReasonLive).mockResolvedValue({success: true, data: {id: 'mark-0', student_id: 'student-1', score: null,
-      score_status: 'Y', status: 'submitted', updated_at: '2026-10-29T10:01:00Z'}});
+      score_status: 'Y', status: 'draft', updated_at: '2026-10-29T10:01:00Z'}});
     renderWithProviders(<ExamsMarksWorkspace />);
     fireEvent.click(await screen.findByRole('button', {name: 'Submitted (1)'}));
     fireEvent.click(await screen.findByRole('button', {name: /^Open Mathematics/}));
@@ -205,7 +248,7 @@ describe("teacher exams and marks workspace", () => {
       mark_entry_window_id: 'window-1', assessment_id: 'assessment-paper-1', student_id: 'student-1', score_status: 'Y',
       expected_updated_at: '2026-10-29T10:00:00Z', paper_config_version: 2,
     }));
-    expect(await screen.findByText(/Reason saved for Asha Njeri/)).toBeInTheDocument();
+    expect(await screen.findByText(/Reason saved for Asha Njeri/)).toHaveTextContent('Resubmission required for this markbook.');
     expect(screen.getByText('Current reason:').parentElement).toHaveTextContent('Y — Examination irregularity');
     expect(saveExamMarksLive).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', {name: 'Submit results'})).not.toBeInTheDocument();

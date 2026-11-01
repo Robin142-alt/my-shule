@@ -437,7 +437,7 @@ export class SupportController {
     const sessions = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id, student_id, counsellor_user_id, scheduled_for, location, agenda, status
        FROM counselling_sessions
-       WHERE school_id = $1::uuid`,
+       WHERE tenant_id = $1`,
       tenantId
     );
 
