@@ -38,9 +38,10 @@ function measure() {
 
 async function record(page, role, workspace, measurements) {
   for (const width of widths) {
+    const previousWidth = page.viewportSize()?.width ?? width;
     await page.setViewportSize({width,height:850});
     // Wait for the existing 200ms mobile rail transition to settle before measuring.
-    await page.waitForTimeout(220);
+    if ((previousWidth < 1024) !== (width < 1024)) await page.waitForTimeout(220);
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const sample = await page.evaluate(measure);
     measurements.push({workspace,width,...sample});

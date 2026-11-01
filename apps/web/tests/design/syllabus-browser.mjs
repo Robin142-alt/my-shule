@@ -97,8 +97,10 @@ try {
   assert(await page.getByRole('checkbox',{name:/^Integers/}).isDisabled());
   await page.getByRole('button',{name:'Close dialog'}).click();
   await page.getByRole('button',{name:/Record coverage for/}).click();
-  await page.getByRole('checkbox',{name:/^Fractions/}).check();
+  // This controlled checkbox changes only after the saved response is refetched.
+  await page.getByRole('checkbox',{name:/^Fractions/}).click();
   await page.getByText('100% covered',{exact:true}).waitFor();
+  assert(await page.getByRole('checkbox',{name:/^Fractions/}).isChecked());
   await page.getByText('Teaching note (optional)',{exact:true}).first().click();
   await page.getByLabel('Note for Fractions').fill('Practical examples completed.');
   await page.getByRole('button',{name:'Save note'}).click();
