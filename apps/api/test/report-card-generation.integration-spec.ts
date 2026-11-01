@@ -329,7 +329,8 @@ describe('Report generation with the production staff schema', () => {
     expect((await query("SELECT retention_policy FROM file_objects WHERE retention_expires_at IS NULL")).rows[0].retention_policy).toBe('academic-record');
     signatureReads.length=0;sqlReads=0;
     const repeated=await generation.generateStudentReportCard({...studentInput(),reuse_existing:true});
-    expect(repeated.reused).toBe(true);expect(sqlReads).toBeLessThanOrEqual(3);
+    // Snapshot, source revision, artifact manifest and stored-byte integrity read.
+    expect(repeated.reused).toBe(true);expect(sqlReads).toBeLessThanOrEqual(4);
     expect(signatureReads).toHaveLength(0);
   });
 

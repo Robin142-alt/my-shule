@@ -465,6 +465,12 @@ jobs:
       - name: Report-card retries and concurrency
         run: node --test dist/apps/api/src/modules/exams/services/report-card-generation-resilience.test.js dist/apps/api/src/modules/exams/services/report-storage-recovery.test.js
 
+      - name: Support counselling text school identity and isolation
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/support-counselling-tenant.integration-spec.ts
+
       - name: School day configuration persistence and isolation
         env:
           DATABASE_URL: ""
