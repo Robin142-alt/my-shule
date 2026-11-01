@@ -107,6 +107,33 @@ describe('Academic Intelligence SQL and tenant authorization',()=>{
   },60000);
   afterAll(async()=>{await pool?.end();});
   const read=(scope:ExamAnalyticsScopeLevel,actor:string,extra:Record<string,string>={})=>repository.getAnalytics('school-a',{level:scope,actor_user_id:ids[actor],role:actor},{page:1,page_size:25,scope,...extra},scope==='school');
+  it.each([
+    ['CBC', ['CBC']], ['8-4-4', ['8-4-4']], ['CBC', ['8-4-4', 'CBC']], ['8-4-4', ['8-4-4', 'CBC']],
+  ])('resolves live analytics bands for %s with enabled curricula %j', async (curriculum, enabled) => {
+    const client = await pool.connect(), policy = randomUUID();
+    const scales = {
+      CBC: [{ label: 'ME1', min: 0, max: 100, points: 6, remark: 'CBC achievement' }],
+      '8-4-4': [{ label: 'A', min: 0, max: 100, points: 12, remark: 'Legacy achievement' }],
+    };
+    try {
+      await client.query(`BEGIN; SET LOCAL search_path TO ${schema}; ALTER TABLE class_sections ADD COLUMN curriculum_model text`);
+      await client.query("UPDATE class_sections SET curriculum_model=$1 WHERE tenant_id='school-a'", [curriculum]);
+      await client.query("UPDATE student_report_cards SET status='draft_generated',grading_policy_id=NULL WHERE tenant_id='school-a'");
+      await client.query("UPDATE exam_grading_policies SET status='draft' WHERE tenant_id='school-a'");
+      await client.query(`INSERT INTO academics_grading_systems(tenant_id,id,name,version,is_active,rules,updated_at,curriculum_model,curriculum_models,rules_by_curriculum)
+        VALUES('school-a',$1,'Year policy',1,true,$2,NOW(),$3,$4,$5)`,
+      [policy, JSON.stringify(scales['8-4-4']), enabled[0], JSON.stringify(enabled), JSON.stringify(scales)]);
+      await client.query(`SET LOCAL ROLE ${role}`);
+      await client.query("SELECT set_config('app.tenant_id','school-a',true)");
+      const rows = (await client.query(analyticsQuery('school'), ['school-a', ids.principal, JSON.stringify({ exam_series_id: ids.exam })])).rows;
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.policy_id).toBe(policy);
+        expect(row.reporting_mode).toBe(curriculum === 'CBC' ? 'competency' : 'traditional');
+        expect(row.boundaries).toEqual(scales[curriculum as keyof typeof scales]);
+      }
+    } finally { await client.query('ROLLBACK'); client.release(); }
+  });
   it('finds recorded results before an unfinished exam and restores only the approved report grading snapshot',async()=>{
     const client=await pool.connect(),future=randomUUID(),academicScale=randomUUID();
     try {

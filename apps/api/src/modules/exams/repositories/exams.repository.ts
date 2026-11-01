@@ -6704,7 +6704,8 @@ function applyAcademicGradingRule(
     .find((item) => percentage >= item.minimum);
   if (!rule) return subject;
 
-  const currentRemarks = String(subject.remarks ?? '').trim();
+  // Only an explicit teacher remark may override the selected curriculum's band.
+  const currentRemarks = String(subject.manual_remarks ?? '').trim();
   const ruleRemark = String(rule.remark ?? rule.descriptor ?? '').trim();
   const points = rule.points === null || rule.points === undefined || rule.points === ''
     ? null

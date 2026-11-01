@@ -241,11 +241,12 @@ describe('Report generation with the production staff schema', () => {
     const scales={'8-4-4':[{label:'A',min:0,max:100,points:12,remark:'Legacy achievement'}],CBC:[{label:'ME1',min:0,max:100,points:6,remark:'CBC achievement'}]};
     try {
       await query('UPDATE class_sections SET curriculum_model=$1 WHERE id=$2',[curriculum,ids.class]);
+      await query("INSERT INTO exam_grade_boundaries(tenant_id,exam_series_id,label,min_score,max_score,remarks) VALUES('school-a',$1,'Legacy',0,100,'Old generic remark')",[ids.exam]);
       await query(`UPDATE academics_grading_systems SET curriculum_model='8-4-4',curriculum_models='["8-4-4","CBC"]',rules_by_curriculum=$1,rules=$2 WHERE id=$3`,[JSON.stringify(scales),JSON.stringify(scales['8-4-4']),ids.grading]);
       const boundary=await repository.findGradeBoundaryForScore({tenant_id:'school-a',exam_series_id:ids.exam,class_section_id:ids.class,score:42,max_score:50});
       expect(boundary.boundary).toMatchObject({label:curriculum==='CBC'?'ME1':'A',points:curriculum==='CBC'?6:12});
       const data=await repository.loadReportCardData(studentInput());
-      expect((data.subjects as any[])[0]).toMatchObject({grade_label:curriculum==='CBC'?'ME1':'A',points:curriculum==='CBC'?6:12,class_average:84});
+      expect((data.subjects as any[])[0]).toMatchObject({grade_label:curriculum==='CBC'?'ME1':'A',points:curriculum==='CBC'?6:12,class_average:84,remarks:curriculum==='CBC'?'CBC achievement':'Legacy achievement'});
       const generated=await generation.generateReportCardBatch(scope);
       expect(generated.failed_students).toBe(0);
       await repository.processResultBatch({tenant_id:'school-a',actor_user_id:ids.actor,batch_id:generated.id,mode:'rankings'});
@@ -253,6 +254,7 @@ describe('Report generation with the production staff schema', () => {
       expect(snapshots.length).toBeGreaterThan(0);
       expect(snapshots.every(row=>row.grade_label===(curriculum==='CBC'?'ME1':'A'))).toBe(true);
     } finally {
+      await query("DELETE FROM exam_grade_boundaries WHERE tenant_id='school-a' AND exam_series_id=$1 AND label='Legacy'",[ids.exam]);
       await query("UPDATE class_sections SET curriculum_model='8-4-4' WHERE id=$1",[ids.class]);
       await query('UPDATE academics_grading_systems SET curriculum_model=$1,curriculum_models=$2,rules_by_curriculum=$3,rules=$4 WHERE id=$5',[old.curriculum_model,JSON.stringify(old.curriculum_models),JSON.stringify(old.rules_by_curriculum),JSON.stringify(old.rules),ids.grading]);
     }
