@@ -290,7 +290,7 @@ describe("principal production readiness", () => {
         return {
           ok: true,
           json: async () => ({
-            data: ["academics:write", "exams:read", "exams:write", "exams:publish", "finance:write", "principal:write", "reports:write", "students:read"],
+            data: ["academics:write", "exams:read", "exams:write", "exams:publish", "finance:write", "principal:write", "principal:read", "reports:write", "students:read"],
           }),
         } as Response;
       }
@@ -344,13 +344,13 @@ describe("principal production readiness", () => {
     );
 
     const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    const studentMetric = (await within(commandCenter).findByText("Total Students")).parentElement;
-    const staffMetric = within(commandCenter).getByText("Total Staff").parentElement;
+    const studentMetric = (await within(commandCenter).findByRole("button", { name: "View students" }));
+    const staffMetric = within(commandCenter).getByRole("button", { name: "View staff" });
 
     expect(within(commandCenter).getAllByText(/Maranda High/i).length).toBeGreaterThan(0);
     expect(studentMetric).toHaveTextContent("412");
     expect(staffMetric).toHaveTextContent("38");
-    expect(within(commandCenter).getByText("Pending Approvals").parentElement).toHaveTextContent("3");
+    expect(within(commandCenter).getByRole("button", { name: "View pending approvals" })).toHaveTextContent("3");
     expect(within(commandCenter).queryByText(/Kisumu Boys|KSh 248,500/i)).not.toBeInTheDocument();
     expect(within(commandCenter).queryByText("Operational Dashboard")).not.toBeInTheDocument();
     expect(within(commandCenter).queryByTestId("principal-live-dashboard-engine")).not.toBeInTheDocument();
@@ -363,7 +363,7 @@ describe("principal production readiness", () => {
   it("keeps payment setup off Overview and opens it through Fees & Finance", async () => {
     const user = userEvent.setup();
     renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByText("Total Students")).toBeVisible();
+    expect(await screen.findByRole("button", { name: "View students" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Payment setup" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Review payment setups" })).not.toBeInTheDocument();
     const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
@@ -392,7 +392,7 @@ describe("principal production readiness", () => {
   });
 
   it.each([
-    ["Review approvals", "approvals"],
+    ["Review Approvals", "approvals"],
     ["View students", "students"],
   ])("opens the governed %s workspace from the overview banner", async (label, section) => {
     const user = userEvent.setup();
@@ -405,14 +405,12 @@ describe("principal production readiness", () => {
     );
   });
 
-  it("renders recent activity from the school overview response", async () => {
-    responseOverrides.set("/admin-command/principal/overview", {
-      ...(canonicalResponses["/admin-command/principal/overview"] as Record<string, unknown>),
-      recentActivity: [{ label: "School admission completed", time: "09:30" }],
-    });
+  it("renders the approved overview sections without a duplicate activity feed", async () => {
     renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" />);
-    expect(await screen.findByText("School admission completed")).toBeVisible();
-    expect(screen.getByText("09:30")).toBeVisible();
+    for (const name of ['Academic Performance', 'People Waiting to See You', "Today's School Operations", 'This Week', 'Requires Your Attention', 'Quick actions']) {
+      expect(await screen.findByRole('heading', { name: new RegExp(name, 'i') })).toBeVisible();
+    }
+    expect(screen.queryByRole('heading', { name: 'Recent school activity' })).not.toBeInTheDocument();
   });
 
   it("keeps the required Principal sidebar order and child hierarchy", async () => {
@@ -601,7 +599,7 @@ describe("principal production readiness", () => {
 
     const commandCenter = await screen.findByTestId("principal-practical-command-center");
     expect(within(commandCenter).getByRole("heading", { name: "Principal Dashboard" })).toBeVisible();
-    expect(await within(commandCenter).findByRole("heading", { name: "Live principal operations" })).toBeVisible();
+    expect(await within(commandCenter).findByRole("heading", { name: "Academic Performance" })).toBeVisible();
   });
 
   it("keeps the live loading state visible and does not substitute phantom metrics", async () => {
@@ -612,7 +610,7 @@ describe("principal production readiness", () => {
     );
 
     const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByRole("heading", { name: "Live principal operations" })).toBeVisible();
+    expect(within(commandCenter).getByRole("heading", { name: "Academic Performance" })).toBeVisible();
     expect(within(commandCenter).queryByText("412")).not.toBeInTheDocument();
     expect(within(commandCenter).queryByText(/Kisumu Boys/i)).not.toBeInTheDocument();
   });
@@ -622,7 +620,7 @@ describe("principal production readiness", () => {
 
     renderWithProviders(<SchoolPages role="principal" tenantSlug="new-school" />);
 
-    expect(await screen.findByRole("heading", { name: "Failed to load Principal Overview" })).toBeVisible();
+    expect(await screen.findByText("Failed to load Principal Overview")).toBeVisible();
     expect(screen.queryByText("412")).not.toBeInTheDocument();
   });
 

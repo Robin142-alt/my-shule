@@ -145,7 +145,7 @@ describe("Principal executive insight stream", () => {
       stream.emit("principal.dashboard", principalDashboard("Attendance risk", ["attendance"]));
     });
     expect(await screen.findByText("Attendance risk")).toBeVisible();
-    expect(screen.getByText("1 modules enabled")).toBeVisible();
+    expect(screen.queryByText(/modules enabled/)).not.toBeInTheDocument();
 
     jest.useFakeTimers();
     act(() => stream.emit("principal.error", { message: "Temporarily unavailable" }));
@@ -171,7 +171,7 @@ describe("Principal executive insight stream", () => {
       );
     });
     expect(await screen.findByText("Recovered live risk")).toBeVisible();
-    expect(screen.getByText("2 modules enabled")).toBeVisible();
+    expect(screen.queryByText(/modules enabled/)).not.toBeInTheDocument();
     expect(screen.queryByText("Live updates reconnecting")).not.toBeInTheDocument();
 
     view.unmount();
