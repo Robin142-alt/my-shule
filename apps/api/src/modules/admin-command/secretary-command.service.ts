@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException, UnauthorizedExcepti
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AdminCommandOperationsService } from './admin-command-operations.service';
+import { RECEPTION_QUEUE_SQL, receptionEntry } from './reception-queue';
 
 @Injectable()
 export class SecretaryCommandService {
@@ -490,18 +491,35 @@ export class SecretaryCommandService {
   }
 
   async getReceptionQueue() {
-    return this.listWorkflowEvents('frontoffice.queue_entry');
+    const result = await this.executeSql(`${RECEPTION_QUEUE_SQL}
+      AND (lower(status) IN ('pending','waiting','called')
+        OR timezone('Africa/Nairobi',updated_at)::date=timezone('Africa/Nairobi',NOW())::date)
+      ORDER BY created_at ASC, id ASC`, [this.requireTenantId()]);
+    const queue = result.rows.map(row => receptionEntry(row));
+    const waiting = queue.filter(row => row.status === 'Waiting');
+    return { queue, metrics: {
+      total_in_queue: waiting.length,
+      being_served: queue.filter(row => row.status === 'Being Served').length,
+      completed_today: queue.filter(row => row.status === 'Completed').length,
+      avg_wait_minutes: waiting.length ? Math.round(waiting.reduce((sum, row) => sum + row.wait_time_minutes, 0) / waiting.length) : 0,
+    } };
   }
 
   async createQueueEntry(dto: any) {
     const visitorName = this.operations.requiredText(dto?.visitor_name ?? dto?.name, 'Visitor name');
     const purpose = this.operations.requiredText(dto?.purpose, 'Purpose');
+    const personToSee = this.operations.requiredText(dto?.person_to_see, 'Person to see');
+    const relationship = this.operations.requiredText(dto?.role_relationship ?? dto?.relationship, 'Role / relationship');
+    if (visitorName.length > 160 || purpose.length > 2000 || personToSee.length > 160 || relationship.length > 160) {
+      throw new BadRequestException('Visitor details exceed the allowed length');
+    }
     const event = await this.createWorkflowEvent({
       eventType: 'frontoffice.queue_entry',
       entityType: 'reception_queue',
       title: visitorName,
       message: purpose,
-      payload: { ...dto, visitor_name: visitorName, purpose },
+      targetRoles: personToSee.toLowerCase() === 'principal' ? ['secretary', 'principal'] : ['secretary'],
+      payload: { visitor_name: visitorName, purpose, person_to_see: personToSee, role_relationship: relationship },
     });
     return { success: true, message: 'Reception queue entry created', entry: event };
   }

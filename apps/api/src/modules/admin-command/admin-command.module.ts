@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PrincipalOverviewController, PrincipalOverviewService } from './principal-overview.service';
 import { SidebarWorkspaceSchemaService } from './sidebar-workspace-schema.service';
 
 import { AdminCommandController } from './admin-command.controller';
@@ -63,6 +64,7 @@ import { LibraryModule } from '../library/library.module';
 @Module({
   imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule, CommunicationModule, LibraryModule],
   controllers: [
+    PrincipalOverviewController,
     AdminCommandController,
     DeputyCommandController,
     AdmissionsCommandController,
@@ -87,6 +89,7 @@ import { LibraryModule } from '../library/library.module';
     AccountantCommandController,
   ],
   providers: [
+    PrincipalOverviewService,
     SidebarWorkspaceSchemaService,
     AdminCommandSchemaService,
     AdminCommandOperationsService,
