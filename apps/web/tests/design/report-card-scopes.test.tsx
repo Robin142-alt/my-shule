@@ -145,7 +145,7 @@ it('keeps existing report actions available when generation readiness fails',()=
   expect(screen.getByRole('button',{name:'Download all 3'})).toBeEnabled();
 });
 
-it('previews all regeneration targets in the exam and requires a reason before queuing',async()=>{
+it('previews all regeneration targets and queues directly without requiring a reason',async()=>{
   const base=queries.getMockImplementation()!;
   queries.mockImplementation((path:string|null,...args:unknown[])=>path==='/exams/series'
     ? {data:[{id:'exam1',name:'End term'}],isLoading:false,error:null,refetch} : base(path,...args));
@@ -160,11 +160,10 @@ it('previews all regeneration targets in the exam and requires a reason before q
   await user.click(screen.getByRole('button',{name:'Regenerate all'}));
   const dialog=await screen.findByRole('dialog',{name:'Regenerate all'});
   expect(within(dialog).getByText('123')).toBeVisible();
-  expect(within(dialog).getByRole('button',{name:'Regenerate all (122)'})).toBeDisabled();
-  await user.type(within(dialog).getByLabelText(/Regeneration reason/),'Update signatures');
+  expect(within(dialog).getByRole('button',{name:'Regenerate all (122)'})).toBeEnabled();
   await user.click(within(dialog).getByRole('button',{name:'Regenerate all (122)'}));
   await waitFor(()=>expect(request).toHaveBeenCalledWith('/exams/report-cards/regeneration-scope',expect.objectContaining({method:'POST',
-    body:{scope_type:'school',exam_series_id:'exam1',preview_token:'server-token',reason:'Update signatures'}})));
+    body:{scope_type:'school',exam_series_id:'exam1',preview_token:'server-token'}})));
   expect(await screen.findByText(/121 report cards ready.*20 unchanged cards reused.*1 failed/)).toBeVisible();
   expect(screen.getByText('Marks changed. Refresh and retry.', { selector: 'p' })).toBeVisible();
   expect(screen.getByText('Cara:')).not.toBeVisible();

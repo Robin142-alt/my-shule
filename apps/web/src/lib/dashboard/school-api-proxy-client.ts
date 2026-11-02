@@ -65,21 +65,26 @@ export async function requestSchoolApiProxy<T>(
   }
 
   const data=isEnvelope<T>(json) ? json.data : (json as T);
-  if (method==='POST' && /^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope|regeneration-scope|jobs\/[^/]+\/retry)$/.test(path)) {
+  if (method==='POST' && (/^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope|regeneration-scope|jobs\/[^/]+\/retry)$/.test(path) || path === '/admin-command/exams-manager/reports/generate')) {
     const job=data as { job_id?:string;state?:string;result?:T;progress?:Record<string,number|string>;message?:string };
     if (job.job_id) {
       let current=job;
       const started=Date.now();
+      let pollErrors=0;
       while (true) {
-        options?.onProgress?.({ ...current.progress,job_id:job.job_id });
+        options?.onProgress?.({ ...current.progress,job_id:job.job_id,state:current.state ?? 'queued' });
         if (current.state==='completed') return current.result as T;
         if (current.state==='failed') {
           if (current.result && typeof current.result==='object' && 'failed_students' in current.result) return current.result;
           throw new Error(current.message ?? 'Report generation failed. Retry to reuse completed reports.');
         }
-        if (Date.now()-started>15*60*1000) throw new Error('Report generation is still running. It is saved and can be followed in Recent report tasks.');
         await new Promise(resolve=>setTimeout(resolve,Math.min(5000,1000+(Date.now()-started)/30)));
-        current=await requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}`);
+        try {
+          current=await requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}`);
+          pollErrors=0;
+        } catch (error) {
+          if (++pollErrors >= 3) throw new Error(`The server accepted report task ${job.job_id}. Its current status could not be retrieved. Refresh the task list to reconnect. ${error instanceof Error ? error.message : ''}`);
+        }
       }
     }
   }

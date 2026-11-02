@@ -8,7 +8,7 @@ import { classifyReportCardFailure, reportFailureDiagnostics, ReportProcessingFa
 import { DatabaseFileStorageService } from '../../../common/uploads/database-file-storage.service';
 import { createPdfReportArtifact } from './report-card-pdf-artifact';
 import { ExamsRepository, type ReportCardReadCache } from '../repositories/exams.repository';
-import { hydrateReportCardLogoForRendering } from './report-card-logo-hydration';
+import { hydrateReportCardLogoForRendering, type ReportImageReadCache } from './report-card-logo-hydration';
 import { ReportCardTemplateService } from './report-card-template.service';
 import { ReportWorkService, type ReportWorkRow } from './report-work.service';
 import { ReportCardArtifactsService } from './report-card-artifacts.service';
@@ -24,6 +24,7 @@ export interface GenerateStudentReportCardInput {
   regeneration_reason?: string;
   reuse_existing?: boolean;
   read_cache?: ReportCardReadCache;
+  image_cache?: ReportImageReadCache;
   expected_report_card_id?: string;
   expected_updated_at?: string;
 }
@@ -65,8 +66,8 @@ export class ReportCardGenerationService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.work?.register('generate', async row => {
-      const card=await this.generateStudentReportCard({ ...row.input,tenant_id:row.tenant_id,actor_user_id:row.actor_user_id } as GenerateStudentReportCardInput);
+    this.work?.register('generate', async (row, progress) => {
+      const card=await this.generateStudentReportCard({ ...row.input,tenant_id:row.tenant_id,actor_user_id:row.actor_user_id } as GenerateStudentReportCardInput, progress);
       return { id:card.id,status:card.status,reused:card.reused,verification_code:card.verification_code,revision_number:card.revision_number };
     });
     this.work?.register('generate_batch', async (row, progress) => this.generateReportCardBatch({ ...row.input,
@@ -79,7 +80,8 @@ export class ReportCardGenerationService implements OnModuleInit {
       const previous=row.result ?? { completed_students:0,failed_students:0,reused_students:0,failures:[],duration_ms:0 };
       const batch=await this.generateReportCardBatch({ ...row.input,tenant_id:row.tenant_id,actor_user_id:row.actor_user_id,
         batch_size:25 } as GenerateReportCardBatchInput, value=>progress({ ...value,
-          completed_students:previous.completed_students+Number(value.completed_students ?? 0),total_students:row.input.total_students }));
+          completed_students:previous.completed_students+Number(value.completed_students ?? 0),
+          failed_students:previous.failed_students+Number(value.failed_students ?? 0),total_students:row.input.total_students }));
       const result={ ...batch,total_students:row.input.total_students,
         completed_students:previous.completed_students+batch.completed_students,failed_students:previous.failed_students+batch.failed_students,
         reused_students:previous.reused_students+(batch.reused_students ?? 0),duration_ms:previous.duration_ms+(batch.duration_ms ?? 0),
@@ -98,15 +100,23 @@ export class ReportCardGenerationService implements OnModuleInit {
       completed_students: Number(previous.completed_students ?? 0), failed_students: Number(previous.failed_students ?? 0),
       reused_students: Number(previous.reused_students ?? 0), skipped_students: Number(row.input.skipped_students ?? 0),
       failures: [...(previous.failures ?? [])] as ReportCardFailure[] };
-    // The confirmed list is persisted with the job, so pagination and later enrolments cannot widen it.
-    for (const target of targets.slice(offset, offset + 25)) {
+    // Chunk-local caches expire before the next dispatch; source revisions separate changed inputs.
+    const readCache: ReportCardReadCache = new Map();
+    const imageCache: ReportImageReadCache = new Map();
+    const chunk = targets.slice(offset, offset + 25);
+    let cursor = 0;
+    let abortChunk: unknown;
+    let progressTail = Promise.resolve();
+    const worker = async () => { while (cursor < chunk.length && !abortChunk) {
+      const target = chunk[cursor++];
       await this.workLimiter.run(async () => {
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
             const card = await this.generateStudentReportCard({ tenant_id: row.tenant_id, actor_user_id: row.actor_user_id,
               exam_series_id: row.input.exam_series_id, student_id: target.student_id,
               regeneration_reason: row.input.regeneration_reason, generated_at: row.input.generated_at,
-              reuse_existing: true, expected_report_card_id: target.id, expected_updated_at: target.updated_at });
+              reuse_existing: true, read_cache: readCache, image_cache: imageCache,
+              expected_report_card_id: target.id, expected_updated_at: target.updated_at });
             result.completed_students++;
             if (card.reused) result.reused_students++;
             break;
@@ -120,8 +130,12 @@ export class ReportCardGenerationService implements OnModuleInit {
           }
         }
       });
-      await progress(result);
-    }
+      const update = { ...result, failures: [...result.failures], stage: 'generating' };
+      progressTail = progressTail.then(() => progress(update));
+      try { await progressTail; } catch (error) { abortChunk = error; }
+    } };
+    await Promise.all(Array.from({ length: Math.min(4, chunk.length) }, worker));
+    if (abortChunk) throw abortChunk;
     const nextOffset = Math.min(offset + 25, targets.length);
     if (nextOffset < targets.length) return { __continue: true, input: { ...row.input, offset: nextOffset }, result };
     await this.schoolEvents?.recordSchoolOperation({ event: {
@@ -137,7 +151,8 @@ export class ReportCardGenerationService implements OnModuleInit {
     return { ...result, queue_status: result.failed_students ? 'failed' : 'completed' };
   }
 
-  async generateStudentReportCard(input: GenerateStudentReportCardInput): Promise<Record<string, unknown>> {
+  async generateStudentReportCard(input: GenerateStudentReportCardInput, progress?: (value: Record<string, any>) => Promise<void>): Promise<Record<string, unknown>> {
+    await progress?.({ stage: 'validating' });
     // Explicit regeneration must reload current curriculum and policy inputs.
     // Retries can still reuse an identical newly generated snapshot below.
     if(input.reuse_existing && !input.regeneration_reason && this.artifactStore) {
@@ -211,12 +226,16 @@ export class ReportCardGenerationService implements OnModuleInit {
       input.tenant_id,
       this.fileStorage,
       Boolean(this.artifactStore),
+      input.image_cache,
+      sourceRevision ? JSON.stringify(JSON.parse(sourceRevision).filter(([key]:[string,string])=>key==='school')) : '',
     );
+    await progress?.({ stage: 'rendering' });
     const pdfArtifact = await createPdfReportArtifact(
       renderPayload,
       verificationCode,
     ).catch(error => { throw new ReportProcessingFailure('REPORT_PDF_RENDERING_FAILED',
       'The report PDF could not be rendered. Contact the administrator with the batch reference before retrying.', false, error); });
+    await progress?.({ stage: 'saving' });
     const snapshot = {
       tenant_id: input.tenant_id,
       actor_user_id: input.actor_user_id,
@@ -302,6 +321,7 @@ export class ReportCardGenerationService implements OnModuleInit {
   }
 
   async generateReportCardBatch(input: GenerateReportCardBatchInput, progress?: (value: Record<string, any>)=>Promise<void>): Promise<ReportCardBatchStatus> {
+    await progress?.({ stage: 'validating' });
     const readiness = await this.repository.getReportCardBatchReadiness({
       tenant_id: input.tenant_id,
       exam_series_id: input.exam_series_id,
@@ -353,6 +373,7 @@ export class ReportCardGenerationService implements OnModuleInit {
     let failedStudents = 0;
     const failures: ReportCardFailure[] = [];
     const readCache: ReportCardReadCache = new Map();
+    const imageCache: ReportImageReadCache = new Map();
     let cursor = 0;
     let abortChunk:unknown;
     const worker = async () => {
@@ -366,7 +387,7 @@ export class ReportCardGenerationService implements OnModuleInit {
               const card = await this.generateStudentReportCard({
                 tenant_id: input.tenant_id, actor_user_id: input.actor_user_id,
                 exam_series_id: input.exam_series_id, student_id: student.id,
-                generated_at: generatedAt, reuse_existing: true, read_cache: readCache,
+                generated_at: generatedAt, reuse_existing: true, read_cache: readCache, image_cache: imageCache,
               });
               completedStudents += 1;
               if (card.reused) reusedStudents += 1;
@@ -392,7 +413,7 @@ export class ReportCardGenerationService implements OnModuleInit {
           // Lease/progress failures abort the chunk; they must not count an
           // already saved card again or be misclassified as invalid student data.
           try {
-            await progress?.({ completed_students:completedStudents,failed_students:failedStudents,total_students:students.length });
+            await progress?.({ stage: 'generating',completed_students:completedStudents,failed_students:failedStudents,total_students:students.length });
           } catch(error) { abortChunk=error; }
         });
       }

@@ -423,9 +423,10 @@ export class RegenerateReportCardScopeDto {
   @MaxLength(64)
   preview_token!: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(1000)
-  reason!: string;
+  reason?: string;
 
   @IsString()
   exam_series_id!: string;

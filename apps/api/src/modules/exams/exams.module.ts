@@ -35,6 +35,6 @@ import { ReportRetentionService } from './services/report-retention.service';
     ReportCardArtifactsService,
     ReportRetentionService,
   ],
-  exports: [ExamsService, ExamsRepository, ReportCardGenerationService],
+  exports: [ExamsService, ExamsRepository, ReportCardGenerationService, ReportWorkService],
 })
 export class ExamsModule {}

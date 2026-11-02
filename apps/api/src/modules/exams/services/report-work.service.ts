@@ -40,6 +40,7 @@ export type ReportWorkKind =
   | 'generate_batch'
   | 'generate_scope'
   | 'generate_regeneration_scope'
+  | 'generate_operations'
   | 'pdf'
   | 'export';
 export interface ReportWorkRow {
@@ -254,6 +255,13 @@ export class ReportWorkService
         Date.parse(existing.expires_at) > Date.now()
       )
         return existing;
+      if (kind === 'generate_operations') {
+        const activeReport = await this.db.query<ReportWorkRow>(`SELECT * FROM report_work
+          WHERE tenant_id=$1 AND actor_user_id=$2 AND kind=$3 AND state IN ('queued','running')
+            AND input->>'title'=$4 AND input->>'format'=$5 LIMIT 1`,
+          [actor.tenant_id, actor.user_id, kind, input.title, input.format]);
+        if (activeReport.rows[0]) return activeReport.rows[0];
+      }
       const active = await this.db.query<{ count: string }>(
         `SELECT count(*) FROM report_work
         WHERE tenant_id=$1 AND state IN ('queued','running')`,
@@ -305,12 +313,13 @@ export class ReportWorkService
   async status(id: string) {
     return this.publicState(await this.owned(id));
   }
-  async recent() {
+  async recent(kind?: ReportWorkKind) {
     const actor = this.context.requireStore();
     const result = await this.db.query(
       `SELECT id AS job_id,kind,state,progress,created_at::text,expires_at::text,error_code
-      FROM report_work WHERE tenant_id=$1 AND actor_user_id=$2 AND expires_at>now() ORDER BY created_at DESC LIMIT 20`,
-      [actor.tenant_id, actor.user_id],
+      FROM report_work WHERE tenant_id=$1 AND actor_user_id=$2 AND expires_at>now() AND ($3::text IS NULL OR kind=$3)
+      ORDER BY created_at DESC LIMIT 20`,
+      [actor.tenant_id, actor.user_id, kind ?? null],
     );
     return result.rows;
   }
@@ -350,9 +359,9 @@ export class ReportWorkService
       ...(row.state === 'failed'
         ? {
             message:
-              row.error_code === 'REPORT_CHANGED'
+              row.progress?.error_message ?? (row.error_code === 'REPORT_CHANGED'
                 ? 'Report data changed. Regenerate or preview the current scope and retry.'
-                : 'The report task failed. Completed academic records are safe. Retry; contact the administrator if it fails again.',
+                : 'The report task failed. Completed academic records are safe. Retry; contact the administrator if it fails again.'),
           }
         : {}),
     };
@@ -420,16 +429,16 @@ export class ReportWorkService
           `
           WITH candidates AS (SELECT work.id FROM report_work work
             WHERE work.expires_at>now() AND work.available_at<=now() AND work.attempts<3
-              AND (work.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=$1
+              AND (work.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope','generate_operations'))=$1
               AND (work.state='queued' OR (work.state='running' AND work.lease_until<now()))
               AND work.id=(SELECT first.id FROM report_work first WHERE first.tenant_id=work.tenant_id
                 AND first.expires_at>now() AND first.available_at<=now() AND first.attempts<3
-                AND (first.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=$1
+                AND (first.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope','generate_operations'))=$1
                 AND (first.state='queued' OR (first.state='running' AND first.lease_until<now()))
                 ORDER BY first.available_at,first.created_at,first.id LIMIT 1)
               AND NOT EXISTS(SELECT 1 FROM report_work busy WHERE busy.tenant_id=work.tenant_id
                 AND busy.id<>work.id AND busy.state='running' AND busy.lease_until>now()
-                AND (busy.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=$1)
+                AND (busy.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope','generate_operations'))=$1)
             ORDER BY work.available_at,work.created_at LIMIT $2 FOR UPDATE SKIP LOCKED)
           UPDATE report_work work SET available_at=now()+interval '5 minutes',dispatch_version=dispatch_version+1
           FROM candidates WHERE work.id=candidates.id RETURNING work.id,work.tenant_id,work.dispatch_version`,
@@ -497,7 +506,7 @@ export class ReportWorkService
             AND (state='queued' OR (state='running' AND lease_until<now()))
             AND NOT EXISTS(SELECT 1 FROM report_work other WHERE other.tenant_id=$1 AND other.id<>work.id
               AND other.state='running' AND other.lease_until>now()
-              AND (other.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))=(work.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope'))) RETURNING *`,
+              AND (other.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope','generate_operations'))=(work.kind IN ('export','generate_batch','generate_scope','generate_regeneration_scope','generate_operations'))) RETURNING *`,
           [initial.tenant_id, initial.id, token, delivery.dispatch_version],
         );
         return claimed.rows[0];
@@ -513,7 +522,9 @@ export class ReportWorkService
       let lostLease = false;
       let renewing = false;
       let latestProgress = row.progress;
-      const progress = async (value: Record<string, any>) => {
+      let progressWrites = Promise.resolve();
+      let lastWrite = 0;
+      const persistProgress = async (value: Record<string, any>) => {
         if (lostLease)
           throw new ServiceUnavailableException('Report worker lease lost');
         const updated = await this.db.query(
@@ -525,7 +536,17 @@ export class ReportWorkService
           lostLease = true;
           throw new ServiceUnavailableException('Report worker lease lost');
         }
+      };
+      const progress = (value: Record<string, any>) => {
+        const stageChanged = latestProgress?.stage !== value.stage;
         latestProgress = value;
+        if (lostLease) return Promise.reject(new ServiceUnavailableException('Report worker lease lost'));
+        // Pollers see measured counts. Coalesce nearby writes but always persist transitions
+        // and final counts before releasing the lease. Serialize updates across learner tasks.
+        if (!stageChanged && Date.now() - lastWrite < 250) return progressWrites;
+        lastWrite = Date.now();
+        progressWrites = progressWrites.then(() => persistProgress(value));
+        return progressWrites;
       };
       const heartbeat = setInterval(() => {
         if (renewing) return;
@@ -603,7 +624,8 @@ export class ReportWorkService
         await this.db.withRequestTransaction(async () => {
           const failed = await this.db.query(
             `UPDATE report_work SET state=$4,error_code=$5,lease_until=NULL,
-          available_at=now()+($6::int * interval '1 second'),updated_at=now()
+          available_at=now()+($6::int * interval '1 second'),updated_at=now(),
+          progress=progress || jsonb_build_object('error_message',$7::text)
           WHERE tenant_id=$1 AND id=$2::uuid AND lease_token=$3::uuid AND state='running' RETURNING state`,
             [
               row.tenant_id,
@@ -614,6 +636,7 @@ export class ReportWorkService
                 ? 'REPORT_CHANGED'
                 : failure.code,
               Math.min(60, 3 * 2 ** row.attempts),
+              error instanceof ForbiddenException ? 'The account no longer has permission to generate this report.' : failure.message,
             ],
           );
           if (failed.rows[0]?.state === 'failed')

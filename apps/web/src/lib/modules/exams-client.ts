@@ -95,6 +95,7 @@ export interface LiveReportCardGenerationScope {
 }
 
 export interface LiveReportCardBatchStatus {
+  stage?: string;
   id: string;
   status: string;
   queue_status?: string | null;

@@ -7,6 +7,7 @@ import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { approveModeration, rejectModeration } from "./api-client";
 import { Modal } from "@/components/ui/modal";
 import { useForm } from "react-hook-form";
+import { localReportDate } from "@/lib/report-cards/local-date";
 
 type ModerationRecord = {
   id: string;
@@ -14,9 +15,11 @@ type ModerationRecord = {
   subject: string;
   class_name: string;
   teacher: string;
-  original_mean: number;
-  moderated_mean: number;
-  variance: number;
+  original_mean: number | string | null;
+  max_score?: number | string;
+  score_status?: string;
+  student_name?: string;
+  validation_issues?: string[];
   students_affected: number;
   status: string;
   submitted_at: string;
@@ -26,9 +29,10 @@ type ModerationData = {
   metrics: {
     total_submissions: number;
     pending_review: number;
-    approved: number;
-    rejected: number;
+    ready_for_review: number;
+    requires_correction: number;
   };
+  total: number;
   submissions: ModerationRecord[];
 };
 
@@ -37,7 +41,8 @@ type RejectModerationFormData = {
 };
 
 export function ModerationWorkspace() {
-  const { data, isLoading, refetch } = useSchoolQuery<ModerationData>('/admin-command/exams-manager/moderation');
+  const [page, setPage] = useState(1);
+  const { data, error, isLoading, refetch } = useSchoolQuery<ModerationData>(`/admin-command/exams-manager/moderation?page=${page}`);
   const [actionId, setActionId] = useState<string | null>(null);
 
   const [isRejectOpen, setIsRejectOpen] = useState(false);
@@ -64,8 +69,8 @@ export function ModerationWorkspace() {
       await approveModeration(id);
       toast.success("Marks approved.");
       refetch();
-    } catch {
-      toast.error("Failed to approve marks.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve marks.");
     } finally {
       setActionId(null);
     }
@@ -86,8 +91,8 @@ export function ModerationWorkspace() {
       setIsRejectOpen(false);
       rejectForm.reset();
       refetch();
-    } catch {
-      toast.error("Failed to reject marks.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reject marks.");
     } finally {
       setActionId(null);
       setSelectedSubId(null);
@@ -95,23 +100,24 @@ export function ModerationWorkspace() {
   };
 
   return (
-    <Panel title="Marks Moderation" description="Review and moderate submitted marks before publishing results." icon={ShieldCheck}>
+    <Panel title="Data Validation" description="Review submitted learner marks. Resolve flagged entries before approval; locked and published marks remain protected." icon={ShieldCheck}>
+      {error ? <div role="alert" className="mb-4 rounded-xl border border-danger-border bg-danger-soft p-4 text-sm text-danger">{error.message}<button type="button" onClick={() => void refetch()} className="ml-3 min-h-11 font-semibold underline">Retry validation</button></div> : null}
       <div className="grid gap-4 md:grid-cols-4 mb-6">
         <div className="rounded-xl border border-border bg-surface-muted p-4">
           <div className="text-sm font-semibold text-muted">Total Submissions</div>
           <div className="mt-1 text-2xl font-black text-foreground">{isLoading ? "..." : data?.metrics?.total_submissions ?? 0}</div>
         </div>
         <div className="rounded-xl border border-warning-border bg-warning-soft p-4">
-          <div className="text-sm font-semibold text-warning">Pending Review</div>
+          <div className="text-sm font-semibold text-warning">On this page</div>
           <div className="mt-1 text-2xl font-black text-warning">{isLoading ? "..." : data?.metrics?.pending_review ?? 0}</div>
         </div>
         <div className="rounded-xl border border-success-border bg-success-soft p-4">
-          <div className="text-sm font-semibold text-success">Approved</div>
-          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.approved ?? 0}</div>
+          <div className="text-sm font-semibold text-success">Ready for review on this page</div>
+          <div className="mt-1 text-2xl font-black text-success">{isLoading ? "..." : data?.metrics?.ready_for_review ?? 0}</div>
         </div>
         <div className="rounded-xl border border-danger-border bg-danger-soft p-4">
-          <div className="text-sm font-semibold text-danger">Rejected</div>
-          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.rejected ?? 0}</div>
+          <div className="text-sm font-semibold text-danger">Issues on this page</div>
+          <div className="mt-1 text-2xl font-black text-danger">{isLoading ? "..." : data?.metrics?.requires_correction ?? 0}</div>
         </div>
       </div>
 
@@ -123,10 +129,10 @@ export function ModerationWorkspace() {
               <th className="px-4 py-3 font-bold border-b border-border">Subject</th>
               <th className="px-4 py-3 font-bold border-b border-border">Class</th>
               <th className="px-4 py-3 font-bold border-b border-border">Teacher</th>
-              <th className="px-4 py-3 font-bold border-b border-border">Original Mean</th>
-              <th className="px-4 py-3 font-bold border-b border-border">Moderated Mean</th>
-              <th className="px-4 py-3 font-bold border-b border-border">Variance</th>
-              <th className="px-4 py-3 font-bold border-b border-border">Students</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Learner</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Mark</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Validation</th>
+              <th className="px-4 py-3 font-bold border-b border-border">Submitted</th>
               <th className="px-4 py-3 font-bold border-b border-border">Status</th>
               <th className="px-4 py-3 font-bold border-b border-border text-right">Actions</th>
             </tr>
@@ -134,7 +140,7 @@ export function ModerationWorkspace() {
           <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">Loading moderation queue...</td></tr>
-            ) : submissions.length === 0 ? (
+            ) : error ? null : submissions.length === 0 ? (
               <tr><td colSpan={10} className="px-4 py-8 text-center text-muted">No marks submissions pending moderation. Marks will appear here after teachers submit them.</td></tr>
             ) : (
               submissions.map((sub) => (
@@ -143,14 +149,14 @@ export function ModerationWorkspace() {
                   <td className="px-4 py-3 text-muted">{sub.subject}</td>
                   <td className="px-4 py-3 text-muted">{sub.class_name}</td>
                   <td className="px-4 py-3 text-muted">{sub.teacher}</td>
-                  <td className="px-4 py-3 text-muted">{sub.original_mean?.toFixed(1)}</td>
-                  <td className="px-4 py-3 text-muted">{sub.moderated_mean?.toFixed(1)}</td>
-                  <td className="px-4 py-3 font-bold text-amber-600">{sub.variance?.toFixed(1)}%</td>
-                  <td className="px-4 py-3 text-muted">{sub.students_affected}</td>
+                  <td className="px-4 py-3 text-muted">{sub.student_name || "Learner record unavailable"}</td>
+                  <td className="px-4 py-3 text-muted">{sub.original_mean !== null && Number.isFinite(Number(sub.original_mean)) ? Number(sub.original_mean).toFixed(1) : sub.score_status || "Missing"}{sub.max_score ? ` / ${Number(sub.max_score)}` : ""}</td>
+                  <td className="max-w-sm whitespace-normal px-4 py-3 text-muted">{sub.validation_issues?.length ? sub.validation_issues.join(" · ") : "Ready for review"}</td>
+                  <td className="px-4 py-3 text-muted">{localReportDate(sub.submitted_at)}</td>
                   <td className="px-4 py-3"><StatusChip label={sub.status} tone={getStatusTone(sub.status)} /></td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => handleApprove(sub.id)} disabled={actionId === sub.id} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline disabled:opacity-50">
+                      <button onClick={() => handleApprove(sub.id)} disabled={Boolean(actionId) || Boolean(sub.validation_issues?.length)} className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline disabled:opacity-50">
                         <CheckCircle className="w-3 h-3" /> Approve
                       </button>
                       <button onClick={() => handleRejectClick(sub.id)} disabled={actionId === sub.id} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline disabled:opacity-50">
@@ -163,6 +169,12 @@ export function ModerationWorkspace() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between text-sm">
+        <button type="button" className="min-h-11 disabled:opacity-40" disabled={page === 1 || isLoading} onClick={() => setPage(value => value - 1)}>Previous</button>
+        <span>Page {page} · {data?.total ?? 0} awaiting review</span>
+        <button type="button" className="min-h-11 disabled:opacity-40" disabled={page * 50 >= (data?.total ?? 0) || isLoading} onClick={() => setPage(value => value + 1)}>Next</button>
       </div>
 
       {/* Reject Moderation Modal */}

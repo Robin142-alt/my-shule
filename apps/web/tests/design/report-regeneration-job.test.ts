@@ -16,7 +16,7 @@ it('waits for bulk regeneration and returns persisted partial failures instead o
     method:'POST',body:{exam_series_id:'exam',reason:'Update signatures'},onProgress:progress});
   await jest.runAllTimersAsync();
   expect(await pending).toEqual(result);
-  expect(progress).toHaveBeenCalledWith({completed_students:5,job_id:'job-1'});
+  expect(progress).toHaveBeenCalledWith({completed_students:5,job_id:'job-1',state:'running'});
   expect(global.fetch).toHaveBeenNthCalledWith(1,'/api/exams/report-cards/regeneration-scope',expect.objectContaining({
     method:'POST',headers:expect.objectContaining({'x-myshule-csrf':'csrf'})}));
   expect(global.fetch).toHaveBeenCalledTimes(3);

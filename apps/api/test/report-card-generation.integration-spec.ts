@@ -12,6 +12,7 @@ import { EXAM_SETUP_INTEGRITY_SCHEMA } from '../src/modules/exams/exam-setup-int
 import { FLEXIBLE_EXAM_PAPERS_SCHEMA } from '../src/modules/exams/flexible-exam-papers-schema';
 import { EXAM_RESULT_REFRESH_SCHEMA } from '../src/modules/exams/exam-result-query';
 import { ExamsService } from '../src/modules/exams/exams.service';
+import { ExamsManagerCommandService } from '../src/modules/admin-command/exams-manager-command.service';
 import { DeanAcademicsCommandService } from '../src/modules/admin-command/dean-academics-command.service';
 import { HrSchemaService } from '../src/modules/hr/hr-schema.service';
 import { STAFF_NAME_TITLE_SCHEMA_SQL } from '../src/modules/hr/staff-name-title';
@@ -235,6 +236,29 @@ describe('Report generation with the production staff schema', () => {
   }
   const studentInput = () => ({ ...scope, student_id: students[0] });
   const count = async (table: string) => Number((await query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count);
+
+  it('validates individual marks against their assessment and preserves configured exception statuses', async () => {
+    const manager = new ExamsManagerCommandService({ getStore: () => context } as never, {} as never, {
+      readSql: query, writeSql: query, recordWorkflowAction: async () => ({})
+    } as never);
+    const mark = (await query('SELECT id FROM exam_marks WHERE tenant_id=$1 AND student_id=$2', [scope.tenant_id, students[0]])).rows[0].id;
+    try {
+      await query("UPDATE exam_marks SET status='submitted' WHERE id=$1", [mark]);
+      await query("UPDATE subjects SET tenant_id='fixture-missing-mapping' WHERE tenant_id='school-a' AND id=$1", [ids.subject]);
+      const queue = await manager.getModeration();
+      expect(queue.metrics.requires_correction).toBe(1);
+      expect(queue.submissions[0]).toMatchObject({ id: mark, validation_issues: ['Restore the subject mapping'], original_mean: 84, max_score: 100 });
+      await expect(manager.approveModeration(mark)).rejects.toThrow(/configuration is invalid/);
+      await query("UPDATE subjects SET tenant_id='school-a' WHERE tenant_id='fixture-missing-mapping' AND id=$1", [ids.subject]);
+      await query("UPDATE exam_marks SET score_status='not_assessed',score=NULL WHERE id=$1", [mark]);
+      expect((await manager.getModeration()).metrics.ready_for_review).toBe(1);
+      await manager.approveModeration(mark);
+      expect((await manager.getModeration()).total).toBe(0);
+    } finally {
+      await query("UPDATE subjects SET tenant_id='school-a' WHERE tenant_id='fixture-missing-mapping' AND id=$1", [ids.subject]);
+      await query("UPDATE exam_marks SET status='locked',score_status='entered',score=84,reviewed_at=NULL WHERE id=$1", [mark]);
+    }
+  });
 
   it.each(['CBC','8-4-4'])('uses the same %s bands for marks, snapshots and PDFs in a mixed policy', async curriculum => {
     const old=(await query('SELECT * FROM academics_grading_systems WHERE id=$1',[ids.grading])).rows[0];
