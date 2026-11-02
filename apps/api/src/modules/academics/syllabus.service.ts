@@ -8,7 +8,7 @@ import { AcademicsRepository } from './repositories/academics.repository';
 import { createCsvReportArtifact } from '../../common/reports/report-csv-artifact';
 import { syllabusProgress, validateSyllabusContent } from './syllabus-policy';
 
-const MANAGERS = new Set(['principal', 'deputy_principal', 'dean_academics', 'school_admin']);
+const MANAGERS = new Set(['owner', 'principal', 'deputy_principal', 'dean_academics', 'school_admin']);
 const STAFF_ROLES = new Set([...MANAGERS, 'teacher', 'class_teacher', 'hod', 'head_of_subject', 'grade_master',
   'exams_manager', 'discipline_master', 'boarding_master', 'school_counsellor']);
 type SubjectRight = { subject_id: string; academic_year_id: string | null };

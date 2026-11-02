@@ -1,6 +1,36 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { syllabusProgress, validateSyllabusContent } from './syllabus-policy';
+import { SyllabusService } from './syllabus.service';
+
+function ownerWorkspace(role = 'owner', permissions = ['*:*'], active = true) {
+  const calls: unknown[][] = [];
+  const prisma = { executeWithTenant: async (tenant: string, user: string, work: (tx: any) => unknown) => {
+    assert.equal(tenant, 'school-a'); assert.equal(user, 'owner-a');
+    return work({ $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      calls.push([sql, ...params]);
+      return sql.includes('FROM tenant_memberships') && active ? [{ exists: 1 }] : [];
+    } });
+  } };
+  const context = { requireStore: () => ({ is_authenticated: true, tenant_id: 'school-a', user_id: 'owner-a', role, permissions }) };
+  return { service: new SyllabusService(prisma as any, context as any, {} as any, {} as any, {} as any), calls };
+}
+
+test('tenant owner monitors school syllabus without acquiring subject-head editing rights', async () => {
+  const { service, calls } = ownerWorkspace();
+  const result = await service.workspace();
+  assert.equal(result.can_monitor, true);
+  assert.deepEqual(result.rights, []);
+  const allocationQuery = calls.find(([sql]) => String(sql).includes('FROM teacher_subject_assignments a'))!;
+  assert.equal(allocationQuery[1], 'school-a'); assert.equal(allocationQuery[3], true);
+  await assert.rejects(service.save({ subject_id: 'subject', grade_level: 'Grade 7', academic_year_id: 'year', academic_term_id: 'term' }), /appointed subject head/);
+});
+
+test('syllabus rejects missing academic capability, inactive members and nonstaff roles', async () => {
+  await assert.rejects(ownerWorkspace('owner', []).service.workspace(), /Academic access/);
+  await assert.rejects(ownerWorkspace('owner', ['*:*'], false).service.workspace(), /active membership/);
+  await assert.rejects(ownerWorkspace('parent', ['*:*']).service.workspace(), /authorized school staff/);
+});
 
 const content = () => ({ topics: [{ id: 'topic', title: 'Numbers', expected_on: '2026-03-20', archived: false,
   subtopics: [

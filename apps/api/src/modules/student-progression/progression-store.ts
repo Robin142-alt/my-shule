@@ -16,7 +16,7 @@ export const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(
 export function authorizeProgression(actor:ProgressionActor,write=false) {
   if(!actor.tenantId) throw new ForbiddenException('A school identity is required.');
   if(actor.system && actor.role==='system' && actor.userId===null) return;
-  if(!actor.userId || !['principal','school_admin','deputy_principal','dean_academics'].includes(actor.role))
+  if(!actor.userId || !['owner','principal','school_admin','deputy_principal','dean_academics'].includes(actor.role))
     throw new ForbiddenException('Student progression is restricted to school academic leadership.');
   const permission=write?'academics:manage-lifecycle':'academics:read';
   if(!actor.permissions.some(value=>[permission,'academics:*','*:*'].includes(value))) throw new ForbiddenException('Your role cannot perform this progression action.');
