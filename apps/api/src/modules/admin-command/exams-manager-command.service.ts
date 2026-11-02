@@ -31,8 +31,13 @@ export class ExamsManagerCommandService implements OnModuleInit {
 
   onModuleInit() {
     this.reportWork?.register('generate_operations', async (row, progress) => {
+      this.requireExamsService().assertReportCardScopeAccess();
       const saved = await this.operations.findReportSnapshot(row.tenant_id, 'exams-manager-command', row.id);
-      if (saved) return { snapshotId: saved.snapshot_id };
+      if (saved) {
+        await this.operations.notifySavedReport(row.tenant_id, 'exams-manager-command', saved,
+          ['principal', 'dean_academics', 'exams_manager']);
+        return { snapshotId: saved.snapshot_id };
+      }
       await progress({ stage: 'collecting' });
       const report = await this.compileReport(row.input, row.id, progress);
       return { snapshotId: report.snapshotId };
@@ -1488,7 +1493,7 @@ export class ExamsManagerCommandService implements OnModuleInit {
   }
 
   async getReports(pageValue: unknown = 1) {
-    const tenantId = this.requireTenantId();
+    const tenantId = this.requireExamsService().assertReportCardScopeAccess();
     const page = Number(pageValue);
     if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw new BadRequestException('Choose a valid report page.');
     const reports = await this.operations.listReportSnapshots(tenantId, 'exams-manager-command', (page-1)*50);
@@ -1509,7 +1514,7 @@ export class ExamsManagerCommandService implements OnModuleInit {
   }
 
   async generateReport(dto: any) {
-    this.requireTenantId();
+    this.requireExamsService().assertReportCardScopeAccess();
     if (!this.reportWork) throw new ServiceUnavailableException('Report processing is unavailable. Please retry shortly.');
     const title = String(dto?.name || dto?.title || 'Exams operations report').trim().slice(0,180);
     const format = String(dto?.format ?? 'pdf').toLowerCase();
@@ -1520,7 +1525,7 @@ export class ExamsManagerCommandService implements OnModuleInit {
   }
 
   async readReport(id: string, preview: boolean) {
-    const tenant = this.requireTenantId();
+    const tenant = this.requireExamsService().assertReportCardScopeAccess();
     const file = await this.operations.readReportArtifact(tenant, 'exams-manager-command', id, preview);
     await this.operations.recordAudit(tenant, 'exams.report.accessed', 'report_snapshot', null,
       { snapshot_id: id, action: preview ? 'preview' : 'download' }, this.actorUserId());

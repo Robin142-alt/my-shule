@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { AdminCommandOperationsService } from "./admin-command-operations.service";
 import { ExamsManagerCommandService } from "./exams-manager-command.service";
+import { ExamsService } from "../exams/exams.service";
 
 test("saved report access preserves legacy PDF bytes, checks integrity and scopes school and module", async () => {
   const content = Buffer.from("%PDF-1.7 saved report");
@@ -50,11 +51,12 @@ test("saved report access preserves legacy PDF bytes, checks integrity and scope
 
 test("operations generation enqueues once without compiling data on the request thread", async () => {
   const submissions: any[] = [];
+  const context = { getStore: () => ({ tenant_id: "school-a", user_id: "actor", role: "exams_manager", permissions: ["exams:read", "exams:write"] }) };
   const service = new ExamsManagerCommandService(
-    { getStore: () => ({ tenant_id: "school-a", user_id: "actor" }) } as never,
+    context as never,
     {} as never,
     {} as never,
-    undefined,
+    new ExamsService(context as never, {} as never),
     undefined,
     {
       submit: async (...args: any[]) => {
@@ -72,4 +74,40 @@ test("operations generation enqueues once without compiling data on the request 
     { job_id: "job", state: "queued" },
   );
   assert.equal(submissions[0][0], "generate_operations");
+});
+
+test("school-wide operations reports reject subject-only readers before reading files or queuing work", async () => {
+  const context = { getStore: () => ({ tenant_id: "school-a", user_id: "teacher", role: "teacher", permissions: ["exams:read", "exams:write"] }) };
+  let touched = false;
+  let handler: any;
+  const operations = {
+    readReportArtifact: async () => { touched = true; return {}; },
+    recordAudit: async () => {},
+    listReportSnapshots: async () => { touched = true; return []; },
+    findReportSnapshot: async () => { touched = true; return { snapshot_id: "saved" }; },
+  };
+  const service = new ExamsManagerCommandService(context as never, {} as never, operations as never,
+    new ExamsService(context as never, {} as never), undefined, {
+      submit: async () => { touched = true; return {}; },
+      register: (_kind: string, callback: any) => { handler = callback; },
+    } as never);
+  await assert.rejects(service.readReport("saved", true), ForbiddenException);
+  await assert.rejects(service.getReports(), ForbiddenException);
+  await assert.rejects(service.generateReport({}), ForbiddenException);
+  service.onModuleInit();
+  await assert.rejects(handler({ tenant_id: "school-a", id: "saved" }, async () => {}), ForbiddenException);
+  assert.equal(touched, false);
+});
+
+test("retrying a saved snapshot resumes its completion notification without rendering another file", async () => {
+  const saved = { snapshot_id: "saved", title: "Operations", format: "pdf", artifact: { checksum_sha256: "checksum" }, manifest: { sections: {} } };
+  const operations = new AdminCommandOperationsService({ query: async () => ({ rows: [saved] }) } as never);
+  const notifications: any[] = [];
+  operations.notifyRoles = async (_tenant, notification) => { notifications.push(notification); };
+  const result = await operations.generateReportSnapshot({ tenantId: "school-a", module: "exams-manager-command",
+    snapshotId: "saved", title: "Operations", sections: {}, targetRoles: ["exams_manager"] });
+  assert.equal(result.snapshotId, "saved");
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].key, "exams-manager-command-report-saved");
+  assert.equal(result.artifact, saved.artifact);
 });

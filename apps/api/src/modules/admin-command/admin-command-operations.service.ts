@@ -19,9 +19,22 @@ export class AdminCommandOperationsService {
   constructor(private readonly prisma: PrismaService, @Optional() private readonly files?: DatabaseFileStorageService) {}
 
   async findReportSnapshot(tenantId: string, module: string, id: string) {
-    const result = await this.readSql(`SELECT snapshot_id, title, format, artifact, manifest, created_at::text
+    const result = await this.readSql(`SELECT snapshot_id, report_id, title, format, artifact, manifest, manifest_checksum_sha256, created_at::text
       FROM report_snapshots WHERE tenant_id=$1 AND module=$2 AND (id::text=$3 OR snapshot_id=$3)`, [tenantId, module, id]);
     return result.rows[0] ?? null;
+  }
+
+  async notifySavedReport(tenantId: string, module: string, saved: Record<string, any>, targetRoles: string[] = []) {
+    if (!targetRoles.length) return;
+    await this.notifyRoles(tenantId, {
+      key: `${module}-report-${saved.snapshot_id}`,
+      type: `${module}.report.generated`,
+      title: `${saved.title} generated`,
+      body: `A ${String(saved.format).toUpperCase()} ${saved.title} was compiled from live school records.`,
+      targetRoles,
+      metadata: { snapshotId: saved.snapshot_id, module, reportId: saved.report_id, format: saved.format,
+        manifest_checksum_sha256: saved.manifest_checksum_sha256, artifact_checksum_sha256: saved.artifact?.checksum_sha256 },
+    });
   }
 
   async readReportArtifact(tenantId: string, module: string, id: string, preview = false) {
@@ -117,8 +130,11 @@ export class AdminCommandOperationsService {
   }) {
     if (input.snapshotId) {
       const existing = await this.findReportSnapshot(input.tenantId, input.module, input.snapshotId);
-      if (existing) return { success: true, message: 'Report generated and stored', snapshotId: existing.snapshot_id,
-        report: existing.manifest, artifact: existing.artifact };
+      if (existing) {
+        await this.notifySavedReport(input.tenantId, input.module, existing, input.targetRoles);
+        return { success: true, message: 'Report generated and stored', snapshotId: existing.snapshot_id,
+          report: existing.manifest, artifact: existing.artifact };
+      }
     }
     const format = this.normalizeFormat(input.format);
     const module = this.safeIdentifier(input.module, 'admin-command');
@@ -244,23 +260,8 @@ export class AdminCommandOperationsService {
       ],
     );
 
-    if (input.targetRoles?.length) {
-      await this.notifyRoles(input.tenantId, {
-        key: `${module}-report-${snapshotId}`,
-        type: `${module}.report.generated`,
-        title: `${title} generated`,
-        body: `A ${format.toUpperCase()} ${title} was compiled from live school records.`,
-        targetRoles: input.targetRoles,
-        metadata: {
-          snapshotId,
-          module,
-          reportId,
-          format,
-          manifest_checksum_sha256: manifestChecksum,
-          artifact_checksum_sha256: generatedArtifact.checksumSha256,
-        },
-      });
-    }
+    await this.notifySavedReport(input.tenantId, module, { snapshot_id: snapshotId, report_id: reportId,
+      title, format, artifact, manifest_checksum_sha256: manifestChecksum }, input.targetRoles);
 
     return {
       success: true,

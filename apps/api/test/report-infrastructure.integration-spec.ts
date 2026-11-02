@@ -7,6 +7,7 @@ import { ReportWorkService } from '../src/modules/exams/services/report-work.ser
 import { ReportSnapshotSchemaService } from '../src/common/reports/report-snapshot-schema.service';
 import { AdminCommandOperationsService } from '../src/modules/admin-command/admin-command-operations.service';
 import { ExamsManagerCommandService } from '../src/modules/admin-command/exams-manager-command.service';
+import { ExamsService } from '../src/modules/exams/exams.service';
 import { DashboardRoleService } from '../src/auth/dashboard-role.service';
 import { AuthorizationRepository } from '../src/auth/repositories/authorization.repository';
 import { TenantMembershipsRepository } from '../src/auth/repositories/tenant-memberships.repository';
@@ -188,18 +189,22 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       request_id text,action text,resource_type text,resource_id uuid,metadata jsonb);
       GRANT SELECT,INSERT ON report_snapshots,report_snapshot_audit_logs,audit_logs TO report_infrastructure_runtime`);
     const operations = new AdminCommandOperationsService({query: (sql: string, args: unknown[]) => db.query(sql,args)} as never, new DatabaseFileStorageService(db));
-    const manager = new ExamsManagerCommandService(context, {} as never, operations, undefined, undefined, work);
+    const manager = new ExamsManagerCommandService(context, {} as never, operations,
+      new ExamsService(context, {} as never), undefined, work);
     manager.onModuleInit();
     // The generation suite separately verifies these academic queries against the full school schema.
     for (const name of ['getOverview','getExamSetup','getExamTimetable','getMarksEntry','getModeration','getPublishing','getReportCards','getAnalysis'] as const)
       jest.spyOn(manager,name).mockResolvedValue({ records: [{name:'Term review'}] } as never);
-    jest.spyOn(operations,'notifyRoles').mockResolvedValue(undefined);
+    jest.spyOn(operations,'notifyRoles').mockResolvedValue(undefined)
+      .mockRejectedValueOnce(new ServiceUnavailableException('Notification transport unavailable'));
     const requests = await Promise.all([0,1,2].map(() => inSchool('school-a', () =>
       manager.generateReport({title:'End term',format:'pdf',request_id:randomUUID()}))));
     expect(new Set(requests.map(r => r.job_id)).size).toBe(1);
     const job = requests[0].job_id;
     const message = await delivery(job);
     await Promise.all([work.execute(message),work.execute(message)]);
+    expect((await state(job)).state).toBe('queued');
+    await work.execute(message);
     expect((await state(job)).state).toBe('completed');
     const saved = await inSchool('school-a', () => operations.findReportSnapshot('school-a','exams-manager-command',job));
     expect(saved.artifact.storage_path).toMatch(/^tenant\/school-a\/reports\/academic\/operations\//);

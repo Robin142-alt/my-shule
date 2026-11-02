@@ -24,10 +24,10 @@ describe("exams manager dashboard routing", () => {
   });
 
   beforeEach(() => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = jest.fn().mockImplementation(async (input) => ({
       ok: true,
-      json: async () => ({ metrics: {}, items: [], exams: [], marks: [], reports: [] }),
-    }) as unknown as typeof fetch;
+      json: async () => String(input).includes('/exams/report-cards/jobs') ? [] : ({ metrics: {}, items: [], exams: [], marks: [], reports: [] }),
+    })) as unknown as typeof fetch;
   });
 
   it("routes canonical exams manager sections into the new exams manager command center", async () => {
