@@ -1721,7 +1721,7 @@ export class ExamsService {
     this.assertReportCardTransitionAllowed('regenerate');
     const tenantId = this.requireTenantId();
     const examSeriesId = this.requireText(dto.exam_series_id, 'Exam series');
-    const reason = this.requireText(dto.reason, 'Regeneration reason');
+    const reason = dto.reason?.trim() || 'Regenerated with the latest saved report inputs';
     if (!this.reportWork) throw new ServiceUnavailableException('Report generation is temporarily unavailable. Retry shortly.');
     const resolved = await this.repository.resolveReportCardScope({ ...dto, tenant_id: tenantId,
       exam_series_id: examSeriesId, target_action: 'regenerate' });

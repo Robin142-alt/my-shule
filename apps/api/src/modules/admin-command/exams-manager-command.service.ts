@@ -1,5 +1,8 @@
 import { examStreamStudentScopeSql, examEnrollmentScopeSql } from '../exams/class-exam-configuration';
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, OnModuleInit, Optional, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { ReportWorkService } from '../exams/services/report-work.service';
+import { EXAM_SCORE_STATUSES } from '../exams/dto/exams.dto';
+import { randomUUID } from 'node:crypto';
 import { openMarkEntry, validateEntryRequest } from './mark-entry-access';
 import { OpenMarkEntryDto } from './open-mark-entry.dto';
 import { RequestContextService } from '../../common/request-context/request-context.service';
@@ -16,14 +19,25 @@ import { validateClassExamConfiguration, persistClassExamWindows } from './class
 type SqlResult<T> = { rows: T[]; rowCount: number };
 
 @Injectable()
-export class ExamsManagerCommandService {
+export class ExamsManagerCommandService implements OnModuleInit {
   constructor(
     private readonly requestContext: RequestContextService,
     private readonly prisma: PrismaService,
     private readonly operations: AdminCommandOperationsService,
     private readonly examsService?: ExamsService,
     @Optional() private readonly schoolEvents?: SchoolOperationalEventsService,
+    @Optional() private readonly reportWork?: ReportWorkService,
   ) {}
+
+  onModuleInit() {
+    this.reportWork?.register('generate_operations', async (row, progress) => {
+      const saved = await this.operations.findReportSnapshot(row.tenant_id, 'exams-manager-command', row.id);
+      if (saved) return { snapshotId: saved.snapshot_id };
+      await progress({ stage: 'collecting' });
+      const report = await this.compileReport(row.input, row.id, progress);
+      return { snapshotId: report.snapshotId };
+    });
+  }
 
   private async emitExamSetupOperation(input: {
     operation: 'created' | 'configured' | 'deleted';
@@ -1155,8 +1169,10 @@ export class ExamsManagerCommandService {
     };
   }
 
-  async getModeration() {
+  async getModeration(pageValue: unknown = 1) {
     const tenantId = this.requireTenantId();
+    const page = Number(pageValue);
+    if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw new BadRequestException('Choose a valid validation page.');
     const result = await this.readSql<{
       id: string;
       exam_name: string;
@@ -1164,8 +1180,7 @@ export class ExamsManagerCommandService {
       class_name: string;
       teacher: string;
       original_mean: number;
-      moderated_mean: number;
-      variance: number;
+      validation_issues: string[];
       students_affected: number;
       status: string;
       submitted_at: string;
@@ -1174,33 +1189,53 @@ export class ExamsManagerCommandService {
         SELECT
           mark.id::text,
           COALESCE(series.name, 'Unlinked exam') AS exam_name,
-          mark.subject_id::text AS subject,
-          mark.class_section_id::text AS class_name,
-          'Submitted teacher' AS teacher,
-          mark.score::numeric AS original_mean,
-          mark.score::numeric AS moderated_mean,
-          0::numeric AS variance,
+          COALESCE(subject.name, 'Subject unavailable') AS subject,
+          COALESCE(section.name, 'Class unavailable') AS class_name,
+          COALESCE(staff.display_name, 'Staff record unavailable') AS teacher,
+          COALESCE(NULLIF(CONCAT_WS(' ',student.first_name,student.middle_name,student.last_name),''),'Learner unavailable') AS student_name,
+          mark.score::float AS original_mean,
+          assessment.max_score::float AS max_score,
+          mark.score_status,
+          ARRAY_REMOVE(ARRAY[
+            CASE WHEN student.id IS NULL THEN 'Restore the learner record' END,
+            CASE WHEN subject.id IS NULL THEN 'Restore the subject mapping' END,
+            CASE WHEN section.id IS NULL THEN 'Restore the class mapping' END,
+            CASE WHEN assessment.id IS NULL OR assessment.max_score<=0 THEN 'Configure the assessment maximum' END,
+            CASE WHEN mark.score_status='entered' AND (mark.score IS NULL OR mark.score<0 OR mark.score>assessment.max_score) THEN 'Correct the mark to the assessment range' END,
+            CASE WHEN NOT (mark.score_status=ANY($3::text[])) OR mark.score_status IS NULL THEN 'Choose a valid mark status' END,
+            CASE WHEN mark.score_status<>'entered' AND mark.score IS NOT NULL THEN 'Clear the numeric mark for this exception' END
+          ],NULL) AS validation_issues,
           1::int AS students_affected,
           COALESCE(mark.status, 'submitted') AS status,
-          mark.created_at::text AS submitted_at
+          COALESCE(mark.submitted_at,mark.updated_at,mark.created_at)::text AS submitted_at
         FROM exam_marks mark
         LEFT JOIN exam_series series
           ON series.tenant_id = mark.tenant_id
          AND series.id = mark.exam_series_id
+        LEFT JOIN subjects subject ON subject.tenant_id=mark.tenant_id AND subject.id::text=mark.subject_id::text
+        LEFT JOIN class_sections section ON section.tenant_id=mark.tenant_id AND section.id::text=mark.class_section_id::text
+        LEFT JOIN students student ON student.tenant_id=mark.tenant_id AND student.id::text=mark.student_id::text
+        LEFT JOIN staff_profiles staff ON staff.tenant_id=mark.tenant_id AND staff.user_id=mark.entered_by_user_id
+        LEFT JOIN exam_assessments assessment ON assessment.tenant_id=mark.tenant_id AND assessment.id=mark.assessment_id AND assessment.exam_series_id=mark.exam_series_id
         WHERE mark.tenant_id = $1
           AND LOWER(COALESCE(mark.status, '')) IN ('submitted', 'needs_moderation', 'pending_review')
-        ORDER BY mark.created_at DESC
+        ORDER BY mark.created_at DESC, mark.id
+        LIMIT 50 OFFSET $2
       `,
-      [tenantId],
+      [tenantId, (page - 1) * 50, Array.from(EXAM_SCORE_STATUSES)],
     );
 
     const submissions = result.rows;
+    const count = await this.readSql<{ total: number }>(`SELECT count(*)::int AS total FROM exam_marks
+      WHERE tenant_id=$1 AND LOWER(COALESCE(status,'')) IN ('submitted','needs_moderation','pending_review')`, [tenantId]);
+    const total = Number(count.rows[0]?.total ?? 0);
     return {
+      page, page_size: 50, total,
       metrics: {
-        total_submissions: submissions.length,
-        pending_review: submissions.filter((item) => ['submitted', 'needs_moderation', 'pending_review'].includes(String(item.status).toLowerCase())).length,
-        approved: submissions.filter((item) => String(item.status).toLowerCase() === 'approved').length,
-        rejected: submissions.filter((item) => String(item.status).toLowerCase() === 'rejected').length,
+        total_submissions: total,
+        pending_review: submissions.length,
+        ready_for_review: submissions.filter(item => !item.validation_issues.length).length,
+        requires_correction: submissions.filter(item => item.validation_issues.length).length,
       },
       submissions,
     };
@@ -1229,14 +1264,24 @@ export class ExamsManagerCommandService {
             updated_at = NOW()
         WHERE tenant_id = $1
           AND id = $2::uuid
-          AND LOWER(COALESCE(status, '')) IN ('submitted', 'reviewed', 'pending_review', 'needs_moderation')
+          AND LOWER(COALESCE(status, '')) IN ('submitted', 'pending_review', 'needs_moderation')
+          AND ($3<>'reviewed' OR EXISTS (
+            SELECT 1 FROM exam_assessments assessment
+            JOIN students student ON student.tenant_id=assessment.tenant_id AND student.id::text=exam_marks.student_id::text
+            JOIN subjects subject ON subject.tenant_id=assessment.tenant_id AND subject.id::text=exam_marks.subject_id::text
+            JOIN class_sections section ON section.tenant_id=assessment.tenant_id AND section.id::text=exam_marks.class_section_id::text
+            WHERE assessment.tenant_id=exam_marks.tenant_id AND assessment.id=exam_marks.assessment_id
+              AND assessment.exam_series_id=exam_marks.exam_series_id AND assessment.max_score>0
+              AND ((exam_marks.score_status=ANY($5::text[]) AND exam_marks.score IS NULL)
+                OR (exam_marks.score_status='entered' AND exam_marks.score BETWEEN 0 AND assessment.max_score))
+          ))
         RETURNING id::text, status
       `,
-      [tenantId, id, status, reason],
+      [tenantId, id, status, reason, EXAM_SCORE_STATUSES.filter(value => value !== 'entered')],
     );
 
     if (result.rowCount === 0) {
-      throw new BadRequestException('No matching marks entry was found in this school moderation queue.');
+      throw new BadRequestException('The entry changed or its mark/assessment configuration is invalid. Refresh Data Validation and resolve the flagged issues.');
     }
 
     await this.recordExamAction(action, { ...dto, status }, id);
@@ -1442,12 +1487,16 @@ export class ExamsManagerCommandService {
     };
   }
 
-  async getReports() {
+  async getReports(pageValue: unknown = 1) {
     const tenantId = this.requireTenantId();
-    const reports = await this.operations.listReportSnapshots(tenantId, 'exams-manager-command');
+    const page = Number(pageValue);
+    if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw new BadRequestException('Choose a valid report page.');
+    const reports = await this.operations.listReportSnapshots(tenantId, 'exams-manager-command', (page-1)*50);
+    const count = await this.readSql<{ total: number }>("SELECT count(*)::int AS total FROM report_snapshots WHERE tenant_id=$1 AND module='exams-manager-command'", [tenantId]);
     return {
+      jobs: (await this.reportWork?.recent('generate_operations') ?? []).filter(job => job.state !== 'completed'),
       metrics: {
-        reports_generated: reports.length,
+        reports_generated: Number(count.rows[0]?.total ?? 0),
       },
       reportsList: reports.map((report: any) => ({
         id: report.id ?? report.snapshotId,
@@ -1460,6 +1509,25 @@ export class ExamsManagerCommandService {
   }
 
   async generateReport(dto: any) {
+    this.requireTenantId();
+    if (!this.reportWork) throw new ServiceUnavailableException('Report processing is unavailable. Please retry shortly.');
+    const title = String(dto?.name || dto?.title || 'Exams operations report').trim().slice(0,180);
+    const format = String(dto?.format ?? 'pdf').toLowerCase();
+    if (!['pdf','csv','xlsx'].includes(format)) throw new BadRequestException('Choose PDF, CSV or XLSX.');
+    const requestId = dto?.request_id ?? randomUUID();
+    if (!/^[a-f0-9-]{36}$/i.test(requestId)) throw new BadRequestException('Invalid report request reference.');
+    return this.reportWork.submit('generate_operations', { title, format }, { title, format, requestId });
+  }
+
+  async readReport(id: string, preview: boolean) {
+    const tenant = this.requireTenantId();
+    const file = await this.operations.readReportArtifact(tenant, 'exams-manager-command', id, preview);
+    await this.operations.recordAudit(tenant, 'exams.report.accessed', 'report_snapshot', null,
+      { snapshot_id: id, action: preview ? 'preview' : 'download' }, this.actorUserId());
+    return file;
+  }
+
+  private async compileReport(dto: any, snapshotId: string, onProgress: (value: Record<string, any>) => Promise<void>) {
     const tenantId = this.requireTenantId();
     const userId = this.actorUserId();
     const [overview, examSetup, examTimetable, marksEntry, moderation, publishing, reportCards, analysis] = await Promise.all([
@@ -1474,6 +1542,9 @@ export class ExamsManagerCommandService {
     ]);
     return this.operations.generateReportSnapshot({
       tenantId,
+      snapshotId,
+      storeFile: true,
+      onProgress,
       module: 'exams-manager-command',
       reportId: 'exams-operations',
       title: String(dto?.name || dto?.title || 'Exams operations report'),

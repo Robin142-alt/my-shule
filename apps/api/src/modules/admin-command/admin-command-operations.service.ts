@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException, Optional } from '@nestjs/common';
+import { DatabaseFileStorageService } from '../../common/uploads/database-file-storage.service';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { createCsvReportArtifact } from '../../common/reports/report-csv-artifact';
@@ -15,7 +16,40 @@ type ReportFormat = 'csv' | 'xlsx' | 'pdf';
 
 @Injectable()
 export class AdminCommandOperationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly files?: DatabaseFileStorageService) {}
+
+  async findReportSnapshot(tenantId: string, module: string, id: string) {
+    const result = await this.readSql(`SELECT snapshot_id, title, format, artifact, manifest, created_at::text
+      FROM report_snapshots WHERE tenant_id=$1 AND module=$2 AND (id::text=$3 OR snapshot_id=$3)`, [tenantId, module, id]);
+    return result.rows[0] ?? null;
+  }
+
+  async readReportArtifact(tenantId: string, module: string, id: string, preview = false) {
+    const row = await this.findReportSnapshot(tenantId, module, id);
+    if (!row) throw new NotFoundException('Report was not found in this school.');
+    const artifact = row.artifact ?? {};
+    let content: Buffer;
+    if (artifact.storage_path && this.files) {
+      content = (await this.files.readForTenant({ tenantId, storagePath: artifact.storage_path })).content;
+    } else if (artifact.content_base64) {
+      content = Buffer.from(artifact.content_base64, 'base64');
+    } else {
+      throw new ConflictException('This saved report has no accessible file. Generate a new report; the saved audit record is preserved.');
+    }
+    if (!content.length || content.length !== Number(artifact.byte_length) ||
+      createHash('sha256').update(content).digest('hex') !== artifact.checksum_sha256) {
+      throw new ConflictException('The saved report failed its integrity check. Generate a new report or ask the administrator to restore its file.');
+    }
+    if (preview && row.format !== 'pdf') {
+      // Preview the saved manifest, never current records, for historical spreadsheet reports.
+      const manifest = row.manifest;
+      if (!manifest?.sections) throw new ConflictException('This report has no saved preview data. Download the original file.');
+      return this.createReportArtifact('pdf', { reportId: row.snapshot_id, module, title: row.title,
+        filename: 'report.pdf', generatedAt: manifest.generatedAt ?? row.created_at,
+        filters: manifest.filters ?? {}, headers: ['Section','Group','Record','Value'], rows: this.buildReportRows(manifest.sections) });
+    }
+    return { content, contentType: artifact.content_type, filename: artifact.filename, byteLength: content.length };
+  }
 
   async writeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[]; rowCount: number }> {
     try {
@@ -39,7 +73,14 @@ export class AdminCommandOperationsService {
     }
   }
 
-  async listReportSnapshots(tenantId: string, module: string) {
+  async listReportSnapshots(tenantId: string, module: string, offset = 0) {
+    const available = module === 'exams-manager-command' ? `CASE
+      WHEN jsonb_typeof(artifact->'content_base64')='string' AND (artifact->>'byte_length') ~ '^[1-9][0-9]*$'
+        AND artifact->>'checksum_sha256' ~ '^[a-f0-9]{64}$' THEN 'Ready'
+      WHEN EXISTS(SELECT 1 FROM file_objects file WHERE file.tenant_id=report_snapshots.tenant_id
+        AND file.storage_path=artifact->>'storage_path' AND file.sha256=artifact->>'checksum_sha256'
+        AND (file.retention_expires_at IS NULL OR file.retention_expires_at>now())) THEN 'Ready'
+      ELSE 'Failed' END` : "'Ready'";
     const result = await this.readSql(
       `
         SELECT
@@ -48,14 +89,14 @@ export class AdminCommandOperationsService {
           title AS "reportName",
           created_at::text AS "generatedDate",
           format AS type,
-          'Ready' AS status
+          ${available} AS status
         FROM report_snapshots
         WHERE tenant_id = $1
           AND module = $2
-        ORDER BY created_at DESC
-        LIMIT 50
+        ORDER BY created_at DESC, id DESC
+        LIMIT 50 OFFSET $3
       `,
-      [tenantId, module],
+      [tenantId, module, offset],
     );
     return result.rows;
   }
@@ -70,7 +111,15 @@ export class AdminCommandOperationsService {
     sections: Record<string, unknown>;
     filters?: Record<string, unknown>;
     targetRoles?: string[];
+    snapshotId?: string;
+    storeFile?: boolean;
+    onProgress?: (value: Record<string, any>) => Promise<void>;
   }) {
+    if (input.snapshotId) {
+      const existing = await this.findReportSnapshot(input.tenantId, input.module, input.snapshotId);
+      if (existing) return { success: true, message: 'Report generated and stored', snapshotId: existing.snapshot_id,
+        report: existing.manifest, artifact: existing.artifact };
+    }
     const format = this.normalizeFormat(input.format);
     const module = this.safeIdentifier(input.module, 'admin-command');
     const reportId = this.safeIdentifier(input.reportId || `${module}-operations`, `${module}-operations`);
@@ -86,8 +135,9 @@ export class AdminCommandOperationsService {
     };
     const manifestJson = JSON.stringify(manifest);
     const manifestChecksum = createHash('sha256').update(manifestJson).digest('hex');
-    const snapshotId = `${module}-${Date.now()}-${randomUUID()}`;
+    const snapshotId = input.snapshotId ?? `${module}-${Date.now()}-${randomUUID()}`;
     const reportRows = this.buildReportRows(input.sections);
+    await input.onProgress?.({ stage: 'rendering' });
     const generatedArtifact = await this.createReportArtifact(format, {
       reportId,
       module,
@@ -98,7 +148,7 @@ export class AdminCommandOperationsService {
       headers: ['Section', 'Group', 'Record', 'Value'],
       rows: reportRows,
     });
-    const artifact = {
+    const artifact: Record<string, unknown> = {
       kind: 'generated-report',
       filename: generatedArtifact.filename,
       content_type: generatedArtifact.contentType,
@@ -108,8 +158,17 @@ export class AdminCommandOperationsService {
       generated_at: generatedArtifact.generatedAt,
       section_count: Object.keys(input.sections).length,
       encoding: 'base64',
-      content_base64: generatedArtifact.content.toString('base64'),
     };
+    await input.onProgress?.({ stage: 'saving' });
+    if (input.storeFile && this.files) {
+      const stored = await this.files.save({ tenantId: input.tenantId,
+        storagePath: `tenant/${input.tenantId}/reports/academic/operations/${snapshotId}/${randomUUID()}.${format}`,
+        originalFileName: generatedArtifact.filename, mimeType: generatedArtifact.contentType,
+        sizeBytes: generatedArtifact.byteLength, buffer: generatedArtifact.content, retentionPolicy: 'report-staging',
+        retentionExpiresAt: new Date(Date.now()+86400000).toISOString() });
+      artifact.storage_path = stored.stored_path;
+      artifact.encoding = 'object';
+    } else artifact.content_base64 = generatedArtifact.content.toString('base64');
     const auditMetadata = JSON.stringify({
       title,
       format,
@@ -131,8 +190,13 @@ export class AdminCommandOperationsService {
             generated_by_user_id, manifest, manifest_checksum_sha256
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::text, $10::jsonb, $11)
+          ON CONFLICT (tenant_id, snapshot_id) DO NOTHING
           RETURNING tenant_id, snapshot_id
-        ), snapshot_audit AS (
+        )${artifact.storage_path ? `, promoted_file AS (
+          UPDATE file_objects SET retention_policy='academic-record', retention_expires_at=NULL
+          WHERE tenant_id=$1 AND storage_path=$14 AND EXISTS (SELECT 1 FROM inserted_snapshot)
+          RETURNING id
+        )` : ''}, snapshot_audit AS (
           INSERT INTO report_snapshot_audit_logs (
             tenant_id, snapshot_id, action, actor_user_id, request_id, metadata
           )
@@ -176,6 +240,7 @@ export class AdminCommandOperationsService {
         manifestChecksum,
         auditMetadata,
         auditAction,
+        ...(artifact.storage_path ? [artifact.storage_path] : []),
       ],
     );
 

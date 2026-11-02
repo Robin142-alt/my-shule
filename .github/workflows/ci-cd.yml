@@ -130,8 +130,9 @@ jobs:
 
       - name: Exams Manager assisted marks entry and mobile workflow
         run: |
-          npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks exams-manager-teacher-progress exams-manager-markbook-actions exams-manager-overview-actions teacher-exams-marks-workspace missing-mark-reason-client markbook-labels
+          npm --prefix apps/web run test:design -- assisted-marks-client exams-manager-assisted-marks exams-manager-teacher-progress exams-manager-markbook-actions exams-manager-overview-actions exams-manager-report-workflow teacher-exams-marks-workspace missing-mark-reason-client markbook-labels
           node apps/web/tests/design/exams-manager-markbook-browser.mjs
+          node apps/web/tests/design/exams-report-workflow-browser.mjs
           node apps/web/tests/design/teacher-marks-browser.mjs --assisted
           node apps/web/tests/design/teacher-marks-browser.mjs
           node apps/web/tests/design/teacher-marks-browser.mjs --unassigned
@@ -463,7 +464,7 @@ jobs:
         run: PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/report-card-generation.integration-spec.ts apps/api/test/report-card-readiness.integration-spec.ts
 
       - name: Report-card retries and concurrency
-        run: node --test dist/apps/api/src/modules/exams/services/report-card-generation-resilience.test.js dist/apps/api/src/modules/exams/services/report-storage-recovery.test.js
+        run: node --test dist/apps/api/src/modules/exams/services/report-card-generation-resilience.test.js dist/apps/api/src/modules/exams/services/report-storage-recovery.test.js dist/apps/api/src/modules/exams/services/report-regeneration-performance.test.js dist/apps/api/src/modules/admin-command/exams-report-workflow.test.js
 
       - name: Support counselling text school identity and isolation
         env:

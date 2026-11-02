@@ -175,6 +175,7 @@ describe("live report-card action controls", () => {
       "/exams/report-cards/regenerate",
       {
         method: "POST",
+        onProgress: expect.any(Function),
         body: {
           exam_series_id: "series-1",
           student_id: "student-1",

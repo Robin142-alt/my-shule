@@ -25,6 +25,8 @@ import { ReportCardArtifactsService } from './services/report-card-artifacts.ser
 import { ReportCardExportService } from './services/report-card-export.service';
 import { ReportWorkService } from './services/report-work.service';
 import { ReportRetentionService } from './services/report-retention.service';
+import { ExamsManagerCommandService } from '../admin-command/exams-manager-command.service';
+import { AdminCommandOperationsService } from '../admin-command/admin-command-operations.service';
 
 // Reuses domain services and event writers without instantiating every ERP module,
 // HTTP middleware, or unrelated event consumer in each rendering replica.
@@ -63,6 +65,8 @@ class ReportWorkerSharedModule {}
   ],
   providers: [
     ExamsService,
+    ExamsManagerCommandService,
+    AdminCommandOperationsService,
     DashboardRoleService,
     AuthorizationRepository,
     TenantMembershipsRepository,

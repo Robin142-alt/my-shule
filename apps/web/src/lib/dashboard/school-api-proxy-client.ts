@@ -65,13 +65,13 @@ export async function requestSchoolApiProxy<T>(
   }
 
   const data=isEnvelope<T>(json) ? json.data : (json as T);
-  if (method==='POST' && /^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope|regeneration-scope|jobs\/[^/]+\/retry)$/.test(path)) {
+  if (method==='POST' && (/^\/exams\/report-cards\/(generate|regenerate|batches|generation-scope|regeneration-scope|jobs\/[^/]+\/retry)$/.test(path) || path === '/admin-command/exams-manager/reports/generate')) {
     const job=data as { job_id?:string;state?:string;result?:T;progress?:Record<string,number|string>;message?:string };
     if (job.job_id) {
       let current=job;
       const started=Date.now();
       while (true) {
-        options?.onProgress?.({ ...current.progress,job_id:job.job_id });
+        options?.onProgress?.({ ...current.progress,job_id:job.job_id,state:current.state ?? 'queued' });
         if (current.state==='completed') return current.result as T;
         if (current.state==='failed') {
           if (current.result && typeof current.result==='object' && 'failed_students' in current.result) return current.result;

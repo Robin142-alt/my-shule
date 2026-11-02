@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { classifyReportCardFailure, ReportProcessingFailure } from './report-card-generation-resilience';
 
 type ReportCardImageStorage = Pick<DatabaseFileStorageService, 'readForTenant'>;
+export type ReportImageReadCache = Map<string, Promise<Awaited<ReturnType<ReportCardImageStorage['readForTenant']>>>>;
 
 const IMAGE_MIME_TYPE_PATTERN = /^image\/(?:png|jpe?g)$/i;
 
@@ -12,6 +13,8 @@ export async function hydrateReportCardLogoForRendering(
   tenantIdValue: string,
   fileStorage?: ReportCardImageStorage,
   strict = false,
+  cache?: ReportImageReadCache,
+  revision = '',
 ): Promise<ReportCardPayload> {
   const clonedPayload: ReportCardPayload = {
     ...payload,
@@ -40,7 +43,14 @@ export async function hydrateReportCardLogoForRendering(
 
     let storedImage: Awaited<ReturnType<ReportCardImageStorage['readForTenant']>>;
     try {
-      storedImage = await fileStorage.readForTenant({ tenantId, storagePath });
+      const key = JSON.stringify([tenantId, storagePath, revision]);
+      let pending = cache?.get(key);
+      if (!pending) {
+        pending = fileStorage.readForTenant({ tenantId, storagePath });
+        cache?.set(key, pending);
+        void pending.catch(() => { cache?.delete(key); });
+      }
+      storedImage = await pending;
     } catch (error) {
       if (strict) {
         if (error instanceof BadRequestException) throw new ReportProcessingFailure('REPORT_IMAGE_CONFIGURATION',

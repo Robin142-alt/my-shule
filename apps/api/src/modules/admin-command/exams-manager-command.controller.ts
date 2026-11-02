@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Query, StreamableFile } from '@nestjs/common';
 import { Permissions } from '../../auth/decorators/permissions.decorator';
 import { RequiresModule } from '../module-access/module-access.decorator';
 import { ExamsManagerCommandService } from './exams-manager-command.service';
@@ -108,8 +108,8 @@ export class ExamsManagerCommandController {
   }
 
   @Get('moderation')
-  getModeration() {
-    return this.service.getModeration();
+  getModeration(@Query('page') page?: string) {
+    return this.service.getModeration(page ?? 1);
   }
 
   @Post('moderation/:id/approve')
@@ -158,13 +158,24 @@ export class ExamsManagerCommandController {
   }
 
   @Get('reports')
-  getReports() {
-    return this.service.getReports();
+  getReports(@Query('page') page?: string) {
+    return this.service.getReports(page ?? 1);
   }
 
   @Post('reports/generate')
   @Permissions('exams:write')
   generateReport(@Body() dto: any) {
     return this.service.generateReport(dto);
+  }
+
+  @Get('reports/:id/file')
+  @Header('Cache-Control', 'private, no-store')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('Referrer-Policy', 'no-referrer')
+  async reportFile(@Param('id') id: string, @Query('preview') preview?: string) {
+    const file = await this.service.readReport(id, preview === 'true');
+    const filename = String(file.filename ?? 'report.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+    return new StreamableFile(file.content, { type: file.contentType,
+      disposition: preview === 'true' ? 'inline' : `attachment; filename="${filename}"`, length: file.byteLength });
   }
 }
