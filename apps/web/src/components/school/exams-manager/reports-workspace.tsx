@@ -158,7 +158,7 @@ export function ReportsWorkspace() {
           {job.state === "failed" ? (
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>
-                The report could not finish. Retry safely. Reference:{" "}
+                {job.progress?.error_message || 'The report could not finish. Retry safely.'} Reference:{" "}
                 {job.job_id}
                 {job.error_code ? ` · ${job.error_code}` : ""}
               </span>

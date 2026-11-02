@@ -359,9 +359,9 @@ export class ReportWorkService
       ...(row.state === 'failed'
         ? {
             message:
-              row.error_code === 'REPORT_CHANGED'
+              row.progress?.error_message ?? (row.error_code === 'REPORT_CHANGED'
                 ? 'Report data changed. Regenerate or preview the current scope and retry.'
-                : 'The report task failed. Completed academic records are safe. Retry; contact the administrator if it fails again.',
+                : 'The report task failed. Completed academic records are safe. Retry; contact the administrator if it fails again.'),
           }
         : {}),
     };
@@ -624,7 +624,8 @@ export class ReportWorkService
         await this.db.withRequestTransaction(async () => {
           const failed = await this.db.query(
             `UPDATE report_work SET state=$4,error_code=$5,lease_until=NULL,
-          available_at=now()+($6::int * interval '1 second'),updated_at=now()
+          available_at=now()+($6::int * interval '1 second'),updated_at=now(),
+          progress=progress || jsonb_build_object('error_message',$7::text)
           WHERE tenant_id=$1 AND id=$2::uuid AND lease_token=$3::uuid AND state='running' RETURNING state`,
             [
               row.tenant_id,
@@ -635,6 +636,7 @@ export class ReportWorkService
                 ? 'REPORT_CHANGED'
                 : failure.code,
               Math.min(60, 3 * 2 ** row.attempts),
+              error instanceof ForbiddenException ? 'The account no longer has permission to generate this report.' : failure.message,
             ],
           );
           if (failed.rows[0]?.state === 'failed')

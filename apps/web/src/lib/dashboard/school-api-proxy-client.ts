@@ -70,6 +70,7 @@ export async function requestSchoolApiProxy<T>(
     if (job.job_id) {
       let current=job;
       const started=Date.now();
+      let pollErrors=0;
       while (true) {
         options?.onProgress?.({ ...current.progress,job_id:job.job_id,state:current.state ?? 'queued' });
         if (current.state==='completed') return current.result as T;
@@ -77,9 +78,13 @@ export async function requestSchoolApiProxy<T>(
           if (current.result && typeof current.result==='object' && 'failed_students' in current.result) return current.result;
           throw new Error(current.message ?? 'Report generation failed. Retry to reuse completed reports.');
         }
-        if (Date.now()-started>15*60*1000) throw new Error('Report generation is still running. It is saved and can be followed in Recent report tasks.');
         await new Promise(resolve=>setTimeout(resolve,Math.min(5000,1000+(Date.now()-started)/30)));
-        current=await requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}`);
+        try {
+          current=await requestSchoolApiProxy(`/exams/report-cards/jobs/${job.job_id}`);
+          pollErrors=0;
+        } catch (error) {
+          if (++pollErrors >= 3) throw new Error(`The server accepted report task ${job.job_id}. Its current status could not be retrieved. Refresh the task list to reconnect. ${error instanceof Error ? error.message : ''}`);
+        }
       }
     }
   }
