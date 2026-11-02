@@ -1,6 +1,7 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ModerationWorkspace } from "@/components/school/exams-manager/moderation-workspace";
 import { ReportWorkProgress } from "@/components/report-cards/report-work-progress";
+import { ReportsWorkspace } from "@/components/school/exams-manager/reports-workspace";
 
 const refetch = jest.fn();
 let error: Error | null = null;
@@ -32,12 +33,17 @@ const data = {
   ],
 };
 jest.mock("@/lib/data/school-hooks", () => ({
-  useSchoolQuery: () => ({
-    data: error ? undefined : data,
+  useSchoolQuery: (path: string) => ({
+    data: error ? undefined : path.includes('/reports?') ? {metrics:{reports_generated:1},reportsList:[{id:'saved',title:'Saved report',status:'Ready',type:'pdf',generated_at:'2026-11-01T12:00:00Z'}]} : data,
     error,
     isLoading: false,
     refetch,
   }),
+}));
+jest.mock("@/components/report-cards/saved-report-preview", () => ({SavedReportPreview: () => 'Saved PDF preview'}));
+jest.mock("@/lib/report-cards/saved-report-file", () => ({
+  downloadSavedReport: jest.fn(async () => {throw new Error('The saved report failed its integrity check.');}),
+  printSavedReport: jest.fn(),
 }));
 jest.mock("@/components/school/exams-manager/api-client", () => ({
   approveModeration: jest.fn(),
@@ -89,4 +95,12 @@ it("only shows a percentage when a measured total exists, including unsuccessful
   expect(
     screen.getByText("5 ready · 1 failed · 18 remaining"),
   ).toBeInTheDocument();
+});
+
+it("shows download failures inside the open PDF preview", async () => {
+  render(<ReportsWorkspace />);
+  fireEvent.click(screen.getByRole('button',{name:'Saved report'}));
+  const dialog=await screen.findByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button',{name:'Download'}));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('integrity check');
 });

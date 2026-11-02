@@ -136,7 +136,7 @@ export function ReportsWorkspace() {
         </button>
       }
     >
-      {error || failure ? (
+      {error || (failure && !selected) ? (
         <div
           role="alert"
           className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"
@@ -306,6 +306,7 @@ export function ReportsWorkspace() {
           ) : undefined
         }
       >
+        {selected && failure ? <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-900">{failure} Retry using the actions below.</p> : null}
         {selected ? (
           <SavedReportPreview
             key={selected.id}
