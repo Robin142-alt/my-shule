@@ -11,7 +11,7 @@
 .overview :is(button,select):focus-visible { outline:3px solid #005ad6; outline-offset:2px; }
 .overview :is(h2,h3,p) { margin:0; }.overview h2 { color:var(--ink); font-size:17px; font-weight:800; letter-spacing:-.035em; line-height:1.2; }
 .greeting { position:relative; isolation:isolate; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:64px; padding:10px 18px; margin:0 -10px; border-radius:20px 20px 0 0; overflow:hidden; background:linear-gradient(110deg,#fff 15%,#edf6ff 55%,#95e4ff); }
-.greeting::after { content:''; position:absolute; z-index:-1; inset:0 0 0 56%; clip-path:polygon(16% 0,100% 0,100% 100%,0 100%); background:url('/principal-overview/campus.png') 64% 58% / cover; }
+.greeting::after { content:''; position:absolute; z-index:-1; inset:0 0 0 56%; clip-path:polygon(16% 0,100% 0,100% 100%,0 100%); background:var(--campus-image) 64% 58% / cover; }
 .greeting > div { position:relative; z-index:1; padding-right:10px; background:linear-gradient(90deg,#f8fbfff5 82%,#edf6ff00); }
 .greeting h2 { font-size:23px; }.greeting p { margin-top:3px; font-size:14px; font-weight:600; }
 .termDot { display:inline-block; margin:0 8px 1px; width:6px; height:6px; background:#19d600; border-radius:50%; }

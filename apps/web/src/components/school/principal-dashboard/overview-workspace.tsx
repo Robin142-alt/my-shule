@@ -80,7 +80,8 @@ export function PrincipalOverviewWorkspace({ executiveDashboard, executiveDashbo
     { label: 'Student Progression', icon: UsersRound, route: 'student-progression', tone: 'blue', permission: 'students:read' },
   ];
   return <div className={styles.overview} data-testid="principal-overview">
-    <section className={styles.greeting} aria-label="School greeting">
+    <section className={styles.greeting} aria-label="School greeting"
+      style={{ '--campus-image': "url('/principal-overview/campus.png')" } as CSSProperties}>
       <div><h2>{buildTimeAwareGreeting('Principal', now)} <span aria-hidden="true">👋</span></h2>
         <p>{profile.data?.schoolName || 'Your school'}{term && <><span className={styles.termDot} aria-hidden="true" />{term.name}, {term.year}</>}</p>
       </div>
