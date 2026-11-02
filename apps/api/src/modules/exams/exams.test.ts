@@ -54,7 +54,7 @@ test('explicit regeneration checks the current curriculum policy instead of retu
   assert.equal(currentInputReads, 1);
 });
 
-test('bulk regeneration validates the role, selected exam, reason and fresh preview before freezing school-scoped targets', async () => {
+test('bulk regeneration validates role and scope, accepts an optional reason, and freezes targets only after a fresh preview', async () => {
   const context = { tenant_id: 'school-a', user_id: 'manager', role: 'exams_manager', permissions: ['exams:read', 'exams:write'] };
   const queued: any[] = [];
   const targets = [{ id: 'draft', student_id: 'student', ineligible_reason: null }, { id: 'published', ineligible_reason: 'Protected' }];
@@ -74,15 +74,20 @@ test('bulk regeneration validates the role, selected exam, reason and fresh prev
   await assert.rejects(()=>service.regenerateReportCardScope(input),ForbiddenException);
   context.permissions.push('exams:write');
   await assert.rejects(()=>service.regenerateReportCardScope({...input,exam_series_id:''}),/Exam series/);
-  await assert.rejects(()=>service.regenerateReportCardScope({...input,reason:' '}),/Regeneration reason/);
   await assert.rejects(()=>service.regenerateReportCardScope({...input,preview_token:'stale'}),/changed/);
   assert.equal(queued.length,0);
   assert.deepEqual(await service.regenerateReportCardScope(input),{job_id:'job'});
   assert.equal(queued[0][0],'generate_regeneration_scope');
   assert.deepEqual(queued[0][1].targets,[targets[0]]);
   assert.equal(queued[0][1].skipped_students,1);
+  assert.equal(queued[0][1].regeneration_reason,'Refresh signatures');
+  for (const reason of [undefined, ' ']) {
+    assert.deepEqual(await service.regenerateReportCardScope({...input,reason}),{job_id:'job'});
+    assert.equal(queued.at(-1)[1].regeneration_reason,'Regenerated with the latest saved report inputs');
+  }
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY,ExamsController.prototype.regenerateReportCardScope),['exams:write']);
   const pipe = new ValidationPipe({transform:true,whitelist:true,forbidNonWhitelisted:true});
+  await pipe.transform({...input,reason:undefined},{type:'body',metatype:RegenerateReportCardScopeDto});
   await assert.rejects(()=>pipe.transform({...input,tenant_id:'other-school'},{type:'body',metatype:RegenerateReportCardScopeDto}));
 });
 

@@ -109,9 +109,9 @@ export function ReportWorkProgress({
           : state === "submitting"
             ? "Waiting for the server to accept the request."
             : state === "queued"
-              ? "Your request is saved and waiting for a worker."
+              ? "Your request is saved and waiting to start."
               : running
-                ? "The worker is reporting its current stage."
+                ? "Your report is being prepared."
                 : state === "failed"
                   ? "Review the error and retry safely."
                   : "The saved report is available below."}
