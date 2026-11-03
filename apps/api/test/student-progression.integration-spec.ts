@@ -273,17 +273,19 @@ describe('Automatic student progression in PostgreSQL',()=>{
     expect((await fixture.q('SELECT status FROM students WHERE id=$1',[student.id]))[0].status).toBe('active');
   });
 
-  it('rejects an entire selected group when any learner changed concurrently',async()=>{
+  it('reports a stale learner while completing an unchanged peer in the selected group',async()=>{
     const first=await fixture.seed();const second=await fixture.seed();
     const command=await request(first.id,'hold',{students:[
       {id:first.id,expected_version:(await detail(first.id)).student.version},
       {id:second.id,expected_version:(await detail(second.id)).student.version},
     ]});
     await engine.command(actor(),await request(second.id,'repeat'));
-    await expect(engine.command(actor(),command)).rejects.toThrow();
-    expect((await detail(first.id)).student.status).toBe('upcoming');
+    const result=await engine.command(actor(),command);
+    expect(result.status).toBe('partial');
+    expect(result.results).toEqual([expect.objectContaining({student_id:first.id,status:'completed'}),expect.objectContaining({student_id:second.id,status:'failed'})]);
+    expect((await detail(first.id)).student.status).toBe('held');
     expect((await detail(second.id)).student.status).toBe('repeating');
-    expect(await fixture.q('SELECT id FROM academic_student_transitions WHERE student_id=$1',[first.id])).toHaveLength(0);
+    expect(await fixture.q('SELECT id FROM academic_student_transitions WHERE student_id=$1',[first.id])).toHaveLength(1);
   });
 
   it('uses a complete scheduled calendar and activates current periods on their actual dates without closing old years',async()=>{

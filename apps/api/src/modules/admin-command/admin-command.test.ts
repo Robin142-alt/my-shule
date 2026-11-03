@@ -818,76 +818,20 @@ test('AdmissionsCommandService admits an approved application through the tenant
   assert.equal(workflowEvents[0]?.entityId, '22222222-2222-4222-8222-222222222222');
 });
 
-test('AdmissionsCommandRepository admitStudent creates student allocation and enrollment inside the current tenant', async () => {
-  const statements: Array<{ sql: string; params: unknown[] }> = [];
-  const applicationId = '33333333-3333-4333-8333-333333333333';
-  const studentId = '22222222-2222-4222-8222-222222222222';
+test('AdmissionsCommandRepository refuses an unconfigured admission before writing a student', async () => {
+  const writes: string[] = [];
   const repository = new AdmissionsCommandRepository({
-    executeWithTenant: async (tenantId: string, userId: string | null, callback: (tx: { $queryRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown[]> }) => Promise<unknown>) => {
-      assert.equal(tenantId, 'tenant-a');
-      return callback({
-        $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
-          statements.push({ sql, params });
-          if (/FROM admission_applications/i.test(sql) && /LIMIT 1/i.test(sql)) {
-            return [{
-              id: applicationId,
-              application_number: 'APP-2026-001',
-              full_name: 'Faith Anyango',
-              date_of_birth: '2013-02-14',
-              gender: 'Female',
-              birth_certificate_number: 'BC765432',
-              nationality: 'Kenyan',
-              class_applying: 'Grade 9',
-              parent_name: 'Rose Anyango',
-              parent_phone: '0700000000',
-              parent_email: 'rose@example.com',
-              relationship: 'mother',
-              status: 'approved',
-              admitted_student_id: null,
-            }];
-          }
-          if (/INSERT INTO students/i.test(sql)) {
-            assert.equal(params[0], 'tenant-a');
-            return [{
-              id: studentId,
-              tenant_id: 'tenant-a',
-              admission_number: 'ADM-2026-56B04666',
-              first_name: 'Faith',
-              last_name: 'Anyango',
-              status: 'active',
-            }];
-          }
-          if (/INSERT INTO student_allocations/i.test(sql)) {
-            assert.equal(params[0], 'tenant-a');
-            assert.equal(params[1], studentId);
-            return [{ id: 'allocation-1', student_id: studentId, class_name: 'Grade 9', stream_name: 'Default' }];
-          }
-          if (/INSERT INTO student_academic_enrollments/i.test(sql)) {
-            assert.equal(params[0], 'tenant-a');
-            assert.equal(params[1], studentId);
-            assert.equal(params[2], applicationId);
-            return [{ id: 'enrollment-1', student_id: studentId, class_name: 'Grade 9', stream_name: 'Default', academic_year: '2026' }];
-          }
-          if (/UPDATE admission_applications/i.test(sql)) {
-            assert.equal(params[0], 'tenant-a');
-            assert.equal(params[1], applicationId);
-            assert.equal(params[2], studentId);
-            return [{ id: applicationId, status: 'registered', admitted_student_id: studentId }];
-          }
-          return [];
-        },
-      });
-    },
+    executeWithTenant: async (_tenant: string, _user: string, work: any) => work({
+      $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
+        if (/INSERT|UPDATE students/i.test(sql)) writes.push(sql);
+        if (/FROM admission_applications/i.test(sql)) return [{id:'33333333-3333-4333-8333-333333333333',status:'approved',class_applying:'Grade 9',full_name:'Test Learner'}];
+        if (/FROM class_sections/i.test(sql)) assert.equal(params[0],'tenant-a');
+        return [];
+      },
+    }),
   } as never);
-
-  const result = await repository.admitStudent('tenant-a', applicationId, '11111111-1111-4111-8111-111111111111');
-
-  assert.equal(result?.student.id, studentId);
-  assert.equal(result?.application.status, 'registered');
-  assert.ok(statements.some((statement) => /INSERT INTO students/i.test(statement.sql)));
-  assert.ok(statements.some((statement) => /INSERT INTO student_allocations/i.test(statement.sql)));
-  assert.ok(statements.some((statement) => /INSERT INTO student_academic_enrollments/i.test(statement.sql)));
-  assert.ok(statements.every((statement) => statement.params[0] === 'tenant-a'));
+  await assert.rejects(() => repository.admitStudent('tenant-a','33333333-3333-4333-8333-333333333333','11111111-1111-4111-8111-111111111111'), /configured class/);
+  assert.deepEqual(writes, []);
 });
 
 test('DeputyCommandRepository discipline and welfare reads do not hide tenant query failures', async () => {

@@ -7,14 +7,14 @@ export const STATUS_LABELS: Record<ProgressionStatus, string> = {
 
 export const ACTIONS: Record<ProgressionAction, { label: string; confirm: string; description: string }> = {
   hold: { label: "Hold promotion", confirm: "Confirm hold", description: "Pause automatic progression for these learners until the school releases the hold." },
-  repeat: { label: "Repeat current grade", confirm: "Confirm repetition", description: "Record the school's decision for these learners to repeat their current grade in the next academic year." },
+  repeat: { label: "Repeat current grade", confirm: "Confirm repetition", description: "Place these learners in the same grade and stream in the next academic year. Their previous-year records remain preserved." },
   release: { label: "Resume automatic progression", confirm: "Resume progression", description: "Remove the individual progression exception. The calendar and school rules will determine the next transition." },
   promote: { label: "Promote now", confirm: "Confirm promotion", description: "Move these learners to their next configured grade and academic year, preserving their streams. MyShule prepares the destination automatically." },
   place: { label: "Change class or stream", confirm: "Save placement", description: "Correct a grade, class or stream placement. Previous placements remain in the learner's history." },
   subjects: { label: "Change subjects", confirm: "Save subject selections", description: "Choose the learner's current subjects from this class's available offerings." },
   reverse: { label: "Reverse promotion", confirm: "Confirm reversal", description: "Correct the selected transition and pause further automatic progression for this learner. Existing academic records remain preserved." },
   transfer: { label: "Transfer out", confirm: "Confirm transfer", description: "Record the learner's transfer out of this school and exclude them from automatic progression." },
-  expel: { label: "Record expulsion", confirm: "Submit expulsion", description: "Submit the school's expulsion decision with a reason. Required school approvals apply before the exit takes effect." },
+  expel: { label: "Record expulsion", confirm: "Submit expulsion", description: "Submit the school's expulsion decision. A separate Principal must approve it before the exit takes effect; school policy may require a note." },
   withdraw: { label: "Withdraw learner", confirm: "Confirm withdrawal", description: "Record the learner's withdrawal from this school and exclude them from automatic progression." },
   reinstate: { label: "Reinstate learner", confirm: "Confirm reinstatement", description: "Return this learner to active enrolment in the selected year, class and stream while preserving their exit history." },
 };

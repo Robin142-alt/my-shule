@@ -2219,6 +2219,10 @@ export class TimetableWorkflowRepository {
         AND term.academic_year_id = year.id
         AND term.name = version.term_name
        WHERE version.tenant_id = $1 AND version.status = 'published'
+         AND year.archived_at IS NULL AND year.status NOT IN ('archived','inactive')
+         AND term.archived_at IS NULL AND term.status NOT IN ('archived','inactive')
+         AND CURRENT_DATE BETWEEN year.starts_on AND year.ends_on
+         AND CURRENT_DATE BETWEEN term.starts_on AND term.ends_on
        ORDER BY
          CASE
            WHEN term.id IS NOT NULL
@@ -3263,7 +3267,10 @@ export class TimetableWorkflowRepository {
          AND ($4::text IS NULL OR version.id::text = $4)
          AND (
            $2::text IS NOT NULL OR $3::text IS NOT NULL OR $4::text IS NOT NULL
-           OR term.id IS NULL OR CURRENT_DATE BETWEEN term.starts_on AND term.ends_on
+           OR (year.archived_at IS NULL AND year.status NOT IN ('archived','inactive')
+             AND term.archived_at IS NULL AND term.status NOT IN ('archived','inactive')
+             AND CURRENT_DATE BETWEEN year.starts_on AND year.ends_on
+             AND CURRENT_DATE BETWEEN term.starts_on AND term.ends_on)
          )
        ORDER BY CASE WHEN term.id IS NOT NULL THEN 0 ELSE 1 END,
                 version.published_at DESC NULLS LAST LIMIT 1`,

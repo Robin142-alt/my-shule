@@ -8,7 +8,7 @@ export class ProgressionSelectionDto {
 export class ProgressionCommandDto implements ProgressionCommand {
   @IsString() @MinLength(1) @MaxLength(128) request_id!:string;
   @IsIn(['hold','repeat','release','promote','place','subjects','reverse','transfer','expel','withdraw','reinstate']) action!:ProgressionAction;
-  @IsString() @MinLength(1) @MaxLength(1000) reason!:string;
+  @IsOptional() @IsString() @MaxLength(1000) reason?:string;
   @IsString() @MinLength(1) @MaxLength(128) academic_year_id!:string;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ValidateNested({each:true}) @Type(()=>ProgressionSelectionDto) students!:ProgressionSelectionDto[];
   @IsOptional() @IsString() @MaxLength(128) target_class_section_id?:string;

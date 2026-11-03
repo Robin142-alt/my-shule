@@ -72,11 +72,9 @@ async function run() {
       await page.getByRole('combobox', { name: 'Action for selected learners' }).selectOption('hold');
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
       await page.getByRole('button', { name: 'Confirm hold', exact: true }).click();
-      await page.getByRole('alert').filter({ hasText: 'Enter a reason' }).waitFor();
-      await page.getByRole('textbox', { name: 'Reason', exact: true }).fill('Placement review pending');
-      await page.getByRole('button', { name: 'Confirm hold', exact: true }).click();
       await page.getByRole('dialog').waitFor({ state: 'detached' });
       assert.equal(await page.evaluate(() => window.__lastCommand.action), 'hold');
+      assert.equal(await page.evaluate(() => window.__lastCommand.reason), '');
       assert.equal(await page.evaluate(() => window.__lastCommand.students[0].expected_version), 'version-one');
       assert.deepEqual(errors, []);
       await page.close(); console.log(`Student progression ${width}px: passed`);

@@ -65,6 +65,7 @@ export function requireCompleteEnrollment(current:StudentState) {
   if(current.state.assignments.length!==1 || current.state.enrollments.length!==1 || !current.enrollment.application_id)
     throw new BadRequestException('This learner needs one complete current class placement and annual admission enrollment. Correct the student record first.');
   if(String(current.enrollment.class_section_id)!==String(current.placement.class_section_id)
-    || (current.enrollment.stream_id??null)!==(current.placement.stream_id??null))
+    || (current.enrollment.stream_id??null)!==(current.placement.stream_id??null)
+    || current.enrollment.academic_year_id!==current.placement.academic_year_id)
     throw new BadRequestException('The learner’s class placement and admission enrollment disagree. Correct the student record first.');
 }

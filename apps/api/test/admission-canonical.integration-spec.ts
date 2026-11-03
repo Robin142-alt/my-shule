@@ -18,6 +18,7 @@ import { ensureCohortContexts, ensureCohortMigration } from '../src/modules/acad
 import { AgpExecutionService } from '../src/common/platform-governance/agp-execution.service';
 import { SelfHealingAgentService } from '../src/common/platform-governance/agents/self-healing-agent.service';
 import { AuditTrailService } from '../src/modules/events/audit-trail.service';
+import { AdmissionsCommandRepository } from '../src/modules/admin-command/repositories/admissions-command.repository';
 
 jest.setTimeout(120000);
 
@@ -126,6 +127,8 @@ describe('Complete admission on the upgraded legacy database', () => {
       expect(queryCount).toBeLessThanOrEqual(49); // Ten subject enrolments require one database round trip.
       expect(result.guardian.portal_access).toBe('pending_contact');
       expect(result.subjects).toHaveLength(10);
+      const enrollment=(await pool.query("SELECT * FROM student_academic_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,result.student.id])).rows;
+      expect(enrollment).toEqual([expect.objectContaining({class_section_id:classId,academic_year_id:year})]);
       expect((await pool.query('SELECT * FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2', [school, result.student.id])).rowCount).toBe(1);
       expect((await pool.query('SELECT * FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2', [school, result.student.id])).rowCount).toBe(10);
       expect((await pool.query('SELECT * FROM audit_logs WHERE tenant_id=$1 AND entity_id=$2', [school, result.student.id])).rowCount).toBeGreaterThan(0);
@@ -323,6 +326,41 @@ describe('Complete admission on the upgraded legacy database', () => {
     await pool.query(`INSERT INTO teacher_subject_assignments (tenant_id,teacher_user_id,class_section_id,subject_id,status,effective_from)
       VALUES($1,$2::uuid,$3,$4,'active','2026-01-01')`,[school,actor,classId,subject]);
     expect((await teacher.get(id)).can_edit).toBe(false);
+  });
+
+  test('the admissions command creates canonical membership and replays without duplicate enrollments',async()=>{
+    await pool.query('UPDATE academic_years SET is_current=TRUE WHERE tenant_id=$1 AND id=$2',[school,year]);
+    const applicationId=randomUUID();
+    await pool.query(`INSERT INTO admission_applications(id,tenant_id,application_number,full_name,class_applying,applying_for_class_id,status,application_status,gender)
+      VALUES($1,$2,'COMMAND-APP','Command Learner','Grade 7',$3,'approved','APPROVED','female')`,[applicationId,school,classId]);
+    const commands=new AdmissionsCommandRepository(db);
+    const result=await commands.admitStudent(school,applicationId,actor);
+    expect(result?.academicEnrollment).toMatchObject({class_section_id:classId,academic_year_id:year});
+    const student=result!.student.id;
+    expect((await pool.query("SELECT * FROM student_class_assignments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,student])).rows)
+      .toEqual([expect.objectContaining({class_section_id:classId,academic_year_id:year})]);
+    expect((await pool.query("SELECT * FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,student])).rowCount).toBe(10);
+    expect((await commands.admitStudent(school,applicationId,actor))?.student.id).toBe(student);
+    expect((await pool.query('SELECT * FROM student_academic_enrollments WHERE tenant_id=$1 AND student_id=$2',[school,student])).rowCount).toBe(1);
+  });
+
+  test('admissions class edits synchronize canonical assignments and keep finance/history identities',async()=>{
+    const admitted=await service.createManualAdmission(dto('COMMAND-EDIT'));
+    const commands=new AdmissionsCommandRepository(db);
+    await expect(commands.assignClassPlacement(school,{student_id:admitted.student.id,class_section_id:foreignClassId},actor)).rejects.toThrow();
+    const before=(await pool.query('SELECT id FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2',[school,admitted.student.id])).rows;
+    const target=randomUUID();
+    await pool.query(`INSERT INTO class_sections(id,tenant_id,academic_year_id,name,grade_level,curriculum_model) VALUES($1,$2,$3,'Grade 7 B','Grade 7','CBC')`,[target,school,year]);
+    await db.executeWithTenant(school,actor,async(tx:any)=>{
+      const [context]=await ensureCohortContexts(tx,school,target);
+      await tx.$queryRawUnsafe(`INSERT INTO class_subject_assignments(tenant_id,class_section_id,subject_id,cohort_id,cohort_placement_id)
+        SELECT $1,$2,subject_id,$3,$4 FROM class_subject_assignments WHERE tenant_id=$1 AND class_section_id=$5 AND status='active'`,school,target,context.cohort_id,context.id,classId);
+    });
+    await commands.assignClassPlacement(school,{student_id:admitted.student.id,class_section_id:target},actor);
+    expect((await pool.query("SELECT class_section_id,academic_year_id FROM student_academic_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,admitted.student.id])).rows)
+      .toEqual([{class_section_id:target,academic_year_id:year}]);
+    expect((await pool.query("SELECT class_section_id FROM student_class_assignments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,admitted.student.id])).rows).toEqual([{class_section_id:target}]);
+    expect((await pool.query('SELECT id FROM student_fee_invoices WHERE tenant_id=$1 AND student_id=$2',[school,admitted.student.id])).rows).toEqual(before);
   });
 
 });

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { CohortTx, ensureCohortContexts, captureCohortConfiguration, snapshotCohortConfiguration } from '../academics/cohort-configuration';
-import { day, resolveNextClass } from './progression-policy';
+import { continuingGradeName, day, resolveNextClass } from './progression-policy';
 import { query, ProgressionActor, Row } from './progression-store';
 
 export async function progressionCalendar(tx:CohortTx,tenant:string,includeHistory=false) {
@@ -41,13 +41,29 @@ export async function pathwayConfiguration(tx:CohortTx,tenant:string,source:Row,
 export async function plannedDestination(tx:CohortTx,tenant:string,source:Row,sourceYear:Row,repeating=false) {
   const templates=await activeClasses(tx,tenant,String(sourceYear.id));
   const configuration=await pathwayConfiguration(tx,tenant,source,day(sourceYear.ends_on));
-  return resolveNextClass(source,templates,configuration,repeating);
+  const continuing=resolveNextClass(source,templates,configuration,repeating);
+  const [nextYear]=await query(tx,`SELECT id FROM academic_years WHERE tenant_id=$1 AND starts_on>$2::date
+    AND archived_at IS NULL AND status NOT IN ('inactive','archived') ORDER BY starts_on,id LIMIT 1`,tenant,day(sourceYear.ends_on));
+  if(nextYear) {
+    const planned=resolveNextClass(source,await activeClasses(tx,tenant,String(nextYear.id)),configuration,repeating);
+    // A newly offered grade may exist only in the destination year. Its own
+    // curriculum and teaching configuration take precedence over last year's.
+    if(planned.target||planned.completion) {
+      if(planned.target&&continuing.target&&String(planned.target.name).trim().toLowerCase()===String(continuing.target.name).trim().toLowerCase()) return continuing;
+      return planned;
+    }
+  }
+  if(!continuing.target&&!continuing.completion&&continuing.nextName===continuingGradeName(source)) {
+    const disabled=await query(tx,`SELECT id FROM class_sections WHERE tenant_id=$1 AND academic_year_id::text=$2
+      AND lower(btrim(name))=lower(btrim($3)) AND (NOT is_active OR status<>'active' OR archived_at IS NOT NULL)`,tenant,sourceYear.id,continuing.nextName);
+    if(!disabled.length) return {target:{...source,name:continuing.nextName,grade_level:continuing.nextName,academic_level_id:null},nextName:continuing.nextName};
+  }
+  return continuing;
 }
 /** Reuses an explicitly configured next-year position or copies the school's offered destination grade. */
 export async function prepareDestination(tx:CohortTx,actor:ProgressionActor,template:Row,nextYear:Row,sourceStreamName:string|null) {
   const tenant=actor.tenantId;
-  // Complete next-year dates are sufficient annual configuration; activate the scheduled destination only after the source year is due.
-  if(nextYear.status==='draft') await query(tx,"UPDATE academic_years SET status='active',version=version+1,updated_at=NOW() WHERE tenant_id=$1 AND id=$2 AND status='draft' RETURNING id",tenant,nextYear.id);
+  // Preparing or manually using a future year must not change the active calendar.
   const existing=await query(tx,`SELECT * FROM class_sections WHERE tenant_id=$1 AND academic_year_id::text=$2 AND lower(btrim(name))=lower(btrim($3)) FOR UPDATE`,tenant,nextYear.id,template.name);
   if(existing.length>1) throw new ConflictException('The next-year class has duplicate names. Resolve its configuration.');
   let target=existing[0];
@@ -84,32 +100,49 @@ export async function prepareDestination(tx:CohortTx,actor:ProgressionActor,temp
   const context=contexts.find(row=>row.stream_id===(targetStream?.id??null));
   if(!context) throw new ConflictException('The destination cohort is unavailable.');
   const configured=await captureCohortConfiguration(tx,tenant,context.id);
-  if(!configured.subjects.length) {
+  if(String(template.id)!==String(target.id)) {
     const sourceStreams=sourceStreamName?templateStreams.filter(row=>String(row.name).trim().toLowerCase()===sourceStreamName.trim().toLowerCase()):[];
     const templateStream=sourceStreams[0]?.id??null;
-    if(sourceStreamName && templateStreams.length && !templateStream)
-      throw new ConflictException('The new stream needs a subject configuration for its destination grade.');
     const sources=await ensureCohortContexts(tx,tenant,template.id,templateStream);
-    const source=sources.find(row=>row.stream_id===templateStream);
-    if(!source) throw new ConflictException('Configure the destination grade’s subjects in Academic Foundation.');
-    const snapshot=await captureCohortConfiguration(tx,tenant,source.id);
+    let source=sources.find(row=>row.stream_id===templateStream);
+    let inherited:Awaited<ReturnType<typeof captureCohortConfiguration>>|undefined;
+    if(!source&&!configured.subjects.length&&sourceStreamName&&templateStreams.length) {
+      const choices=await Promise.all(sources.map(row=>captureCohortConfiguration(tx,tenant,row.id)));
+      const signature=(snapshot:typeof configured)=>JSON.stringify(snapshot.subjects.map(row=>
+        JSON.stringify([row.subject_id,row.status,row.is_compulsory,row.is_examinable,row.lessons_per_week,day(row.effective_to)])).sort());
+      if(!choices.length||choices.some(row=>signature(row)!==signature(choices[0])))
+        throw new ConflictException('Destination streams offer different subjects or pathways. Configure the learner’s destination stream before promotion.');
+      source=sources[0];inherited=choices[0];
+      const teacherKey=(row:Row)=>JSON.stringify([row.subject_id,row.teacher_user_id,row.assignment_type,row.is_primary,row.mark_entry_allowed,row.lesson_record_allowed,row.report_comment_allowed,day(row.effective_from),day(row.effective_to)]);
+      // Reuse only teachers already responsible for this subject across every
+      // destination stream; conflicting staff assignments stay unassigned.
+      inherited.teachers=inherited.teachers.filter(row=>choices.every(choice=>choice.teachers.some(teacher=>teacherKey(teacher)===teacherKey(row))));
+    }
+    if(!source&&!configured.subjects.length) throw new ConflictException('Configure the destination grade’s subjects in Academic Foundation.');
+    if(source) {
+    const snapshot=inherited??await captureCohortConfiguration(tx,tenant,source.id);
     // Explicit end dates are respected. Continuing assignments have no artificial annual expiry.
     snapshot.subjects=snapshot.subjects.filter(row=>row.status==='active'&&(!row.effective_to||day(row.effective_to)>=day(nextYear.starts_on)));
     const activeSubjects=await query(tx,"SELECT id::text FROM subjects WHERE tenant_id=$1 AND status='active' AND archived_at IS NULL AND deleted_at IS NULL",tenant);
     snapshot.subjects=snapshot.subjects.filter(row=>activeSubjects.some(subject=>subject.id===String(row.subject_id)));
-    if(!snapshot.subjects.length) throw new ConflictException('The destination grade has no valid continuing subjects. Configure its next-year subjects.');
+    if(!snapshot.subjects.length&&!configured.subjects.length) throw new ConflictException('The destination grade has no valid continuing subjects. Configure its next-year subjects.');
     const staff=await query(tx,"SELECT DISTINCT user_id::text FROM tenant_memberships WHERE tenant_id=$1 AND status='active'",tenant);
+    const existingTeachers=await query(tx,'SELECT subject_id FROM teacher_subject_assignments WHERE tenant_id=$1 AND cohort_placement_id=$2',tenant,context.id);
+    const permitted=new Set([...configured.subjects.filter(row=>row.status==='active'),...snapshot.subjects.filter(row=>!configured.subjects.some(item=>item.subject_id===row.subject_id))].map(row=>String(row.subject_id)));
     snapshot.teachers=snapshot.teachers.filter(row=>staff.some(member=>member.user_id===String(row.teacher_user_id))
       &&(!row.effective_to||day(row.effective_to)>=day(nextYear.starts_on))
-      &&snapshot.subjects.some(subject=>String(subject.subject_id)===String(row.subject_id)));
+      &&permitted.has(String(row.subject_id))&&!existingTeachers.some(item=>String(item.subject_id)===String(row.subject_id)));
+    snapshot.subjects=snapshot.subjects.filter(row=>!configured.subjects.some(item=>String(item.subject_id)===String(row.subject_id)));
+    for(const row of [...snapshot.subjects,...snapshot.teachers]) row.effective_from=day(row.effective_from)>day(nextYear.starts_on)?day(row.effective_from):day(nextYear.starts_on);
     await snapshotCohortConfiguration(tx,tenant,source.id,context,actor.userId,snapshot);
+    }
     await query(tx,`INSERT INTO academics_class_teachers(school_id,tenant_id,academic_year_id,class_section_id,teacher_user_id,is_active,status,
         effective_from,effective_to,assignment_type,reason)
       SELECT $1,$1,$2,$3,teacher_user_id,TRUE,'active',GREATEST(COALESCE(effective_from,$4::date),$4::date),effective_to,assignment_type,'Annual calendar continuation'
       FROM academics_class_teachers appointment WHERE tenant_id=$1 AND class_section_id::text=$5 AND status='active' AND is_active
         AND (effective_to IS NULL OR effective_to>=$4::date)
         AND EXISTS(SELECT 1 FROM tenant_memberships member WHERE member.tenant_id=$1 AND member.user_id=appointment.teacher_user_id AND member.status='active')
-        AND NOT EXISTS(SELECT 1 FROM academics_class_teachers existing WHERE existing.tenant_id=$1 AND existing.class_section_id::text=$3 AND existing.is_active)
+        AND NOT EXISTS(SELECT 1 FROM academics_class_teachers existing WHERE existing.tenant_id=$1 AND existing.class_section_id::text=$3)
       RETURNING id`,tenant,nextYear.id,target.id,nextYear.starts_on,template.id);
   }
   return {classId:String(target.id),streamId:targetStream?.id??null};
@@ -122,7 +155,7 @@ export async function resolvePlacement(tx:CohortTx,tenant:string,classId:string,
     LEFT JOIN class_streams stream ON stream.tenant_id=section.tenant_id AND stream.class_section_id::text=section.id::text AND stream.id::text=$3
       AND stream.status='active' AND stream.is_active AND stream.archived_at IS NULL
     WHERE section.tenant_id=$1 AND section.id::text=$2 AND section.is_active AND section.status='active' AND section.archived_at IS NULL
-      AND year.status NOT IN ('inactive','archived','draft') AND year.archived_at IS NULL FOR UPDATE OF section`,tenant,classId,streamId);
+      AND year.status NOT IN ('inactive','archived') AND year.archived_at IS NULL FOR UPDATE OF section`,tenant,classId,streamId);
   if(!section || (streamId&&!section.stream_id)) throw new BadRequestException('Choose an active class and its stream in this school.');
   if(!section.academic_level_id) throw new BadRequestException('The destination class needs an academic level. Review Academic Foundation.');
   const streams=await query(tx,"SELECT id FROM class_streams WHERE tenant_id=$1 AND class_section_id::text=$2 AND status='active' AND is_active AND archived_at IS NULL",tenant,classId);

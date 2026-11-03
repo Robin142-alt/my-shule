@@ -33,7 +33,7 @@ let queryError: Error | null;
 const refetch = jest.fn();
 
 beforeEach(() => {
-  jest.clearAllMocks(); data = JSON.parse(JSON.stringify(overview)); detailData = JSON.parse(JSON.stringify(detail)); queryError = null;
+  jest.resetAllMocks(); data = JSON.parse(JSON.stringify(overview)); detailData = JSON.parse(JSON.stringify(detail)); queryError = null;
   refetch.mockResolvedValue({ data });
   jest.mocked(useSchoolQuery).mockImplementation((path) => ({ data: !path ? undefined : path.includes("/students/") ? detailData : queryError ? undefined : data, isLoading: false, isFetching: false, error: queryError, refetch }) as unknown as ReturnType<typeof useSchoolQuery>);
   jest.mocked(submitProgressionCommand).mockResolvedValue({ status: "completed", affected: 1, message: "Promotion held for one learner." });
@@ -50,18 +50,14 @@ test("shows the scheduled automatic transition and exposes individual controls w
   expect(screen.getByRole("combobox", { name: "Academic year" })).toHaveValue("year-2026");
 });
 
-test("requires a reason and sends only selected learners with their expected state", async () => {
+test("accepts a routine decision without a reason and sends only selected learners with their expected state", async () => {
   const user = userEvent.setup(); render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("checkbox", { name: "Select Amina Otieno" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "Action for selected learners" }), "hold");
   await user.click(screen.getByRole("button", { name: "Continue" }));
   const dialog = screen.getByRole("dialog");
   await user.click(within(dialog).getByRole("button", { name: "Confirm hold" }));
-  expect(await within(dialog).findByRole("alert")).toHaveTextContent("reason");
-  expect(submitProgressionCommand).not.toHaveBeenCalled();
-  await user.type(within(dialog).getByRole("textbox", { name: "Reason" }), "Awaiting placement review");
-  await user.click(within(dialog).getByRole("button", { name: "Confirm hold" }));
-  await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith({ request_id: "request-one", action: "hold", reason: "Awaiting placement review", academic_year_id: "year-2026", students: [{ id: "student-one", expected_version: "version-one" }] }));
+  await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith({ request_id: "request-one", action: "hold", reason: "", academic_year_id: "year-2026", students: [{ id: "student-one", expected_version: "version-one" }] }));
   expect(await screen.findByRole("status")).toHaveTextContent("Promotion held");
 });
 
@@ -72,12 +68,58 @@ test("keeps an interrupted command identical on retry", async () => {
   await user.click(screen.getByRole("checkbox", { name: "Select Amina Otieno" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "Action for selected learners" }), "hold");
   await user.click(screen.getByRole("button", { name: "Continue" }));
-  await user.type(screen.getByRole("textbox", { name: "Reason" }), "Awaiting placement review");
+  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Awaiting placement review");
   await user.click(screen.getByRole("button", { name: "Confirm hold" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Connection interrupted");
   await user.click(screen.getByRole("button", { name: "Retry action" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledTimes(2));
   expect(jest.mocked(submitProgressionCommand).mock.calls[1][0]).toEqual(jest.mocked(submitProgressionCommand).mock.calls[0][0]);
+});
+
+test("allows the user to add a note when school policy requires it", async () => {
+  const user=userEvent.setup();
+  jest.mocked(submitProgressionCommand).mockRejectedValueOnce(new Error("This school’s policy requires a reason for this action."));
+  render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("checkbox",{name:"Select Amina Otieno"}));
+  await user.selectOptions(screen.getByRole("combobox",{name:"Action for selected learners"}),"hold");
+  await user.click(screen.getByRole("button",{name:"Continue"}));
+  await user.click(screen.getByRole("button",{name:"Confirm hold"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("policy requires a reason");
+  expect(screen.getByRole("textbox",{name:"Reason (optional)"})).toBeEnabled();
+  await user.type(screen.getByRole("textbox",{name:"Reason (optional)"}),"School review pending");
+  await user.click(screen.getByRole("button",{name:"Confirm hold"}));
+  await waitFor(()=>expect(submitProgressionCommand).toHaveBeenLastCalledWith(expect.objectContaining({reason:"School review pending"})));
+});
+
+test("reports each learner after partial bulk success without claiming every learner succeeded", async () => {
+  const user=userEvent.setup();
+  data.students.push({...learner,id:"student-two",name:"Second learner",admission_number:"SH002"});data.total=2;
+  jest.mocked(submitProgressionCommand).mockResolvedValue({status:"partial",affected:1,message:"1 learner updated. 1 needs review.",results:[
+    {student_id:learner.id,status:"completed",message:"Placement saved"},
+    {student_id:"student-two",status:"failed",message:"Conflicting enrollment evidence"},
+  ]});
+  render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("checkbox",{name:"Select Amina Otieno"}));
+  await user.click(screen.getByRole("checkbox",{name:"Select Second learner"}));
+  await user.selectOptions(screen.getByRole("combobox",{name:"Action for selected learners"}),"promote");
+  await user.click(screen.getByRole("button",{name:"Continue"}));
+  await user.click(screen.getByRole("button",{name:"Confirm promotion"}));
+  expect(await screen.findByText(/Latest action results/)).toHaveTextContent("1 completed, 1 need review");
+  expect(screen.getByText("Second learner · SH002").closest("li")).toHaveTextContent("Needs review: Conflicting enrollment evidence");
+  expect(refetch).toHaveBeenCalled();
+});
+
+test("restores current correction selections and resets dependent options when changing year", async () => {
+  const user=userEvent.setup();render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("button",{name:learner.name}));
+  await user.click(screen.getByRole("button",{name:"Change class or stream"}));
+  expect(screen.getByRole("combobox",{name:"Destination class"})).toHaveValue(learner.class_section_id);
+  expect(screen.getByRole("combobox",{name:"Destination stream"})).toHaveValue(learner.stream_id);
+  await user.selectOptions(screen.getByRole("combobox",{name:"Destination academic year"}),"year-2027");
+  expect(screen.getByRole("combobox",{name:"Destination class"})).toHaveValue("");
+  await user.selectOptions(screen.getByRole("combobox",{name:"Destination class"}),"class-eight");
+  expect(screen.getByRole("combobox",{name:"Destination stream"})).toHaveValue("");
+  expect(screen.getByRole("option",{name:"East"})).toHaveValue("east-eight");
 });
 
 test("edits elective subjects while keeping required subjects selected", async () => {
@@ -88,7 +130,7 @@ test("edits elective subjects while keeping required subjects selected", async (
   expect(within(dialog).getByRole("checkbox", { name: /Mathematics/ })).toBeChecked();
   expect(within(dialog).getByRole("checkbox", { name: /Mathematics/ })).toBeDisabled();
   await user.click(within(dialog).getByRole("checkbox", { name: /Art/ }));
-  await user.type(within(dialog).getByRole("textbox", { name: "Reason" }), "Approved elective change");
+  await user.type(within(dialog).getByRole("textbox", { name: /^Reason/ }), "Approved elective change");
   await user.click(within(dialog).getByRole("button", { name: "Save subject selections" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ action: "subjects", subject_ids: ["math", "art"] })));
 });
@@ -117,7 +159,7 @@ test("manual promotion uses the configured next placement without annual mapping
   const user = userEvent.setup(); render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("button", { name: "Amina Otieno" }));
   await user.click(screen.getByRole("button", { name: "Promote now" }));
-  await user.type(screen.getByRole("textbox", { name: "Reason" }), "Approved early progression");
+  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Approved early progression");
   await user.click(screen.getByRole("button", { name: "Confirm promotion" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ action: "promote", academic_year_id: "year-2026" })));
   expect(jest.mocked(submitProgressionCommand).mock.calls[0][0].target_class_section_id).toBeUndefined();
@@ -129,7 +171,7 @@ test("a conflicting staff update forces a refresh instead of retrying a stale le
   render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("button", { name: "Amina Otieno" }));
   await user.click(screen.getByRole("button", { name: "Hold promotion" }));
-  await user.type(screen.getByRole("textbox", { name: "Reason" }), "Review required");
+  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Review required");
   await user.click(screen.getByRole("button", { name: "Confirm hold" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("changed");
   expect(screen.queryByRole("button", { name: "Retry action" })).not.toBeInTheDocument();
@@ -164,7 +206,7 @@ test("a live refetch cannot silently replace the expected version behind an open
   await user.click(screen.getByRole("button", { name: "Change subjects" }));
   detailData = { ...detailData, student: { ...detailData.student, version: "concurrent-update-version" } };
   await user.click(screen.getByRole("checkbox", { name: /Art/ }));
-  await user.type(screen.getByRole("textbox", { name: "Reason" }), "Approved elective change");
+  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Approved elective change");
   await user.click(screen.getByRole("button", { name: "Save subject selections" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ students: [{ id: "student-one", expected_version: "version-one" }] })));
 });
@@ -196,7 +238,7 @@ test("reversal submits the exact authorised timeline transition", async () => {
   const user = userEvent.setup(); render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("button", { name: "Amina Otieno" }));
   await user.click(screen.getByRole("button", { name: "Reverse this transition" }));
-  await user.type(screen.getByRole("textbox", { name: "Reason" }), "Correct an accidental promotion");
+  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Correct an accidental promotion");
   await user.click(screen.getByRole("button", { name: "Confirm reversal" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ action: "reverse", transition_id: "transition-one", students: [{ id: "student-one", expected_version: "version-one" }] })));
 });

@@ -332,7 +332,7 @@ export class SmartLibraryService {
       FROM students s LEFT JOIN LATERAL(SELECT class_name,stream_name FROM student_allocations
         WHERE tenant_id=s.tenant_id AND student_id::text=s.id::text AND is_current=true LIMIT 1) a ON true
       WHERE s.tenant_id=$1 AND ($6::boolean OR (s.deleted_at IS NULL
-        AND lower(s.status::text) NOT IN ('archived','transferred','graduated','suspended','exited')))
+        AND lower(s.status::text) NOT IN ('archived','transferred','transferred_out','withdrawn','expelled','graduated','alumni','inactive','suspended','on_leave','exited')))
       UNION ALL SELECT sp.id::text,'staff',sp.display_name,sp.staff_number,'','' FROM staff_profiles sp
       WHERE sp.tenant_id=$1 AND ($6::boolean OR lower(COALESCE(sp.status,'active')) NOT IN ('archived','suspended','exited','transferred'))
       ) people WHERE ($2='' OR name ILIKE '%'||$2||'%' OR identifier ILIKE '%'||$2||'%' OR class_name ILIKE '%'||$2||'%')
@@ -348,7 +348,7 @@ export class SmartLibraryService {
     const person = type === 'student'
       ? await this.one(`SELECT id,admission_number AS identifier,status FROM students WHERE tenant_id=$1 AND id::text=$2 AND deleted_at IS NULL`,[tenant,subject])
       : await this.one(`SELECT id,staff_number AS identifier,status FROM staff_profiles WHERE tenant_id=$1 AND id::text=$2`,[tenant,subject]);
-    if (['archived','suspended','exited','transferred','graduated','invited','pending_setup'].includes(String(person.status).toLowerCase())) throw new BadRequestException('This borrower is not active.');
+    if (['archived','suspended','on_leave','inactive','exited','transferred','transferred_out','withdrawn','expelled','graduated','alumni','invited','pending_setup'].includes(String(person.status).toLowerCase())) throw new BadRequestException('This borrower is not active.');
     let b = (await this.rows(`SELECT * FROM library_borrowers WHERE tenant_id=$1 AND borrower_type=$2 AND subject_id=$3::uuid ORDER BY created_at,id LIMIT 1 FOR UPDATE`,[tenant,type,subject]))[0];
     if (!b) b = await this.one(`INSERT INTO library_borrowers(tenant_id,borrower_type,subject_id,scan_code) VALUES($1,$2,$3::uuid,$4) RETURNING *`,[tenant,type,subject,person.identifier]);
     return b;

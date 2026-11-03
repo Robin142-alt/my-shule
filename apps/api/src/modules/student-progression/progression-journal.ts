@@ -34,6 +34,11 @@ export async function recordTransition(tx:CohortTx,events:EventPublisherService,
     VALUES($1,$1,'student',$2,$3,$4::uuid,$5,$6::jsonb,$7::jsonb,$8,$9,$10::jsonb) RETURNING id`,actor.tenantId,current.student.id,
   `student.progression.${input.action}`,actor.userId,actor.role,JSON.stringify(current.state),JSON.stringify(after.state),input.reason,
   input.requestId,JSON.stringify({transition_id:record.id,automated:Boolean(actor.system)}));
+  if(['transferred','withdrawn','expelled','graduated','completed'].includes(input.outcome)) {
+    await events.publish({tenant_id:actor.tenantId,event_name:'student.lifecycle.exited',event_key:`student.lifecycle.exited:${record.id}`,
+      aggregate_type:'student',aggregate_id:current.student.id,payload:{tenant_id:actor.tenantId,student_id:current.student.id,
+        status:String(after.student.status),reason:input.reason}},tx);
+  }
   // Historical lifecycle consumers keep their familiar event contract; the new journal carries all exception types.
   if(current.enrollment && ['promoted','repeating','graduated','completed'].includes(input.outcome)) {
     const eventType=['graduated','completed'].includes(input.outcome)?'graduation':'promotion';

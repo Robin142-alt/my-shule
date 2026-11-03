@@ -959,8 +959,10 @@ export class AdmissionsRepository {
       await query(`UPDATE student_class_assignments SET cohort_id=$3,cohort_placement_id=$4
         WHERE tenant_id=$1 AND student_id=$2 AND status='active' AND class_section_id=$5 AND stream_id IS NOT DISTINCT FROM $6::text
         RETURNING id`,[input.tenant_id,student.id,admissionContext.cohort_id,admissionContext.id,input.class_section_id,input.stream_id??null]);
-      await query(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5
-        WHERE tenant_id=$1 AND id=$2 RETURNING id`,[input.tenant_id,academicEnrollmentId,admissionContext.cohort_id,admissionContext.id,input.stream_id??null]);
+      await query(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5,
+        class_section_id=$6,academic_year_id=$7
+        WHERE tenant_id=$1 AND id=$2 RETURNING id`,[input.tenant_id,academicEnrollmentId,admissionContext.cohort_id,admissionContext.id,input.stream_id??null,
+        input.class_section_id,input.academic_year_id]);
 
       const selectedSubjects = availableSubjects.filter((item) => selected.has(String(item.id)));
       await query(`
@@ -2809,8 +2811,8 @@ export class AdmissionsRepository {
     );
 
     if(result[0]) {
-      await transaction.$queryRawUnsafe(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5
-        WHERE tenant_id=$1 AND id=$2 RETURNING id`,input.school_id,result[0].id,context.cohort_id,context.id,context.stream_id);
+      await transaction.$queryRawUnsafe(`UPDATE student_academic_enrollments SET cohort_id=$3,cohort_placement_id=$4,stream_id=$5,academic_year_id=$6
+        WHERE tenant_id=$1 AND id=$2 RETURNING id`,input.school_id,result[0].id,context.cohort_id,context.id,context.stream_id,context.academic_year_id);
       await transaction.$queryRawUnsafe(`UPDATE student_class_assignments SET cohort_id=$3,cohort_placement_id=$4
         WHERE tenant_id=$1 AND student_id=$2 AND class_section_id=$5 AND stream_id IS NOT DISTINCT FROM $6::text
           AND status='active' RETURNING id`,input.school_id,input.student_id,context.cohort_id,context.id,context.class_section_id,context.stream_id);

@@ -148,7 +148,9 @@ export class AdmissionsCommandService {
 
   async assignClassPlacement(body: any) {
     const tenantId = this.requireTenantId();
-    const placement = await this.admissionsRepository.assignClassPlacement(tenantId, body);
+    const actorId=this.getUserIdOrNull();
+    if(!actorId) throw new UnauthorizedException('User context is required');
+    const placement = await this.admissionsRepository.assignClassPlacement(tenantId, body,actorId);
     if (!placement) {
       throw new NotFoundException('Student was not found for this school');
     }
@@ -157,6 +159,10 @@ export class AdmissionsCommandService {
       class_name: placement.class_name,
       stream_name: placement.stream_name,
     }, this.getUserIdOrNull());
+    await this.operations.recordWorkflowAction({tenantId,actorUserId:actorId,sourceRole:'admissions_officer',
+      targetRoles:['principal','secretary','teacher','class_teacher'],eventType:'student.placement.updated',entityType:'student',
+      entityId:placement.student_id,title:'Student placement updated',message:'The learner’s class and subject membership have been synchronized.',
+      priority:'normal',payload:{class_name:placement.class_name,stream_name:placement.stream_name}});
     return placement;
   }
 

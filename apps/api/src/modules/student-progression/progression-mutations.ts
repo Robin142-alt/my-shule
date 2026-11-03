@@ -4,6 +4,7 @@ import { updateStudentCohortPosition } from '../academics/cohort-enrollment';
 import { activeLearner, day } from './progression-policy';
 import { resolvePlacement } from './progression-destinations';
 import { ProgressionActor, query, StudentState, requireCompleteEnrollment, Row } from './progression-store';
+import { closeStudentServices } from './progression-linked-services';
 
 export async function setDecision(tx:CohortTx,actor:ProgressionActor,studentId:string,yearId:string,decision:string,reason:string) {
   await query(tx,`INSERT INTO academic_progression_decisions(tenant_id,student_id,academic_year_id,decision,reason,actor_user_id)
@@ -41,12 +42,9 @@ async function replaceSubjects(tx:CohortTx,actor:ProgressionActor,current:Studen
   tenant,id,enrollmentId,section.academic_year_id,section.id,section.stream_id??null,subject.id,subject.code,subject.name,
   subject.is_compulsory,actor.userId,asOf,section.curriculum_model,subject.subject_type??'academic');
   await query(tx,"UPDATE student_timetable_enrollments SET status='completed',updated_at=NOW() WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' RETURNING id",tenant,id);
-  await query(tx,`INSERT INTO student_timetable_enrollments(tenant_id,student_id,academic_enrollment_id,timetable_slot_id,day_of_week,starts_at,ends_at,subject_name,room_name,status)
-    SELECT $1,$2,$3,slot.id,slot.day_of_week,slot.starts_at,slot.ends_at,slot.subject_name,slot.room_name,'active'
-    FROM academic_timetable_slots slot WHERE slot.tenant_id=$1 AND slot.class_section_id::text=$4 AND slot.is_active
-      AND EXISTS(SELECT 1 FROM student_subject_enrollments subject WHERE subject.tenant_id=$1 AND subject.student_id::text=$2
-        AND subject.status='active' AND lower(subject.subject_name)=lower(slot.subject_name))
-    ON CONFLICT(tenant_id,student_id,timetable_slot_id) DO UPDATE SET academic_enrollment_id=EXCLUDED.academic_enrollment_id,status='active',updated_at=NOW() RETURNING id`,tenant,id,enrollmentId,section.id);
+  // Legacy slots have no term identity. The timetable workspace/portals resolve
+  // the independently published version for the learner's current year and term.
+  // Moving a learner must not republish those unscoped historical slots.
 }
 
 export async function placeStudent(tx:CohortTx,actor:ProgressionActor,current:StudentState,targetClass:string,targetStream:string|null,
@@ -95,7 +93,9 @@ export async function placeStudent(tx:CohortTx,actor:ProgressionActor,current:St
   const closeOn=annual&&day(oldYear?.ends_on)<options.today?day(oldYear.ends_on):options.today;
   await replaceSubjects(tx,actor,current,section,context.id,enrollment.id,asOf,closeOn,options.subjectIds);
   await query(tx,'UPDATE student_allocations SET is_current=FALSE,updated_at=NOW() WHERE tenant_id=$1 AND student_id::text=$2 AND is_current RETURNING id',tenant,id);
-  const oldAllocation=current.state.allocations[0]??(await query(tx,'SELECT * FROM student_allocations WHERE tenant_id=$1 AND student_id::text=$2 ORDER BY created_at DESC LIMIT 1',tenant,id))[0];
+  // An exited learner's old bed/route may now belong to someone else. Reinstatement
+  // restores academic membership; service allocation requires a fresh assignment.
+  const oldAllocation=activeLearner(current.student)?current.state.allocations[0]:null;
   await query(tx,`INSERT INTO student_allocations(tenant_id,student_id,class_name,stream_name,dormitory_name,transport_route,effective_from,is_current,notes)
     VALUES($1,$2,$3,$4,$5,$6,$7::date,TRUE,$8) RETURNING id`,tenant,id,section.name,section.stream_name??'Unstreamed',
   oldAllocation?.dormitory_name??null,oldAllocation?.transport_route??null,asOf,options.reason);
@@ -118,6 +118,7 @@ export async function exitStudent(tx:CohortTx,actor:ProgressionActor,current:Stu
   const graduated=['graduated','completed'].includes(outcome);
   const status=graduated?'graduated':outcome==='transferred'?'transferred':outcome==='expelled'?'expelled':'withdrawn';
   const enumStatus=graduated?'GRADUATED':outcome==='transferred'?'TRANSFERRED_OUT':'WITHDRAWN';
+  await closeStudentServices(tx,actor,current.student.id,outcome);
   await query(tx,`UPDATE student_academic_enrollments SET status=$3,updated_at=NOW() WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' RETURNING id`,
   actor.tenantId,current.student.id,graduated?'completed':outcome==='transferred'?'transferred':'withdrawn');
   await query(tx,"UPDATE student_class_assignments SET status='completed',updated_at=NOW() WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' RETURNING id",actor.tenantId,current.student.id);

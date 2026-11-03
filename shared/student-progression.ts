@@ -30,9 +30,10 @@ export type ProgressionStudentDetail = {
     from_class: string | null; from_year: string | null; to_class: string | null; to_year: string | null; reversible: boolean }>;
 };
 export type ProgressionCommand = {
-  request_id: string; action: ProgressionAction; reason: string; academic_year_id: string;
+  request_id: string; action: ProgressionAction; reason?: string; academic_year_id: string;
   students: Array<{ id: string; expected_version: string }>;
   target_class_section_id?: string; target_stream_id?: string | null; subject_ids?: string[]; transition_id?: string;
   destination_school_name?: string;
 };
-export type ProgressionCommandResult = { status: 'completed' | 'pending_approval'; affected: number; message: string; approval_id?: string; replayed?: boolean };
+export type ProgressionCommandResult = { status: 'completed' | 'pending_approval' | 'partial' | 'failed'; affected: number; message: string; approval_id?: string; replayed?: boolean;
+  results?: Array<{student_id: string; status: 'completed' | 'failed' | 'skipped'; message: string}> };
