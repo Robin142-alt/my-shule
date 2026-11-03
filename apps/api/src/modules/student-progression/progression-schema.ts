@@ -1,5 +1,9 @@
 /** Additive progression state. Canonical academic/financial history is retained. */
 export const PROGRESSION_SCHEMA_SQL = `
+-- Older boarding tables predate the release metadata used by Boarding Master.
+-- Keep existing allocations in place and add the same optional audit columns.
+ALTER TABLE IF EXISTS boarding_allocations ADD COLUMN IF NOT EXISTS released_by uuid,
+  ADD COLUMN IF NOT EXISTS released_at timestamptz, ADD COLUMN IF NOT EXISTS release_reason text;
 ALTER TABLE students DROP CONSTRAINT IF EXISTS ck_students_status;
 ALTER TABLE students ADD CONSTRAINT ck_students_status CHECK(status IN ('applicant','accepted','enrolled','active','inactive','suspended','on_leave','transferred','transferred_out','withdrawn','expelled','graduated','alumni','archived')) NOT VALID;
 CREATE TABLE IF NOT EXISTS academic_progression_activation (

@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import type { ProgressionAction, ProgressionCommand } from '../../../shared/student-progression';
 import { ProgressionCommandDto } from '../src/modules/student-progression/progression.dto';
 import { ProgressionEngine } from '../src/modules/student-progression/student-progression.service';
+import { PROGRESSION_SCHEMA_SQL } from '../src/modules/student-progression/progression-schema';
 import { StudentProgressionFixture } from './support/student-progression-fixture';
 import { SmartLibraryService } from '../src/modules/library/smart-library.service';
 
@@ -25,7 +26,7 @@ describe('Progression legacy reconciliation and staff actions in PostgreSQL', ()
         assigned_student_id uuid,status text NOT NULL DEFAULT 'AVAILABLE',updated_at timestamptz DEFAULT NOW());
       CREATE TABLE boarding_allocations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text NOT NULL,
         student_id uuid NOT NULL,bed_id uuid NOT NULL,status text NOT NULL DEFAULT 'active',created_by uuid,
-        released_by uuid,released_at timestamptz,release_reason text,created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW());
+        created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW());
       CREATE TABLE boarding_students(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text NOT NULL,
         student_id uuid NOT NULL,status text NOT NULL DEFAULT 'active',created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW());
       CREATE TABLE transport_manifest_students(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id text NOT NULL,
@@ -37,6 +38,7 @@ describe('Progression legacy reconciliation and staff actions in PostgreSQL', ()
         created_at timestamptz DEFAULT NOW(),updated_at timestamptz DEFAULT NOW());
       GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO "${fixture.runtimeRole}";
     `);
+    await fixture.q(PROGRESSION_SCHEMA_SQL);
     for (const table of ['boarding_beds', 'boarding_allocations', 'boarding_students', 'transport_manifest_students', 'library_copy_loans']) {
       await fixture.q(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
         CREATE POLICY progression_service_scope ON ${table}
@@ -236,6 +238,14 @@ describe('Progression legacy reconciliation and staff actions in PostgreSQL', ()
     const beforeRetry = await fixture.q('SELECT id FROM academic_student_transitions WHERE tenant_id=$1 ORDER BY id', [fixture.school]);
     expect((await engine.command(actor(), request)).replayed).toBe(true);
     expect(await fixture.q('SELECT id FROM academic_student_transitions WHERE tenant_id=$1 ORDER BY id', [fixture.school])).toEqual(beforeRetry);
+  });
+
+  it('reports unchanged decisions as skipped and saves only the new decision',async()=>{
+    const held=await fixture.seed();const peer=await fixture.seed();
+    await engine.command(actor(),await command([held.id],'hold'));
+    const result=await engine.command(actor(),await command([held.id,peer.id],'hold'));
+    expect(result).toMatchObject({status:'completed',affected:1,results:[{student_id:held.id,status:'skipped'},{student_id:peer.id,status:'completed'}]});
+    expect(await fixture.q('SELECT id FROM academic_student_transitions WHERE tenant_id=$1 AND student_id=$2',[fixture.school,held.id])).toHaveLength(1);
   });
 
   it('rolls back the legacy repair and promotion together when the event cannot be persisted', async () => {

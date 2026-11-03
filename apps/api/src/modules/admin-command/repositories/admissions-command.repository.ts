@@ -773,8 +773,7 @@ export class AdmissionsCommandRepository {
           $14::jsonb,
           $15::uuid
         )
-        ON CONFLICT (tenant_id, admission_number)
-        DO NOTHING
+        ON CONFLICT DO NOTHING
         RETURNING id::text, tenant_id, admission_number, first_name, last_name, middle_name, status
       `, [
         tenantId,

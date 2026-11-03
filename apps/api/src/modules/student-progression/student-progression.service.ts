@@ -204,7 +204,7 @@ export class ProgressionEngine {
           const single={...command,students:[student]};
           await this.validateStudents(tx,actor,single);
           const result=await this.executeCommand(tx,actor,single);
-          results.push({student_id:student.id,status:'completed',message:result.message});
+          results.push({student_id:student.id,status:result.affected?'completed':'skipped',message:result.message});
           await query(tx,'RELEASE SAVEPOINT progression_learner');
         } catch(error) {
           await query(tx,'ROLLBACK TO SAVEPOINT progression_learner');
@@ -217,14 +217,18 @@ export class ProgressionEngine {
         }
       }
       const affected=results.filter(row=>row.status==='completed').length;
-      const failed=results.length-affected;
+      const failed=results.filter(row=>row.status==='failed').length;
+      const skipped=results.length-affected-failed;
       return {status:failed?(affected?'partial':'failed'):'completed',affected,results,
-        message:`${affected} learner${affected===1?'':'s'} updated.${failed?` ${failed} need review; see each learner’s result.`:' Decisions and history are saved.'}`};
+        message:`${affected} learner${affected===1?'':'s'} updated.${skipped?` ${skipped} already had this decision.`:''}${failed?` ${failed} need review; see each learner’s result.`:''}`};
     }
     const calendar=await progressionCalendar(tx,actor.tenantId);
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:calendar.timezone}).format(new Date());
     for(const selected of command.students) {
       let current=await readStudentState(tx,actor.tenantId,selected.id,true);
+      if(['hold','repeat','transfer','withdraw','expel'].includes(command.action)&&current.latest?.action===command.action
+        &&current.latest.academic_year_id===command.academic_year_id&&digest(current.latest.after_state)===current.version)
+        return {status:'completed',affected:0,message:'This decision is already in effect for the learner.'};
       if(['promote','repeat','subjects'].includes(command.action)) current=await reconcileEnrollment(tx,this.events,actor,current);
       let outcome:string='enrolled'; let reversalOf:string|undefined;
       if(['hold','repeat','release'].includes(command.action)) {
