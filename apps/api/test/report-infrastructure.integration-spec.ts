@@ -92,7 +92,8 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
       CREATE TABLE subjects(tenant_id text,id text,status text,archived_at timestamptz);
       CREATE TABLE academics_role_appointments(id uuid DEFAULT gen_random_uuid(),tenant_id text,teacher_user_id uuid,
         role_type text,subject_id text,status text DEFAULT 'active',effective_from date DEFAULT CURRENT_DATE,effective_to date);
-      CREATE TABLE tenants(tenant_id text,settings jsonb DEFAULT '{}');
+      CREATE TABLE tenants(tenant_id text,name text,settings jsonb DEFAULT '{}');
+      CREATE TABLE staff_profiles(tenant_id text,user_id uuid,display_name text);
       CREATE TABLE exam_report_card_signatures(tenant_id text,signer_user_id uuid,storage_path text);
       CREATE TABLE academics_class_teachers(tenant_id text,teacher_user_id uuid);
       CREATE TABLE students(tenant_id text,id uuid,first_name text,updated_at timestamptz DEFAULT now());
@@ -111,12 +112,15 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
     for (const table of [
       'exam_report_card_signatures',
       'academics_class_teachers',
+      'staff_profiles',
     ]) {
       await query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY; ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
         CREATE POLICY report_tenant ON ${table} USING(tenant_id=current_setting('app.tenant_id',true)) WITH CHECK(tenant_id=current_setting('app.tenant_id',true));`);
     }
     await query("INSERT INTO users VALUES($1,'active')", [actor]);
     for (const tenant of ['school-a', 'school-b']) {
+      await query('INSERT INTO tenants(tenant_id,name) VALUES($1,$2)', [tenant, `${tenant} School`]);
+      await query('INSERT INTO staff_profiles(tenant_id,user_id,display_name) VALUES($1,$2,$3)', [tenant, actor, `${tenant} Exams Manager`]);
       const role = randomUUID();
       await query("INSERT INTO roles(tenant_id,id,code) VALUES($1,$2,'exams_manager');", [
         tenant,
@@ -207,6 +211,7 @@ describe('Durable report work against PostgreSQL with forced RLS', () => {
     await work.execute(message);
     expect((await state(job)).state).toBe('completed');
     const saved = await inSchool('school-a', () => operations.findReportSnapshot('school-a','exams-manager-command',job));
+    expect(saved.manifest).toMatchObject({schoolName:'school-a School',generatedBy:'school-a Exams Manager'});
     expect(saved.artifact.storage_path).toMatch(/^tenant\/school-a\/reports\/academic\/operations\//);
     expect(saved.artifact.content_base64).toBeUndefined();
     expect((await query('SELECT retention_expires_at FROM file_objects WHERE storage_path=$1',[saved.artifact.storage_path])).rows[0].retention_expires_at).toBeNull();
