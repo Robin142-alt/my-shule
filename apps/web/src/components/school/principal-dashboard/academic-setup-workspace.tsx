@@ -1,649 +1,114 @@
 "use client";
 
-import { WorkspaceRetry } from "@/components/school/workspace-retry";
+import { useEffect, useState, type FormEvent } from 'react';
+import { CalendarDays, Clock3, Flag, Plus, RefreshCw } from 'lucide-react';
+import { useSchoolQuery } from '@/lib/data/school-hooks';
+import { usePermissions } from '@/components/providers/permission-context';
+import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/ui/modal';
+import { useVerifiedPrincipalDashboardApi } from './verified-tenant-api';
+import { PrincipalHeader, PrincipalMetrics, PrincipalPanel, principalStyles as s } from './workspace-ui';
 
-import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { AlertCircle, GraduationCap, Calendar, Settings, Plus, Loader2, FileText, CheckSquare } from "lucide-react";
-import { useSchoolQuery } from "@/lib/data/school-hooks";
-import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
-import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
-import { usePermissions } from "@/components/providers/permission-context";
+type CalendarRecord = { id: string; name: string; starts_on: string; ends_on: string; academic_year_id?: string; archived_at?: string | null;
+  academic_term_id?: string | null; is_current?: boolean; period_type?: string; description?: string; status?: string; version?: number };
+type CalendarData = { years: CalendarRecord[]; terms: CalendarRecord[]; calendarPeriods: CalendarRecord[] };
+type Kind = 'years' | 'terms' | 'calendar-periods';
+type Editing = { kind: Kind; record?: CalendarRecord };
+const names = { years: 'academic year', terms: 'term', 'calendar-periods': 'calendar event' };
+const day = (value: string) => value?.slice(0, 10) ?? '';
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(day(b)) - Date.parse(day(a))) / 86_400_000);
+const schoolDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const dateLabel = (value: string) => value ? new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Nairobi' }).format(new Date(`${day(value)}T00:00:00+03:00`)) : 'Dates not set';
+const available = (row: CalendarRecord) => !row.archived_at && !['archived', 'inactive'].includes(row.status ?? '');
 
-type AcademicSetupData = {
-  status: "active" | "degraded" | "setup_required";
-  activeTerm: string;
-  weeksRemaining: number;
-  gradingsConfigured: boolean;
-  subjectsRegistered: number;
-  teachersAssigned: number;
-  pendingConfigurations: number;
-  recentChanges: Array<{ title: string; time: string }>;
-};
-
-export function PrincipalAcademicSetupWorkspace() {
-  const { data, isLoading, error, refetch } = useSchoolQuery<AcademicSetupData>('/admin-command/principal/academic-setup');
-  const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
-  const { hasPermission } = usePermissions();
-  const { data: yearsData, refetch: refetchYears } = useSchoolQuery<any[]>('/academics/academic-years');
-
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const [isYearModalOpen, setIsYearModalOpen] = useState(false);
-  const [isTermModalOpen, setIsTermModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const hasYears = yearsData && yearsData.length > 0;
-
-  const handleCreateYear = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setFormError("");
-    const formData = new FormData(e.currentTarget);
-    try {
-      await requestPrincipalApi('/academics/years', {
-        method: "POST",
-        body: {
-          name: formData.get("name"),
-          starts_on: formData.get("starts_on"),
-          ends_on: formData.get("ends_on"),
-        }
-      });
-      setIsYearModalOpen(false);
-      await Promise.all([refetch(), refetchYears()]);
-    } catch (err: any) {
-      setFormError(err.message || "Failed to create academic year");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCreateTerm = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setFormError("");
-    const formData = new FormData(e.currentTarget);
-    try {
-      await requestPrincipalApi('/academics/terms', {
-        method: "POST",
-        body: {
-          academic_year_id: formData.get("academic_year_id"),
-          name: formData.get("name"),
-          starts_on: formData.get("starts_on"),
-          ends_on: formData.get("ends_on"),
-        }
-      });
-      setIsTermModalOpen(false);
-      await Promise.all([refetch(), refetchYears()]);
-    } catch (err: any) {
-      setFormError(err.message || "Failed to create academic term");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleArchiveYear = async (id: string) => {
-    if (!confirm("Are you sure you want to archive this academic year?")) return;
-    setActionError(null);
-    try {
-      await requestPrincipalApi(`/academics/years/${id}`, { method: "DELETE" });
-      await Promise.all([refetch(), refetchYears()]);
-    } catch (err: any) {
-      setActionError(err.message || "Failed to archive year");
-    }
-  };
-
-  const { data: gradingData, refetch: refetchGradingSystems } = useSchoolQuery<any[]>('/academics/grading-systems');
-  const { data: attendanceData } = useSchoolQuery<any[]>('/academics/attendance-settings');
-  const { data: reportCardData } = useSchoolQuery<any[]>('/academics/report-card-settings');
-
-  const [isGradingModalOpen, setIsGradingModalOpen] = useState(false);
-  const [isSubmittingGrading, setIsSubmittingGrading] = useState(false);
-  const [gradingFormError, setGradingFormError] = useState("");
-
-  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
-  const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
-  const [attendanceFormError, setAttendanceFormError] = useState("");
-
-  const [isReportCardModalOpen, setIsReportCardModalOpen] = useState(false);
-  const [isSubmittingReportCard, setIsSubmittingReportCard] = useState(false);
-  const [reportCardFormError, setReportCardFormError] = useState("");
-
-  const handleCreateGrading = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmittingGrading(true);
-    setGradingFormError("");
-    const formData = new FormData(e.currentTarget);
-    try {
-      await requestPrincipalApi('/academics/grading-systems', {
-        method: "POST",
-        body: {
-          name: formData.get("name"),
-          description: formData.get("description"),
-        }
-      });
-      setIsGradingModalOpen(false);
-      await Promise.all([refetch(), refetchGradingSystems()]);
-    } catch (err: any) {
-      setGradingFormError(err.message || "Failed to create grading system");
-    } finally {
-      setIsSubmittingGrading(false);
-    }
-  };
-
-  const handleCreateAttendance = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmittingAttendance(true);
-    setAttendanceFormError("");
-    const formData = new FormData(e.currentTarget);
-    try {
-      await requestPrincipalApi('/academics/attendance-settings', {
-        method: "POST",
-        body: {
-          name: formData.get("name"),
-          description: formData.get("description"),
-        }
-      });
-      setIsAttendanceModalOpen(false);
-      refetch();
-    } catch (err: any) {
-      setAttendanceFormError(err.message || "Failed to create attendance setting");
-    } finally {
-      setIsSubmittingAttendance(false);
-    }
-  };
-
-  const handleCreateReportCard = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmittingReportCard(true);
-    setReportCardFormError("");
-    const formData = new FormData(e.currentTarget);
-    try {
-      await requestPrincipalApi('/academics/report-card-settings', {
-        method: "POST",
-        body: {
-          name: formData.get("name"),
-          grading_system_id: formData.get("grading_system_id") || null,
-          show_rank: formData.get("show_rank") === 'on',
-          show_attendance: formData.get("show_attendance") === 'on',
-        }
-      });
-      setIsReportCardModalOpen(false);
-      refetch();
-    } catch (err: any) {
-      setReportCardFormError(err.message || "Failed to create report card setting");
-    } finally {
-      setIsSubmittingReportCard(false);
-    }
-  };
-
-  const handleArchiveGrading = async (id: string) => {
-    if (!confirm("Are you sure you want to archive this grading system?")) return;
-    setActionError(null);
-    try {
-      await requestPrincipalApi(`/academics/grading-systems/${id}`, { method: "DELETE" });
-      await Promise.all([refetch(), refetchGradingSystems()]);
-    } catch (err: any) {
-      setActionError(err.message || "Failed to archive grading system");
-    }
-  };
-
-  const handleArchiveAttendance = async (id: string) => {
-    if (!confirm("Are you sure you want to archive this attendance setting?")) return;
-    setActionError(null);
-    try {
-      await requestPrincipalApi(`/academics/attendance-settings/${id}`, { method: "DELETE" });
-      refetch();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to archive attendance setting");
-    }
-  };
-
-  const handleArchiveReportCard = async (id: string) => {
-    if (!confirm("Are you sure you want to archive this report card setting?")) return;
-    setActionError(null);
-    try {
-      await requestPrincipalApi(`/academics/report-card-settings/${id}`, { method: "DELETE" });
-      refetch();
-    } catch (err: any) {
-      setActionError(err.message || "Failed to archive report card setting");
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
-        </div>
+export function PrincipalAcademicSetupWorkspace({ onOpenProgression }: { onOpenProgression?: () => void } = {}) {
+  const query = useSchoolQuery<CalendarData>('/academics/foundation', { refetchInterval: 60_000 });
+  const { hasPermission } = usePermissions(); const canWrite = hasPermission('academics:write');
+  const [today, setToday] = useState(schoolDay); const [selectedYear, setSelectedYear] = useState('');
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [includePast, setIncludePast] = useState(false);
+  useEffect(() => { const timer = window.setInterval(() => setToday(schoolDay()), 60_000); return () => window.clearInterval(timer); }, []);
+  const years = (query.data?.years ?? []).filter(available); const terms = (query.data?.terms ?? []).filter(available);
+  const activeYear = years.find(row => day(row.starts_on) <= today && day(row.ends_on) >= today) ?? years.find(row => row.is_current);
+  const activeTerm = terms.filter(row => row.status === undefined || row.status === 'active').sort((a,b) => b.starts_on.localeCompare(a.starts_on)).find(row => row.academic_year_id === activeYear?.id && day(row.starts_on) <= today && day(row.ends_on) >= today);
+  const yearId = selectedYear || activeYear?.id || years[0]?.id || '';
+  const yearTerms = terms.filter(row => row.academic_year_id === yearId).sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+  const upcoming = (query.data?.calendarPeriods ?? []).filter(row => available(row) && row.academic_year_id === yearId && (includePast || day(row.ends_on) >= today)).sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+  const termDays = activeTerm ? daysBetween(activeTerm.starts_on, activeTerm.ends_on) + 1 : 0;
+  const elapsed = activeTerm ? Math.max(0, Math.min(termDays, daysBetween(activeTerm.starts_on, today) + 1)) : 0;
+  return <div className={s.stack}>
+    <PrincipalHeader icon={CalendarDays} title="Academic Calendar" description="Confirmed school dates, upcoming milestones and academic-year transitions." actions={<>
+      <Button variant="outline" aria-label="Refresh calendar" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={16} /></Button>
+      {canWrite && <><Button variant="outline" onClick={() => setEditing({ kind: 'years' })}>Add year</Button><Button onClick={() => setEditing({ kind: 'terms' })} disabled={!years.length}><Plus size={16} />Add term</Button></>}
+    </>} />
+    {query.error && <div role="alert" className={s.error}>{query.error.message}<Button variant="outline" onClick={() => void query.refetch()}>Retry calendar</Button></div>}
+    {query.isLoading ? <p role="status" className={s.empty}>Loading the school calendar…</p> : query.data && <>
+      <PrincipalMetrics items={[
+        { label: 'Academic year', value: activeYear?.name ?? 'Not configured', detail: activeYear ? `${dateLabel(activeYear.starts_on)} – ${dateLabel(activeYear.ends_on)}` : 'Add a confirmed academic year', icon: CalendarDays, tone: 'blue' },
+        { label: 'Current term', value: activeTerm?.name ?? 'Between terms', detail: activeTerm ? `Week ${Math.ceil(elapsed / 7)} of ${Math.ceil(termDays / 7)}` : 'Review the configured opening dates', icon: Flag, tone: 'violet' },
+        { label: 'Days remaining', value: activeTerm ? Math.max(0, daysBetween(today, activeTerm.ends_on)) : '—', detail: activeTerm ? `Term closes ${dateLabel(activeTerm.ends_on)}` : 'No active term today', icon: Clock3, tone: 'mint' },
+      ]} />
+      <div className={s.toolbar}><label className={s.field}>View academic year<select value={yearId} onChange={event => setSelectedYear(event.target.value)}>{!years.length && <option value="">No academic years</option>}{years.map(year => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label></div>
+      <div className={s.columns}>
+        <PrincipalPanel title="Term dates" description="Opening, closing and progress through the selected year." tone="blue">
+          {yearTerms.length ? <div className={s.stack}>{yearTerms.map(term => <div key={term.id} className={s.calendarItem}>
+            <div><strong>{term.name}</strong><p>{dateLabel(term.starts_on)} – {dateLabel(term.ends_on)}</p></div>
+            <span className={s.badge} data-tone={term.id === activeTerm?.id ? 'mint' : 'blue'}>{day(term.ends_on) < today ? 'Ended' : day(term.starts_on) > today ? 'Upcoming' : 'In progress'}</span>
+            {canWrite && <Button size="sm" variant="outline" onClick={() => setEditing({ kind: 'terms', record: term })}>Edit {term.name}</Button>}
+            {term.id === activeTerm?.id && <label className={s.termProgress}>Term progress <progress value={elapsed} max={termDays} aria-label="Term progress" /><small>{elapsed} of {termDays} calendar days</small></label>}
+          </div>)}</div> : <p className={s.empty}>No terms are configured for this year.</p>}
+        </PrincipalPanel>
+        <PrincipalPanel title="Upcoming milestones" description="Examinations, holidays and other configured school dates." tone="amber" actions={canWrite && <Button size="sm" variant="outline" disabled={!yearId} onClick={() => setEditing({ kind: 'calendar-periods' })}>Add event</Button>}>
+          <label><input type="checkbox" checked={includePast} onChange={event => setIncludePast(event.target.checked)} /> Include past dates</label>
+          {upcoming.length ? <div className={s.boundedList}>{upcoming.map(period => <div key={period.id} className={s.calendarItem}>
+            <span className={s.badge} data-tone={period.period_type === 'exam' ? 'violet' : period.period_type === 'holiday' ? 'mint' : 'amber'}>{period.period_type}</span>
+            <div><strong>{period.name}</strong><p>{dateLabel(period.starts_on)} – {dateLabel(period.ends_on)}</p>{period.description && <p>{period.description}</p>}</div>
+            {canWrite && <Button size="sm" variant="outline" onClick={() => setEditing({ kind: 'calendar-periods', record: period })}>Edit {period.name}</Button>}
+          </div>)}</div> : <p className={s.empty}>No upcoming milestones have been configured for this year.</p>}
+        </PrincipalPanel>
       </div>
-    );
+      <PrincipalPanel title="Academic years & transitions" description="Existing years remain available for planning and historical reporting." tone="violet" actions={onOpenProgression && <Button variant="outline" onClick={onOpenProgression}>Review student progression</Button>}>
+        <div className={s.tableShell}><table><thead><tr><th>Academic year</th><th>Opening date</th><th>Closing date</th><th>Stage</th>{canWrite && <th>Action</th>}</tr></thead>
+          <tbody>{years.map(year => <tr key={year.id}><td><strong>{year.name}</strong></td><td>{dateLabel(year.starts_on)}</td><td>{dateLabel(year.ends_on)}</td><td>{day(year.starts_on) > today ? 'Upcoming transition' : day(year.ends_on) < today ? 'Ended' : 'Current year'}</td>{canWrite && <td><Button size="sm" variant="outline" onClick={() => setEditing({ kind: 'years', record: year })}>Edit {year.name}</Button></td>}</tr>)}</tbody></table></div>
+        {!years.length && <p className={s.empty}>No academic years configured.</p>}
+      </PrincipalPanel>
+    </>}
+    {editing && canWrite && <CalendarEditor key={`${editing.kind}-${editing.record?.id ?? 'new'}`} editing={editing} years={years} terms={terms} defaultYear={yearId} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await query.refetch(); }} />}
+  </div>;
+}
+
+function CalendarEditor({ editing: { kind, record }, years, terms, defaultYear, onClose, onSaved }: {
+  editing: Editing; years: CalendarRecord[]; terms: CalendarRecord[]; defaultYear: string; onClose: () => void; onSaved: () => Promise<void>;
+}) {
+  const request = useVerifiedPrincipalDashboardApi();
+  const [yearId, setYearId] = useState(record?.academic_year_id || defaultYear || years[0]?.id || '');
+  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (busy) return;
+    const form = new FormData(event.currentTarget); const starts = String(form.get('starts_on')); const ends = String(form.get('ends_on'));
+    if (starts > ends) { setError('The closing date must be on or after the opening date.'); return; }
+    const body: Record<string, unknown> = { name: String(form.get('name')).trim(), starts_on: starts, ends_on: ends };
+    if (kind === 'calendar-periods' || (kind === 'terms' && !record)) body.academic_year_id = yearId;
+    if (kind !== 'calendar-periods') body.is_current = form.get('is_current') === 'on';
+    else { body.period_type = form.get('period_type'); body.description = form.get('description'); body.academic_term_id = form.get('academic_term_id') || null; }
+    if (record) { body.reason = String(form.get('reason') ?? '').trim(); if (record.version) body.expected_version = record.version; }
+    setBusy(true); setError('');
+    try { await request(`/academics/${kind}${record ? `/${encodeURIComponent(record.id)}` : ''}`, { method: record ? 'PATCH' : 'POST', body }); await onSaved(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Calendar record could not be saved.'); }
+    finally { setBusy(false); }
   }
-
-  if (error || !data) {
-    return (
-      <Card className="border border-red-500/20 bg-red-500/10 p-6">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Academic Setup</h2>
-        </div>
-        <WorkspaceRetry onRetry={() => refetch()} />
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {actionError && (
-        <Card className="border border-red-500/20 bg-red-500/10 p-4">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <p className="text-sm font-medium text-red-500">{actionError}</p>
-          </div>
-        </Card>
-      )}
-
-      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Active Term</div>
-          <div className="mt-2 text-xl font-black text-white">{data.activeTerm}</div>
-          <div className="mt-1 text-xs text-white/50">{data.weeksRemaining} weeks remaining</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Grading System</div>
-          <div className="mt-2 text-xl font-black text-white">
-            {data.gradingsConfigured ? "Configured" : "Pending"}
-          </div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Subjects Registered</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.subjectsRegistered}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Teachers Assigned</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.teachersAssigned}</div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full min-h-[300px]">
-          <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
-            <h2 className="text-xl font-bold text-white">Configuration Hub</h2>
-          </div>
-          
-          <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                  <Calendar className="h-5 w-5 text-blue-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white">Academic Calendar</p>
-                  <p className="text-xs text-white/60">Manage years and terms</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {hasPermission('academics:write') && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => setIsYearModalOpen(true)}>
-                      <Plus className="h-4 w-4 mr-1" /> Year
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => setIsTermModalOpen(true)}
-                      disabled={!hasYears}
-                      title={!hasYears ? "Cannot create a term before an academic year exists" : ""}
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Term
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-                  <GraduationCap className="h-5 w-5 text-purple-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white">Grading Systems</p>
-                  <p className="text-xs text-white/60">Configure grading scales and rules</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {hasPermission('academics:write') && (
-                  <Button size="sm" variant="outline" onClick={() => setIsGradingModalOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" /> Add
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                  <Settings className="h-5 w-5 text-emerald-400" />
-                </div>
-                <div>
-                  <p className="font-bold text-white">Attendance Settings</p>
-                  <p className="text-xs text-white/60">Manage attendance tracking rules</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {hasPermission('academics:write') && (
-                  <Button size="sm" variant="outline" onClick={() => setIsAttendanceModalOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" /> Add
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full min-h-[300px]">
-          <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
-            <h2 className="text-xl font-bold text-white">Pending Configurations</h2>
-          </div>
-          
-          {data.pendingConfigurations === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <AlertCircle className="h-10 w-10 text-emerald-400/50 mb-3" />
-              <p className="text-white/60">All academic configurations are complete.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-rose-500/20">
-              <Settings className="h-10 w-10 text-rose-400/50 mb-3" />
-              <p className="text-white font-bold text-lg">{data.pendingConfigurations} actions required</p>
-              <p className="text-white/60 text-sm mt-1">Check the Setup Checklist for details.</p>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
-        <h2 className="text-xl font-bold text-white mb-4">Academic Years</h2>
-        {!yearsData || yearsData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <p className="text-white/60 text-sm mb-4">No academic years configured yet.</p>
-            {hasPermission('academics:write') && (
-              <Button size="sm" variant="outline" onClick={() => setIsYearModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Create Academic Year
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {yearsData.map((year: any) => (
-              <div key={year.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                <div>
-                  <div className="font-medium text-white">{year.name}</div>
-                  <div className="text-xs text-white/50">{new Date(year.starts_on).toLocaleDateString()} - {new Date(year.ends_on).toLocaleDateString()}</div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveYear(year.id)}>
-                    Archive
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
-        <h2 className="text-xl font-bold text-white mb-4">Grading Systems</h2>
-        {!gradingData || gradingData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <p className="text-white/60 text-sm mb-4">No grading systems configured yet.</p>
-            {hasPermission('academics:write') && (
-              <Button size="sm" variant="outline" onClick={() => setIsGradingModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Create Grading System
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {gradingData.map((grading: any) => (
-              <div key={grading.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                <div>
-                  <div className="font-medium text-white">{grading.name}</div>
-                  <div className="text-xs text-white/50">{grading.description || 'No description'}</div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveGrading(grading.id)}>
-                    Archive
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
-        <h2 className="text-xl font-bold text-white mb-4">Attendance Settings</h2>
-        {!attendanceData || attendanceData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <p className="text-white/60 text-sm mb-4">No attendance settings configured yet.</p>
-            {hasPermission('academics:write') && (
-              <Button size="sm" variant="outline" onClick={() => setIsAttendanceModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Create Attendance Setting
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {attendanceData.map((att: any) => (
-              <div key={att.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                <div>
-                  <div className="font-medium text-white">{att.name}</div>
-                  <div className="text-xs text-white/50">{att.description || 'No description'}</div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveAttendance(att.id)}>
-                    Archive
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Report Card Settings</h2>
-          {hasPermission('academics:write') && (
-            <Button size="sm" variant="outline" onClick={() => setIsReportCardModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Add Profile
-            </Button>
-          )}
-        </div>
-        {!reportCardData || reportCardData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
-            <p className="text-white/60 text-sm mb-4">No report card settings configured yet.</p>
-            {hasPermission('academics:write') && (
-              <Button size="sm" variant="outline" onClick={() => setIsReportCardModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Create Profile
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {reportCardData.map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                <div>
-                  <div className="font-medium text-white">{s.name}</div>
-                  <div className="text-xs text-white/50">
-                    Rank: {s.show_rank ? "Yes" : "No"} | Attendance: {s.show_attendance ? "Yes" : "No"}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveReportCard(s.id)}>
-                    Archive
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        </Card>
-
-      <Modal open={isYearModalOpen} onClose={() => setIsYearModalOpen(false)} title="Create Academic Year">
-        <form onSubmit={handleCreateYear} className="space-y-4">
-          {formError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
-              {formError}
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Year Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. 2026 Academic Year" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Starts On</label>
-              <input type="date" name="starts_on" required className="w-full border rounded p-2 text-sm" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ends On</label>
-              <input type="date" name="ends_on" required className="w-full border rounded p-2 text-sm" />
-            </div>
-          </div>
-          <div className="pt-4 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Year
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={isTermModalOpen} onClose={() => setIsTermModalOpen(false)} title="Create Academic Term">
-        <form onSubmit={handleCreateTerm} className="space-y-4">
-          {formError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
-              {formError}
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Academic Year</label>
-            <select name="academic_year_id" required className="w-full border rounded p-2 text-sm bg-white">
-              <option value="">Select Academic Year...</option>
-              {yearsData?.map(year => (
-                <option key={year.id} value={year.id}>{year.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Term Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Term 1" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Starts On</label>
-              <input type="date" name="starts_on" required className="w-full border rounded p-2 text-sm" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ends On</label>
-              <input type="date" name="ends_on" required className="w-full border rounded p-2 text-sm" />
-            </div>
-          </div>
-          <div className="pt-4 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Term
-            </Button>
-          </div>
-        </form>
-      </Modal>
-      <Modal open={isGradingModalOpen} onClose={() => setIsGradingModalOpen(false)} title="Create Grading System">
-        <form onSubmit={handleCreateGrading} className="space-y-4">
-          {formError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
-              {formError}
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. KCSE 8-4-4 Standard" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <textarea name="description" className="w-full border rounded p-2 text-sm" placeholder="Optional details..." />
-          </div>
-          <div className="pt-4 flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Grading System
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={isAttendanceModalOpen} onClose={() => setIsAttendanceModalOpen(false)} title="Create Attendance Setting">
-        <form onSubmit={handleCreateAttendance} className="space-y-4">
-          {attendanceFormError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
-              {attendanceFormError}
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Setting Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Standard Daily" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description</label>
-            <textarea name="description" className="w-full border rounded p-2 text-sm" placeholder="Rules for daily attendance..." />
-          </div>
-          <div className="pt-4 flex justify-end">
-            <Button type="submit" disabled={isSubmittingAttendance}>
-              {isSubmittingAttendance && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Setting
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={isReportCardModalOpen} onClose={() => setIsReportCardModalOpen(false)} title="Create Report Card Profile">
-        <form onSubmit={handleCreateReportCard} className="space-y-4">
-          {reportCardFormError && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
-              {reportCardFormError}
-            </div>
-          )}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Profile Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Standard CBC Profile" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Grading System</label>
-            <select name="grading_system_id" className="w-full border rounded p-2 text-sm bg-white text-black">
-              <option value="">None (Raw marks only)</option>
-              {gradingData?.map(g => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" name="show_rank" id="show_rank" defaultChecked className="rounded border-gray-300" />
-            <label htmlFor="show_rank" className="text-sm font-medium">Show Student Rank</label>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" name="show_attendance" id="show_attendance" defaultChecked className="rounded border-gray-300" />
-            <label htmlFor="show_attendance" className="text-sm font-medium">Show Attendance Metrics</label>
-          </div>
-          <div className="pt-4 flex justify-end">
-            <Button type="submit" disabled={isSubmittingReportCard}>
-              {isSubmittingReportCard && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Profile
-            </Button>
-          </div>
-        </form>
-      </Modal>
-    </div>
-  );
+  return <Modal open onClose={() => { if (!busy) onClose(); }} title={`${record ? 'Edit' : 'Add'} ${names[kind]}`} footer={<><Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button><Button type="submit" form="principal-calendar-editor" disabled={busy}>{busy ? 'Saving…' : 'Save calendar record'}</Button></>}>
+    <form id="principal-calendar-editor" onSubmit={save} className={s.form}>
+      {error && <p role="alert" className={s.error}>{error}</p>}
+      <label className={s.field}>Name<input name="name" required maxLength={200} defaultValue={record?.name} /></label>
+      {kind !== 'years' && <label className={s.field}>Academic year<select value={yearId} disabled={Boolean(record && kind === 'terms')} onChange={event => setYearId(event.target.value)} required>{years.map(year => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>}
+      <div className={s.formGrid}><label className={s.field}>Starts on<input type="date" name="starts_on" required defaultValue={day(record?.starts_on ?? '')} /></label><label className={s.field}>Ends on<input type="date" name="ends_on" required defaultValue={day(record?.ends_on ?? '')} /></label></div>
+      {kind === 'calendar-periods' ? <>
+        <label className={s.field}>Event type<select name="period_type" defaultValue={record?.period_type || 'exam'}>{['exam', 'holiday', 'reporting', 'activity', 'boarding', 'transport', 'other'].map(type => <option key={type} value={type}>{type}</option>)}</select></label>
+        <label className={s.field}>Term<select name="academic_term_id" defaultValue={record?.academic_term_id ?? ''}><option value="">Whole academic year</option>{terms.filter(term => term.academic_year_id === yearId).map(term => <option value={term.id} key={term.id}>{term.name}</option>)}</select></label>
+        <label className={s.field}>Description<textarea name="description" maxLength={1000} rows={3} defaultValue={record?.description} /></label>
+      </> : <label><input name="is_current" type="checkbox" defaultChecked={record?.is_current} /> Set as the current {kind === 'years' ? 'year' : 'term'}</label>}
+      {record && <label className={s.field}>Reason for change<input name="reason" required maxLength={500} /></label>}
+    </form>
+  </Modal>;
 }

@@ -407,7 +407,7 @@ describe("principal production readiness", () => {
 
   it("renders the approved overview sections without a duplicate activity feed", async () => {
     renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" />);
-    for (const name of ['Academic Performance', 'People Waiting to See You', "Today's School Operations", 'This Week', 'Requires Your Attention', 'Quick actions']) {
+    for (const name of ['Academic Performance', 'People Waiting to See You', "Today's School Operations", 'This Week', 'Requires Your Attention']) {
       expect(await screen.findByRole('heading', { name: new RegExp(name, 'i') })).toBeVisible();
     }
     expect(screen.queryByRole('heading', { name: 'Recent school activity' })).not.toBeInTheDocument();

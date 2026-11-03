@@ -1,4 +1,5 @@
 import { AgpExecutionService } from '../../common/platform-governance/agp-execution.service';
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -181,9 +182,16 @@ export class DisciplineService {
 
   async createIncident(dto: CreateDisciplineIncidentDto) {
     return this.withRequestTransaction(async () => {
+      this.assertDisciplineWrite();
       const tenantId = this.requireTenantId();
       const actorUserId = this.actorUserId();
       const schoolId = await this.resolveSchoolId(dto.school_id);
+      if (dto.reporting_staff_id && dto.reporting_staff_id !== actorUserId && !this.canManageDiscipline()) {
+        throw new ForbiddenException('Only discipline managers can report on behalf of another staff member');
+      }
+      if (!await this.disciplineRepository.hasIncidentReferences(tenantId, dto, dto.reporting_staff_id ?? actorUserId)) {
+        throw new BadRequestException('The learner, class, academic period and reporting staff must belong to this school and academic year');
+      }
       const category = await this.requireOffenseCategory(tenantId, dto.offense_category_id);
       const incidentNumber = await this.disciplineRepository.generateIncidentNumber(tenantId);
       const behaviorDelta = Number(category.default_points ?? 0);
@@ -245,11 +253,20 @@ export class DisciplineService {
         await this.queueIncidentNotification(incident, category);
       }
 
+      await this.schoolEvents?.recordSchoolOperation({
+        event: {
+          id: `incident-created-${incident.id}`, type: 'discipline.incident_logged', module: 'discipline',
+          actorRole: this.requestContext.requireStore().role || 'staff', title: 'Discipline incident recorded',
+          body: incident.incident_number, entityId: incident.id, severity: incident.severity === 'critical' ? 'high' : 'normal',
+          payload: { student_id: incident.student_id, status: incident.status },
+        },
+      });
       return { incident };
     });
   }
 
   async listIncidents(query: ListDisciplineIncidentsQueryDto) {
+    this.assertPermission('discipline:read');
     const context = this.requestContext.requireStore();
     const tenantId = this.requireTenantId();
 
@@ -386,6 +403,15 @@ export class DisciplineService {
         });
       }
 
+      if (dto.status !== 'escalated') {
+        await this.schoolEvents?.recordSchoolOperation({
+          event: {
+            id: `incident-status-${randomUUID()}`, type: 'discipline.case_status_updated', module: 'discipline',
+            title: 'Discipline case status updated', body: `${incident.incident_number}: ${dto.status}`,
+            entityId: incident.id, payload: { from_status: incident.status, to_status: dto.status },
+          },
+        });
+      }
       return next;
     });
   }
@@ -629,6 +655,8 @@ export class DisciplineService {
 
 
   async createComment(incidentId: string, dto: CreateDisciplineCommentDto) {
+    return this.withRequestTransaction(async () => {
+    this.assertDisciplineWrite();
     const incident = await this.requireIncident(incidentId);
 
     if (dto.visibility === 'internal' && !this.canManageDiscipline()) {
@@ -652,7 +680,16 @@ export class DisciplineService {
       metadata: { visibility: comment.visibility },
     });
 
+    await this.schoolEvents?.recordSchoolOperation({
+      event: {
+        id: comment.id, type: 'discipline.follow_up_recorded', module: 'discipline',
+        actorRole: this.requestContext.requireStore().role || 'staff', title: 'Discipline follow-up recorded',
+        body: incident.incident_number, entityId: incident.id,
+        payload: { comment_id: comment.id, visibility: comment.visibility },
+      },
+    });
     return comment;
+    });
   }
 
   async uploadAttachment(
@@ -1054,14 +1091,13 @@ export class DisciplineService {
   }
 
   private async resolveSchoolId(explicitSchoolId?: string): Promise<string> {
-    if (explicitSchoolId?.trim()) {
-      return explicitSchoolId.trim();
-    }
-
     const schoolId = await this.disciplineRepository.findTenantSchoolId(this.requireTenantId());
 
     if (!schoolId) {
       throw new BadRequestException('School profile is required before using discipline workflows');
+    }
+    if (explicitSchoolId?.trim() && explicitSchoolId.trim() !== schoolId) {
+      throw new BadRequestException('The school does not match the active tenant');
     }
 
     return schoolId;

@@ -315,6 +315,7 @@ test('DisciplineService creates an incident with audit log and behavior points',
   const calls: string[] = [];
   const repository = {
     findTenantSchoolId: async () => uuid('201'),
+    hasIncidentReferences: async () => true,
     findOffenseCategoryById: async () => ({
       id: uuid('701'),
       name: 'Fighting',

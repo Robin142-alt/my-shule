@@ -13,6 +13,11 @@ export type DisciplineStatus =
   | "closed";
 
 export interface DisciplineIncident {
+  student_name?: string | null;
+  admission_number?: string | null;
+  class_label?: string | null;
+  category_name?: string | null;
+  assigned_staff_name?: string | null;
   id: string;
   incident_number: string;
   title: string;

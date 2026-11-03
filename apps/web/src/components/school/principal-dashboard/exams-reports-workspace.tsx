@@ -2,16 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, FileText, Loader2 } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, ChartNoAxesCombined, Send, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { usePermissions } from "@/components/providers/permission-context";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { isSchoolQueryForPath, useSchoolQuery } from "@/lib/data/school-hooks";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
-import { ExamWorkflowTracker } from "../exam-workflow-tracker";
+import { ExamWorkflowTracker, type ExamWorkflowData } from "../exam-workflow-tracker";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
+import { PrincipalHeader, PrincipalMetrics, PrincipalPanel, PrincipalTrend, principalStyles as s } from './workspace-ui';
+
+type ExamPerformance = {
+  filters: { exam_series_id: string | null };
+  options: { exams: Array<{id:string;name:string}> };
+  kpis: {school_average:number|null; missing_marks_alerts:number};
+  trends: Array<{exam_series_id:string;exam_series_name:string;average_score:number|null}>;
+};
 
 type AcademicYear = {
   id: string;
@@ -60,7 +67,7 @@ function toDateLabel(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
 }
 
-export function PrincipalExamsReportsWorkspace() {
+export function PrincipalExamsReportsWorkspace({onOpenReports}:{onOpenReports?:()=>void} = {}) {
   const queryClient = useQueryClient();
   const tenantId = useOptionalSchoolTenantId();
   const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalExamsData>("/admin-command/principal/exams");
@@ -78,6 +85,11 @@ export function PrincipalExamsReportsWorkspace() {
   } = useSchoolQuery<AcademicTerm[]>("/academics/academic-terms");
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
+  const [performanceExam,setPerformanceExam]=useState('');
+  const performance=useSchoolQuery<ExamPerformance>(`/exams/analytics?scope=school&page_size=1${performanceExam?`&exam_series_id=${encodeURIComponent(performanceExam)}`:''}`);
+  const workflow=useSchoolQuery<ExamWorkflowData>('/exams/workflow');
+  const [publicationPage,setPublicationPage]=useState(0);
+  const [publicationSearch,setPublicationSearch]=useState('');
 
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -95,11 +107,12 @@ export function PrincipalExamsReportsWorkspace() {
     [academicTerms],
   );
   const results = Array.isArray(data?.recentResults) ? data.recentResults : [];
-  const trend = Array.isArray(data?.performanceTrend) ? data.performanceTrend : [];
+  const trend = (performance.data?.trends??[]).map(item=>({label:item.exam_series_name,value:item.average_score}));
   const releaseQueue = Array.isArray(data?.releaseQueue)
     ? data.releaseQueue
     : results.filter((series) => series.canPublish);
   const canReleaseReportCards = hasPermission("principal:write") && hasPermission("exams:publish");
+  const publicationRows=[...new Map([...releaseQueue,...results].map(series=>[series.id,series])).values()].filter(series=>series.title.toLowerCase().includes(publicationSearch.toLowerCase()));
   const filteredTerms = useMemo(
     () => terms.filter((term) => term.academic_year_id === selectedYearId),
     [selectedYearId, terms],
@@ -172,6 +185,7 @@ export function PrincipalExamsReportsWorkspace() {
       toast.success(`${series.title} report cards published.`);
       await Promise.all([
         refetch(),
+        workflow.refetch(),
         queryClient.invalidateQueries({
           predicate: (query) => isSchoolQueryForPath(query.queryKey, tenantId, "/exams/workflow"),
         }),
@@ -183,198 +197,49 @@ export function PrincipalExamsReportsWorkspace() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-24 rounded-xl border border-white/10 bg-white/5" />
-          <div className="h-64 rounded-xl border border-white/10 bg-white/5" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <Card className="border border-red-500/20 bg-red-500/10 p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Exams Overview</h2>
-          <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
-        </div>
-      </Card>
-    );
-  }
-
   const setupLoading = yearsLoading || termsLoading;
   const setupUnavailable = setupLoading || Boolean(yearsError || termsError) || years.length === 0 || terms.length === 0;
+  const score = performance.data?.kpis.school_average;
+  const generatedCards = workflow.data?.series.reduce((total,series)=>total+series.counts.report_cards,0);
 
   return (
-    <div className="space-y-6">
-      <ExamWorkflowTracker heading="Exam and report-card release workflow" />
-      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Reports Ready to Publish</div>
-          <div className="mt-2 text-2xl font-black text-yellow-500">{data.reportsPending}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Missing Marks Alerts</div>
-          <div className="mt-2 text-2xl font-black text-red-500">{data.missingMarksAlerts}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">School Average Score</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.averageScore}%</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-white/70">Active Exams</div>
-              <div className="mt-2 text-2xl font-black text-white">{data.activeExams}</div>
-            </div>
-            {hasPermission("exams:write") ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="bg-white/10 text-xs text-white"
-                onClick={openExamModal}
-                disabled={setupUnavailable}
-                title={setupUnavailable ? "Configure an academic year and term before creating an exam series" : undefined}
-              >
-                + New Exam
-              </Button>
-            ) : null}
-          </div>
-        </Card>
-      </div>
-
-      {releaseQueue.length > 0 ? (
-        <Card className="border border-emerald-500/35 bg-emerald-500/10 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-emerald-300" />
-                <h2 className="text-xl font-black text-white">Final Principal release required</h2>
-              </div>
-              <p className="mt-1 text-sm text-white/70">
-                {releaseQueue.length} exam series {releaseQueue.length === 1 ? "is" : "are"} ready. Release publishes the generated report cards to authorized parent and student portals.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {releaseQueue.map((series) => (
-                canReleaseReportCards ? (
-                  <Button
-                    key={series.id}
-                    type="button"
-                    disabled={Boolean(publishingSeriesId)}
-                    onClick={() => publishSeries(series)}
-                  >
-                    {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {publishingSeriesId === series.id ? "Releasing…" : `Release ${series.title}`}
-                  </Button>
-                ) : (
-                  <span key={series.id} className="rounded-lg border border-amber-300/20 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100">
-                    Principal release permission is required for {series.title}.
-                  </span>
-                )
-              ))}
-            </div>
-          </div>
-        </Card>
-      ) : null}
-
-      {(yearsError || termsError) ? (
-        <Card className="border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>Academic setup could not be loaded, so new exam creation is temporarily unavailable.</span>
-            <Button type="button" size="sm" variant="outline" onClick={() => Promise.all([refetchYears(), refetchTerms()])}>Retry setup</Button>
-          </div>
-        </Card>
-      ) : (!setupLoading && (years.length === 0 || terms.length === 0)) ? (
-        <Card className="border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          Create an active academic year and term in Academic Setup before opening an exam series.
-        </Card>
-      ) : null}
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="flex h-full flex-col border border-white/10 bg-white/5 p-6">
-          <h2 className="mb-6 text-xl font-bold text-white">Exam Performance Trend</h2>
-          {trend.length === 0 ? (
-            <div className="flex min-h-[200px] flex-1 flex-col items-center justify-center rounded-lg border border-white/5 bg-white/5 px-4 text-center">
-              <FileText className="mb-3 h-10 w-10 text-white/20" />
-              <p className="text-white/60">No reviewed marks are available for a performance trend yet.</p>
-            </div>
-          ) : (
-            <div className="mt-4 flex min-h-[200px] flex-1 items-end gap-2">
-              {trend.map((item) => (
-                <div key={item.label} className="group flex flex-1 flex-col items-center gap-2">
-                  <div className="relative h-[150px] w-full rounded-t-sm bg-white/5">
-                    <div
-                      className="absolute bottom-0 w-full rounded-t-sm bg-purple-500/50 transition-all duration-500 group-hover:bg-purple-400/60"
-                      style={{ height: `${Math.max(0, Math.min(100, item.value))}%` }}
-                    >
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-                        {item.value}%
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-white/50">{item.label}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card className="flex h-full flex-col border border-white/10 bg-white/5 p-6">
-          <div className="mb-4 border-b border-white/10 pb-4">
-            <h2 className="text-xl font-bold text-white">Report-card publication</h2>
-            <p className="mt-1 text-sm text-white/60">The Exams Manager generates cards after marks are reviewed and locked. The Principal then previews and releases the completed cards.</p>
-          </div>
-
-          {results.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-white/5 bg-white/5 px-4 py-8 text-center">
-              <FileText className="mb-3 h-10 w-10 text-white/20" />
-              <p className="text-white/60">No exam series or report-card batches are available yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-3 overflow-y-auto pr-1">
-              {results.map((series) => {
-                const isPublished = series.publishedReportCards === series.totalReportCards && series.totalReportCards > 0;
-                const guidance = series.totalReportCards === 0
-                  ? "Generate report cards in the Exams Manager workspace."
-                  : series.blockedReportCards > 0
-                    ? `${series.blockedReportCards} report card${series.blockedReportCards === 1 ? " needs" : "s need"} regeneration or completion before release.`
-                    : series.approvedReportCards === 0 && !isPublished
-                      ? "No generated report cards are ready for publication."
-                      : `${series.publishedReportCards} of ${series.totalReportCards} report cards published.`;
-                return (
-                  <div key={series.id} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-white">{series.title}</p>
-                        <p className="mt-1 text-xs text-white/50">{toDateLabel(series.startsOn)} - {toDateLabel(series.endsOn)}</p>
-                        <p className="mt-2 text-sm text-white/60">{guidance}</p>
-                      </div>
-                      {isPublished ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Published
-                        </span>
-                      ) : series.canPublish && canReleaseReportCards ? (
-                        <Button type="button" size="sm" disabled={publishingSeriesId === series.id} onClick={() => publishSeries(series)}>
-                          {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Publish generated cards
-                        </Button>
-                      ) : (
-                        <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-200">Not ready</span>
-                      )}
-                    </div>
-                  </div>
-                );
+    <div className={s.stack}>
+      <PrincipalHeader icon={ChartNoAxesCombined} tone="violet" title="Exams & report cards" description="Academic performance, marks readiness and the final release of report cards." actions={<>
+        <Button variant="outline" onClick={()=>void Promise.all([refetch(),performance.refetch(),workflow.refetch()])}>Refresh</Button>
+        {onOpenReports&&<Button variant="outline" onClick={onOpenReports}>Browse generated reports</Button>}
+        {hasPermission('exams:write')&&<Button onClick={openExamModal} disabled={setupUnavailable}>+ New Exam</Button>}
+      </>}/>
+      <PrincipalMetrics items={[
+        {label:'School average',value:score==null?'—':`${score.toLocaleString(undefined,{maximumFractionDigits:1})}%`,detail:'Selected exam · school grading weights',icon:ChartNoAxesCombined,tone:'blue'},
+        {label:'Generated cards',value:generatedCards??'—',detail:'Current exam workflow records',icon:FileText,tone:'violet'},
+        {label:'Awaiting Principal release',value:workflow.data?.metrics.report_cards_awaiting_principal??'—',detail:'Generated cards awaiting release',icon:ClipboardList,tone:'amber'},
+        {label:'Published report cards',value:workflow.data?.metrics.report_cards_released??'—',detail:'Released to authorized portals',icon:Send,tone:'mint'},
+      ]}/>
+      <div className={s.columns}>
+        <PrincipalPanel title="Exam Performance Trend" description="Historical results calculated with the same subject weights and grading rules as the Overview." tone="violet">
+          <label className={s.field}>Performance through exam<select value={performanceExam} onChange={event=>setPerformanceExam(event.target.value)} disabled={performance.isLoading}><option value="">Latest exam</option>{performance.data?.options.exams.map(exam=><option key={exam.id} value={exam.id}>{exam.name}</option>)}</select></label>
+          {performance.isLoading?<p role="status" className={s.empty}>Loading exam performance…</p>:performance.error?<p role="alert" className={s.error}>{performance.error.message}<Button variant="outline" onClick={()=>void performance.refetch()}>Retry performance</Button></p>:<PrincipalTrend label="Exam averages" points={trend} percentage/>}
+          {performance.data&&<p className={s.notice}>{performance.data.kpis.missing_marks_alerts} missing or incomplete assessments in the selected exam. Missing scores are not treated as zero.</p>}
+        </PrincipalPanel>
+        <PrincipalPanel title="Report-card publication" description="The Exams Manager generates cards after reviewed marks are locked. Release makes eligible cards available to parents and learners." tone="mint">
+          <div className={s.toolbar}><label className={s.field}>Find exam series<input type="search" value={publicationSearch} onChange={event=>{setPublicationSearch(event.target.value);setPublicationPage(0);}} placeholder="Search exam name"/></label></div>
+          {error?<p role="alert" className={s.error}>{error.message}<Button variant="outline" onClick={()=>void refetch()}>Retry publication records</Button></p>:isLoading?<p role="status" className={s.empty}>Loading report-card publication…</p>:publicationRows.length===0?<p className={s.empty}>No exam series or report-card batches match this view.</p>:<>
+            <div className={s.boundedList} aria-label="Report-card publication records" tabIndex={0}>
+              {publicationRows.slice(publicationPage*5,publicationPage*5+5).map(series=>{
+                const published=series.totalReportCards>0&&series.publishedReportCards===series.totalReportCards;
+                const guidance=series.totalReportCards===0?'Generate cards through the Exams Manager workflow.':series.blockedReportCards>0?`${series.blockedReportCards} cards require completion or regeneration.`:`${series.publishedReportCards} of ${series.totalReportCards} cards published.`;
+                return <article key={series.id} className={s.calendarItem}><div><strong>{series.title}</strong><p>{toDateLabel(series.startsOn)} – {toDateLabel(series.endsOn)}</p><p>{guidance}</p></div>
+                  {published?<span className={s.badge} data-tone="mint"><CheckCircle2 size={14}/>Published</span>:series.canPublish&&canReleaseReportCards?<Button size="sm" disabled={Boolean(publishingSeriesId)} onClick={()=>void publishSeries(series)}>{publishingSeriesId===series.id?'Publishing…':'Publish generated cards'}</Button>:<span className={s.badge} data-tone="amber">{series.canPublish?'Release permission required':'Not ready'}</span>}
+                </article>;
               })}
             </div>
-          )}
-        </Card>
+            <div className={s.actions}><Button variant="outline" aria-label="Previous publication page" disabled={publicationPage===0} onClick={()=>setPublicationPage(publicationPage-1)}>Previous</Button><span>Page {publicationPage+1} of {Math.ceil(publicationRows.length/5)}</span><Button variant="outline" aria-label="Next publication page" disabled={(publicationPage+1)*5>=publicationRows.length} onClick={()=>setPublicationPage(publicationPage+1)}>Next</Button></div>
+          </>}
+        </PrincipalPanel>
       </div>
+      {workflow.error&&<p role="alert" className={s.error}>Report-card counts could not load.<Button variant="outline" onClick={()=>void workflow.refetch()}>Retry counts</Button></p>}
+      {(yearsError||termsError)?<p role="alert" className={s.error}>Academic setup could not load.<Button variant="outline" onClick={()=>void Promise.all([refetchYears(),refetchTerms()])}>Retry setup</Button></p>:!setupLoading&&(!years.length||!terms.length)?<p className={s.empty}>Configure the school academic year and term before creating an exam series.</p>:null}
+      <details className={s.panel}><summary className={s.panelHeading}>Exam and report-card release workflow</summary><div className={`${s.panelBody} ${s.boundedList}`}><ExamWorkflowTracker heading="Exam and report-card release workflow" compact/></div></details>
 
       <Modal open={isExamModalOpen} onClose={() => !isSubmitting && setIsExamModalOpen(false)} title="Create Exam Series">
         <form onSubmit={handleCreateExam} className="space-y-4">

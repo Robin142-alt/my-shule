@@ -14,6 +14,20 @@ import type {
   OffenseCategoryEntity,
 } from '../entities/discipline.entity';
 
+// Names are resolved inside the same tenant as the visible case, never from a global lookup.
+const INCIDENT_LABELS = `
+  (SELECT CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name) FROM students student
+    WHERE student.tenant_id = discipline_incidents.tenant_id AND student.id = discipline_incidents.student_id) AS student_name,
+  (SELECT student.admission_number FROM students student
+    WHERE student.tenant_id = discipline_incidents.tenant_id AND student.id = discipline_incidents.student_id) AS admission_number,
+  (SELECT COALESCE(NULLIF(section.custom_label, ''), section.name) FROM class_sections section
+    WHERE section.tenant_id = discipline_incidents.tenant_id AND section.id::text = discipline_incidents.class_id::text) AS class_label,
+  (SELECT category.name FROM offense_categories category
+    WHERE category.tenant_id = discipline_incidents.tenant_id AND category.id = discipline_incidents.offense_category_id) AS category_name,
+  (SELECT account.display_name FROM users account JOIN tenant_memberships member ON member.user_id = account.id
+    WHERE member.tenant_id = discipline_incidents.tenant_id AND account.id = discipline_incidents.assigned_staff_id LIMIT 1) AS assigned_staff_name
+`;
+
 export interface CreateIncidentInput {
   tenant_id: string;
   school_id: string;
@@ -42,6 +56,21 @@ export interface CreateIncidentInput {
 @Injectable()
 export class DisciplineRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async hasIncidentReferences(tenantId: string, input: { student_id: string; class_id: string; academic_year_id: string; academic_term_id: string }, reportingStaffId: string): Promise<boolean> {
+    const result = await this.executeSql<{ valid: boolean }>(tenantId, `
+      SELECT EXISTS (
+        SELECT 1 FROM students student
+        JOIN class_sections section ON section.tenant_id = student.tenant_id AND section.id::text = $3
+        JOIN academic_years year ON year.tenant_id = section.tenant_id AND year.id::text = $4
+          AND section.academic_year_id::text = year.id::text
+        JOIN academic_terms term ON term.tenant_id = year.tenant_id AND term.id::text = $5
+          AND term.academic_year_id::text = year.id::text
+        JOIN tenant_memberships member ON member.tenant_id = student.tenant_id AND member.user_id::text = $6 AND member.status = 'active'
+        WHERE student.tenant_id = $1 AND student.id::text = $2 AND student.deleted_at IS NULL
+      ) AS valid`, [tenantId, input.student_id, input.class_id, input.academic_year_id, input.academic_term_id, reportingStaffId]);
+    return result.rows[0]?.valid === true;
+  }
 
   async listIncidentOptions(tenantId: string): Promise<{
     students: Array<{ id: string; label: string; class_id: string | null }>;
@@ -490,7 +519,8 @@ export class DisciplineRepository {
           metadata,
           deleted_at::text,
           created_at::text,
-          updated_at::text
+          updated_at::text,
+          ${INCIDENT_LABELS}
         FROM discipline_incidents
         WHERE tenant_id = $1
           AND deleted_at IS NULL
@@ -508,6 +538,13 @@ export class DisciplineRepository {
             OR incident_number ILIKE '%' || $11 || '%'
             OR title ILIKE '%' || $11 || '%'
             OR description ILIKE '%' || $11 || '%'
+            OR EXISTS (
+              SELECT 1 FROM students student
+              WHERE student.tenant_id = discipline_incidents.tenant_id
+                AND student.id = discipline_incidents.student_id
+                AND (student.admission_number ILIKE '%' || $11 || '%'
+                  OR CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name) ILIKE '%' || $11 || '%')
+            )
           )
           AND (
             $12::boolean
@@ -637,7 +674,8 @@ export class DisciplineRepository {
           metadata,
           deleted_at::text,
           created_at::text,
-          updated_at::text
+          updated_at::text,
+          ${INCIDENT_LABELS}
         FROM discipline_incidents
         WHERE tenant_id = $1
           AND id = $2::uuid

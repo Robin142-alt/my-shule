@@ -336,13 +336,20 @@ export class AdminCommandRepository {
       case 'discipline':
         return this.safeMetricQuery(
           `
+            WITH cases AS (
+              SELECT status, severity, student_id::text, occurred_at AS created_at
+              FROM discipline_incidents WHERE tenant_id = $1 AND deleted_at IS NULL
+              UNION ALL
+              SELECT lower(status), lower(severity), involved_parties->0->>'id', created_at
+              FROM admin_incidents WHERE tenant_id = $1
+            )
             SELECT
-              COUNT(*) FILTER (WHERE status IN ('reported', 'reviewed', 'escalated'))::int AS open_discipline_cases,
-              COUNT(*) FILTER (WHERE severity = 'critical')::int AS critical_discipline_cases,
-              0::int AS repeat_offender_alerts,
-              0::int AS welfare_concerns
-            FROM admin_incidents
-            WHERE tenant_id = $1
+              COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed'))::int AS open_discipline_cases,
+              COUNT(*) FILTER (WHERE severity = 'critical' AND status NOT IN ('resolved', 'closed'))::int AS critical_discipline_cases,
+              (SELECT COUNT(*)::int FROM (SELECT student_id FROM cases WHERE student_id IS NOT NULL
+                AND created_at >= NOW() - INTERVAL '90 days' GROUP BY student_id HAVING COUNT(*) >= 3) repeated) AS repeat_offender_alerts,
+              COUNT(*) FILTER (WHERE status = 'counselling_assigned')::int AS welfare_concerns
+            FROM cases
           `,
           [tenantId],
         );
@@ -1607,6 +1614,9 @@ export class AdminCommandRepository {
             FROM admin_incidents
             WHERE tenant_id = $1
               AND lower(status) IN ('reported', 'reviewed', 'escalated')
+          ) + (
+            SELECT COUNT(*)::int FROM discipline_incidents
+            WHERE tenant_id = $1 AND deleted_at IS NULL AND status NOT IN ('resolved', 'closed')
           ) AS active_issues,
           (
             SELECT COUNT(*)::int
@@ -2928,16 +2938,18 @@ export class AdminCommandRepository {
         INSERT INTO admin_incidents (
           created_by, description, involved_parties, severity, tenant_id, title, updated_at
         )
-        VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, NOW())
+        SELECT $2::uuid, $3, $4::jsonb, $5, $1, $6, NOW()
+        WHERE EXISTS (SELECT 1 FROM students WHERE tenant_id = $1 AND id::text = $7 AND deleted_at IS NULL)
         RETURNING *
       `,
       [
+        data.tenant_id,
         data.user_id,
         data.description,
         JSON.stringify([{ type: 'student', id: data.student_id }]),
         data.severity,
-        data.tenant_id,
         data.category,
+        data.student_id,
       ],
     );
     return result.rows[0];

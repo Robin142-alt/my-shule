@@ -522,6 +522,11 @@ test('AdmissionsRepository student profile includes academic downstream status r
   );
 
   assert.ok(queries.some((sql) => sql.includes('FROM student_academic_enrollments')));
+  const enrollmentSql = queries.find((sql) => sql.includes('FROM student_academic_enrollments'))!;
+  assert.match(enrollmentSql, /section\.id::text AS class_id/);
+  assert.match(enrollmentSql, /section\.academic_year_id::text AS academic_year_id/);
+  assert.match(enrollmentSql, /current_term\.tenant_id = enrollment\.tenant_id/);
+  assert.match(enrollmentSql, /term\.id::text AS academic_term_id/);
   assert.ok(queries.some((sql) => sql.includes('FROM student_subject_enrollments')));
   assert.ok(queries.some((sql) => sql.includes('FROM student_timetable_enrollments')));
   assert.ok(queries.some((sql) => sql.includes('FROM student_academic_lifecycle_events')));

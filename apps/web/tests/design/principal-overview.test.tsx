@@ -6,6 +6,15 @@ import { waitingTime } from '@/components/school/principal-dashboard/overview-vi
 import type { OverviewDetails } from '@/components/school/principal-dashboard/overview-types';
 import { useSchoolQuery } from '@/lib/data/school-hooks';
 
+test('the Overview keeps leadership actions without a repeated greeting or action heading', () => {
+  mount();
+  expect(screen.queryByLabelText('School greeting')).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Quick actions' })).not.toBeInTheDocument();
+  const buttons = within(screen.getByRole('region', { name: 'Quick actions' })).getAllByRole('button');
+  expect(buttons).toHaveLength(4);
+  expect(buttons[0]).toHaveTextContent('Send Message');
+});
+
 jest.mock('@/lib/data/school-hooks', () => ({ ...jest.requireActual('@/lib/data/school-hooks'), useSchoolQuery: jest.fn() }));
 jest.mock('@/components/providers/permission-context', () => ({ usePermissions: () => ({ hasPermission: () => true, isLoading: false }) }));
 jest.mock('@/lib/data/school-tenant-scope', () => ({ useOptionalSchoolTenantId: () => 'school-test' }));

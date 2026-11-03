@@ -67,6 +67,7 @@ import {
   type PrincipalExecutiveDashboardSummary,
 } from "./principal-dashboard/overview-workspace";
 import { PrincipalReportsWorkspace } from "./principal-dashboard/reports-workspace";
+import { PrincipalWorkspaceSurface } from './principal-dashboard/workspace-ui';
 import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-profile-workspace";
 import { PrincipalSettingsWorkspace } from "./principal-dashboard/settings-workspace";
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
@@ -462,7 +463,7 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "setup-checklist") {
       return <PrincipalSetupChecklistWorkspace onNavigate={setActiveWorkspace} />;
     }
-    if (activeWorkspace === "academic-setup") return <PrincipalAcademicSetupWorkspace />;
+    if (activeWorkspace === "academic-setup") return <PrincipalAcademicSetupWorkspace onOpenProgression={() => setActiveWorkspace("student-progression")} />;
     if (activeWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
     if (activeWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
     if (activeWorkspace === "students") return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
@@ -471,14 +472,14 @@ export function PrincipalCommandCenter({
     if (activeWorkspace === "payment-setup") return <SchoolPaymentChannels mode="review" />;
     if (activeWorkspace === "collections") return <CollectionsWorkspace mode="review" />;
     if (activeWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
-    if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
+    if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace tenantSlug={schoolId} />;
     if (activeWorkspace === "academics") return <PrincipalAcademicsWorkspace />;
     if (activeWorkspace === "syllabus-coverage") return <SyllabusWorkspace />;
     if (activeWorkspace === "staff") return <PrincipalStaffRolesWorkspace />;
     if (activeWorkspace === "communication") return <PrincipalCommunicationWorkspace />;
     if (activeWorkspace === "approvals") return <PrincipalApprovalsWorkspace />;
     if (activeWorkspace === "reports") return <PrincipalReportsWorkspace />;
-    if (activeWorkspace === "exams-reports") return <PrincipalExamsReportsWorkspace />;
+    if (activeWorkspace === "exams-reports") return <PrincipalExamsReportsWorkspace onOpenReports={() => setActiveWorkspace("reports")} />;
     if (activeWorkspace === "settings") return <PrincipalSettingsWorkspace />;
     if (activeWorkspace === "school-profile") {
       return (
@@ -684,8 +685,8 @@ export function PrincipalCommandCenter({
                 </div>
               </header>
 
-              <div className={cn("app-principal-workspace rounded-[var(--radius-xl)] bg-primary p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]", activeWorkspace === "overview" && "app-overview-canvas")}>
-                <section className="max-h-none overflow-y-auto">{renderWorkspace()}</section>
+              <div className="app-overview-canvas min-w-0">
+                <PrincipalWorkspaceSurface overview={activeWorkspace === 'overview'}>{renderWorkspace()}</PrincipalWorkspaceSurface>
               </div>
             </main>
           </div>
