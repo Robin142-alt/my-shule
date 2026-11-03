@@ -19,7 +19,10 @@ describe("smart timetable role surfaces", () => {
     expect(overview).toContain("/timetable/export/csv?");
     expect(overview).toMatch(/credentials:\s*"include"/);
     expect(overview).toMatch(/No published lessons match this view/);
-    expect(principal).toContain("StaffTimetableOverviewWorkspace");
+    expect(principal).toContain("<PrincipalWeeklyTimetable");
+    const weekly = source("src/components/school/principal-dashboard/weekly-timetable.tsx");
+    expect(weekly).toContain("/api/timetable/views?view=master&include_periods=true");
+    expect(weekly).not.toContain("include_draft=true");
     expect(dean).toContain("DeputyTimetableManagementWorkspace");
     expect(hod).toContain("StaffTimetableOverviewWorkspace");
     expect(hod).toMatch(/timetable:\s*"timetable"/);
