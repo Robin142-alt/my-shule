@@ -161,11 +161,11 @@ describe("principal and deputy academic foundation workspace", () => {
       ["academics", "PrincipalAcademicsWorkspace"],
     ]) {
       expect(principalSource).toContain(`activeWorkspace === "${section}"`);
-      expect(principalSource).toContain(`<${component} />`);
+      expect(principalSource).toMatch(new RegExp(`<${component}\\b`));
     }
 
     for (const [file, endpoint] of [
-      ["academic-setup-workspace.tsx", "/admin-command/principal/academic-setup"],
+      ["academic-setup-workspace.tsx", "/academics/foundation"],
       ["classes-streams-workspace.tsx", "/admin-command/principal/classes"],
       ["subjects-departments-workspace.tsx", "/admin-command/principal/subjects"],
       ["academics-workspace.tsx", "/admin-command/principal/academics"],

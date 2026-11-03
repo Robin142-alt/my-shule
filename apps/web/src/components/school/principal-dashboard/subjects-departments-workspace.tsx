@@ -5,7 +5,12 @@ import { WorkspaceRetry } from "@/components/school/workspace-retry";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, BookOpen, Layers, Plus, Loader2, Users2 } from "lucide-react";
-import { toast } from "sonner";
+import {
+  PrincipalHeader,
+  PrincipalMetrics,
+  PrincipalPanel,
+  principalStyles as styles,
+} from "./workspace-ui";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -26,12 +31,48 @@ type PrincipalSubjectsData = {
 type StaffOption = SchoolStaffOptionInput;
 
 export function PrincipalSubjectsDepartmentsWorkspace() {
-  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalSubjectsData>('/admin-command/principal/subjects');
+  const { data, isLoading, error, refetch } =
+    useSchoolQuery<PrincipalSubjectsData>("/admin-command/principal/subjects");
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
-  const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
-  const { data: subjectsData, refetch: refetchSubjects } = useSchoolQuery<any[]>('/academics/subjects');
-  const { data: departmentsData, refetch: refetchDepartments } = useSchoolQuery<any[]>('/academics/departments');
-  const { data: staffData } = useSchoolQuery<StaffOption[]>('/academics/teachers');
+  type Mapping = {
+    subject_id: string;
+    class_section_name: string;
+    stream_name?: string;
+    status: string;
+    teacher_name?: string;
+  };
+  type Curriculum = {
+    years: Array<{ id: string }>;
+    subjects: Array<{
+      id: string;
+      name: string;
+      code: string;
+      department_id?: string;
+      status: string;
+    }>;
+    departments: Array<{
+      id: string;
+      name: string;
+      head_of_department_name?: string;
+      head_of_department_user_id?: string;
+      is_active: boolean;
+    }>;
+    teachers: StaffOption[];
+    classSubjectAssignments: Mapping[];
+    teacherAssignments: Mapping[];
+  };
+  const foundation = useSchoolQuery<Curriculum>("/academics/foundation");
+  const yearsData = foundation.data?.years;
+  const subjects = (foundation.data?.subjects ?? []).filter(
+    (row) => row.status === "active",
+  );
+  const departments = (foundation.data?.departments ?? []).filter(
+    (row) => row.is_active,
+  );
+  const staffData = foundation.data?.teachers;
+  const [search, setSearch] = useState("");
+  const [department, setDepartment] = useState("");
+  const [page, setPage] = useState(0);
   const { hasPermission } = usePermissions();
 
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -43,7 +84,9 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
 
   const hasYears = yearsData && yearsData.length > 0;
   const staffOptions = buildSchoolStaffOptions(staffData);
-  const staffLabelByUserId = new Map(staffOptions.map((staff) => [staff.value, staff.label]));
+  const staffLabelByUserId = new Map(
+    staffOptions.map((staff) => [staff.value, staff.label]),
+  );
 
   const handleCreateSubject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -51,14 +94,15 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestPrincipalApi('/academics/subjects', {
+      await requestPrincipalApi("/academics/subjects", {
         method: "POST",
         body: {
           name: formData.get("name"),
-        }
+          department_id: formData.get("department") || undefined,
+        },
       });
       setIsSubjectModalOpen(false);
-      await Promise.all([refetch(), refetchSubjects()]);
+      await Promise.all([refetch(), foundation.refetch()]);
     } catch (err: any) {
       setFormError(err.message || "Failed to create subject");
     } finally {
@@ -66,22 +110,12 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     }
   };
 
-  const handleArchiveSubject = async (id: string) => {
-    if (!confirm("Are you sure you want to archive this subject?")) return;
-    try {
-      await requestPrincipalApi(`/academics/subjects/${id}`, { method: "DELETE" });
-      await Promise.all([refetch(), refetchSubjects()]);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to archive subject");
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
+          <div className="h-24 bg-surface rounded-xl border border-border" />
+          <div className="h-64 bg-surface rounded-xl border border-border" />
         </div>
       </div>
     );
@@ -92,28 +126,33 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
       <Card className="border border-red-500/20 bg-red-500/10 p-6">
         <div className="flex items-center gap-3">
           <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Subjects Overview</h2>
+          <h2 className="text-xl font-bold text-red-500">
+            Failed to load Subjects Overview
+          </h2>
         </div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
     );
   }
 
-  const handleCreateDepartment = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateDepartment = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
     e.preventDefault();
     setIsSubmittingDept(true);
     setDeptFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestPrincipalApi('/academics/departments', {
+      await requestPrincipalApi("/academics/departments", {
         method: "POST",
         body: {
           name: formData.get("name"),
-          head_of_department_user_id: formData.get("head_of_department_user_id") || null,
-        }
+          head_of_department_user_id:
+            formData.get("head_of_department_user_id") || null,
+        },
       });
       setIsDepartmentModalOpen(false);
-      await Promise.all([refetch(), refetchDepartments()]);
+      await Promise.all([refetch(), foundation.refetch()]);
     } catch (err: any) {
       setDeptFormError(err.message || "Failed to create department");
     } finally {
@@ -121,151 +160,244 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
     }
   };
 
-  const handleArchiveDepartment = async (id: string) => {
-    if (!confirm("Are you sure you want to archive this department?")) return;
-    try {
-      await requestPrincipalApi(`/academics/departments/${id}`, { method: "DELETE" });
-      await Promise.all([refetch(), refetchDepartments()]);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to archive department");
-    }
-  };
-
+  const needle = search.trim().toLowerCase();
+  const register = subjects
+    .map((subject) => {
+      const mappings = (foundation.data?.classSubjectAssignments ?? []).filter(
+        (row) => row.subject_id === subject.id && row.status === "active",
+      );
+      const assignments = (foundation.data?.teacherAssignments ?? []).filter(
+        (row) => row.subject_id === subject.id && row.status === "active",
+      );
+      const teachers = [
+        ...new Set(assignments.map((row) => row.teacher_name).filter(Boolean)),
+      ].join(", ");
+      const classes = [
+        ...new Set(
+          mappings.map((row) =>
+            [row.class_section_name, row.stream_name].filter(Boolean).join(" "),
+          ),
+        ),
+      ].join(", ");
+      return {
+        subject,
+        teachers,
+        classes,
+        departmentName: departments.find(
+          (row) => row.id === subject.department_id,
+        )?.name,
+      };
+    })
+    .filter(
+      (row) =>
+        (!department || (row.subject.department_id || "none") === department) &&
+        [
+          row.subject.name,
+          row.subject.code,
+          row.teachers,
+          row.classes,
+          row.departmentName,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(needle),
+    );
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        {hasPermission('academics:write') && (
-          <Button 
-            variant="outline" 
-            onClick={() => setIsSubjectModalOpen(true)}
-            disabled={!hasYears}
-            title={!hasYears ? "Cannot create subjects before an academic year is configured" : ""}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Subject
-          </Button>
-        )}
-      </div>
-
-      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Departments</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.departments}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Subjects</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.totalSubjects}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Core Subjects</div>
-          <div className="mt-2 text-2xl font-black text-blue-400">{data.coreSubjects}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Elective Subjects</div>
-          <div className="mt-2 text-2xl font-black text-green-400">{data.electiveSubjects}</div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <h2 className="text-xl font-bold text-white mb-6">Subject Distribution</h2>
-          <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
-            {(!data.subjectDistribution || data.subjectDistribution.length === 0) ? (
-              <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5 w-full">
-                <BookOpen className="h-10 w-10 text-white/20 mb-3" />
-                <p className="text-white/60">No subjects found</p>
-                <p className="text-xs text-white/40 mt-1">Create subjects to see distribution</p>
-              </div>
-            ) : (
-              data.subjectDistribution.map((item) => (
-                <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
-                  <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
-                    <div 
-                      className="absolute bottom-0 w-full bg-orange-500/50 rounded-t-sm transition-all duration-500 group-hover:bg-orange-400/60"
-                      style={{ height: `${Math.min((item.value / 10) * 100, 100)}%` }}
-                    >
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                        {item.value}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-white/50">{item.label}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Subjects</h2>
-          </div>
-
-          {!subjectsData || subjectsData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <BookOpen className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No subjects configured</p>
-            </div>
-          ) : (
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {subjectsData.map((s: any) => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                  <div>
-                    <div className="font-medium text-white">{s.name}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveSubject(s.id)}>
-                      Archive
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 mt-6">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Departments</h2>
-            {hasPermission('academics:write') && (
-              <Button size="sm" variant="outline" onClick={() => setIsDepartmentModalOpen(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Add Department
+    <div className={styles.stack}>
+      <PrincipalHeader
+        title="Subjects & departments"
+        icon={BookOpen}
+        description="Review curriculum mappings, departmental leadership and teacher allocations."
+        actions={
+          hasPermission("academics:write") && (
+            <>
+              <Button
+                disabled={!hasYears}
+                onClick={() => setIsSubjectModalOpen(true)}
+              >
+                Create Subject
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsDepartmentModalOpen(true)}
+              >
+                Add Department
+              </Button>
+            </>
+          )
+        }
+      />
+      <PrincipalMetrics
+        items={[
+          {
+            label: "Subjects",
+            value: data.totalSubjects,
+            icon: BookOpen,
+            tone: "blue",
+          },
+          {
+            label: "Departments",
+            value: data.departments,
+            icon: Layers,
+            tone: "violet",
+          },
+          {
+            label: "Core subjects",
+            value: data.coreSubjects,
+            icon: BookOpen,
+            tone: "mint",
+          },
+          {
+            label: "Electives",
+            value: data.electiveSubjects,
+            icon: BookOpen,
+            tone: "amber",
+          },
+        ]}
+      />
+      {foundation.error ? (
+        <div role="alert" className={styles.error}>
+          {foundation.error.message}
+          <WorkspaceRetry onRetry={() => foundation.refetch()} />
+        </div>
+      ) : foundation.isLoading ? (
+        <p className={styles.empty}>Loading the curriculum register…</p>
+      ) : (
+        <>
+          <PrincipalPanel
+            title="Subject register"
+            description="Search a subject, class, department or assigned teacher."
+          >
+            <div className={styles.toolbar}>
+              <label className={styles.field}>
+                Search
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                />
+              </label>
+              <label className={styles.field}>
+                Department
+                <select
+                  value={department}
+                  onChange={(e) => {
+                    setDepartment(e.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <option value="">All departments</option>
+                  <option value="none">Unassigned</option>
+                  {departments.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {row.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {!register.length ? (
+              <p className={styles.empty}>No matching subjects.</p>
+            ) : (
+              <div className={styles.tableShell}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Department</th>
+                      <th>Mapped classes</th>
+                      <th>Teachers</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {register.slice(page * 12, page * 12 + 12).map((row) => (
+                      <tr key={row.subject.id}>
+                        <td>
+                          <strong>{row.subject.name}</strong>
+                          <small>{row.subject.code}</small>
+                        </td>
+                        <td>{row.departmentName || "Unassigned"}</td>
+                        <td>{row.classes || "No active mapping"}</td>
+                        <td>
+                          {row.teachers || "No current teacher allocation"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </div>
-
-          {!departmentsData || departmentsData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <Users2 className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No departments configured</p>
-            </div>
-          ) : (
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {departmentsData.map((d: any) => (
-                <div key={d.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                  <div>
-                    <div className="font-medium text-white">{d.name}</div>
-                    <div className="text-xs text-white/50">
-                      {d.head_of_department_user_id
-                        ? `Head of Department: ${d.head_of_department_name || staffLabelByUserId.get(String(d.head_of_department_user_id)) || "Unlinked staff member"}`
-                        : "No HOD assigned"}
+            {register.length > 12 && (
+              <div className={styles.actions}>
+                <Button
+                  variant="outline"
+                  disabled={!page}
+                  onClick={() => setPage(page - 1)}
+                >
+                  Previous subjects
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={(page + 1) * 12 >= register.length}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Next subjects
+                </Button>
+              </div>
+            )}
+          </PrincipalPanel>
+          <div className={styles.columns}>
+            <PrincipalPanel title="Department heads" tone="violet">
+              {departments.length ? (
+                departments.map((row) => (
+                  <article key={row.id} className={styles.calendarItem}>
+                    <div>
+                      <strong>{row.name}</strong>
+                      <p>
+                        {row.head_of_department_name ||
+                          staffLabelByUserId.get(
+                            row.head_of_department_user_id || "",
+                          ) ||
+                          "No HOD assigned"}
+                      </p>
                     </div>
+                  </article>
+                ))
+              ) : (
+                <p className={styles.empty}>No departments configured.</p>
+              )}
+            </PrincipalPanel>
+            <PrincipalPanel title="Subjects by department" tone="mint">
+              {data.subjectDistribution?.length ? (
+                data.subjectDistribution.map((row) => (
+                  <div className={styles.distributionRow} key={row.label}>
+                    <span>{row.label}</span>
+                    <meter
+                      aria-label={row.label}
+                      min={0}
+                      max={Math.max(1, data.totalSubjects)}
+                      value={row.value}
+                    />
+                    <strong>{row.value}</strong>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveDepartment(d.id)}>
-                      Archive
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Modal open={isSubjectModalOpen} onClose={() => setIsSubjectModalOpen(false)} title="Create Subject">
+                ))
+              ) : (
+                <p className={styles.empty}>
+                  No subject distribution recorded.
+                </p>
+              )}
+            </PrincipalPanel>
+          </div>
+        </>
+      )}
+      <Modal
+        open={isSubjectModalOpen}
+        onClose={() => setIsSubjectModalOpen(false)}
+        title="Create Subject"
+      >
         <form onSubmit={handleCreateSubject} className="space-y-4">
           {formError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
@@ -275,18 +407,40 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Subject Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Mathematics" />
+            <input
+              name="name"
+              required
+              className="w-full border rounded p-2 text-sm"
+              placeholder="e.g. Mathematics"
+            />
+            <label className={styles.field}>
+              Department
+              <select name="department">
+                <option value="">Unassigned</option>
+                {departments.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isSubmitting && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Create Subject
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={isDepartmentModalOpen} onClose={() => setIsDepartmentModalOpen(false)} title="Create Department">
+      <Modal
+        open={isDepartmentModalOpen}
+        onClose={() => setIsDepartmentModalOpen(false)}
+        title="Create Department"
+      >
         <form onSubmit={handleCreateDepartment} className="space-y-4">
           {deptFormError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
@@ -295,23 +449,37 @@ export function PrincipalSubjectsDepartmentsWorkspace() {
           )}
           <div className="space-y-2">
             <label className="text-sm font-medium">Department Name</label>
-            <input name="name" required className="w-full border rounded p-2 text-sm" placeholder="e.g. Languages, Sciences" />
+            <input
+              name="name"
+              required
+              className="w-full border rounded p-2 text-sm"
+              placeholder="e.g. Languages, Sciences"
+            />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Head of Department</label>
-            <select name="head_of_department_user_id" className="w-full border rounded p-2 text-sm">
+            <select
+              name="head_of_department_user_id"
+              className="w-full border rounded p-2 text-sm"
+            >
               <option value="">No HOD yet</option>
               {staffOptions.map((staff) => (
-                <option key={staff.value} value={staff.value}>{staff.label}</option>
+                <option key={staff.value} value={staff.value}>
+                  {staff.label}
+                </option>
               ))}
             </select>
             {staffOptions.length === 0 && (
-              <p className="text-xs text-amber-600">Invite and activate staff before assigning a department head.</p>
+              <p className="text-xs text-amber-600">
+                Invite and activate staff before assigning a department head.
+              </p>
             )}
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmittingDept}>
-              {isSubmittingDept && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isSubmittingDept && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Create Department
             </Button>
           </div>

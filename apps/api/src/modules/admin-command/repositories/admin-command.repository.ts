@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { PRINCIPAL_FEE_BALANCES_SQL } from "../principal-fee-balances";
+import { FEE_RECEIPTS_READ_SQL } from "../../billing/fee-receipts-read-sql";import { Injectable } from '@nestjs/common';
 import { reportCardIneligibilitySql } from '../../exams/report-card-scope';
 
 import { PrismaService } from '../../../database/prisma.service';
@@ -336,13 +337,21 @@ export class AdminCommandRepository {
       case 'discipline':
         return this.safeMetricQuery(
           `
+            WITH cases AS (
+              SELECT status, severity, student_id::text, occurred_at AS created_at
+              FROM discipline_incidents WHERE tenant_id = $1 AND deleted_at IS NULL
+              UNION ALL
+              -- Legacy involved_parties is free text and does not establish a learner ID.
+              SELECT lower(status), lower(severity), NULL::text AS student_id, created_at
+              FROM admin_incidents WHERE tenant_id = $1
+            )
             SELECT
-              COUNT(*) FILTER (WHERE status IN ('reported', 'reviewed', 'escalated'))::int AS open_discipline_cases,
-              COUNT(*) FILTER (WHERE severity = 'critical')::int AS critical_discipline_cases,
-              0::int AS repeat_offender_alerts,
-              0::int AS welfare_concerns
-            FROM admin_incidents
-            WHERE tenant_id = $1
+              COUNT(*) FILTER (WHERE status NOT IN ('resolved', 'closed'))::int AS open_discipline_cases,
+              COUNT(*) FILTER (WHERE severity = 'critical' AND status NOT IN ('resolved', 'closed'))::int AS critical_discipline_cases,
+              (SELECT COUNT(*)::int FROM (SELECT student_id FROM cases WHERE student_id IS NOT NULL
+                AND created_at >= NOW() - INTERVAL '90 days' GROUP BY student_id HAVING COUNT(*) >= 3) repeated) AS repeat_offender_alerts,
+              COUNT(*) FILTER (WHERE status = 'counselling_assigned')::int AS welfare_concerns
+            FROM cases
           `,
           [tenantId],
         );
@@ -351,13 +360,14 @@ export class AdminCommandRepository {
           `
             SELECT
               COALESCE((
-                SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status IN ('sent', 'delivered')) / NULLIF(COUNT(*), 0), 2)
+                SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'delivered') / NULLIF(COUNT(*), 0), 2)
                 FROM sms_logs
                 WHERE tenant_id = $1
               ), 0)::numeric AS sms_delivery_rate,
               (SELECT COUNT(*)::int FROM sms_logs WHERE tenant_id = $1 AND status = 'failed') AS failed_sms,
               COALESCE((SELECT sms_balance FROM school_sms_wallets WHERE tenant_id = $1 LIMIT 1), 0)::int AS sms_balance,
-              0::numeric AS circular_readership_rate
+              (SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE read_at IS NOT NULL) / NULLIF(COUNT(*), 0),2)
+                FROM notifications WHERE tenant_id=$1 AND type='communication.broadcast_created') AS circular_readership_rate
           `,
           [tenantId],
         );
@@ -507,23 +517,8 @@ export class AdminCommandRepository {
 
   async getFinanceOverview(tenantId: string) {
     const summaryResult = await this.executeSql(
-      `
-        SELECT
-          COALESCE((
-            SELECT SUM(payment.amount_minor)
-            FROM manual_fee_payments payment
-            WHERE payment.tenant_id = $1
-              AND lower(payment.status) NOT IN ('bounced', 'reversed')
-              AND timezone('Africa/Nairobi', payment.received_at)::date = timezone('Africa/Nairobi', NOW())::date
-          ), 0)::bigint AS collections_today_minor,
-          COALESCE((
-            SELECT SUM(GREATEST(invoice.total_amount_minor - invoice.amount_paid_minor, 0))
-            FROM invoices invoice
-            WHERE invoice.tenant_id = $1
-              AND NULLIF(invoice.metadata ->> 'student_id', '') IS NOT NULL
-              AND lower(invoice.status) NOT IN ('paid', 'void')
-          ), 0)::bigint AS outstanding_balance_minor
-      `,
+      `SELECT collected_today_minor AS collections_today_minor, arrears_minor AS outstanding_balance_minor
+       FROM (${PRINCIPAL_FEE_BALANCES_SQL}) verified_balances`,
       [tenantId],
     );
 
@@ -564,36 +559,41 @@ export class AdminCommandRepository {
       [tenantId],
     );
 
-    const collectionsMinor = Number(summaryResult.rows[0]?.collections_today_minor ?? 0);
-    const arrearsMinor = Number(summaryResult.rows[0]?.outstanding_balance_minor ?? 0);
+    const collectionsMinor = Number(
+      summaryResult.rows[0]?.collections_today_minor ?? 0,
+    );
+    const arrearsMinor = Number(
+      summaryResult.rows[0]?.outstanding_balance_minor ?? 0,
+    );
 
     const trendResult = await this.executeSql(
       `
         SELECT
-          to_char(date_trunc('week', payment.received_at), 'DD Mon') AS label,
+          to_char(date_trunc('week', timezone('Africa/Nairobi', COALESCE(payment.cleared_at,payment.received_at))), 'DD Mon') AS label,
           SUM(payment.amount_minor)::bigint AS total_minor
-        FROM manual_fee_payments payment
-        WHERE payment.tenant_id = $1
-          AND lower(payment.status) NOT IN ('bounced', 'reversed')
-          AND payment.received_at >= date_trunc('week', NOW()) - INTERVAL '4 weeks'
-        GROUP BY date_trunc('week', payment.received_at)
-        ORDER BY date_trunc('week', payment.received_at) ASC
+        FROM (${FEE_RECEIPTS_READ_SQL}) payment
+        WHERE payment.tenant_id=$1 AND payment.status='cleared'
+          AND timezone('Africa/Nairobi',COALESCE(payment.cleared_at,payment.received_at)) >= date_trunc('week',timezone('Africa/Nairobi',NOW())) - INTERVAL '4 weeks'
+        GROUP BY date_trunc('week',timezone('Africa/Nairobi',COALESCE(payment.cleared_at,payment.received_at)))
+        ORDER BY date_trunc('week',timezone('Africa/Nairobi',COALESCE(payment.cleared_at,payment.received_at)))
         LIMIT 5
       `,
       [tenantId],
     );
 
     const maximumCollectionMinor = trendResult.rows.reduce(
-      (maximum: number, row: any) => Math.max(maximum, Number(row.total_minor ?? 0)),
+      (maximum: number, row: any) =>
+        Math.max(maximum, Number(row.total_minor ?? 0)),
       0,
     );
     const collectionData = trendResult.rows.map((row: any) => {
       const amountMinor = Number(row.total_minor ?? 0);
       return {
         label: row.label,
-        value: maximumCollectionMinor > 0
-          ? Math.round((amountMinor / maximumCollectionMinor) * 100)
-          : 0,
+        value:
+          maximumCollectionMinor > 0
+            ? Math.round((amountMinor / maximumCollectionMinor) * 100)
+            : 0,
         amount: `KES ${(amountMinor / 100).toLocaleString()}`,
       };
     });
@@ -603,11 +603,11 @@ export class AdminCommandRepository {
       collectionsToday: `KES ${(collectionsMinor / 100).toLocaleString()}`,
       outstandingInvoices: `KES ${(arrearsMinor / 100).toLocaleString()}`,
       collectionData,
-      pendingWaivers: waiversResult.rows.map(row => ({
+      pendingWaivers: waiversResult.rows.map((row) => ({
         ...row,
         amount: `KES ${(Number(row.amount_minor ?? 0) / 100).toLocaleString()}`,
         date: new Date(row.date).toLocaleDateString(),
-      }))
+      })),
     };
   }
 
@@ -1268,22 +1268,29 @@ export class AdminCommandRepository {
       [tenantId],
     );
 
-    const providerAcceptedToday = Number(summaryResult.rows[0]?.provider_accepted_today ?? 0);
+    const providerAcceptedToday = Number(
+      summaryResult.rows[0]?.provider_accepted_today ?? 0,
+    );
     const failed = Number(summaryResult.rows[0]?.failed_messages ?? 0);
     const pending = Number(summaryResult.rows[0]?.pending_messages ?? 0);
-    const deliveryUnknown = Number(summaryResult.rows[0]?.delivery_unknown ?? 0);
+    const deliveryUnknown = Number(
+      summaryResult.rows[0]?.delivery_unknown ?? 0,
+    );
 
     const communicationTrendResult = await this.executeSql(
-      `
-        SELECT
-          to_char(date_trunc('day', created_at), 'Dy') AS label,
-          COUNT(*)::int AS value
-        FROM communication_sms_outbox
-        WHERE tenant_id = $1
-          AND created_at >= date_trunc('day', NOW()) - INTERVAL '6 days'
-        GROUP BY date_trunc('day', created_at)
-        ORDER BY date_trunc('day', created_at)
-      `,
+      `SELECT to_char(day,'Dy') AS label,COUNT(event.id)::int AS value
+      FROM generate_series(timezone('Africa/Nairobi',now())::date-6,timezone('Africa/Nairobi',now())::date,interval '1 day') day
+      LEFT JOIN workflow_events event ON event.tenant_id=$1 AND event.event_type='communication.broadcast_created'
+        AND timezone('Africa/Nairobi',event.created_at)::date=day::date
+      GROUP BY day ORDER BY day`,
+      [tenantId],
+    );
+    const inboxSummary = await this.executeSql(
+      `SELECT COUNT(*)::int AS delivered,
+      COUNT(*) FILTER(WHERE read_at IS NOT NULL)::int AS read,
+      COUNT(*) FILTER(WHERE read_at IS NULL)::int AS unread FROM notifications
+      WHERE tenant_id=$1 AND type='communication.broadcast_created'
+        AND timezone('Africa/Nairobi',created_at)::date>=timezone('Africa/Nairobi',now())::date-6`,
       [tenantId],
     );
 
@@ -1296,14 +1303,16 @@ export class AdminCommandRepository {
           event.status,
           event.payload ->> 'audience' AS audience,
           event.payload -> 'channels' AS channels,
-          to_char(event.created_at, 'YYYY-MM-DD HH24:MI') AS time
+          event.created_at::text AS time,
+          (SELECT COUNT(*)::int FROM notifications n WHERE n.tenant_id=event.tenant_id AND n.source_record_id=event.id::text AND n.type='communication.broadcast_created') AS in_app_delivered,
+          (SELECT COUNT(*)::int FROM notifications n WHERE n.tenant_id=event.tenant_id AND n.source_record_id=event.id::text AND n.type='communication.broadcast_created' AND n.read_at IS NOT NULL) AS in_app_read
         FROM workflow_events event
         WHERE event.tenant_id = $1
           AND event.event_type = 'communication.broadcast_created'
         ORDER BY event.created_at DESC
-        LIMIT 5
+        LIMIT 50
       `,
-      [tenantId]
+      [tenantId],
     );
 
     return {
@@ -1313,11 +1322,18 @@ export class AdminCommandRepository {
       failedDeliveries: failed,
       pendingMessages: pending,
       deliveryUnknown,
+      broadcastsThisWeek: communicationTrendResult.rows.reduce(
+        (sum: number, row: any) => sum + Number(row.value ?? 0),
+        0,
+      ),
+      inAppDelivered: Number(inboxSummary.rows[0]?.delivered ?? 0),
+      inAppRead: Number(inboxSummary.rows[0]?.read ?? 0),
+      inAppUnread: Number(inboxSummary.rows[0]?.unread ?? 0),
       communicationTrend: communicationTrendResult.rows.map((row: any) => ({
         label: row.label,
         value: Number(row.value ?? 0),
       })),
-      recentBroadcasts: recentBroadcastsResult.rows
+      recentBroadcasts: recentBroadcastsResult.rows,
     };
   }
 
@@ -1575,6 +1591,11 @@ export class AdminCommandRepository {
       [tenantId],
     );
 
+    const attendance = await this.executeSql(
+      `SELECT teacher_user_id::text AS user_id, status FROM teacher_attendance_logs
+      WHERE tenant_id=$1 AND attendance_date=timezone('Africa/Nairobi',now())::date`,
+      [tenantId],
+    );
     const totalStaff = Number(summaryResult.rows[0]?.total_staff ?? 0);
 
     return {
@@ -1588,6 +1609,7 @@ export class AdminCommandRepository {
         value: Number(row.value ?? 0),
       })),
       recentOnboarding: onboardingResult.rows,
+      attendanceToday: attendance.rows,
     };
   }
 
@@ -1607,6 +1629,9 @@ export class AdminCommandRepository {
             FROM admin_incidents
             WHERE tenant_id = $1
               AND lower(status) IN ('reported', 'reviewed', 'escalated')
+          ) + (
+            SELECT COUNT(*)::int FROM discipline_incidents
+            WHERE tenant_id = $1 AND deleted_at IS NULL AND status NOT IN ('resolved', 'closed')
           ) AS active_issues,
           (
             SELECT COUNT(*)::int
@@ -1890,36 +1915,42 @@ export class AdminCommandRepository {
     if (!tenant) {
       return null;
     }
-    const settings = tenant.settings && typeof tenant.settings === 'object'
-      ? tenant.settings as Record<string, unknown>
-      : {};
-    const metadata = tenant.metadata && typeof tenant.metadata === 'object'
-      ? tenant.metadata as Record<string, unknown>
-      : {};
-    const email = String(settings.email ?? '');
-    const phone = String(settings.phone ?? '');
-    const county = String(settings.county ?? settings.region ?? '');
-    const address = String(settings.address ?? '');
-    const rawLogoUrl = String(settings.logo_url ?? '');
-    const logoStoragePath = String(settings.logo_storage_path ?? '') || extractLogoStoragePath(rawLogoUrl);
+    const settings =
+      tenant.settings && typeof tenant.settings === "object"
+        ? (tenant.settings as Record<string, unknown>)
+        : {};
+    const metadata =
+      tenant.metadata && typeof tenant.metadata === "object"
+        ? (tenant.metadata as Record<string, unknown>)
+        : {};
+    const email = String(settings.email ?? "");
+    const phone = String(settings.phone ?? "");
+    const county = String(settings.county ?? settings.region ?? "");
+    const address = String(settings.address ?? "");
+    const rawLogoUrl = String(settings.logo_url ?? "");
+    const logoStoragePath =
+      String(settings.logo_storage_path ?? "") ||
+      extractLogoStoragePath(rawLogoUrl);
 
     return {
       status: email && phone && county && address ? "active" : "setup_required",
       schoolName: tenant.name,
       subdomain: tenant.subdomain,
-      motto: String(settings.motto ?? ''),
+      motto: String(settings.motto ?? ""),
       county,
-      subCounty: String(settings.sub_county ?? ''),
-      ward: String(settings.ward ?? ''),
+      subCounty: String(settings.sub_county ?? ""),
+      ward: String(settings.ward ?? ""),
       address,
-      website: String(settings.website ?? ''),
+      website: String(settings.website ?? ""),
       logoUrl: logoStoragePath
-        ? '/api/school/identity/logo'
+        ? "/api/school/identity/logo"
         : rawLogoUrl || null,
       logoStoragePath: logoStoragePath || null,
-      registrationStatus: String(metadata.registration_status ?? tenant.status ?? 'active'),
-      curriculum: String(settings.curriculum ?? ''),
-      schoolType: String(settings.school_type ?? ''),
+      registrationStatus: String(
+        metadata.registration_status ?? tenant.status ?? "active",
+      ),
+      curriculum: String(settings.curriculum ?? ""),
+      schoolType: String(settings.school_type ?? ""),
       contactInfo: {
         email,
         phone,
@@ -2302,34 +2333,60 @@ export class AdminCommandRepository {
     ]);
 
     const preferencePayload = preferencesResult.rows[0]?.payload;
-    const stored = preferencePayload && typeof preferencePayload === 'object' && !Array.isArray(preferencePayload)
-      ? preferencePayload as Record<string, any>
-      : {};
-    const storedNotifications = stored.notifications && typeof stored.notifications === 'object' && !Array.isArray(stored.notifications)
-      ? stored.notifications as Record<string, unknown>
-      : {};
-    const storedDashboard = stored.dashboard && typeof stored.dashboard === 'object' && !Array.isArray(stored.dashboard)
-      ? stored.dashboard as Record<string, unknown>
-      : {};
+    const stored =
+      preferencePayload &&
+      typeof preferencePayload === "object" &&
+      !Array.isArray(preferencePayload)
+        ? (preferencePayload as Record<string, any>)
+        : {};
+    const storedNotifications =
+      stored.notifications &&
+      typeof stored.notifications === "object" &&
+      !Array.isArray(stored.notifications)
+        ? (stored.notifications as Record<string, unknown>)
+        : {};
+    const storedDashboard =
+      stored.dashboard &&
+      typeof stored.dashboard === "object" &&
+      !Array.isArray(stored.dashboard)
+        ? (stored.dashboard as Record<string, unknown>)
+        : {};
     const account = accountResult.rows[0];
-    const requestedTheme = String(storedDashboard.theme ?? 'system').toLowerCase();
-    const requestedDefaultView = String(storedDashboard.defaultView ?? 'overview').toLowerCase();
+    const requestedTheme = String(
+      storedDashboard.theme ?? "system",
+    ).toLowerCase();
+    const requestedDefaultView = String(
+      storedDashboard.defaultView ?? "overview",
+    ).toLowerCase();
 
     return {
       status: account ? "active" : "degraded",
       accountLinked: Boolean(account),
       updatedAt: preferencesResult.rows[0]?.updated_at ?? null,
       notifications: {
-        emailAlerts: typeof storedNotifications.emailAlerts === 'boolean' ? storedNotifications.emailAlerts : true,
-        smsAlerts: typeof storedNotifications.smsAlerts === 'boolean' ? storedNotifications.smsAlerts : false,
-        dailyDigest: typeof storedNotifications.dailyDigest === 'boolean' ? storedNotifications.dailyDigest : true,
+        emailAlerts:
+          typeof storedNotifications.emailAlerts === "boolean"
+            ? storedNotifications.emailAlerts
+            : true,
+        smsAlerts:
+          typeof storedNotifications.smsAlerts === "boolean"
+            ? storedNotifications.smsAlerts
+            : false,
+        dailyDigest:
+          typeof storedNotifications.dailyDigest === "boolean"
+            ? storedNotifications.dailyDigest
+            : true,
       },
       dashboard: {
-        theme: ['system', 'dark', 'light'].includes(requestedTheme) ? requestedTheme : 'system',
+        theme: ["system", "dark", "light"].includes(requestedTheme)
+          ? requestedTheme
+          : "system",
         showTeachingWorkspace: Boolean(account?.teaching_workspace_available),
-        defaultView: ['overview', 'academics', 'attendance', 'fees'].includes(requestedDefaultView)
+        defaultView: ["overview", "academics", "attendance", "fees"].includes(
+          requestedDefaultView,
+        )
           ? requestedDefaultView
-          : 'overview',
+          : "overview",
       },
       security: {
         twoFactorAuth: Boolean(account?.mfa_enabled),
@@ -2658,8 +2715,17 @@ export class AdminCommandRepository {
     return result.rows[0];
   }
 
-  async createCommunicationBroadcast(data: { tenant_id: string; user_id: string; audience: string; target_class?: string | null; message: string; channels?: string[] }) {
-    const normalizedChannels = (data.channels ?? ['in_app']).map((channel) => String(channel).toLowerCase());
+  async createCommunicationBroadcast(data: {
+    tenant_id: string;
+    user_id: string;
+    audience: string;
+    target_class?: string | null;
+    message: string;
+    channels?: string[];
+  }) {
+    const normalizedChannels = (data.channels ?? ["in_app"]).map((channel) =>
+      String(channel).toLowerCase(),
+    );
     const result = await this.executeSql(
       `
         WITH sms_recipients AS (
@@ -2685,12 +2751,11 @@ export class AdminCommandRepository {
               $3 = 'parents'
               OR (
                 $3 = 'class'
-                AND lower(btrim(COALESCE(section.custom_label, section.name, section.grade_level, ''))) = lower(btrim($6))
+                AND (section.id::text=$6 OR lower(btrim(COALESCE(section.custom_label, section.name, section.grade_level, ''))) = lower(btrim($6)))
               )
             )
           GROUP BY guardian.phone
           ORDER BY guardian.phone
-          LIMIT 500
         ), notification_recipients AS (
           SELECT DISTINCT guardian.user_id
           FROM student_guardians guardian
@@ -2715,7 +2780,7 @@ export class AdminCommandRepository {
               $3 = 'parents'
               OR (
                 $3 = 'class'
-                AND lower(btrim(COALESCE(section.custom_label, section.name, section.grade_level, ''))) = lower(btrim($6))
+                AND (section.id::text=$6 OR lower(btrim(COALESCE(section.custom_label, section.name, section.grade_level, ''))) = lower(btrim($6)))
               )
             )
 
@@ -2723,6 +2788,8 @@ export class AdminCommandRepository {
 
           SELECT DISTINCT profile.user_id
           FROM staff_profiles profile
+          JOIN tenant_memberships membership ON membership.tenant_id=profile.tenant_id AND membership.user_id=profile.user_id
+            AND lower(membership.status::text)='active'
           WHERE profile.tenant_id = $1
             AND $3 = 'staff'
             AND profile.user_id IS NOT NULL
@@ -2859,33 +2926,39 @@ export class AdminCommandRepository {
         // The exact users above receive the broadcast. Keeping the shared event
         // Principal-only prevents a class/parent broadcast from reappearing in
         // every user inbox through the role-wide workflow feed.
-        JSON.stringify(['principal']),
+        JSON.stringify(["principal"]),
         JSON.stringify({
           audience: data.audience,
           channels: normalizedChannels,
           target_class: data.target_class ?? null,
-          source_dashboard: 'principal-command',
+          source_dashboard: "principal-command",
         }),
       ],
     );
     const event = result.rows[0];
     return {
-      broadcast: event ? {
-        id: event.id,
-        audience: data.audience,
-        target_class: data.target_class ?? null,
-        message: data.message,
-        channels: normalizedChannels,
-        status: event.status,
-        created_at: event.created_at,
-      } : undefined,
+      broadcast: event
+        ? {
+            id: event.id,
+            audience: data.audience,
+            target_class: data.target_class ?? null,
+            message: data.message,
+            channels: normalizedChannels,
+            status: event.status,
+            created_at: event.created_at,
+          }
+        : undefined,
       event,
       smsRecipientCount: Number(event?.sms_recipient_count ?? 0),
-      smsQueuedCount: Number(event?.sms_queued_count ?? event?.sms_recipient_count ?? 0),
+      smsQueuedCount: Number(
+        event?.sms_queued_count ?? event?.sms_recipient_count ?? 0,
+      ),
       smsProcessingCount: Number(event?.sms_processing_count ?? 0),
       smsAcceptedCount: Number(event?.sms_accepted_count ?? 0),
       smsNeedsReviewCount: Number(event?.sms_needs_review_count ?? 0),
-      smsOutboxCount: Number(event?.sms_outbox_count ?? event?.sms_recipient_count ?? 0),
+      smsOutboxCount: Number(
+        event?.sms_outbox_count ?? event?.sms_recipient_count ?? 0,
+      ),
       inAppRecipientCount: Number(event?.in_app_recipient_count ?? 0),
     };
   }
@@ -2928,16 +3001,18 @@ export class AdminCommandRepository {
         INSERT INTO admin_incidents (
           created_by, description, involved_parties, severity, tenant_id, title, updated_at
         )
-        VALUES ($1::uuid, $2, $3::jsonb, $4, $5, $6, NOW())
+        SELECT $2::uuid, $3, $4::jsonb, $5, $1, $6, NOW()
+        WHERE EXISTS (SELECT 1 FROM students WHERE tenant_id = $1 AND id::text = $7 AND deleted_at IS NULL)
         RETURNING *
       `,
       [
+        data.tenant_id,
         data.user_id,
         data.description,
         JSON.stringify([{ type: 'student', id: data.student_id }]),
         data.severity,
-        data.tenant_id,
         data.category,
+        data.student_id,
       ],
     );
     return result.rows[0];

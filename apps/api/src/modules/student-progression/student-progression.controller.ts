@@ -8,7 +8,7 @@ import { ProgressionEngine } from './student-progression.service';
 import { ProgressionApprovalDto, ProgressionCommandDto, ProgressionQueryDto, ProgressionRunDto } from './progression.dto';
 @Controller('academics/progression')
 @RequiresModule('academics')
-@Roles('principal','school_admin','deputy_principal','dean_academics')
+@Roles('owner','principal','school_admin','deputy_principal','dean_academics')
 export class StudentProgressionController {
   constructor(private readonly engine:ProgressionEngine,private readonly context:RequestContextService,private readonly agp:AgpExecutionService) {}
   private actor() {

@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { useModalLayer } from "@/hooks/use-modal-layer";
 
 import { Button } from "@/components/ui/button";
+import { useWorkspaceDialogClass } from './workspace-presentation';
 
 export function Modal({
   open,
@@ -28,6 +29,7 @@ export function Modal({
   mobileFullScreen?: boolean;
 }) {
   const titleId = useId();
+  const workspaceClass = useWorkspaceDialogClass();
   const dialogRef = useModalLayer<HTMLDivElement>(open, onClose);
 
   if (!open || typeof document === "undefined") {
@@ -68,7 +70,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={titleId}
         data-fullscreen={mobileFullScreen}
-        className={`app-modal-panel fade-in-panel glass-panel flex w-full flex-col ${mobileSizeClass} ${mobileFullScreen ? "min-h-[100dvh] max-h-[100dvh] rounded-none sm:min-h-0 sm:max-h-none sm:rounded-[var(--radius-lg)]" : "max-h-[calc(100dvh-2rem)] rounded-[var(--radius-lg)]"} outline-none shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ring-1 ring-slate-200/50 transform transition-all duration-300 scale-100 opacity-100`}
+        className={`app-modal-panel fade-in-panel glass-panel flex w-full flex-col ${workspaceClass ?? ''} ${mobileSizeClass} ${mobileFullScreen ? "min-h-[100dvh] max-h-[100dvh] rounded-none sm:min-h-0 sm:max-h-none sm:rounded-[var(--radius-lg)]" : "max-h-[calc(100dvh-2rem)] rounded-[var(--radius-lg)]"} outline-none shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] ring-1 ring-slate-200/50 transform transition-all duration-300 scale-100 opacity-100`}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-white px-4 py-3.5 sm:px-5">
           <div className="min-w-0">

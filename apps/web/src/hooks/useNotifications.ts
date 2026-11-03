@@ -25,6 +25,7 @@ export type DashboardNotification = {
   actionUrl: string | null;
   actionLabel: string | null;
   createdAt: string | null;
+  conversationId?: string | null;
 };
 
 export type NotificationBadges = {
@@ -72,7 +73,9 @@ function normalizePriority(value: unknown): DashboardNotification["priority"] {
     : null;
 }
 
-export function normalizeNotifications(payload: unknown): DashboardNotification[] {
+export function normalizeNotifications(
+  payload: unknown,
+): DashboardNotification[] {
   return payloadItems(payload).flatMap((candidate) => {
     if (!candidate || typeof candidate !== "object") return [];
     const notification = candidate as Record<string, unknown>;
@@ -88,21 +91,45 @@ export function normalizeNotifications(payload: unknown): DashboardNotification[
     const isRead = status !== "UNREAD" && status !== "ACTION_REQUIRED";
     const messageValue = notification.message ?? notification.body;
     const actionUrlValue = notification.actionUrl ?? notification.action_url;
-    const actionLabelValue = notification.actionLabel ?? notification.action_label;
+    const actionLabelValue =
+      notification.actionLabel ?? notification.action_label;
     const createdAtValue = notification.createdAt ?? notification.created_at;
 
-    return [{
-      id,
-      title,
-      message: typeof messageValue === "string" ? messageValue : "",
-      is_read: isRead,
-      priority: normalizePriority(notification.priority),
-      status,
-      module: typeof notification.module === "string" ? notification.module : null,
-      actionUrl: typeof actionUrlValue === "string" && actionUrlValue.trim() ? actionUrlValue : null,
-      actionLabel: typeof actionLabelValue === "string" && actionLabelValue.trim() ? actionLabelValue : null,
-      createdAt: typeof createdAtValue === "string" && createdAtValue.trim() ? createdAtValue : null,
-    }];
+    const metadata = (notification.metadataJson ?? notification.metadata) as
+      | Record<string, unknown>
+      | undefined;
+    const conversationId =
+      typeof metadata?.thread_id === "string" &&
+      typeof metadata?.message_id === "string" &&
+      /^[0-9a-f-]{36}$/i.test(metadata.thread_id)
+        ? metadata.thread_id
+        : null;
+
+    return [
+      {
+        ...(conversationId ? {conversationId} : {}),
+        id,
+        title,
+        message: typeof messageValue === "string" ? messageValue : "",
+        is_read: isRead,
+        priority: normalizePriority(notification.priority),
+        status,
+        module:
+          typeof notification.module === "string" ? notification.module : null,
+        actionUrl:
+          typeof actionUrlValue === "string" && actionUrlValue.trim()
+            ? actionUrlValue
+            : null,
+        actionLabel:
+          typeof actionLabelValue === "string" && actionLabelValue.trim()
+            ? actionLabelValue
+            : null,
+        createdAt:
+          typeof createdAtValue === "string" && createdAtValue.trim()
+            ? createdAtValue
+            : null,
+      },
+    ];
   });
 }
 

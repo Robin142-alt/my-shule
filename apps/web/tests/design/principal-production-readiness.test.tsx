@@ -18,261 +18,14 @@ jest.mock("@/lib/dashboard/api-client", () => ({
 }));
 
 jest.mock("@/components/dashboard/dashboard-engine", () => ({
-  DashboardEngine: () => <div data-testid="principal-live-dashboard-engine">Live school widgets</div>,
+  DashboardEngine: () => (
+    <div data-testid="principal-live-dashboard-engine">Live school widgets</div>
+  ),
 }));
 
 const requestDashboardApiMock = jest.mocked(requestDashboardApi);
 
-const activeStudentId = "00000000-0000-4000-8000-000000000411";
-
-const canonicalResponses: Record<string, unknown> = {
-  "/academics/syllabus": {
-    school_id: "fixture-tenant", generated_at: "2026-10-27T08:00:00Z", generated_by: "principal",
-    can_monitor: true, rights: [], subjects: [], years: [], terms: [], grades: [], syllabi: [], items: [],
-  },
-  "/admissions/foundation": {
-    academic_years: [{ id: "year-2026", name: "2026", status: "active", is_current: true }],
-    classes: [{ id: "class-grade-7", academic_year_id: "year-2026", name: "Grade 7", grade_level: "Grade 7", curriculum: "CBC", capacity: 45, enrolment_open: true, student_count: 0 }],
-    streams: [], subjects: [], class_subject_assignments: [],
-  },
-  "/admissions/drafts/current": null,
-  "/tenant-finance/collection-channel-summary": { total: 0, pending_approval: 0, awaiting_connection: 0, ready: 0, active: 0, sandbox: 0, attention: 0 },
-  "/admin-command/principal/students": {
-    status: "active", totalStudents: 412, boys: 201, girls: 211,
-    populationTrend: [],
-    recentAdmissions: [{ id: activeStudentId, name: "Amina Wanjiku", class: "Grade 9", gender: "Female", admission_date: "2026-09-09" }],
-  },
-  "/admin-command/principal/dashboard": {
-    tenant_id: "fixture-tenant",
-    generated_at: "2026-08-22T07:00:00.000Z",
-    enabled_modules: ["academics", "finance", "attendance"],
-    alerts: [],
-    notifications: [],
-    realtime_channels: [],
-  },
-  "/admin-command/principal/school-profile": {
-    status: "active",
-    schoolName: "Maranda High",
-    subdomain: "maranda-high",
-    motto: "Knowledge and service",
-    county: "Siaya",
-    subCounty: "Bondo",
-    ward: "Central Sakwa",
-    address: "School Lane",
-    website: "",
-    registrationStatus: "active",
-    curriculum: "CBC",
-    schoolType: "secondary",
-    logoUrl: null,
-    contactInfo: { email: "office@maranda.example", phone: "+254700000411" },
-  },
-  "/admin-command/principal/overview": {
-    status: "active",
-    totalStudents: 412,
-    totalStaff: 38,
-    activeIssues: 2,
-    pendingApprovals: 3,
-    recentActivity: [],
-  },
-  "/admin-command/principal/setup-checklist": {
-    status: "setup_required",
-    overallProgress: 33,
-    tasks: [
-      { id: "profile", title: "Complete School Profile", completed: true, group: "General" },
-      { id: "leadership", title: "Add Principal and Deputy", completed: true, group: "General" },
-      { id: "term", title: "Configure Academic Term", completed: false, group: "Academics" },
-      { id: "grading", title: "Configure Grading System", completed: false, group: "Academics" },
-      { id: "subjects", title: "Register Subjects", completed: false, group: "Academics" },
-      { id: "students", title: "Add Students", completed: false, group: "Data Entry" },
-    ],
-  },
-  "/admin-command/principal/academic-setup": {
-    status: "setup_required",
-    activeTerm: "Not Configured",
-    weeksRemaining: 0,
-    gradingsConfigured: false,
-    subjectsRegistered: 0,
-    teachersAssigned: 0,
-    pendingConfigurations: 2,
-    recentChanges: [],
-  },
-  "/admin-command/principal/classes": {
-    status: "setup_required",
-    totalClasses: 0,
-    totalStreams: 0,
-    averageClassSize: 0,
-    capacityUtilization: 0,
-    classDistribution: [],
-    recentAdjustments: [],
-  },
-  "/admin-command/principal/subjects": {
-    status: "setup_required",
-    totalSubjects: 0,
-    coreSubjects: 0,
-    electiveSubjects: 0,
-    departments: 0,
-    subjectDistribution: [],
-    departmentHeads: [],
-  },
-  "/admin-command/principal/finance-overview": {
-    status: "active",
-    collectionsToday: "KES 12,500",
-    outstandingInvoices: "KES 4,000",
-    collectionData: [],
-    pendingWaivers: [],
-  },
-  "/admin-command/principal/attendance": {
-    status: "active",
-    presentToday: 400,
-    absentToday: 8,
-    lateToday: 4,
-    chronicAbsenteeism: 0,
-    attendanceTrend: [],
-    recentAbsences: [],
-    students: [],
-  },
-  "/admin-command/principal/discipline": {
-    status: "active",
-    openCases: 0,
-    criticalCases: 0,
-    escalations: 0,
-    incidentTrend: [],
-    recentIncidents: [],
-    students: [],
-  },
-  "/admin-command/principal/academics": {
-    status: "active",
-    activeAssignments: 7,
-    syllabusCoverage: 64,
-    averageScore: 71,
-    performanceTrend: [],
-    departmentPerformance: [],
-  },
-  "/admin-command/principal/staff": {
-    status: "active",
-    totalStaff: 38,
-    teachingStaff: 31,
-    supportStaff: 7,
-    onLeave: 0,
-    staffDistribution: [],
-    recentOnboarding: [],
-  },
-  "/admin-command/principal/approvals": {
-    status: "active",
-    pendingTotal: 0,
-    urgentApprovals: 0,
-    categories: [],
-    requests: [],
-    recentApprovals: [],
-  },
-  "/admin-command/principal/reports": {
-    status: "active",
-    availableReports: 0,
-    favoriteReports: 0,
-    recentlyGenerated: 0,
-    categories: [],
-    scheduledReports: [],
-  },
-  "/admin-command/principal/exams": {
-    status: "active",
-    activeExams: 0,
-    reportsPending: 0,
-    missingMarksAlerts: 0,
-    averageScore: 0,
-    performanceTrend: [],
-    recentResults: [],
-  },
-  "/admin-command/principal/settings": {
-    status: "active",
-    updatedAt: "2026-08-22T07:00:00.000Z",
-    notifications: { emailAlerts: true, smsAlerts: false, dailyDigest: true },
-    dashboard: { theme: "system", showTeachingWorkspace: false, defaultView: "overview" },
-    security: { twoFactorAuth: true, lastPasswordChange: "2026-07-15T09:30:00.000Z" },
-  },
-  "/admin-command/principal/visitors": {
-    status: "active",
-    metrics: { checkedInToday: 3, currentlyOnPremises: 1, checkedOutToday: 2, flagged: 0 },
-    visitors: [
-      {
-        id: "visitor-1",
-        name: "Jane Guest",
-        purpose: "Parent meeting",
-        host: "Teacher A",
-        checkedInAt: "2026-08-22 08:00",
-        checkedOutAt: null,
-        status: "Active",
-      },
-    ],
-  },
-  "/admin-command/principal/health": {
-    status: "active",
-    metrics: {
-      visitsToday: 4,
-      openCases: 1,
-      referredToday: 1,
-      lowStockMedicines: 1,
-      outOfStockMedicines: 1,
-      expiringSoon: 0,
-    },
-    stockAlerts: [
-      {
-        id: "medicine-1",
-        medicine: "Paracetamol",
-        quantity: 0,
-        reorderLevel: 20,
-        expiryDate: "2026-10-01",
-        status: "Out of stock",
-      },
-    ],
-  },
-  "/admin-command/principal/audit-logs": {
-    status: "active",
-    metrics: { actionsToday: 8, sensitiveChanges: 2, failedActions: 1 },
-    events: [
-      {
-        id: "audit-1",
-        action: "approval.rejected",
-        actor: "Principal A",
-        resourceType: "approval_request",
-        createdAt: "2026-08-22 09:00",
-        result: "Rejected",
-      },
-    ],
-  },
-  "/admin-command/boarding-master/overview": {
-    metrics: { total_boarders: 120, hostels: 4, incidents_open: 2, on_leave: 3 },
-    overviewList: [{ id: "boarding-summary", metric: "Occupied beds", value: "120" }],
-  },
-  "/admin-command/transport-manager/overview": {
-    metrics: { total_vehicles: 6, active_routes: 4, students_transported: 90, trips_today: 8 },
-    overviewList: [{ id: "transport-summary", metric: "Trips today", value: "8" }],
-  },
-  "/admin-command/librarian/overview": {
-    metrics: { total_books: 600, books_issued: 40, overdue_count: 3, active_borrowers: 35, fines_pending: 2, books_available: 560 },
-    recent_activity: [],
-  },
-  "/academics/academic-years": [],
-  "/academics/academic-terms": [],
-  "/academics/grading-systems": [],
-  "/academics/attendance-settings": [],
-  "/academics/report-card-settings": [],
-  "/academics/class-sections": [],
-  "/academics/class-teachers": [],
-  "/academics/subjects": [],
-  "/academics/departments": [],
-  "/academics/teachers": [],
-  "/finance/fee-categories": [],
-  "/students?status=active&limit=200": [
-    {
-      id: activeStudentId,
-      admission_number: "MHS-0411",
-      first_name: "Achieng",
-      middle_name: null,
-      last_name: "Otieno",
-      metadata: { current_class_name: "Grade 8 East" },
-    },
-  ],
-};
+import { activeStudentId, canonicalResponses } from "./principal-workspace-fixtures";
 
 describe("principal production readiness", () => {
   let originalFetch: typeof global.fetch;
@@ -290,7 +43,22 @@ describe("principal production readiness", () => {
         return {
           ok: true,
           json: async () => ({
-            data: ["academics:write", "exams:read", "exams:write", "exams:publish", "finance:write", "principal:write", "principal:read", "reports:write", "students:read"],
+            data: [
+              "academics:read",
+              "events:read",
+              "events:write",
+              "reports:read",
+              "finance:read",
+              "academics:write",
+              "exams:read",
+              "exams:write",
+              "exams:publish",
+              "finance:write",
+              "principal:write",
+              "principal:read",
+              "reports:write",
+              "students:read",
+            ],
           }),
         } as Response;
       }
@@ -318,10 +86,13 @@ describe("principal production readiness", () => {
         const tenantId = options?.tenantId ?? "school";
         return {
           ...(canonicalResponses[path] as Record<string, unknown>),
-          schoolName: tenantId === "maranda-high" ? "Maranda High" : tenantId
-            .split("-")
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(" "),
+          schoolName:
+            tenantId === "maranda-high"
+              ? "Maranda High"
+              : tenantId
+                  .split("-")
+                  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                  .join(" "),
           subdomain: tenantId,
         } as never;
       }
@@ -343,17 +114,35 @@ describe("principal production readiness", () => {
       />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    const studentMetric = (await within(commandCenter).findByRole("button", { name: "View students" }));
-    const staffMetric = within(commandCenter).getByRole("button", { name: "View staff" });
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    const studentMetric = await within(commandCenter).findByRole("button", {
+      name: "View students",
+    });
+    const staffMetric = within(commandCenter).getByRole("button", {
+      name: "View staff",
+    });
 
-    expect(within(commandCenter).getAllByText(/Maranda High/i).length).toBeGreaterThan(0);
+    expect(
+      within(commandCenter).getAllByText(/Maranda High/i).length,
+    ).toBeGreaterThan(0);
     expect(studentMetric).toHaveTextContent("412");
     expect(staffMetric).toHaveTextContent("38");
-    expect(within(commandCenter).getByRole("button", { name: "View pending approvals" })).toHaveTextContent("3");
-    expect(within(commandCenter).queryByText(/Kisumu Boys|KSh 248,500/i)).not.toBeInTheDocument();
-    expect(within(commandCenter).queryByText("Operational Dashboard")).not.toBeInTheDocument();
-    expect(within(commandCenter).queryByTestId("principal-live-dashboard-engine")).not.toBeInTheDocument();
+    expect(
+      within(commandCenter).getByRole("button", {
+        name: "View pending approvals",
+      }),
+    ).toHaveTextContent("3");
+    expect(
+      within(commandCenter).queryByText(/Kisumu Boys|KSh 248,500/i),
+    ).not.toBeInTheDocument();
+    expect(
+      within(commandCenter).queryByText("Operational Dashboard"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(commandCenter).queryByTestId("principal-live-dashboard-engine"),
+    ).not.toBeInTheDocument();
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
       "/admin-command/principal/overview",
       expect.objectContaining({ tenantId: "maranda-high" }),
@@ -362,78 +151,203 @@ describe("principal production readiness", () => {
 
   it("keeps payment setup off Overview and opens it through Fees & Finance", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByRole("button", { name: "View students" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Payment setup" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Review payment setups" })).not.toBeInTheDocument();
-    const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
-    await user.click(within(sidebar).getByRole("button", { name: "Fees & Finance" }));
-    await user.click(within(sidebar).getByRole("button", { name: "Payment Setup" }));
-    expect(await screen.findByRole("heading", { name: "School payment channels" })).toBeVisible();
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
+    expect(
+      await screen.findByRole("button", { name: "View students" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Payment setup" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review payment setups" }),
+    ).not.toBeInTheDocument();
+    const sidebar = screen.getByRole("navigation", {
+      name: "Principal dashboard sidebar",
+    });
+    await user.click(
+      within(sidebar).getByRole("button", { name: "Fees & Finance" }),
+    );
+    await user.click(
+      within(sidebar).getByRole("button", { name: "Payment Setup" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "School payment channels" }),
+    ).toBeVisible();
     expect(window.location.pathname).toBe("/school/principal/payment-setup");
   });
 
   it("keeps admitting a student inside the Principal dashboard", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" section="admissions" routeMode="public" />);
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(screen.queryByTestId("admissions-dashboard-command-center")).not.toBeInTheDocument();
-    expect(await within(commandCenter).findByText("New student admission")).toBeVisible();
-    await user.click(within(commandCenter).getByRole("button", { name: "Close and keep draft" }));
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        tenantSlug="maranda-high"
+        section="admissions"
+        routeMode="public"
+      />,
+    );
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      screen.queryByTestId("admissions-dashboard-command-center"),
+    ).not.toBeInTheDocument();
+    expect(
+      await within(commandCenter).findByText("New student admission"),
+    ).toBeVisible();
+    await user.click(
+      within(commandCenter).getByRole("button", {
+        name: "Close and keep draft",
+      }),
+    );
     expect(window.location.pathname).toBe("/school/principal/students");
-    expect(screen.queryByTestId("admissions-dashboard-command-center")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("admissions-dashboard-command-center"),
+    ).not.toBeInTheDocument();
   });
 
   it("opens payment setup directly from its dashboard route instead of the generic workspace", async () => {
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" section="payment-setup" routeMode="public" />);
-    expect(await screen.findByTestId("principal-practical-command-center")).toBeVisible();
-    expect(await screen.findByRole("heading", { name: "School payment channels" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Payment Setup" })).toHaveAttribute("aria-current", "page");
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        tenantSlug="maranda-high"
+        section="payment-setup"
+        routeMode="public"
+      />,
+    );
+    expect(
+      await screen.findByTestId("principal-practical-command-center"),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "School payment channels" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Payment Setup" }),
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it.each([
     ["Review Approvals", "approvals"],
     ["View students", "students"],
-  ])("opens the governed %s workspace from the overview banner", async (label, section) => {
-    const user = userEvent.setup();
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" routeMode="public" />);
-    await user.click(await screen.findByRole("button", { name: label }));
-    expect(window.location.pathname).toBe(`/school/principal/${section}`);
-    expect(requestDashboardApiMock).toHaveBeenCalledWith(
-      `/admin-command/principal/${section}`,
-      expect.objectContaining({ tenantId: "maranda-high" }),
-    );
-  });
+  ])(
+    "opens the governed %s workspace from the overview banner",
+    async (label, section) => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <SchoolPages
+          role="principal"
+          tenantSlug="maranda-high"
+          routeMode="public"
+        />,
+      );
+      await user.click(await screen.findByRole("button", { name: label }));
+      expect(window.location.pathname).toBe(`/school/principal/${section}`);
+      expect(requestDashboardApiMock).toHaveBeenCalledWith(
+        `/admin-command/principal/${section}`,
+        expect.objectContaining({ tenantId: "maranda-high" }),
+      );
+    },
+  );
 
   it("renders the approved overview sections without a duplicate activity feed", async () => {
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="maranda-high" />);
-    for (const name of ['Academic Performance', 'People Waiting to See You', "Today's School Operations", 'This Week', 'Requires Your Attention', 'Quick actions']) {
-      expect(await screen.findByRole('heading', { name: new RegExp(name, 'i') })).toBeVisible();
+    renderWithProviders(
+      <SchoolPages role="principal" tenantSlug="maranda-high" />,
+    );
+    for (const name of [
+      "Academic Performance",
+      "People Waiting to See You",
+      "Today's School Operations",
+      "This Week",
+      "Requires Your Attention",
+    ]) {
+      expect(
+        await screen.findByRole("heading", { name: new RegExp(name, "i") }),
+      ).toBeVisible();
     }
-    expect(screen.queryByRole('heading', { name: 'Recent school activity' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Recent school activity" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the required Principal sidebar order and child hierarchy", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />,
+      <SchoolPages
+        role="principal"
+        section="dashboard"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
     );
 
-    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    const sidebar = await screen.findByRole("navigation", {
+      name: "Principal dashboard sidebar",
+    });
     const topLevelLabels = Array.from(sidebar.querySelectorAll("button, a"))
-      .filter((item) => !item.closest('[role="group"]') && item.textContent?.trim())
+      .filter(
+        (item) => !item.closest('[role="group"]') && item.textContent?.trim(),
+      )
       .map((item) => item.textContent?.trim());
     expect(topLevelLabels).toEqual([
-      "Overview", "Approvals", "Exam Analytics", "Exams & Report Cards", "Communication",
-      "Master Timetable", "Fees & Finance", "Students", "Academics", "Staff", "Parents & Visitors",
-      "Transport", "Library", "Users & Invitations", "Reports", "Audit Logs", "School Setup", "Settings",
+      "Overview",
+      "Approvals",
+      "Exam Analytics",
+      "Exams & Report Cards",
+      "Communication",
+      "Master Timetable",
+      "Fees & Finance",
+      "Students",
+      "Academics",
+      "Staff",
+      "Parents & Visitors",
+      "Transport",
+      "Library",
+      "Users & Invitations",
+      "Reports",
+      "Audit Logs",
+      "School Setup",
+      "Settings",
     ]);
-    expect(within(sidebar).queryByRole("link", { name: "Students" })).not.toBeInTheDocument();
+    expect(
+      within(sidebar).queryByRole("link", { name: "Students" }),
+    ).not.toBeInTheDocument();
 
     for (const [label, toggleName, children] of [
-      ["Fees & Finance", "Fees & Finance", ["Fees", "Payment Setup", "Collection Reviews"]],
-      ["Students", "Students", ["Student Directory", "Student Progression & Transitions", "Admit Student", "Attendance", "Discipline", "Sick Bay", "Boarding"]],
-      ["Academics", "Academics", ["Academic Calendar", "Classes & Streams", "Subjects & Departments", "Teacher Allocations", "Syllabus Coverage"]],
+      [
+        "Fees & Finance",
+        "Fees & Finance",
+        ["Fees", "Payment Setup", "Collection Reviews"],
+      ],
+      [
+        "Students",
+        "Students",
+        [
+          "Student Directory",
+          "Student Progression & Transitions",
+          "Admit Student",
+          "Attendance",
+          "Discipline",
+          "Sick Bay",
+          "Boarding",
+        ],
+      ],
+      [
+        "Academics",
+        "Academics",
+        [
+          "Academic Calendar",
+          "Classes & Streams",
+          "Subjects & Departments",
+          "Teacher Allocations",
+          "Syllabus Coverage",
+        ],
+      ],
       ["School Setup", "Expand School Setup", ["School Profile"]],
     ] as const) {
       const toggle = within(sidebar).getByRole("button", { name: toggleName });
@@ -442,185 +356,442 @@ describe("principal production readiness", () => {
       const group = within(sidebar).getByRole("group", { name: label });
       expect(toggle).toHaveAttribute("aria-expanded", "true");
       expect(toggle).toHaveAttribute("aria-controls", group.id);
-      expect(within(group).getAllByRole("button").map((item) => item.textContent)).toEqual(children);
+      expect(
+        within(group)
+          .getAllByRole("button")
+          .map((item) => item.textContent),
+      ).toEqual(children);
       await user.click(toggle);
       expect(toggle).toHaveAttribute("aria-expanded", "false");
-      expect(within(sidebar).queryByRole("group", { name: label })).not.toBeInTheDocument();
+      expect(
+        within(sidebar).queryByRole("group", { name: label }),
+      ).not.toBeInTheDocument();
     }
   });
 
   it.each([
-    "dashboard", "overview", "principal-overview", "students", "timetable", "approvals",
-    "academic-intelligence", "exams", "exams-reports", "exams-report-cards", "communication",
-    "finance", "finance-overview", "fees", "attendance-monitoring", "discipline",
-    "clinic", "sick-bay", "boarding", "academic-setup", "classes-streams", "subjects-departments",
-    "academics", "staff", "staff-roles", "visitors", "parents", "transport", "library",
-    "users-invitations", "reports", "audit-logs", "setup-checklist", "school-profile", "settings",
-    "subjects", "academic-analytics", "syllabus-coverage",
-  ])("loads Principal %s directly in the current dashboard", async (section) => {
-    expect(isSchoolSection(section)).toBe(true);
-    expect(isProductionReadyModule(section)).toBe(true);
-    renderWithProviders(<SchoolPages role="principal" section={section} tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
-    if (section === "syllabus-coverage") expect(await screen.findByText("No teacher allocations in your scope")).toBeVisible();
-    expect(screen.queryByRole("alert", { name: "Principal workspace unavailable" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Learner register" })).not.toBeInTheDocument();
-  });
+    "dashboard",
+    "overview",
+    "principal-overview",
+    "students",
+    "timetable",
+    "approvals",
+    "academic-intelligence",
+    "exams",
+    "exams-reports",
+    "exams-report-cards",
+    "communication",
+    "finance",
+    "finance-overview",
+    "fees",
+    "attendance-monitoring",
+    "discipline",
+    "clinic",
+    "sick-bay",
+    "boarding",
+    "academic-setup",
+    "classes-streams",
+    "subjects-departments",
+    "academics",
+    "staff",
+    "staff-roles",
+    "visitors",
+    "parents",
+    "transport",
+    "library",
+    "users-invitations",
+    "reports",
+    "audit-logs",
+    "setup-checklist",
+    "school-profile",
+    "settings",
+    "subjects",
+    "academic-analytics",
+    "syllabus-coverage",
+  ])(
+    "loads Principal %s directly in the current dashboard",
+    async (section) => {
+      expect(isSchoolSection(section)).toBe(true);
+      expect(isProductionReadyModule(section)).toBe(true);
+      renderWithProviders(
+        <SchoolPages
+          role="principal"
+          section={section}
+          tenantSlug="maranda-high"
+          routeMode="public"
+        />,
+      );
+      expect(
+        await screen.findByRole("navigation", {
+          name: "Principal dashboard sidebar",
+        }),
+      ).toBeVisible();
+      if (section === "syllabus-coverage")
+        expect(
+          await screen.findByText("No teacher allocations in your scope"),
+        ).toBeVisible();
+      expect(
+        screen.queryByRole("alert", {
+          name: "Principal workspace unavailable",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Learner register" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("expands Students without navigating, then opens its directory and preserves school data on reload", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "/school/principal");
-    const { unmount } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
-    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
+    const { unmount } = renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section="dashboard"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
+    const sidebar = await screen.findByRole("navigation", {
+      name: "Principal dashboard sidebar",
+    });
     const href = "/school/principal/students";
     const toggle = within(sidebar).getByRole("button", { name: "Students" });
     toggle.focus();
     await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(window.location.pathname).toBe("/school/principal");
-    expect(screen.queryByRole("heading", { name: "Students Directory" })).not.toBeInTheDocument();
-    await user.click(within(sidebar).getByRole("button", { name: "Student Directory" }));
-    expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Students Directory" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(sidebar).getByRole("button", { name: "Student Directory" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Students Directory" }),
+    ).toBeVisible();
     expect(window.location.pathname).toBe(href);
-    expect(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).toBe(sidebar);
+    expect(
+      screen.getByRole("navigation", { name: "Principal dashboard sidebar" }),
+    ).toBe(sidebar);
     await act(async () => {
       window.history.back();
-      await new Promise<void>((resolve) => window.addEventListener("popstate", () => resolve(), { once: true }));
+      await new Promise<void>((resolve) =>
+        window.addEventListener("popstate", () => resolve(), { once: true }),
+      );
     });
     expect(window.location.pathname).toBe("/school/principal");
-    expect(within(sidebar).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+    expect(
+      within(sidebar).getByRole("button", { name: "Overview" }),
+    ).toHaveAttribute("aria-current", "page");
     unmount();
-    renderWithProviders(<SchoolPages role="principal" section={href.split("/").pop()} tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section={href.split("/").pop()}
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Students Directory" }),
+    ).toBeVisible();
     expect(await screen.findByText("Amina Wanjiku")).toBeVisible();
-    expect(within(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).getByRole("button", { name: "Student Directory" })).toHaveAttribute("aria-current", "page");
-    expect(requestDashboardApiMock).toHaveBeenCalledWith("/admin-command/principal/students", expect.objectContaining({ tenantId: "maranda-high" }));
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Principal dashboard sidebar" }),
+      ).getByRole("button", { name: "Student Directory" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(requestDashboardApiMock).toHaveBeenCalledWith(
+      "/admin-command/principal/students",
+      expect.objectContaining({ tenantId: "maranda-high" }),
+    );
   });
 
   it.each([
-    ["communication", /No broadcasts recorded for this period/],
+    ["communication", /No recorded results for this period/],
     ["attendance-monitoring", /No attendance recorded for this period/],
-    ["discipline", /No incidents recorded for this period/],
+    ["discipline", /No incidents match these filters/],
     ["finance", /No collections recorded for this period/],
-  ])("explains missing trend data in %s instead of showing an empty chart", async (section, message) => {
-    renderWithProviders(<SchoolPages role="principal" section={section as string} tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByText(message)).toBeVisible();
-  });
+  ])(
+    "explains missing trend data in %s instead of showing an empty chart",
+    async (section, message) => {
+      renderWithProviders(
+        <SchoolPages
+          role="principal"
+          section={section as string}
+          tenantSlug="maranda-high"
+          routeMode="public"
+        />,
+      );
+      if (section === "communication")
+        await userEvent
+          .setup()
+          .click(
+            await screen.findByRole("button", { name: "School broadcasts" }),
+          );
+      expect(await screen.findByText(message)).toBeVisible();
+    },
+  );
 
   it("keeps the master timetable in the Principal dashboard after reloading its URL", async () => {
     const user = userEvent.setup();
-    const { unmount } = renderWithProviders(<SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />);
-    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
-    await user.click(within(sidebar).getByRole("button", { name: "Master Timetable" }));
+    const { unmount } = renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section="dashboard"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
+    const sidebar = await screen.findByRole("navigation", {
+      name: "Principal dashboard sidebar",
+    });
+    await user.click(
+      within(sidebar).getByRole("button", { name: "Master Timetable" }),
+    );
     expect(window.location.pathname).toBe("/school/principal/timetable");
     unmount();
-    renderWithProviders(<SchoolPages role="principal" section="timetable" tenantSlug="maranda-high" routeMode="public" />);
-    expect(await screen.findByRole("heading", { name: "School master timetable" })).toBeVisible();
-    expect(screen.getByRole("navigation", { name: "Principal dashboard sidebar" })).toBeVisible();
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section="timetable"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "School master timetable" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "Principal dashboard sidebar" }),
+    ).toBeVisible();
   });
 
   it("keeps the student admission action within the Principal role", async () => {
     const user = userEvent.setup();
-    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ data: ["students:read", "school_admissions:write"] }) });
-    renderWithProviders(<SchoolPages role="principal" section="students" tenantSlug="maranda-high" routeMode="public" />);
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: ["students:read", "school_admissions:write"],
+        }),
+      });
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section="students"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
     await user.click(await screen.findByRole("button", { name: "Admit New" }));
-    expect(routerPushMock.mock.calls[0][0]).toBe("/school/principal/admissions");
+    expect(routerPushMock.mock.calls[0][0]).toBe(
+      "/school/principal/admissions",
+    );
   });
 
   it("opens student setup in Students and uses the supported attendance URL", async () => {
     const user = userEvent.setup();
-    renderWithProviders(<SchoolPages role="principal" section="setup-checklist" tenantSlug="maranda-high" routeMode="public" />);
-    await user.click(await screen.findByRole("button", { name: "Open Students" }));
+    renderWithProviders(
+      <SchoolPages
+        role="principal"
+        section="setup-checklist"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Open Students" }),
+    );
     expect(window.location.pathname).toBe("/school/principal/students");
-    expect(await screen.findByRole("heading", { name: "Students Directory" })).toBeVisible();
-    const sidebar = screen.getByRole("navigation", { name: "Principal dashboard sidebar" });
-    expect(within(sidebar).getByRole("button", { name: "Students" })).toHaveAttribute("aria-expanded", "true");
-    await user.click(within(sidebar).getByRole("button", { name: "Attendance" }));
-    expect(window.location.pathname).toBe("/school/principal/attendance-monitoring");
-    expect(await screen.findByRole("heading", { name: "Weekly Attendance Rate" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "Students Directory" }),
+    ).toBeVisible();
+    const sidebar = screen.getByRole("navigation", {
+      name: "Principal dashboard sidebar",
+    });
+    expect(
+      within(sidebar).getByRole("button", { name: "Students" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await user.click(
+      within(sidebar).getByRole("button", { name: "Attendance" }),
+    );
+    expect(window.location.pathname).toBe(
+      "/school/principal/attendance-monitoring",
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Weekly Attendance Rate" }),
+    ).toBeVisible();
   });
 
   it("keeps mobile group toggles separate from School Setup and profile navigation", async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, "", "/school/principal");
     renderWithProviders(
-      <SchoolPages role="principal" section="dashboard" tenantSlug="maranda-high" routeMode="public" />,
+      <SchoolPages
+        role="principal"
+        section="dashboard"
+        tenantSlug="maranda-high"
+        routeMode="public"
+      />,
     );
 
-    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
-    await user.click(screen.getByRole("button", { name: "Open principal navigation" }));
+    const sidebar = await screen.findByRole("navigation", {
+      name: "Principal dashboard sidebar",
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Open principal navigation" }),
+    );
     for (const label of ["Students", "School Setup"]) {
-      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Expand ${label}` }));
-      await user.click(within(sidebar).getByRole("button", { name: label === "Students" ? label : `Collapse ${label}` }));
+      await user.click(
+        within(sidebar).getByRole("button", {
+          name: label === "Students" ? label : `Expand ${label}`,
+        }),
+      );
+      await user.click(
+        within(sidebar).getByRole("button", {
+          name: label === "Students" ? label : `Collapse ${label}`,
+        }),
+      );
       expect(window.location.pathname).toBe("/school/principal");
-      expect(screen.getByRole("button", { name: "Close principal navigation overlay" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: "Close principal navigation overlay",
+        }),
+      ).toBeInTheDocument();
     }
 
-    await user.click(within(sidebar).getByRole("button", { name: "School Setup" }));
+    await user.click(
+      within(sidebar).getByRole("button", { name: "School Setup" }),
+    );
     expect(window.location.pathname).toBe("/school/principal/setup-checklist");
-    expect(await screen.findByRole("heading", { name: "Setup Progress" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Close principal navigation overlay" })).not.toBeInTheDocument();
-    const setupGroup = within(sidebar).getByRole("group", { name: "School Setup" });
-    await user.click(within(setupGroup).getByRole("button", { name: "School Profile" }));
+    expect(
+      await screen.findByRole("heading", { name: "Setup Progress" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: "Close principal navigation overlay",
+      }),
+    ).not.toBeInTheDocument();
+    const setupGroup = within(sidebar).getByRole("group", {
+      name: "School Setup",
+    });
+    await user.click(
+      within(setupGroup).getByRole("button", { name: "School Profile" }),
+    );
     expect(window.location.pathname).toBe("/school/principal/school-profile");
-    expect(await screen.findByRole("heading", { name: "School Profile" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "School Profile" }),
+    ).toBeVisible();
   });
 
   it.each([
     ["finance", "Fees & Finance", "Fees", "Collection Trend"],
     ["clinic", "Students", "Sick Bay", "Sick Bay"],
-    ["academics", "Academics", "Teacher Allocations", "Performance Trend"],
-  ])("opens the active child group and preserves the %s route when selected", async (route, groupLabel, childLabel, heading) => {
-    const user = userEvent.setup();
-    renderWithProviders(
-      <SchoolPages role="principal" section={route} tenantSlug="maranda-high" routeMode="public" />,
-    );
+    ["academics", "Academics", "Teacher Allocations", "Exam performance trend"],
+  ])(
+    "opens the active child group and preserves the %s route when selected",
+    async (route, groupLabel, childLabel, heading) => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <SchoolPages
+          role="principal"
+          section={route}
+          tenantSlug="maranda-high"
+          routeMode="public"
+        />,
+      );
 
-    const sidebar = await screen.findByRole("navigation", { name: "Principal dashboard sidebar" });
-    const group = within(sidebar).getByRole("group", { name: groupLabel });
-    const child = within(group).getByRole("button", { name: childLabel });
-    expect(child).toHaveAttribute("aria-current", "page");
-    await user.click(screen.getByRole("button", { name: "Open principal navigation" }));
-    await user.click(child);
-    expect(window.location.pathname).toBe(`/school/principal/${route}`);
-    expect(await screen.findByRole("heading", { name: heading })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Close principal navigation overlay" })).not.toBeInTheDocument();
-  });
+      const sidebar = await screen.findByRole("navigation", {
+        name: "Principal dashboard sidebar",
+      });
+      const group = within(sidebar).getByRole("group", { name: groupLabel });
+      const child = within(group).getByRole("button", { name: childLabel });
+      expect(child).toHaveAttribute("aria-current", "page");
+      await user.click(
+        screen.getByRole("button", { name: "Open principal navigation" }),
+      );
+      await user.click(child);
+      expect(window.location.pathname).toBe(`/school/principal/${route}`);
+      expect(
+        await screen.findByRole("heading", { name: heading }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", {
+          name: "Close principal navigation overlay",
+        }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it.each([
     ["missing dashboard settings", { status: "active" }],
     ["partial dashboard settings", { status: "active", dashboard: {} }],
-  ])("keeps the Principal overview usable with %s", async (_caseName, navigationSettings) => {
-    responseOverrides.set("/admin-command/principal/settings", navigationSettings);
+  ])(
+    "keeps the Principal overview usable with %s",
+    async (_caseName, navigationSettings) => {
+      responseOverrides.set(
+        "/admin-command/principal/settings",
+        navigationSettings,
+      );
 
-    renderWithProviders(
-      <SchoolPages role="principal" tenantSlug="partial-settings-school" />,
-    );
+      renderWithProviders(
+        <SchoolPages role="principal" tenantSlug="partial-settings-school" />,
+      );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByRole("heading", { name: "Principal Dashboard" })).toBeVisible();
-    expect(await within(commandCenter).findByRole("heading", { name: "Academic Performance" })).toBeVisible();
-  });
+      const commandCenter = await screen.findByTestId(
+        "principal-practical-command-center",
+      );
+      expect(
+        within(commandCenter).getByRole("heading", {
+          name: "Principal Dashboard",
+        }),
+      ).toBeVisible();
+      expect(
+        await within(commandCenter).findByRole("heading", {
+          name: "Academic Performance",
+        }),
+      ).toBeVisible();
+    },
+  );
 
   it("keeps the live loading state visible and does not substitute phantom metrics", async () => {
     unresolvedPaths.add("/admin-command/principal/overview");
 
     renderWithProviders(
-      <SchoolPages role="principal" tenantSlug="new-school" userLabel="Principal Amina" />,
+      <SchoolPages
+        role="principal"
+        tenantSlug="new-school"
+        userLabel="Principal Amina"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByRole("heading", { name: "Academic Performance" })).toBeVisible();
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      within(commandCenter).getByRole("heading", {
+        name: "Academic Performance",
+      }),
+    ).toBeVisible();
     expect(within(commandCenter).queryByText("412")).not.toBeInTheDocument();
-    expect(within(commandCenter).queryByText(/Kisumu Boys/i)).not.toBeInTheDocument();
+    expect(
+      within(commandCenter).queryByText(/Kisumu Boys/i),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a truthful error for a missing or malformed overview contract", async () => {
     responseOverrides.set("/admin-command/principal/overview", null);
 
-    renderWithProviders(<SchoolPages role="principal" tenantSlug="new-school" />);
+    renderWithProviders(
+      <SchoolPages role="principal" tenantSlug="new-school" />,
+    );
 
-    expect(await screen.findByText("Failed to load Principal Overview")).toBeVisible();
+    expect(
+      await screen.findByText("Failed to load Principal Overview"),
+    ).toBeVisible();
     expect(screen.queryByText("412")).not.toBeInTheDocument();
   });
 
@@ -634,10 +805,18 @@ describe("principal production readiness", () => {
       />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(await within(commandCenter).findByRole("heading", { name: "Setup Progress" })).toBeVisible();
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      await within(commandCenter).findByRole("heading", {
+        name: "Setup Progress",
+      }),
+    ).toBeVisible();
     expect(within(commandCenter).getByText("33%")).toBeVisible();
-    expect(within(commandCenter).getByText("Configure Academic Term")).toBeVisible();
+    expect(
+      within(commandCenter).getByText("Configure Academic Term"),
+    ).toBeVisible();
     expect(within(commandCenter).getByText("Register Subjects")).toBeVisible();
     expect(within(commandCenter).getByText("Add Students")).toBeVisible();
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
@@ -647,62 +826,122 @@ describe("principal production readiness", () => {
   });
 
   it.each([
-    ["academic-setup", "Configuration Hub"],
+    ["academic-setup", "Academic Calendar"],
     ["classes-streams", "Population Distribution"],
-    ["subjects-departments", "Subject Distribution"],
+    ["subjects-departments", "Subjects by department"],
     ["finance", "Collection Trend"],
     ["attendance", "Weekly Attendance Rate"],
-    ["discipline", "Incident Trend"],
-    ["academics", "Performance Trend"],
-    ["staff", "Staff Distribution"],
+    ["discipline", "Incident register"],
+    ["academics", "Exam performance trend"],
+    ["staff", "Teaching workload"],
     ["approvals", "Pending by Category"],
-    ["reports", "Report Categories"],
+    ["reports", "Generated reports"],
     ["exams-reports", "Exam Performance Trend"],
     ["settings", "Dashboard Preferences"],
-  ])("opens the Principal %s route on its dedicated live workspace", async (section, heading) => {
-    renderWithProviders(
-      <SchoolPages role="principal" section={section} tenantSlug="fresh-academy" userLabel="Principal Amina" />,
-    );
+  ])(
+    "opens the Principal %s route on its dedicated live workspace",
+    async (section, heading) => {
+      renderWithProviders(
+        <SchoolPages
+          role="principal"
+          section={section}
+          tenantSlug="fresh-academy"
+          userLabel="Principal Amina"
+        />,
+      );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(await within(commandCenter).findByRole("heading", { name: heading })).toBeVisible();
-    expect(within(commandCenter).queryByText(/Practical Kenyan school command center/i)).not.toBeInTheDocument();
-  });
+      const commandCenter = await screen.findByTestId(
+        "principal-practical-command-center",
+      );
+      expect(
+        await within(commandCenter).findByRole("heading", { name: heading }),
+      ).toBeVisible();
+      expect(
+        within(commandCenter).queryByText(
+          /Practical Kenyan school command center/i,
+        ),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("renders actionable, truthful empty states for a clean tenant", async () => {
     renderWithProviders(
-      <SchoolPages role="principal" section="classes-streams" tenantSlug="clean-academy" />,
+      <SchoolPages
+        role="principal"
+        section="classes-streams"
+        tenantSlug="clean-academy"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(await within(commandCenter).findByText("No classes found")).toBeVisible();
-    expect(within(commandCenter).getByText("Create a class section to see distribution")).toBeVisible();
-    expect(within(commandCenter).getByText("No classes configured")).toBeVisible();
-    expect(within(commandCenter).queryByText(/Form 1 East|Grade 8 North/i)).not.toBeInTheDocument();
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      await within(commandCenter).findByText("No classes found"),
+    ).toBeVisible();
+    expect(
+      within(commandCenter).getByText(
+        "Create a class section to see distribution",
+      ),
+    ).toBeVisible();
+    expect(
+      within(commandCenter).getByText("No classes configured"),
+    ).toBeVisible();
+    expect(
+      within(commandCenter).queryByText(/Form 1 East|Grade 8 North/i),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps legacy boarding and transport links on unique school-scoped workspaces", async () => {
     const boarding = renderWithProviders(
-      <SchoolPages role="principal" section="boarding" tenantSlug="maranda-high" />,
+      <SchoolPages
+        role="principal"
+        section="boarding"
+        tenantSlug="maranda-high"
+      />,
     );
-    const boardingCommandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(within(boardingCommandCenter).getByRole("region", { name: "Principal boarding workspace" })).toBeVisible();
-    expect((await within(boardingCommandCenter).findAllByText("120")).length).toBeGreaterThan(0);
+    const boardingCommandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      within(boardingCommandCenter).getByRole("region", {
+        name: "Principal boarding workspace",
+      }),
+    ).toBeVisible();
+    expect(
+      (await within(boardingCommandCenter).findAllByText("120")).length,
+    ).toBeGreaterThan(0);
     boarding.unmount();
 
     renderWithProviders(
-      <SchoolPages role="principal" section="transport" tenantSlug="maranda-high" />,
+      <SchoolPages
+        role="principal"
+        section="transport"
+        tenantSlug="maranda-high"
+      />,
     );
-    const transportCommandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(within(transportCommandCenter).getByRole("region", { name: "Principal transport workspace" })).toBeVisible();
+    const transportCommandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      within(transportCommandCenter).getByRole("region", {
+        name: "Principal transport workspace",
+      }),
+    ).toBeVisible();
     expect(await within(transportCommandCenter).findByText("90")).toBeVisible();
   });
 
   it("loads Principal visitor, health, library, and audit oversight from live tenant contracts", async () => {
     const visitors = renderWithProviders(
-      <SchoolPages role="principal" section="visitors" tenantSlug="maranda-high" />,
+      <SchoolPages
+        role="principal"
+        section="visitors"
+        tenantSlug="maranda-high"
+      />,
     );
-    let commandCenter = await screen.findByTestId("principal-practical-command-center");
+    let commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
     expect(await within(commandCenter).findByText("Jane Guest")).toBeVisible();
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
       "/admin-command/principal/visitors",
@@ -711,35 +950,62 @@ describe("principal production readiness", () => {
     visitors.unmount();
 
     const health = renderWithProviders(
-      <SchoolPages role="principal" section="clinic" tenantSlug="maranda-high" />,
+      <SchoolPages
+        role="principal"
+        section="clinic"
+        tenantSlug="maranda-high"
+      />,
     );
-    commandCenter = await screen.findByTestId("principal-practical-command-center");
+    commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
     expect(await within(commandCenter).findByText("Paracetamol")).toBeVisible();
-    expect(within(commandCenter).getByText(/Diagnoses, confidential notes/i)).toBeVisible();
+    expect(
+      within(commandCenter).getByText(/Diagnoses, confidential notes/i),
+    ).toBeVisible();
     health.unmount();
 
     const library = renderWithProviders(
-      <SchoolPages role="principal" section="library" tenantSlug="maranda-high" />,
+      <SchoolPages
+        role="principal"
+        section="library"
+        tenantSlug="maranda-high"
+      />,
     );
-    commandCenter = await screen.findByTestId("principal-practical-command-center");
+    commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
     expect(await within(commandCenter).findByText("600")).toBeVisible();
     library.unmount();
 
     renderWithProviders(
-      <SchoolPages role="principal" section="audit-logs" tenantSlug="maranda-high" />,
+      <SchoolPages
+        role="principal"
+        section="audit-logs"
+        tenantSlug="maranda-high"
+      />,
     );
-    commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(await within(commandCenter).findByText("approval.rejected")).toBeVisible();
+    commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      await within(commandCenter).findByText("approval.rejected"),
+    ).toBeVisible();
     expect(within(commandCenter).getByText("Principal A")).toBeVisible();
   });
 
   it("does not derive Principal operational data from browser storage or hardcoded register counts", () => {
     const source = fs.readFileSync(
-      path.join(process.cwd(), "src/components/school/principal-command-center.tsx"),
+      path.join(
+        process.cwd(),
+        "src/components/school/principal-command-center.tsx",
+      ),
       "utf8",
     );
 
-    expect(source).not.toMatch(/readSchoolData|subscribeToSchoolDataUpdates|missingRegisters/);
+    expect(source).not.toMatch(
+      /readSchoolData|subscribeToSchoolDataUpdates|missingRegisters/,
+    );
     expect(source).not.toMatch(/Faith Akinyi|2026-06-29|\? 0 : 3/);
     expect(source).toMatch(/PrincipalVisitorsOversightWorkspace/);
     expect(source).toMatch(/PrincipalHealthOversightWorkspace/);
@@ -749,15 +1015,35 @@ describe("principal production readiness", () => {
   it("submits real fee-category and waiver inputs through the verified tenant boundary", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <SchoolPages role="principal" section="finance" tenantSlug="lakeview-school" userLabel="Principal Atieno" />,
+      <SchoolPages
+        role="principal"
+        section="finance"
+        tenantSlug="lakeview-school"
+        userLabel="Principal Atieno"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    await user.click((await within(commandCenter).findAllByRole("button", { name: "Add Category" }))[0]);
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    await user.click(
+      (
+        await within(commandCenter).findAllByRole("button", {
+          name: "Add Category",
+        })
+      )[0],
+    );
     await user.type(screen.getByLabelText("Name"), "Tuition Fee");
     await user.type(screen.getByLabelText("Description"), "Term tuition");
     await user.type(screen.getByLabelText("Amount (KES)"), "12500.50");
-    responseOverrides.set("/finance/fee-categories", [{ id: "created-fee-category", name: "Tuition Fee", amount_minor: "1250050", description: "Term tuition" }]);
+    responseOverrides.set("/finance/fee-categories", [
+      {
+        id: "created-fee-category",
+        name: "Tuition Fee",
+        amount_minor: "1250050",
+        description: "Term tuition",
+      },
+    ]);
     await user.click(screen.getByRole("button", { name: "Create Category" }));
     expect(await within(commandCenter).findByText("Tuition Fee")).toBeVisible();
 
@@ -777,27 +1063,29 @@ describe("principal production readiness", () => {
       );
     });
 
-    await user.click(await within(commandCenter).findByRole("button", { name: "Add Waiver" }));
+    await user.click(
+      await within(commandCenter).findByRole("button", { name: "Add Waiver" }),
+    );
     await user.selectOptions(screen.getByLabelText("Student"), activeStudentId);
     await user.type(screen.getByLabelText("Amount (KES)"), "5000");
-    await user.type(screen.getByLabelText("Reason"), "Sibling bursary adjustment");
+    await user.type(
+      screen.getByLabelText("Reason"),
+      "Sibling bursary adjustment",
+    );
     await user.click(screen.getByRole("button", { name: "Submit Waiver" }));
 
     await waitFor(() => {
-      expect(requestDashboardApiMock).toHaveBeenCalledWith(
-        "/finance/waivers",
-        {
-          method: "POST",
-          tenantId: "lakeview-school",
-          body: {
-            student_id: activeStudentId,
-            student_name: "Achieng Otieno",
-            class_name: "Grade 8 East",
-            amount_minor: "500000",
-            reason: "Sibling bursary adjustment",
-          },
+      expect(requestDashboardApiMock).toHaveBeenCalledWith("/finance/waivers", {
+        method: "POST",
+        tenantId: "lakeview-school",
+        body: {
+          student_id: activeStudentId,
+          student_name: "Achieng Otieno",
+          class_name: "Grade 8 East",
+          amount_minor: "500000",
+          reason: "Sibling bursary adjustment",
         },
-      );
+      });
     });
 
     expect(requestDashboardApiMock).not.toHaveBeenCalledWith(
@@ -811,21 +1099,30 @@ describe("principal production readiness", () => {
   it("binds non-finance Principal mutations to the same verified school context", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <SchoolPages role="principal" section="academics" tenantSlug="lakeview-school" />,
+      <SchoolPages
+        role="principal"
+        section="academics"
+        tenantSlug="lakeview-school"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    await user.click(await within(commandCenter).findByRole("button", { name: "Detailed Report" }));
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    await user.click(
+      await within(commandCenter).findByRole("button", {
+        name: "Detailed Report",
+      }),
+    );
 
     expect(requestDashboardApiMock).toHaveBeenCalledWith(
-      "/admin-command/principal/reports/generate",
+      "/admin-command/principal/reports/generated",
       {
         method: "POST",
         tenantId: "lakeview-school",
         body: {
-          title: "Department performance report",
           type: "department_performance",
-          source_dashboard: "principal-academics",
+          request_id: expect.any(String),
         },
       },
     );
@@ -877,13 +1174,23 @@ describe("principal production readiness", () => {
     });
 
     renderWithProviders(
-      <SchoolPages role="principal" section="exams-reports" tenantSlug="lakeview-school" />,
+      <SchoolPages
+        role="principal"
+        section="exams-reports"
+        tenantSlug="lakeview-school"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    await user.click(await within(commandCenter).findByRole("button", { name: "+ New Exam" }));
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    await user.click(
+      await within(commandCenter).findByRole("button", { name: "+ New Exam" }),
+    );
     await user.type(screen.getByLabelText("Exam name"), "Term 2 Midterm");
-    await user.click(screen.getByRole("button", { name: "Create Exam Series" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create Exam Series" }),
+    );
 
     await waitFor(() => {
       expect(requestDashboardApiMock).toHaveBeenCalledWith(
@@ -901,14 +1208,20 @@ describe("principal production readiness", () => {
       );
     });
 
-    await user.click(await within(commandCenter).findByRole("button", { name: "Publish generated cards" }));
+    await user.click(
+      await within(commandCenter).findByRole("button", {
+        name: "Publish generated cards",
+      }),
+    );
     await waitFor(() => {
       expect(requestDashboardApiMock).toHaveBeenCalledWith(
         "/admin-command/principal/exams-report-cards/00000000-0000-4000-8000-000000000703/publish",
         { method: "POST", tenantId: "lakeview-school" },
       );
     });
-    expect(within(commandCenter).queryByRole("button", { name: /Approve All/i })).not.toBeInTheDocument();
+    expect(
+      within(commandCenter).queryByRole("button", { name: /Approve All/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("submits assigned procurement approvals through the governed Principal action", async () => {
@@ -935,11 +1248,19 @@ describe("principal production readiness", () => {
     });
 
     renderWithProviders(
-      <SchoolPages role="principal" section="approvals" tenantSlug="lakeview-school" />,
+      <SchoolPages
+        role="principal"
+        section="approvals"
+        tenantSlug="lakeview-school"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    await user.click(await within(commandCenter).findByRole("button", { name: "Approve" }));
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    await user.click(
+      await within(commandCenter).findByRole("button", { name: "Approve" }),
+    );
     await user.click(screen.getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() => {
@@ -978,11 +1299,19 @@ describe("principal production readiness", () => {
     });
 
     renderWithProviders(
-      <SchoolPages role="principal" section="approvals" tenantSlug="lakeview-school" />,
+      <SchoolPages
+        role="principal"
+        section="approvals"
+        tenantSlug="lakeview-school"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    await user.click(await within(commandCenter).findByRole("button", { name: "Approve" }));
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    await user.click(
+      await within(commandCenter).findByRole("button", { name: "Approve" }),
+    );
     expect(screen.getByText(/It does not record a payment/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Confirm approval" }));
 
@@ -1001,11 +1330,19 @@ describe("principal production readiness", () => {
   it("persists Principal preferences and keeps security controls on governed account paths", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <SchoolPages role="principal" section="settings" tenantSlug="lakeview-school" />,
+      <SchoolPages
+        role="principal"
+        section="settings"
+        tenantSlug="lakeview-school"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    const emailAlerts = await within(commandCenter).findByRole("checkbox", { name: "Email alerts" });
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    const emailAlerts = await within(commandCenter).findByRole("checkbox", {
+      name: "Email alerts",
+    });
     expect(emailAlerts).toBeChecked();
     await user.click(emailAlerts);
 
@@ -1016,7 +1353,11 @@ describe("principal production readiness", () => {
           method: "PATCH",
           tenantId: "lakeview-school",
           body: {
-            notifications: { emailAlerts: false, smsAlerts: false, dailyDigest: true },
+            notifications: {
+              emailAlerts: false,
+              smsAlerts: false,
+              dailyDigest: true,
+            },
             dashboard: { theme: "system", defaultView: "overview" },
           },
         },
@@ -1024,30 +1365,59 @@ describe("principal production readiness", () => {
     });
     expect(within(commandCenter).getByText("Not assigned")).toBeVisible();
     expect(within(commandCenter).getByText("Enabled")).toBeVisible();
-    expect(within(commandCenter).getByRole("link", { name: "Open secure reset" })).toHaveAttribute("href", "/school/forgot-password");
-    expect(within(commandCenter).queryByRole("button", { name: /Disable|Enable/i })).not.toBeInTheDocument();
+    expect(
+      within(commandCenter).getByRole("link", { name: "Open secure reset" }),
+    ).toHaveAttribute("href", "/school/forgot-password");
+    expect(
+      within(commandCenter).queryByRole("button", { name: /Disable|Enable/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("disables waiver creation truthfully when this school has no active students", async () => {
     responseOverrides.set("/students?status=active&limit=200", []);
 
     renderWithProviders(
-      <SchoolPages role="principal" section="finance" tenantSlug="empty-school" />,
+      <SchoolPages
+        role="principal"
+        section="finance"
+        tenantSlug="empty-school"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    const addWaiver = await within(commandCenter).findByRole("button", { name: "Add Waiver" });
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    const addWaiver = await within(commandCenter).findByRole("button", {
+      name: "Add Waiver",
+    });
     expect(addWaiver).toBeDisabled();
-    expect(within(commandCenter).getByText(/No active students are available/i)).toBeVisible();
+    expect(
+      within(commandCenter).getByText(/No active students are available/i),
+    ).toBeVisible();
   });
 
   it("routes the staff-roles alias to school-scoped user management", async () => {
     renderWithProviders(
-      <SchoolPages role="principal" section="staff-roles" tenantSlug="fresh-academy" userLabel="Principal Amina" />,
+      <SchoolPages
+        role="principal"
+        section="staff-roles"
+        tenantSlug="fresh-academy"
+        userLabel="Principal Amina"
+      />,
     );
 
-    const commandCenter = await screen.findByTestId("principal-practical-command-center");
-    expect(within(commandCenter).getByRole("heading", { name: /Users & Invitations/i })).toBeVisible();
-    expect(within(commandCenter).queryByText(/Practical Kenyan school command center/i)).not.toBeInTheDocument();
+    const commandCenter = await screen.findByTestId(
+      "principal-practical-command-center",
+    );
+    expect(
+      within(commandCenter).getByRole("heading", {
+        name: /Users & Invitations/i,
+      }),
+    ).toBeVisible();
+    expect(
+      within(commandCenter).queryByText(
+        /Practical Kenyan school command center/i,
+      ),
+    ).not.toBeInTheDocument();
   });
 });

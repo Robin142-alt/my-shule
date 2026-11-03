@@ -16,13 +16,23 @@ const out=path.resolve(web,'../../output/mobile-roles');fs.mkdirSync(out,{recurs
 const source=value=>JSON.stringify(value.replaceAll('\\','/'));
 // Reuse the workflow suite's contract-shaped data for loaded Principal screens.
 const ts=require('typescript');
-const principalTest=ts.createSourceFile('principal.test.tsx',fs.readFileSync(path.join(web,'tests/design/principal-production-readiness.test.tsx'),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
-const fixtureDeclarations=principalTest.statements.filter(ts.isVariableStatement).flatMap(statement=>statement.declarationList.declarations).filter(declaration=>['activeStudentId','canonicalResponses'].includes(declaration.name.getText(principalTest)));
-assert.equal(fixtureDeclarations.length,2,'Principal workflow fixtures must be available');
-fs.writeFileSync(path.join(out,'principal-fixtures.ts'),fixtureDeclarations.map(declaration=>`export const ${declaration.getText(principalTest)};`).join('\n'));
+fs.copyFileSync(path.join(web,'tests/design/principal-workspace-fixtures.ts'),path.join(out,'principal-fixtures.ts'));
+const principalModules = [
+  'school/principal-dashboard/overview.module.css',
+  'school/principal-dashboard/workspace.module.css',
+  'common/notifications/staff-conversations.module.css',
+  'school/syllabus-workspace.module.css',
+].map(file => path.resolve(web,'src/components',file));
+const compiledStyles = principalModules.map(filename => {
+  const {code,exports} = require('lightningcss').transform({
+    filename,code:fs.readFileSync(filename),cssModules:{pattern:'qa-[hash]-[local]'},
+  });
+  return {filename,css:code.toString(),classes:Object.fromEntries(Object.entries(exports).map(([key,entry])=>[key,entry.name]))};
+});
+const moduleClasses = Object.fromEntries(compiledStyles.map(style=>[style.filename,style.classes]));
 fs.writeFileSync(path.join(out,'loader.cjs'),`const ts=require(${source(require.resolve('typescript'))});module.exports=function(source){return ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;};`);
 fs.writeFileSync(path.join(out,'link.tsx'),'export default function Link({children,...props}){return <a {...props}>{children}</a>;}');
-fs.writeFileSync(path.join(out,'css-loader.cjs'), `module.exports=function(source){if(!this.resourcePath.endsWith('exam-analytics.module.css'))return 'export default {workspace:"dean-workspace",table:"dean-table"};';return 'export default '+JSON.stringify(Object.fromEntries([...source.matchAll(/\\.([A-Za-z_][\\w-]*)/g)].map(m=>[m[1],'analytics-'+m[1]])))+';';};`);
+fs.writeFileSync(path.join(out,'css-loader.cjs'), `const modules=${JSON.stringify(moduleClasses)};module.exports=function(source){if(modules[this.resourcePath]) return 'export default '+JSON.stringify(modules[this.resourcePath]);if(!this.resourcePath.endsWith('exam-analytics.module.css'))return 'export default {workspace:"dean-workspace",table:"dean-table"};';return 'export default '+JSON.stringify(Object.fromEntries([...source.matchAll(/\\.([A-Za-z_][\\w-]*)/g)].map(m=>[m[1],'analytics-'+m[1]])))+';';};`);
 fs.writeFileSync(path.join(out,'navigation.ts'),`export function useRouter(){return {push:href=>window.history.replaceState(null,'',href),refresh(){},replace(){},back(){}};}export function usePathname(){return location.pathname;}export function useSearchParams(){return new URLSearchParams(location.search);}`);
 fs.writeFileSync(path.join(out,'hooks.ts'),`
 import {canonicalResponses} from './principal-fixtures';
@@ -85,7 +95,7 @@ const server=http.createServer((req,res)=>{
   res.end(JSON.stringify({data,meta:{request_id:'visual-library-fixture'}}));
  }
  else if(req.url?.startsWith('/api/')){res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.includes('/finance-activity')?[]:{data:process.argv.includes('--contrast')&&req.url.startsWith('/api/permissions/me')?['*:*']:[]}));}
- else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
+ else{res.setHeader('Content-Type','text/html; charset=utf-8');res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}\n${compiledStyles.map(style=>style.css).join('\n')}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`);}
 });
 await new Promise(resolve=>server.listen(process.argv.includes('--preview')?3016:0,'127.0.0.1',resolve));
 if(process.argv.includes('--preview')){console.log('Isolated role preview: http://127.0.0.1:3016/school/principal/overview');await new Promise(()=>{});}
@@ -173,7 +183,10 @@ try{
    if(role==='principal'&&section==='settings'&&width<640){
     const settings=page.getByRole('region',{name:'Principal settings workspace'});
     const reset=settings.getByRole('link',{name:'Open secure reset'});
-    if(!await reset.evaluate(el=>el.scrollHeight<=el.clientHeight+1&&getComputedStyle(el).color==='rgb(255, 255, 255)'))errors.push('The secure reset link is clipped or has insufficient dark-surface contrast');
+    if(!await reset.evaluate(el=>el.scrollHeight<=el.clientHeight+1))errors.push('The secure reset link is clipped');
+    const resetContrast=await auditWorkspaceContrast(page,'[aria-label="Principal settings workspace"] a[href="/school/forgot-password"]');
+    assert.equal(resetContrast.checked,1,'Secure reset must be visible');
+    if(resetContrast.failures.length)errors.push('The secure reset link has insufficient contrast');
     if(!await settings.locator('label:has(input[type="checkbox"])').evaluateAll(nodes=>nodes.length===3&&nodes.every(el=>el.getBoundingClientRect().height>=44)))errors.push('Settings switches need comfortable touch targets');
    }
    if(width<640){

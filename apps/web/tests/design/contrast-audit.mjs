@@ -1,8 +1,8 @@
 // Browser-computed foreground/background checks, including translucent panels.
 // Only rendered metric copy and shared actions are inspected; fixtures never
 // contact production. Native canvas resolves Tailwind's OKLCH colour values.
-export async function auditWorkspaceContrast(page) {
-  return page.evaluate(() => {
+export async function auditWorkspaceContrast(page, selector = '.app-metric-grid :is(p,span,div,h2,h3), .app-metric-card :is(p,span,div), .app-button') {
+  return page.evaluate((selector) => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 1;
     const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -24,7 +24,6 @@ export async function auditWorkspaceContrast(page) {
     }
     const failures = [];
     let checked = 0;
-    const selector = '.app-metric-grid :is(p,span,div,h2,h3), .app-metric-card :is(p,span,div), .app-button';
     for (const element of document.querySelectorAll(selector)) {
       if (!element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
       if (element.closest('aside,nav,[aria-hidden="true"]') || element.matches(':disabled')) continue;
@@ -40,5 +39,5 @@ export async function auditWorkspaceContrast(page) {
       if (ratio < (large ? 3 : 4.5)) failures.push({ text: element.textContent.trim().slice(0, 70), ratio: Number(ratio.toFixed(2)), color: style.color, background: bg.map(Math.round), className: element.className });
     }
     return { checked, failures };
-  });
+  }, selector);
 }

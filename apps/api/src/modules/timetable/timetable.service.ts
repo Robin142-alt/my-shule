@@ -313,22 +313,32 @@ export class TimetableService {
     const tenantId = this.requireTenantId();
     const canManage = this.canManageTimetable();
     if (query.include_draft === true && !canManage) {
-      throw new ForbiddenException('Draft timetable views require timetable management permission');
+      throw new ForbiddenException(
+        "Draft timetable views require timetable management permission",
+      );
     }
     const scope = await this.resolveReadAcademicScope(tenantId, query);
     if (query.version_id) {
-      const requestedVersion = await this.workflowRepository.getVersion(tenantId, query.version_id);
-      if (!requestedVersion) throw new NotFoundException('The selected timetable version was not found for this school');
-      if (requestedVersion.status !== 'published' && !canManage) {
-        throw new ForbiddenException('Only the current published timetable is available to read-only roles');
+      const requestedVersion = await this.workflowRepository.getVersion(
+        tenantId,
+        query.version_id,
+      );
+      if (!requestedVersion)
+        throw new NotFoundException(
+          "The selected timetable version was not found for this school",
+        );
+      if (requestedVersion.status !== "published" && !canManage) {
+        throw new ForbiddenException(
+          "Only the current published timetable is available to read-only roles",
+        );
       }
     }
     const access = await this.resolveViewAccess(tenantId, scope, query);
-    return this.workflowRepository.listView({
+    const view = await this.workflowRepository.listView({
       tenant_id: tenantId,
       ...scope,
       version_id: query.version_id,
-      view: query.view ?? 'master',
+      view: query.view ?? "master",
       class_section_id: query.class_section_id,
       stream_id: query.stream_id,
       teacher_id: access.teacher_id ?? query.teacher_id,
@@ -338,6 +348,37 @@ export class TimetableService {
       allowed_class_section_ids: access.allowed_class_section_ids,
       department_id: access.department_id,
     });
+    if (!query.include_periods) return view;
+    const configuration = await this.workflowRepository.getConfiguration(
+      tenantId,
+      scope.academic_year,
+      scope.term_name,
+    );
+    // Only the bell schedule is public to authorized timetable viewers.
+    type PublicPeriod = {
+      name: string;
+      starts_at: string;
+      ends_at: string;
+      is_teaching: boolean;
+    };
+    type PublicDay = {
+      day_of_week: number;
+      name: string;
+      is_teaching_day: boolean;
+      periods: PublicPeriod[];
+    };
+    const days = (configuration?.days ?? []).map((day: PublicDay) => ({
+      day_of_week: day.day_of_week,
+      name: day.name,
+      is_teaching_day: day.is_teaching_day,
+      periods: day.periods.map((period) => ({
+        name: period.name,
+        starts_at: period.starts_at,
+        ends_at: period.ends_at,
+        is_teaching: period.is_teaching,
+      })),
+    }));
+    return { ...view, days };
   }
 
   async findValidSlots(dto: FindValidSlotsDto, forceBest = false) {
@@ -1555,9 +1596,11 @@ export class TimetableService {
 
   private canManageTimetable(): boolean {
     const permissions = this.requestContext.getStore()?.permissions ?? [];
-    return permissions.includes('timetable:write')
-      || permissions.includes('timetable:*')
-      || permissions.includes('*:*');
+    return (
+      permissions.includes("timetable:write") ||
+      permissions.includes("timetable:*") ||
+      permissions.includes("*:*")
+    );
   }
 
   private requiredQueryText(value: string | undefined, label: string): string {
@@ -1617,7 +1660,13 @@ export class TimetableService {
   }
 
   private filenamePart(value: string) {
-    return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'term';
+    return (
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "term"
+    );
   }
 
   private errorMessage(error: unknown) {

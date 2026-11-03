@@ -102,7 +102,7 @@ export class TeacherWorkflowService {
           AND CURRENT_DATE BETWEEN term.starts_on AND term.ends_on
         ORDER BY term.starts_on DESC LIMIT 1`, [tenantId]);
       if (!terms.length) throw new BadRequestException('School administration must activate the current academic term before a concern can be raised.');
-      const result = await this.discipline.createIncident({
+      const result = await this.discipline.createTeacherConcern({
         student_id: dto.studentId, class_id: student.classId, academic_term_id: terms[0].id,
         academic_year_id: terms[0].academic_year_id, offense_category_id: dto.categoryId,
         title: dto.title.trim(), description: dto.description.trim(), severity: dto.severity,

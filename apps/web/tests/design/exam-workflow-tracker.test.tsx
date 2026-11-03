@@ -227,13 +227,14 @@ it.each([true, false])("removes a workflow only after confirmed publication (suc
   const otherSchoolKey = buildSchoolQueryKey("school-b", "session-user", "session-role", "/exams/workflow");
   client.setQueryData(otherSchoolKey, workflow([exam("principal_release", "Other school's exam")]));
 
+  await user.click(screen.getByText("Exam and report-card release workflow", { selector: "summary" }));
   expect(await screen.findByRole("heading", { name: "Term exam" }, { timeout: 10000 })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Release Term exam" }));
+  await user.click(screen.getByRole("button", { name: "Publish generated cards" }));
   expect(mockRequest).toHaveBeenCalledWith("/admin-command/principal/exams-report-cards/exam-1/publish", {
     method: "POST", tenantId: "school-a",
   });
   expect(screen.getByRole("heading", { name: "Term exam" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Releasing…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Publishing…" })).toBeDisabled();
   finishPublication();
 
   if (succeeds) {
@@ -245,7 +246,7 @@ it.each([true, false])("removes a workflow only after confirmed publication (suc
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Publication failed"));
     expect(screen.getByRole("heading", { name: "Term exam" })).toBeVisible();
     expect(screen.queryByText("No active exam workflows.")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Release Term exam" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Publish generated cards" })).toBeEnabled();
   }
   expect(client.getQueryState(otherSchoolKey)?.isInvalidated).toBe(false);
 });

@@ -8,6 +8,8 @@ export interface ReportSnapshotArtifactInput {
   rowCount: number;
   checksumSha256: string;
   generatedAt: string;
+  storagePath?: string;
+  byteLength?: number;
 }
 
 export interface ReportSnapshotManifestInput {
@@ -34,6 +36,8 @@ export interface ReportSnapshotManifest {
     row_count: number;
     checksum_sha256: string;
     generated_at: string;
+    storage_path?: string;
+    byte_length?: number;
   };
   filters: Record<string, unknown>;
   generated_by_user_id: string | null;
@@ -49,7 +53,7 @@ export function createReportSnapshotManifest(
   const errors = validateReportSnapshotManifestInput(input);
 
   if (errors.length > 0) {
-    throw new Error(errors.join(' '));
+    throw new Error(errors.join(" "));
   }
 
   const format = normalizeReportSnapshotFormat(input.format);
@@ -66,6 +70,12 @@ export function createReportSnapshotManifest(
       row_count: input.artifact.rowCount,
       checksum_sha256: input.artifact.checksumSha256.trim().toLowerCase(),
       generated_at: input.artifact.generatedAt.trim(),
+      ...(input.artifact.storagePath
+        ? { storage_path: input.artifact.storagePath }
+        : {}),
+      ...(input.artifact.byteLength !== undefined
+        ? { byte_length: input.artifact.byteLength }
+        : {}),
     },
     filters: input.filters ?? {},
     generated_by_user_id: input.generatedByUserId?.trim() || null,
@@ -73,9 +83,9 @@ export function createReportSnapshotManifest(
 
   return {
     ...snapshotWithoutChecksum,
-    manifest_checksum_sha256: createHash('sha256')
+    manifest_checksum_sha256: createHash("sha256")
       .update(canonicalJson(snapshotWithoutChecksum))
-      .digest('hex'),
+      .digest("hex"),
   };
 }
 
@@ -85,59 +95,83 @@ export function validateReportSnapshotManifestInput(
   const errors: string[] = [];
 
   if (!input.tenantId?.trim()) {
-    errors.push('tenantId is required.');
+    errors.push("tenantId is required.");
   }
 
   if (!input.module?.trim()) {
-    errors.push('module is required.');
+    errors.push("module is required.");
   }
 
   if (!input.reportId?.trim()) {
-    errors.push('reportId is required.');
+    errors.push("reportId is required.");
   }
 
   if (!input.title?.trim()) {
-    errors.push('title is required.');
+    errors.push("title is required.");
   }
 
   if (!isReportSnapshotFormat(input.format)) {
-    errors.push('format must be csv, xlsx, or pdf.');
+    errors.push("format must be csv, xlsx, or pdf.");
   }
 
   if (!input.artifact) {
-    errors.push('artifact is required.');
+    errors.push("artifact is required.");
   } else {
     if (!input.artifact.filename?.trim()) {
-      errors.push('artifact.filename is required.');
+      errors.push("artifact.filename is required.");
     }
 
     if (!input.artifact.contentType?.trim()) {
-      errors.push('artifact.contentType is required.');
+      errors.push("artifact.contentType is required.");
     }
 
-    if (!Number.isInteger(input.artifact.rowCount) || input.artifact.rowCount < 0) {
-      errors.push('artifact.rowCount must be a non-negative integer.');
+    if (
+      !Number.isInteger(input.artifact.rowCount) ||
+      input.artifact.rowCount < 0
+    ) {
+      errors.push("artifact.rowCount must be a non-negative integer.");
     }
 
-    if (!/^[a-f0-9]{64}$/i.test(input.artifact.checksumSha256 ?? '')) {
-      errors.push('artifact.checksumSha256 must be a SHA-256 hex digest.');
+    if (!/^[a-f0-9]{64}$/i.test(input.artifact.checksumSha256 ?? "")) {
+      errors.push("artifact.checksumSha256 must be a SHA-256 hex digest.");
+    }
+    if (
+      input.artifact.storagePath !== undefined &&
+      (!input.artifact.storagePath.startsWith(
+        `tenant/${input.tenantId}/reports/`,
+      ) ||
+        /\.\.|\\|\x00/.test(input.artifact.storagePath))
+    ) {
+      errors.push(
+        "artifact.storagePath must reference this school’s report storage.",
+      );
+    }
+    if (
+      input.artifact.byteLength !== undefined &&
+      (!Number.isSafeInteger(input.artifact.byteLength) ||
+        input.artifact.byteLength <= 0)
+    ) {
+      errors.push("artifact.byteLength must be a positive integer.");
     }
 
-    if (!input.artifact.generatedAt?.trim() || Number.isNaN(Date.parse(input.artifact.generatedAt))) {
-      errors.push('artifact.generatedAt must be an ISO timestamp.');
+    if (
+      !input.artifact.generatedAt?.trim() ||
+      Number.isNaN(Date.parse(input.artifact.generatedAt))
+    ) {
+      errors.push("artifact.generatedAt must be an ISO timestamp.");
     }
   }
 
   if (input.filters !== undefined && !isPlainObject(input.filters)) {
-    errors.push('filters must be an object when provided.');
+    errors.push("filters must be an object when provided.");
   }
 
   if (
-    containsRetiredAttendanceReference(input.module)
-    || containsRetiredAttendanceReference(input.reportId)
-    || containsRetiredAttendanceReference(input.title)
-    || containsRetiredAttendanceReference(input.artifact?.filename)
-    || containsRetiredAttendanceReference(input.filters)
+    containsRetiredAttendanceReference(input.module) ||
+    containsRetiredAttendanceReference(input.reportId) ||
+    containsRetiredAttendanceReference(input.title) ||
+    containsRetiredAttendanceReference(input.artifact?.filename) ||
+    containsRetiredAttendanceReference(input.filters)
   ) {
     errors.push(RETIRED_ATTENDANCE_SNAPSHOT_ERROR);
   }
@@ -184,10 +218,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function sanitizeSnapshotIdSegment(segment: string): string {
-  return segment
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'unknown';
+  return (
+    segment
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "unknown"
+  );
 }
 
 function canonicalJson(value: unknown): string {

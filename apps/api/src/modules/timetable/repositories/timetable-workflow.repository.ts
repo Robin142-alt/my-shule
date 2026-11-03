@@ -213,7 +213,11 @@ export class TimetableWorkflowRepository {
   }
 
   private asRows<T>(result: unknown): T[] {
-    return Array.isArray(result) ? result as T[] : result == null ? [] : [result as T];
+    return Array.isArray(result)
+      ? (result as T[])
+      : result == null
+        ? []
+        : [result as T];
   }
 
   private isPostgresUniqueViolation(error: unknown): boolean {
@@ -2300,16 +2304,24 @@ export class TimetableWorkflowRepository {
 
   async listView(input: TimetableViewRepositoryInput) {
     if (!input.version_id) {
-      await this.assertAcademicScope(input.tenant_id, input.academic_year, input.term_name);
+      await this.assertAcademicScope(
+        input.tenant_id,
+        input.academic_year,
+        input.term_name,
+      );
     }
-    await this.validateViewReference(input.tenant_id, input, Boolean(input.version_id));
+    await this.validateViewReference(
+      input.tenant_id,
+      input,
+      Boolean(input.version_id),
+    );
     const version = await this.query<any>(
       `SELECT id::text, academic_year, term_name, status, revision_number,
               row_version, published_at::text
        FROM timetable_versions
        WHERE tenant_id = $1 AND academic_year = $2 AND term_name = $3
          AND (
-           ($5::text IS NULL AND status IN ('draft', 'published'))
+           ($5::text IS NULL AND (status = 'published' OR ($4::boolean AND status = 'draft')))
            OR ($5::text IS NOT NULL AND id::text = $5 AND status IN ('draft', 'published', 'archived'))
          )
        ORDER BY
@@ -2317,14 +2329,27 @@ export class TimetableWorkflowRepository {
               WHEN NOT $4::boolean AND status = 'published' THEN 0 ELSE 1 END,
          updated_at DESC
        LIMIT 1`,
-      [input.tenant_id, input.academic_year, input.term_name, Boolean(input.prefer_draft),
-        input.version_id ?? null],
+      [
+        input.tenant_id,
+        input.academic_year,
+        input.term_name,
+        Boolean(input.prefer_draft),
+        input.version_id ?? null,
+      ],
     );
     const versionRecord = version.rows[0] ?? null;
     if (input.version_id && !versionRecord) {
-      throw new NotFoundException('The requested timetable version was not found for this school and academic term');
+      throw new NotFoundException(
+        "The requested timetable version was not found for this school and academic term",
+      );
     }
-    if (!versionRecord) return { view: input.view, version: null, items: [], metrics: { total_slots: 0 } };
+    if (!versionRecord)
+      return {
+        view: input.view,
+        version: null,
+        items: [],
+        metrics: { total_slots: 0 },
+      };
     const result = await this.query<any>(
       `SELECT slot.id::text, slot.version_id::text, slot.academic_year, slot.term_name,
               slot.class_section_id, COALESCE(class_section.name, slot.class_section_id) AS class_name,
@@ -2358,11 +2383,19 @@ export class TimetableWorkflowRepository {
          AND ($8::text[] IS NULL OR slot.class_section_id = ANY($8::text[]))
          AND ($9::text IS NULL OR subject.department_id::text = $9)
        ORDER BY slot.day_of_week, slot.starts_at, class_name, subject_name`,
-      [input.tenant_id, versionRecord.id, input.class_section_id ?? null,
-        input.stream_id ?? null, input.teacher_id ?? null, input.resource_id ?? null,
+      [
+        input.tenant_id,
+        versionRecord.id,
+        input.class_section_id ?? null,
+        input.stream_id ?? null,
+        input.teacher_id ?? null,
+        input.resource_id ?? null,
         input.day_of_week ?? null,
-        input.allowed_class_section_ids === undefined ? null : input.allowed_class_section_ids,
-        input.department_id ?? null],
+        input.allowed_class_section_ids === undefined
+          ? null
+          : input.allowed_class_section_ids,
+        input.department_id ?? null,
+      ],
     );
     return {
       view: input.view,
@@ -2370,9 +2403,14 @@ export class TimetableWorkflowRepository {
       items: result.rows,
       metrics: {
         total_slots: result.rows.length,
-        unique_classes: new Set(result.rows.map((item) => item.class_section_id)).size,
-        unique_teachers: new Set(result.rows.map((item) => item.teacher_id)).size,
-        unique_resources: new Set(result.rows.map((item) => item.resource_id).filter(Boolean)).size,
+        unique_classes: new Set(
+          result.rows.map((item) => item.class_section_id),
+        ).size,
+        unique_teachers: new Set(result.rows.map((item) => item.teacher_id))
+          .size,
+        unique_resources: new Set(
+          result.rows.map((item) => item.resource_id).filter(Boolean),
+        ).size,
       },
     };
   }

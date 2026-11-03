@@ -6,6 +6,11 @@ import type {
 import type { CounsellingNoteVisibility } from '../dto/counselling.dto';
 
 export interface DisciplineIncidentEntity {
+  student_name?: string | null;
+  admission_number?: string | null;
+  class_label?: string | null;
+  category_name?: string | null;
+  assigned_staff_name?: string | null;
   id: string;
   tenant_id: string;
   school_id: string;

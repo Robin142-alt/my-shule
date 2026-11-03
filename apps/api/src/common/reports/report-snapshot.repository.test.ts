@@ -29,7 +29,7 @@ test('ReportSnapshotSchemaService creates tenant-scoped immutable report snapsho
   assert.match(schemaSql, /CREATE TRIGGER trg_report_snapshot_audit_logs_prevent_mutation/);
 });
 
-test('ReportSnapshotRepository persists a report snapshot manifest and audit log atomically', async () => {
+test("ReportSnapshotRepository persists a report snapshot manifest and audit log atomically", async () => {
   const queries: Array<{ sql: string; values: unknown[] }> = [];
   const database = {
     withRequestTransaction: async <T>(callback: () => Promise<T>) => callback(),
@@ -38,10 +38,10 @@ test('ReportSnapshotRepository persists a report snapshot manifest and audit log
       return {
         rows: [
           {
-            id: 'snapshot-row-1',
+            id: "snapshot-row-1",
             snapshot_id: values[1],
             manifest_checksum_sha256: values[10],
-            created_at: '2026-05-14T09:30:00.000Z',
+            created_at: "2026-05-14T09:30:00.000Z",
           },
         ],
       };
@@ -49,42 +49,49 @@ test('ReportSnapshotRepository persists a report snapshot manifest and audit log
   };
   const requestContext = {
     requireStore: () => ({
-      request_id: 'req-1',
-      user_id: 'user-1',
+      tenant_id: "tenant-a",
+      request_id: "req-1",
+      user_id: "user-1",
     }),
   };
-  const repository = new ReportSnapshotRepository(database as never, requestContext as never);
+  const repository = new ReportSnapshotRepository(
+    database as never,
+    requestContext as never,
+  );
   const manifest = createReportSnapshotManifest({
-    tenantId: 'tenant-a',
-    module: 'inventory',
-    reportId: 'stock-valuation',
-    title: 'Stock valuation',
-    format: 'csv',
+    tenantId: "tenant-a",
+    module: "inventory",
+    reportId: "stock-valuation",
+    title: "Stock valuation",
+    format: "csv",
     artifact: {
-      filename: 'inventory-stock-valuation.csv',
-      contentType: 'text/csv',
+      filename: "inventory-stock-valuation.csv",
+      contentType: "text/csv",
       rowCount: 1,
-      checksumSha256: 'a'.repeat(64),
-      generatedAt: '2026-05-14T09:15:00.000Z',
+      checksumSha256: "a".repeat(64),
+      generatedAt: "2026-05-14T09:15:00.000Z",
     },
-    generatedByUserId: 'user-1',
+    generatedByUserId: "user-1",
   });
 
   const stored = await repository.saveManifest(manifest);
 
   assert.equal(stored.snapshot_id, manifest.snapshot_id);
-  assert.equal(stored.manifest_checksum_sha256, manifest.manifest_checksum_sha256);
+  assert.equal(
+    stored.manifest_checksum_sha256,
+    manifest.manifest_checksum_sha256,
+  );
   assert.equal(queries.length, 2);
-  assert.match(queries[0]?.sql ?? '', /INSERT INTO report_snapshots/);
-  assert.match(queries[1]?.sql ?? '', /INSERT INTO report_snapshot_audit_logs/);
-  assert.equal(queries[0]?.values[0], 'tenant-a');
+  assert.match(queries[0]?.sql ?? "", /INSERT INTO report_snapshots/);
+  assert.match(queries[1]?.sql ?? "", /INSERT INTO report_snapshot_audit_logs/);
+  assert.equal(queries[0]?.values[0], "tenant-a");
   assert.equal(queries[0]?.values[1], manifest.snapshot_id);
   assert.equal(queries[0]?.values[10], manifest.manifest_checksum_sha256);
-  assert.equal(queries[1]?.values[0], 'tenant-a');
+  assert.equal(queries[1]?.values[0], "tenant-a");
   assert.equal(queries[1]?.values[1], manifest.snapshot_id);
-  assert.equal(queries[1]?.values[2], 'report.snapshot.created');
-  assert.equal(queries[1]?.values[3], 'user-1');
-  assert.equal(queries[1]?.values[4], 'req-1');
+  assert.equal(queries[1]?.values[2], "report.snapshot.created");
+  assert.equal(queries[1]?.values[3], "user-1");
+  assert.equal(queries[1]?.values[4], "req-1");
 });
 
 test('ReportExportJobsController exposes report export jobs as a read endpoint', () => {
@@ -130,4 +137,69 @@ test('ReportSnapshotRepository lists recent completed export jobs for the curren
   assert.match(queries[0]?.sql ?? '', /FROM report_snapshots/);
   assert.equal(queries[0]?.values[0], 'tenant-a');
   assert.equal(queries[0]?.values[1], 50);
+});
+
+test("saved synchronous report bytes use tenant-private storage and the manifest retains their retrieval path", async () => {
+  const queries: Array<{ sql: string; values: any[] }> = [];
+  const checksum = "c".repeat(64);
+  const storagePath =
+    "tenant/tenant-a/reports/exams/summary/" + checksum + ".csv";
+  let stored = false;
+  const repository = new ReportSnapshotRepository(
+    {
+      withRequestTransaction: async (run: () => Promise<unknown>) => run(),
+      query: async (sql: string, values: any[]) => {
+        queries.push({ sql, values });
+        return {
+          rows: [
+            { snapshot_id: values[1], manifest_checksum_sha256: values[10] },
+          ],
+        };
+      },
+    } as never,
+    {
+      requireStore: () => ({ tenant_id: "tenant-a", user_id: "author" }),
+    } as never,
+    {
+      storeArtifact: async (input: any) => {
+        assert.equal(input.tenantId, "tenant-a");
+        assert.equal(input.module, "exams");
+        assert.equal(input.artifact.content.toString(), "school,score");
+        stored = true;
+        return { storage_path: storagePath, checksum_sha256: checksum };
+      },
+    } as never,
+  );
+  const file = {
+    filename: "summary.csv",
+    contentType: "text/csv",
+    rowCount: 1,
+    checksumSha256: checksum,
+    generatedAt: "2026-11-03T08:00:00Z",
+    byteLength: 12,
+    content: Buffer.from("school,score"),
+  };
+  const manifest = createReportSnapshotManifest({
+    tenantId: "tenant-a",
+    module: "exams",
+    reportId: "summary",
+    title: "Summary",
+    format: "csv",
+    artifact: file,
+  });
+  await repository.saveManifest(manifest, file);
+  assert.equal(stored, true);
+  const artifact = JSON.parse(queries[0].values[6]);
+  assert.equal(artifact.storage_path, storagePath);
+  assert.equal(artifact.byte_length, 12);
+  assert.equal(artifact.content_base64, undefined);
+  await assert.rejects(
+    repository.saveManifest({ ...manifest, tenant_id: "tenant-b" }, file),
+    /another school/,
+  );
+  await repository.listCompletedExportJobs();
+  assert.match(
+    queries.at(-1)!.sql,
+    /artifact - 'content_base64' - 'storage_path'/,
+  );
 });

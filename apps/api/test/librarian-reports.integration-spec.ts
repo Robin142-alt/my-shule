@@ -35,7 +35,7 @@ describe('Library report persistence and school isolation', () => {
       CREATE TABLE library_copies(id uuid,tenant_id text,catalog_item_id uuid,status text,shelf_location text,accession_number text);
       CREATE TABLE library_borrowers(id uuid,tenant_id text,subject_id uuid,borrower_type text,scan_code text);
       CREATE TABLE students(id uuid,tenant_id text,first_name text,last_name text,admission_number text,current_class_id text);
-      CREATE TABLE staff_profiles(id uuid,tenant_id text,display_name text,staff_number text);
+      CREATE TABLE staff_profiles(id uuid,tenant_id text,user_id uuid,display_name text,staff_number text);
       CREATE TABLE student_allocations(tenant_id text,student_id uuid,class_name text,is_current boolean);
       CREATE TABLE library_circulation_ledger(id uuid DEFAULT gen_random_uuid(),tenant_id text,copy_id uuid,borrower_id uuid,action text,metadata jsonb DEFAULT '{}',created_at timestamptz DEFAULT NOW());
       CREATE TABLE library_fines(id uuid DEFAULT gen_random_uuid(),tenant_id text,borrower_id uuid,copy_id uuid,reason text,amount_minor int,billing_reference text,created_at timestamptz DEFAULT NOW());
@@ -43,6 +43,7 @@ describe('Library report persistence and school isolation', () => {
     `);
     for (const school of ['library-school-a', 'library-school-b']) {
       await query('INSERT INTO users VALUES ($1,$2,$3)', [actor, school, `${school} Librarian`]);
+      await query('INSERT INTO staff_profiles(id,tenant_id,user_id,display_name) VALUES ($1,$2,$1,$3)', [actor, school, `${school} Librarian`]);
       await query("INSERT INTO library_catalog_items VALUES ($1,$2,$3,'Author','ISBN','Textbooks')", [book, school, school === 'library-school-a' ? 'Mathematics' : 'Private other-school title']);
       await query("INSERT INTO library_copies VALUES ($1,$2,$3,'available','Shelf 1','ACC001')", [copy, school, book]);
       await query("INSERT INTO library_borrowers VALUES ($1,$2,$3,'student','ADM001')", [borrower, school, student]);
@@ -62,6 +63,7 @@ describe('Library report persistence and school isolation', () => {
   it.each(['circulation', 'most_borrowed', 'borrower_activity', 'inventory', 'stock_status', 'overdue', 'fines'])(
     'generates, persists, lists and downloads %s from the selected school', async (type) => {
       const created = await service.generateReport({ report_type: type, period: 'today', format: 'pdf' });
+      expect(created.report).toMatchObject({ schoolName: 'Library School A', generatedBy: 'library-school-a Librarian' });
       expect(Buffer.from(created.artifact.content_base64, 'base64').subarray(0, 4).toString()).toBe('%PDF');
       expect(JSON.stringify(created.report.sections)).not.toContain('Private other-school');
       if (type === 'most_borrowed') expect((created.report.sections[type] as any).records).toEqual([{ book_title: 'Mathematics', times_borrowed: 1 }]);

@@ -1,4 +1,4 @@
-import { verifyTeacherWorkflows } from "./support/teacher-workflow-checks";
+import { verifyPrincipalMessaging } from "./support/principal-messaging-checks";import { verifyTeacherWorkflows } from "./support/teacher-workflow-checks";
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -13,46 +13,87 @@ import { REPORT_INFRASTRUCTURE_SCHEMA, REPORT_SOURCE_TRIGGERS } from '../src/mod
 import { SYLLABUS_SCHEMA_SQL } from '../src/modules/academics/syllabus-schema';
 
 async function main() {
-  if (process.env.MYSHULE_DISPOSABLE_POSTGRES !== '1') throw new Error('Disposable PostgreSQL required');
+  if (process.env.MYSHULE_DISPOSABLE_POSTGRES !== "1")
+    throw new Error("Disposable PostgreSQL required");
   const databaseUrl = new URL(process.env.DATABASE_URL!);
-  assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(databaseUrl.hostname));
-  assert.ok(databaseUrl.pathname.slice(1).startsWith('my_shule_disposable_'));
+  assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(databaseUrl.hostname));
+  assert.ok(databaseUrl.pathname.slice(1).startsWith("my_shule_disposable_"));
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
-  const orm = new PrismaClient({ adapter: new PrismaPg(process.env.DATABASE_URL!) });
+  const orm = new PrismaClient({
+    adapter: new PrismaPg(process.env.DATABASE_URL!),
+  });
   try {
-    const schema = readFileSync('apps/api/test/fixtures/sidebar-legacy-schema.sql', 'utf8').replace(/^\\.*$/gm, '');
+    const schema = readFileSync(
+      "apps/api/test/fixtures/sidebar-legacy-schema.sql",
+      "utf8",
+    ).replace(/^\\.*$/gm, "");
     await pool.query(schema);
-    await pool.query('SET search_path TO public');
+    await pool.query("SET search_path TO public");
     await pool.query(`INSERT INTO principal_dashboard_snapshots
       (tenant_id,enabled_module_hash,filter_hash,payload,generated_at,expires_at,updated_at)
       VALUES ('legacy-cache-school','modules','all','{"version":1}',NOW()-INTERVAL '1 day',NOW()+INTERVAL '1 day',NOW()),
              ('legacy-cache-school','modules','all','{"version":2}',NOW(),NOW()+INTERVAL '1 day',NOW())`);
     const schemaFailures: any[] = [];
     let fixture!: { tenantId: string; userId: string; classId: string };
-    const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? walk(path.join(dir, entry.name))
+          : [path.join(dir, entry.name)],
+      );
     {
       const applied = new Set<string>();
-      const bootstrapDb = { runSchemaBootstrap: async (sql: string) => { if (!applied.has(sql)) { await pool.query(sql); applied.add(sql); } }, query: (sql: string, params: any[]) => pool.query(sql, params) };
-      const schemaInstances = new Map<string, any>([['PrismaService', bootstrapDb], ['DatabaseService', bootstrapDb]]);
+      const bootstrapDb = {
+        runSchemaBootstrap: async (sql: string) => {
+          if (!applied.has(sql)) {
+            await pool.query(sql);
+            applied.add(sql);
+          }
+        },
+        query: (sql: string, params: any[]) => pool.query(sql, params),
+      };
+      const schemaInstances = new Map<string, any>([
+        ["PrismaService", bootstrapDb],
+        ["DatabaseService", bootstrapDb],
+      ]);
       const schemaResolve = (Type: any): any => {
         if (!Type) return undefined;
-        if (schemaInstances.has(Type.name)) return schemaInstances.get(Type.name);
-        const value = new Type(...(Reflect.getMetadata('design:paramtypes', Type) || []).map(schemaResolve));
-        schemaInstances.set(Type.name, value); return value;
+        if (schemaInstances.has(Type.name))
+          return schemaInstances.get(Type.name);
+        const value = new Type(
+          ...(Reflect.getMetadata("design:paramtypes", Type) || []).map(
+            schemaResolve,
+          ),
+        );
+        schemaInstances.set(Type.name, value);
+        return value;
       };
-      let pending = walk(path.resolve('apps/api/src')).filter(file => file.endsWith('-schema.service.ts'));
+      let pending = walk(path.resolve("apps/api/src")).filter((file) =>
+        file.endsWith("-schema.service.ts"),
+      );
       for (let attempt = 0; attempt < 3 && pending.length; attempt++) {
         const retry: string[] = [];
         for (const file of pending) {
           for (const Type of Object.values(require(file)) as any[]) {
-            if (typeof Type !== 'function' || !Type.prototype.onModuleInit) continue;
-            try { await schemaResolve(Type).onModuleInit(); }
-            catch (error: any) { await pool.query('ROLLBACK'); retry.push(file); if (attempt === 2) { schemaFailures.push({ file, message: error.message }); console.log('SCHEMA FAIL', path.basename(file), error.message); } }
+            if (typeof Type !== "function" || !Type.prototype.onModuleInit)
+              continue;
+            try {
+              await schemaResolve(Type).onModuleInit();
+            } catch (error: any) {
+              await pool.query("ROLLBACK");
+              retry.push(file);
+              if (attempt === 2) {
+                schemaFailures.push({ file, message: error.message });
+                console.log("SCHEMA FAIL", path.basename(file), error.message);
+              }
+            }
           }
         }
         pending = retry;
       }
-      const { SIDEBAR_WORKSPACE_SCHEMA_SQL } = require('../src/modules/admin-command/sidebar-workspace-schema');
+      const {
+        SIDEBAR_WORKSPACE_SCHEMA_SQL,
+      } = require("../src/modules/admin-command/sidebar-workspace-schema");
       // ReportWorkService bootstraps these at application startup, outside the
       // schema-service discovery above. Principal release reads require them.
       await bootstrapDb.runSchemaBootstrap(REPORT_INFRASTRUCTURE_SCHEMA);
@@ -64,51 +105,105 @@ async function main() {
       // Repeated ALTER TYPE text used to crash against timetable_lessons dependencies.
       applied.clear();
       for (const instance of schemaInstances.values()) {
-        if (typeof instance.onModuleInit === 'function') await instance.onModuleInit();
+        if (typeof instance.onModuleInit === "function")
+          await instance.onModuleInit();
       }
       await bootstrapDb.runSchemaBootstrap(REPORT_INFRASTRUCTURE_SCHEMA);
       await bootstrapDb.runSchemaBootstrap(REPORT_SOURCE_TRIGGERS);
       await bootstrapDb.runSchemaBootstrap(SYLLABUS_SCHEMA_SQL);
-
     }
-    const retainedCache = await pool.query("SELECT payload FROM principal_dashboard_snapshots WHERE tenant_id='legacy-cache-school'");
-    assert.equal(retainedCache.rowCount, 1, 'The upgrade removes only duplicate cached snapshots');
-    assert.equal(retainedCache.rows[0].payload.version, 2, 'The newest cached snapshot survives repeated startup upgrades');
+    const retainedCache = await pool.query(
+      "SELECT payload FROM principal_dashboard_snapshots WHERE tenant_id='legacy-cache-school'",
+    );
+    assert.equal(
+      retainedCache.rowCount,
+      1,
+      "The upgrade removes only duplicate cached snapshots",
+    );
+    assert.equal(
+      retainedCache.rows[0].payload.version,
+      2,
+      "The newest cached snapshot survives repeated startup upgrades",
+    );
     await verifyPrincipalOperations(pool, fixture);
     await verifyTeacherWorkflows(pool, fixture);
-    const context = { tenant_id: fixture.tenantId, user_id: fixture.userId, role: 'principal', is_authenticated: true, permissions: ['*:*'] };
-    const failures: any[] = [], passed: string[] = [], unavailable: Array<{route: string, message: string}> = [];
-    let route = '';
+    await verifyPrincipalMessaging(pool, fixture);
+    const context = {
+      tenant_id: fixture.tenantId,
+      user_id: fixture.userId,
+      role: "principal",
+      is_authenticated: true,
+      permissions: ["*:*"],
+    };
+    const failures: any[] = [],
+      passed: string[] = [],
+      unavailable: Array<{ route: string; message: string }> = [];
+    let route = "";
     const query = async (sql: string, params: any[] = []) => {
       try {
-        return await orm.$transaction(async tx => {
-          await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
-          await tx.$executeRawUnsafe('SET LOCAL ROLE sidebar_read_test');
-          await tx.$queryRawUnsafe("SELECT set_config('app.tenant_id',$1,true), set_config('app.user_id',$2,true)", context.tenant_id, context.user_id);
+        return await orm.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+          await tx.$executeRawUnsafe("SET LOCAL ROLE sidebar_read_test");
+          await tx.$queryRawUnsafe(
+            "SELECT set_config('app.tenant_id',$1,true), set_config('app.user_id',$2,true)",
+            context.tenant_id,
+            context.user_id,
+          );
           const rows = await tx.$queryRawUnsafe<any[]>(sql, ...params);
           return { rows, rowCount: rows.length };
         });
       } catch (error: any) {
-        failures.push({ route, code: error.code, message: error.message, position: error.position, sql, params });
+        failures.push({
+          route,
+          code: error.code,
+          message: error.message,
+          position: error.position,
+          sql,
+          params,
+        });
         throw error;
       }
     };
-    const raw = async (sql: string, ...params: any[]) => (await query(sql, params)).rows;
-    const db: any = { query, $queryRawUnsafe: raw, executeWithTenant: async (_tenant: string, _user: string, cb: any) => cb(db), withTenant: async (_tenant: string, cb: any) => cb(db) };
-    for (const model of ['adminIncidents', 'visitorLog', 'appointment', 'frontOfficeTicket', 'transportRoute', 'maintenanceTicket']) {
-      db[model] = { findMany: (args: unknown) => orm.$transaction(async tx => {
-        await tx.$executeRawUnsafe('SET TRANSACTION READ ONLY');
-        await tx.$queryRawUnsafe("SELECT set_config('app.tenant_id',$1,true)", context.tenant_id);
-        return (tx as any)[model].findMany(args);
-      }) };
+    const raw = async (sql: string, ...params: any[]) =>
+      (await query(sql, params)).rows;
+    const db: any = {
+      query,
+      $queryRawUnsafe: raw,
+      executeWithTenant: async (_tenant: string, _user: string, cb: any) =>
+        cb(db),
+      withTenant: async (_tenant: string, cb: any) => cb(db),
+    };
+    for (const model of [
+      "adminIncidents",
+      "visitorLog",
+      "appointment",
+      "frontOfficeTicket",
+      "transportRoute",
+      "maintenanceTicket",
+    ]) {
+      db[model] = {
+        findMany: (args: unknown) =>
+          orm.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
+            await tx.$queryRawUnsafe(
+              "SELECT set_config('app.tenant_id',$1,true)",
+              context.tenant_id,
+            );
+            return (tx as any)[model].findMany(args);
+          }),
+      };
     }
     const instances = new Map<string, any>([
-      ['PrismaService', db], ['DatabaseService', db],
-      ['RequestContextService', { getStore: () => context, requireStore: () => context }],
-      ['ConfigService', { get: (_key: string, fallback: any) => fallback }],
+      ["PrismaService", db],
+      ["DatabaseService", db],
+      [
+        "RequestContextService",
+        { getStore: () => context, requireStore: () => context },
+      ],
+      ["ConfigService", { get: (_key: string, fallback: any) => fallback }],
       // SQL coverage runs without an external Redis server or reconnect timers.
-      ['RedisService', { isDegraded: () => true }],
-      ['PrincipalInsightsService', undefined],
+      ["RedisService", { isDegraded: () => true }],
+      ["PrincipalInsightsService", undefined],
     ]);
     const resolving = new Set();
     const resolve = (Type: any): any => {
@@ -116,64 +211,155 @@ async function main() {
       if (instances.has(Type.name)) return instances.get(Type.name);
       if (resolving.has(Type.name)) return undefined;
       resolving.add(Type.name);
-      const value = new Type(...(Reflect.getMetadata('design:paramtypes', Type) || []).map(resolve));
-      instances.set(Type.name, value); resolving.delete(Type.name); return value;
+      const value = new Type(
+        ...(Reflect.getMetadata("design:paramtypes", Type) || []).map(resolve),
+      );
+      instances.set(Type.name, value);
+      resolving.delete(Type.name);
+      return value;
     };
-    const directory = path.resolve('apps/api/src/modules/admin-command');
-    const { AdminCommandRepository } = require('../src/modules/admin-command/repositories/admin-command.repository');
-    const { PRINCIPAL_INSIGHT_PROVIDERS } = require('../src/modules/admin-command/principal-insights.providers');
+    const directory = path.resolve("apps/api/src/modules/admin-command");
+    const {
+      AdminCommandRepository,
+    } = require("../src/modules/admin-command/repositories/admin-command.repository");
+    const {
+      PRINCIPAL_INSIGHT_PROVIDERS,
+    } = require("../src/modules/admin-command/principal-insights.providers");
     const principalRepository = resolve(AdminCommandRepository);
     const metricsPassed: string[] = [];
-    route = 'principal/dashboard/snapshot';
+    route = "principal/dashboard/snapshot";
     await principalRepository.getPrincipalOverviewSnapshot(fixture.tenantId);
     for (const provider of PRINCIPAL_INSIGHT_PROVIDERS) {
       route = `principal/dashboard/metrics/${provider.module_code}`;
-      try { await principalRepository.getPrincipalModuleMetrics(fixture.tenantId, provider.module_code); metricsPassed.push(route); }
-      catch (error: any) { unavailable.push({ route, message: error.message }); }
+      try {
+        await principalRepository.getPrincipalModuleMetrics(
+          fixture.tenantId,
+          provider.module_code,
+        );
+        metricsPassed.push(route);
+      } catch (error: any) {
+        unavailable.push({ route, message: error.message });
+      }
     }
-    for (const file of readdirSync(directory).filter(f => f.endsWith('.controller.ts'))) {
-      for (const Type of Object.values(require(path.join(directory, file))) as any[]) {
-        if (typeof Type !== 'function') continue;
+    for (const file of readdirSync(directory).filter((f) =>
+      f.endsWith(".controller.ts"),
+    )) {
+      for (const Type of Object.values(
+        require(path.join(directory, file)),
+      ) as any[]) {
+        if (typeof Type !== "function") continue;
         let controller: any;
-        try { controller = resolve(Type); } catch (error: any) { console.log('CONSTRUCTION', Type.name, error.message); continue; }
+        try {
+          controller = resolve(Type);
+        } catch (error: any) {
+          console.log("CONSTRUCTION", Type.name, error.message);
+          continue;
+        }
         for (const method of Object.getOwnPropertyNames(Type.prototype)) {
           const fn = Type.prototype[method];
-          if (typeof fn !== 'function' || Reflect.getMetadata('method', fn) !== 0 || Reflect.getMetadata('__sse__', fn)) continue;
-          route = `${Reflect.getMetadata('path', Type)}/${Reflect.getMetadata('path', fn)}`;
+          if (
+            typeof fn !== "function" ||
+            Reflect.getMetadata("method", fn) !== 0 ||
+            Reflect.getMetadata("__sse__", fn)
+          )
+            continue;
+          route = `${Reflect.getMetadata("path", Type)}/${Reflect.getMetadata("path", fn)}`;
           // Query-only pagination does not require a resource fixture. Keep these
           // default GETs in the audit when their controllers accept optional queries.
-          const optionalQueryRoutes = ['admin-command/accountant/expenses',
-            'admin-command/exams-manager/moderation', 'admin-command/exams-manager/reports'];
+          const optionalQueryRoutes = [
+            "admin-command/accountant/expenses",
+            "admin-command/exams-manager/moderation",
+            "admin-command/exams-manager/reports",
+          ];
           if (fn.length > 0 && !optionalQueryRoutes.includes(route)) continue;
-          try { await controller[method](); passed.push(route); }
-          catch (error: any) { unavailable.push({ route, message: error.message }); }
+          try {
+            await controller[method]();
+            passed.push(route);
+          } catch (error: any) {
+            unavailable.push({ route, message: error.message });
+          }
         }
       }
     }
-    const { ClassTeacherController } = require('../src/modules/class-teacher/class-teacher.controller');
-    context.role = 'class_teacher';
+    const {
+      ClassTeacherController,
+    } = require("../src/modules/class-teacher/class-teacher.controller");
+    context.role = "class_teacher";
     const classTeacher = resolve(ClassTeacherController);
-    for (const method of Object.getOwnPropertyNames(ClassTeacherController.prototype)) {
+    for (const method of Object.getOwnPropertyNames(
+      ClassTeacherController.prototype,
+    )) {
       const fn = ClassTeacherController.prototype[method];
-      if (typeof fn !== 'function' || Reflect.getMetadata('method', fn) !== 0 || fn.length > 1 || String(Reflect.getMetadata('path', fn)).includes(':')) continue;
-      route = `class-teacher/${Reflect.getMetadata('path', fn)}`;
-      try { await classTeacher[method](fixture.classId); passed.push(route); }
-      catch (error: any) { unavailable.push({ route, message: error.message }); }
+      if (
+        typeof fn !== "function" ||
+        Reflect.getMetadata("method", fn) !== 0 ||
+        fn.length > 1 ||
+        String(Reflect.getMetadata("path", fn)).includes(":")
+      )
+        continue;
+      route = `class-teacher/${Reflect.getMetadata("path", fn)}`;
+      try {
+        await classTeacher[method](fixture.classId);
+        passed.push(route);
+      } catch (error: any) {
+        unavailable.push({ route, message: error.message });
+      }
     }
-    if (process.env.SIDEBAR_AUDIT_REPORT === '1') {
-      writeFileSync('tmp/sidebar-regression-failures.json', JSON.stringify({ failures, unavailable }, null, 2));
+    if (process.env.SIDEBAR_AUDIT_REPORT === "1") {
+      writeFileSync(
+        "tmp/sidebar-regression-failures.json",
+        JSON.stringify({ failures, unavailable }, null, 2),
+      );
     }
-    assert.deepEqual(schemaFailures, [], 'All owning schema initializers must succeed');
-    assert.deepEqual(failures, [], 'Dashboard GET SQL must execute against the deployed schema');
-    assert.equal(metricsPassed.length, PRINCIPAL_INSIGHT_PROVIDERS.length, 'Every enabled Principal insight provider must load');
-    assert.ok(passed.includes('admin-command/accountant/expenses'), 'Accountant expense GET must remain in the database audit');
-    assert.ok(passed.includes('admin-command/exams-manager/moderation'), 'Paginated validation GET must remain in the database audit');
-    assert.ok(passed.includes('admin-command/exams-manager/reports'), 'Paginated reports GET must remain in the database audit');
-    assert.ok(passed.length >= 282, `Do not silently reduce the GET audit coverage (${passed.length} passed; ${JSON.stringify(unavailable)})`);
+    assert.deepEqual(
+      schemaFailures,
+      [],
+      "All owning schema initializers must succeed",
+    );
+    assert.deepEqual(
+      failures,
+      [],
+      "Dashboard GET SQL must execute against the deployed schema",
+    );
+    assert.equal(
+      metricsPassed.length,
+      PRINCIPAL_INSIGHT_PROVIDERS.length,
+      "Every enabled Principal insight provider must load",
+    );
+    assert.ok(
+      passed.includes("admin-command/accountant/expenses"),
+      "Accountant expense GET must remain in the database audit",
+    );
+    assert.ok(
+      passed.includes("admin-command/exams-manager/moderation"),
+      "Paginated validation GET must remain in the database audit",
+    );
+    assert.ok(
+      passed.includes("admin-command/exams-manager/reports"),
+      "Paginated reports GET must remain in the database audit",
+    );
+    assert.ok(
+      passed.length >= 282,
+      `Do not silently reduce the GET audit coverage (${passed.length} passed; ${JSON.stringify(unavailable)})`,
+    );
     for (const failure of unavailable) {
-      assert.match(failure.message, /not an active member|has not uploaded|has not been uploaded|active class-teacher appointment/, JSON.stringify(failure));
+      assert.match(
+        failure.message,
+        /not an active member|has not uploaded|has not been uploaded|active class-teacher appointment/,
+        JSON.stringify(failure),
+      );
     }
-    console.log('PASSED', passed.length, 'INSIGHT PROVIDERS', metricsPassed.length, 'SQL FAILURES', failures.length);
-  } finally { await orm.$disconnect(); await pool.end(); }
+    console.log(
+      "PASSED",
+      passed.length,
+      "INSIGHT PROVIDERS",
+      metricsPassed.length,
+      "SQL FAILURES",
+      failures.length,
+    );
+  } finally {
+    await orm.$disconnect();
+    await pool.end();
+  }
 }
 test('dashboard GET contracts, legacy records, and tenant isolation', { timeout: 300_000 }, main);

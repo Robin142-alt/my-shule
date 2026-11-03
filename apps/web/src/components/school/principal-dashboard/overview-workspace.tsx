@@ -2,12 +2,11 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, BookOpen, CalendarCheck2, CalendarDays, Check, ChevronRight, ClipboardCheck,
-  Coins, Cross, GraduationCap, Layers, Send, Target, UsersRound, WalletCards, Zap, type LucideIcon } from 'lucide-react';
+  Coins, Cross, GraduationCap, Layers, Send, Target, UsersRound, WalletCards, type LucideIcon } from 'lucide-react';
 import { usePermissions } from '@/components/providers/permission-context';
 import { isSchoolQueryForPath, useSchoolQuery } from '@/lib/data/school-hooks';
 import { useOptionalSchoolTenantId } from '@/lib/data/school-tenant-scope';
 import { useDashboardEventBus } from '@/lib/dashboard-communication/dashboard-communication-provider';
-import { buildTimeAwareGreeting } from '@/lib/greetings/time-aware-greeting';
 import { Modal } from '@/components/ui/modal';
 import { OverviewAcademics } from './overview-academics';
 import { OverviewVisitors } from './overview-visitors';
@@ -39,15 +38,11 @@ export function PrincipalOverviewWorkspace({ executiveDashboard, executiveDashbo
     },
   });
   const details = useSchoolQuery<OverviewDetails>('/admin-command/principal/overview-details', { refetchInterval: 15_000 });
-  const profile = useSchoolQuery<{ schoolName: string; logoUrl?: string }>('/admin-command/principal/school-profile');
   const { hasPermission } = usePermissions();
   const queryClient = useQueryClient();
   const eventBus = useDashboardEventBus();
   const tenantId = useOptionalSchoolTenantId();
-  const [now, setNow] = useState<Date | null>(null);
   const [showAlerts, setShowAlerts] = useState(false);
-  useEffect(() => { const tick = () => setNow(new Date()); tick(); const timer = window.setInterval(tick, 60_000);
-    return () => window.clearInterval(timer); }, []);
   useEffect(() => eventBus.subscribe('STUDENT_ADMITTED', () => {
     // Refetch authoritative counts; duplicate events must never inflate enrolment.
     void queryClient.invalidateQueries({ predicate: query => isSchoolQueryForPath(query.queryKey, tenantId, '/admin-command/principal/overview') });
@@ -80,14 +75,6 @@ export function PrincipalOverviewWorkspace({ executiveDashboard, executiveDashbo
     { label: 'Student Progression', icon: UsersRound, route: 'student-progression', tone: 'blue', permission: 'students:read' },
   ];
   return <div className={styles.overview} data-testid="principal-overview">
-    <section className={styles.greeting} aria-label="School greeting"
-      style={{ '--campus-image': "url('/principal-overview/campus.png')" } as CSSProperties}>
-      <div><h2>{buildTimeAwareGreeting('Principal', now)} <span aria-hidden="true">👋</span></h2>
-        <p>{profile.data?.schoolName || 'Your school'}{term && <><span className={styles.termDot} aria-hidden="true" />{term.name}, {term.year}</>}</p>
-      </div>
-      {/* School branding remains the verified shared logo used throughout MyShule. */}
-      {profile.data?.logoUrl && <img className={styles.schoolLogo} src={profile.data.logoUrl} alt={`${profile.data.schoolName} logo`} />}
-    </section>
     {base.isError && <OverviewState onRetry={() => void base.refetch()}><strong>Failed to load Principal Overview</strong><br />School totals could not be loaded.</OverviewState>}
     <div className={styles.metrics} aria-label="School key figures" aria-busy={base.isLoading}>
       {metrics.map(({ label, value, icon: Icon, tone, route, detail }) => <button key={label} type="button"
@@ -146,7 +133,6 @@ export function PrincipalOverviewWorkspace({ executiveDashboard, executiveDashbo
       </button>)}</div>
     </Modal>
     <section className={`${styles.panel} ${styles.quickActions}`} aria-label="Quick actions">
-      <OverviewHeading icon={Zap} detail="Common tasks for your role.">Quick actions</OverviewHeading>
       <div className={styles.actionGrid}>{actions.map(({ label, icon: Icon, route, tone, permission }) => <button key={route} type="button" className={styles.actionCard} data-tone={tone}
         disabled={!onNavigate || !hasPermission(permission)} title={!hasPermission(permission) ? 'Permission required' : undefined}
         onClick={() => navigate(route)}>

@@ -23,10 +23,19 @@ type PrincipalClassesData = {
 };
 
 export function PrincipalClassesStreamsWorkspace() {
-  const { data, isLoading, error, refetch: refetchOverview } = useSchoolQuery<PrincipalClassesData>('/admin-command/principal/classes');
+  const {
+    data,
+    isLoading,
+    error,
+    refetch: refetchOverview,
+  } = useSchoolQuery<PrincipalClassesData>("/admin-command/principal/classes");
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
-  const { data: yearsData } = useSchoolQuery<any[]>('/academics/academic-years');
-  const { data: classesData, refetch: refetchClassSections } = useSchoolQuery<any[]>('/academics/class-sections');
+  const { data: yearsData } = useSchoolQuery<any[]>(
+    "/academics/academic-years",
+  );
+  const { data: classesData, refetch: refetchClassSections } = useSchoolQuery<
+    any[]
+  >("/academics/class-sections");
   const { hasPermission } = usePermissions();
 
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
@@ -43,14 +52,16 @@ export function PrincipalClassesStreamsWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestPrincipalApi('/academics/class-sections', {
+      await requestPrincipalApi("/academics/class-sections", {
         method: "POST",
         body: {
           academic_year_id: formData.get("academic_year_id"),
           name: formData.get("name"),
           grade_level: formData.get("grade_level"),
-          capacity: formData.get("capacity") ? Number(formData.get("capacity")) : undefined,
-        }
+          capacity: formData.get("capacity")
+            ? Number(formData.get("capacity"))
+            : undefined,
+        },
       });
       setIsClassModalOpen(false);
       await Promise.all([refetchOverview(), refetchClassSections()]);
@@ -67,13 +78,15 @@ export function PrincipalClassesStreamsWorkspace() {
     setFormError("");
     const formData = new FormData(e.currentTarget);
     try {
-      await requestPrincipalApi('/academics/class-streams', {
+      await requestPrincipalApi("/academics/class-streams", {
         method: "POST",
         body: {
           class_section_id: formData.get("class_section_id"),
           name: formData.get("name"),
-          capacity: formData.get("capacity") ? Number(formData.get("capacity")) : undefined,
-        }
+          capacity: formData.get("capacity")
+            ? Number(formData.get("capacity"))
+            : undefined,
+        },
       });
       setIsStreamModalOpen(false);
       await Promise.all([refetchOverview(), refetchClassSections()]);
@@ -87,7 +100,9 @@ export function PrincipalClassesStreamsWorkspace() {
   const handleArchiveClass = async (id: string) => {
     if (!confirm("Are you sure you want to archive this class?")) return;
     try {
-      await requestPrincipalApi(`/academics/class-sections/${id}`, { method: "DELETE" });
+      await requestPrincipalApi(`/academics/class-sections/${id}`, {
+        method: "DELETE",
+      });
       await Promise.all([refetchOverview(), refetchClassSections()]);
     } catch (err: any) {
       toast.error(err.message || "Failed to archive class");
@@ -98,8 +113,8 @@ export function PrincipalClassesStreamsWorkspace() {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
+          <div className="h-24 bg-surface rounded-xl border border-border" />
+          <div className="h-64 bg-surface rounded-xl border border-border" />
         </div>
       </div>
     );
@@ -110,7 +125,9 @@ export function PrincipalClassesStreamsWorkspace() {
       <Card className="border border-red-500/20 bg-red-500/10 p-6">
         <div className="flex items-center gap-3">
           <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Classes Overview</h2>
+          <h2 className="text-xl font-bold text-red-500">
+            Failed to load Classes Overview
+          </h2>
         </div>
         <WorkspaceRetry onRetry={() => refetchOverview()} />
       </Card>
@@ -120,22 +137,30 @@ export function PrincipalClassesStreamsWorkspace() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
-        {hasPermission('academics:write') && (
+        {hasPermission("academics:write") && (
           <>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsClassModalOpen(true)}
               disabled={!hasYears}
-              title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
+              title={
+                !hasYears
+                  ? "Cannot create a class before an academic year exists"
+                  : ""
+              }
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Class Section
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsStreamModalOpen(true)}
               disabled={!hasClasses}
-              title={!hasClasses ? "Cannot create a stream before a class section exists" : ""}
+              title={
+                !hasClasses
+                  ? "Cannot create a stream before a class section exists"
+                  : ""
+              }
             >
               <Plus className="h-4 w-4 mr-2" />
               Create Stream
@@ -145,40 +170,58 @@ export function PrincipalClassesStreamsWorkspace() {
       </div>
 
       <div className="app-metric-grid grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Streams</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.totalStreams}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Total Streams</div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {data.totalStreams}
+          </div>
         </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Classes</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.totalClasses}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Total Classes</div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {data.totalClasses}
+          </div>
         </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Average Size</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.averageClassSize} students</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Average Size</div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {data.averageClassSize} students
+          </div>
         </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Capacity Utilization</div>
-          <div className="mt-2 text-2xl font-black text-blue-400">{data.capacityUtilization}%</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">
+            Capacity Utilization
+          </div>
+          <div className="mt-2 text-2xl font-black text-info">
+            {data.capacityUtilization}%
+          </div>
         </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <h2 className="text-xl font-bold text-white mb-6">Population Distribution</h2>
+        <Card className="border border-border bg-surface p-6 flex flex-col h-full">
+          <h2 className="text-xl font-bold text-foreground mb-6">
+            Population Distribution
+          </h2>
           <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
-            {(!data.classDistribution || data.classDistribution.length === 0) ? (
-              <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5 w-full">
-                <Users className="h-10 w-10 text-white/20 mb-3" />
-                <p className="text-white/60 mb-1">No classes found</p>
-                <p className="text-xs text-white/40 mb-4">Create a class section to see distribution</p>
-                {hasPermission('academics:write') && (
-                  <Button 
-                    variant="outline" 
+            {!data.classDistribution || data.classDistribution.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-surface rounded-lg border border-border w-full">
+                <Users className="h-10 w-10 text-muted mb-3" />
+                <p className="text-muted mb-1">No classes found</p>
+                <p className="text-xs text-muted mb-4">
+                  Create a class section to see distribution
+                </p>
+                {hasPermission("academics:write") && (
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setIsClassModalOpen(true)}
                     disabled={!hasYears}
-                    title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
+                    title={
+                      !hasYears
+                        ? "Cannot create a class before an academic year exists"
+                        : ""
+                    }
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Create First Class
@@ -187,40 +230,54 @@ export function PrincipalClassesStreamsWorkspace() {
               </div>
             ) : (
               data.classDistribution.map((item) => (
-                <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
-                  <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
-                    <div 
+                <div
+                  key={item.label}
+                  className="flex-1 flex flex-col items-center gap-2 group"
+                >
+                  <div
+                    className="w-full relative bg-surface rounded-t-sm"
+                    style={{ height: "150px" }}
+                  >
+                    <div
                       className="absolute bottom-0 w-full bg-indigo-500/50 rounded-t-sm transition-all duration-500 group-hover:bg-indigo-400/60"
-                      style={{ height: `${Math.min((item.value / 400) * 100, 100)}%` }}
+                      style={{
+                        height: `${Math.min((item.value / 400) * 100, 100)}%`,
+                      }}
                     >
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                         {item.value}
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs text-white/50">{item.label}</span>
+                  <span className="text-xs text-muted">{item.label}</span>
                 </div>
               ))
             )}
           </div>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
+        <Card className="border border-border bg-surface p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Class Sections</h2>
+            <h2 className="text-xl font-bold text-foreground">
+              Class Sections
+            </h2>
           </div>
-          
+
           {!classesData || classesData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <LayoutDashboard className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60 mb-4">No classes configured</p>
-              {hasPermission('academics:write') && (
-                <Button 
-                  variant="outline" 
+            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-surface rounded-lg border border-border">
+              <LayoutDashboard className="h-10 w-10 text-muted mb-3" />
+              <p className="text-muted mb-4">No classes configured</p>
+              {hasPermission("academics:write") && (
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => setIsClassModalOpen(true)}
                   disabled={!hasYears}
-                  title={!hasYears ? "Cannot create a class before an academic year exists" : ""}
+                  title={
+                    !hasYears
+                      ? "Cannot create a class before an academic year exists"
+                      : ""
+                  }
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Class Section
@@ -230,13 +287,23 @@ export function PrincipalClassesStreamsWorkspace() {
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
               {classesData.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border"
+                >
                   <div>
-                    <div className="font-medium text-white">{c.name}</div>
-                    <div className="text-xs text-white/50">Capacity: {c.capacity || 'N/A'}</div>
+                    <div className="font-medium text-foreground">{c.name}</div>
+                    <div className="text-xs text-muted">
+                      Capacity: {c.capacity || "N/A"}
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-red-400 border-red-500/20 hover:bg-red-500/20" onClick={() => handleArchiveClass(c.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-400 border-red-500/20 hover:bg-red-500/20"
+                      onClick={() => handleArchiveClass(c.id)}
+                    >
                       Archive
                     </Button>
                   </div>
@@ -247,7 +314,11 @@ export function PrincipalClassesStreamsWorkspace() {
         </Card>
       </div>
 
-      <Modal open={isClassModalOpen} onClose={() => setIsClassModalOpen(false)} title="Create Class Section">
+      <Modal
+        open={isClassModalOpen}
+        onClose={() => setIsClassModalOpen(false)}
+        title="Create Class Section"
+      >
         <form onSubmit={handleCreateClass} className="space-y-4">
           {formError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
@@ -255,38 +326,70 @@ export function PrincipalClassesStreamsWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Academic Year</label>
+            <label className="text-sm font-semibold text-foreground">
+              Academic Year
+            </label>
             <select name="academic_year_id" required className="input-base">
               <option value="">Select Academic Year...</option>
-              {yearsData?.map(year => (
-                <option key={year.id} value={year.id}>{year.name}</option>
+              {yearsData?.map((year) => (
+                <option key={year.id} value={year.id}>
+                  {year.name}
+                </option>
               ))}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Class Name</label>
-              <input name="name" required className="input-base" placeholder="e.g. Form 1" />
+              <label className="text-sm font-semibold text-foreground">
+                Class Name
+              </label>
+              <input
+                name="name"
+                required
+                className="input-base"
+                placeholder="e.g. Form 1"
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Grade Level</label>
-              <input name="grade_level" required className="input-base" placeholder="e.g. 9" />
+              <label className="text-sm font-semibold text-foreground">
+                Grade Level
+              </label>
+              <input
+                name="grade_level"
+                required
+                className="input-base"
+                placeholder="e.g. 9"
+              />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Capacity</label>
-            <input type="number" name="capacity" required className="input-base" defaultValue={40} />
+            <label className="text-sm font-semibold text-foreground">
+              Capacity
+            </label>
+            <input
+              type="number"
+              name="capacity"
+              required
+              className="input-base"
+              defaultValue={40}
+            />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isSubmitting && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Create Class
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={isStreamModalOpen} onClose={() => setIsStreamModalOpen(false)} title="Create Stream">
+      <Modal
+        open={isStreamModalOpen}
+        onClose={() => setIsStreamModalOpen(false)}
+        title="Create Stream"
+      >
         <form onSubmit={handleCreateStream} className="space-y-4">
           {formError && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded text-sm">
@@ -294,25 +397,46 @@ export function PrincipalClassesStreamsWorkspace() {
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Class Section</label>
+            <label className="text-sm font-semibold text-foreground">
+              Class Section
+            </label>
             <select name="class_section_id" required className="input-base">
               <option value="">Select Class Section...</option>
-              {classesData?.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {classesData?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Stream Name</label>
-            <input name="name" required className="input-base" placeholder="e.g. Red, North, A" />
+            <label className="text-sm font-semibold text-foreground">
+              Stream Name
+            </label>
+            <input
+              name="name"
+              required
+              className="input-base"
+              placeholder="e.g. Red, North, A"
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Capacity</label>
-            <input type="number" name="capacity" required className="input-base" defaultValue={40} />
+            <label className="text-sm font-semibold text-foreground">
+              Capacity
+            </label>
+            <input
+              type="number"
+              name="capacity"
+              required
+              className="input-base"
+              defaultValue={40}
+            />
           </div>
           <div className="pt-4 flex justify-end">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isSubmitting && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Create Stream
             </Button>
           </div>

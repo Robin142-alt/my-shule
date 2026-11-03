@@ -67,6 +67,7 @@ import {
   type PrincipalExecutiveDashboardSummary,
 } from "./principal-dashboard/overview-workspace";
 import { PrincipalReportsWorkspace } from "./principal-dashboard/reports-workspace";
+import { PrincipalWorkspaceSurface } from './principal-dashboard/workspace-ui';
 import { PrincipalSchoolProfileWorkspace } from "./principal-dashboard/school-profile-workspace";
 import { PrincipalSettingsWorkspace } from "./principal-dashboard/settings-workspace";
 import { PrincipalSetupChecklistWorkspace } from "./principal-dashboard/setup-checklist-workspace";
@@ -76,7 +77,7 @@ import { StudentProgressionWorkspace } from "./student-progression/workspace";
 import { StudentAdmissionWizard } from "./admissions-dashboard/student-admission-wizard";
 import { PrincipalSubjectsDepartmentsWorkspace } from "./principal-dashboard/subjects-departments-workspace";
 import { buildSchoolSectionHref } from "./school-pages";
-import { StaffTimetableOverviewWorkspace } from "./staff-timetable-overview-workspace";
+import { PrincipalWeeklyTimetable } from "./principal-dashboard/weekly-timetable";
 import { OverviewWorkspace as TransportOverviewWorkspace } from "./transport-manager/overview-workspace";
 
 type PrincipalSection =
@@ -262,15 +263,19 @@ function sectionRoute(section: PrincipalSection) {
   return section;
 }
 
-function isPrincipalDashboardAlert(value: unknown): value is PrincipalDashboardAlert {
+function isPrincipalDashboardAlert(
+  value: unknown,
+): value is PrincipalDashboardAlert {
   if (!value || typeof value !== "object") return false;
   const alert = value as Record<string, unknown>;
-  return typeof alert.id === "string"
-    && typeof alert.module_code === "string"
-    && typeof alert.title === "string"
-    && typeof alert.message === "string"
-    && (alert.severity === "warning" || alert.severity === "critical")
-    && (alert.action_hint === undefined || typeof alert.action_hint === "string");
+  return (
+    typeof alert.id === "string" &&
+    typeof alert.module_code === "string" &&
+    typeof alert.title === "string" &&
+    typeof alert.message === "string" &&
+    (alert.severity === "warning" || alert.severity === "critical") &&
+    (alert.action_hint === undefined || typeof alert.action_hint === "string")
+  );
 }
 
 function parsePrincipalDashboardEvent(event: Event): PrincipalExecutiveDashboardSummary | null {
@@ -315,27 +320,35 @@ export function PrincipalCommandCenter({
   const fallbackSchoolName = getPrincipalSchoolName(schoolId);
   const principalName = userLabel?.trim() || "Principal";
   const queryClient = useQueryClient();
-  const [activeWorkspace, setActiveWorkspaceState] = useWorkspaceState<PrincipalSection>(() =>
-    normalizePrincipalSection(activeSection),
-  );
+  const [activeWorkspace, setActiveWorkspaceState] =
+    useWorkspaceState<PrincipalSection>(() =>
+      normalizePrincipalSection(activeSection),
+    );
   const defaultViewApplied = useRef(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const mobileSidebarRef = useModalLayer<HTMLElement>(mobileSidebarOpen, () => setMobileSidebarOpen(false));
+  const mobileSidebarRef = useModalLayer<HTMLElement>(mobileSidebarOpen, () =>
+    setMobileSidebarOpen(false),
+  );
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 1024px)");
-    const closeOnDesktop = () => { if (desktop.matches) setMobileSidebarOpen(false); };
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobileSidebarOpen(false);
+    };
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
   }, []);
-  const [expandedNavGroups, setExpandedNavGroups] = useState<Record<string, boolean>>({});
+  const [expandedNavGroups, setExpandedNavGroups] = useState<
+    Record<string, boolean>
+  >({});
   const [streamedPrincipalDashboard, setStreamedPrincipalDashboard] = useState<{
     schoolId: string;
     dashboard: PrincipalExecutiveDashboardSummary;
   } | null>(null);
-  const [principalDashboardStreamState, setPrincipalDashboardStreamState] = useState<{
-    schoolId: string;
-    degraded: boolean;
-  } | null>(null);
+  const [principalDashboardStreamState, setPrincipalDashboardStreamState] =
+    useState<{
+      schoolId: string;
+      degraded: boolean;
+    } | null>(null);
   const {
     data: fetchedPrincipalDashboard,
     isLoading: principalDashboardLoading,
@@ -344,34 +357,44 @@ export function PrincipalCommandCenter({
     "/admin-command/principal/dashboard",
     { tenantId: schoolId, enabled: activeWorkspace === "overview" },
   );
-  const { data: principalSchoolProfile } = useSchoolQuery<PrincipalSchoolProfileSummary>(
-    "/admin-command/principal/school-profile",
-    { tenantId: schoolId },
-  );
-  const { data: principalNavigationSettings } = useSchoolQuery<PrincipalNavigationSettings>(
-    "/admin-command/principal/settings",
-    { tenantId: schoolId },
-  );
+  const { data: principalSchoolProfile } =
+    useSchoolQuery<PrincipalSchoolProfileSummary>(
+      "/admin-command/principal/school-profile",
+      { tenantId: schoolId },
+    );
+  const { data: principalNavigationSettings } =
+    useSchoolQuery<PrincipalNavigationSettings>(
+      "/admin-command/principal/settings",
+      { tenantId: schoolId },
+    );
   const savedDefaultView = principalNavigationSettings?.dashboard?.defaultView;
   const paymentSetup = usePaymentSetupSummary();
   const savedTheme = principalNavigationSettings?.dashboard?.theme;
-  const schoolName = principalSchoolProfile?.schoolName?.trim() || fallbackSchoolName;
-  const [failedSchoolLogoUrl, setFailedSchoolLogoUrl] = useState<string | null>(null);
+  const schoolName =
+    principalSchoolProfile?.schoolName?.trim() || fallbackSchoolName;
+  const [failedSchoolLogoUrl, setFailedSchoolLogoUrl] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
-    const activeGroup = PRINCIPAL_NAV_ITEMS.find((item) =>
-      "children" in item && (item.section === activeWorkspace || item.children.some((child) => child.id === activeWorkspace)),
+    const activeGroup = PRINCIPAL_NAV_ITEMS.find(
+      (item) =>
+        "children" in item &&
+        (item.section === activeWorkspace ||
+          item.children.some((child) => child.id === activeWorkspace)),
     );
-    if (activeGroup) setExpandedNavGroups((groups) => ({ ...groups, [activeGroup.id]: true }));
+    if (activeGroup)
+      setExpandedNavGroups((groups) => ({ ...groups, [activeGroup.id]: true }));
   }, [activeWorkspace]);
-
 
   useEffect(() => {
     const restoreWorkspace = () => {
       const pathname = window.location.pathname;
       const prefix = routeMode === "public" ? "/school/principal" : "";
-      if (prefix && pathname !== prefix && !pathname.startsWith(`${prefix}/`)) return;
-      const section = pathname.slice(prefix.length).replace(/^\//, "") || "dashboard";
+      if (prefix && pathname !== prefix && !pathname.startsWith(`${prefix}/`))
+        return;
+      const section =
+        pathname.slice(prefix.length).replace(/^\//, "") || "dashboard";
       if (section.includes("/")) return;
       defaultViewApplied.current = true;
       setActiveWorkspaceState(normalizePrincipalSection(section));
@@ -382,8 +405,16 @@ export function PrincipalCommandCenter({
   }, [routeMode]);
 
   useEffect(() => {
-    const shouldUseSavedDefault = activeSection === undefined || activeSection === "" || activeSection === "dashboard";
-    if (!shouldUseSavedDefault || defaultViewApplied.current || !savedDefaultView) return;
+    const shouldUseSavedDefault =
+      activeSection === undefined ||
+      activeSection === "" ||
+      activeSection === "dashboard";
+    if (
+      !shouldUseSavedDefault ||
+      defaultViewApplied.current ||
+      !savedDefaultView
+    )
+      return;
     defaultViewApplied.current = true;
     setActiveWorkspaceState(normalizePrincipalSection(savedDefaultView));
   }, [activeSection, savedDefaultView]);
@@ -394,7 +425,8 @@ export function PrincipalCommandCenter({
     const previousTheme = root.dataset.principalTheme;
     const previousColorScheme = root.style.colorScheme;
     root.dataset.principalTheme = savedTheme;
-    root.style.colorScheme = savedTheme === "system" ? "light dark" : savedTheme;
+    root.style.colorScheme =
+      savedTheme === "system" ? "light dark" : savedTheme;
     return () => {
       if (previousTheme === undefined) delete root.dataset.principalTheme;
       else root.dataset.principalTheme = previousTheme;
@@ -403,7 +435,8 @@ export function PrincipalCommandCenter({
   }, [savedTheme]);
 
   useEffect(() => {
-    if (typeof EventSource === "undefined" || activeWorkspace !== "overview") return undefined;
+    if (typeof EventSource === "undefined" || activeWorkspace !== "overview")
+      return undefined;
 
     return connectDashboardEventSource({
       url: `/api/admin-command/principal/dashboard/stream?tenantSlug=${encodeURIComponent(schoolId)}`,
@@ -418,35 +451,48 @@ export function PrincipalCommandCenter({
         setStreamedPrincipalDashboard({ schoolId, dashboard });
         return true;
       },
-      onDegraded: (degraded) => setPrincipalDashboardStreamState({ schoolId, degraded }),
+      onDegraded: (degraded) =>
+        setPrincipalDashboardStreamState({ schoolId, degraded }),
     });
   }, [schoolId, activeWorkspace]);
 
-  const principalDashboard = streamedPrincipalDashboard?.schoolId === schoolId
-    ? streamedPrincipalDashboard.dashboard
-    : fetchedPrincipalDashboard;
-  const principalDashboardStreamDegraded = (
-    principalDashboardStreamState?.schoolId === schoolId
-    && principalDashboardStreamState.degraded
-  ) || Boolean(principalDashboardError && !principalDashboard);
+  const principalDashboard =
+    streamedPrincipalDashboard?.schoolId === schoolId
+      ? streamedPrincipalDashboard.dashboard
+      : fetchedPrincipalDashboard;
+  const principalDashboardStreamDegraded =
+    (principalDashboardStreamState?.schoolId === schoolId &&
+      principalDashboardStreamState.degraded) ||
+    Boolean(principalDashboardError && !principalDashboard);
 
-  function setActiveWorkspace(section: PrincipalSection, historyMode: "replaceState" | "pushState" = "pushState") {
+  function setActiveWorkspace(
+    section: PrincipalSection,
+    historyMode: "replaceState" | "pushState" = "pushState",
+  ) {
     defaultViewApplied.current = true;
     setActiveWorkspaceState(section);
     setMobileSidebarOpen(false);
     window.history[historyMode](
       null,
       "",
-      buildSchoolSectionHref("principal", sectionRoute(section), routeMode ?? "hosted"),
+      buildSchoolSectionHref(
+        "principal",
+        sectionRoute(section),
+        routeMode ?? "hosted",
+      ),
     );
   }
 
   function renderWorkspace() {
     if (activeWorkspace === "admissions") {
-      return <StudentAdmissionWizard
-        onCancel={() => setActiveWorkspace("students", "pushState")}
-        onAdmitted={() => queryClient.invalidateQueries({ queryKey: ["school"] })}
-      />;
+      return (
+        <StudentAdmissionWizard
+          onCancel={() => setActiveWorkspace("students", "pushState")}
+          onAdmitted={() =>
+            queryClient.invalidateQueries({ queryKey: ["school"] })
+          }
+        />
+      );
     }
     if (activeWorkspace === "overview") {
       return (
@@ -460,35 +506,67 @@ export function PrincipalCommandCenter({
       );
     }
     if (activeWorkspace === "setup-checklist") {
-      return <PrincipalSetupChecklistWorkspace onNavigate={setActiveWorkspace} />;
+      return (
+        <PrincipalSetupChecklistWorkspace onNavigate={setActiveWorkspace} />
+      );
     }
-    if (activeWorkspace === "academic-setup") return <PrincipalAcademicSetupWorkspace />;
-    if (activeWorkspace === "classes-streams") return <PrincipalClassesStreamsWorkspace />;
-    if (activeWorkspace === "subjects-departments") return <PrincipalSubjectsDepartmentsWorkspace />;
-    if (activeWorkspace === "students") return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
-    if (activeWorkspace === "student-progression") return <StudentProgressionWorkspace onOpenCalendar={() => setActiveWorkspace("academic-setup")} />;
-    if (activeWorkspace === "fees") return <PrincipalFinanceOverviewWorkspace />;
-    if (activeWorkspace === "payment-setup") return <SchoolPaymentChannels mode="review" />;
-    if (activeWorkspace === "collections") return <CollectionsWorkspace mode="review" />;
-    if (activeWorkspace === "attendance") return <PrincipalAttendanceWorkspace />;
-    if (activeWorkspace === "discipline") return <PrincipalDisciplineWorkspace />;
+    if (activeWorkspace === "academic-setup")
+      return (
+        <PrincipalAcademicSetupWorkspace
+          onOpenProgression={() => setActiveWorkspace("student-progression")}
+        />
+      );
+    if (activeWorkspace === "classes-streams")
+      return <PrincipalClassesStreamsWorkspace />;
+    if (activeWorkspace === "subjects-departments")
+      return <PrincipalSubjectsDepartmentsWorkspace />;
+    if (activeWorkspace === "students")
+      return <PrincipalStudentsWorkspace routeMode={routeMode ?? "hosted"} />;
+    if (activeWorkspace === "student-progression")
+      return (
+        <StudentProgressionWorkspace
+          onOpenCalendar={() => setActiveWorkspace("academic-setup")}
+        />
+      );
+    if (activeWorkspace === "fees")
+      return <PrincipalFinanceOverviewWorkspace />;
+    if (activeWorkspace === "payment-setup")
+      return <SchoolPaymentChannels mode="review" />;
+    if (activeWorkspace === "collections")
+      return <CollectionsWorkspace mode="review" />;
+    if (activeWorkspace === "attendance")
+      return <PrincipalAttendanceWorkspace />;
+    if (activeWorkspace === "discipline")
+      return <PrincipalDisciplineWorkspace tenantSlug={schoolId} />;
     if (activeWorkspace === "academics") return <PrincipalAcademicsWorkspace />;
-    if (activeWorkspace === "syllabus-coverage") return <SyllabusWorkspace />;
+    if (activeWorkspace === "syllabus-coverage")
+      return <SyllabusWorkspace principal schoolName={schoolName} />;
     if (activeWorkspace === "staff") return <PrincipalStaffRolesWorkspace />;
-    if (activeWorkspace === "communication") return <PrincipalCommunicationWorkspace />;
+    if (activeWorkspace === "communication")
+      return <PrincipalCommunicationWorkspace />;
     if (activeWorkspace === "approvals") return <PrincipalApprovalsWorkspace />;
     if (activeWorkspace === "reports") return <PrincipalReportsWorkspace />;
-    if (activeWorkspace === "exams-reports") return <PrincipalExamsReportsWorkspace />;
+    if (activeWorkspace === "exams-reports")
+      return (
+        <PrincipalExamsReportsWorkspace
+          onOpenReports={() => setActiveWorkspace("reports")}
+        />
+      );
     if (activeWorkspace === "settings") return <PrincipalSettingsWorkspace />;
     if (activeWorkspace === "school-profile") {
       return (
-        <section aria-label="Principal school profile workspace" className="space-y-5">
+        <section
+          aria-label="Principal school profile workspace"
+          className="space-y-5"
+        >
           <PrincipalSchoolProfileWorkspace />
         </section>
       );
     }
-    if (activeWorkspace === "visitors") return <PrincipalVisitorsOversightWorkspace />;
-    if (activeWorkspace === "sick-bay") return <PrincipalHealthOversightWorkspace />;
+    if (activeWorkspace === "visitors")
+      return <PrincipalVisitorsOversightWorkspace />;
+    if (activeWorkspace === "sick-bay")
+      return <PrincipalHealthOversightWorkspace />;
     if (activeWorkspace === "boarding") {
       return (
         <section aria-label="Principal boarding workspace">
@@ -510,18 +588,23 @@ export function PrincipalCommandCenter({
         </section>
       );
     }
-    if (activeWorkspace === "audit-logs") return <PrincipalAuditOversightWorkspace />;
+    if (activeWorkspace === "audit-logs")
+      return <PrincipalAuditOversightWorkspace />;
     if (activeWorkspace === "timetable") {
-      return (
-        <StaffTimetableOverviewWorkspace
-          title="School master timetable"
-          description="Published class, teacher, room, and resource schedules across this school."
-          theme="dark"
-        />
-      );
+      return <PrincipalWeeklyTimetable schoolName={schoolName} />;
     }
     if (activeWorkspace === "exam-analytics") {
-      return <ExamAnalyticsWorkspace scope="school" emptyActions={[{label:"Review exams & report cards",onClick:()=>setActiveWorkspace("exams-reports")}]}/>;
+      return (
+        <ExamAnalyticsWorkspace
+          scope="school"
+          emptyActions={[
+            {
+              label: "Review exams & report cards",
+              onClick: () => setActiveWorkspace("exams-reports"),
+            },
+          ]}
+        />
+      );
     }
     if (activeWorkspace === "users-invitations") {
       return (
@@ -537,9 +620,18 @@ export function PrincipalCommandCenter({
     }
 
     return (
-      <section role="alert" aria-label="Principal workspace unavailable" className="rounded-xl border border-warning-border/30 bg-amber-200/10 p-5 text-amber-100">
-        <h2 className="text-lg font-black">This Principal workspace route is not registered.</h2>
-        <p className="mt-2 text-sm font-semibold">Choose a listed workspace so MyShule can load a verified tenant-scoped contract.</p>
+      <section
+        role="alert"
+        aria-label="Principal workspace unavailable"
+        className="rounded-xl border border-warning-border/30 bg-amber-200/10 p-5 text-amber-100"
+      >
+        <h2 className="text-lg font-black">
+          This Principal workspace route is not registered.
+        </h2>
+        <p className="mt-2 text-sm font-semibold">
+          Choose a listed workspace so MyShule can load a verified tenant-scoped
+          contract.
+        </p>
       </section>
     );
   }
@@ -556,8 +648,15 @@ export function PrincipalCommandCenter({
       >
         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="dashboard-nav-label">{item.label}</span>
-        {(item.id === "payment-setup" || item.id === "approvals") && Boolean(paymentSetup.data?.pending_approval) &&
-          <span className="ml-auto rounded-full bg-warning-soft px-2 text-xs" aria-label={`${paymentSetup.data!.pending_approval} payment setups awaiting approval`}>{paymentSetup.data!.pending_approval} payment</span>}
+        {(item.id === "payment-setup" || item.id === "approvals") &&
+          Boolean(paymentSetup.data?.pending_approval) && (
+            <span
+              className="ml-auto rounded-full bg-warning-soft px-2 text-xs"
+              aria-label={`${paymentSetup.data!.pending_approval} payment setups awaiting approval`}
+            >
+              {paymentSetup.data!.pending_approval} payment
+            </span>
+          )}
       </button>
     );
   }
@@ -566,7 +665,11 @@ export function PrincipalCommandCenter({
     <DashboardCommunicationBoundary tenantId={schoolId}>
       <PermissionProvider schoolId={schoolId}>
         <div
-          data-testid={activeWorkspace === "exams-reports" ? undefined : "role-operational-command-center"}
+          data-testid={
+            activeWorkspace === "exams-reports"
+              ? undefined
+              : "role-operational-command-center"
+          }
           data-route-mode={routeMode ?? "hosted"}
           className="authenticated-app min-h-dvh bg-background pb-6 lg:pb-0"
         >
@@ -595,63 +698,123 @@ export function PrincipalCommandCenter({
               )}
             >
               <div className="app-principal-nav-heading flex shrink-0 items-center justify-between gap-2 mb-3">
-                <div className="app-sidebar-brand px-2"><MyShuleBrand markSize={30} nameClassName="text-base" /></div>
-                <button type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm font-semibold dashboard-rail-mobile">Close</button>
+                <div className="app-sidebar-brand px-2">
+                  <MyShuleBrand markSize={30} nameClassName="text-base" />
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close navigation"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="min-h-11 rounded-lg bg-white/10 px-3 text-sm font-semibold dashboard-rail-mobile"
+                >
+                  Close
+                </button>
               </div>
               <div className="app-principal-nav-identity rounded-[var(--radius-lg)] border border-white/10 bg-white/[0.06] p-4">
                 <div className="flex items-center gap-3">
-                  {principalSchoolProfile?.logoUrl && failedSchoolLogoUrl !== principalSchoolProfile.logoUrl ? (
+                  {principalSchoolProfile?.logoUrl &&
+                  failedSchoolLogoUrl !== principalSchoolProfile.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={principalSchoolProfile.logoUrl}
                       alt={`${schoolName} logo`}
                       className="h-14 w-14 shrink-0 rounded-lg border border-white/15 bg-white object-contain p-1"
-                      onError={() => setFailedSchoolLogoUrl(principalSchoolProfile.logoUrl ?? null)}
+                      onError={() =>
+                        setFailedSchoolLogoUrl(
+                          principalSchoolProfile.logoUrl ?? null,
+                        )
+                      }
                     />
                   ) : (
                     <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10">
-                      <Building2 className="h-7 w-7 text-cyan-200" aria-hidden="true" />
+                      <Building2
+                        className="h-7 w-7 text-cyan-200"
+                        aria-hidden="true"
+                      />
                     </span>
                   )}
                   <div className="min-w-0">
-                    <p className="text-xs font-black uppercase text-cyan-200">Principal Command</p>
-                    <h2 className="mt-1 truncate text-2xl font-black">{schoolName}</h2>
+                    <p className="text-xs font-black uppercase text-cyan-200">
+                      Principal Command
+                    </p>
+                    <h2 className="mt-1 truncate text-2xl font-black">
+                      {schoolName}
+                    </h2>
                   </div>
                 </div>
               </div>
-              <nav aria-label="Principal dashboard sidebar" className="dashboard-navigation mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10">
+              <nav
+                aria-label="Principal dashboard sidebar"
+                className="dashboard-navigation mt-5 flex-1 space-y-2 overflow-auto pr-1 pb-10"
+              >
                 {PRINCIPAL_NAV_ITEMS.map((item) => {
                   if (!("children" in item)) return renderNavItem(item);
                   const Icon = item.icon;
                   const expanded = Boolean(expandedNavGroups[item.id]);
-                  const selected = item.section === activeWorkspace || item.children.some((child) => child.id === activeWorkspace);
+                  const selected =
+                    item.section === activeWorkspace ||
+                    item.children.some((child) => child.id === activeWorkspace);
                   const childrenId = `principal-nav-${item.id}`;
                   const hasPage = Boolean(item.section);
                   return (
                     <div key={item.id}>
                       <div className="flex items-center gap-1">
-                        {item.section ? renderNavItem({ id: item.section, label: item.label, icon: item.icon }) : null}
+                        {item.section
+                          ? renderNavItem({
+                              id: item.section,
+                              label: item.label,
+                              icon: item.icon,
+                            })
+                          : null}
                         <button
                           type="button"
-                          aria-label={hasPage ? `${expanded ? "Collapse" : "Expand"} ${item.label}` : undefined}
+                          aria-label={
+                            hasPage
+                              ? `${expanded ? "Collapse" : "Expand"} ${item.label}`
+                              : undefined
+                          }
                           aria-expanded={expanded}
                           data-active={!hasPage && selected}
                           aria-controls={childrenId}
-                          onClick={() => setExpandedNavGroups((groups) => ({ ...groups, [item.id]: !expanded }))}
-                          className={hasPage
-                            ? "dashboard-nav-item dashboard-nav-toggle"
-                            : "dashboard-nav-item"}
+                          onClick={() =>
+                            setExpandedNavGroups((groups) => ({
+                              ...groups,
+                              [item.id]: !expanded,
+                            }))
+                          }
+                          className={
+                            hasPage
+                              ? "dashboard-nav-item dashboard-nav-toggle"
+                              : "dashboard-nav-item"
+                          }
                         >
                           {!hasPage ? (
                             <>
-                              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                              <span className="dashboard-nav-label">{item.label}</span>
+                              <Icon
+                                className="h-4 w-4 shrink-0"
+                                aria-hidden="true"
+                              />
+                              <span className="dashboard-nav-label">
+                                {item.label}
+                              </span>
                             </>
                           ) : null}
-                          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", !expanded && "-rotate-90")} aria-hidden="true" />
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 transition-transform",
+                              !expanded && "-rotate-90",
+                            )}
+                            aria-hidden="true"
+                          />
                         </button>
                       </div>
-                      <div id={childrenId} role="group" aria-label={item.label} hidden={!expanded} className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-2">
+                      <div
+                        id={childrenId}
+                        role="group"
+                        aria-label={item.label}
+                        hidden={!expanded}
+                        className="ml-4 mt-1 space-y-1 border-l border-white/10 pl-2"
+                      >
                         {item.children.map(renderNavItem)}
                       </div>
                     </div>
@@ -664,11 +827,20 @@ export function PrincipalCommandCenter({
               <header className="app-workspace-header z-20 rounded-[var(--radius-xl)] border border-border-strong bg-white p-4 text-foreground shadow-[0_18px_50px_rgba(7,29,73,0.12)] md:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <DashboardGreeting name={principalName} context={`${schoolName} command center`} />
-                    <h1 className="mt-1 text-2xl font-black">Principal Dashboard</h1>
+                    <DashboardGreeting
+                      name={principalName}
+                      context={`${schoolName} command center`}
+                    />
+                    <h1 className="mt-1 text-2xl font-black">
+                      Principal Dashboard
+                    </h1>
                   </div>
                   <div className="app-header-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
-                    <SchoolNotificationBell basePath={routeMode === "public" ? "/school/principal" : ""} />
+                    <SchoolNotificationBell
+                      basePath={
+                        routeMode === "public" ? "/school/principal" : ""
+                      }
+                    />
                     <SchoolDashboardRoleSwitcher className="w-full sm:w-auto" />
                     <MobileMenuTrigger
                       type="button"
@@ -677,15 +849,22 @@ export function PrincipalCommandCenter({
                       className="rounded-xl border border-border-strong bg-surface-muted px-3 py-2 text-sm font-black text-foreground dashboard-rail-mobile"
                       onClick={() => setMobileSidebarOpen(true)}
                     >
-                      <Menu className="mr-2 inline h-4 w-4" aria-hidden="true" />
+                      <Menu
+                        className="mr-2 inline h-4 w-4"
+                        aria-hidden="true"
+                      />
                       Menu
                     </MobileMenuTrigger>
                   </div>
                 </div>
               </header>
 
-              <div className={cn("app-principal-workspace rounded-[var(--radius-xl)] bg-primary p-5 shadow-[0_24px_70px_rgba(7,29,73,0.22)]", activeWorkspace === "overview" && "app-overview-canvas")}>
-                <section className="max-h-none overflow-y-auto">{renderWorkspace()}</section>
+              <div className="app-overview-canvas min-w-0">
+                <PrincipalWorkspaceSurface
+                  overview={activeWorkspace === "overview"}
+                >
+                  {renderWorkspace()}
+                </PrincipalWorkspaceSurface>
               </div>
             </main>
           </div>

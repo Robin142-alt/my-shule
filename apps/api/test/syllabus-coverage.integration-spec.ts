@@ -47,7 +47,7 @@ describe('Shared syllabus and independent teaching coverage', () => {
         CREATE TABLE tenant_memberships(tenant_id text,user_id uuid,status text DEFAULT 'active');
         CREATE TABLE academic_years(id text PRIMARY KEY,tenant_id text,name text,status text DEFAULT 'active',starts_on date DEFAULT '2026-01-01', UNIQUE(tenant_id,id));
         CREATE TABLE academic_terms(id text PRIMARY KEY,tenant_id text,academic_year_id text,name text,starts_on date,ends_on date,status text DEFAULT 'active',UNIQUE(tenant_id,id));
-        CREATE TABLE academics_departments(id uuid PRIMARY KEY,tenant_id text,head_of_department_user_id uuid,is_active boolean DEFAULT true,status text DEFAULT 'active',archived_at timestamptz);
+        CREATE TABLE academics_departments(id uuid PRIMARY KEY,tenant_id text,name text,head_of_department_user_id uuid,is_active boolean DEFAULT true,status text DEFAULT 'active',archived_at timestamptz);
         CREATE TABLE subjects(id text PRIMARY KEY,tenant_id text,name text,department_id uuid,status text DEFAULT 'active',archived_at timestamptz,UNIQUE(tenant_id,id));
         CREATE TABLE class_sections(id text PRIMARY KEY,tenant_id text,name text,grade_level text,academic_year_id text,is_active boolean DEFAULT true,status text DEFAULT 'active');
         CREATE TABLE class_streams(id text PRIMARY KEY,tenant_id text,class_section_id text,name text,is_active boolean DEFAULT true,status text DEFAULT 'active');
@@ -77,7 +77,7 @@ describe('Shared syllabus and independent teaching coverage', () => {
         academics_role_appointments,academics_department_hod_appointments,academics_departments,class_sections,class_streams,staff_profiles,tenant_memberships,evidence CASCADE`);
       for (const school of ['school-a','school-b']) {
         const department = randomUUID();
-        await client.query('INSERT INTO academics_departments(id,tenant_id) VALUES ($1,$2)', [department, school]);
+        await client.query('INSERT INTO academics_departments(id,tenant_id,name) VALUES ($1,$2,$3)', [department, school, `${school} Mathematics`]);
         await client.query('INSERT INTO academic_years(id,tenant_id,name) VALUES ($1,$2,\'2026\')', [`${school}-year`, school]);
         await client.query("INSERT INTO academic_terms(id,tenant_id,academic_year_id,name,starts_on,ends_on) VALUES ($1,$2,$3,'Term 1','2026-01-01','2026-04-30')", [`${school}-term`, school, `${school}-year`]);
         await client.query("INSERT INTO subjects(id,tenant_id,name,department_id) VALUES ($1,$2,'Mathematics',$3),($4,$2,'Science',NULL)", [`${school}-math`, school, department, `${school}-science`]);
@@ -113,6 +113,8 @@ describe('Shared syllabus and independent teaching coverage', () => {
     expect(secondView.items[0].records).toEqual([]);
     const leadership = await service(users.principal,'principal').workspace();
     expect(leadership.items).toHaveLength(3);
+    expect(leadership.items.every(row => row.department_name === 'school-a Mathematics')).toBe(true);
+    expect(leadership.items.every(row => row.department_id)).toBe(true);
     expect(leadership.syllabi[0].can_manage).toBe(false);
   });
 

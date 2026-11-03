@@ -2,8 +2,18 @@
 
 import { WorkspaceRetry } from "@/components/school/workspace-retry";
 
-import { Card } from "@/components/ui/card";
-import { AlertCircle, BookOpen, GraduationCap } from "lucide-react";
+import {
+  PrincipalHeader,
+  PrincipalMetrics,
+  PrincipalPanel,
+  PrincipalTrend,
+  principalStyles as styles,
+} from "./workspace-ui";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { usePermissions } from "@/components/providers/permission-context";
+import type { SyllabusWorkspaceData } from "@/lib/modules/syllabus-types";
+import { BookOpen, GraduationCap, ClipboardList } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { toast } from "sonner";
 import { useVerifiedPrincipalDashboardApi } from "./verified-tenant-api";
@@ -18,123 +28,181 @@ type PrincipalAcademicsData = {
 };
 
 export function PrincipalAcademicsWorkspace() {
-  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalAcademicsData>('/admin-command/principal/academics');
+  const { data, isLoading, error, refetch } =
+    useSchoolQuery<PrincipalAcademicsData>(
+      "/admin-command/principal/academics",
+    );
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
-        </div>
-      </div>
+  const { hasPermission } = usePermissions();
+  const canSeeExams = hasPermission("exams:read");
+  const exams = useSchoolQuery<{
+    kpis: { school_average: number | null };
+    trends: Array<{ exam_series_name: string; average_score: number | null }>;
+  }>(canSeeExams ? "/exams/analytics?scope=school&page_size=1" : null);
+  const syllabus = useSchoolQuery<SyllabusWorkspaceData>("/academics/syllabus");
+  const [busy, setBusy] = useState(false);
+  const [requestId, setRequestId] = useState("");
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Africa/Nairobi",
+  });
+  const currentTerm = syllabus.data?.terms.find(
+    (term) =>
+      term.starts_on.slice(0, 10) <= today &&
+      term.ends_on.slice(0, 10) >= today,
+  );
+  const totals = (syllabus.data?.items ?? [])
+    .filter((row) => !currentTerm || row.academic_term_id === currentTerm.id)
+    .reduce(
+      (sum, row) => ({
+        taught: sum.taught + (row.progress?.completed ?? 0),
+        required: sum.required + (row.progress?.total ?? 0),
+      }),
+      { taught: 0, required: 0 },
     );
+  async function generate() {
+    if (busy) return;
+    const id = requestId || crypto.randomUUID();
+    setRequestId(id);
+    setBusy(true);
+    try {
+      await requestPrincipalApi("/admin-command/principal/reports/generated", {
+        method: "POST",
+        body: { type: "department_performance", request_id: id },
+      });
+      setRequestId("");
+      toast.success("Department performance report saved in Reports.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Report generation failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
-
-  if (error || !data) {
-    return (
-      <Card className="border border-red-500/20 bg-red-500/10 p-6">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Academics Overview</h2>
-        </div>
-        <WorkspaceRetry onRetry={() => refetch()} />
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="app-metric-grid grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Status</div>
-          <div className="mt-2 text-2xl font-black text-white capitalize">{data.status}</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Syllabus Coverage</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.syllabusCoverage}%</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">School Average</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.averageScore}%</div>
-        </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Active Assignments</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.activeAssignments}</div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <h2 className="text-xl font-bold text-white mb-6">Performance Trend</h2>
-          <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
-            {data.performanceTrend?.map((item) => (
-              <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
-                <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
-                  <div 
-                    className="absolute bottom-0 w-full bg-blue-500/50 rounded-t-sm transition-all duration-500 group-hover:bg-blue-400/60"
-                    style={{ height: `${item.value}%` }}
-                  >
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                      {item.value}%
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs text-white/50">{item.label}</span>
+    <div className={styles.stack}>
+      <PrincipalHeader
+        icon={GraduationCap}
+        title="Academic oversight"
+        tone="blue"
+        description="Review recorded teaching progress, examination outcomes and departmental results together."
+      />
+      {error ? (
+        <p className={styles.error} role="alert">
+          {error.message}
+          <WorkspaceRetry onRetry={() => refetch()} />
+        </p>
+      ) : isLoading ? (
+        <p role="status" className={styles.empty}>
+          Loading academic records…
+        </p>
+      ) : (
+        data && (
+          <>
+            <PrincipalMetrics
+              items={[
+                {
+                  label: "Active assignments",
+                  value: data.activeAssignments,
+                  icon: ClipboardList,
+                  tone: "violet",
+                },
+                {
+                  label: "Syllabus coverage",
+                  value: totals.required
+                    ? Math.round((100 * totals.taught) / totals.required) + "%"
+                    : "—",
+                  detail: syllabus.isLoading
+                    ? "Loading coverage"
+                    : totals.required
+                      ? `${totals.taught} of ${totals.required} required subtopics`
+                      : "No configured coverage total",
+                  icon: BookOpen,
+                  tone: "mint",
+                },
+                ...(canSeeExams
+                  ? [
+                      {
+                        label: "School average",
+                        value:
+                          exams.data?.kpis?.school_average != null
+                            ? exams.data.kpis.school_average + "%"
+                            : "—",
+                        detail: "Latest examination with results",
+                        icon: GraduationCap,
+                        tone: "blue" as const,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            {syllabus.error && (
+              <div className={styles.error} role="alert">
+                {syllabus.error.message}
+                <WorkspaceRetry onRetry={() => syllabus.refetch()} />
               </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Department Performance</h2>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await requestPrincipalApi("/admin-command/principal/reports/generate", {
-                    method: "POST",
-                    body: { title: "Department performance report", type: "department_performance", source_dashboard: "principal-academics" },
-                  });
-                  toast.success("Department performance report requested.");
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Could not request department report.");
-                }
-              }}
-              className="text-xs bg-white/10 text-white px-3 py-1.5 rounded hover:bg-white/20 transition-colors flex items-center gap-1"
-            >
-              <BookOpen className="h-3 w-3" />
-              Detailed Report
-            </button>
-          </div>
-          
-          {(!data.departmentPerformance || data.departmentPerformance.length === 0) ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <GraduationCap className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No department data available</p>
-            </div>
-          ) : (
-            <div className="space-y-4 flex-1 overflow-y-auto pr-2 mt-4">
-              {data.departmentPerformance.map((dept) => (
-                <div key={dept.department} className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white">{dept.department}</span>
-                    <span className="text-white/60">{dept.score}%</span>
-                  </div>
-                  <div className="w-full bg-white/5 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${dept.score > 70 ? 'bg-green-500' : dept.score > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} 
-                      style={{ width: `${dept.score}%` }} 
+            )}
+            <div className={styles.columns}>
+              {canSeeExams && (
+                <PrincipalPanel title="Exam performance trend" tone="blue">
+                  {exams.error ? (
+                    <p role="alert">
+                      {exams.error.message}
+                      <WorkspaceRetry onRetry={() => exams.refetch()} />
+                    </p>
+                  ) : exams.isLoading ? (
+                    <p role="status">Loading exam results…</p>
+                  ) : (
+                    <PrincipalTrend
+                      label="Weighted school examination averages"
+                      percentage
+                      points={(exams.data?.trends ?? []).map((row) => ({
+                        label: row.exam_series_name,
+                        value: row.average_score,
+                      }))}
                     />
-                  </div>
-                </div>
-              ))}
+                  )}
+                </PrincipalPanel>
+              )}
+              <PrincipalPanel
+                title="Department Performance"
+                description="Mean of submitted, reviewed, locked and published assessment marks by department."
+                tone="violet"
+                actions={
+                  hasPermission("reports:write") &&
+                  canSeeExams && (
+                    <Button disabled={busy} onClick={() => void generate()}>
+                      {busy ? "Generating…" : "Detailed Report"}
+                    </Button>
+                  )
+                }
+              >
+                {data.departmentPerformance.length ? (
+                  data.departmentPerformance.map((row) => (
+                    <div
+                      className={styles.distributionRow}
+                      key={row.department}
+                    >
+                      <span>{row.department}</span>
+                      <meter
+                        min={0}
+                        max={100}
+                        value={row.score}
+                        aria-label={row.department}
+                      />
+                      <strong>{row.score}%</strong>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.empty}>
+                    No departmental results recorded.
+                  </p>
+                )}
+              </PrincipalPanel>
             </div>
-          )}
-        </Card>
-      </div>
+          </>
+        )
+      )}
     </div>
   );
 }

@@ -3365,18 +3365,31 @@ export class AdmissionsRepository {
       ),
       this.executeSql(tenantId, `
           SELECT
-            id,
-            class_name,
-            stream_name,
-            academic_year,
-            status,
-            enrolled_at,
-            updated_at
-          FROM student_academic_enrollments
-          WHERE tenant_id = $1
-            AND student_id = $2::uuid
-            AND status = 'active'
-          ORDER BY enrolled_at DESC, created_at DESC
+            enrollment.id,
+            enrollment.class_name,
+            enrollment.stream_name,
+            enrollment.academic_year,
+            enrollment.status,
+            enrollment.enrolled_at,
+            enrollment.updated_at,
+            section.id::text AS class_id,
+            section.academic_year_id::text AS academic_year_id,
+            term.id::text AS academic_term_id
+          FROM student_academic_enrollments enrollment
+          LEFT JOIN class_sections section ON section.tenant_id = enrollment.tenant_id
+            AND section.id::text = enrollment.class_section_id::text
+          LEFT JOIN LATERAL (
+            SELECT current_term.id FROM academic_terms current_term
+            WHERE current_term.tenant_id = enrollment.tenant_id
+              AND current_term.academic_year_id::text = section.academic_year_id::text
+              AND current_term.status = 'active' AND current_term.archived_at IS NULL
+              AND timezone('Africa/Nairobi', NOW())::date BETWEEN current_term.starts_on AND current_term.ends_on
+            ORDER BY current_term.starts_on DESC, current_term.id LIMIT 1
+          ) term ON true
+          WHERE enrollment.tenant_id = $1
+            AND enrollment.student_id = $2::uuid
+            AND enrollment.status = 'active'
+          ORDER BY enrollment.enrolled_at DESC, enrollment.created_at DESC
           LIMIT 1
         `, [tenantId, studentId],
       ),

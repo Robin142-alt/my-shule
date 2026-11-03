@@ -1,11 +1,20 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Optional,
+  UnauthorizedException,
+} from "@nestjs/common";
+
+import { ReportArtifactStorageService } from "./report-artifact-storage.service";
+import type { ReportArtifact } from "./report-artifact";
 
 import { DatabaseService } from '../../database/database.service';
 import { RequestContextService } from '../request-context/request-context.service';
 import {
   type ReportSnapshotManifest,
+  createReportSnapshotManifest,
   validateReportSnapshotManifestInput,
-} from './report-snapshot-manifest';
+} from "./report-snapshot-manifest";
 
 export interface StoredReportSnapshot {
   id: string;
@@ -39,10 +48,42 @@ export class ReportSnapshotRepository {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly requestContextService: RequestContextService,
+    @Optional() private readonly storage?: ReportArtifactStorageService,
   ) {}
 
-  async saveManifest(manifest: ReportSnapshotManifest): Promise<StoredReportSnapshot> {
+  async saveManifest(
+    manifest: ReportSnapshotManifest,
+    file?: ReportArtifact,
+  ): Promise<StoredReportSnapshot> {
     const context = this.requestContextService.requireStore();
+    if (context.tenant_id !== manifest.tenant_id)
+      throw new UnauthorizedException("The report belongs to another school");
+    if (file) {
+      if (
+        !this.storage ||
+        file.checksumSha256 !== manifest.artifact.checksum_sha256
+      )
+        throw new BadRequestException(
+          "The report file could not be verified for storage",
+        );
+      const stored = await this.storage.storeArtifact({
+        tenantId: manifest.tenant_id,
+        module: manifest.module,
+        reportId: manifest.report_id,
+        artifact: file,
+        actorUserId: manifest.generated_by_user_id,
+      });
+      manifest = createReportSnapshotManifest({
+        tenantId: manifest.tenant_id,
+        module: manifest.module,
+        reportId: manifest.report_id,
+        title: manifest.title,
+        format: manifest.format,
+        artifact: { ...file, storagePath: stored.storage_path },
+        filters: manifest.filters,
+        generatedByUserId: manifest.generated_by_user_id,
+      });
+    }
     const validationErrors = validateReportSnapshotManifestInput({
       tenantId: manifest.tenant_id,
       module: manifest.module,
@@ -55,6 +96,8 @@ export class ReportSnapshotRepository {
         rowCount: manifest.artifact.row_count,
         checksumSha256: manifest.artifact.checksum_sha256,
         generatedAt: manifest.artifact.generated_at,
+        storagePath: manifest.artifact.storage_path,
+        byteLength: manifest.artifact.byte_length,
       },
       filters: manifest.filters,
       generatedByUserId: manifest.generated_by_user_id,
@@ -62,14 +105,18 @@ export class ReportSnapshotRepository {
 
     if (validationErrors.length > 0) {
       throw new BadRequestException({
-        message: 'Report snapshot manifest is invalid.',
+        message: "Report snapshot manifest is invalid.",
         errors: validationErrors,
       });
     }
 
     return this.databaseService.withRequestTransaction(async () => {
       const snapshot = await this.insertSnapshot(manifest);
-      await this.insertAuditLog(manifest, context.user_id ?? null, context.request_id ?? null);
+      await this.insertAuditLog(
+        manifest,
+        context.user_id ?? null,
+        context.request_id ?? null,
+      );
 
       return snapshot;
     });
@@ -82,7 +129,9 @@ export class ReportSnapshotRepository {
     const tenantId = context.tenant_id;
 
     if (!tenantId) {
-      throw new UnauthorizedException('Tenant context is required for report export jobs');
+      throw new UnauthorizedException(
+        "Tenant context is required for report export jobs",
+      );
     }
 
     const limit = normalizeLimit(input.limit);
@@ -95,7 +144,7 @@ export class ReportSnapshotRepository {
           report_id,
           format,
           'completed' AS state,
-          artifact,
+          artifact - 'content_base64' - 'storage_path' AS artifact,
           filters,
           generated_by_user_id,
           created_at::text

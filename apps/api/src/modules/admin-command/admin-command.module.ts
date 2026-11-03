@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
 import { PrincipalOverviewController, PrincipalOverviewService } from './principal-overview.service';
+import {
+  PrincipalReportLibraryController,
+  PrincipalReportLibraryService,
+} from "./principal-report-library";
 import { SidebarWorkspaceSchemaService } from './sidebar-workspace-schema.service';
 
 import { AdminCommandController } from './admin-command.controller';
@@ -62,8 +66,16 @@ import { AcademicsModule } from '../academics/academics.module';
 import { LibraryModule } from '../library/library.module';
 
 @Module({
-  imports: [EventsModule, ExamsModule, WorkflowModule, AcademicsModule, CommunicationModule, LibraryModule],
+  imports: [
+    EventsModule,
+    ExamsModule,
+    WorkflowModule,
+    AcademicsModule,
+    CommunicationModule,
+    LibraryModule,
+  ],
   controllers: [
+    PrincipalReportLibraryController,
     PrincipalOverviewController,
     AdminCommandController,
     DeputyCommandController,
@@ -89,6 +101,7 @@ import { LibraryModule } from '../library/library.module';
     AccountantCommandController,
   ],
   providers: [
+    PrincipalReportLibraryService,
     PrincipalOverviewService,
     SidebarWorkspaceSchemaService,
     AdminCommandSchemaService,
@@ -153,4 +166,3 @@ import { LibraryModule } from '../library/library.module';
   ],
 })
 export class AdminCommandModule {}
-
