@@ -39,9 +39,12 @@ export class ProgressionEngine {
         JOIN student_class_assignments placement ON placement.tenant_id=student.tenant_id AND placement.student_id::text=student.id::text AND placement.status='active'
         JOIN student_academic_enrollments enrollment ON enrollment.tenant_id=student.tenant_id AND enrollment.student_id::text=student.id::text AND enrollment.status='active'
         WHERE student.tenant_id=$1 AND student.status IN ('active','enrolled') AND student.id::text>$2
+          AND NOT EXISTS(SELECT 1 FROM academic_progression_items item WHERE item.tenant_id=student.tenant_id
+            AND item.student_id=student.id::text AND item.academic_year_id=placement.academic_year_id::text AND item.status='exception' AND item.retry_after>NOW())
           AND (enrollment.class_section_id::text IS DISTINCT FROM placement.class_section_id::text
             OR enrollment.stream_id::text IS DISTINCT FROM placement.stream_id::text
             OR enrollment.academic_year_id::text IS DISTINCT FROM placement.academic_year_id::text
+            OR enrollment.cohort_placement_id IS DISTINCT FROM placement.cohort_placement_id
             OR student.current_class_id::text IS DISTINCT FROM placement.class_section_id::text
             OR student.current_stream_id::text IS DISTINCT FROM placement.stream_id::text)
         ORDER BY student.id::text LIMIT 100`,actor.tenantId,activation.reconciliation_cursor);
@@ -53,7 +56,7 @@ export class ProgressionEngine {
         const current=await readStudentState(tx,actor.tenantId,id,true);
         await reconcileEnrollment(tx,this.events,actor,current);
         await query(tx,`UPDATE academic_progression_items SET status='ready',message='Enrollment reconciled; ready for progression',retry_after=NULL,updated_at=NOW()
-          WHERE tenant_id=$1 AND student_id=$2 AND status='exception' RETURNING student_id`,actor.tenantId,id);
+          WHERE tenant_id=$1 AND student_id=$2 AND academic_year_id=$3 AND status='exception' RETURNING student_id`,actor.tenantId,id,current.placement?.academic_year_id);
       }); } catch(error) {
         if(!(error instanceof BadRequestException||error instanceof ConflictException)) throw error;
         await this.transaction(actor,async tx=>{
@@ -164,9 +167,14 @@ export class ProgressionEngine {
   private async validateStudents(tx:CohortTx,actor:ProgressionActor,command:ProgressionCommand,checkVersions=true) {
     const years=await query(tx,'SELECT id FROM academic_years WHERE tenant_id=$1 AND id::text=$2',actor.tenantId,command.academic_year_id);
     if(!years.length) throw new BadRequestException('Choose an academic year from this school.');
+    if(!checkVersions) {
+      const owned=await query(tx,`SELECT id FROM students WHERE tenant_id=$1 AND id::text=ANY($2::text[])
+        AND to_jsonb(students)->>'deleted_at' IS NULL ORDER BY id FOR UPDATE`,actor.tenantId,command.students.map(student=>student.id));
+      if(owned.length!==command.students.length) throw new NotFoundException('A selected learner was not found in this school.');
+      return;
+    }
     for(const selected of command.students) {
       const current=await readStudentState(tx,actor.tenantId,selected.id,true);
-      if(!checkVersions) continue;
       if(current.version!==selected.expected_version) throw new ConflictException('A learner’s record changed. Refresh the list and review the decision again.');
       if(current.placement && !['reverse','reinstate'].includes(command.action) && current.placement.academic_year_id!==command.academic_year_id
         && !['hold','repeat','release'].includes(command.action)) throw new ConflictException('Select the learner’s current academic year for this action.');

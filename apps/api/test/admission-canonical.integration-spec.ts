@@ -331,8 +331,8 @@ describe('Complete admission on the upgraded legacy database', () => {
   test('the admissions command creates canonical membership and replays without duplicate enrollments',async()=>{
     await pool.query('UPDATE academic_years SET is_current=TRUE WHERE tenant_id=$1 AND id=$2',[school,year]);
     const applicationId=randomUUID();
-    await pool.query(`INSERT INTO admission_applications(id,tenant_id,application_number,full_name,class_applying,applying_for_class_id,status,application_status,gender)
-      VALUES($1,$2,'COMMAND-APP','Command Learner','Grade 7',$3,'approved','APPROVED','female')`,[applicationId,school,classId]);
+    await pool.query(`INSERT INTO admission_applications(id,tenant_id,school_id,application_number,full_name,first_name,last_name,class_applying,applying_for_class_id,status,application_status,gender)
+      VALUES($1,$2,$2,'COMMAND-APP','Command Learner','Command','Learner','Grade 7',$3,'approved','ACCEPTED','female')`,[applicationId,school,classId]);
     const commands=new AdmissionsCommandRepository(db);
     const result=await commands.admitStudent(school,applicationId,actor);
     expect(result?.academicEnrollment).toMatchObject({class_section_id:classId,academic_year_id:year});

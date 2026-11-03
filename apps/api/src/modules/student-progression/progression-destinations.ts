@@ -46,6 +46,7 @@ export async function plannedDestination(tx:CohortTx,tenant:string,source:Row,so
     AND archived_at IS NULL AND status NOT IN ('inactive','archived') ORDER BY starts_on,id LIMIT 1`,tenant,day(sourceYear.ends_on));
   if(nextYear) {
     const planned=resolveNextClass(source,await activeClasses(tx,tenant,String(nextYear.id)),configuration,repeating);
+    if(planned.blocker&&!planned.missingGrade) return planned;
     // A newly offered grade may exist only in the destination year. Its own
     // curriculum and teaching configuration take precedence over last year's.
     if(planned.target||planned.completion) {
@@ -53,7 +54,7 @@ export async function plannedDestination(tx:CohortTx,tenant:string,source:Row,so
       return planned;
     }
   }
-  if(!continuing.target&&!continuing.completion&&continuing.nextName===continuingGradeName(source)) {
+  if(continuing.missingGrade&&continuing.nextName===continuingGradeName(source)) {
     const disabled=await query(tx,`SELECT id FROM class_sections WHERE tenant_id=$1 AND academic_year_id::text=$2
       AND lower(btrim(name))=lower(btrim($3)) AND (NOT is_active OR status<>'active' OR archived_at IS NOT NULL)`,tenant,sourceYear.id,continuing.nextName);
     if(!disabled.length) return {target:{...source,name:continuing.nextName,grade_level:continuing.nextName,academic_level_id:null},nextName:continuing.nextName};

@@ -27,7 +27,7 @@ export async function prepareAcademicYearStructure(tx:CohortTx, actor:Progressio
     const nextName=continuingGradeName(source);
     if(!nextName) continue;
     const plan=resolveNextClass(source,sourceClasses,await pathwayConfiguration(tx,tenant,source,day(sourceYear.ends_on)));
-    if(plan.target||plan.completion||plan.nextName!==nextName||destinationClasses.some(row=>String(row.name).trim().toLowerCase()===nextName.toLowerCase())) continue;
+    if(!plan.missingGrade||plan.nextName!==nextName||destinationClasses.some(row=>String(row.name).trim().toLowerCase()===nextName.toLowerCase())) continue;
     const disabled=await query(tx,`SELECT id FROM class_sections WHERE tenant_id=$1 AND academic_year_id::text=$2
       AND lower(btrim(name))=lower(btrim($3)) AND (NOT is_active OR status<>'active' OR archived_at IS NOT NULL)`,tenant,sourceYear.id,nextName);
     if(disabled.length) continue;

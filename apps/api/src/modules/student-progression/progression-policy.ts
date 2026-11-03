@@ -61,12 +61,12 @@ export function continuingGradeName(source:Row):string|null {
   return null;
 }
 export function resolveNextClass(source: Row, templates: Row[], configuration: Row = {}, repeating=false): {
-  target?: Row; completion?: 'graduated'|'completed'; blocker?: string; nextName?: string;
+  target?: Row; completion?: 'graduated'|'completed'; blocker?: string; nextName?: string; missingGrade?: boolean;
 } {
   const current=grade(source);
   const sameModel = templates.filter(item=>String(item.curriculum_model).toUpperCase()===String(source.curriculum_model).toUpperCase());
   const select=(matches:Row[],nextName:string) => matches.length===1 ? {target:matches[0],nextName}
-    : {blocker:matches.length ? `More than one ${nextName} destination is configured. Resolve the duplicate class.` : `Configure the school’s ${nextName} class or confirm its educational endpoint.`,nextName};
+    : {blocker:matches.length ? `More than one ${nextName} destination is configured. Resolve the duplicate class.` : `Configure the school’s ${nextName} class or confirm its educational endpoint.`,nextName,missingGrade:matches.length===0};
   if (!current) {
     const sequence = Array.isArray(configuration.sequence) ? configuration.sequence.map((item:any)=>String(typeof item==='string'?item:item.name??item.label??'')) : [];
     const index=sequence.findIndex((name:string)=>name===source.grade_level||name===source.name);

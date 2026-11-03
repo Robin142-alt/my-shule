@@ -444,6 +444,7 @@ export class AdmissionsSchemaService implements OnModuleInit {
       -- or deleting those legacy rows.
       ALTER TABLE student_academic_enrollments
         DROP CONSTRAINT IF EXISTS fk_student_academic_enrollments_section;
+      ALTER TABLE student_academic_enrollments ADD COLUMN IF NOT EXISTS academic_year_id text;
       ALTER TABLE student_academic_lifecycle_events
         DROP CONSTRAINT IF EXISTS fk_student_academic_lifecycle_events_target_section;
 
