@@ -1350,6 +1350,7 @@ test('Principal read views expose configured teaching times without management c
   const result=await service.getView({academic_year:'2026',term_name:'Term 3',include_periods:true});
   assert.equal(requested.tenant_id,'tenant-a');
   assert.equal(requested.prefer_draft,false);
+  assert.ok('days' in result, 'periods must be returned when requested');
   assert.deepEqual(result.days,[{day_of_week:1,name:'Monday',is_teaching_day:true,periods:[
     {name:'First lesson',starts_at:'08:00',ends_at:'08:40',is_teaching:true},
     {name:'Break',starts_at:'08:40',ends_at:'09:00',is_teaching:false},
