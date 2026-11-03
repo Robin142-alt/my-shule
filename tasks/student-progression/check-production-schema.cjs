@@ -19,9 +19,9 @@ async function main(){
       console.log('Production schema migration pass '+pass+': passed');
     }
     const result=await client.query("SELECT count(*)::int AS tenant_tables FROM pg_class WHERE relname=ANY($1::text[]) AND relrowsecurity AND relforcerowsecurity",
-      [['academic_progression_activation','academic_progression_runs','academic_progression_decisions','academic_student_transitions','academic_progression_items','academic_progression_commands']]);
-    if(result.rows[0].tenant_tables!==6)throw new Error('Every new table must enforce school RLS.');
-    console.log('Six progression tables enforce row-level security; no production records were copied.');
+      [['academic_year_structure_preparations','academic_progression_activation','academic_progression_runs','academic_progression_decisions','academic_student_transitions','academic_progression_items','academic_progression_commands']]);
+    if(result.rows[0].tenant_tables!==7)throw new Error('Every progression table must enforce school RLS.');
+    console.log('Seven progression tables enforce row-level security; no production records were copied.');
   }finally{await client.end();}
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

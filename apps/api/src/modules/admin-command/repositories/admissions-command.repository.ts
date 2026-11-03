@@ -1008,45 +1008,32 @@ export class AdmissionsCommandRepository {
       });
 
       if (application.guardianName) {
-        const guardian = await tx.parentGuardian.create({
-          data: {
-            schoolId: tenantId,
-            fullName: application.guardianName,
-            relationshipType: (application.guardianRelationship?.toUpperCase() || null) as any,
-            phone: application.guardianPhone,
-            email: application.guardianEmail,
-            occupation: application.guardianOccupation,
-            status: 'ACTIVE',
-          },
-        });
-
-        await tx.studentGuardian.create({
-          data: {
-            schoolId: tenantId,
-            studentId: student.id,
-            guardianId: guardian.id,
-            relationshipType: (application.guardianRelationship?.toUpperCase() || null) as any,
-            isPrimaryContact: true,
-            canPickStudent: true,
-          },
-        });
+        const suppliedRelationship = application.guardianRelationship?.toUpperCase() || 'GUARDIAN';
+        const relationship = ['FATHER','MOTHER','GUARDIAN','SPONSOR','OTHER'].includes(suppliedRelationship)
+          ? suppliedRelationship : 'OTHER';
+        const [guardian] = await tx.$queryRawUnsafe<any[]>(`INSERT INTO parent_guardians
+          (id,school_id,full_name,relationship_type,phone,email,occupation,status,updated_at)
+          VALUES(gen_random_uuid()::text,$1,$2,$3::"GuardianRelationship",$4,$5,$6,'ACTIVE',NOW())
+          ON CONFLICT(school_id,phone) DO UPDATE SET updated_at=NOW()
+          RETURNING id`,tenantId,application.guardianName,relationship,application.guardianPhone,
+        application.guardianEmail,application.guardianOccupation);
+        await tx.$queryRawUnsafe(`INSERT INTO student_guardians
+          (tenant_id,school_id,student_id,guardian_id,display_name,email,phone,relationship,relationship_type,
+           is_primary,is_primary_contact,can_pick_student,status)
+          VALUES($1,$1,$2,$3,$4,$5,$6,$7::text,$7::text::"GuardianRelationship",TRUE,TRUE,TRUE,'invited') RETURNING id`,
+        tenantId,student.id,guardian.id,application.guardianName,application.guardianEmail,
+        application.guardianPhone,relationship);
       }
 
       await tx.$queryRawUnsafe(`UPDATE admission_applications SET application_status='ADMITTED',status='registered',admitted_student_id=$3,
         approved_at=COALESCE(approved_at,NOW()),updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2 RETURNING id`,tenantId,applicationId,student.id);
       await this.completeAcademicMembership(tx,tenantId,userId,student.id,applicationId,placement);
 
-      await tx.studentAuditLog.create({
-        data: {
-          schoolId: tenantId,
-          studentId: student.id,
-          action: 'ADMISSION_APPROVED',
-          metadata: {
-            description: `Student ${student.firstName} ${student.lastName} was admitted from application ${application.applicationNumber}.`
-          },
-          performedByUserId: userId,
-        }
-      });
+      await tx.$queryRawUnsafe(`INSERT INTO audit_logs
+        (tenant_id,actor_user_id,action,module,resource_type,resource_id,metadata)
+        VALUES($1,$2::uuid,'admissions.application.approved','admissions','student',$3,$4::jsonb) RETURNING id`,
+      tenantId,userId,student.id,JSON.stringify({application_id:applicationId,
+        description:`Student admitted from application ${application.applicationNumber}.`}));
 
       return student;
     });

@@ -19,6 +19,8 @@ import { AgpExecutionService } from '../src/common/platform-governance/agp-execu
 import { SelfHealingAgentService } from '../src/common/platform-governance/agents/self-healing-agent.service';
 import { AuditTrailService } from '../src/modules/events/audit-trail.service';
 import { AdmissionsCommandRepository } from '../src/modules/admin-command/repositories/admissions-command.repository';
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
 jest.setTimeout(120000);
 
@@ -342,6 +344,29 @@ describe('Complete admission on the upgraded legacy database', () => {
     expect((await pool.query("SELECT * FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,student])).rowCount).toBe(10);
     expect((await commands.admitStudent(school,applicationId,actor))?.student.id).toBe(student);
     expect((await pool.query('SELECT * FROM student_academic_enrollments WHERE tenant_id=$1 AND student_id=$2',[school,student])).rowCount).toBe(1);
+  });
+
+  test('legacy application approval creates tenant-owned canonical membership and guardian links',async()=>{
+    const applicationId=randomUUID();
+    await pool.query(`INSERT INTO admission_applications(id,tenant_id,school_id,application_number,full_name,first_name,last_name,class_applying,applying_for_class_id,status,application_status,gender,guardian_name,guardian_phone,guardian_relationship)
+      VALUES($1,$2,$2,'APPROVAL-APP','Approval Learner','Approval','Learner','Grade 7',$3,'submitted','SUBMITTED','female','Approval Guardian','+254700000099','mother')`,[applicationId,school,classId]);
+    const prisma=new PrismaClient({adapter:new PrismaPg({connectionString:process.env.DATABASE_URL})});
+    const commands=new AdmissionsCommandRepository({executeWithTenant:async(tenant:string,user:string,callback:any)=>prisma.$transaction(async tx=>{
+      await tx.$executeRawUnsafe("SELECT set_config('app.tenant_id',$1,true),set_config('app.user_id',$2,true)",tenant,user);
+      return callback(tx);
+    },{timeout:60000})} as any);
+    try {
+      await expect(commands.approveApplication(`${school}-foreign`,applicationId,actor)).rejects.toThrow(/not found/);
+      const student=await commands.approveApplication(school,applicationId,actor);
+      expect((await pool.query("SELECT tenant_id,status,current_class_id,metadata->>'academic_year_id' AS academic_year_id FROM students WHERE id=$1",[student.id])).rows[0])
+        .toMatchObject({tenant_id:school,status:'active',current_class_id:classId,academic_year_id:year});
+      expect((await pool.query("SELECT class_section_id,academic_year_id FROM student_academic_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,student.id])).rows)
+        .toEqual([{class_section_id:classId,academic_year_id:year}]);
+      expect((await pool.query("SELECT id FROM student_subject_enrollments WHERE tenant_id=$1 AND student_id=$2 AND status='active'",[school,student.id])).rowCount).toBe(10);
+      expect((await pool.query('SELECT id FROM student_guardians WHERE school_id=$1 AND student_id=$2',[school,student.id])).rowCount).toBe(1);
+      expect((await pool.query("SELECT id FROM audit_logs WHERE tenant_id=$1 AND resource_id=$2 AND action='admissions.application.approved'",[school,student.id])).rowCount).toBe(1);
+      await expect(commands.approveApplication(school,applicationId,actor)).rejects.toThrow(/already processed/);
+    } finally { await prisma.$disconnect(); }
   });
 
   test('admissions class edits synchronize canonical assignments and keep finance/history identities',async()=>{

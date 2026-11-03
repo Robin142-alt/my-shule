@@ -6,7 +6,8 @@
 - The existing API process checks active tenants every minute in bounded pages. School transactions, advisory locks, renewable run leases and per-student journals support retries and interrupted batches.
 - Calendar dates and existing pathway configurations supply ordinary destinations. Continuing learners retain stream names and valid subject choices; destination-grade configurations supply subjects and eligible teaching assignments.
 - Form 4 and Grade 12 complete at year end. Explicit primary/junior institution boundaries or curriculum endpoints support stage completion. Missing/ambiguous classes, subjects, dates or admissions become visible exceptions.
-- Dean, Deputy Principal and Principal share the Student Progression & Transitions workspace. It supports holds, repeats, release, individual/bulk manual promotion, placement corrections, subject changes, exits, reinstatement and reversal with reasons and optimistic conflict checks.
+- Dean, Deputy Principal and Principal share the Student Progression & Transitions workspace. It supports holds, repeats, release, individual/bulk manual promotion, placement corrections, subject changes, exits, reinstatement and reversal with optimistic conflict checks. Routine notes are optional unless a school policy requires them. Sensitive changes and independent approval retain their existing requirements.
+- New academic years inherit reusable class, stream, subject and eligible staff configurations. Existing destination overrides and ended assignments remain intact. Corroborated enrollment identifiers are repaired with an audit trail; conflicting evidence remains visible for review.
 - Expulsion requires a separate Principal decision. Existing applicable school approval rules remain effective. Policies requiring multiple approval stages, attachments or another approver are blocked in this workspace and must use the existing specialised governance workflow.
 - Old calendar years that ended before the automation activation date require one audited Run / retry to adopt them. This prevents deployment from silently processing historical backlogs.
 
@@ -14,7 +15,7 @@
 
 Production onboarding uses `tenants.tenant_id`. Scheduler discovery reads only active tenant identifiers using the existing platform registry permission; every school operation restores its own tenant context. Legacy `schools` aliases remain supported for settings and approval rules.
 
-Six new tables force tenant row-level security. The additive schema also links annual enrollments to canonical year IDs. Current student, placement, enrollment, subject, timetable and allocation projections update together. Immutable transition snapshots, audit rows and outbox events record the changes. Student IDs, admission numbers, historical financial, attendance, examination and library records are retained.
+Seven progression tables force tenant row-level security. The additive schema also links annual enrollments to canonical year IDs. Current student, placement, enrollment, subject, timetable and allocation projections update together. Immutable transition snapshots, audit rows and outbox events record the changes. Student IDs, admission numbers, historical financial, attendance, examination and library records are retained. Exit releases current boarding and transport assignments while preserving outstanding obligations and service history.
 
 The read-only production preflight found that some schools have missing next-year terms or overlapping draft years. The release does not invent their dates or silently correct their calendars. Those schools receive configuration guidance and affected promotions remain blocked.
 

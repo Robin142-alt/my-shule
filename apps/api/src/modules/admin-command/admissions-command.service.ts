@@ -242,7 +242,21 @@ export class AdmissionsCommandService {
       throw new UnauthorizedException('User context is required');
     }
     this.logger.log(`Approving admission application ${id} for tenant ${tenantId}`);
-    return this.admissionsRepository.approveApplication(tenantId, id, userId);
+    const student = await this.admissionsRepository.approveApplication(tenantId, id, userId);
+    await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: userId,
+      sourceRole: this.requestContext.getStore()?.role ?? 'admissions_officer',
+      targetRoles: ['principal', 'secretary', 'accountant', 'class_teacher', 'teacher'],
+      eventType: 'admissions.student.admitted',
+      entityType: 'student',
+      entityId: student.id,
+      title: 'Student admitted',
+      message: `${student.firstName} ${student.lastName} was admitted with admission number ${student.admissionNumber}.`,
+      priority: 'normal',
+      payload: { application_id: id, student_id: student.id, source_dashboard: 'admissions-command-center' },
+    });
+    return student;
   }
 
   async admitStudent(id: string) {

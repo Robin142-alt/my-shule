@@ -376,6 +376,13 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
       return callback({
         $queryRawUnsafe: async (sql: string, ...params: unknown[]) => {
           if(sql.includes('pg_advisory_xact_lock')) {assert.deepEqual(params,['cohort-teaching:kibabi-high']);locks++;return [];}
+          if (sql.includes('FROM academic_cohort_migrations')) return [{ version: 1 }];
+          if (sql.includes('FROM academic_years')) {
+            assert.equal(params[0], 'kibabi-high');
+            return sql.includes('FOR UPDATE')
+              ? [{ id: params[1], starts_on: '2026-01-05', status: 'draft' }]
+              : [];
+          }
           calls.push({ sql, params });
           return [{ id: params[1], tenant_id: params[0] }];
         },
