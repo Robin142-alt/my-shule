@@ -10,7 +10,15 @@ export type BadgesResponse = NotificationBadges;
 
 export function SchoolNotificationBell({ basePath }: { basePath: string }) {
   const query = useNotificationBadges();
-  return <NotificationBell basePath={basePath} badges={query.badges} badgesError={query.error} badgesLoading={query.isLoading} onBadgesRefresh={query.refetch} />;
+  return (
+    <NotificationBell
+      basePath={basePath}
+      badges={query.badges}
+      badgesError={query.error}
+      badgesLoading={query.isLoading}
+      onBadgesRefresh={query.refetch}
+    />
+  );
 }
 
 export function NotificationBell({
@@ -31,7 +39,17 @@ export function NotificationBell({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        event.target instanceof Element &&
+        event.target
+          .closest('[role="dialog"]')
+          ?.querySelector("#staff-message-composer")
+      )
+        return;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -66,7 +84,10 @@ export function NotificationBell({
             {badges!.unreadCount > 9 ? "9+" : badges!.unreadCount}
           </span>
         ) : badgesError ? (
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden="true" />
+          <span
+            className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"
+            aria-hidden="true"
+          />
         ) : null}
       </button>
 

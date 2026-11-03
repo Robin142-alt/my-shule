@@ -56,20 +56,24 @@ type PrincipalExamsOverview = {
 
 export function PrincipalApprovalsWorkspace() {
   const paymentSetup = usePaymentSetupSummary();
-  const { data, isLoading, error, refetch } = useSchoolQuery<ApprovalsOverviewData>('/admin-command/principal/approvals');
+  const { data, isLoading, error, refetch } =
+    useSchoolQuery<ApprovalsOverviewData>("/admin-command/principal/approvals");
   const {
     data: examsData,
     isLoading: examsLoading,
     error: examsError,
     refetch: refetchExams,
-  } = useSchoolQuery<PrincipalExamsOverview>('/admin-command/principal/exams');
+  } = useSchoolQuery<PrincipalExamsOverview>("/admin-command/principal/exams");
   const requestPrincipalApi = useVerifiedPrincipalDashboardApi();
   const { hasPermission } = usePermissions();
-  const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] =
+    useState<ApprovalRequest | null>(null);
   const [decision, setDecision] = useState<"approve" | "reject">("approve");
   const [decisionNote, setDecisionNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [publishingSeriesId, setPublishingSeriesId] = useState<string | null>(null);
+  const [publishingSeriesId, setPublishingSeriesId] = useState<string | null>(
+    null,
+  );
   const [actionError, setActionError] = useState("");
   const approvalOverview = data ?? {
     status: "degraded" as const,
@@ -85,15 +89,38 @@ export function PrincipalApprovalsWorkspace() {
     : Array.isArray(examsData?.recentResults)
       ? examsData.recentResults.filter((series) => series.canPublish)
       : [];
-  const reportCardReleaseCount = Math.max(examsData?.reportsPending ?? 0, releaseQueue.length);
+  const reportCardReleaseCount = Math.max(
+    examsData?.reportsPending ?? 0,
+    releaseQueue.length,
+  );
   const approvalCategories = [
     ...approvalOverview.categories,
-    ...((paymentSetup.data?.pending_approval ?? 0) > 0 ? [{ name: "Payment setup", pending: paymentSetup.data!.pending_approval, urgent: 0 }] : []),
-    ...(reportCardReleaseCount > 0 ? [{ name: "Report-card release", pending: reportCardReleaseCount, urgent: 0 }] : []),
+    ...((paymentSetup.data?.pending_approval ?? 0) > 0
+      ? [
+          {
+            name: "Payment setup",
+            pending: paymentSetup.data!.pending_approval,
+            urgent: 0,
+          },
+        ]
+      : []),
+    ...(reportCardReleaseCount > 0
+      ? [
+          {
+            name: "Report-card release",
+            pending: reportCardReleaseCount,
+            urgent: 0,
+          },
+        ]
+      : []),
   ];
-  const canPublishReportCards = hasPermission("principal:write") && hasPermission("exams:publish");
+  const canPublishReportCards =
+    hasPermission("principal:write") && hasPermission("exams:publish");
 
-  const openDecision = (request: ApprovalRequest, action: "approve" | "reject") => {
+  const openDecision = (
+    request: ApprovalRequest,
+    action: "approve" | "reject",
+  ) => {
     setSelectedRequest(request);
     setDecision(action);
     setDecisionNote("");
@@ -111,15 +138,24 @@ export function PrincipalApprovalsWorkspace() {
     setIsSubmitting(true);
     setActionError("");
     try {
-      await requestPrincipalApi(`/admin-command/principal/approvals/${selectedRequest.id}/action`, {
-        method: "POST",
-        body: { action: decision, comment: decisionNote.trim() || undefined },
-      });
-      toast.success(`Approval ${decision === "approve" ? "approved" : "rejected"}.`);
+      await requestPrincipalApi(
+        `/admin-command/principal/approvals/${selectedRequest.id}/action`,
+        {
+          method: "POST",
+          body: { action: decision, comment: decisionNote.trim() || undefined },
+        },
+      );
+      toast.success(
+        `Approval ${decision === "approve" ? "approved" : "rejected"}.`,
+      );
       setSelectedRequest(null);
       await refetch();
     } catch (decisionError) {
-      setActionError(decisionError instanceof Error ? decisionError.message : "The approval decision could not be saved.");
+      setActionError(
+        decisionError instanceof Error
+          ? decisionError.message
+          : "The approval decision could not be saved.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -128,13 +164,22 @@ export function PrincipalApprovalsWorkspace() {
   const publishReportCards = async (series: PrincipalExamSeries) => {
     setPublishingSeriesId(series.id);
     try {
-      await requestPrincipalApi(`/admin-command/principal/exams-report-cards/${series.id}/publish`, {
-        method: "POST",
-      });
-      toast.success(`${series.title} report cards released to authorized parent and student portals.`);
+      await requestPrincipalApi(
+        `/admin-command/principal/exams-report-cards/${series.id}/publish`,
+        {
+          method: "POST",
+        },
+      );
+      toast.success(
+        `${series.title} report cards released to authorized parent and student portals.`,
+      );
       await Promise.all([refetch(), refetchExams()]);
     } catch (publishError) {
-      toast.error(publishError instanceof Error ? publishError.message : "The report cards could not be released.");
+      toast.error(
+        publishError instanceof Error
+          ? publishError.message
+          : "The report cards could not be released.",
+      );
     } finally {
       setPublishingSeriesId(null);
     }
@@ -144,8 +189,8 @@ export function PrincipalApprovalsWorkspace() {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
+          <div className="h-24 bg-surface rounded-xl border border-border" />
+          <div className="h-64 bg-surface rounded-xl border border-border" />
         </div>
       </div>
     );
@@ -154,27 +199,50 @@ export function PrincipalApprovalsWorkspace() {
   return (
     <div className="space-y-6">
       <div className="app-metric-grid grid gap-4 md:grid-cols-3">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Pending</div>
-          <div className="mt-2 text-2xl font-black text-white">{error || examsError || paymentSetup.error ? "Unavailable" : isLoading || examsLoading || paymentSetup.isLoading ? "…" : approvalOverview.pendingTotal + reportCardReleaseCount + (paymentSetup.data?.pending_approval ?? 0)}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Total Pending</div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {error || examsError || paymentSetup.error
+              ? "Unavailable"
+              : isLoading || examsLoading || paymentSetup.isLoading
+                ? "…"
+                : approvalOverview.pendingTotal +
+                  reportCardReleaseCount +
+                  (paymentSetup.data?.pending_approval ?? 0)}
+          </div>
         </Card>
         <Card className="border border-rose-500/30 bg-rose-500/10 p-5">
-          <div className="text-sm font-semibold text-rose-200">Urgent</div>
-          <div className="mt-2 text-2xl font-black text-rose-400">{approvalOverview.urgentApprovals}</div>
+          <div className="text-sm font-semibold text-danger">Urgent</div>
+          <div className="mt-2 text-2xl font-black text-danger">
+            {approvalOverview.urgentApprovals}
+          </div>
         </Card>
         <Card className="border border-emerald-500/30 bg-emerald-500/10 p-5">
-          <div className="text-sm font-semibold text-emerald-100">Report Cards Ready to Release</div>
-          <div className="mt-2 text-2xl font-black text-emerald-300">{examsLoading ? "…" : reportCardReleaseCount}</div>
+          <div className="text-sm font-semibold text-success">
+            Report Cards Ready to Release
+          </div>
+          <div className="mt-2 text-2xl font-black text-success">
+            {examsLoading ? "…" : reportCardReleaseCount}
+          </div>
         </Card>
       </div>
 
       {paymentSetup.error ? (
-        <Card role="alert" className="border border-red-500/20 bg-red-500/10 p-4">
+        <Card
+          role="alert"
+          className="border border-red-500/20 bg-red-500/10 p-4"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-red-100">
-              Payment setup approvals could not be checked: {paymentSetup.error.message}
+            <p className="text-sm font-semibold text-danger">
+              Payment setup approvals could not be checked:{" "}
+              {paymentSetup.error.message}
             </p>
-            <Button type="button" size="sm" variant="outline" onClick={() => void paymentSetup.refetch()}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void paymentSetup.refetch()}
+            >
               Retry payment approvals
             </Button>
           </div>
@@ -184,13 +252,23 @@ export function PrincipalApprovalsWorkspace() {
       ) : null}
 
       {error ? (
-        <Card role="alert" className="border border-red-500/20 bg-red-500/10 p-4">
+        <Card
+          role="alert"
+          className="border border-red-500/20 bg-red-500/10 p-4"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-red-100">
-              <AlertCircle className="h-5 w-5 text-red-300" />
+            <div className="flex items-center gap-2 text-sm font-semibold text-danger">
+              <AlertCircle className="h-5 w-5 text-danger" />
               Administrative approvals could not be loaded: {error.message}
             </div>
-            <Button type="button" size="sm" variant="outline" onClick={() => refetch()}>Retry administrative approvals</Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => refetch()}
+            >
+              Retry administrative approvals
+            </Button>
           </div>
         </Card>
       ) : null}
@@ -199,41 +277,71 @@ export function PrincipalApprovalsWorkspace() {
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-emerald-300/20 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <FileCheck2 className="h-5 w-5 text-emerald-300" />
-              <h2 className="text-xl font-bold text-white">Principal Report-card Release</h2>
+              <FileCheck2 className="h-5 w-5 text-success" />
+              <h2 className="text-xl font-bold text-foreground">
+                Principal Report-card Release
+              </h2>
             </div>
-            <p className="mt-1 text-sm text-white/70">
-              Generated report cards appear here for final Principal release. Releasing publishes the persisted cards to authorized parent and student portals.
+            <p className="mt-1 text-sm text-muted">
+              Generated report cards appear here for final Principal release.
+              Releasing publishes the persisted cards to authorized parent and
+              student portals.
             </p>
           </div>
-          <Button type="button" size="sm" variant="outline" disabled={examsLoading} onClick={() => refetchExams()}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${examsLoading ? "animate-spin" : ""}`} />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={examsLoading}
+            onClick={() => refetchExams()}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${examsLoading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
 
         {examsError ? (
-          <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
-            <span>Report-card approvals could not be loaded: {examsError.message}</span>
-            <Button type="button" size="sm" variant="outline" onClick={() => refetchExams()}>Retry</Button>
+          <div
+            role="alert"
+            className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-400/30 bg-red-500/10 p-4 text-sm text-danger"
+          >
+            <span>
+              Report-card approvals could not be loaded: {examsError.message}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => refetchExams()}
+            >
+              Retry
+            </Button>
           </div>
         ) : examsLoading ? (
-          <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center text-white/60">
+          <div className="mt-4 rounded-lg border border-border bg-surface p-6 text-center text-muted">
             Loading report cards awaiting Principal release…
           </div>
         ) : releaseQueue.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-white/10 bg-white/5 p-6 text-center text-white/60">
+          <div className="mt-4 rounded-lg border border-border bg-surface p-6 text-center text-muted">
             No generated report cards are awaiting Principal release.
           </div>
         ) : (
           <div className="mt-4 space-y-3">
             {releaseQueue.map((series) => (
-              <div key={series.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-300/20 bg-slate-950/20 p-4">
+              <div
+                key={series.id}
+                className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-300/20 bg-surface-muted p-4"
+              >
                 <div>
-                  <p className="font-bold text-white">{series.title}</p>
-                  <p className="mt-1 text-sm text-white/65">
-                    {series.approvedReportCards} of {series.totalReportCards} cards ready
-                    {series.blockedReportCards > 0 ? ` · ${series.blockedReportCards} blocked` : " · no blockers"}
+                  <p className="font-bold text-foreground">{series.title}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {series.approvedReportCards} of {series.totalReportCards}{" "}
+                    cards ready
+                    {series.blockedReportCards > 0
+                      ? ` · ${series.blockedReportCards} blocked`
+                      : " · no blockers"}
                   </p>
                 </div>
                 {canPublishReportCards ? (
@@ -242,11 +350,17 @@ export function PrincipalApprovalsWorkspace() {
                     disabled={Boolean(publishingSeriesId)}
                     onClick={() => publishReportCards(series)}
                   >
-                    {publishingSeriesId === series.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {publishingSeriesId === series.id ? "Releasing…" : "Release report cards"}
+                    {publishingSeriesId === series.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {publishingSeriesId === series.id
+                      ? "Releasing…"
+                      : "Release report cards"}
                   </Button>
                 ) : (
-                  <span className="text-xs font-semibold text-amber-200">Principal release permission is required.</span>
+                  <span className="text-xs font-semibold text-warning">
+                    Principal release permission is required.
+                  </span>
                 )}
               </div>
             ))}
@@ -254,22 +368,27 @@ export function PrincipalApprovalsWorkspace() {
         )}
       </Card>
 
-      <Card className="border border-white/10 bg-white/5 p-6">
-        <div className="mb-5 border-b border-white/10 pb-4">
-          <h2 className="text-xl font-bold text-white">Administrative Requests Awaiting Your Decision</h2>
-          <p className="mt-1 text-sm text-white/60">
-            Only approvals assigned to your current Principal role are shown. Procurement decisions update the request, audit trail, event, and requester notification together.
+      <Card className="border border-border bg-surface p-6">
+        <div className="mb-5 border-b border-border pb-4">
+          <h2 className="text-xl font-bold text-foreground">
+            Administrative Requests Awaiting Your Decision
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Only approvals assigned to your current Principal role are shown.
+            Procurement decisions update the request, audit trail, event, and
+            requester notification together.
           </p>
         </div>
 
         {requests.length === 0 ? (
-          <div className="rounded-lg border border-white/5 bg-white/5 px-4 py-8 text-center text-white/60">
-            No administrative approval request is currently assigned to you. Payment setup reviews are shown above.
+          <div className="rounded-lg border border-border bg-surface px-4 py-8 text-center text-muted">
+            No administrative approval request is currently assigned to you.
+            Payment setup reviews are shown above.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-white/10">
+          <div className="overflow-x-auto rounded-xl border border-border">
             <RecordTable className="app-record-table-dark min-w-[780px] w-full text-left text-sm">
-              <thead className="bg-white/5 text-white/70">
+              <thead className="bg-surface text-muted">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Request</th>
                   <th className="px-4 py-3 font-semibold">Module</th>
@@ -280,24 +399,54 @@ export function PrincipalApprovalsWorkspace() {
               </thead>
               <tbody className="divide-y divide-white/10">
                 {requests.map((request) => {
-                  const normalizedModule = String(request.module ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
-                  const normalizedType = String(request.approval_type ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
-                  const canDecideHere = (normalizedModule === "procurement" && normalizedType === "procurement")
-                    || (normalizedModule === "finance" && normalizedType === "fee_waiver");
+                  const normalizedModule = String(request.module ?? "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "_");
+                  const normalizedType = String(request.approval_type ?? "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "_");
+                  const canDecideHere =
+                    (normalizedModule === "procurement" &&
+                      normalizedType === "procurement") ||
+                    (normalizedModule === "finance" &&
+                      normalizedType === "fee_waiver");
                   return (
-                    <tr key={request.id} className="align-top text-white/80">
-                      <td className="px-4 py-3 font-semibold text-white">{request.title}</td>
-                      <td className="px-4 py-3 capitalize">{request.module?.replace(/[_-]+/g, " ") || "Not linked"}</td>
-                      <td className="px-4 py-3 capitalize">{request.priority || "normal"}</td>
-                      <td className="max-w-sm px-4 py-3 whitespace-normal">{request.reason || "No reason supplied"}</td>
+                    <tr key={request.id} className="align-top text-muted">
+                      <td className="px-4 py-3 font-semibold text-foreground">
+                        {request.title}
+                      </td>
+                      <td className="px-4 py-3 capitalize">
+                        {request.module?.replace(/[_-]+/g, " ") || "Not linked"}
+                      </td>
+                      <td className="px-4 py-3 capitalize">
+                        {request.priority || "normal"}
+                      </td>
+                      <td className="max-w-sm px-4 py-3 whitespace-normal">
+                        {request.reason || "No reason supplied"}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         {canDecideHere && hasPermission("principal:write") ? (
                           <div className="inline-flex gap-2">
-                            <Button type="button" size="sm" onClick={() => openDecision(request, "approve")}>Approve</Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => openDecision(request, "reject")}>Reject</Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => openDecision(request, "approve")}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openDecision(request, "reject")}
+                            >
+                              Reject
+                            </Button>
                           </div>
                         ) : (
-                          <span className="text-xs text-white/50">Decide in the {request.module || "source"} workspace</span>
+                          <span className="text-xs text-muted">
+                            Decide in the {request.module || "source"} workspace
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -310,34 +459,47 @@ export function PrincipalApprovalsWorkspace() {
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full min-h-[300px]">
-          <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
-            <h2 className="text-xl font-bold text-white">Pending by Category</h2>
+        <Card className="border border-border bg-surface p-6 flex flex-col h-full min-h-[300px]">
+          <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
+            <h2 className="text-xl font-bold text-foreground">
+              Pending by Category
+            </h2>
           </div>
-          
-          {error || examsError || paymentSetup.error ? <p role="status">Approval category counts are unavailable. Retry the affected queue above.</p> : isLoading || examsLoading || paymentSetup.isLoading ? <p role="status">Loading approval categories…</p> : approvalCategories.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <CheckCircle2 className="h-10 w-10 text-emerald-400/50 mb-3" />
-              <p className="text-white/60">All caught up! No pending approvals.</p>
+
+          {error || examsError || paymentSetup.error ? (
+            <p role="status">
+              Approval category counts are unavailable. Retry the affected queue
+              above.
+            </p>
+          ) : isLoading || examsLoading || paymentSetup.isLoading ? (
+            <p role="status">Loading approval categories…</p>
+          ) : approvalCategories.length === 0 ? (
+            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-surface rounded-lg border border-border">
+              <CheckCircle2 className="h-10 w-10 text-success/50 mb-3" />
+              <p className="text-muted">All caught up! No pending approvals.</p>
             </div>
           ) : (
             <div className="space-y-4 flex-1 overflow-y-auto pr-2">
               {approvalCategories.map((cat) => (
-                <div key={cat.name} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                <div
+                  key={cat.name}
+                  className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border"
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
-                      <Clock className="h-5 w-5 text-orange-400" />
+                      <Clock className="h-5 w-5 text-warning" />
                     </div>
                     <div>
-                      <p className="font-medium text-white">{cat.name}</p>
+                      <p className="font-medium text-foreground">{cat.name}</p>
                       {cat.urgent > 0 && (
-                        <p className="text-xs text-rose-400 flex items-center gap-1 mt-0.5">
-                          <ShieldAlert className="h-3 w-3" /> {cat.urgent} urgent
+                        <p className="text-xs text-danger flex items-center gap-1 mt-0.5">
+                          <ShieldAlert className="h-3 w-3" /> {cat.urgent}{" "}
+                          urgent
                         </p>
                       )}
                     </div>
                   </div>
-                  <div className="text-xl font-bold text-white">
+                  <div className="text-xl font-bold text-foreground">
                     {cat.pending}
                   </div>
                 </div>
@@ -346,32 +508,39 @@ export function PrincipalApprovalsWorkspace() {
           )}
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full min-h-[300px]">
-          <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
-            <h2 className="text-xl font-bold text-white">Recent Administrative Approvals</h2>
+        <Card className="border border-border bg-surface p-6 flex flex-col h-full min-h-[300px]">
+          <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
+            <h2 className="text-xl font-bold text-foreground">
+              Recent Administrative Approvals
+            </h2>
           </div>
-          
+
           {approvalOverview.recentApprovals.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <AlertCircle className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60">No recent approvals recorded.</p>
+            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-surface rounded-lg border border-border">
+              <AlertCircle className="h-10 w-10 text-muted mb-3" />
+              <p className="text-muted">No recent approvals recorded.</p>
             </div>
           ) : (
             <div className="space-y-4 flex-1 overflow-y-auto pr-2">
               {approvalOverview.recentApprovals.map((app) => (
-                <div key={app.id} className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                <div
+                  key={app.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20"
+                >
                   <div className="flex items-center gap-3">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <CheckCircle2 className="h-4 w-4 text-success" />
                     </div>
                     <div>
-                      <p className="font-medium text-white text-sm">{app.title}</p>
-                      <p className="text-xs capitalize text-white/50">{app.status}</p>
+                      <p className="font-medium text-foreground text-sm">
+                        {app.title}
+                      </p>
+                      <p className="text-xs capitalize text-muted">
+                        {app.status}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-xs text-white/60">
-                    {app.date}
-                  </div>
+                  <div className="text-xs text-muted">{app.date}</div>
                 </div>
               ))}
             </div>
@@ -386,15 +555,23 @@ export function PrincipalApprovalsWorkspace() {
       >
         <form onSubmit={submitDecision} className="space-y-4">
           <p className="text-sm text-slate-600">
-            {selectedRequest?.title}. {selectedRequest?.module === "finance"
+            {selectedRequest?.title}.{" "}
+            {selectedRequest?.module === "finance"
               ? "Approval reduces the learner’s outstanding invoices and updates their statement. It does not record a payment."
               : "This decision updates the originating procurement request."}
           </p>
           {actionError ? (
-            <div role="alert" className="rounded border border-danger-border bg-danger-soft p-3 text-sm text-danger">{actionError}</div>
+            <div
+              role="alert"
+              className="rounded border border-danger-border bg-danger-soft p-3 text-sm text-danger"
+            >
+              {actionError}
+            </div>
           ) : null}
           <label className="block space-y-2 text-sm font-medium text-slate-800">
-            {decision === "reject" ? "Rejection reason" : "Decision note (optional)"}
+            {decision === "reject"
+              ? "Rejection reason"
+              : "Decision note (optional)"}
             <textarea
               value={decisionNote}
               onChange={(event) => setDecisionNote(event.target.value)}
@@ -404,9 +581,20 @@ export function PrincipalApprovalsWorkspace() {
             />
           </label>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => setSelectedRequest(null)}>Cancel</Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={() => setSelectedRequest(null)}
+            >
+              Cancel
+            </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving decision..." : decision === "approve" ? "Confirm approval" : "Confirm rejection"}
+              {isSubmitting
+                ? "Saving decision..."
+                : decision === "approve"
+                  ? "Confirm approval"
+                  : "Confirm rejection"}
             </Button>
           </div>
         </form>

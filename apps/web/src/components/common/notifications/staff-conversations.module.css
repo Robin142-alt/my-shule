@@ -1,0 +1,229 @@
+.root {
+  min-width: 0;
+  color: var(--foreground, #182b49);
+  font-size: 13px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.heading h3,
+.heading h4 {
+  font-size: 16px;
+  font-weight: 750;
+  margin: 0;
+}
+.heading p,
+.hint {
+  color: var(--muted, #52647f);
+  font-size: 12px;
+  margin: 3px 0;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.75fr) minmax(0, 1.5fr);
+  gap: 16px;
+}
+.list {
+  max-height: 560px;
+  overflow: auto;
+  min-width: 0;
+}
+.root label {
+  display: grid;
+  gap: 5px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.root :is(input:not([type="checkbox"]), select, textarea) {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-control, #9aacc4);
+  border-radius: 9px;
+  color: var(--foreground, #182b49);
+  background: var(--surface, #fff);
+}
+.thread {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  margin-top: 9px;
+  border: 1px solid var(--border, #d5e1ef);
+  border-radius: 12px;
+  text-align: left;
+  background: var(--surface, #fff);
+}
+.thread[aria-pressed="true"] {
+  border-color: #456dc2;
+  box-shadow: inset 3px 0 #456dc2;
+}
+.thread strong {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.thread strong span {
+  border-radius: 12px;
+  background: #ebe5ff;
+  color: #613cb4;
+  padding: 2px 7px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.thread small {
+  display: block;
+  color: var(--muted, #52647f);
+  font-size: 10px;
+  margin-top: 4px;
+}
+.thread p {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+}
+.detail {
+  min-width: 0;
+}
+.empty {
+  display: grid;
+  justify-items: center;
+  padding: 35px 15px;
+  text-align: center;
+  color: var(--muted, #52647f);
+  background: var(--surface-muted, #f1f5fc);
+  border-radius: 12px;
+}
+.history {
+  max-height: 360px;
+  min-height: 120px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--border, #d5e1ef);
+  background: var(--surface-muted, #f1f5fc);
+  border-radius: 12px;
+}
+.message {
+  padding: 13px;
+  border: 1px solid #d5e1ef;
+  border-radius: 12px 12px 12px 3px;
+  background: #fff;
+  color: #182b49;
+  margin: 8px 15px 8px 0;
+}
+.message[data-own="true"] {
+  background: #e8efff;
+  border-color: #c4d4f4;
+  border-radius: 12px 12px 3px 12px;
+  margin: 8px 0 8px 15px;
+}
+.message header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px;
+  font-size: 11px;
+}
+.message time,
+.message small {
+  font-size: 10px;
+  color: #52647f;
+}
+.message p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.reply,
+.form {
+  display: grid;
+  gap: 10px;
+}
+.reply {
+  margin-top: 12px;
+}
+.reply button {
+  justify-self: end;
+}
+.error {
+  padding: 10px;
+  color: #9e2541;
+  background: #fff0f3;
+  border: 1px solid #edb8c4;
+  border-radius: 9px;
+}
+.recipients {
+  max-height: 185px;
+  overflow: auto;
+  border: 1px solid var(--border, #d5e1ef);
+  border-radius: 10px;
+  padding: 8px;
+}
+.recipients label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.recipients small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted, #52647f);
+}
+.selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.selected button {
+  background: #e9efff;
+  border: 1px solid #c4d4f4;
+  border-radius: 20px;
+  color: #294c84;
+  padding: 8px 12px;
+}
+.root button:focus-visible,
+.root input:focus-visible,
+.root textarea:focus-visible {
+  outline: 3px solid #2d72ca;
+  outline-offset: 2px;
+}
+.layout[data-compact="true"] {
+  display: block;
+}
+.layout[data-compact="true"][data-selected="true"] .list {
+  display: none;
+}
+.layout[data-compact="true"][data-selected="false"] .detail {
+  display: none;
+}
+@media (max-width: 700px) {
+  .layout {
+    display: block;
+  }
+  .layout[data-selected="true"] .list {
+    display: none;
+  }
+  .layout[data-selected="false"] .detail {
+    display: none;
+  }
+  .history {
+    max-height: 340px;
+  }
+  .heading {
+    align-items: flex-start;
+  }
+}

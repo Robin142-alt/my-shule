@@ -7,14 +7,48 @@ export type SyllabusPlan = {
 };
 export type SyllabusCoverage = { subtopic_id: string; completed: boolean; completed_at: string | null; teacher_user_id: string; note: string; version: number };
 export type SyllabusAllocation = {
-  id: string; teacher_user_id: string; teacher_name: string; subject_id: string; subject: string; class_section_id: string;
-  class_name: string; stream_id: string | null; stream_name: string | null; grade_level: string; academic_year_id: string;
-  year_name: string; academic_term_id: string; term_name: string; can_record: boolean; syllabus_id: string | null;
-  records: SyllabusCoverage[]; progress: null | {
-    total: number; completed: number; percentage: number; expected_percentage: number; completed_topics: number; total_topics: number; status: string;
-    remaining: Array<{ id: string; title: string; topic: string; due_on: string }>;
-    overdue: Array<{ id: string; title: string; topic: string; due_on: string }>;
-    milestones: Array<SyllabusMilestone & { total: number; completed: number; status: string }>;
+  id: string;
+  department_name?: string | null;
+  department_id?: string | null;
+  teacher_user_id: string;
+  teacher_name: string;
+  subject_id: string;
+  subject: string;
+  class_section_id: string;
+  class_name: string;
+  stream_id: string | null;
+  stream_name: string | null;
+  grade_level: string;
+  academic_year_id: string;
+  year_name: string;
+  academic_term_id: string;
+  term_name: string;
+  can_record: boolean;
+  syllabus_id: string | null;
+  records: SyllabusCoverage[];
+  progress: null | {
+    total: number;
+    completed: number;
+    percentage: number;
+    expected_percentage: number;
+    completed_topics: number;
+    total_topics: number;
+    status: string;
+    remaining: Array<{
+      id: string;
+      title: string;
+      topic: string;
+      due_on: string;
+    }>;
+    overdue: Array<{
+      id: string;
+      title: string;
+      topic: string;
+      due_on: string;
+    }>;
+    milestones: Array<
+      SyllabusMilestone & { total: number; completed: number; status: string }
+    >;
   };
 };
 export type SyllabusWorkspaceData = {

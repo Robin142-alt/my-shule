@@ -24,20 +24,26 @@ type PrincipalStudentsData = {
   recentAdmissions: Array<{ id: string; name: string; class: string; gender: string; admission_date: string }>;
 };
 
-export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode?: "public" | "hosted" }) {
+export function PrincipalStudentsWorkspace({
+  routeMode = "public",
+}: {
+  routeMode?: "public" | "hosted";
+}) {
   useStudentEvents();
   const router = useRouter();
-  const { data, isLoading, error, refetch } = useSchoolQuery<PrincipalStudentsData>('/admin-command/principal/students');
+  const { data, isLoading, error, refetch } =
+    useSchoolQuery<PrincipalStudentsData>("/admin-command/principal/students");
   const eventBus = useDashboardEventBus();
   const { hasPermission } = usePermissions();
-  const openAdmissionsWorkspace = () => router.push(buildSchoolSectionHref("principal", "admissions", routeMode));
+  const openAdmissionsWorkspace = () =>
+    router.push(buildSchoolSectionHref("principal", "admissions", routeMode));
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-24 bg-white/5 rounded-xl border border-white/10" />
-          <div className="h-64 bg-white/5 rounded-xl border border-white/10" />
+          <div className="h-24 bg-surface rounded-xl border border-border" />
+          <div className="h-64 bg-surface rounded-xl border border-border" />
         </div>
       </div>
     );
@@ -48,7 +54,9 @@ export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode
       <Card className="border border-red-500/20 bg-red-500/10 p-6">
         <div className="flex items-center gap-3">
           <AlertCircle className="h-6 w-6 text-red-500" />
-          <h2 className="text-xl font-bold text-red-500">Failed to load Students Overview</h2>
+          <h2 className="text-xl font-bold text-red-500">
+            Failed to load Students Overview
+          </h2>
         </div>
         <WorkspaceRetry onRetry={() => refetch()} />
       </Card>
@@ -58,70 +66,101 @@ export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <Users className="h-5 w-5 text-cyan-400" />
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <Users className="h-5 w-5 text-info" />
           Students Directory
         </h2>
       </div>
 
       <div className="app-metric-grid grid gap-4 md:grid-cols-4">
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Status</div>
-          <div className="mt-2 text-2xl font-black text-white capitalize">{data.status}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Status</div>
+          <div className="mt-2 text-2xl font-black text-foreground capitalize">
+            {data.status}
+          </div>
         </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Total Population</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.totalStudents}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">
+            Total Population
+          </div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {data.totalStudents}
+          </div>
         </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Boys</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.boys}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Boys</div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {data.boys}
+          </div>
         </Card>
-        <Card className="border border-white/10 bg-white/5 p-5">
-          <div className="text-sm font-semibold text-white/70">Girls</div>
-          <div className="mt-2 text-2xl font-black text-white">{data.girls}</div>
+        <Card className="border border-border bg-surface p-5">
+          <div className="text-sm font-semibold text-muted">Girls</div>
+          <div className="mt-2 text-2xl font-black text-foreground">
+            {data.girls}
+          </div>
         </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
-          <h2 className="text-xl font-bold text-white mb-6">Population Trend</h2>
+        <Card className="border border-border bg-surface p-6 flex flex-col h-full">
+          <h2 className="text-xl font-bold text-foreground mb-6">
+            Population Trend
+          </h2>
           <div className="flex-1 flex items-end gap-2 mt-4 min-h-[200px]">
             {data.populationTrend?.map((item) => (
-              <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group">
-                <div className="w-full relative bg-white/5 rounded-t-sm" style={{ height: "150px" }}>
-                  <div 
+              <div
+                key={item.label}
+                className="flex-1 flex flex-col items-center gap-2 group"
+              >
+                <div
+                  className="w-full relative bg-surface rounded-t-sm"
+                  style={{ height: "150px" }}
+                >
+                  <div
                     className="absolute bottom-0 w-full bg-blue-500/50 rounded-t-sm transition-all duration-500 group-hover:bg-blue-400/60"
-                    style={{ height: `${data.totalStudents > 0 ? (item.value / data.totalStudents) * 100 : 0}%` }}
+                    style={{
+                      height: `${data.totalStudents > 0 ? (item.value / data.totalStudents) * 100 : 0}%`,
+                    }}
                   >
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-medium text-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                       {item.value}
                     </div>
                   </div>
                 </div>
-                <span className="text-xs text-white/50">{item.label}</span>
+                <span className="text-xs text-muted">{item.label}</span>
               </div>
             ))}
           </div>
         </Card>
 
-        <Card className="border border-white/10 bg-white/5 p-6 flex flex-col h-full">
+        <Card className="border border-border bg-surface p-6 flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Recent Admissions</h2>
-            {hasPermission('school_admissions:write') && (
-              <Button size="sm" variant="outline" className="text-xs bg-cyan-500/20 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/30" onClick={openAdmissionsWorkspace}>
+            <h2 className="text-xl font-bold text-foreground">
+              Recent Admissions
+            </h2>
+            {hasPermission("school_admissions:write") && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs bg-cyan-500/20 text-info border-cyan-500/20 hover:bg-cyan-500/30"
+                onClick={openAdmissionsWorkspace}
+              >
                 <Plus className="h-3 w-3 mr-1" />
                 Admit New
               </Button>
             )}
           </div>
-          
-          {(!data.recentAdmissions || data.recentAdmissions.length === 0) ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-white/5 rounded-lg border border-white/5">
-              <Users className="h-10 w-10 text-white/20 mb-3" />
-              <p className="text-white/60 mb-4">No recent admissions found</p>
-              {hasPermission('school_admissions:write') && (
-                <Button size="sm" variant="outline" onClick={openAdmissionsWorkspace}>
+
+          {!data.recentAdmissions || data.recentAdmissions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center flex-1 py-8 text-center bg-surface rounded-lg border border-border">
+              <Users className="h-10 w-10 text-muted mb-3" />
+              <p className="text-muted mb-4">No recent admissions found</p>
+              {hasPermission("school_admissions:write") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openAdmissionsWorkspace}
+                >
                   <Plus className="h-4 w-4 mr-2" /> Admit Student
                 </Button>
               )}
@@ -129,15 +168,26 @@ export function PrincipalStudentsWorkspace({ routeMode = "public" }: { routeMode
           ) : (
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
               {data.recentAdmissions.map((student) => (
-                <div key={student.id} className="p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+                <div
+                  key={student.id}
+                  className="p-4 rounded-lg bg-surface border border-border hover:bg-white/10 transition-colors"
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-white">{student.name}</h4>
-                      <p className="text-sm text-white/60">{student.id} • {student.gender}</p>
+                      <h4 className="font-medium text-foreground">
+                        {student.name}
+                      </h4>
+                      <p className="text-sm text-muted">
+                        {student.id} â€¢ {student.gender}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-white">{student.class}</div>
-                      <div className="text-xs text-white/40">Admitted: {student.admission_date}</div>
+                      <div className="font-bold text-foreground">
+                        {student.class}
+                      </div>
+                      <div className="text-xs text-muted">
+                        Admitted: {student.admission_date}
+                      </div>
                     </div>
                   </div>
                 </div>

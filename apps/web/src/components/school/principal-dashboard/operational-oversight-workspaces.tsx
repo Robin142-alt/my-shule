@@ -66,8 +66,8 @@ type AuditOversightData = {
 
 function OversightMetric({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="border-white/10 bg-white/5 p-4 text-white">
-      <p className="text-sm font-semibold text-white/65">{label}</p>
+    <Card className="border-border bg-surface p-4 text-foreground">
+      <p className="text-sm font-semibold text-muted">{label}</p>
       <p className="mt-2 text-2xl font-black">{value}</p>
     </Card>
   );
@@ -76,8 +76,8 @@ function OversightMetric({ label, value }: { label: string; value: number }) {
 function LoadingOversight({ label }: { label: string }) {
   return (
     <section aria-label={label} className="space-y-4">
-      <div className="h-20 animate-pulse rounded-xl border border-white/10 bg-white/5" />
-      <div className="h-56 animate-pulse rounded-xl border border-white/10 bg-white/5" />
+      <div className="h-20 animate-pulse rounded-xl border border-border bg-surface" />
+      <div className="h-56 animate-pulse rounded-xl border border-border bg-surface" />
     </section>
   );
 }
@@ -93,29 +93,32 @@ function WorkspaceHeading({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="rounded-xl border border-cyan-200/25 bg-cyan-200/10 p-2 text-cyan-100">
+      <span className="rounded-xl border border-cyan-200/25 bg-cyan-200/10 p-2 text-info">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <div>
-        <h2 className="text-2xl font-black text-white">{title}</h2>
-        <p className="mt-1 text-sm font-semibold text-white/65">{description}</p>
+        <h2 className="text-2xl font-black text-foreground">{title}</h2>
+        <p className="mt-1 text-sm font-semibold text-muted">{description}</p>
       </div>
     </div>
   );
 }
 
 export function PrincipalVisitorsOversightWorkspace() {
-  const { data, error, isLoading, refetch } = useSchoolQuery<VisitorOversightData>(
-    "/admin-command/principal/visitors",
-  );
+  const { data, error, isLoading, refetch } =
+    useSchoolQuery<VisitorOversightData>("/admin-command/principal/visitors");
 
-  if (isLoading) return <LoadingOversight label="Principal visitors workspace" />;
+  if (isLoading)
+    return <LoadingOversight label="Principal visitors workspace" />;
   if (error || !data) {
     return (
       <section aria-label="Principal visitors workspace">
         <WorkspaceQueryFailure
           title="Visitor oversight could not be loaded"
-          error={error ?? new Error("The Principal visitor contract returned no data")}
+          error={
+            error ??
+            new Error("The Principal visitor contract returned no data")
+          }
           onRetry={() => void refetch()}
         />
       </section>
@@ -130,22 +133,32 @@ export function PrincipalVisitorsOversightWorkspace() {
         description="Tenant-scoped reception and gate movement. Contact details and identity numbers remain with authorized front-office staff."
       />
       <div className="app-metric-grid grid gap-3 md:grid-cols-4">
-        <OversightMetric label="Checked in today" value={data.metrics.checkedInToday} />
-        <OversightMetric label="On premises" value={data.metrics.currentlyOnPremises} />
-        <OversightMetric label="Checked out today" value={data.metrics.checkedOutToday} />
+        <OversightMetric
+          label="Checked in today"
+          value={data.metrics.checkedInToday}
+        />
+        <OversightMetric
+          label="On premises"
+          value={data.metrics.currentlyOnPremises}
+        />
+        <OversightMetric
+          label="Checked out today"
+          value={data.metrics.checkedOutToday}
+        />
         <OversightMetric label="Flagged visits" value={data.metrics.flagged} />
       </div>
       {data.visitors.length === 0 ? (
-        <Card className="border-white/10 bg-white/5 p-5 text-white">
+        <Card className="border-border bg-surface p-5 text-foreground">
           <p className="font-black">No visitor movement recorded yet today.</p>
-          <p className="mt-2 text-sm font-semibold text-white/65">
-            Secretary or Security staff can register the first visitor; the verified movement will appear here automatically.
+          <p className="mt-2 text-sm font-semibold text-muted">
+            Secretary or Security staff can register the first visitor; the
+            verified movement will appear here automatically.
           </p>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10">
-          <RecordTable className="app-record-table-dark w-full min-w-[720px] text-left text-sm text-white">
-            <thead className="bg-white/10 text-cyan-100">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <RecordTable className="app-record-table-dark w-full min-w-[720px] text-left text-sm text-foreground">
+            <thead className="bg-surface text-info">
               <tr>
                 <th className="px-4 py-3 font-black">Visitor</th>
                 <th className="px-4 py-3 font-black">Purpose</th>
@@ -156,11 +169,15 @@ export function PrincipalVisitorsOversightWorkspace() {
             </thead>
             <tbody>
               {data.visitors.map((visitor) => (
-                <tr key={visitor.id} className="border-t border-white/10">
+                <tr key={visitor.id} className="border-t border-border">
                   <td className="px-4 py-3 font-bold">{visitor.name}</td>
-                  <td className="px-4 py-3 text-white/70">{visitor.purpose}</td>
-                  <td className="px-4 py-3 text-white/70">{visitor.host || "Not assigned"}</td>
-                  <td className="px-4 py-3 text-white/70">{visitor.checkedInAt}</td>
+                  <td className="px-4 py-3 text-muted">{visitor.purpose}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {visitor.host || "Not assigned"}
+                  </td>
+                  <td className="px-4 py-3 text-muted">
+                    {visitor.checkedInAt}
+                  </td>
                   <td className="px-4 py-3 font-bold">{visitor.status}</td>
                 </tr>
               ))}
@@ -173,17 +190,19 @@ export function PrincipalVisitorsOversightWorkspace() {
 }
 
 export function PrincipalHealthOversightWorkspace() {
-  const { data, error, isLoading, refetch } = useSchoolQuery<HealthOversightData>(
-    "/admin-command/principal/health",
-  );
+  const { data, error, isLoading, refetch } =
+    useSchoolQuery<HealthOversightData>("/admin-command/principal/health");
 
-  if (isLoading) return <LoadingOversight label="Principal sick bay workspace" />;
+  if (isLoading)
+    return <LoadingOversight label="Principal sick bay workspace" />;
   if (error || !data) {
     return (
       <section aria-label="Principal sick bay workspace">
         <WorkspaceQueryFailure
           title="Health oversight could not be loaded"
-          error={error ?? new Error("The Principal health contract returned no data")}
+          error={
+            error ?? new Error("The Principal health contract returned no data")
+          }
           onRetry={() => void refetch()}
         />
       </section>
@@ -198,33 +217,55 @@ export function PrincipalHealthOversightWorkspace() {
         description="Summary-only clinic oversight. Diagnoses, confidential notes, and individual treatment details stay restricted to authorized health staff."
       />
       <div className="app-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <OversightMetric label="Visits today" value={data.metrics.visitsToday} />
+        <OversightMetric
+          label="Visits today"
+          value={data.metrics.visitsToday}
+        />
         <OversightMetric label="Open cases" value={data.metrics.openCases} />
-        <OversightMetric label="Referred today" value={data.metrics.referredToday} />
-        <OversightMetric label="Low stock" value={data.metrics.lowStockMedicines} />
-        <OversightMetric label="Out of stock" value={data.metrics.outOfStockMedicines} />
-        <OversightMetric label="Expiring soon" value={data.metrics.expiringSoon} />
+        <OversightMetric
+          label="Referred today"
+          value={data.metrics.referredToday}
+        />
+        <OversightMetric
+          label="Low stock"
+          value={data.metrics.lowStockMedicines}
+        />
+        <OversightMetric
+          label="Out of stock"
+          value={data.metrics.outOfStockMedicines}
+        />
+        <OversightMetric
+          label="Expiring soon"
+          value={data.metrics.expiringSoon}
+        />
       </div>
       {data.stockAlerts.length === 0 ? (
-        <Card className="border-white/10 bg-white/5 p-5 text-white">
+        <Card className="border-border bg-surface p-5 text-foreground">
           <p className="font-black">No medicine stock alerts.</p>
-          <p className="mt-2 text-sm font-semibold text-white/65">
-            The nurse inventory currently has no low-stock, out-of-stock, or near-expiry item requiring leadership follow-up.
+          <p className="mt-2 text-sm font-semibold text-muted">
+            The nurse inventory currently has no low-stock, out-of-stock, or
+            near-expiry item requiring leadership follow-up.
           </p>
         </Card>
       ) : (
         <div className="space-y-3">
           {data.stockAlerts.map((alert) => (
-            <Card key={alert.id} className="border-white/10 bg-white/5 p-4 text-white">
+            <Card
+              key={alert.id}
+              className="border-border bg-surface p-4 text-foreground"
+            >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="font-black">{alert.medicine}</p>
-                  <p className="mt-1 text-sm font-semibold text-white/65">
-                    {alert.quantity} available; reorder level {alert.reorderLevel}
-                    {alert.expiryDate ? `; earliest expiry ${alert.expiryDate}` : ""}
+                  <p className="mt-1 text-sm font-semibold text-muted">
+                    {alert.quantity} available; reorder level{" "}
+                    {alert.reorderLevel}
+                    {alert.expiryDate
+                      ? `; earliest expiry ${alert.expiryDate}`
+                      : ""}
                   </p>
                 </div>
-                <span className="rounded-full border border-warning-border/30 bg-amber-200/10 px-3 py-1 text-xs font-black text-amber-100">
+                <span className="rounded-full border border-warning-border/30 bg-amber-200/10 px-3 py-1 text-xs font-black text-warning">
                   {alert.status}
                 </span>
               </div>
@@ -237,17 +278,19 @@ export function PrincipalHealthOversightWorkspace() {
 }
 
 export function PrincipalAuditOversightWorkspace() {
-  const { data, error, isLoading, refetch } = useSchoolQuery<AuditOversightData>(
-    "/admin-command/principal/audit-logs",
-  );
+  const { data, error, isLoading, refetch } =
+    useSchoolQuery<AuditOversightData>("/admin-command/principal/audit-logs");
 
-  if (isLoading) return <LoadingOversight label="Principal audit logs workspace" />;
+  if (isLoading)
+    return <LoadingOversight label="Principal audit logs workspace" />;
   if (error || !data) {
     return (
       <section aria-label="Principal audit logs workspace">
         <WorkspaceQueryFailure
           title="Audit oversight could not be loaded"
-          error={error ?? new Error("The Principal audit contract returned no data")}
+          error={
+            error ?? new Error("The Principal audit contract returned no data")
+          }
           onRetry={() => void refetch()}
         />
       </section>
@@ -262,21 +305,33 @@ export function PrincipalAuditOversightWorkspace() {
         description="Recent tenant-scoped actions for accountability, security follow-up, and governed workflow review."
       />
       <div className="app-metric-grid grid gap-3 md:grid-cols-3">
-        <OversightMetric label="Actions today" value={data.metrics.actionsToday} />
-        <OversightMetric label="Sensitive changes" value={data.metrics.sensitiveChanges} />
-        <OversightMetric label="Failed actions" value={data.metrics.failedActions} />
+        <OversightMetric
+          label="Actions today"
+          value={data.metrics.actionsToday}
+        />
+        <OversightMetric
+          label="Sensitive changes"
+          value={data.metrics.sensitiveChanges}
+        />
+        <OversightMetric
+          label="Failed actions"
+          value={data.metrics.failedActions}
+        />
       </div>
       {data.events.length === 0 ? (
-        <Card className="border-white/10 bg-white/5 p-5 text-white">
-          <p className="font-black">No audit events recorded for this school yet.</p>
-          <p className="mt-2 text-sm font-semibold text-white/65">
-            Audited mutations and governed workflow decisions will appear here after the first school operation is completed.
+        <Card className="border-border bg-surface p-5 text-foreground">
+          <p className="font-black">
+            No audit events recorded for this school yet.
+          </p>
+          <p className="mt-2 text-sm font-semibold text-muted">
+            Audited mutations and governed workflow decisions will appear here
+            after the first school operation is completed.
           </p>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-white/10">
-          <RecordTable className="app-record-table-dark w-full min-w-[760px] text-left text-sm text-white">
-            <thead className="bg-white/10 text-cyan-100">
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <RecordTable className="app-record-table-dark w-full min-w-[760px] text-left text-sm text-foreground">
+            <thead className="bg-surface text-info">
               <tr>
                 <th className="px-4 py-3 font-black">Time</th>
                 <th className="px-4 py-3 font-black">Actor</th>
@@ -287,14 +342,17 @@ export function PrincipalAuditOversightWorkspace() {
             </thead>
             <tbody>
               {data.events.map((event) => (
-                <tr key={event.id} className="border-t border-white/10">
-                  <td className="px-4 py-3 text-white/70">{event.createdAt}</td>
-                  <td className="px-4 py-3 text-white/70">{event.actor}</td>
+                <tr key={event.id} className="border-t border-border">
+                  <td className="px-4 py-3 text-muted">{event.createdAt}</td>
+                  <td className="px-4 py-3 text-muted">{event.actor}</td>
                   <td className="px-4 py-3 font-bold">{event.action}</td>
-                  <td className="px-4 py-3 text-white/70">{event.resourceType}</td>
+                  <td className="px-4 py-3 text-muted">{event.resourceType}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 font-bold">
-                      <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true" />
+                      <ShieldCheck
+                        className="h-4 w-4 text-info"
+                        aria-hidden="true"
+                      />
                       {event.result}
                     </span>
                   </td>

@@ -253,6 +253,8 @@ export function openPrintDocument({
   rows,
   footer,
   logoUrl,
+  table,
+  landscape = false,
 }: {
   eyebrow: string;
   title: string;
@@ -260,6 +262,8 @@ export function openPrintDocument({
   rows: PrintableRow[];
   footer: string;
   logoUrl?: string | null;
+  table?: { headers: string[]; rows: string[][] };
+  landscape?: boolean;
 }) {
   if (typeof window === "undefined") {
     return;
@@ -275,12 +279,17 @@ export function openPrintDocument({
       `,
     )
     .join("");
-  const safeLogoUrl = logoUrl && (
-    logoUrl.startsWith("/")
-    || logoUrl.startsWith("https://")
-    || logoUrl.startsWith("http://")
-    || logoUrl.startsWith("data:image/")
-  ) ? logoUrl : null;
+  const renderedTable = table
+    ? `<table><thead><tr>${table.headers.map((value) => `<th>${escapeHtml(value)}</th>`).join("")}</tr></thead><tbody>${table.rows.map((row) => `<tr>${row.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+    : "";
+  const safeLogoUrl =
+    logoUrl &&
+    (logoUrl.startsWith("/") ||
+      logoUrl.startsWith("https://") ||
+      logoUrl.startsWith("http://") ||
+      logoUrl.startsWith("data:image/"))
+      ? logoUrl
+      : null;
   const renderedLogo = safeLogoUrl
     ? `<img class="brand-logo" src="${escapeHtml(safeLogoUrl)}" alt="School logo" />`
     : "";
@@ -404,7 +413,12 @@ export function openPrintDocument({
             border-color: #cbd5e1;
             color: #334155;
           }
+          table {width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt}
+          th,td {text-align:left;vertical-align:top;border:1px solid #bbcadc;padding:5px;white-space:pre-line;overflow-wrap:anywhere}
+          th {background:#e5eefb;color:#163765} tbody tr:nth-child(even){background:#f4f8ff}
+          thead {display:table-header-group} tr{break-inside:avoid}
           @page {
+            ${landscape ? "size:A4 landscape;" : ""}
             margin: 16mm 14mm 20mm;
             @bottom-right {
               content: "Page " counter(page) " of " counter(pages);
@@ -443,6 +457,7 @@ export function openPrintDocument({
           <p class="subtitle">${escapeHtml(subtitle)}</p>
           <div class="divider"></div>
           ${renderedRows}
+          ${renderedTable}
           <div class="footer">${escapeHtml(footer)}</div>
         </main>
       </body>

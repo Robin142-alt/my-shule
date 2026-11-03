@@ -2,14 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { fetchSavedReport } from "@/lib/report-cards/saved-report-file";
+import {
+  fetchSavedReport,
+  type PrincipalReportSource,
+} from "@/lib/report-cards/saved-report-file";
 
 export function SavedReportPreview({
   id,
   title,
+  source,
 }: {
   id: string;
   title: string;
+  source?: PrincipalReportSource;
 }) {
   const [attempt, setAttempt] = useState(0);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -20,6 +25,8 @@ export function SavedReportPreview({
   const [text, setText] = useState("");
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const sourceModule = source?.module;
+  const sourceTenant = source?.tenantId;
   useEffect(() => {
     const observer = new ResizeObserver((entries) =>
       setWidth(Math.max(1, entries[0].contentRect.width)),
@@ -33,8 +40,16 @@ export function SavedReportPreview({
     setPdf(null);
     setError("");
     setPageNumber(1);
+    setText("");
     void (async () => {
-      const response = await fetchSavedReport(id, true, controller.signal);
+      const response = await fetchSavedReport(
+        id,
+        true,
+        controller.signal,
+        sourceModule !== undefined && sourceTenant !== undefined
+          ? { module: sourceModule, tenantId: sourceTenant }
+          : undefined,
+      );
       const data = new Uint8Array(await response.arrayBuffer());
       const { loadPdfEngine } = await import("@/lib/report-cards/pdf-engine");
       const engine = await loadPdfEngine();
@@ -55,7 +70,7 @@ export function SavedReportPreview({
       controller.abort();
       void task?.destroy();
     };
-  }, [id, attempt]);
+  }, [id, attempt, sourceModule, sourceTenant]);
   useEffect(() => {
     if (!pdf) return;
     let cancelled = false;
