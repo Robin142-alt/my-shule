@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { PrincipalCommunicationWorkspace } from "@/components/school/principal-dashboard/communication-workspace";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
@@ -46,8 +46,9 @@ describe("Principal communication delivery status", () => {
 
     render(<PrincipalCommunicationWorkspace />);
 
-    expect(screen.getByText("Provider accepted today")).toBeVisible();
-    expect(screen.getByText("Needs delivery review")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "School broadcasts" }));
+    expect(screen.getByText("SMS provider accepted today")).toBeVisible();
+    expect(screen.getByText("Delivery needs review")).toBeVisible();
     expect(screen.getByText("7")).toBeVisible();
     expect(screen.getByText("2")).toBeVisible();
     expect(screen.queryByText(/messages sent today/i)).not.toBeInTheDocument();
