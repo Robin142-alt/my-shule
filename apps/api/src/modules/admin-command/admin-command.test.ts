@@ -271,48 +271,78 @@ test('AdminCommandRepository reads Principal visitor, health, and audit oversigh
   assert.ok(queries.some((query) => /membership\.tenant_id = audit\.tenant_id/.test(query.sql)));
 });
 
-test('AdminCommandRepository derives principal finance metrics from canonical fee records without fabricated percentages', async () => {
+test("AdminCommandRepository derives principal finance metrics from canonical fee records without fabricated percentages", async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AdminCommandRepository({
     query: async (sql: string, params: unknown[]) => {
       queries.push({ sql, params });
       if (/AS collections_today_minor/.test(sql)) {
-        return { rows: [{ collections_today_minor: '250000', outstanding_balance_minor: '875000' }], rowCount: 1 };
+        return {
+          rows: [
+            {
+              collections_today_minor: "250000",
+              outstanding_balance_minor: "875000",
+            },
+          ],
+          rowCount: 1,
+        };
       }
       if (/FROM dashboard_approval_requests approval/.test(sql)) {
         return {
-          rows: [{
-            id: 'approval-1',
-            student: 'Amina Otieno',
-            class: 'Grade 8 East',
-            amount_minor: '15000',
-            reason: 'Scholarship',
-            date: '2026-08-22T08:00:00.000Z',
-          }],
+          rows: [
+            {
+              id: "approval-1",
+              student: "Amina Otieno",
+              class: "Grade 8 East",
+              amount_minor: "15000",
+              reason: "Scholarship",
+              date: "2026-08-22T08:00:00.000Z",
+            },
+          ],
           rowCount: 1,
         };
       }
       return {
         rows: [
-          { label: '27 Jul', total_minor: '50000' },
-          { label: '03 Aug', total_minor: '100000' },
+          { label: "27 Jul", total_minor: "50000" },
+          { label: "03 Aug", total_minor: "100000" },
         ],
         rowCount: 2,
       };
     },
   } as never);
 
-  const result = await repository.getFinanceOverview('tenant-a');
+  const result = await repository.getFinanceOverview("tenant-a");
 
-  assert.equal(result.collectionsToday, 'KES 2,500');
-  assert.equal(result.outstandingInvoices, 'KES 8,750');
-  assert.deepEqual(result.collectionData.map((row) => row.value), [50, 100]);
-  assert.equal(result.pendingWaivers[0]?.amount, 'KES 150');
-  assert.ok(queries.every((query) => query.params[0] === 'tenant-a'));
-  assert.ok(queries.some((query) => /FROM manual_fee_payments payment/.test(query.sql)));
-  assert.ok(queries.some((query) => /NULLIF\(invoice\.metadata ->> 'student_id'/.test(query.sql)));
-  assert.ok(queries.some((query) => /FROM dashboard_approval_requests approval/.test(query.sql)));
-  assert.ok(queries.every((query) => !/tenant_finance_summary|tenant_pending_waivers/.test(query.sql)));
+  assert.equal(result.collectionsToday, "KES 2,500");
+  assert.equal(result.outstandingInvoices, "KES 8,750");
+  assert.deepEqual(
+    result.collectionData.map((row) => row.value),
+    [50, 100],
+  );
+  assert.equal(result.pendingWaivers[0]?.amount, "KES 150");
+  assert.ok(queries.every((query) => query.params[0] === "tenant-a"));
+  assert.ok(
+    queries.some((query) => /payment.status='cleared'/.test(query.sql)),
+  );
+  assert.ok(
+    queries.some((query) =>
+      /GREATEST\(balances.amount-COALESCE\(credits.amount,0\),0\)/.test(
+        query.sql,
+      ),
+    ),
+  );
+  assert.ok(
+    queries.some((query) =>
+      /FROM dashboard_approval_requests approval/.test(query.sql),
+    ),
+  );
+  assert.ok(
+    queries.every(
+      (query) =>
+        !/tenant_finance_summary|tenant_pending_waivers/.test(query.sql),
+    ),
+  );
 });
 
 test('AdminCommandRepository reconciles live and offline attendance without invented history', async () => {
@@ -350,56 +380,82 @@ test('AdminCommandRepository reconciles live and offline attendance without inve
   assert.equal(JSON.stringify(result).includes('Historical'), false);
 });
 
-test('AdminCommandRepository uses real communication history and atomically queues broadcasts', async () => {
+test("AdminCommandRepository uses real communication history and atomically queues broadcasts", async () => {
   const reads: Array<{ sql: string; params: unknown[] }> = [];
   const repository = new AdminCommandRepository({
     query: async (sql: string, params: unknown[]) => {
       reads.push({ sql, params });
       if (/AS provider_accepted_today/.test(sql)) {
         return {
-          rows: [{
-            provider_accepted_today: 12,
-            failed_messages: 1,
-            pending_messages: 4,
-            delivery_unknown: 2,
-          }],
+          rows: [
+            {
+              provider_accepted_today: 12,
+              failed_messages: 1,
+              pending_messages: 4,
+              delivery_unknown: 2,
+            },
+          ],
           rowCount: 1,
         };
       }
-      if (/date_trunc\('day', created_at\)/.test(sql)) {
-        return { rows: [{ label: 'Fri', value: 7 }, { label: 'Sat', value: 5 }], rowCount: 2 };
+      if (/generate_series/.test(sql)) {
+        return {
+          rows: [
+            { label: "Fri", value: 7 },
+            { label: "Sat", value: 5 },
+          ],
+          rowCount: 2,
+        };
       }
       if (/FROM workflow_events event/.test(sql)) {
-        return { rows: [{ id: 'event-1', title: 'Broadcast to parents', body: 'School closes at noon', status: 'pending', audience: 'parents', channels: ['sms'], time: '2026-08-22 10:00' }], rowCount: 1 };
+        return {
+          rows: [
+            {
+              id: "event-1",
+              title: "Broadcast to parents",
+              body: "School closes at noon",
+              status: "pending",
+              audience: "parents",
+              channels: ["sms"],
+              time: "2026-08-22 10:00",
+            },
+          ],
+          rowCount: 1,
+        };
       }
       return {
-        rows: [{
-          id: 'event-2',
-          title: 'Broadcast to parents',
-          status: 'pending',
-          created_at: '2026-08-22T10:00:00.000Z',
-          sms_recipient_count: 3,
-          in_app_recipient_count: 2,
-        }],
+        rows: [
+          {
+            id: "event-2",
+            title: "Broadcast to parents",
+            status: "pending",
+            created_at: "2026-08-22T10:00:00.000Z",
+            sms_recipient_count: 3,
+            in_app_recipient_count: 2,
+          },
+        ],
         rowCount: 1,
       };
     },
   } as never);
 
-  const overview = await repository.getCommunicationOverview('tenant-a');
+  const overview = await repository.getCommunicationOverview("tenant-a");
   const broadcast = await repository.createCommunicationBroadcast({
-    tenant_id: 'tenant-a',
-    user_id: '11111111-1111-4111-8111-111111111111',
-    audience: 'parents',
-    message: 'School closes at noon',
-    channels: ['sms', 'in_app'],
+    tenant_id: "tenant-a",
+    user_id: "11111111-1111-4111-8111-111111111111",
+    audience: "parents",
+    message: "School closes at noon",
+    channels: ["sms", "in_app"],
   });
 
   assert.equal(overview.smsBalance, null);
   assert.equal(overview.providerAcceptedToday, 12);
   assert.equal(overview.deliveryUnknown, 2);
-  assert.deepEqual(overview.communicationTrend, [{ label: 'Fri', value: 7 }, { label: 'Sat', value: 5 }]);
-  assert.equal(overview.recentBroadcasts[0]?.id, 'event-1');
+  assert.deepEqual(overview.communicationTrend, [
+    { label: "Fri", value: 7 },
+    { label: "Sat", value: 5 },
+  ]);
+  assert.equal(overview.recentBroadcasts[0]?.id, "event-1");
   assert.equal(broadcast.smsRecipientCount, 3);
   assert.equal(broadcast.inAppRecipientCount, 2);
   const broadcastWrite = reads.at(-1)!;
@@ -408,14 +464,25 @@ test('AdminCommandRepository uses real communication history and atomically queu
   assert.match(broadcastWrite.sql, /INSERT INTO communication_sms_outbox/);
   assert.match(broadcastWrite.sql, /INSERT INTO notifications/);
   assert.match(broadcastWrite.sql, /JOIN tenant_memberships membership/);
-  assert.match(broadcastWrite.sql, /lower\(membership\.status::text\) = 'active'/);
-  assert.doesNotMatch(broadcastWrite.sql, /communication_broadcasts|FROM guardians/);
-  assert.equal(broadcastWrite.params[0], 'tenant-a');
-  assert.equal(broadcastWrite.params[6], JSON.stringify(['principal']));
-  const overviewRead = reads.find((read) => /AS provider_accepted_today/.test(read.sql))!;
+  assert.match(
+    broadcastWrite.sql,
+    /lower\(membership\.status::text\) = 'active'/,
+  );
+  assert.doesNotMatch(
+    broadcastWrite.sql,
+    /communication_broadcasts|FROM guardians/,
+  );
+  assert.equal(broadcastWrite.params[0], "tenant-a");
+  assert.equal(broadcastWrite.params[6], JSON.stringify(["principal"]));
+  const overviewRead = reads.find((read) =>
+    /AS provider_accepted_today/.test(read.sql),
+  )!;
   assert.match(overviewRead.sql, /lower\(status\) = 'accepted'/);
   assert.match(overviewRead.sql, /provider_accepted_at IS NOT NULL/);
-  assert.match(overviewRead.sql, /lower\(status\) IN \('pending', 'queued', 'processing'\)/);
+  assert.match(
+    overviewRead.sql,
+    /lower\(status\) IN \('pending', 'queued', 'processing'\)/,
+  );
   assert.match(overviewRead.sql, /lower\(status\) = 'deliveryunknown'/);
   assert.doesNotMatch(overviewRead.sql, /lower\(status\) = 'sent'/);
 });
@@ -1025,30 +1092,32 @@ test('BoardingMasterCommandService checks out approved boarders through boarding
   assert.equal(writes[0].params[0], 'tenant-a');
 });
 
-test('AccountantCommandService queues arrears reminders only for exact active same-tenant guardians', async () => {
+test("AccountantCommandService queues arrears reminders only for exact active same-tenant guardians", async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const service = new AccountantCommandService(
     {
       getStore: () => ({
-        tenant_id: 'tenant-a',
-        user_id: '11111111-1111-4111-8111-111111111111',
-        role: 'accountant',
+        tenant_id: "tenant-a",
+        user_id: "11111111-1111-4111-8111-111111111111",
+        role: "accountant",
       }),
     } as never,
     {} as never,
     {
-      uuidOrNull: (value: unknown) => value ? String(value) : null,
+      uuidOrNull: (value: unknown) => (value ? String(value) : null),
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         return {
-          rows: [{
-            requested_student_count: 2,
-            eligible_student_count: 2,
-            covered_student_count: 2,
-            guardian_notification_count: 2,
-            staff_notification_count: 4,
-            event_id: '44444444-4444-4444-8444-444444444444',
-          }],
+          rows: [
+            {
+              requested_student_count: 2,
+              eligible_student_count: 2,
+              covered_student_count: 2,
+              guardian_notification_count: 2,
+              staff_notification_count: 4,
+              event_id: "44444444-4444-4444-8444-444444444444",
+            },
+          ],
           rowCount: 1,
         };
       },
@@ -1056,17 +1125,25 @@ test('AccountantCommandService queues arrears reminders only for exact active sa
   );
 
   const result = await service.recordFeeFollowUp({
-    action: 'arrears_reminders_requested',
-    title: 'Fee arrears reminders queued',
-    message: '2 arrears reminders queued for linked guardian follow-up.',
-    entity_type: 'student_arrears',
-    source_dashboard: 'accountant-arrears-workspace',
+    action: "arrears_reminders_requested",
+    title: "Fee arrears reminders queued",
+    message: "2 arrears reminders queued for linked guardian follow-up.",
+    entity_type: "student_arrears",
+    source_dashboard: "accountant-arrears-workspace",
     payload: {
-      recipient_scope: 'linked_guardians',
+      recipient_scope: "linked_guardians",
       arrears_count: 2,
       students: [
-        { student_id: '22222222-2222-4222-8222-222222222222', student_name: 'Learner A', balance_amount_minor: '50000' },
-        { student_id: '33333333-3333-4333-8333-333333333333', student_name: 'Learner B', balance_amount_minor: '75000' },
+        {
+          student_id: "22222222-2222-4222-8222-222222222222",
+          student_name: "Learner A",
+          balance_amount_minor: "50000",
+        },
+        {
+          student_id: "33333333-3333-4333-8333-333333333333",
+          student_name: "Learner B",
+          balance_amount_minor: "75000",
+        },
       ],
     },
   });
@@ -1075,18 +1152,34 @@ test('AccountantCommandService queues arrears reminders only for exact active sa
   assert.equal(result.delivery.student_count, 2);
   assert.equal(result.delivery.guardian_notification_count, 2);
   assert.equal(writes.length, 1);
-  assert.equal(writes[0].params[0], 'tenant-a');
+  assert.equal(writes[0].params[0], "tenant-a");
   assert.deepEqual(writes[0].params[2], [
-    '22222222-2222-4222-8222-222222222222',
-    '33333333-3333-4333-8333-333333333333',
+    "22222222-2222-4222-8222-222222222222",
+    "33333333-3333-4333-8333-333333333333",
   ]);
-  assert.deepEqual(JSON.parse(String(writes[0].params[3])), ['accountant', 'principal', 'deputy_principal', 'secretary']);
-  assert.deepEqual(writes[0].params[6], ['accountant', 'principal', 'deputy_principal', 'secretary']);
-  assert.match(writes[0].sql, /INNER JOIN students student\s+ON student\.tenant_id = \$1/);
+  assert.deepEqual(JSON.parse(String(writes[0].params[3])), [
+    "accountant",
+    "principal",
+    "deputy_principal",
+    "secretary",
+  ]);
+  assert.deepEqual(writes[0].params[6], [
+    "accountant",
+    "principal",
+    "deputy_principal",
+    "secretary",
+  ]);
+  assert.match(
+    writes[0].sql,
+    /INNER JOIN students student\s+ON student\.tenant_id = \$1/,
+  );
   assert.match(writes[0].sql, /INNER JOIN student_guardians guardian/);
   assert.match(writes[0].sql, /INNER JOIN tenant_memberships membership/);
   assert.match(writes[0].sql, /recipient_user_id, recipient_guardian_id/);
-  assert.match(writes[0].sql, /coverage\.covered_student_count = coverage\.eligible_student_count/);
+  assert.match(
+    writes[0].sql,
+    /coverage\.covered_student_count = coverage\.eligible_student_count/,
+  );
 });
 
 test('AccountantCommandService rejects client-selected notification roles outside finance governance', async () => {
@@ -1991,49 +2084,56 @@ test('LibrarianCommandService rejects sensitive borrower broadcasts and unverifi
   assert.equal(notificationCreated, false);
 });
 
-test('LibrarianCommandService queues overdue reminders only for exact active borrower or linked guardian accounts', async () => {
+test("LibrarianCommandService queues overdue reminders only for exact active borrower or linked guardian accounts", async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const service = new LibrarianCommandService(
     {
       getStore: () => ({
-        tenant_id: 'tenant-a',
-        user_id: '11111111-1111-4111-8111-111111111111',
+        tenant_id: "tenant-a",
+        user_id: "11111111-1111-4111-8111-111111111111",
       }),
     } as never,
     {} as never,
     {
-      uuidOrNull: (value: unknown) => value ? String(value) : null,
+      uuidOrNull: (value: unknown) => (value ? String(value) : null),
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         return {
-          rows: [{
-            overdue_count: 1,
-            recipient_count: 2,
-            notification_count: 2,
-            event_id: 'event-overdue-1',
-            borrower_id: 'borrower-1',
-            book_title: 'Biology Reference',
-            audits_created: 1,
-          }],
+          rows: [
+            {
+              overdue_count: 1,
+              recipient_count: 2,
+              notification_count: 2,
+              event_id: "event-overdue-1",
+              borrower_id: "borrower-1",
+              book_title: "Biology Reference",
+              audits_created: 1,
+            },
+          ],
           rowCount: 1,
         };
       },
     } as never,
   );
 
-  const result = await service.remindOverdueBorrower('22222222-2222-4222-8222-222222222222');
+  const result = await service.remindOverdueBorrower(
+    "22222222-2222-4222-8222-222222222222",
+  );
 
   assert.equal(result.success, true);
   assert.equal(result.recipientCount, 2);
   assert.equal(result.notificationCount, 2);
   assert.equal(writes.length, 1);
   assert.deepEqual(writes[0].params, [
-    'tenant-a',
-    '22222222-2222-4222-8222-222222222222',
-    '11111111-1111-4111-8111-111111111111',
+    "tenant-a",
+    "22222222-2222-4222-8222-222222222222",
+    "11111111-1111-4111-8111-111111111111",
   ]);
   assert.match(writes[0].sql, /issue\.id = \$2::uuid/);
-  assert.match(writes[0].sql, /issue\.metadata->>'due_on' < CURRENT_DATE::text/);
+  assert.match(
+    writes[0].sql,
+    /issue\.metadata->>'due_on' < CURRENT_DATE::text/,
+  );
   assert.match(writes[0].sql, /student_portal_access/);
   assert.match(writes[0].sql, /student_guardians/);
   assert.match(writes[0].sql, /staff_profiles/);
@@ -2041,7 +2141,10 @@ test('LibrarianCommandService queues overdue reminders only for exact active bor
   assert.match(writes[0].sql, /recipient_user_id, recipient_guardian_id/);
   assert.match(writes[0].sql, /'\["librarian"\]'::jsonb/);
   assert.doesNotMatch(writes[0].sql, /recipient_role/);
-  assert.doesNotMatch(writes[0].sql, /\["librarian","class_teacher","parent"\]/);
+  assert.doesNotMatch(
+    writes[0].sql,
+    /\["librarian","class_teacher","parent"\]/,
+  );
   assert.match(writes[0].sql, /INSERT INTO audit_logs/);
 });
 
@@ -3356,9 +3459,11 @@ test('AdminCommandController is module-gated with role-specific permissions', ()
   assert.deepEqual(Reflect.getMetadata(PERMISSIONS_KEY, secretaryHandler), ['secretary:read']);
 });
 
-test('AdminCommandService returns module-aware principal executive dashboard when insight service is available', async () => {
+test("AdminCommandService returns module-aware principal executive dashboard when insight service is available", async () => {
   const service = new AdminCommandService(
-    { getStore: () => ({ tenant_id: 'tenant-a', user_id: 'principal-1' }) } as never,
+    {
+      getStore: () => ({ tenant_id: "tenant-a", user_id: "principal-1" }),
+    } as never,
     { getPrincipalDashboard: async () => ({ legacy: true }) } as never,
     {} as never, // fileStorage
     undefined, // objectStorage
@@ -3366,24 +3471,34 @@ test('AdminCommandService returns module-aware principal executive dashboard whe
     {
       buildDashboard: async (tenantId: string) => ({
         tenant_id: tenantId,
-        enabled_modules: ['finance', 'clinic_health'],
+        enabled_modules: ["finance", "clinic_health"],
         sections: [
-          { id: 'finance', module_code: 'finance', title: 'Finance Insights', widgets: [] },
-          { id: 'clinic', module_code: 'clinic_health', title: 'Clinic Insights', widgets: [] },
+          {
+            id: "finance",
+            module_code: "finance",
+            title: "Finance Insights",
+            widgets: [],
+          },
+          {
+            id: "clinic",
+            module_code: "clinic_health",
+            title: "Clinic Insights",
+            widgets: [],
+          },
         ],
         alerts: [],
       }),
     } as never,
   );
 
-  const dashboard = await service.getPrincipalDashboard() as {
+  const dashboard = (await service.getPrincipalDashboard()) as {
     tenant_id: string;
     enabled_modules: string[];
     sections: unknown[];
   };
 
-  assert.equal(dashboard.tenant_id, 'tenant-a');
-  assert.deepEqual(dashboard.enabled_modules, ['finance', 'clinic_health']);
+  assert.equal(dashboard.tenant_id, "tenant-a");
+  assert.deepEqual(dashboard.enabled_modules, ["finance", "clinic_health"]);
   assert.equal(dashboard.sections.length, 2);
 });
 
@@ -3982,39 +4097,49 @@ test('AdminCommandService stores, audits, and serves school logos inside the cur
   assert.equal(calls[2].action, 'principal.school_logo_uploaded');
 });
 
-test('IctManagerCommandService records asset management requests as tenant-scoped workflow events', async () => {
+test("IctManagerCommandService records asset management requests as tenant-scoped workflow events", async () => {
   const workflowCalls: any[] = [];
   const service = new IctManagerCommandService(
     {
-      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+      getStore: () => ({
+        tenant_id: "tenant-a",
+        user_id: "11111111-1111-4111-8111-111111111111",
+      }),
     } as never,
     { query: async () => ({ rows: [], rowCount: 0 }) } as never,
     {
       recordWorkflowAction: async (input: any) => {
         workflowCalls.push(input);
-        return { id: 'workflow-1', ...input };
+        return { id: "workflow-1", ...input };
       },
     } as never,
   );
 
-  const result = await service.manageAsset('asset-123', {
-    action: 'Schedule maintenance',
-    condition: 'needs_maintenance',
-    notes: 'Projector lamp is dim',
-  }) as any;
+  const result = (await service.manageAsset("asset-123", {
+    action: "Schedule maintenance",
+    condition: "needs_maintenance",
+    notes: "Projector lamp is dim",
+  })) as any;
 
   assert.equal(workflowCalls.length, 1);
-  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
-  assert.equal(workflowCalls[0].actorUserId, '11111111-1111-4111-8111-111111111111');
-  assert.equal(workflowCalls[0].sourceRole, 'ict_manager');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['ict_manager', 'system_monitor', 'principal']);
-  assert.equal(workflowCalls[0].eventType, 'ict.asset.management_requested');
-  assert.equal(workflowCalls[0].entityType, 'ict_asset');
-  assert.equal(workflowCalls[0].entityId, 'asset-123');
-  assert.equal(workflowCalls[0].priority, 'high');
-  assert.equal(workflowCalls[0].payload.action, 'Schedule maintenance');
-  assert.equal(workflowCalls[0].payload.condition, 'needs_maintenance');
-  assert.equal(result.eventType, 'ict.asset.management_requested');
+  assert.equal(workflowCalls[0].tenantId, "tenant-a");
+  assert.equal(
+    workflowCalls[0].actorUserId,
+    "11111111-1111-4111-8111-111111111111",
+  );
+  assert.equal(workflowCalls[0].sourceRole, "ict_manager");
+  assert.deepEqual(workflowCalls[0].targetRoles, [
+    "ict_manager",
+    "system_monitor",
+    "principal",
+  ]);
+  assert.equal(workflowCalls[0].eventType, "ict.asset.management_requested");
+  assert.equal(workflowCalls[0].entityType, "ict_asset");
+  assert.equal(workflowCalls[0].entityId, "asset-123");
+  assert.equal(workflowCalls[0].priority, "high");
+  assert.equal(workflowCalls[0].payload.action, "Schedule maintenance");
+  assert.equal(workflowCalls[0].payload.condition, "needs_maintenance");
+  assert.equal(result.eventType, "ict.asset.management_requested");
 });
 
 test('IctManagerCommandService reads the shared tenant asset model instead of phantom ICT tables', async () => {
@@ -5245,45 +5370,58 @@ test('ExamsManagerCommandService reads timetable with canonical staff fields and
   assert.match(reads[0].sql, /WHERE slot\.tenant_id = \$1/i);
 });
 
-test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series', async () => {
+test("ExamsManagerCommandService creates exam setup as a durable tenant-scoped exam series", async () => {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   const workflowCalls: any[] = [];
   const schoolEventCalls: any[] = [];
   const service = new ExamsManagerCommandService(
     {
-      getStore: () => ({ tenant_id: 'tenant-a', user_id: '11111111-1111-4111-8111-111111111111' }),
+      getStore: () => ({
+        tenant_id: "tenant-a",
+        user_id: "11111111-1111-4111-8111-111111111111",
+      }),
     } as never,
     {} as never,
     {
       writeSql: async (sql: string, params: unknown[]) => {
         writes.push({ sql, params });
         return {
-          rows: [{
-            id: '22222222-2222-4222-8222-222222222222',
-            name: 'Term 1 Opener',
-            starts_on: '2026-01-12',
-            ends_on: '2026-01-16',
-            status: 'draft',
-            created_at: '2026-07-13T00:00:00.000Z',
-          }],
+          rows: [
+            {
+              id: "22222222-2222-4222-8222-222222222222",
+              name: "Term 1 Opener",
+              starts_on: "2026-01-12",
+              ends_on: "2026-01-16",
+              status: "draft",
+              created_at: "2026-07-13T00:00:00.000Z",
+            },
+          ],
           rowCount: 1,
         };
       },
-      readSql: async (sql: string) => /AS valid_term/.test(sql) ? ({ rows: [{ subjects: 1, classes: 1, valid_term: true }], rowCount: 1 }) : /information_schema.columns/.test(sql) ? ({
-        rows: [
-          { column_name: 'academic_term_id' },
-          { column_name: 'created_by_user_id' },
-          { column_name: 'created_at' },
-          { column_name: 'updated_at' },
-        ],
-        rowCount: 4,
-      }) : ({ rows: [], rowCount: 0 }),
+      readSql: async (sql: string) =>
+        /AS valid_term/.test(sql)
+          ? {
+              rows: [{ subjects: 1, classes: 1, valid_term: true }],
+              rowCount: 1,
+            }
+          : /information_schema.columns/.test(sql)
+            ? {
+                rows: [
+                  { column_name: "academic_term_id" },
+                  { column_name: "created_by_user_id" },
+                  { column_name: "created_at" },
+                  { column_name: "updated_at" },
+                ],
+                rowCount: 4,
+              }
+            : { rows: [], rowCount: 0 },
       recordWorkflowAction: async (input: any) => {
         workflowCalls.push(input);
-        return { id: 'workflow-1', ...input };
+        return { id: "workflow-1", ...input };
       },
       requiredText: (value: unknown, label: string) => {
-        const text = String(value ?? '').trim();
+        const text = String(value ?? "").trim();
         if (!text) throw new Error(`${label} is required`);
         return text;
       },
@@ -5292,42 +5430,65 @@ test('ExamsManagerCommandService creates exam setup as a durable tenant-scoped e
     {
       recordSchoolOperation: async (input: any) => {
         schoolEventCalls.push(input);
-        return { status: 'accepted' };
+        return { status: "accepted" };
       },
     } as never,
   );
 
   const result = await (service as any).createExamSetupWithinTransaction({
-    name: 'Term 1 Opener',
-    academic_term_id: '33333333-3333-4333-8333-333333333333',
-    starts_on: '2026-01-12',
-    ends_on: '2026-01-16',
-    status: 'scheduled',
-    class_subjects: [{ class_section_id: '55555555-5555-4555-8555-555555555555',
-      subject_ids: ['44444444-4444-4444-8444-444444444444'] }],
+    name: "Term 1 Opener",
+    academic_term_id: "33333333-3333-4333-8333-333333333333",
+    starts_on: "2026-01-12",
+    ends_on: "2026-01-16",
+    status: "scheduled",
+    class_subjects: [
+      {
+        class_section_id: "55555555-5555-4555-8555-555555555555",
+        subject_ids: ["44444444-4444-4444-8444-444444444444"],
+      },
+    ],
   });
 
   assert.equal(result.success, true);
-  assert.equal(result.exam.name, 'Term 1 Opener');
+  assert.equal(result.exam.name, "Term 1 Opener");
   assert.match(writes[0].sql, /INSERT INTO exam_series/i);
   assert.doesNotMatch(writes[0].sql, /\$1::uuid/i);
   assert.match(writes[0].sql, /created_at, updated_at/i);
   assert.match(writes[0].sql, /NOW\(\), NOW\(\)/i);
-  assert.equal(writes[0].params[0], 'tenant-a');
-  assert.equal(writes[0].params[1], '33333333-3333-4333-8333-333333333333');
-  assert.equal(writes[0].params[2], 'Term 1 Opener');
-  assert.equal(writes[0].params[5], 'draft');
+  assert.equal(writes[0].params[0], "tenant-a");
+  assert.equal(writes[0].params[1], "33333333-3333-4333-8333-333333333333");
+  assert.equal(writes[0].params[2], "Term 1 Opener");
+  assert.equal(writes[0].params[5], "draft");
   assert.equal(workflowCalls.length, 1);
-  assert.equal(workflowCalls[0].tenantId, 'tenant-a');
-  assert.equal(workflowCalls[0].eventType, 'exams.exam-setup.created');
-  assert.equal(workflowCalls[0].entityType, 'exam_series');
-  assert.equal(workflowCalls[0].entityId, '22222222-2222-4222-8222-222222222222');
-  assert.deepEqual(workflowCalls[0].targetRoles, ['principal', 'dean_academics', 'hod', 'teacher']);
-  assert.equal(workflowCalls[0].payload.exam_series_id, '22222222-2222-4222-8222-222222222222');
+  assert.equal(workflowCalls[0].tenantId, "tenant-a");
+  assert.equal(workflowCalls[0].eventType, "exams.exam-setup.created");
+  assert.equal(workflowCalls[0].entityType, "exam_series");
+  assert.equal(
+    workflowCalls[0].entityId,
+    "22222222-2222-4222-8222-222222222222",
+  );
+  assert.deepEqual(workflowCalls[0].targetRoles, [
+    "principal",
+    "dean_academics",
+    "hod",
+    "teacher",
+  ]);
+  assert.equal(
+    workflowCalls[0].payload.exam_series_id,
+    "22222222-2222-4222-8222-222222222222",
+  );
   assert.equal(schoolEventCalls.length, 1);
-  assert.equal(schoolEventCalls[0].event.type, 'exam.series_created');
-  assert.equal(schoolEventCalls[0].event.entityId, '22222222-2222-4222-8222-222222222222');
-  assert.deepEqual(schoolEventCalls[0].notifications[0].audienceRoles, ['principal', 'dean_academics', 'hod', 'teacher']);
+  assert.equal(schoolEventCalls[0].event.type, "exam.series_created");
+  assert.equal(
+    schoolEventCalls[0].event.entityId,
+    "22222222-2222-4222-8222-222222222222",
+  );
+  assert.deepEqual(schoolEventCalls[0].notifications[0].audienceRoles, [
+    "principal",
+    "dean_academics",
+    "hod",
+    "teacher",
+  ]);
 });
 
 test('ExamsManagerCommandService rejects setup and timetable mutations before opening a transaction without write permission', async () => {
@@ -6366,43 +6527,56 @@ test('StudentCommandService reads canonical role-array notifications without exp
   assert.match(queries[0].sql, /metadata->'audienceRoles'/);
 });
 
-test('AdminCommandOperationsService stores a real downloadable report artifact with atomic tenant audit records', async () => {
+test("AdminCommandOperationsService stores a real downloadable report artifact with atomic tenant audit records", async () => {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   const service = new AdminCommandOperationsService({
     query: async (sql: string, params: unknown[]) => {
       queries.push({ sql, params });
-      return { rows: [{ snapshot_id: 'snapshot-a' }], rowCount: 1 };
+      return { rows: [{ snapshot_id: "snapshot-a" }], rowCount: 1 };
     },
   } as never);
 
   const result = await service.generateReportSnapshot({
-    tenantId: 'tenant-a',
-    module: 'ict-manager-command',
-    reportId: 'ict-operations',
-    title: 'ICT operations report',
-    format: 'csv',
-    generatedByUserId: '11111111-1111-4111-8111-111111111111',
-    filters: { status: 'active' },
+    tenantId: "tenant-a",
+    module: "ict-manager-command",
+    reportId: "ict-operations",
+    title: "ICT operations report",
+    format: "csv",
+    generatedByUserId: "11111111-1111-4111-8111-111111111111",
+    filters: { status: "active" },
     sections: {
       overview: { metrics: { active_assets: 2 } },
-      assets: [{ tag: 'ICT-001', status: 'active' }],
+      assets: [{ tag: "ICT-001", status: "active" }],
       repairs: [],
     },
   });
 
-  const content = Buffer.from(result.artifact.content_base64, 'base64');
-  assert.equal(result.artifact.kind, 'generated-report');
-  assert.equal(result.artifact.content_type, 'text/csv; charset=utf-8');
+  const content = Buffer.from(result.artifact.content_base64, "base64");
+  assert.equal(result.artifact.kind, "generated-report");
+  assert.equal(result.artifact.content_type, "text/csv; charset=utf-8");
   assert.equal(result.artifact.byte_length, content.length);
-  assert.equal(result.artifact.checksum_sha256, createHash('sha256').update(content).digest('hex'));
-  assert.match(content.toString('utf8'), /^Section,Group,Record,Value\r\n/);
-  assert.match(content.toString('utf8'), /ICT-001/);
-  assert.equal(queries.length, 1);
-  assert.equal(queries[0].params[0], 'tenant-a');
-  assert.match(queries[0].sql, /WITH inserted_snapshot AS/);
-  assert.match(queries[0].sql, /INSERT INTO report_snapshot_audit_logs/);
-  assert.match(queries[0].sql, /INSERT INTO audit_logs/);
-  assert.equal(JSON.parse(String(queries[0].params[6])).content_base64, result.artifact.content_base64);
+  assert.equal(
+    result.artifact.checksum_sha256,
+    createHash("sha256").update(content).digest("hex"),
+  );
+  assert.match(content.toString("utf8"), /^Section,Group,Record,Value\r\n/);
+  assert.match(content.toString("utf8"), /ICT-001/);
+  assert.equal(
+    queries.filter((query) => /INSERT INTO/.test(query.sql)).length,
+    1,
+  );
+  assert.match(queries[0].sql, /FROM tenants school/);
+  const write = queries.find((query) =>
+    /WITH inserted_snapshot AS/.test(query.sql),
+  )!;
+  assert.equal(write.params[0], "tenant-a");
+  assert.match(write.sql, /WITH inserted_snapshot AS/);
+  assert.match(write.sql, /INSERT INTO report_snapshot_audit_logs/);
+  assert.match(write.sql, /INSERT INTO audit_logs/);
+  assert.equal(
+    JSON.parse(String(write.params[6])).content_base64,
+    result.artifact.content_base64,
+  );
 });
 
 test('AdminCommandOperationsService never labels JSON metadata as a PDF artifact', async () => {

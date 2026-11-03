@@ -58,12 +58,13 @@ export class SyllabusService {
   async workspace() {
     return this.transaction(async (tx, actor) => {
       const rights = await this.rights(tx, actor.tenant_id, actor.user_id);
-      const monitor = MANAGERS.has(actor.role || '');
+      const monitor = MANAGERS.has(actor.role || "");
       const scope = JSON.stringify(rights);
-      const allocations = await tx.$queryRawUnsafe(`
+      const allocations = (await tx.$queryRawUnsafe(
+        `
         SELECT a.id::text, a.teacher_user_id::text, a.subject_id::text, a.class_section_id::text, a.stream_id::text,
           c.grade_level, c.name AS class_name, stream.name AS stream_name, c.academic_year_id::text,
-          term.id::text AS academic_term_id, term.name AS term_name, year.name AS year_name, s.name AS subject,
+          term.id::text AS academic_term_id, term.name AS term_name, year.name AS year_name, s.name AS subject, s.department_id::text, department.name AS department_name,
           COALESCE(staff.display_name, a.teacher_user_id::text) AS teacher_name,
           (a.teacher_user_id::text=$2 AND a.status='active' AND a.lesson_record_allowed AND a.effective_from <= CURRENT_DATE
             AND (a.effective_to IS NULL OR a.effective_to >= CURRENT_DATE) AND c.is_active AND c.status='active'
@@ -72,6 +73,7 @@ export class SyllabusService {
         FROM teacher_subject_assignments a
         JOIN class_sections c ON c.tenant_id=a.tenant_id AND c.id::text=a.class_section_id::text
         JOIN subjects s ON s.tenant_id=a.tenant_id AND s.id::text=a.subject_id::text
+        LEFT JOIN academics_departments department ON department.tenant_id=s.tenant_id AND department.id::text=s.department_id::text
         JOIN academic_years year ON year.tenant_id=c.tenant_id AND year.id::text=c.academic_year_id::text
         JOIN academic_terms term ON term.tenant_id=a.tenant_id AND term.academic_year_id::text=c.academic_year_id::text
           AND (a.academic_term_id IS NULL OR term.id::text=a.academic_term_id::text)
@@ -81,8 +83,14 @@ export class SyllabusService {
           SELECT 1 FROM jsonb_to_recordset($4::jsonb) AS r(subject_id text, academic_year_id text)
           WHERE r.subject_id=a.subject_id::text AND (r.academic_year_id IS NULL OR r.academic_year_id=c.academic_year_id::text)))
         ORDER BY s.name, c.name, stream.name, term.starts_on, teacher_name, a.id
-      `, actor.tenant_id, actor.user_id, monitor, scope) as any[];
-      const plans = await tx.$queryRawUnsafe(`SELECT p.*, s.name AS subject FROM academics_syllabi p
+      `,
+        actor.tenant_id,
+        actor.user_id,
+        monitor,
+        scope,
+      )) as any[];
+      const plans = (await tx.$queryRawUnsafe(
+        `SELECT p.*, s.name AS subject FROM academics_syllabi p
         JOIN subjects s ON s.tenant_id=p.tenant_id AND s.id::text=p.subject_id
         WHERE p.tenant_id=$1 AND ($3 OR EXISTS (
           SELECT 1 FROM jsonb_to_recordset($4::jsonb) AS r(subject_id text, academic_year_id text)
@@ -91,32 +99,109 @@ export class SyllabusService {
             WHERE a.tenant_id=p.tenant_id AND a.teacher_user_id::text=$2 AND a.subject_id::text=p.subject_id
               AND c.academic_year_id::text=p.academic_year_id AND c.grade_level=p.grade_level
               AND (a.academic_term_id IS NULL OR a.academic_term_id::text=p.academic_term_id))) ORDER BY p.updated_at DESC`,
-        actor.tenant_id, actor.user_id, monitor, scope) as any[];
-      const coverage = await tx.$queryRawUnsafe(`SELECT coverage.* FROM academics_syllabus_coverage coverage
-        WHERE coverage.tenant_id=$1 AND coverage.assignment_id=ANY($2::text[])`, actor.tenant_id, allocations.map(a => a.id)) as any[];
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Nairobi', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-      const scopeKey = (p: any) => JSON.stringify([p.subject_id,p.grade_level,p.academic_year_id,p.academic_term_id]);
-      const plansByScope = new Map(plans.map(plan => [scopeKey(plan),plan]));
+        actor.tenant_id,
+        actor.user_id,
+        monitor,
+        scope,
+      )) as any[];
+      const coverage = (await tx.$queryRawUnsafe(
+        `SELECT coverage.* FROM academics_syllabus_coverage coverage
+        WHERE coverage.tenant_id=$1 AND coverage.assignment_id=ANY($2::text[])`,
+        actor.tenant_id,
+        allocations.map((a) => a.id),
+      )) as any[];
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Africa/Nairobi",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      const scopeKey = (p: any) =>
+        JSON.stringify([
+          p.subject_id,
+          p.grade_level,
+          p.academic_year_id,
+          p.academic_term_id,
+        ]);
+      const plansByScope = new Map(plans.map((plan) => [scopeKey(plan), plan]));
       const coverageByAllocation = new Map<string, any[]>();
       for (const record of coverage) {
-        const key = JSON.stringify([record.assignment_id,record.syllabus_id,record.teacher_user_id]);
-        const records = coverageByAllocation.get(key) ?? []; records.push(record); coverageByAllocation.set(key,records);
+        const key = JSON.stringify([
+          record.assignment_id,
+          record.syllabus_id,
+          record.teacher_user_id,
+        ]);
+        const records = coverageByAllocation.get(key) ?? [];
+        records.push(record);
+        coverageByAllocation.set(key, records);
       }
-      const items = allocations.map(allocation => {
+      const items = allocations.map((allocation) => {
         const syllabus = plansByScope.get(scopeKey(allocation));
-        const records = coverageByAllocation.get(JSON.stringify([allocation.id,syllabus?.id,allocation.teacher_user_id])) ?? [];
-        return { ...allocation, syllabus_id: syllabus?.id ?? null, records,
-          progress: syllabus ? syllabusProgress(syllabus, records, today) : null };
+        const records =
+          coverageByAllocation.get(
+            JSON.stringify([
+              allocation.id,
+              syllabus?.id,
+              allocation.teacher_user_id,
+            ]),
+          ) ?? [];
+        return {
+          ...allocation,
+          syllabus_id: syllabus?.id ?? null,
+          records,
+          progress: syllabus
+            ? syllabusProgress(syllabus, records, today)
+            : null,
+        };
       });
-      const subjects = await tx.$queryRawUnsafe(`SELECT id::text, name FROM subjects WHERE tenant_id=$1 AND status='active' AND archived_at IS NULL ORDER BY name`, actor.tenant_id) as any[];
-      const years = await tx.$queryRawUnsafe(`SELECT id::text,name,status FROM academic_years WHERE tenant_id=$1 AND status <> 'archived' ORDER BY starts_on DESC`, actor.tenant_id);
-      const terms = await tx.$queryRawUnsafe(`SELECT id::text,academic_year_id::text,name,starts_on::text,ends_on::text,status FROM academic_terms WHERE tenant_id=$1 AND status <> 'archived' ORDER BY starts_on`, actor.tenant_id);
-      const grades = await tx.$queryRawUnsafe(`SELECT DISTINCT grade_level,academic_year_id::text FROM class_sections WHERE tenant_id=$1 AND is_active AND status='active' ORDER BY grade_level`, actor.tenant_id);
-      return { school_id: actor.tenant_id, generated_at: new Date().toISOString(), generated_by: actor.user_id,
-        can_monitor: monitor || rights.length > 0, rights, subjects: subjects.filter(s => monitor || rights.some(r => r.subject_id === s.id) || allocations.some(a => a.subject_id === s.id)),
-        years, terms, grades, syllabi: plans.map(p => ({ ...p, can_manage: scopedRight(rights, p.subject_id, p.academic_year_id)
-          && years.some((y: any) => y.id === p.academic_year_id && ['draft','active'].includes(y.status))
-          && terms.some((t: any) => t.id === p.academic_term_id && ['draft','active'].includes(t.status)) })), items };
+      const subjects = (await tx.$queryRawUnsafe(
+        `SELECT id::text, name FROM subjects WHERE tenant_id=$1 AND status='active' AND archived_at IS NULL ORDER BY name`,
+        actor.tenant_id,
+      )) as any[];
+      const years = await tx.$queryRawUnsafe(
+        `SELECT id::text,name,status FROM academic_years WHERE tenant_id=$1 AND status <> 'archived' ORDER BY starts_on DESC`,
+        actor.tenant_id,
+      );
+      const terms = await tx.$queryRawUnsafe(
+        `SELECT id::text,academic_year_id::text,name,starts_on::text,ends_on::text,status FROM academic_terms WHERE tenant_id=$1 AND status <> 'archived' ORDER BY starts_on`,
+        actor.tenant_id,
+      );
+      const grades = await tx.$queryRawUnsafe(
+        `SELECT DISTINCT grade_level,academic_year_id::text FROM class_sections WHERE tenant_id=$1 AND is_active AND status='active' ORDER BY grade_level`,
+        actor.tenant_id,
+      );
+      return {
+        school_id: actor.tenant_id,
+        generated_at: new Date().toISOString(),
+        generated_by: actor.user_id,
+        can_monitor: monitor || rights.length > 0,
+        rights,
+        subjects: subjects.filter(
+          (s) =>
+            monitor ||
+            rights.some((r) => r.subject_id === s.id) ||
+            allocations.some((a) => a.subject_id === s.id),
+        ),
+        years,
+        terms,
+        grades,
+        syllabi: plans.map((p) => ({
+          ...p,
+          can_manage:
+            scopedRight(rights, p.subject_id, p.academic_year_id) &&
+            years.some(
+              (y: any) =>
+                y.id === p.academic_year_id &&
+                ["draft", "active"].includes(y.status),
+            ) &&
+            terms.some(
+              (t: any) =>
+                t.id === p.academic_term_id &&
+                ["draft", "active"].includes(t.status),
+            ),
+        })),
+        items,
+      };
     });
   }
 
@@ -166,13 +251,34 @@ export class SyllabusService {
 
   async recordCoverage(syllabusId: string, subtopicId: string, input: any) {
     return this.transaction(async (tx, actor) => {
-      if (!input || typeof input.assignment_id !== 'string' || input.assignment_id.length > 100 || typeof input.completed !== 'boolean'
-        || (input.note !== undefined && (typeof input.note !== 'string' || input.note.length > 2000))
-        || !Number.isInteger(input.version) || input.version < 0 || !Number.isInteger(input.syllabus_version) || input.syllabus_version < 1) throw new BadRequestException('Provide an allocation, completion checkbox, syllabus and record versions and an optional note of up to 2,000 characters.');
-      const [plan] = await tx.$queryRawUnsafe('SELECT * FROM academics_syllabi WHERE tenant_id=$1 AND id=$2 FOR UPDATE', actor.tenant_id, syllabusId);
-      if (!plan) throw new NotFoundException('Syllabus was not found in this school.');
-      if (input.syllabus_version !== plan.version) throw new ConflictException('The syllabus changed. Refresh to review the current subtopics before recording coverage.');
-      const [assignment] = await tx.$queryRawUnsafe(`SELECT a.id FROM teacher_subject_assignments a
+      if (
+        !input ||
+        typeof input.assignment_id !== "string" ||
+        input.assignment_id.length > 100 ||
+        typeof input.completed !== "boolean" ||
+        (input.note !== undefined &&
+          (typeof input.note !== "string" || input.note.length > 2000)) ||
+        !Number.isInteger(input.version) ||
+        input.version < 0 ||
+        !Number.isInteger(input.syllabus_version) ||
+        input.syllabus_version < 1
+      )
+        throw new BadRequestException(
+          "Provide an allocation, completion checkbox, syllabus and record versions and an optional note of up to 2,000 characters.",
+        );
+      const [plan] = await tx.$queryRawUnsafe(
+        "SELECT * FROM academics_syllabi WHERE tenant_id=$1 AND id=$2 FOR UPDATE",
+        actor.tenant_id,
+        syllabusId,
+      );
+      if (!plan)
+        throw new NotFoundException("Syllabus was not found in this school.");
+      if (input.syllabus_version !== plan.version)
+        throw new ConflictException(
+          "The syllabus changed. Refresh to review the current subtopics before recording coverage.",
+        );
+      const [assignment] = await tx.$queryRawUnsafe(
+        `SELECT a.id FROM teacher_subject_assignments a
         JOIN class_sections c ON c.tenant_id=a.tenant_id AND c.id::text=a.class_section_id::text
         JOIN subjects s ON s.tenant_id=a.tenant_id AND s.id::text=a.subject_id::text
         JOIN academic_terms t ON t.tenant_id=a.tenant_id AND t.id::text=$5
@@ -184,22 +290,73 @@ export class SyllabusService {
           AND (a.stream_id IS NULL OR (stream.is_active AND stream.status='active'))
           AND a.effective_from <= CURRENT_DATE AND (a.effective_to IS NULL OR a.effective_to >= CURRENT_DATE)
           AND t.status IN ('draft','active') AND y.status IN ('draft','active') FOR SHARE OF a`,
-        actor.tenant_id, input.assignment_id, actor.user_id, plan.subject_id, plan.academic_term_id, plan.academic_year_id, plan.grade_level);
-      if (!assignment) throw new ForbiddenException('Only the teacher with this active class, stream, subject and term allocation can record coverage.');
-      if (!plan.topics.some((topic: any) => !topic.archived && topic.subtopics.some((sub: any) => sub.id === subtopicId && !sub.archived))) throw new BadRequestException('Select an active subtopic from this syllabus.');
-      const [previous] = await tx.$queryRawUnsafe(`SELECT * FROM academics_syllabus_coverage WHERE tenant_id=$1 AND syllabus_id=$2 AND assignment_id=$3 AND subtopic_id=$4 AND teacher_user_id=$5 FOR UPDATE`,
-        actor.tenant_id, syllabusId, input.assignment_id, subtopicId, actor.user_id);
-      if ((previous?.version ?? 0) !== input.version) throw new ConflictException('This coverage record changed. Refresh before saving.');
-      const note = input.note === undefined ? previous?.note ?? '' : input.note.trim();
-      if (previous && previous.completed === input.completed && previous.note === note) return previous;
-      const [saved] = await tx.$queryRawUnsafe(`INSERT INTO academics_syllabus_coverage
+        actor.tenant_id,
+        input.assignment_id,
+        actor.user_id,
+        plan.subject_id,
+        plan.academic_term_id,
+        plan.academic_year_id,
+        plan.grade_level,
+      );
+      if (!assignment)
+        throw new ForbiddenException(
+          "Only the teacher with this active class, stream, subject and term allocation can record coverage.",
+        );
+      if (
+        !plan.topics.some(
+          (topic: any) =>
+            !topic.archived &&
+            topic.subtopics.some(
+              (sub: any) => sub.id === subtopicId && !sub.archived,
+            ),
+        )
+      )
+        throw new BadRequestException(
+          "Select an active subtopic from this syllabus.",
+        );
+      const [previous] = await tx.$queryRawUnsafe(
+        `SELECT * FROM academics_syllabus_coverage WHERE tenant_id=$1 AND syllabus_id=$2 AND assignment_id=$3 AND subtopic_id=$4 AND teacher_user_id=$5 FOR UPDATE`,
+        actor.tenant_id,
+        syllabusId,
+        input.assignment_id,
+        subtopicId,
+        actor.user_id,
+      );
+      if ((previous?.version ?? 0) !== input.version)
+        throw new ConflictException(
+          "This coverage record changed. Refresh before saving.",
+        );
+      const note =
+        input.note === undefined ? (previous?.note ?? "") : input.note.trim();
+      if (
+        previous &&
+        previous.completed === input.completed &&
+        previous.note === note
+      )
+        return previous;
+      const [saved] = await tx.$queryRawUnsafe(
+        `INSERT INTO academics_syllabus_coverage
         (tenant_id,syllabus_id,assignment_id,subtopic_id,teacher_user_id,completed,completed_at,note,created_by_user_id,updated_by_user_id)
         VALUES ($1,$2,$3,$4,$5::text,$6,CASE WHEN $6 THEN NOW() ELSE NULL END,$7,$5::text::uuid,$5::text::uuid)
         ON CONFLICT (tenant_id,syllabus_id,assignment_id,teacher_user_id,subtopic_id) DO UPDATE SET completed=EXCLUDED.completed,
           completed_at=CASE WHEN NOT EXCLUDED.completed THEN NULL WHEN academics_syllabus_coverage.completed THEN academics_syllabus_coverage.completed_at ELSE NOW() END,
           note=EXCLUDED.note,version=academics_syllabus_coverage.version+1,updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at=NOW() RETURNING *`,
-        actor.tenant_id, syllabusId, input.assignment_id, subtopicId, actor.user_id, input.completed, note);
-      await this.record(tx, actor, 'academic.syllabus.coverage_updated', 'syllabus_coverage', saved, previous ?? null);
+        actor.tenant_id,
+        syllabusId,
+        input.assignment_id,
+        subtopicId,
+        actor.user_id,
+        input.completed,
+        note,
+      );
+      await this.record(
+        tx,
+        actor,
+        "academic.syllabus.coverage_updated",
+        "syllabus_coverage",
+        saved,
+        previous ?? null,
+      );
       return saved;
     });
   }

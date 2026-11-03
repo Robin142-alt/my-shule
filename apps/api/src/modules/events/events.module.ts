@@ -17,6 +17,10 @@ import { WelfareCaseConsumer } from './consumers/welfare-case.consumer';
 import { ApprovalChainService } from './approval-chain.service';
 import { NotificationRouterController } from './notification-router.controller';
 import { NotificationRouterService } from './notification-router.service';
+import {
+  StaffConversationsController,
+  StaffConversationsService,
+} from "./staff-conversations";
 import { AuditTrailController } from './audit-trail.controller';
 import { AuditTrailService } from './audit-trail.service';
 import { DashboardRealtimeController } from './dashboard-realtime.controller';
@@ -51,6 +55,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     OperationalWorkflowDispatcherController,
     SchoolOperationalEventsController,
     NotificationRouterController,
+    StaffConversationsController,
     AuditTrailController,
   ],
   providers: [
@@ -86,6 +91,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     WorkflowRepository,
     ApprovalChainService,
     NotificationRouterService,
+    StaffConversationsService,
     AuditTrailService,
   ],
   exports: [

@@ -15,45 +15,55 @@ const payload = {
   enqueued_at: '2026-05-14T08:00:00.000Z',
 };
 
-test('ReportExportWorkerService stores artifacts and creates immutable snapshot manifests', async () => {
+test("ReportExportWorkerService stores artifacts and creates immutable snapshot manifests", async () => {
   const calls: string[] = [];
   const worker = new ReportExportWorkerService(
     {
       storeArtifact: async () => {
-        calls.push('store');
+        calls.push("store");
         return {
-          storage_path: 'tenant/tenant-a/reports/exams/exam-results/artifact.pdf',
-          checksum_sha256: 'c'.repeat(64),
+          storage_path:
+            "tenant/tenant-a/reports/exams/exam-results/artifact.pdf",
+          checksum_sha256: "c".repeat(64),
         };
       },
     } as never,
     {
       saveManifest: async (manifest: Record<string, unknown>) => {
-        calls.push('manifest');
+        calls.push("manifest");
+        const file = manifest.artifact as Record<string, unknown>;
+        assert.equal(
+          file.storage_path,
+          "tenant/tenant-a/reports/exams/exam-results/artifact.pdf",
+        );
+        assert.ok(
+          Number(file.byte_length) > 0,
+          "Persist the byte length required for download integrity checks",
+        );
         return {
-          id: 'snapshot-row-1',
+          id: "snapshot-row-1",
           snapshot_id: manifest.snapshot_id,
           manifest_checksum_sha256: manifest.manifest_checksum_sha256,
-          created_at: '2026-05-14T08:00:00.000Z',
+          created_at: "2026-05-14T08:00:00.000Z",
         };
       },
     } as never,
   );
 
   const result = await worker.execute(payload, {
-    title: 'Exam results',
-    headers: ['Student', 'Score'],
+    title: "Exam results",
+    headers: ["Student", "Score"],
     rows: [
-      ['Aisha Njeri', 84],
-      ['Brian Otieno', 69],
+      ["Aisha Njeri", 84],
+      ["Brian Otieno", 69],
     ],
   });
 
-  assert.equal(result.status, 'completed');
-  assert.equal(result.artifact.format, 'pdf');
+  assert.equal(result.status, "completed");
+  assert.equal(result.artifact.format, "pdf");
   assert.equal(result.artifact.row_count, 2);
   assert.equal(result.snapshot.manifest_checksum_sha256.length, 64);
-  assert.deepEqual(calls, ['store', 'manifest']);
+  assert.deepEqual(calls, ["store", "manifest"]);
 });
 
 test('ReportExportWorkerService rejects retired attendance exports', async () => {

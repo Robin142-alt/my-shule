@@ -959,6 +959,13 @@ export class EventsSchemaService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS ix_notifications_tenant_user_status_created
         ON notifications (tenant_id, recipient_user_id, status, created_at DESC);
 
+      CREATE INDEX IF NOT EXISTS ix_notifications_staff_thread
+        ON notifications (tenant_id, recipient_user_id, source_record_id, created_at DESC, id DESC)
+        WHERE type = 'staff.conversation.message';
+      CREATE INDEX IF NOT EXISTS ix_notifications_staff_message
+        ON notifications (tenant_id, (metadata->>'message_id'), recipient_user_id)
+        WHERE type = 'staff.conversation.message';
+
       CREATE TABLE IF NOT EXISTS tasks (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id text NOT NULL,

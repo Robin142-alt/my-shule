@@ -451,34 +451,55 @@ export class AdminCommandService {
   }
 
   async createCommunicationBroadcast(dto: any) {
-    const requestedAudience = this.requireText(dto.audience, 'Broadcast audience').toLowerCase();
-    const audienceAliases: Record<string, 'parents' | 'staff' | 'class'> = {
-      parents: 'parents',
-      all_parents: 'parents',
-      guardians: 'parents',
-      staff: 'staff',
-      all_staff: 'staff',
-      teachers: 'staff',
-      class: 'class',
-      specific_class: 'class',
+    const requestedAudience = this.requireText(
+      dto.audience,
+      "Broadcast audience",
+    ).toLowerCase();
+    const audienceAliases: Record<string, "parents" | "staff" | "class"> = {
+      parents: "parents",
+      all_parents: "parents",
+      guardians: "parents",
+      staff: "staff",
+      all_staff: "staff",
+      teachers: "staff",
+      class: "class",
+      specific_class: "class",
     };
     const audience = audienceAliases[requestedAudience];
     if (!audience) {
-      throw new BadRequestException('Broadcast audience must be parents, staff, or a specific class');
+      throw new BadRequestException(
+        "Broadcast audience must be parents, staff, or a specific class",
+      );
     }
-    const message = this.requireText(dto.message, 'Broadcast message');
-    const targetClass = audience === 'class'
-      ? this.requireText(dto.targetClass ?? dto.target_class, 'Target class')
-      : null;
-    const requestedChannels: string[] = Array.isArray(dto.channels) && dto.channels.length > 0
-      ? dto.channels.map((channel: unknown) => String(channel).trim().toLowerCase())
-      : ['in_app'];
+    const message = this.requireText(dto.message, "Broadcast message");
+    if (message.length > 8000)
+      throw new BadRequestException(
+        "Broadcast messages must be 8,000 characters or fewer",
+      );
+    if (/\{\{[^}]+\}\}/.test(message))
+      throw new BadRequestException(
+        "Replace template placeholders with the final message before sending",
+      );
+    const targetClass =
+      audience === "class"
+        ? this.requireText(dto.targetClass ?? dto.target_class, "Target class")
+        : null;
+    const requestedChannels: string[] =
+      Array.isArray(dto.channels) && dto.channels.length > 0
+        ? dto.channels.map((channel: unknown) =>
+            String(channel).trim().toLowerCase(),
+          )
+        : ["in_app"];
     const channels = [...new Set<string>(requestedChannels)];
-    if (channels.some((channel) => channel !== 'sms' && channel !== 'in_app')) {
-      throw new BadRequestException('Broadcast channels currently support SMS and in-app delivery');
+    if (channels.some((channel) => channel !== "sms" && channel !== "in_app")) {
+      throw new BadRequestException(
+        "Broadcast channels currently support SMS and in-app delivery",
+      );
     }
-    if (audience === 'staff' && channels.includes('sms')) {
-      throw new BadRequestException('Staff SMS is unavailable until staff contact numbers are configured; use in-app delivery');
+    if (audience === "staff" && channels.includes("sms")) {
+      throw new BadRequestException(
+        "Staff SMS is unavailable until staff contact numbers are configured; use in-app delivery",
+      );
     }
     const broadcast = await this.repository.createCommunicationBroadcast({
       tenant_id: this.requireTenantId(),
@@ -490,29 +511,38 @@ export class AdminCommandService {
     });
     if (!broadcast?.event) {
       throw new BadRequestException(
-        'No active tenant-scoped recipients are available for the requested audience and channels. No broadcast was created.',
+        "No active tenant-scoped recipients are available for the requested audience and channels. No broadcast was created.",
       );
     }
-    const smsQueuedCount = Number(broadcast.smsQueuedCount ?? broadcast.smsRecipientCount ?? 0);
+    const smsQueuedCount = Number(
+      broadcast.smsQueuedCount ?? broadcast.smsRecipientCount ?? 0,
+    );
     const smsProcessingCount = Number(broadcast.smsProcessingCount ?? 0);
     const smsAcceptedCount = Number(broadcast.smsAcceptedCount ?? 0);
     const smsNeedsReviewCount = Number(broadcast.smsNeedsReviewCount ?? 0);
-    const smsOutboxCount = Number(broadcast.smsOutboxCount ?? broadcast.smsRecipientCount ?? 0);
-    await this.audit('admin_command.communication_broadcast_created', 'communication_broadcast', broadcast.event.id, {
-      audience,
-      targetClass,
-      channels,
-      smsRecipientCount: broadcast.smsRecipientCount,
-      smsQueuedCount,
-      smsProcessingCount,
-      smsAcceptedCount,
-      smsNeedsReviewCount,
-      smsOutboxCount,
-      inAppRecipientCount: broadcast.inAppRecipientCount,
-    });
+    const smsOutboxCount = Number(
+      broadcast.smsOutboxCount ?? broadcast.smsRecipientCount ?? 0,
+    );
+    await this.audit(
+      "admin_command.communication_broadcast_created",
+      "communication_broadcast",
+      broadcast.event.id,
+      {
+        audience,
+        targetClass,
+        channels,
+        smsRecipientCount: broadcast.smsRecipientCount,
+        smsQueuedCount,
+        smsProcessingCount,
+        smsAcceptedCount,
+        smsNeedsReviewCount,
+        smsOutboxCount,
+        inAppRecipientCount: broadcast.inAppRecipientCount,
+      },
+    );
     return {
       success: true,
-      message: `Broadcast recorded with ${broadcast.inAppRecipientCount} in-app recipient${broadcast.inAppRecipientCount === 1 ? '' : 's'}; SMS: ${smsQueuedCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review.`,
+      message: `Broadcast recorded with ${broadcast.inAppRecipientCount} in-app recipient${broadcast.inAppRecipientCount === 1 ? "" : "s"}; SMS: ${smsQueuedCount} queued, ${smsProcessingCount} dispatching, ${smsAcceptedCount} provider-accepted, ${smsNeedsReviewCount} requiring review.`,
       broadcast,
     };
   }

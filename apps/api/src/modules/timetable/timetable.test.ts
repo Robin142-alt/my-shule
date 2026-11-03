@@ -1330,3 +1330,40 @@ test('separate streams can share periods and parallel electives consume one cell
   assert.deepEqual(result.gaps, []);
   assert.equal(uncoveredTeachingCells({ ...electives, slots: result.placements }).length, 0);
 });
+
+
+test('Principal read views expose configured teaching times without management configuration', async () => {
+  let requested: any;
+  const service = new TimetableService(
+    {getStore:()=>({tenant_id:'tenant-a',user_id:'principal-a',role:'principal',permissions:['timetable:read']})} as never,
+    {} as never,
+    {
+      listView: async (input:any) => { requested=input;return {version:{id:'published'},items:[]}; },
+      getConfiguration: async () => ({privateNotes:'Management notes',days:[
+        {day_of_week:1,name:'Monday',is_teaching_day:true,internalId:'private',periods:[
+          {name:'First lesson',starts_at:'08:00',ends_at:'08:40',is_teaching:true,teacher_constraints:['private']},
+          {name:'Break',starts_at:'08:40',ends_at:'09:00',is_teaching:false},
+        ]},
+      ]}),
+    } as never, {} as never,
+  );
+  const result=await service.getView({academic_year:'2026',term_name:'Term 3',include_periods:true});
+  assert.equal(requested.tenant_id,'tenant-a');
+  assert.equal(requested.prefer_draft,false);
+  assert.deepEqual(result.days,[{day_of_week:1,name:'Monday',is_teaching_day:true,periods:[
+    {name:'First lesson',starts_at:'08:00',ends_at:'08:40',is_teaching:true},
+    {name:'Break',starts_at:'08:40',ends_at:'09:00',is_teaching:false},
+  ]}]);
+  assert.ok(!JSON.stringify(result).includes('private'));
+});
+
+test('a timetable read without an explicit version never falls back to an unpublished draft', async () => {
+  const queries: string[]=[];
+  const repository=new TimetableWorkflowRepository({query:async(sql:string,params:any[])=>{
+    queries.push(sql);assert.equal(params[0],'tenant-a');
+    return {rows:sql.includes('SELECT term.id')?[{id:'term'}]:sql.includes('class_ok')?[{class_ok:true,stream_ok:true,teacher_ok:true,resource_ok:true,department_ok:true}]:[],rowCount:0};
+  }} as never);
+  const view=await repository.listView({tenant_id:'tenant-a',academic_year:'2026',term_name:'Term 3',view:'master',prefer_draft:false});
+  assert.equal(view.version,null);
+  assert.match(queries.find(sql=>sql.includes('FROM timetable_versions'))!,/status = 'published' OR \(\$4::boolean AND status = 'draft'\)/);
+});

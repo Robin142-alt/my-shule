@@ -17,9 +17,9 @@ import type {
 // Names are resolved inside the same tenant as the visible case, never from a global lookup.
 const INCIDENT_LABELS = `
   (SELECT CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name) FROM students student
-    WHERE student.tenant_id = discipline_incidents.tenant_id AND student.id = discipline_incidents.student_id) AS student_name,
+    WHERE student.tenant_id = discipline_incidents.tenant_id AND student.id::text = discipline_incidents.student_id::text) AS student_name,
   (SELECT student.admission_number FROM students student
-    WHERE student.tenant_id = discipline_incidents.tenant_id AND student.id = discipline_incidents.student_id) AS admission_number,
+    WHERE student.tenant_id = discipline_incidents.tenant_id AND student.id::text = discipline_incidents.student_id::text) AS admission_number,
   (SELECT COALESCE(NULLIF(section.custom_label, ''), section.name) FROM class_sections section
     WHERE section.tenant_id = discipline_incidents.tenant_id AND section.id::text = discipline_incidents.class_id::text) AS class_label,
   (SELECT category.name FROM offense_categories category
@@ -541,7 +541,7 @@ export class DisciplineRepository {
             OR EXISTS (
               SELECT 1 FROM students student
               WHERE student.tenant_id = discipline_incidents.tenant_id
-                AND student.id = discipline_incidents.student_id
+                AND student.id::text = discipline_incidents.student_id::text
                 AND (student.admission_number ILIKE '%' || $11 || '%'
                   OR CONCAT_WS(' ', student.first_name, student.middle_name, student.last_name) ILIKE '%' || $11 || '%')
             )

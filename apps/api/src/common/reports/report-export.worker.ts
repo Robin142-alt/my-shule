@@ -64,7 +64,7 @@ export class ReportExportWorkerService {
     const validationErrors = validateReportExportJobPayload(payload);
 
     if (validationErrors.length > 0) {
-      throw new BadRequestException(validationErrors.join(' '));
+      throw new BadRequestException(validationErrors.join(" "));
     }
 
     await assertReportExportModuleEnabled(
@@ -104,13 +104,15 @@ export class ReportExportWorkerService {
         rowCount: artifact.rowCount,
         checksumSha256: artifact.checksumSha256,
         generatedAt: artifact.generatedAt,
+        storagePath: storedArtifact.storage_path,
+        byteLength: artifact.byteLength,
       },
       filters: payload.filters ?? {},
       generatedByUserId: payload.requested_by_user_id,
     });
     const persisted = await this.snapshotRepository.saveManifest(manifest);
     const result: ReportExportWorkerResult = {
-      status: 'completed',
+      status: "completed",
       deduplicated: false,
       artifact: {
         filename: artifact.filename,

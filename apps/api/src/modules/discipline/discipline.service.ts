@@ -181,8 +181,22 @@ export class DisciplineService {
   }
 
   async createIncident(dto: CreateDisciplineIncidentDto) {
+    this.assertDisciplineWrite();
+    return this.persistIncident(dto);
+  }
+
+  // Called only after TeacherWorkflowService verifies the active learner allocation.
+  // This preserves the teacher concern workflow without granting the incident API.
+  async createTeacherConcern(dto: CreateDisciplineIncidentDto) {
+    this.assertPermission('teacher:write');
+    if (dto.reporting_staff_id !== this.actorUserId() || dto.metadata?.source_dashboard !== 'teacher') {
+      throw new ForbiddenException('Teacher concerns must belong to the reporting teacher');
+    }
+    return this.persistIncident(dto);
+  }
+
+  private async persistIncident(dto: CreateDisciplineIncidentDto) {
     return this.withRequestTransaction(async () => {
-      this.assertDisciplineWrite();
       const tenantId = this.requireTenantId();
       const actorUserId = this.actorUserId();
       const schoolId = await this.resolveSchoolId(dto.school_id);

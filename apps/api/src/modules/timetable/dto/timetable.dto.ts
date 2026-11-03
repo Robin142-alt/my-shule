@@ -898,6 +898,11 @@ export class TimetableViewQueryDto {
   @Transform(({ value }) => queryBoolean(value))
   @IsBoolean()
   include_draft?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => queryBoolean(value))
+  @IsBoolean()
+  include_periods?: boolean;
 }
 
 export class FindValidSlotsDto extends AcademicTermScopeDto {

@@ -10,6 +10,8 @@ export interface ReportArtifactInput {
   rows: ReportArtifactValue[][];
   filters?: Record<string, unknown>;
   generatedAt?: Date | string;
+  schoolName?: string;
+  generatedBy?: string;
 }
 
 export interface ReportArtifact {

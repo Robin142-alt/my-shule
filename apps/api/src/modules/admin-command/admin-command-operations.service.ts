@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createCsvReportArtifact } from '../../common/reports/report-csv-artifact';
 import { createXlsxReportArtifact } from '../../common/reports/report-excel-artifact';
 import { createPdfReportArtifact } from '../../common/reports/report-pdf-artifact';
+import { readSavedSpreadsheet } from "../../common/reports/saved-spreadsheet-preview";
 import type {
   ReportArtifact,
   ReportArtifactInput,
@@ -37,31 +38,91 @@ export class AdminCommandOperationsService {
     });
   }
 
-  async readReportArtifact(tenantId: string, module: string, id: string, preview = false) {
+  async readReportArtifact(
+    tenantId: string,
+    module: string,
+    id: string,
+    preview = false,
+  ) {
     const row = await this.findReportSnapshot(tenantId, module, id);
-    if (!row) throw new NotFoundException('Report was not found in this school.');
+    if (!row)
+      throw new NotFoundException("Report was not found in this school.");
     const artifact = row.artifact ?? {};
     let content: Buffer;
+    let expectedLength = Number(artifact.byte_length);
     if (artifact.storage_path && this.files) {
-      content = (await this.files.readForTenant({ tenantId, storagePath: artifact.storage_path })).content;
+      const stored = await this.files.readForTenant({
+        tenantId,
+        storagePath: artifact.storage_path,
+      });
+      content = stored.content;
+      if (!Number.isFinite(expectedLength)) expectedLength = stored.size_bytes;
     } else if (artifact.content_base64) {
-      content = Buffer.from(artifact.content_base64, 'base64');
+      content = Buffer.from(artifact.content_base64, "base64");
     } else {
-      throw new ConflictException('This saved report has no accessible file. Generate a new report; the saved audit record is preserved.');
+      // Older export workers saved the checksum but omitted the file location from
+      // the immutable manifest. Recover only its matching, existing private file.
+      const stored =
+        this.files && /^[a-f0-9]{64}$/i.test(artifact.checksum_sha256 ?? "")
+          ? (
+              await this.readSql(
+                `SELECT storage_path, size_bytes FROM file_objects
+            WHERE tenant_id=$1 AND sha256=$2 AND metadata->>'module'=$3 AND metadata->>'report_id'=$4
+              AND (retention_expires_at IS NULL OR retention_expires_at>now())
+            ORDER BY created_at DESC LIMIT 1`,
+                [tenantId, artifact.checksum_sha256, module, row.report_id],
+              )
+            ).rows[0]
+          : null;
+      if (!stored || !this.files)
+        throw new ConflictException(
+          "This saved report has no accessible file. Generate a new report; the saved audit record is preserved.",
+        );
+      content = (
+        await this.files.readForTenant({
+          tenantId,
+          storagePath: stored.storage_path,
+        })
+      ).content;
+      expectedLength = Number(artifact.byte_length ?? stored.size_bytes);
     }
-    if (!content.length || content.length !== Number(artifact.byte_length) ||
-      createHash('sha256').update(content).digest('hex') !== artifact.checksum_sha256) {
-      throw new ConflictException('The saved report failed its integrity check. Generate a new report or ask the administrator to restore its file.');
+    if (
+      !content.length ||
+      content.length !== expectedLength ||
+      createHash("sha256").update(content).digest("hex") !==
+        artifact.checksum_sha256
+    ) {
+      throw new ConflictException(
+        "The saved report failed its integrity check. Generate a new report or ask the administrator to restore its file.",
+      );
     }
-    if (preview && row.format !== 'pdf') {
-      // Preview the saved manifest, never current records, for historical spreadsheet reports.
+    if (preview && row.format !== "pdf") {
+      // Preview the saved contents, never current records, for historical reports.
       const manifest = row.manifest;
-      if (!manifest?.sections) throw new ConflictException('This report has no saved preview data. Download the original file.');
-      return this.createReportArtifact('pdf', { reportId: row.snapshot_id, module, title: row.title,
-        filename: 'report.pdf', generatedAt: manifest.generatedAt ?? row.created_at,
-        filters: manifest.filters ?? {}, headers: ['Section','Group','Record','Value'], rows: this.buildReportRows(manifest.sections) });
+      const table = manifest?.sections
+        ? {
+            headers: ["Section", "Group", "Record", "Value"],
+            rows: this.buildReportRows(manifest.sections),
+          }
+        : await readSavedSpreadsheet(content, row.format);
+      return this.createReportArtifact("pdf", {
+        reportId: row.snapshot_id,
+        module,
+        title: row.title,
+        filename: "report.pdf",
+        generatedAt: manifest?.generatedAt ?? row.created_at,
+        schoolName: manifest?.schoolName,
+        generatedBy: manifest?.generatedBy,
+        filters: manifest?.filters ?? {},
+        ...table,
+      });
     }
-    return { content, contentType: artifact.content_type, filename: artifact.filename, byteLength: content.length };
+    return {
+      content,
+      contentType: artifact.content_type,
+      filename: artifact.filename,
+      byteLength: content.length,
+    };
   }
 
   async writeSql<T = any>(query: string, params: any[] = []): Promise<{ rows: T[]; rowCount: number }> {
@@ -129,43 +190,77 @@ export class AdminCommandOperationsService {
     onProgress?: (value: Record<string, any>) => Promise<void>;
   }) {
     if (input.snapshotId) {
-      const existing = await this.findReportSnapshot(input.tenantId, input.module, input.snapshotId);
+      const existing = await this.findReportSnapshot(
+        input.tenantId,
+        input.module,
+        input.snapshotId,
+      );
       if (existing) {
-        await this.notifySavedReport(input.tenantId, input.module, existing, input.targetRoles);
-        return { success: true, message: 'Report generated and stored', snapshotId: existing.snapshot_id,
-          report: existing.manifest, artifact: existing.artifact };
+        await this.notifySavedReport(
+          input.tenantId,
+          input.module,
+          existing,
+          input.targetRoles,
+        );
+        return {
+          success: true,
+          message: "Report generated and stored",
+          snapshotId: existing.snapshot_id,
+          report: existing.manifest,
+          artifact: existing.artifact,
+        };
       }
     }
     const format = this.normalizeFormat(input.format);
-    const module = this.safeIdentifier(input.module, 'admin-command');
-    const reportId = this.safeIdentifier(input.reportId || `${module}-operations`, `${module}-operations`);
-    const title = String(input.title || 'Operational report').trim().slice(0, 180);
+    const module = this.safeIdentifier(input.module, "admin-command");
+    const reportId = this.safeIdentifier(
+      input.reportId || `${module}-operations`,
+      `${module}-operations`,
+    );
+    const title = String(input.title || "Operational report")
+      .trim()
+      .slice(0, 180);
     const generatedAt = new Date().toISOString();
+    const identity = (
+      await this.readSql(
+        `SELECT school.name AS school_name, staff.display_name AS generated_by
+      FROM tenants school LEFT JOIN staff_profiles staff ON staff.tenant_id=school.tenant_id AND staff.user_id::text=$2
+      WHERE school.tenant_id=$1 LIMIT 1`,
+        [input.tenantId, input.generatedByUserId ?? null],
+      )
+    ).rows[0];
     const manifest = {
       module,
       reportName: title,
       format,
       generatedAt,
+      schoolName: identity?.school_name,
+      generatedBy: identity?.generated_by,
       sections: input.sections,
       filters: input.filters ?? {},
     };
     const manifestJson = JSON.stringify(manifest);
-    const manifestChecksum = createHash('sha256').update(manifestJson).digest('hex');
-    const snapshotId = input.snapshotId ?? `${module}-${Date.now()}-${randomUUID()}`;
+    const manifestChecksum = createHash("sha256")
+      .update(manifestJson)
+      .digest("hex");
+    const snapshotId =
+      input.snapshotId ?? `${module}-${Date.now()}-${randomUUID()}`;
     const reportRows = this.buildReportRows(input.sections);
-    await input.onProgress?.({ stage: 'rendering' });
+    await input.onProgress?.({ stage: "rendering" });
     const generatedArtifact = await this.createReportArtifact(format, {
       reportId,
       module,
       title,
-      filename: `${reportId}-${generatedAt.replace(/\D/g, '').slice(0, 14)}.${format}`,
+      filename: `${reportId}-${generatedAt.replace(/\D/g, "").slice(0, 14)}.${format}`,
       generatedAt,
+      schoolName: identity?.school_name,
+      generatedBy: identity?.generated_by,
       filters: input.filters ?? {},
-      headers: ['Section', 'Group', 'Record', 'Value'],
+      headers: ["Section", "Group", "Record", "Value"],
       rows: reportRows,
     });
     const artifact: Record<string, unknown> = {
-      kind: 'generated-report',
+      kind: "generated-report",
       filename: generatedArtifact.filename,
       content_type: generatedArtifact.contentType,
       byte_length: generatedArtifact.byteLength,
@@ -173,18 +268,24 @@ export class AdminCommandOperationsService {
       checksum_sha256: generatedArtifact.checksumSha256,
       generated_at: generatedArtifact.generatedAt,
       section_count: Object.keys(input.sections).length,
-      encoding: 'base64',
+      encoding: "base64",
     };
-    await input.onProgress?.({ stage: 'saving' });
+    await input.onProgress?.({ stage: "saving" });
     if (input.storeFile && this.files) {
-      const stored = await this.files.save({ tenantId: input.tenantId,
+      const stored = await this.files.save({
+        tenantId: input.tenantId,
         storagePath: `tenant/${input.tenantId}/reports/academic/operations/${snapshotId}/${randomUUID()}.${format}`,
-        originalFileName: generatedArtifact.filename, mimeType: generatedArtifact.contentType,
-        sizeBytes: generatedArtifact.byteLength, buffer: generatedArtifact.content, retentionPolicy: 'report-staging',
-        retentionExpiresAt: new Date(Date.now()+86400000).toISOString() });
+        originalFileName: generatedArtifact.filename,
+        mimeType: generatedArtifact.contentType,
+        sizeBytes: generatedArtifact.byteLength,
+        buffer: generatedArtifact.content,
+        retentionPolicy: "report-staging",
+        retentionExpiresAt: new Date(Date.now() + 86400000).toISOString(),
+      });
       artifact.storage_path = stored.stored_path;
-      artifact.encoding = 'object';
-    } else artifact.content_base64 = generatedArtifact.content.toString('base64');
+      artifact.encoding = "object";
+    } else
+      artifact.content_base64 = generatedArtifact.content.toString("base64");
     const auditMetadata = JSON.stringify({
       title,
       format,
@@ -198,7 +299,7 @@ export class AdminCommandOperationsService {
     const actorUserId = this.uuidOrNull(input.generatedByUserId);
     const auditAction = `${module}.report.generated`;
 
-    await this.writeSql(
+    const inserted = await this.writeSql(
       `
         WITH inserted_snapshot AS (
           INSERT INTO report_snapshots (
@@ -208,11 +309,15 @@ export class AdminCommandOperationsService {
           VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::text, $10::jsonb, $11)
           ON CONFLICT (tenant_id, snapshot_id) DO NOTHING
           RETURNING tenant_id, snapshot_id
-        )${artifact.storage_path ? `, promoted_file AS (
+        )${
+          artifact.storage_path
+            ? `, promoted_file AS (
           UPDATE file_objects SET retention_policy='academic-record', retention_expires_at=NULL
           WHERE tenant_id=$1 AND storage_path=$14 AND EXISTS (SELECT 1 FROM inserted_snapshot)
           RETURNING id
-        )` : ''}, snapshot_audit AS (
+        )`
+            : ""
+        }, snapshot_audit AS (
           INSERT INTO report_snapshot_audit_logs (
             tenant_id, snapshot_id, action, actor_user_id, request_id, metadata
           )
@@ -260,12 +365,50 @@ export class AdminCommandOperationsService {
       ],
     );
 
-    await this.notifySavedReport(input.tenantId, module, { snapshot_id: snapshotId, report_id: reportId,
-      title, format, artifact, manifest_checksum_sha256: manifestChecksum }, input.targetRoles);
+    if (input.snapshotId && inserted.rows.length === 0) {
+      // A concurrent retry may have stored the snapshot while this request rendered.
+      // Its losing staging file expires automatically; return the committed artifact.
+      const saved = await this.findReportSnapshot(
+        input.tenantId,
+        module,
+        snapshotId,
+      );
+      if (!saved)
+        throw new ConflictException(
+          "The saved report could not be confirmed. Retry this request.",
+        );
+      await this.notifySavedReport(
+        input.tenantId,
+        module,
+        saved,
+        input.targetRoles,
+      );
+      return {
+        success: true,
+        message: "Report generated and stored",
+        snapshotId: saved.snapshot_id,
+        report: saved.manifest,
+        artifact: saved.artifact,
+      };
+    }
+
+    await this.notifySavedReport(
+      input.tenantId,
+      module,
+      {
+        snapshot_id: snapshotId,
+        report_id: reportId,
+        title,
+        format,
+        artifact,
+        manifest_checksum_sha256: manifestChecksum,
+      },
+      input.targetRoles,
+    );
 
     return {
       success: true,
-      message: 'Report generated and stored',
+      message: "Report generated and stored",
       snapshotId,
       report: manifest,
       artifact,
