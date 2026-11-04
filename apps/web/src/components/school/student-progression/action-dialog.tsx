@@ -5,7 +5,7 @@ import { LoaderCircle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { submitProgressionCommand, type ProgressionAction, type ProgressionCommand, type ProgressionCommandResult, type ProgressionOverview, type ProgressionStudent, type ProgressionStudentDetail } from "@/lib/modules/student-progression";
-import { ACTIONS, displayDate } from "./presentation";
+import { ACTIONS, displayDate, needsPromotionStream } from "./presentation";
 import styles from "./progression.module.css";
 
 export function ProgressionActionDialog({ action, students, overview, selectedYearId, initialDetail, transitionId, failedRequest, initialError, onClose, onComplete, onRefresh }: {
@@ -14,7 +14,13 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
   onClose: () => void; onComplete: (result: ProgressionCommandResult) => void; onRefresh: () => void;
 }) {
   const actionInfo = ACTIONS[action];
-  const needsDestination = ["place", "reinstate"].includes(action);
+  const [choosePromotionStream, setChoosePromotionStream] = useState(action === "promote" && needsPromotionStream(initialError ?? ""));
+  const needsDestination = ["place", "reinstate"].includes(action) || choosePromotionStream;
+  const sourceYear = overview.years.find(year => year.id === students[0].academic_year_id);
+  const nextYear = overview.years.filter(year => sourceYear && year.starts_on > sourceYear.ends_on && !["inactive","archived"].includes(year.status))
+    .sort((a,b) => a.starts_on.localeCompare(b.starts_on))[0];
+  const receiving = overview.classes.filter(item => item.academic_year_id === nextYear?.id && item.name === students[0].next_class_name && item.curriculum_model === students[0].curriculum_model);
+  const receivingClass = receiving.length === 1 ? receiving[0] : undefined;
   const needsDetail = action === "subjects" || action === "reverse";
   const [policyNoteRequired, setPolicyNoteRequired] = useState(Boolean(initialError?.includes("policy requires a reason")));
   const details = useSchoolQuery<ProgressionStudentDetail>(needsDetail ? `/academics/progression/students/${encodeURIComponent(students[0].id)}` : null, { enabled: needsDetail, staleTime: 0 });
@@ -22,9 +28,9 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
   // background refetch must not silently authorise overwriting another edit.
   const [detailSnapshot, setDetailSnapshot] = useState(initialDetail);
   const detail = detailSnapshot ?? details.data;
-  const [destinationYear, setDestinationYear] = useState(needsDestination ? students[0].academic_year_id ?? selectedYearId : "");
-  const [classId, setClassId] = useState(needsDestination && students.length === 1 ? students[0].class_section_id ?? "" : "");
-  const [streamId, setStreamId] = useState(needsDestination && students.length === 1 ? students[0].stream_id ?? "" : "");
+  const [destinationYear, setDestinationYear] = useState(choosePromotionStream ? nextYear?.id ?? "" : needsDestination ? students[0].academic_year_id ?? selectedYearId : "");
+  const [classId, setClassId] = useState(choosePromotionStream ? receivingClass?.id ?? "" : needsDestination && students.length === 1 ? students[0].class_section_id ?? "" : "");
+  const [streamId, setStreamId] = useState(!choosePromotionStream && needsDestination && students.length === 1 ? students[0].stream_id ?? "" : "");
   const [reason, setReason] = useState("");
   const [destinationSchool, setDestinationSchool] = useState("");
   const [subjectIds, setSubjectIds] = useState<string[]>([]);
@@ -32,7 +38,7 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [stale, setStale] = useState(Boolean(initialError && /changed|stale|version|refresh|no longer/i.test(initialError)));
-  const needsCorrection = Boolean(initialError && /choose|select|configure|conflicting evidence|review.*admission|capacity|closed|inactive|disabled/i.test(initialError));
+  const needsCorrection = choosePromotionStream || Boolean(initialError && /choose|select|configure|conflicting evidence|review.*admission|capacity|closed|inactive|disabled/i.test(initialError));
   const [attempted, setAttempted] = useState(Boolean(failedRequest && !policyNoteRequired && !needsCorrection));
   const prepared = useRef<ProgressionCommand | null>(policyNoteRequired || needsCorrection ? null : failedRequest ?? null);
   const inFlight = useRef(false);
@@ -77,6 +83,10 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
     catch (cause) {
       const message = cause instanceof Error ? cause.message : "The action could not be completed. Retry safely.";
       setError(message);
+      if (action === "promote" && needsPromotionStream(message)) {
+        setChoosePromotionStream(true); setDestinationYear(nextYear?.id ?? ""); setClassId(receivingClass?.id ?? ""); setStreamId("");
+        prepared.current = null; setAttempted(false);
+      }
       if (message.includes("policy requires a reason")) setPolicyNoteRequired(true);
       if (/changed|stale|version|refresh|no longer/i.test(message)) { setStale(true); onRefresh(); }
       else if (/policy requires a reason|enter a reason|choose|select|configure|conflicting evidence|review.*admission/i.test(message)) {
@@ -95,15 +105,15 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
   </>}>
     <div className={styles.dialogBody}>
       <p>{actionInfo.description}</p>
-      {action === "promote" && students.length === 1 && students[0].next_class_name ? <p className={styles.muted}>Next placement: {students[0].next_class_name}{students[0].stream_name ? ` / ${students[0].stream_name}` : ""}</p> : null}
+      {action === "promote" && !choosePromotionStream && students.length === 1 && students[0].next_class_name ? <p className={styles.muted}>Next placement: {students[0].next_class_name}{students[0].stream_name ? ` / ${students[0].stream_name}` : ""}</p> : null}
       {error ? <div role="alert" className={styles.alert}>{error}</div> : null}
       {needsDetail && details.error && !error ? <div role="alert" className={styles.alert}>{details.error.message}<br /><button className={styles.button} onClick={() => void details.refetch()}>Retry loading details</button></div> : null}
       <div className={styles.learnerSummary}>{students.length === 1 ? <><strong>{students[0].name}</strong><br />{students[0].admission_number} · {students[0].class_name ?? "No class recorded"}{students[0].stream_name ? ` / ${students[0].stream_name}` : ""}</> : <><strong>{students.length} learners selected</strong><br />{students.slice(0, 3).map((student) => student.name).join(", ")}{students.length > 3 ? ` and ${students.length - 3} more` : ""}</>}</div>
       <fieldset disabled={busy || attempted}>
         {action === "transfer" ? <label className={styles.label}>Receiving school (optional)<input className={styles.input} maxLength={200} value={destinationSchool} onChange={(event) => setDestinationSchool(event.target.value)} /></label> : null}
         {needsDestination ? <div className={styles.formGrid}>
-          <label className={styles.label}>Destination academic year<select className={styles.input} value={destinationYear} onChange={(event) => { setDestinationYear(event.target.value); setClassId(""); setStreamId(""); }}><option value="">Choose year</option>{overview.years.filter((year) => !["archived", "inactive"].includes(year.status)).map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
-          <label className={styles.label}>Destination class<select className={styles.input} value={classId} disabled={!destinationYear} onChange={(event) => { setClassId(event.target.value); setStreamId(""); }}><option value="">Choose class</option>{destinationClasses.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.curriculum_model}</option>)}</select></label>
+          <label className={styles.label}>Destination academic year<select className={styles.input} value={destinationYear} disabled={choosePromotionStream} onChange={(event) => { setDestinationYear(event.target.value); setClassId(""); setStreamId(""); }}><option value="">Choose year</option>{overview.years.filter((year) => !["archived", "inactive"].includes(year.status)).map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
+          <label className={styles.label}>Destination class<select className={styles.input} value={classId} disabled={!destinationYear || choosePromotionStream} onChange={(event) => { setClassId(event.target.value); setStreamId(""); }}><option value="">Choose class</option>{destinationClasses.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.curriculum_model}</option>)}</select></label>
           <label className={styles.label}>Destination stream<select className={styles.input} value={streamId} disabled={!destinationStreams.length} onChange={(event) => setStreamId(event.target.value)}><option value="">{destinationStreams.length ? "Choose stream" : "No stream required"}</option>{destinationStreams.map((stream) => <option key={stream.id} value={stream.id}>{stream.name}</option>)}</select></label>
         </div> : null}
         {needsDestination && destinationYear && !destinationClasses.length ? <p role="status" className={styles.alert}>No active classes are available for this year. Refresh after the year structure is prepared, or review the year’s class configuration in Academic Foundation.</p> : null}

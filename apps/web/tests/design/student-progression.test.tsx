@@ -162,6 +162,19 @@ test("manual promotion uses the configured next placement without annual mapping
   expect(jest.mocked(submitProgressionCommand).mock.calls[0][0].target_class_section_id).toBeUndefined();
 });
 
+test("lets a leader resolve a genuinely different pathway from the promotion result",async()=>{
+  data.streams.push({id:"west-eight",name:"West",class_section_id:"class-eight"});
+  jest.mocked(submitProgressionCommand).mockRejectedValueOnce(new Error("Destination streams offer different subjects or pathways. Configure the learner’s destination stream before promotion."));
+  const user=userEvent.setup();render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("button",{name:learner.name}));
+  await user.click(screen.getByRole("button",{name:"Promote now"}));
+  expect(await screen.findByRole("combobox",{name:"Destination class"})).toHaveValue("class-eight");
+  expect(screen.getByRole("combobox",{name:"Destination academic year"})).toBeDisabled();
+  await user.selectOptions(screen.getByRole("combobox",{name:"Destination stream"}),"west-eight");
+  await user.click(screen.getByRole("button",{name:"Confirm promotion"}));
+  expect(jest.mocked(submitProgressionCommand).mock.calls[1][0]).toMatchObject({action:"promote",target_class_section_id:"class-eight",target_stream_id:"west-eight"});
+});
+
 test("a conflicting staff update forces a refresh instead of retrying a stale learner version", async () => {
   const user = userEvent.setup();
   jest.mocked(submitProgressionCommand).mockRejectedValue(new Error("Learner records have changed. Refresh and try again."));

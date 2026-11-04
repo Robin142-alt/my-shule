@@ -19,6 +19,9 @@ export const ACTIONS: Record<ProgressionAction, { label: string; confirm: string
   reinstate: { label: "Reinstate learner", confirm: "Confirm reinstatement", description: "Return this learner to active enrolment in the selected year, class and stream while preserving their exit history." },
 };
 
+export const needsPromotionStream = (message: string) =>
+  /different subjects or pathways|needs a destination stream decision|destination .*reached capacity/i.test(message);
+
 const exited = new Set(["transferred", "transferred_out", "expelled", "withdrawn", "graduated", "alumni", "archived", "inactive"]);
 export function availableActions(student: ProgressionStudent): ProgressionAction[] {
   if (exited.has(student.student_status.toLowerCase()) || ["transferred", "expelled", "withdrawn", "graduated", "completed"].includes(student.status)) return ["reinstate"];

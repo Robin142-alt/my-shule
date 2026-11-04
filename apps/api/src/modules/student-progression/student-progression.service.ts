@@ -307,17 +307,17 @@ export class ProgressionEngine {
             return {status:'completed',affected:1,message:'The learner completed their terminal grade. History and outstanding obligations are preserved.'};
           }
           if(!plan.target) throw new BadRequestException(plan.blocker??'This learner completes their pathway at the end of the academic year.');
+          const eligibility=calendarEligibility(sourceYear,calendar.terms.filter(term=>term.academic_year_id===sourceYear.id),calendar.years,calendar.timezone);
+          if(eligibility.blocker) throw new BadRequestException(eligibility.blocker);
+          if(!eligibility.nextYear) throw new BadRequestException('Configure the next academic year and its term dates before promotion.');
+          const nextCheck=calendarEligibility(eligibility.nextYear,calendar.terms.filter(term=>term.academic_year_id===eligibility.nextYear!.id),calendar.years,calendar.timezone,new Date(),true);
+          if(nextCheck.blocker||nextCheck.due) throw new BadRequestException(nextCheck.blocker??'The destination year has already ended. Review the learner’s history.');
           if(!targetClass) {
-            const eligibility=calendarEligibility(sourceYear,calendar.terms.filter(term=>term.academic_year_id===sourceYear.id),calendar.years,calendar.timezone);
-            if(eligibility.blocker) throw new BadRequestException(eligibility.blocker);
-            if(!eligibility.nextYear) throw new BadRequestException('Configure the next academic year and its term dates before promotion.');
-            const nextCheck=calendarEligibility(eligibility.nextYear,calendar.terms.filter(term=>term.academic_year_id===eligibility.nextYear!.id),calendar.years,calendar.timezone,new Date(),true);
-            if(nextCheck.blocker||nextCheck.due) throw new BadRequestException(nextCheck.blocker??'The destination year has already ended. Review the learner’s history.');
             const prepared=await prepareDestination(tx,actor,plan.target,eligibility.nextYear,current.placement.stream_name??null,current.state.subjects);
             targetClass=prepared.classId;targetStream=prepared.streamId;
           }
           const destination=await resolvePlacement(tx,actor.tenantId,targetClass,targetStream);
-          if(!source||!sourceYear||day(destination.year_starts_on)<=day(sourceYear.starts_on)||destination.curriculum_model!==source.curriculum_model)
+          if(destination.academic_year_id!==eligibility.nextYear.id||destination.curriculum_model!==source.curriculum_model)
             throw new BadRequestException('Promotion requires a later academic year in the learner’s pathway. Use a placement correction for other changes.');
           if(!plan.target||String(plan.target.name).toLowerCase()!==String(destination.name).toLowerCase())
             throw new BadRequestException('Choose the next configured grade for promotion. Use Repeat grade or Change placement for an authorised exception.');

@@ -9,7 +9,7 @@ import { submitProgressionCommand, type ProgressionCommand, runProgression, type
 import { ProgressionActionDialog } from "./action-dialog";
 import { ProgressionApprovalDialog } from "./approval-dialog";
 import { ProgressionStudentDialog } from "./student-detail";
-import { ACTIONS, availableActions, displayDate, STATUS_LABELS } from "./presentation";
+import { ACTIONS, availableActions, displayDate, needsPromotionStream, STATUS_LABELS } from "./presentation";
 import styles from "./progression.module.css";
 
 type ActionSelection = { action: ProgressionAction; students: ProgressionStudent[]; detail?: ProgressionStudentDetail; transitionId?: string; failedRequest?: ProgressionCommand; initialError?: string };
@@ -40,7 +40,7 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
   const [studentDetail, setStudentDetail] = useState<ProgressionStudent | null>(null);
   const [approvalSelection, setApprovalSelection] = useState<{ approval: ProgressionOverview["approvals"][number]; decision: "approved" | "rejected" } | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [outcomes, setOutcomes] = useState<Array<{student_id:string;name:string;status:string;message:string;subject_selection_pending?:boolean}>>([]);
+  const [outcomes, setOutcomes] = useState<Array<{student_id:string;name:string;student?:ProgressionStudent;status:string;message:string;subject_selection_pending?:boolean}>>([]);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const runRequest = useRef<{ year: string; id: string } | null>(null);
@@ -67,9 +67,9 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
     void queryClient.invalidateQueries({ queryKey: ["school", tenantId || "unverified-tenant"] });
     void refetch();
   }
-  function complete(result: ProgressionCommandResult) {
-    const names=new Map((actionSelection?.students??learners).map(student=>[student.id,`${student.name} · ${student.admission_number}`]));
-    setOutcomes((result.results??[]).map(row=>({...row,name:names.get(row.student_id)??row.student_id})));
+  function complete(result: ProgressionCommandResult, action = actionSelection?.action) {
+    const names=new Map((actionSelection?.students??learners).map(student=>[student.id,student]));
+    setOutcomes((result.results??[]).map(row=>{const student=names.get(row.student_id);return {...row,student:action==="promote"?student:undefined,name:student?`${student.name} · ${student.admission_number}`:row.student_id};}));
     setActionSelection(null); setApprovalSelection(null); setSelectedIds([]); setBulkAction("");
     setFeedback(result.status==='failed'?null:result.message); setOperationError(result.status==='failed'?result.message:null); refresh();
   }
@@ -88,7 +88,7 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
     };
     promoting.current = true; setPromotionBusy(true); setFeedback(null); setOperationError(null);
     try {
-      complete(await submitProgressionCommand(command));
+      complete(await submitProgressionCommand(command), selection.action);
     } catch (cause) {
       setActionSelection({ ...selection, failedRequest: command, initialError: cause instanceof Error ? cause.message : "The request was interrupted. Retry safely." });
     } finally { promoting.current = false; setPromotionBusy(false); }
@@ -106,8 +106,9 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
   }
 
   return <section className={styles.workspace} aria-label="Student progression workspace">
-    {outcomes.length ? <details className={styles.results} open={outcomes.some(row=>row.status==='failed'||row.subject_selection_pending) || undefined}><summary>Latest action results · {outcomes.filter(row=>row.status==='completed').length} completed, {outcomes.filter(row=>row.status==='failed').length} need review{outcomes.some(row=>row.status==='skipped') ? `, ${outcomes.filter(row=>row.status==='skipped').length} unchanged` : ''}</summary>
-      <ul>{outcomes.map(row=><li key={row.student_id}><strong>{row.name}</strong> — {row.status==='failed'?'Needs review':row.status==='skipped'?'Skipped':'Completed'}: {row.message}</li>)}</ul>
+    {outcomes.length ? <details className={styles.results} open={outcomes.some(row=>row.status==='failed') || undefined}><summary>Latest action results · {outcomes.filter(row=>row.status==='completed').length} completed, {outcomes.filter(row=>row.status==='failed').length} need review{outcomes.some(row=>row.status==='skipped') ? `, ${outcomes.filter(row=>row.status==='skipped').length} unchanged` : ''}</summary>
+      <ul>{outcomes.map(row=><li key={row.student_id}><strong>{row.name}</strong> — {row.status==='failed'?'Needs review':row.status==='skipped'?'Skipped':'Completed'}: {row.message}{canManage && row.status==='failed' && row.student && needsPromotionStream(row.message) ?
+          <button className={styles.button} onClick={()=>setActionSelection({action:"promote",students:[row.student!],initialError:row.message})}>Choose promotion stream</button> : null}</li>)}</ul>
       <button className={styles.button} onClick={()=>setOutcomes([])}>Dismiss results</button>
     </details> : null}
     <header className={styles.header}>
