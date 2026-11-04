@@ -32,5 +32,5 @@ export class ProgressionRunDto {
 }
 export class ProgressionApprovalDto {
   @IsIn(['approved','rejected']) decision!:'approved'|'rejected';
-  @IsString() @MinLength(1) @MaxLength(1000) reason!:string;
+  @IsOptional() @IsString() @MaxLength(1000) reason?:string;
 }

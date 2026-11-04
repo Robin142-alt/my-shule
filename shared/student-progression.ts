@@ -35,5 +35,5 @@ export type ProgressionCommand = {
   target_class_section_id?: string; target_stream_id?: string | null; subject_ids?: string[]; transition_id?: string;
   destination_school_name?: string;
 };
-export type ProgressionCommandResult = { status: 'completed' | 'pending_approval' | 'partial' | 'failed'; affected: number; message: string; approval_id?: string; replayed?: boolean;
-  results?: Array<{student_id: string; status: 'completed' | 'failed' | 'skipped'; message: string}> };
+export type ProgressionCommandResult = { status: 'completed' | 'pending_approval' | 'partial' | 'failed'; affected: number; message: string; approval_id?: string; replayed?: boolean; subject_selection_pending?: boolean;
+  results?: Array<{student_id: string; status: 'completed' | 'failed' | 'skipped'; message: string; subject_selection_pending?: boolean}> };

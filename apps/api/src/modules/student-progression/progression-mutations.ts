@@ -21,18 +21,53 @@ export async function configuredSubjects(tx:CohortTx,tenant:string,placementId:s
       AND subject.status='active' AND subject.archived_at IS NULL AND subject.deleted_at IS NULL ORDER BY subject.name,subject.id`,tenant,placementId,asOf);
 }
 async function replaceSubjects(tx:CohortTx,actor:ProgressionActor,current:StudentState,section:Row,placementId:string,enrollmentId:string,
-  asOf:string,closeOn:string,selectedIds?:string[]) {
+  asOf:string,closeOn:string,selectedIds?:string[],restore?:{subjects:Row[];review?:string}) {
   const tenant=actor.tenantId,id=current.student.id;
-  const available=await configuredSubjects(tx,tenant,placementId,asOf);
-  if(!available.length) throw new BadRequestException('Configure the destination class subjects before moving this learner.');
-  const old=new Set(current.state.subjects.map(row=>String(row.subject_id)));
-  const selected=selectedIds??available.filter(row=>row.is_compulsory||old.has(row.id)).map(row=>row.id);
-  if(!selected.length||new Set(selected).size!==selected.length||selected.some(value=>!available.some(row=>row.id===value)))
-    throw new BadRequestException('Choose valid subjects offered by the destination class and stream.');
-  if(available.some(row=>row.is_compulsory&&!selected.includes(row.id))) throw new BadRequestException('Compulsory subjects must remain selected.');
-  const [settings]=await query(tx,'SELECT minimum_subjects,maximum_subjects FROM admission_settings WHERE tenant_id=$1',tenant);
-  if((settings?.minimum_subjects!=null&&selected.length<settings.minimum_subjects)||(settings?.maximum_subjects!=null&&selected.length>settings.maximum_subjects))
-    throw new BadRequestException('The subject selections do not meet this school’s configured subject count.');
+  const available=restore ? restore.subjects.map(row=>({id:row.subject_id,code:row.subject_code,name:row.subject_name,
+    is_compulsory:row.is_compulsory,subject_type:row.subject_type})) : await configuredSubjects(tx,tenant,placementId,asOf);
+  if(!restore && !available.length) throw new BadRequestException('Configure the destination class subjects before moving this learner.');
+  // Exit closes current subject rows. The last exit snapshot preserves the learner's choices.
+  const prior = activeLearner(current.student) ? current.state.subjects : current.latest?.before_state?.subjects ?? [];
+  const previous = new Set<string>();
+  for (const row of prior) {
+    if (row.subject_id) previous.add(String(row.subject_id));
+    else if (row.subject_code) {
+      const matches = available.filter(subject => String(subject.code).trim().toLowerCase() === String(row.subject_code).trim().toLowerCase());
+      if (matches.length === 1) previous.add(String(matches[0].id));
+    }
+  }
+  const required = available.filter(row => row.is_compulsory).map(row => String(row.id));
+  const [settings] = await query(tx,'SELECT minimum_subjects,maximum_subjects FROM admission_settings WHERE tenant_id=$1',tenant);
+  const minimum = Number(settings?.minimum_subjects ?? 1);
+  const maximum = Number(settings?.maximum_subjects ?? available.length);
+  if (!restore && (required.length > maximum || available.length < minimum))
+    throw new BadRequestException(`${section.name} offers ${available.length} subjects, including ${required.length} compulsory. Review the school's limits of ${minimum} to ${maximum} subjects.`);
+  let selected = selectedIds ?? available.filter(row => row.is_compulsory || previous.has(row.id)).map(row => String(row.id));
+  let review: string | null = null;
+  if (restore) {
+    selected = available.map(row=>row.id);
+    review = restore.review ?? null;
+  } else if (selectedIds === undefined) {
+    // A unique combination can be confirmed automatically. A personal elective choice
+    // stays open on the new placement without guessing which subject the learner wants.
+    const excessElectives = selected.length > maximum;
+    if (excessElectives) selected = [...required];
+    if (selected.length < minimum && available.length === minimum) selected = available.map(row => String(row.id));
+    if (selected.length < minimum || (excessElectives && selected.length < maximum)) {
+      const remaining = Math.max(0,minimum-selected.length);
+      review = remaining ? `Choose ${remaining} more subject${remaining===1?'':'s'} in Change subjects to finish this placement's subject selection.`
+        : 'Confirm the optional subjects for this placement in Change subjects.';
+    }
+  } else {
+    if (!selected.length || new Set(selected).size !== selected.length || selected.some(id => !available.some(row => row.id === id)))
+      throw new BadRequestException('Choose valid subjects offered by the destination class and stream.');
+    if (required.some(id => !selected.includes(id))) throw new BadRequestException('Compulsory subjects must remain selected.');
+    if (selected.length < minimum || selected.length > maximum)
+      throw new BadRequestException(`Select ${minimum===maximum?minimum:`${minimum} to ${maximum}`} subjects for this school. Currently selected: ${selected.length}.`);
+  }
+  await query(tx,`UPDATE students SET metadata=(COALESCE(metadata,'{}'::jsonb)-'progression_subject_review') ||
+    CASE WHEN $3::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('progression_subject_review',$3::text) END
+    WHERE tenant_id=$1 AND id::text=$2 RETURNING id`,tenant,id,review);
   await query(tx,`UPDATE student_subject_enrollments SET status='completed',effective_to=COALESCE(effective_to,GREATEST(effective_from,$3::date)),updated_at=NOW()
     WHERE tenant_id=$1 AND student_id::text=$2 AND status='active' RETURNING id`,tenant,id,closeOn);
   for(const subject of available.filter(row=>selected.includes(row.id))) await query(tx,`INSERT INTO student_subject_enrollments
@@ -45,10 +80,11 @@ async function replaceSubjects(tx:CohortTx,actor:ProgressionActor,current:Studen
   // Legacy slots have no term identity. The timetable workspace/portals resolve
   // the independently published version for the learner's current year and term.
   // Moving a learner must not republish those unscoped historical slots.
+  return review;
 }
 
 export async function placeStudent(tx:CohortTx,actor:ProgressionActor,current:StudentState,targetClass:string,targetStream:string|null,
-  options:{reason:string;today:string;allowInactive?:boolean;allowRepair?:boolean;subjectIds?:string[];restore?:boolean}) {
+  options:{reason:string;today:string;allowInactive?:boolean;allowRepair?:boolean;subjectIds?:string[];restore?:{subjects:Row[];review?:string}}) {
   const tenant=actor.tenantId,id=current.student.id;
   if(!activeLearner(current.student)&&!options.allowInactive) throw new BadRequestException('Reinstate this learner before changing their academic placement.');
   if(activeLearner(current.student)&&!options.allowRepair) requireCompleteEnrollment(current);
@@ -91,7 +127,7 @@ export async function placeStudent(tx:CohortTx,actor:ProgressionActor,current:St
   const asOf=options.today<day(section.year_starts_on)?day(section.year_starts_on):options.today;
   const [oldYear]=annual?await query(tx,'SELECT ends_on::text FROM academic_years WHERE tenant_id=$1 AND id::text=$2',tenant,previousYear):[];
   const closeOn=annual&&day(oldYear?.ends_on)<options.today?day(oldYear.ends_on):options.today;
-  await replaceSubjects(tx,actor,current,section,context.id,enrollment.id,asOf,closeOn,options.subjectIds);
+  const subjectReview=await replaceSubjects(tx,actor,current,section,context.id,enrollment.id,asOf,closeOn,options.subjectIds,options.restore);
   await query(tx,'UPDATE student_allocations SET is_current=FALSE,updated_at=NOW() WHERE tenant_id=$1 AND student_id::text=$2 AND is_current RETURNING id',tenant,id);
   // An exited learner's old bed/route may now belong to someone else. Reinstatement
   // restores academic membership; service allocation requires a fresh assignment.
@@ -103,7 +139,7 @@ export async function placeStudent(tx:CohortTx,actor:ProgressionActor,current:St
   await query(tx,`UPDATE students SET status='active',student_status='ACTIVE',updated_at=NOW(),
     metadata=(COALESCE(metadata,'{}'::jsonb)-'progression_exit_type')||jsonb_build_object('curriculum',$3::text,'grade_level',$4::text)
     WHERE tenant_id=$1 AND id::text=$2 RETURNING id`,tenant,id,section.curriculum_model,section.name);
-  return enrollment;
+  return subjectReview;
 }
 
 export async function changeSubjects(tx:CohortTx,actor:ProgressionActor,current:StudentState,ids:string[],today:string) {

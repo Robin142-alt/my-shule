@@ -5,14 +5,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, GraduationCap, LoaderCircle, RefreshCw, Search, ShieldCheck, UsersRound } from "lucide-react";
 import { useSchoolQuery } from "@/lib/data/school-hooks";
 import { useOptionalSchoolTenantId } from "@/lib/data/school-tenant-scope";
-import { runProgression, type ProgressionAction, type ProgressionCommandResult, type ProgressionOverview, type ProgressionStatus, type ProgressionStudent, type ProgressionStudentDetail } from "@/lib/modules/student-progression";
+import { submitProgressionCommand, type ProgressionCommand, runProgression, type ProgressionAction, type ProgressionCommandResult, type ProgressionOverview, type ProgressionStatus, type ProgressionStudent, type ProgressionStudentDetail } from "@/lib/modules/student-progression";
 import { ProgressionActionDialog } from "./action-dialog";
 import { ProgressionApprovalDialog } from "./approval-dialog";
 import { ProgressionStudentDialog } from "./student-detail";
-import { ACTIONS, availableActions, displayDate, STATUS_LABELS } from "./presentation";
+import { ACTIONS, availableActions, displayDate, needsPromotionStream, STATUS_LABELS } from "./presentation";
 import styles from "./progression.module.css";
 
-type ActionSelection = { action: ProgressionAction; students: ProgressionStudent[]; detail?: ProgressionStudentDetail; transitionId?: string };
+type ActionSelection = { action: ProgressionAction; students: ProgressionStudent[]; detail?: ProgressionStudentDetail; transitionId?: string; failedRequest?: ProgressionCommand; initialError?: string };
 const PAGE_SIZE = 25;
 const stats: Array<{ key: string; label: string; status: ProgressionStatus }> = [
   { key: "upcoming", label: "Upcoming", status: "upcoming" }, { key: "promoted", label: "Promoted", status: "promoted" },
@@ -40,11 +40,13 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
   const [studentDetail, setStudentDetail] = useState<ProgressionStudent | null>(null);
   const [approvalSelection, setApprovalSelection] = useState<{ approval: ProgressionOverview["approvals"][number]; decision: "approved" | "rejected" } | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [outcomes, setOutcomes] = useState<Array<{student_id:string;name:string;status:string;message:string}>>([]);
+  const [outcomes, setOutcomes] = useState<Array<{student_id:string;name:string;student?:ProgressionStudent;status:string;message:string;subject_selection_pending?:boolean}>>([]);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const runRequest = useRef<{ year: string; id: string } | null>(null);
   const runBusy = useRef(false);
+  const promoting = useRef(false);
+  const [promotionBusy, setPromotionBusy] = useState(false);
 
   useEffect(() => { const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 250); return () => clearTimeout(timeout); }, [search]);
   const path = useMemo(() => {
@@ -65,14 +67,34 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
     void queryClient.invalidateQueries({ queryKey: ["school", tenantId || "unverified-tenant"] });
     void refetch();
   }
-  function complete(result: ProgressionCommandResult) {
-    const names=new Map((actionSelection?.students??learners).map(student=>[student.id,`${student.name} · ${student.admission_number}`]));
-    setOutcomes((result.results??[]).map(row=>({...row,name:names.get(row.student_id)??row.student_id})));
+  function complete(result: ProgressionCommandResult, action = actionSelection?.action) {
+    const names=new Map((actionSelection?.students??learners).map(student=>[student.id,student]));
+    setOutcomes((result.results??[]).map(row=>{const student=names.get(row.student_id);return {...row,student:action==="promote"?student:undefined,name:student?`${student.name} · ${student.admission_number}`:row.student_id};}));
     setActionSelection(null); setApprovalSelection(null); setSelectedIds([]); setBulkAction("");
     setFeedback(result.status==='failed'?null:result.message); setOperationError(result.status==='failed'?result.message:null); refresh();
   }
-  function openAction(action: ProgressionAction, detail: ProgressionStudentDetail, transitionId?: string) {
-    setStudentDetail(null); setActionSelection({ action, students: [detail.student], detail, transitionId });
+  async function startAction(selection: ActionSelection, choosePlacement = false) {
+    if (promoting.current) return;
+    setStudentDetail(null);
+    const canRestore = selection.action === "reinstate" && !choosePlacement && selection.students.every(student =>
+      data?.years.some(year => year.id === student.academic_year_id && year.is_current && year.status === "active")
+      && data.classes.some(item => item.id === student.class_section_id && item.academic_year_id === student.academic_year_id)
+      && (student.stream_id ? data.streams.some(stream => stream.id === student.stream_id && stream.class_section_id === student.class_section_id)
+        : !data.streams.some(stream => stream.class_section_id === student.class_section_id)));
+    if (selection.action !== "promote" && !canRestore) { setActionSelection(selection); return; }
+    const command: ProgressionCommand = {
+      action: selection.action, request_id: crypto.randomUUID(), academic_year_id: selectedYearId || selection.students[0].academic_year_id || "",
+      students: selection.students.map(student => ({ id: student.id, expected_version: student.version })),
+    };
+    promoting.current = true; setPromotionBusy(true); setFeedback(null); setOperationError(null);
+    try {
+      complete(await submitProgressionCommand(command), selection.action);
+    } catch (cause) {
+      setActionSelection({ ...selection, failedRequest: command, initialError: cause instanceof Error ? cause.message : "The request was interrupted. Retry safely." });
+    } finally { promoting.current = false; setPromotionBusy(false); }
+  }
+  function openAction(action: ProgressionAction, detail: ProgressionStudentDetail, transitionId?: string, choosePlacement = false) {
+    void startAction({action, students:[detail.student], detail, transitionId}, choosePlacement);
   }
   async function run() {
     if (!selectedYearId || runBusy.current) return;
@@ -84,8 +106,9 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
   }
 
   return <section className={styles.workspace} aria-label="Student progression workspace">
-    {outcomes.length ? <details className={styles.results} open><summary>Latest action results · {outcomes.filter(row=>row.status==='completed').length} completed, {outcomes.filter(row=>row.status==='failed').length} need review</summary>
-      <ul>{outcomes.map(row=><li key={row.student_id}><strong>{row.name}</strong> — {row.status==='failed'?'Needs review':row.status==='skipped'?'Skipped':'Completed'}: {row.message}</li>)}</ul>
+    {outcomes.length ? <details className={styles.results} open={outcomes.some(row=>row.status==='failed') || undefined}><summary>Latest action results · {outcomes.filter(row=>row.status==='completed').length} completed, {outcomes.filter(row=>row.status==='failed').length} need review{outcomes.some(row=>row.status==='skipped') ? `, ${outcomes.filter(row=>row.status==='skipped').length} unchanged` : ''}</summary>
+      <ul>{outcomes.map(row=><li key={row.student_id}><strong>{row.name}</strong> — {row.status==='failed'?'Needs review':row.status==='skipped'?'Skipped':'Completed'}: {row.message}{canManage && row.status==='failed' && row.student && needsPromotionStream(row.message) ?
+          <button className={styles.button} onClick={()=>setActionSelection({action:"promote",students:[row.student!],initialError:row.message})}>Choose promotion stream</button> : null}</li>)}</ul>
       <button className={styles.button} onClick={()=>setOutcomes([])}>Dismiss results</button>
     </details> : null}
     <header className={styles.header}>
@@ -95,6 +118,7 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
         <button className={styles.button} aria-label="Refresh progression" disabled={isFetching} onClick={refresh}><RefreshCw size={16} className={isFetching ? styles.spin : ""} /><span className="sr-only">Refresh progression</span></button>
       </div>
     </header>
+    {promotionBusy ? <div role="status" className={styles.loading}>Updating learner placements…</div> : null}
     {feedback ? <div role="status" className={styles.success}>{feedback}</div> : null}
     {operationError ? <div role="alert" className={styles.alert}>{operationError}</div> : null}
     {error ? <div role="alert" className={styles.alert}>{error.message}<br /><button className={styles.button} onClick={() => void refetch()}>Retry loading</button></div> : null}
@@ -111,7 +135,7 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
           <label className={styles.label}>Stream<select className={styles.input} value={streamId} onChange={(event) => { setStreamId(event.target.value); resetSelection(); }}><option value="">All streams</option>{data.streams.filter((stream) => classId ? stream.class_section_id === classId : data.classes.some((item) => item.id === stream.class_section_id && item.academic_year_id === selectedYearId)).map((stream) => <option key={stream.id} value={stream.id}>{stream.name}{!classId ? ` · ${data.classes.find((item) => item.id === stream.class_section_id)?.name ?? ""}` : ""}</option>)}</select></label>
           <label className={styles.label}>Progression status<select className={styles.input} value={status} onChange={(event) => { setStatus(event.target.value); resetSelection(); }}><option value="">All statuses</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         </div>
-        {canManage && selected.length ? <div className={styles.selection}><span><strong>{selected.length}</strong> selected on this page</span><select className={styles.input} aria-label="Action for selected learners" value={bulkAction} onChange={(event) => setBulkAction(event.target.value as ProgressionAction | "")}><option value="">Choose an action</option>{bulkActions.map((action) => <option key={action} value={action}>{ACTIONS[action].label}</option>)}</select><button className={`${styles.button} ${styles.primary}`} disabled={!bulkAction || !bulkActions.includes(bulkAction)} onClick={() => { if (bulkAction) setActionSelection({ action: bulkAction, students: selected }); }}>Continue</button><button className={styles.button} onClick={() => { setSelectedIds([]); setBulkAction(""); }}>Clear</button></div> : null}
+        {canManage && selected.length ? <div className={styles.selection}><span><strong>{selected.length}</strong> selected on this page</span><select className={styles.input} aria-label="Action for selected learners" value={bulkAction} onChange={(event) => setBulkAction(event.target.value as ProgressionAction | "")}><option value="">Choose an action</option>{bulkActions.map((action) => <option key={action} value={action}>{ACTIONS[action].label}</option>)}</select><button className={`${styles.button} ${styles.primary}`} disabled={promotionBusy || !bulkAction || !bulkActions.includes(bulkAction)} onClick={() => { if (bulkAction) void startAction({ action: bulkAction, students: selected }); }}>{bulkAction === "promote" ? "Promote selected learners" : "Continue"}</button><button className={styles.button} onClick={() => { setSelectedIds([]); setBulkAction(""); }}>Clear</button></div> : null}
         {learners.length ? <table className={styles.table}>
           <thead><tr>{canManage ? <th className={styles.checkCell}><input className={styles.checkbox} type="checkbox" aria-label="Select all learners on this page" checked={learners.length > 0 && selected.length === learners.length} onChange={(event) => setSelectedIds(event.target.checked ? learners.map((student) => student.id) : [])} /></th> : null}<th>Learner</th><th>Current placement</th><th>Status</th><th>Next step</th><th><span className="sr-only">Details</span></th></tr></thead>
           <tbody>{learners.map((student) => <tr key={student.id}>

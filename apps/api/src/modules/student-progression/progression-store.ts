@@ -55,7 +55,8 @@ export async function readStudentStates(tx:CohortTx,tenant:string,ids:string[],l
   return students.map(student=>{
     const forStudent=(rows:Row[])=>rows.filter(row=>String(row.student_id)===student.id);
     const state={student:{id:student.id,status:student.status,student_status:student.student_status,admission_date:student.admission_date,current_class_id:student.current_class_id,
-      current_stream_id:student.current_stream_id,progression_exit_type:student.metadata?.progression_exit_type??null},
+      current_stream_id:student.current_stream_id,progression_exit_type:student.metadata?.progression_exit_type??null,
+      ...(student.metadata?.progression_subject_review ? {subject_review:student.metadata.progression_subject_review} : {})},
       assignments:forStudent(assignments),enrollments:forStudent(enrollments),subjects:forStudent(subjects),allocations:forStudent(allocations),decisions:forStudent(decisions)};
     return {state,version:digest(state),student,placement:state.assignments[0]??null,enrollment:state.enrollments[0]??null,latest:forStudent(transitions)[0]??null};
   });

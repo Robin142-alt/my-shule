@@ -56,6 +56,7 @@ test("accepts a routine decision without a reason and sends only selected learne
   await user.selectOptions(screen.getByRole("combobox", { name: "Action for selected learners" }), "hold");
   await user.click(screen.getByRole("button", { name: "Continue" }));
   const dialog = screen.getByRole("dialog");
+  expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
   await user.click(within(dialog).getByRole("button", { name: "Confirm hold" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith({ request_id: "request-one", action: "hold", reason: "", academic_year_id: "year-2026", students: [{ id: "student-one", expected_version: "version-one" }] }));
   expect(await screen.findByRole("status")).toHaveTextContent("Promotion held");
@@ -68,7 +69,6 @@ test("keeps an interrupted command identical on retry", async () => {
   await user.click(screen.getByRole("checkbox", { name: "Select Amina Otieno" }));
   await user.selectOptions(screen.getByRole("combobox", { name: "Action for selected learners" }), "hold");
   await user.click(screen.getByRole("button", { name: "Continue" }));
-  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Awaiting placement review");
   await user.click(screen.getByRole("button", { name: "Confirm hold" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Connection interrupted");
   await user.click(screen.getByRole("button", { name: "Retry action" }));
@@ -85,8 +85,8 @@ test("allows the user to add a note when school policy requires it", async () =>
   await user.click(screen.getByRole("button",{name:"Continue"}));
   await user.click(screen.getByRole("button",{name:"Confirm hold"}));
   expect(await screen.findByRole("alert")).toHaveTextContent("policy requires a reason");
-  expect(screen.getByRole("textbox",{name:"Reason (optional)"})).toBeEnabled();
-  await user.type(screen.getByRole("textbox",{name:"Reason (optional)"}),"School review pending");
+  expect(screen.getByRole("textbox",{name:"Note required by school policy"})).toBeEnabled();
+  await user.type(screen.getByRole("textbox",{name:"Note required by school policy"}),"School review pending");
   await user.click(screen.getByRole("button",{name:"Confirm hold"}));
   await waitFor(()=>expect(submitProgressionCommand).toHaveBeenLastCalledWith(expect.objectContaining({reason:"School review pending"})));
 });
@@ -102,8 +102,7 @@ test("reports each learner after partial bulk success without claiming every lea
   await user.click(screen.getByRole("checkbox",{name:"Select Amina Otieno"}));
   await user.click(screen.getByRole("checkbox",{name:"Select Second learner"}));
   await user.selectOptions(screen.getByRole("combobox",{name:"Action for selected learners"}),"promote");
-  await user.click(screen.getByRole("button",{name:"Continue"}));
-  await user.click(screen.getByRole("button",{name:"Confirm promotion"}));
+  await user.click(screen.getByRole("button",{name:"Promote selected learners"}));
   expect(await screen.findByText(/Latest action results/)).toHaveTextContent("1 completed, 1 need review");
   expect(screen.getByText("Second learner · SH002").closest("li")).toHaveTextContent("Needs review: Conflicting enrollment evidence");
   expect(refetch).toHaveBeenCalled();
@@ -130,7 +129,6 @@ test("edits elective subjects while keeping required subjects selected", async (
   expect(within(dialog).getByRole("checkbox", { name: /Mathematics/ })).toBeChecked();
   expect(within(dialog).getByRole("checkbox", { name: /Mathematics/ })).toBeDisabled();
   await user.click(within(dialog).getByRole("checkbox", { name: /Art/ }));
-  await user.type(within(dialog).getByRole("textbox", { name: /^Reason/ }), "Approved elective change");
   await user.click(within(dialog).getByRole("button", { name: "Save subject selections" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ action: "subjects", subject_ids: ["math", "art"] })));
 });
@@ -159,10 +157,22 @@ test("manual promotion uses the configured next placement without annual mapping
   const user = userEvent.setup(); render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("button", { name: "Amina Otieno" }));
   await user.click(screen.getByRole("button", { name: "Promote now" }));
-  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Approved early progression");
-  await user.click(screen.getByRole("button", { name: "Confirm promotion" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ action: "promote", academic_year_id: "year-2026" })));
   expect(jest.mocked(submitProgressionCommand).mock.calls[0][0].target_class_section_id).toBeUndefined();
+});
+
+test("lets a leader resolve a genuinely different pathway from the promotion result",async()=>{
+  data.streams.push({id:"west-eight",name:"West",class_section_id:"class-eight"});
+  jest.mocked(submitProgressionCommand).mockRejectedValueOnce(new Error("Destination streams offer different subjects or pathways. Configure the learner’s destination stream before promotion."));
+  const user=userEvent.setup();render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("button",{name:learner.name}));
+  await user.click(screen.getByRole("button",{name:"Promote now"}));
+  expect(await screen.findByRole("combobox",{name:"Destination class"})).toHaveValue("class-eight");
+  expect(screen.getByRole("combobox",{name:"Destination academic year"})).toBeDisabled();
+  await user.selectOptions(screen.getByRole("combobox",{name:"Destination stream"}),"west-eight");
+  await user.click(screen.getByRole("button",{name:"Confirm promotion"}));
+  expect(jest.mocked(submitProgressionCommand).mock.calls[1][0]).toMatchObject({action:"promote",target_class_section_id:"class-eight",target_stream_id:"west-eight"});
 });
 
 test("a conflicting staff update forces a refresh instead of retrying a stale learner version", async () => {
@@ -171,7 +181,6 @@ test("a conflicting staff update forces a refresh instead of retrying a stale le
   render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("button", { name: "Amina Otieno" }));
   await user.click(screen.getByRole("button", { name: "Hold promotion" }));
-  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Review required");
   await user.click(screen.getByRole("button", { name: "Confirm hold" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("changed");
   expect(screen.queryByRole("button", { name: "Retry action" })).not.toBeInTheDocument();
@@ -180,7 +189,7 @@ test("a conflicting staff update forces a refresh instead of retrying a stale le
   expect(refetch).toHaveBeenCalled();
 });
 
-test("Principal approval requires a reason and confirmation", async () => {
+test("Principal approval records the explicit decision without a reason box", async () => {
   data.permissions.approve = true;
   data.approvals = [{ id: "approval-one", action: "expel", reason: "School disciplinary decision", requested_by: "Deputy Principal", student_count: 1, created_at: "2026-10-20T09:00:00Z" }];
   jest.mocked(decideProgressionApproval).mockResolvedValue({ status: "completed", affected: 1, message: "School decision approved." });
@@ -188,10 +197,8 @@ test("Principal approval requires a reason and confirmation", async () => {
   await user.click(screen.getByRole("button", { name: "Review approval" }));
   expect(decideProgressionApproval).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Confirm approval" }));
-  expect(screen.getByRole("alert")).toHaveTextContent("reason");
-  await user.type(screen.getByRole("textbox", { name: "Decision reason" }), "Decision reviewed with school leadership");
-  await user.click(screen.getByRole("button", { name: "Confirm approval" }));
-  await waitFor(() => expect(decideProgressionApproval).toHaveBeenCalledWith("approval-one", "approved", "Decision reviewed with school leadership"));
+  expect(screen.queryByRole("textbox", {name:"Decision reason"})).not.toBeInTheDocument();
+  await waitFor(() => expect(decideProgressionApproval).toHaveBeenCalledWith("approval-one", "approved"));
 });
 
 test("progression routes are restricted to the three leadership roles and the academics module", () => {
@@ -206,7 +213,6 @@ test("a live refetch cannot silently replace the expected version behind an open
   await user.click(screen.getByRole("button", { name: "Change subjects" }));
   detailData = { ...detailData, student: { ...detailData.student, version: "concurrent-update-version" } };
   await user.click(screen.getByRole("checkbox", { name: /Art/ }));
-  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Approved elective change");
   await user.click(screen.getByRole("button", { name: "Save subject selections" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ students: [{ id: "student-one", expected_version: "version-one" }] })));
 });
@@ -234,11 +240,34 @@ test("exited learners only expose reinstatement instead of annual progression ac
   expect(screen.queryByRole("button", { name: "Hold promotion" })).not.toBeInTheDocument();
 });
 
+test("reinstates into a valid prior placement in one click and retains an alternate placement form",async()=>{
+  detailData.student = {...detailData.student,student_status:"withdrawn",status:"withdrawn"};
+  const user=userEvent.setup();render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("button",{name:learner.name}));
+  await user.click(screen.getByRole("button",{name:"Choose reinstatement placement"}));
+  expect(screen.getByRole("combobox",{name:"Destination class"})).toHaveValue(learner.class_section_id);
+  expect(screen.queryByRole("textbox",{name:/reason/i})).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button",{name:"Cancel"}));
+  await user.click(screen.getByRole("button",{name:learner.name}));
+  await user.click(screen.getByRole("button",{name:"Reinstate learner"}));
+  await waitFor(()=>expect(submitProgressionCommand).toHaveBeenCalledTimes(1));
+  expect(jest.mocked(submitProgressionCommand).mock.calls[0][0]).toMatchObject({action:"reinstate",students:[{id:learner.id,expected_version:learner.version}]});
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("retries a one-click promotion with the exact original command after a lost response",async()=>{
+  jest.mocked(submitProgressionCommand).mockRejectedValueOnce(new Error("Connection interrupted"));
+  const user=userEvent.setup();render(<StudentProgressionWorkspace />);
+  await user.click(screen.getByRole("button",{name:learner.name}));
+  await user.click(screen.getByRole("button",{name:"Promote now"}));
+  await user.click(await screen.findByRole("button",{name:"Retry action"}));
+  expect(jest.mocked(submitProgressionCommand).mock.calls[1][0]).toEqual(jest.mocked(submitProgressionCommand).mock.calls[0][0]);
+});
+
 test("reversal submits the exact authorised timeline transition", async () => {
   const user = userEvent.setup(); render(<StudentProgressionWorkspace />);
   await user.click(screen.getByRole("button", { name: "Amina Otieno" }));
   await user.click(screen.getByRole("button", { name: "Reverse this transition" }));
-  await user.type(screen.getByRole("textbox", { name: /^Reason/ }), "Correct an accidental promotion");
   await user.click(screen.getByRole("button", { name: "Confirm reversal" }));
   await waitFor(() => expect(submitProgressionCommand).toHaveBeenCalledWith(expect.objectContaining({ action: "reverse", transition_id: "transition-one", students: [{ id: "student-one", expected_version: "version-one" }] })));
 });

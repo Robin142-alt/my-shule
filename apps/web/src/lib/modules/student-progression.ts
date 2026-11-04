@@ -9,5 +9,5 @@ export const submitProgressionCommand = (command: ProgressionCommand) =>
 export const runProgression = (academicYearId: string, requestId: string) =>
   requestSchoolApiProxy<{ status: string; message: string }>("/academics/progression/run", { method: "POST", body: { academic_year_id: academicYearId, request_id: requestId } });
 
-export const decideProgressionApproval = (id: string, decision: "approved" | "rejected", reason: string) =>
+export const decideProgressionApproval = (id: string, decision: "approved" | "rejected", reason?: string) =>
   requestSchoolApiProxy<ProgressionCommandResult>(`/academics/progression/approvals/${encodeURIComponent(id)}`, { method: "POST", body: { decision, reason } });
