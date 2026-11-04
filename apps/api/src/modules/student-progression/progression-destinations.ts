@@ -61,8 +61,47 @@ export async function plannedDestination(tx:CohortTx,tenant:string,source:Row,so
   }
   return continuing;
 }
+/** Keep the learner's stream where possible. When the only difference between
+ * receiving streams is delivery (e.g. PE assessment), use a configured stream
+ * with space, preserving its actual teachers and assessment settings. */
+async function continuingStream(tx:CohortTx,tenant:string,target:Row,template:Row,templateStreams:Row[],name:string|null,nextYear:Row,subjects:Row[]) {
+  const destinations = await query(tx,`SELECT s.*,count(a.id)::int AS used FROM class_streams s LEFT JOIN student_class_assignments a
+    ON a.tenant_id=s.tenant_id AND a.stream_id=s.id AND a.status='active' WHERE s.tenant_id=$1 AND s.class_section_id=$2
+    AND s.status='active' AND s.is_active AND s.archived_at IS NULL GROUP BY s.id ORDER BY s.name,s.id`,tenant,target.id);
+  const normalize = (value:string) => value.trim().toLowerCase();
+  if (name && destinations.some(stream => normalize(stream.name)===normalize(name))) return name;
+  if (!destinations.length && !templateStreams.length) return null;
+  const candidates = destinations.length ? destinations : templateStreams;
+  const contexts = await ensureCohortContexts(tx,tenant,destinations.length ? target.id : template.id);
+  const enrolled = new Set(subjects.map(row=>String(row.subject_id)));
+  const signatures: Array<{curriculum:string;delivery:string}> = [];
+  for (const stream of candidates) {
+    const context = contexts.find(row => row.stream_id===stream.id);
+    if (!context) throw new ConflictException('The destination stream has no active cohort.');
+    let snapshot = await captureCohortConfiguration(tx,tenant,context.id);
+    if (!snapshot.subjects.length && destinations.length && target.id!==template.id) {
+      const source = templateStreams.find(row => normalize(row.name)===normalize(stream.name));
+      if (source) {
+        const [fallback] = await ensureCohortContexts(tx,tenant,template.id,source.id);
+        snapshot = await captureCohortConfiguration(tx,tenant,fallback.id);
+      }
+    }
+    const offered=snapshot.subjects.filter(row=>row.status==='active' && (!row.effective_to || day(row.effective_to)>=day(nextYear.starts_on)));
+    signatures.push({
+      curriculum: JSON.stringify(offered.map(row=>[row.subject_id,row.is_compulsory,(row.is_compulsory||enrolled.has(String(row.subject_id)))?row.is_examinable:null,row.metadata??{},day(row.effective_from)>day(nextYear.starts_on)?day(row.effective_from):null,day(row.effective_to)])),
+      delivery: JSON.stringify(offered.map(row=>[row.subject_id,row.is_examinable,row.lessons_per_week])),
+    });
+  }
+  if (signatures.some(row=>row.curriculum!==signatures[0].curriculum))
+    throw new ConflictException('Destination streams offer different subjects or pathways. Configure the learner’s destination stream before promotion.');
+  if (name && !destinations.length && target.id!==template.id && signatures.every(row=>row.delivery===signatures[0].delivery)) return name;
+  const open=candidates.filter(row=>row.capacity==null || Number(row.used??0)<Number(row.capacity))
+    .sort((a,b)=>Number(a.used??0)-Number(b.used??0) || a.name.localeCompare(b.name));
+  if (!open.length) throw new ConflictException('The destination streams have reached capacity.');
+  return String(open[0].name);
+}
 /** Reuses an explicitly configured next-year position or copies the school's offered destination grade. */
-export async function prepareDestination(tx:CohortTx,actor:ProgressionActor,template:Row,nextYear:Row,sourceStreamName:string|null) {
+export async function prepareDestination(tx:CohortTx,actor:ProgressionActor,template:Row,nextYear:Row,sourceStreamName:string|null,subjects:Row[]=[]) {
   const tenant=actor.tenantId;
   // Preparing or manually using a future year must not change the active calendar.
   const existing=await query(tx,`SELECT * FROM class_sections WHERE tenant_id=$1 AND academic_year_id::text=$2 AND lower(btrim(name))=lower(btrim($3)) FOR UPDATE`,tenant,nextYear.id,template.name);
@@ -87,7 +126,10 @@ export async function prepareDestination(tx:CohortTx,actor:ProgressionActor,temp
   const templateStreams=await query(tx,"SELECT * FROM class_streams WHERE tenant_id=$1 AND class_section_id::text=$2 AND is_active AND status='active' AND archived_at IS NULL",tenant,template.id);
   // Preserve all established streams and the learner's stream if the grade has not previously offered it.
   const names=new Map(templateStreams.map(row=>[String(row.name).trim().toLowerCase(),row]));
-  if(sourceStreamName && !names.has(sourceStreamName.trim().toLowerCase())) names.set(sourceStreamName.trim().toLowerCase(),{name:sourceStreamName,capacity:template.capacity});
+  if (!sourceStreamName || !names.has(sourceStreamName.trim().toLowerCase())) {
+    sourceStreamName = await continuingStream(tx,tenant,target,template,templateStreams,sourceStreamName,nextYear,subjects);
+    if (sourceStreamName && !names.has(sourceStreamName.trim().toLowerCase())) names.set(sourceStreamName.trim().toLowerCase(),{name:sourceStreamName,capacity:template.capacity});
+  }
   for(const stream of names.values()) {
     const matches=await query(tx,'SELECT * FROM class_streams WHERE tenant_id=$1 AND class_section_id::text=$2 AND lower(btrim(name))=lower(btrim($3))',tenant,target.id,stream.name);
     if(matches.length>1 || matches.some(row=>!row.is_active||row.status!=='active'||row.archived_at)) throw new ConflictException('A destination stream is duplicated or disabled. Review its configuration.');

@@ -137,6 +137,93 @@ describe('Progression legacy reconciliation and staff actions in PostgreSQL', ()
     expect(detail.subjects.length).toBeGreaterThan(0);
   });
 
+  it('processes a mixed group with equivalent streams, an open elective choice and a future terminal completion',async()=>{
+    const junior=await fixture.seed(9), second=await fixture.seed(9), senior=await fixture.seed(10), terminal=await fixture.seed(4,'East','8-4-4');
+    await fixture.q("UPDATE class_streams SET name='Grade 9 White' WHERE tenant_id=$1 AND id=$2",[fixture.school,fixture.streamId(9)]);
+    await fixture.q("UPDATE student_academic_enrollments SET stream_name='Grade 9 White' WHERE tenant_id=$1 AND class_section_id=$2",[fixture.school,fixture.classId(9)]);
+    await fixture.configureClass(10,'East'); await fixture.configureClass(10,'West'); await fixture.configureClass(11,'East');
+    await fixture.q("UPDATE class_subject_assignments SET is_examinable=FALSE WHERE tenant_id=$1 AND stream_id=$2 AND subject_id=$3",[fixture.school,fixture.streamId(10,'West'),fixture.school+'-art']);
+    await fixture.q("UPDATE student_subject_enrollments SET status='completed' WHERE tenant_id=$1 AND class_section_id=$2 AND subject_id=$3",[fixture.school,fixture.classId(9),fixture.school+'-english']);
+    await fixture.q("UPDATE admission_settings SET minimum_subjects=2,maximum_subjects=2 WHERE tenant_id=$1",[fixture.school]);
+    const group=await command([junior.id,second.id,senior.id,terminal.id],'promote',{reason:undefined});
+    const result=await engine.command(actor(),group);
+    expect(result).toMatchObject({status:'completed',affected:3});
+    expect(result.results?.find(row=>row.student_id===terminal.id)).toMatchObject({status:'skipped',message:expect.stringContaining('due after')});
+    expect((await placement(terminal.id))[0].class_name).toBe('Form 4');
+    const streams=await Promise.all([junior,second].map(async learner=>(await placement(learner.id))[0].stream_name));
+    expect(streams.sort()).toEqual(['East','West']);
+    const detail=await engine.detail(actor(),junior.id);
+    expect(detail.student).toMatchObject({class_name:'Grade 10',message:expect.stringContaining('Choose 1 more subject')});
+    expect(detail.subjects.filter(row=>row.selected).map(row=>row.code)).toEqual(['math']);
+    expect((await engine.command(actor(),group)).replayed).toBe(true);
+    const choose=await command([junior.id],'subjects',{academic_year_id:nextYear(),reason:undefined,subject_ids:[fixture.school+'-math']});
+    await expect(engine.command(actor(),choose)).rejects.toThrow(/Select 2 subjects/);
+    await engine.command(actor(),{...choose,request_id:randomUUID(),subject_ids:[fixture.school+'-math',fixture.school+'-art']});
+    expect((await engine.detail(actor(),junior.id)).student.message??'').not.toContain('Choose 1 more');
+  });
+
+  it('restores a learner to the previous placement and electives directly from the exit history without a reason',async()=>{
+    const learner=await fixture.seed(10);
+    await fixture.q('UPDATE admission_settings SET minimum_subjects=2,maximum_subjects=2 WHERE tenant_id=$1',[fixture.school]);
+    await engine.command(actor(),await command([learner.id],'withdraw',{reason:undefined}));
+    await engine.command(actor(),await command([learner.id],'reinstate',{reason:undefined}));
+    const detail=await engine.detail(actor(),learner.id);
+    expect(detail.student).toMatchObject({class_name:'Grade 10',stream_name:'East',student_status:'active'});
+    expect(detail.subjects.filter(row=>row.selected).map(row=>row.code).sort()).toEqual(['english','math']);
+    expect(detail.student.message??'').not.toContain('Choose');
+  });
+
+  it('uses the separately onboarded school’s own subject limits and unstreamed class, without changing another school',async()=>{
+    const tenant=fixture.foreignSchool, leader=fixture.actor(tenant);
+    const unrelated=await fixture.seed(10);
+    const learner=await fixture.seed(10,'East','CBC',tenant);
+    await fixture.q("UPDATE class_streams SET status='inactive',is_active=FALSE WHERE tenant_id=$1 AND class_section_id=$2",[tenant,fixture.classId(11,'CBC',2026,tenant)]);
+    const {ensureCohortContexts}=await import('../src/modules/academics/cohort-configuration');
+    const {writeCohortSubjects}=await import('../src/modules/academics/cohort-assignment-writes');
+    await fixture.transaction(tenant,async tx=>{
+      await ensureCohortContexts(tx,tenant,fixture.classId(11,'CBC',2026,tenant));
+      await writeCohortSubjects(tx,tenant,{class_section_id:fixture.classId(11,'CBC',2026,tenant),stream_id:null,
+        subject_ids:[tenant+'-math',tenant+'-english',tenant+'-art'],is_compulsory:true,actor_user_id:leader.userId});
+    });
+    await fixture.q('UPDATE admission_settings SET minimum_subjects=3,maximum_subjects=3 WHERE tenant_id=$1',[tenant]);
+    await fixture.q('UPDATE admission_settings SET minimum_subjects=7,maximum_subjects=7 WHERE tenant_id=$1',[fixture.school]);
+    const result=await engine.command(leader,{request_id:randomUUID(),academic_year_id:tenant+'-2026',action:'promote',
+      students:[{id:learner.id,expected_version:(await engine.detail(leader,learner.id)).student.version}]});
+    expect(result.affected).toBe(1);
+    const detail=await engine.detail(leader,learner.id);
+    expect(detail.student).toMatchObject({academic_year_id:tenant+'-2027',class_name:'Grade 11',stream_id:null});
+    expect(detail.subjects.filter(s=>s.selected)).toHaveLength(3);
+    expect((await engine.detail(actor(),unrelated.id)).student.academic_year_id).toBe(year());
+  });
+
+  it('places a learner when six destination requirements and previous electives exceed the school limit of seven',async()=>{
+    const learner=await fixture.seed(10);
+    const before=await fixture.relatedRecords(learner.id);
+    const tenant=fixture.school;
+    await fixture.configureClass(11);
+    const {writeCohortSubjects}=await import('../src/modules/academics/cohort-assignment-writes');
+    for (const code of ['core2','core3','core4','core5','core6','option3','option4'])
+      await fixture.q("INSERT INTO subjects(id,tenant_id,name,code,status) VALUES($1,$2,$3,$3,'active')",[tenant+'-'+code,tenant,code]);
+    await fixture.transaction(tenant,async tx=>{
+      for (const [required,codes] of [[true,['core2','core3','core4','core5','core6']],[false,['option3','option4']]] as const) {
+        await writeCohortSubjects(tx,tenant,{class_section_id:fixture.classId(11),stream_id:fixture.streamId(11),
+          subject_ids:codes.map(code=>tenant+'-'+code),is_compulsory:required,actor_user_id:fixture.user});
+      }
+    });
+    // The seven current subjects include three destination cores and all four alternatives.
+    for(const code of ['core2','core3','art','option3','option4']) await fixture.q(`INSERT INTO student_subject_enrollments
+      (tenant_id,student_id,academic_enrollment_id,subject_id,subject_code,subject_name,status)
+      VALUES($1,$2,$3,$4,$5,$5,'active')`,[tenant,learner.id,learner.enrollment.id,tenant+'-'+code,code]);
+    await fixture.q('UPDATE admission_settings SET minimum_subjects=7,maximum_subjects=7 WHERE tenant_id=$1',[tenant]);
+    const result=await engine.command(actor(),await command([learner.id],'promote',{reason:undefined}));
+    expect(result).toMatchObject({affected:1,message:expect.stringContaining('Choose 1 more')});
+    const detail=await engine.detail(actor(),learner.id);
+    expect(detail.subjects).toHaveLength(10);
+    expect(detail.subjects.filter(row=>row.selected)).toHaveLength(6);
+    expect(detail.subjects.filter(row=>row.selected).every(row=>row.compulsory)).toBe(true);
+    expect(await fixture.relatedRecords(learner.id)).toEqual(before);
+  });
+
   it('does not choose between destination streams offering different pathways',async()=>{
     const student=await fixture.seed(9);
     await fixture.q("UPDATE class_streams SET name='White' WHERE tenant_id=$1 AND id=$2",[fixture.school,fixture.streamId(9)]);

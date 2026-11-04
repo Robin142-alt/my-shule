@@ -9,7 +9,7 @@ import styles from "./progression.module.css";
 
 export function ProgressionStudentDialog({ student, timezone, canManage, onClose, onAction }: {
   student: ProgressionStudent; timezone: string; canManage: boolean; onClose: () => void;
-  onAction: (action: ProgressionAction, detail: ProgressionStudentDetail, transitionId?: string) => void;
+  onAction: (action: ProgressionAction, detail: ProgressionStudentDetail, transitionId?: string, choosePlacement?: boolean) => void;
 }) {
   const { data, error, isLoading, refetch } = useSchoolQuery<ProgressionStudentDetail>(`/academics/progression/students/${encodeURIComponent(student.id)}`, { staleTime: 0 });
   const current = data?.student ?? student;
@@ -19,7 +19,7 @@ export function ProgressionStudentDialog({ student, timezone, canManage, onClose
       <div className={styles.learnerSummary}><span className={styles.badge} data-status={current.status}>{STATUS_LABELS[current.status]}</span><p style={{ marginTop: 8 }}>{current.class_name ?? "Placement needs review"}{current.stream_name ? ` / ${current.stream_name}` : ""} · {current.academic_year_name ?? "Year not assigned"}</p>{current.message ? <p className={styles.muted}>{current.message}</p> : null}</div>
       {error ? <div role="alert" className={styles.alert}>{error.message}<br /><button className={styles.button} onClick={() => void refetch()}>Retry loading details</button></div> : null}
       {isLoading ? <div role="status" className={styles.loading}><LoaderCircle size={19} className={styles.spin} />Loading learner history…</div> : data ? <>
-        {canManage ? <div className={styles.actions} aria-label="Learner actions">{actions.map((action) => <button key={action} className={styles.button} onClick={() => onAction(action, data)}>{ACTIONS[action].label}</button>)}</div> : null}
+        {canManage ? <div className={styles.actions} aria-label="Learner actions">{actions.map((action) => <button key={action} className={styles.button} onClick={() => onAction(action, data)}>{ACTIONS[action].label}</button>)}{actions.includes("reinstate") ? <button className={styles.button} onClick={() => onAction("reinstate", data, undefined, true)}>Choose reinstatement placement</button> : null}</div> : null}
         <h3 className={styles.sectionTitle} style={{ paddingLeft: 0, marginTop: 20 }}>Current subjects</h3>
         <p className={styles.muted} style={{ paddingTop: 10 }}>{data.subjects.filter((subject) => subject.selected).map((subject) => subject.name).join(" · ") || "No subjects selected for the current placement."}</p>
         <h3 className={styles.sectionTitle} style={{ paddingLeft: 0, marginTop: 12 }}>Progression timeline</h3>

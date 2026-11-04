@@ -62,7 +62,7 @@ async function run() {
       const dialog = page.getByRole('dialog');
       assert.ok(await dialog.getByRole('checkbox', { name: /Mathematics/ }).isDisabled());
       await dialog.getByRole('checkbox', { name: /Art/ }).check();
-      await dialog.getByRole('textbox', { name: 'Reason', exact: true }).fill('Approved elective change');
+      assert.equal(await dialog.getByRole('textbox', { name: /reason/i }).count(), 0);
       await page.screenshot({ path: path.join(out, `subjects-${width}.png`) });
       const bounds = await dialog.boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, `Dialog overflows at ${width}px`);
       await dialog.getByRole('button', { name: 'Save subject selections' }).click();
@@ -76,6 +76,11 @@ async function run() {
       assert.equal(await page.evaluate(() => window.__lastCommand.action), 'hold');
       assert.equal(await page.evaluate(() => window.__lastCommand.reason), '');
       assert.equal(await page.evaluate(() => window.__lastCommand.students[0].expected_version), 'version-one');
+      await page.getByRole('checkbox', { name: 'Select Amina Otieno', exact: true }).check();
+      await page.getByRole('combobox', { name: 'Action for selected learners' }).selectOption('promote');
+      await page.getByRole('button', { name: 'Promote selected learners' }).click();
+      await page.waitForFunction(() => window.__lastCommand?.action === 'promote');
+      assert.equal(await page.getByRole('dialog').count(), 0);
       assert.deepEqual(errors, []);
       await page.close(); console.log(`Student progression ${width}px: passed`);
     }

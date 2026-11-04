@@ -90,6 +90,8 @@ export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor:
       WHERE tenant_id=$1 AND admitted_student_id::text=$2`, tenant, student.id, section.name, classId);
   }
   // End removed selections, retaining their historical rows and all existing marks.
+  await query(`UPDATE students SET metadata=metadata-'progression_subject_review' WHERE tenant_id=$1 AND id::text=$2
+    AND metadata ? 'progression_subject_review' RETURNING id`, tenant, student.id);
   await query(`UPDATE student_subject_enrollments SET status='dropped',effective_to=CURRENT_DATE,updated_at=NOW()
     WHERE tenant_id=$1 AND student_id::text=$2 AND status='active'
       AND (subject_id IS NULL OR NOT(subject_id::text=ANY($3::text[]))

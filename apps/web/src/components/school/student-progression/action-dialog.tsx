@@ -8,32 +8,33 @@ import { submitProgressionCommand, type ProgressionAction, type ProgressionComma
 import { ACTIONS, displayDate } from "./presentation";
 import styles from "./progression.module.css";
 
-export function ProgressionActionDialog({ action, students, overview, selectedYearId, initialDetail, transitionId, onClose, onComplete, onRefresh }: {
+export function ProgressionActionDialog({ action, students, overview, selectedYearId, initialDetail, transitionId, failedRequest, initialError, onClose, onComplete, onRefresh }: {
   action: ProgressionAction; students: ProgressionStudent[]; overview: ProgressionOverview; selectedYearId: string;
-  initialDetail?: ProgressionStudentDetail; transitionId?: string;
+  initialDetail?: ProgressionStudentDetail; transitionId?: string; failedRequest?: ProgressionCommand; initialError?: string;
   onClose: () => void; onComplete: (result: ProgressionCommandResult) => void; onRefresh: () => void;
 }) {
   const actionInfo = ACTIONS[action];
   const needsDestination = ["place", "reinstate"].includes(action);
   const needsDetail = action === "subjects" || action === "reverse";
-  const reasonOptional = ["promote", "hold", "repeat", "place", "transfer", "withdraw", "expel"].includes(action);
+  const [policyNoteRequired, setPolicyNoteRequired] = useState(Boolean(initialError?.includes("policy requires a reason")));
   const details = useSchoolQuery<ProgressionStudentDetail>(needsDetail ? `/academics/progression/students/${encodeURIComponent(students[0].id)}` : null, { enabled: needsDetail, staleTime: 0 });
   // Keep the displayed form and expected version from the same snapshot. A
   // background refetch must not silently authorise overwriting another edit.
   const [detailSnapshot, setDetailSnapshot] = useState(initialDetail);
   const detail = detailSnapshot ?? details.data;
-  const [destinationYear, setDestinationYear] = useState(action === "place" ? students[0].academic_year_id ?? selectedYearId : "");
-  const [classId, setClassId] = useState(action === "place" && students.length === 1 ? students[0].class_section_id ?? "" : "");
-  const [streamId, setStreamId] = useState(action === "place" && students.length === 1 ? students[0].stream_id ?? "" : "");
+  const [destinationYear, setDestinationYear] = useState(needsDestination ? students[0].academic_year_id ?? selectedYearId : "");
+  const [classId, setClassId] = useState(needsDestination && students.length === 1 ? students[0].class_section_id ?? "" : "");
+  const [streamId, setStreamId] = useState(needsDestination && students.length === 1 ? students[0].stream_id ?? "" : "");
   const [reason, setReason] = useState("");
   const [destinationSchool, setDestinationSchool] = useState("");
   const [subjectIds, setSubjectIds] = useState<string[]>([]);
   const [reverseId, setReverseId] = useState(transitionId ?? "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
-  const [attempted, setAttempted] = useState(false);
-  const prepared = useRef<ProgressionCommand | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
+  const [stale, setStale] = useState(Boolean(initialError && /changed|stale|version|refresh|no longer/i.test(initialError)));
+  const needsCorrection = Boolean(initialError && /choose|select|configure|conflicting evidence|review.*admission|capacity|closed|inactive|disabled/i.test(initialError));
+  const [attempted, setAttempted] = useState(Boolean(failedRequest && !policyNoteRequired && !needsCorrection));
+  const prepared = useRef<ProgressionCommand | null>(policyNoteRequired || needsCorrection ? null : failedRequest ?? null);
   const inFlight = useRef(false);
   const initialized = useRef(false);
 
@@ -55,7 +56,7 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
     if (inFlight.current || stale) return;
     setError(null);
     if (!prepared.current) {
-      if (!reasonOptional && !reason.trim()) { setError("Enter a reason for this decision."); return; }
+      if (policyNoteRequired && !reason.trim()) { setError("Enter a reason for this decision."); return; }
       if (!sourceYearId) { setError("Select the academic year before changing learner records."); return; }
       if (needsDestination && (!classId || !destinationClasses.some((item) => item.id === classId))) { setError("Choose the destination academic year and class."); return; }
       if (needsDestination && destinationStreams.length > 0 && !streamId) { setError("Choose the destination stream."); return; }
@@ -76,6 +77,7 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
     catch (cause) {
       const message = cause instanceof Error ? cause.message : "The action could not be completed. Retry safely.";
       setError(message);
+      if (message.includes("policy requires a reason")) setPolicyNoteRequired(true);
       if (/changed|stale|version|refresh|no longer/i.test(message)) { setStale(true); onRefresh(); }
       else if (/policy requires a reason|enter a reason|choose|select|configure|conflicting evidence|review.*admission/i.test(message)) {
         prepared.current = null; setAttempted(false);
@@ -107,7 +109,7 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
         {needsDestination && destinationYear && !destinationClasses.length ? <p role="status" className={styles.alert}>No active classes are available for this year. Refresh after the year structure is prepared, or review the year’s class configuration in Academic Foundation.</p> : null}
         {action === "subjects" ? !detail ? <p className={styles.muted}>Loading current subjects…</p> : <div className={styles.subjectList}>{detail.subjects.length ? detail.subjects.map((subject) => <label className={styles.subject} key={subject.id}><input type="checkbox" className={styles.checkbox} checked={subjectIds.includes(subject.id)} disabled={subject.compulsory} onChange={(event) => setSubjectIds((current) => event.target.checked ? [...current, subject.id] : current.filter((id) => id !== subject.id))} /><span>{subject.name} <small>{subject.compulsory ? "Required" : subject.code}</small></span></label>) : <p className={styles.muted}>No subject offerings are configured for this placement. Add the class subjects in Academic Foundation first.</p>}</div> : null}
         {action === "reverse" && detail ? reversible.length ? <label className={styles.label}>Transition to reverse<select className={styles.input} value={reverseId} onChange={(event) => setReverseId(event.target.value)}>{reversible.map((entry) => <option key={entry.id} value={entry.id}>{entry.from_class ?? "Previous placement"} → {entry.to_class ?? entry.outcome} · {displayDate(entry.created_at, overview.timezone)}</option>)}</select></label> : <p className={styles.alert}>No transition can currently be reversed. Review the timeline and use an authorised placement correction where appropriate.</p> : null}
-        <label className={styles.label}>{reasonOptional ? "Reason (optional)" : "Reason"}<textarea className={styles.input} rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={reasonOptional ? "Add a note if useful; the action is audited automatically" : "Briefly record the school decision"} /></label>
+        {policyNoteRequired ? <label className={styles.label}>Note required by school policy<input className={styles.input} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} /></label> : null}
       </fieldset>
       {attempted && !stale ? <p className={styles.muted} style={{ marginTop: 12 }}>Retry checks this same saved request, so an interrupted connection cannot apply it twice.</p> : null}
     </div>

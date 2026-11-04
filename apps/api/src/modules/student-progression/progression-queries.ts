@@ -28,6 +28,8 @@ async function presentStudent(tx:CohortTx,actor:ProgressionActor,current:Student
     try { requireCompleteEnrollment(current); }
     catch(error) {status='exception';message=error instanceof Error?error.message:'Review the current enrollment.';}
   }
+  if (current.placement && current.state.student.subject_review && activeLearner(current.student))
+    message = [message, current.state.student.subject_review].filter(Boolean).join(' ');
   let nextName:string|null=null;
   if(source && ['upcoming','held','repeating','exception'].includes(status)) {
     try {
