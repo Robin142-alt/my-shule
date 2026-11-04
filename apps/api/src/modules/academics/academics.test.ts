@@ -407,7 +407,8 @@ test('AcademicsRepository supplies durable IDs when creating academic years and 
     created_by_user_id: actorUserId,
   });
 
-  assert.equal(locks,2);
+  // Year creation and structure preparation share the reentrant school lock.
+  assert.equal(locks,4);
   assert.equal(calls.length, 2);
   assert.match(calls[0]!.sql, /INSERT INTO academic_years\s*\(\s*tenant_id,\s*id,/);
   assert.match(calls[0]!.sql, /name,\s*start_date,\s*end_date,\s*starts_on,\s*ends_on/);
