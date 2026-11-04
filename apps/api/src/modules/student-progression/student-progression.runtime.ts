@@ -58,7 +58,10 @@ export class StudentProgressionRuntime implements OnApplicationBootstrap, OnModu
                 await query(tx,'INSERT INTO academic_progression_activation(tenant_id) VALUES($1) ON CONFLICT DO NOTHING RETURNING tenant_id',tenant);
                 const calendar=await progressionCalendar(tx,tenant);
                 const today=localDay(now,calendar.timezone);
-                return calendar.years.filter(year=>['active','closed'].includes(year.status)&&day(year.ends_on)<today).slice(-3);
+                const due=calendar.years.filter(year=>['active','closed'].includes(year.status)&&day(year.ends_on)<today).slice(-3);
+                if(!due.length) await query(tx,`UPDATE academic_progression_activation SET last_error=NULL,last_checked_at=NOW()
+                  WHERE tenant_id=$1 AND last_error IS NOT NULL RETURNING tenant_id`,tenant);
+                return due;
               });
               for(const year of years) await this.engine.runYear(actor,year.id,now);
             } catch(error) {

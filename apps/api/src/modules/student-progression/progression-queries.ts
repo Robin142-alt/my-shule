@@ -113,7 +113,11 @@ export async function progressionOverview(tx:CohortTx,actor:ProgressionActor,inp
   for(const {id} of ids) {const state=states.get(id);if(state) students.push(await presentStudent(tx,actor,state,yearId,context));}
   const runs=await query(tx,'SELECT * FROM academic_progression_runs WHERE tenant_id=$1 ORDER BY updated_at DESC LIMIT 20',actor.tenantId);
   const eligibility=year?calendarEligibility(year,calendar.terms.filter(row=>row.academic_year_id===yearId),calendar.years,calendar.timezone):null;
-  const run=runs.find(row=>row.academic_year_id===yearId);
+  const lastRun=runs.find(row=>row.academic_year_id===yearId);
+  // A historical run remains visible below, even after its exceptions are repaired
+  // and the school's calendar puts the next automatic transition in the future.
+  const run=lastRun?.status==='attention' && eligibility && !eligibility.due
+    && !counts.held && !counts.exception ? undefined : lastRun;
   const [activation]=await query(tx,'SELECT last_error FROM academic_progression_activation WHERE tenant_id=$1',actor.tenantId);
   const automationIssue=process.env.STUDENT_PROGRESSION_AUTOMATION_ENABLED==='false'
     ?'Automatic processing is paused by platform operations. Authorised staff can still use Run / retry progression.'
