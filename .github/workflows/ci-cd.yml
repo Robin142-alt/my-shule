@@ -372,6 +372,12 @@ jobs:
             PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand "apps/api/test/$suite.integration-spec.ts"
           done
 
+      - name: Subject teacher assignment and promotion database contracts
+        env:
+          DATABASE_URL: ""
+          NODE_ENV: test
+        run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:subject-teacher-assignments
+
       - name: Existing-school dashboard reads and Principal operations
         env:
           DATABASE_URL: ""
@@ -546,12 +552,6 @@ jobs:
           npm run test:tenant-isolation
           npm run test:finance-integrity
           npm run test:auth-security
-
-      - name: Subject teacher assignment and promotion database contracts
-        env:
-          DATABASE_URL: ""
-          NODE_ENV: test
-        run: PG_BIN_DIR="$(pg_config --bindir)" npm run test:subject-teacher-assignments
 
   # ──────────────────────────────────────────────────────────────
   # Docker Build + Push

@@ -1263,7 +1263,8 @@ export class AcademicsRepository {
         WHERE student_academic_enrollments.tenant_id=$1 AND student_academic_enrollments.student_id::text=$2
           AND student_academic_enrollments.status='active' AND section.tenant_id=$1 AND section.id::text=$3 RETURNING student_academic_enrollments.*`,
       tenantId,input.student_id,context.class_section_id,context.stream_id,context.cohort_id,context.id);
-      await tx.$queryRawUnsafe(`UPDATE student_allocations SET class_name=section.name,stream_name=COALESCE(stream.name,'Unstreamed'),updated_at=NOW()
+      const [allocationSchema] = await tx.$queryRawUnsafe("SELECT to_regclass('public.student_allocations')::text AS allocations");
+      if (allocationSchema?.allocations) await tx.$queryRawUnsafe(`UPDATE student_allocations SET class_name=section.name,stream_name=COALESCE(stream.name,'Unstreamed'),updated_at=NOW()
         FROM class_sections section LEFT JOIN class_streams stream ON stream.tenant_id=section.tenant_id AND stream.id::text=$4
         WHERE student_allocations.tenant_id=$1 AND student_allocations.student_id::text=$2 AND student_allocations.is_current
           AND section.tenant_id=$1 AND section.id::text=$3 RETURNING student_allocations.id`,tenantId,input.student_id,context.class_section_id,context.stream_id);
