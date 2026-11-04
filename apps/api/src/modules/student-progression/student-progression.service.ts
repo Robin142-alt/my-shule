@@ -10,6 +10,11 @@ import { authorizeProgression, digest, lockProgression, ProgressionActor, query,
 import { changeSubjects, exitStudent, placeStudent, setDecision } from './progression-mutations';
 import { recordProgressionOperation, recordTransition } from './progression-journal';
 import { progressionOverview, progressionDetail } from './progression-queries';
+import { reconcileEnrollment } from './progression-reconciliation';
+import { prepareAcademicYearStructure } from './academic-year-structure';
+
+type ExecutableCommand = ProgressionCommand & {reason:string};
+const decisionNote = (command:ProgressionCommand) => command.reason?.trim() || `Authorized ${command.action} decision (no additional note).`;
 
 @Injectable()
 export class ProgressionEngine {
@@ -26,10 +31,58 @@ export class ProgressionEngine {
   overview(actor:ProgressionActor,input:Record<string,any>={}) {return this.transaction(actor,tx=>progressionOverview(tx,actor,input),false);}
   detail(actor:ProgressionActor,id:string) {return this.transaction(actor,tx=>progressionDetail(tx,actor,id),false);}
 
+  async reconcileCurrentEnrollments(actor:ProgressionActor) {
+    const candidates=await this.transaction(actor,async tx=>{
+      await query(tx,'INSERT INTO academic_progression_activation(tenant_id) VALUES($1) ON CONFLICT DO NOTHING RETURNING tenant_id',actor.tenantId);
+      const [activation]=await query(tx,'SELECT reconciliation_cursor FROM academic_progression_activation WHERE tenant_id=$1',actor.tenantId);
+      const rows=await query(tx,`SELECT DISTINCT student.id::text AS id FROM students student
+        JOIN student_class_assignments placement ON placement.tenant_id=student.tenant_id AND placement.student_id::text=student.id::text AND placement.status='active'
+        JOIN student_academic_enrollments enrollment ON enrollment.tenant_id=student.tenant_id AND enrollment.student_id::text=student.id::text AND enrollment.status='active'
+        WHERE student.tenant_id=$1 AND student.status IN ('active','enrolled') AND student.id::text>$2
+          AND NOT EXISTS(SELECT 1 FROM academic_progression_items item WHERE item.tenant_id=student.tenant_id
+            AND item.student_id=student.id::text AND item.academic_year_id=placement.academic_year_id::text AND item.status='exception' AND item.retry_after>NOW())
+          AND (enrollment.class_section_id::text IS DISTINCT FROM placement.class_section_id::text
+            OR enrollment.stream_id::text IS DISTINCT FROM placement.stream_id::text
+            OR enrollment.academic_year_id::text IS DISTINCT FROM placement.academic_year_id::text
+            OR enrollment.cohort_placement_id IS DISTINCT FROM placement.cohort_placement_id
+            OR student.current_class_id::text IS DISTINCT FROM placement.class_section_id::text
+            OR student.current_stream_id::text IS DISTINCT FROM placement.stream_id::text)
+        ORDER BY student.id::text LIMIT 100`,actor.tenantId,activation.reconciliation_cursor);
+      await query(tx,'UPDATE academic_progression_activation SET reconciliation_cursor=$2 WHERE tenant_id=$1 RETURNING tenant_id',actor.tenantId,rows.length===100?rows.at(-1)!.id:'');
+      return rows;
+    });
+    for(const {id} of candidates) {
+      try { await this.transaction(actor,async tx=>{
+        const current=await readStudentState(tx,actor.tenantId,id,true);
+        await reconcileEnrollment(tx,this.events,actor,current);
+        await query(tx,`UPDATE academic_progression_items SET status='ready',message='Enrollment reconciled; ready for progression',retry_after=NULL,updated_at=NOW()
+          WHERE tenant_id=$1 AND student_id=$2 AND academic_year_id=$3 AND status='exception' RETURNING student_id`,actor.tenantId,id,current.placement?.academic_year_id);
+      }); } catch(error) {
+        if(!(error instanceof BadRequestException||error instanceof ConflictException)) throw error;
+        await this.transaction(actor,async tx=>{
+          const current=await readStudentState(tx,actor.tenantId,id);
+          if(current.placement) await this.saveItem(tx,actor,current.placement.academic_year_id,id,'exception',error.message);
+        });
+      }
+    }
+    return {checked:candidates.length};
+  }
+
   async synchronizeCalendar(actor:ProgressionActor,now=new Date()) {
     return this.transaction(actor,async tx=>{
       const calendar=await progressionCalendar(tx,actor.tenantId);
       const today=new Intl.DateTimeFormat('en-CA',{timeZone:calendar.timezone}).format(now);
+      const prepared=await query(tx,'SELECT academic_year_id FROM academic_year_structure_preparations WHERE tenant_id=$1 AND version=1',actor.tenantId);
+      for(const target of calendar.years.filter(year=>day(year.ends_on)>=today&&['draft','active'].includes(year.status))) {
+        if(prepared.some(row=>row.academic_year_id===target.id)) continue;
+        const summary=await prepareAcademicYearStructure(tx,actor,String(target.id));
+        // A first-ever school year has no reusable source yet; do not lock out later preparation.
+        if(!summary.source_classes) continue;
+        await query(tx,`INSERT INTO academic_year_structure_preparations(tenant_id,academic_year_id,summary)
+          VALUES($1,$2,$3::jsonb) ON CONFLICT(tenant_id,academic_year_id) DO UPDATE SET summary=EXCLUDED.summary,completed_at=NOW() RETURNING academic_year_id`,actor.tenantId,target.id,JSON.stringify(summary));
+        await recordProgressionOperation(tx,this.events,actor,'academic_year.structure_prepared',target.id,
+          'Prepared missing reusable academic structure; existing decisions and historical records preserved.',summary);
+      }
       const matching=calendar.years.filter(year=>day(year.starts_on)<=today&&day(year.ends_on)>=today&&['draft','active'].includes(year.status));
       if(matching.length!==1) return;
       const year=matching[0];
@@ -55,17 +108,18 @@ export class ProgressionEngine {
         if(existing.fingerprint!==fingerprint) throw new ConflictException('This request ID belongs to a different decision. Refresh before retrying.');
         return {...existing.result,replayed:true};
       }
-      await this.validateStudents(tx,actor,command);
+      await this.validateStudents(tx,actor,command,command.students.length===1);
       const requiresApproval=await this.approvalRequired(tx,actor,command);
+      const executable={...command,reason:decisionNote(command)};
       let result:ProgressionCommandResult;
       if(requiresApproval) {
         const [approval]=await query(tx,`INSERT INTO dashboard_approval_requests(tenant_id,approval_key,requested_by_user_id,approver_role,module,record_id,approval_type,reason,metadata)
           VALUES($1,$2,$3::uuid,'principal','student_progression',$2,$4,$5,$6::jsonb) RETURNING id::text`,actor.tenantId,
-        command.request_id,actor.userId,command.action,command.reason,JSON.stringify({title:'Student progression decision',command,href:'/school/principal/student-progression'}));
+        command.request_id,actor.userId,command.action,executable.reason,JSON.stringify({title:'Student progression decision',command:executable,href:'/school/principal/student-progression'}));
         await this.notifyLeaders(tx,actor,`progression-approval:${approval.id}`,'Student progression approval required','Review the pending decision in Student Progression & Transitions.',approval.id);
-        await recordProgressionOperation(tx,this.events,actor,'approval.requested',approval.id,command.reason,{request_id:command.request_id,student_ids:command.students.map(row=>row.id),action:command.action});
+        await recordProgressionOperation(tx,this.events,actor,'approval.requested',approval.id,executable.reason,{request_id:command.request_id,student_ids:command.students.map(row=>row.id),action:command.action});
         result={status:'pending_approval',affected:command.students.length,approval_id:approval.id,message:'The decision is awaiting a separate Principal’s approval. Automatic progression is paused for these learners.'};
-      } else result=await this.executeCommand(tx,actor,command);
+      } else result=await this.executeCommand(tx,actor,executable);
       await query(tx,`INSERT INTO academic_progression_commands(tenant_id,request_id,fingerprint,result,actor_user_id)
         VALUES($1,$2,$3,$4::jsonb,$5::uuid) RETURNING request_id`,actor.tenantId,command.request_id,fingerprint,JSON.stringify(result),actor.userId);
       return result;
@@ -83,14 +137,14 @@ export class ProgressionEngine {
       const command=approval.metadata.command as ProgressionCommand;
       let result:ProgressionCommandResult={status:'completed',affected:0,message:'The request was rejected. The learner’s placement is unchanged.'};
       if(decision==='approved') {
-        await this.validateStudents(tx,actor,command);
+        await this.validateStudents(tx,actor,command,command.students.length===1);
         result=await this.executeCommand(tx,actor,{...command,reason:`${command.reason}\nPrincipal approval: ${reason.trim()}`});
       }
       await query(tx,`UPDATE dashboard_approval_requests SET status=$3,approver_user_id=$4::uuid,decision_note=$5,decided_at=NOW(),updated_at=NOW()
         WHERE tenant_id=$1 AND id::text=$2 RETURNING id`,actor.tenantId,id,decision.toUpperCase(),actor.userId,reason.trim());
       await query(tx,'UPDATE academic_progression_commands SET result=$3::jsonb WHERE tenant_id=$1 AND request_id=$2 RETURNING request_id',actor.tenantId,command.request_id,JSON.stringify(result));
       // A pending approval pauses automation, but its resolution must not leave a permanent hold.
-      await query(tx,`UPDATE academic_progression_items item SET status='exception',message='Approval resolved; ready for retry',retry_after=NULL,updated_at=NOW()
+      await query(tx,`UPDATE academic_progression_items item SET status='ready',message='Approval resolved; ready for progression',retry_after=NULL,updated_at=NOW()
         WHERE item.tenant_id=$1 AND item.academic_year_id=$2 AND item.student_id=ANY($3::text[]) AND item.status='held'
           AND NOT EXISTS(SELECT 1 FROM academic_progression_decisions decision WHERE decision.tenant_id=$1
             AND decision.student_id=item.student_id AND decision.academic_year_id=item.academic_year_id AND decision.decision='hold') RETURNING student_id`,
@@ -101,16 +155,24 @@ export class ProgressionEngine {
     });
   }
   private validateCommand(command:ProgressionCommand) {
-    if(!command.request_id?.trim()||command.request_id.length>128||!command.reason?.trim()||command.reason.trim().length>1000||!command.academic_year_id?.trim())
-      throw new BadRequestException('A request ID, academic year and reason are required.');
+    if(!command.request_id?.trim()||command.request_id.length>128||(command.reason!=null&&(typeof command.reason!=='string'||command.reason.trim().length>1000))||!command.academic_year_id?.trim())
+      throw new BadRequestException('A request ID and academic year are required; notes must be at most 1000 characters.');
+    if(['reverse','subjects','reinstate','release'].includes(command.action)&&!command.reason?.trim())
+      throw new BadRequestException('Enter a reason for this correction or release decision.');
     if(!['hold','repeat','release','promote','place','subjects','reverse','transfer','expel','withdraw','reinstate'].includes(command.action)) throw new BadRequestException('Choose a supported progression action.');
     if(!Array.isArray(command.students)||!command.students.length||command.students.length>100||new Set(command.students.map(row=>row.id)).size!==command.students.length
       ||command.students.some(row=>!row.id||!row.expected_version)) throw new BadRequestException('Select between 1 and 100 learners with current record versions.');
     if(['subjects','reverse'].includes(command.action)&&command.students.length!==1) throw new BadRequestException('Review this action for one learner at a time.');
   }
-  private async validateStudents(tx:CohortTx,actor:ProgressionActor,command:ProgressionCommand) {
+  private async validateStudents(tx:CohortTx,actor:ProgressionActor,command:ProgressionCommand,checkVersions=true) {
     const years=await query(tx,'SELECT id FROM academic_years WHERE tenant_id=$1 AND id::text=$2',actor.tenantId,command.academic_year_id);
     if(!years.length) throw new BadRequestException('Choose an academic year from this school.');
+    if(!checkVersions) {
+      const owned=await query(tx,`SELECT id FROM students WHERE tenant_id=$1 AND id::text=ANY($2::text[])
+        AND to_jsonb(students)->>'deleted_at' IS NULL ORDER BY id FOR UPDATE`,actor.tenantId,command.students.map(student=>student.id));
+      if(owned.length!==command.students.length) throw new NotFoundException('A selected learner was not found in this school.');
+      return;
+    }
     for(const selected of command.students) {
       const current=await readStudentState(tx,actor.tenantId,selected.id,true);
       if(current.version!==selected.expected_version) throw new ConflictException('A learner’s record changed. Refresh the list and review the decision again.');
@@ -125,6 +187,7 @@ export class ProgressionEngine {
         AND rule.is_active AND lower(rule.module) IN ('academics','students','student_progression')
         AND lower(rule.action)=ANY($2::text[])`,actor.tenantId,[command.action,`student.${command.action}`]):[];
     for(const {value:rule} of rules) {
+      if(rule.requires_reason&&!command.reason?.trim()) throw new BadRequestException('This school’s policy requires a reason for this action.');
       if(Array.isArray(rule.requester_roles)&&rule.requester_roles.length&&!rule.requester_roles.map((r:string)=>r.toLowerCase()).includes(actor.role)) throw new ForbiddenException('Your role is not permitted to request this school action.');
       if(String(rule.approval_level).toUpperCase()==='MULTI_LEVEL'||rule.requires_attachment
         ||(Array.isArray(rule.approver_roles)&&rule.approver_roles.length&&!rule.approver_roles.map((role:string)=>role.toLowerCase()).includes('principal')))
@@ -132,11 +195,41 @@ export class ProgressionEngine {
     }
     return command.action==='expel'||rules.some(({value:rule})=>!['NONE','AUTO_APPROVE'].includes(String(rule.approval_level??'SINGLE').toUpperCase()));
   }
-  private async executeCommand(tx:CohortTx,actor:ProgressionActor,command:ProgressionCommand):Promise<ProgressionCommandResult> {
+  private async executeCommand(tx:CohortTx,actor:ProgressionActor,command:ExecutableCommand):Promise<ProgressionCommandResult> {
+    if(command.students.length>1) {
+      const results:NonNullable<ProgressionCommandResult['results']>=[];
+      for(const student of command.students) {
+        await query(tx,'SAVEPOINT progression_learner');
+        try {
+          const single={...command,students:[student]};
+          await this.validateStudents(tx,actor,single);
+          const result=await this.executeCommand(tx,actor,single);
+          results.push({student_id:student.id,status:result.affected?'completed':'skipped',message:result.message});
+          await query(tx,'RELEASE SAVEPOINT progression_learner');
+        } catch(error) {
+          await query(tx,'ROLLBACK TO SAVEPOINT progression_learner');
+          await query(tx,'RELEASE SAVEPOINT progression_learner');
+          // Infrastructure/outbox failures must roll back the command, not masquerade as a student data issue.
+          if(!(error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException)) throw error;
+          const message=error.message;
+          results.push({student_id:student.id,status:'failed',message});
+          await recordProgressionOperation(tx,this.events,actor,'action.failed',student.id,message,{request_id:command.request_id,action:command.action});
+        }
+      }
+      const affected=results.filter(row=>row.status==='completed').length;
+      const failed=results.filter(row=>row.status==='failed').length;
+      const skipped=results.length-affected-failed;
+      return {status:failed?(affected?'partial':'failed'):'completed',affected,results,
+        message:`${affected} learner${affected===1?'':'s'} updated.${skipped?` ${skipped} already had this decision.`:''}${failed?` ${failed} need review; see each learner’s result.`:''}`};
+    }
     const calendar=await progressionCalendar(tx,actor.tenantId);
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:calendar.timezone}).format(new Date());
     for(const selected of command.students) {
-      const current=await readStudentState(tx,actor.tenantId,selected.id,true);
+      let current=await readStudentState(tx,actor.tenantId,selected.id,true);
+      if(['hold','repeat','transfer','withdraw','expel'].includes(command.action)&&current.latest?.action===command.action
+        &&current.latest.academic_year_id===command.academic_year_id&&digest(current.latest.after_state)===current.version)
+        return {status:'completed',affected:0,message:'This decision is already in effect for the learner.'};
+      if(['promote','repeat','subjects'].includes(command.action)) current=await reconcileEnrollment(tx,this.events,actor,current);
       let outcome:string='enrolled'; let reversalOf:string|undefined;
       if(['hold','repeat','release'].includes(command.action)) {
         if(!activeLearner(current.student)) throw new BadRequestException('Only enrolled learners can receive a progression exception.');
@@ -151,10 +244,20 @@ export class ProgressionEngine {
           if(!template||!destinationYear) throw new ConflictException('The previous grade or destination year is unavailable.');
           const destination=await prepareDestination(tx,actor,template,destinationYear,source.stream_name??null);
           await placeStudent(tx,actor,current,destination.classId,destination.streamId,{reason:command.reason,today});
+        } else if(command.action==='repeat') {
+          const sourceYear=calendar.years.find(row=>row.id===current.placement.academic_year_id);
+          const source=(await activeClasses(tx,actor.tenantId,current.placement.academic_year_id)).find(row=>String(row.id)===String(current.placement.class_section_id));
+          if(!sourceYear||!source) throw new BadRequestException('Review the learner’s current class before repeating.');
+          const eligibility=calendarEligibility(sourceYear,calendar.terms.filter(term=>term.academic_year_id===sourceYear.id),calendar.years,calendar.timezone);
+          if(eligibility.blocker||!eligibility.nextYear) throw new BadRequestException(eligibility.blocker??'Configure the next academic year and term dates before repeating.');
+          const nextCheck=calendarEligibility(eligibility.nextYear,calendar.terms.filter(term=>term.academic_year_id===eligibility.nextYear!.id),calendar.years,calendar.timezone,new Date(),true);
+          if(nextCheck.blocker||nextCheck.due) throw new BadRequestException(nextCheck.blocker??'The destination academic year has ended. Review the learner’s history.');
+          const destination=await prepareDestination(tx,actor,source,eligibility.nextYear,current.placement.stream_name??null);
+          await placeStudent(tx,actor,current,destination.classId,destination.streamId,{reason:command.reason,today});
         }
         await setDecision(tx,actor,selected.id,command.academic_year_id,command.action==='release'?'eligible':command.action,command.reason);
         outcome=command.action==='hold'?'held':command.action==='repeat'?'repeating':'upcoming';
-        await query(tx,"UPDATE academic_progression_items SET status='exception',message='Decision changed; ready for retry',retry_after=NULL,updated_at=NOW() WHERE tenant_id=$1 AND student_id=$2 AND academic_year_id=$3 AND status IN ('held','exception') RETURNING student_id",actor.tenantId,selected.id,command.academic_year_id);
+        await query(tx,"UPDATE academic_progression_items SET status='ready',message='Decision changed; ready for progression',retry_after=NULL,updated_at=NOW() WHERE tenant_id=$1 AND student_id=$2 AND academic_year_id=$3 AND status IN ('held','exception') RETURNING student_id",actor.tenantId,selected.id,command.academic_year_id);
       } else if(['transfer','expel','withdraw'].includes(command.action)) {
         outcome=command.action==='transfer'?'transferred':command.action==='expel'?'expelled':'withdrawn';
         await exitStudent(tx,actor,current,outcome,today);
@@ -185,6 +288,14 @@ export class ProgressionEngine {
           const sourceYear=calendar.years.find(row=>row.id===current.placement.academic_year_id);
           if(!source||!sourceYear) throw new BadRequestException('Correct the current academic placement before promotion.');
           const plan=await plannedDestination(tx,actor.tenantId,source,sourceYear);
+          if(plan.completion) {
+            const eligibility=calendarEligibility(sourceYear,calendar.terms.filter(term=>term.academic_year_id===sourceYear.id),calendar.years,calendar.timezone);
+            if(!eligibility.due) throw new BadRequestException(eligibility.blocker??'This learner completes their pathway after the final day of the academic year.');
+            await exitStudent(tx,actor,current,plan.completion,today);
+            const transition=await recordTransition(tx,this.events,actor,current,{yearId:sourceYear.id,action:command.action,outcome:plan.completion,reason:command.reason,requestId:command.request_id});
+            await this.saveItem(tx,actor,sourceYear.id,selected.id,plan.completion,null,transition.id);
+            return {status:'completed',affected:1,message:'The learner completed their terminal grade. History and outstanding obligations are preserved.'};
+          }
           if(!plan.target) throw new BadRequestException(plan.blocker??'This learner completes their pathway at the end of the academic year.');
           if(!targetClass) {
             const eligibility=calendarEligibility(sourceYear,calendar.terms.filter(term=>term.academic_year_id===sourceYear.id),calendar.years,calendar.timezone);
@@ -204,13 +315,13 @@ export class ProgressionEngine {
         if(!targetClass) throw new BadRequestException('Choose the destination class and stream.');
         await placeStudent(tx,actor,current,targetClass,targetStream,
           {reason:command.reason,today,allowInactive:command.action==='reinstate',allowRepair:command.action==='place',subjectIds:command.subject_ids});
-        if(['reinstate','place'].includes(command.action)) await query(tx,`UPDATE academic_progression_items SET status='exception',
+        if(['reinstate','place'].includes(command.action)) await query(tx,`UPDATE academic_progression_items SET status='ready',
           message='Placement corrected; ready for retry',retry_after=NULL,updated_at=NOW()
           WHERE tenant_id=$1 AND student_id=$2 AND status IN ('excluded','exception') RETURNING student_id`,actor.tenantId,selected.id);
         if(command.action==='promote') {outcome='promoted';await setDecision(tx,actor,selected.id,command.academic_year_id,'eligible',command.reason);}
       }
       const transition=await recordTransition(tx,this.events,actor,current,{yearId:command.academic_year_id,action:command.action,outcome,reason:command.reason,requestId:command.request_id,reversalOf});
-      if(outcome==='promoted'||(outcome==='repeating'&&current.placement?.academic_year_id!==command.academic_year_id))
+      if(outcome==='promoted'||outcome==='repeating')
         await this.saveItem(tx,actor,command.academic_year_id,selected.id,outcome,null,transition.id);
     }
     return {status:'completed',affected:command.students.length,message:`${command.students.length} learner${command.students.length===1?'':'s'} updated. The decision and history are saved.`};
@@ -260,13 +371,14 @@ export class ProgressionEngine {
             if(!year) throw new ConflictException('The academic calendar changed during processing.');
             const eligible=calendarEligibility(year,calendar.terms.filter(row=>row.academic_year_id===yearId),calendar.years,calendar.timezone,now);
             if(!eligible.due||eligible.blocker) throw new ConflictException(eligible.blocker??'The academic year has not ended.');
-            const current=await readStudentState(tx,actor.tenantId,id,true);
+            let current=await readStudentState(tx,actor.tenantId,id,true);
             const decision=current.state.decisions.find(row=>row.academic_year_id===yearId)?.decision;
             if(!activeLearner(current.student)) {await this.saveItem(tx,actor,yearId,id,'excluded','The learner is not currently enrolled.');return;}
             if(day(current.student.admission_date)>day(year.ends_on)) throw new BadRequestException('This learner was admitted after the source year ended. Correct their admission-year placement before progression.');
             const pending=await query(tx,`SELECT id FROM dashboard_approval_requests WHERE tenant_id=$1 AND module='student_progression' AND status='PENDING'
               AND metadata->'command'->'students' @> $2::jsonb LIMIT 1`,actor.tenantId,JSON.stringify([{id}]));
             if(decision==='hold'||pending.length) {await this.saveItem(tx,actor,yearId,id,'held',pending.length?'A Principal decision is pending.':'An authorised hold is in place.');return;}
+            current=await reconcileEnrollment(tx,this.events,actor,current);
             requireCompleteEnrollment(current);
             if(current.placement.academic_year_id!==yearId) return;
             const source=(await activeClasses(tx,actor.tenantId,yearId)).find(row=>String(row.id)===String(current.placement.class_section_id));

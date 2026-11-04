@@ -148,7 +148,9 @@ export class AdmissionsCommandService {
 
   async assignClassPlacement(body: any) {
     const tenantId = this.requireTenantId();
-    const placement = await this.admissionsRepository.assignClassPlacement(tenantId, body);
+    const actorId=this.getUserIdOrNull();
+    if(!actorId) throw new UnauthorizedException('User context is required');
+    const placement = await this.admissionsRepository.assignClassPlacement(tenantId, body,actorId);
     if (!placement) {
       throw new NotFoundException('Student was not found for this school');
     }
@@ -157,6 +159,10 @@ export class AdmissionsCommandService {
       class_name: placement.class_name,
       stream_name: placement.stream_name,
     }, this.getUserIdOrNull());
+    await this.operations.recordWorkflowAction({tenantId,actorUserId:actorId,sourceRole:'admissions_officer',
+      targetRoles:['principal','secretary','teacher','class_teacher'],eventType:'student.placement.updated',entityType:'student',
+      entityId:placement.student_id,title:'Student placement updated',message:'The learner’s class and subject membership have been synchronized.',
+      priority:'normal',payload:{class_name:placement.class_name,stream_name:placement.stream_name}});
     return placement;
   }
 
@@ -236,7 +242,21 @@ export class AdmissionsCommandService {
       throw new UnauthorizedException('User context is required');
     }
     this.logger.log(`Approving admission application ${id} for tenant ${tenantId}`);
-    return this.admissionsRepository.approveApplication(tenantId, id, userId);
+    const student = await this.admissionsRepository.approveApplication(tenantId, id, userId);
+    await this.operations.recordWorkflowAction({
+      tenantId,
+      actorUserId: userId,
+      sourceRole: this.requestContext.getStore()?.role ?? 'admissions_officer',
+      targetRoles: ['principal', 'secretary', 'accountant', 'class_teacher', 'teacher'],
+      eventType: 'admissions.student.admitted',
+      entityType: 'student',
+      entityId: student.id,
+      title: 'Student admitted',
+      message: `${student.firstName} ${student.lastName} was admitted with admission number ${student.admissionNumber}.`,
+      priority: 'normal',
+      payload: { application_id: id, student_id: student.id, source_dashboard: 'admissions-command-center' },
+    });
+    return student;
   }
 
   async admitStudent(id: string) {

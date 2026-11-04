@@ -8,6 +8,7 @@ import { ACADEMIC_TEACHING_ROLE_CODES, SCHOOL_STAFF_ROLE_CODES } from '../../../
 import { PrismaService } from '../../../database/prisma.service';
 import { ensureCohortContexts, ensureCohortMigration, lockCohortSchool } from '../cohort-configuration';
 import { writeCohortSubjects, writeCohortTeacher } from '../cohort-assignment-writes';
+import { prepareAcademicYearStructure } from '../../student-progression/academic-year-structure';
 
 const ACADEMIC_TEACHING_ROLE_SQL = ACADEMIC_TEACHING_ROLE_CODES
   .map((roleCode) => `'${roleCode}'`)
@@ -593,7 +594,9 @@ export class AcademicsRepository {
   async createAcademicYear(input: Record<string, unknown>) {
     const academicYearId = randomUUID();
     const tenantId = String(input.tenant_id);
-    const result = await this.executeSql(tenantId, `
+    return this.prisma.executeWithTenant(tenantId, input.created_by_user_id as string|null, async tx => {
+    await lockCohortSchool(tx,tenantId);
+    const result = await this.executeSqlTx(tx, `
         INSERT INTO academic_years (
           tenant_id,
           id,
@@ -624,7 +627,11 @@ export class AcademicsRepository {
         input.created_by_user_id,
       ]);
 
-    return result.rows[0];
+    const year=result.rows[0];
+    if(year) year.structure_preparation=await prepareAcademicYearStructure(tx,{tenantId,userId:input.created_by_user_id as string|null,
+      role:'academic_calendar',permissions:[]},String(year.id));
+    return year;
+    });
   }
 
   async createAcademicTerm(input: Record<string, unknown>) {
@@ -1251,11 +1258,15 @@ export class AcademicsRepository {
         FROM class_sections section WHERE section.tenant_id=$1 AND section.id::text=$7 RETURNING *`,
       tenantId,input.student_id,context.stream_id,input.assigned_by_user_id ?? null,context.cohort_id,context.id,context.class_section_id);
       const [enrollment] = await tx.$queryRawUnsafe(`UPDATE student_academic_enrollments SET class_section_id=$3,stream_id=$4,
-        cohort_id=$5,cohort_placement_id=$6,class_name=section.name,stream_name=COALESCE(stream.name,'Unstreamed'),updated_at=NOW()
+        academic_year_id=section.academic_year_id,cohort_id=$5,cohort_placement_id=$6,class_name=section.name,stream_name=COALESCE(stream.name,'Unstreamed'),updated_at=NOW()
         FROM class_sections section LEFT JOIN class_streams stream ON stream.tenant_id=section.tenant_id AND stream.id::text=$4
         WHERE student_academic_enrollments.tenant_id=$1 AND student_academic_enrollments.student_id::text=$2
           AND student_academic_enrollments.status='active' AND section.tenant_id=$1 AND section.id::text=$3 RETURNING student_academic_enrollments.*`,
       tenantId,input.student_id,context.class_section_id,context.stream_id,context.cohort_id,context.id);
+      await tx.$queryRawUnsafe(`UPDATE student_allocations SET class_name=section.name,stream_name=COALESCE(stream.name,'Unstreamed'),updated_at=NOW()
+        FROM class_sections section LEFT JOIN class_streams stream ON stream.tenant_id=section.tenant_id AND stream.id::text=$4
+        WHERE student_allocations.tenant_id=$1 AND student_allocations.student_id::text=$2 AND student_allocations.is_current
+          AND section.tenant_id=$1 AND section.id::text=$3 RETURNING student_allocations.id`,tenantId,input.student_id,context.class_section_id,context.stream_id);
       const actor = {tenantId, userId: input.assigned_by_user_id as string | null};
       const [section] = await tx.$queryRawUnsafe('SELECT grade_level FROM class_sections WHERE tenant_id=$1 AND id::text=$2',tenantId,context.class_section_id);
       await updateStudentCohortPosition(tx,actor,String(input.student_id),context,section);

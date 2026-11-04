@@ -3,7 +3,7 @@ import { CohortTx } from '../academics/cohort-configuration';
 import { activeLearner, calendarEligibility, day } from './progression-policy';
 import { activeClasses, plannedDestination, progressionCalendar } from './progression-destinations';
 import { configuredSubjects } from './progression-mutations';
-import { digest, ProgressionActor, query, readStudentState, readStudentStates, StudentState, Row } from './progression-store';
+import { digest, ProgressionActor, query, readStudentState, readStudentStates, requireCompleteEnrollment, StudentState, Row } from './progression-store';
 
 type PresentationContext={items:Map<string,Row>;pending:Set<string>;years:Row[];classes:Row[];plans:Map<string,Awaited<ReturnType<typeof plannedDestination>>>};
 async function presentStudent(tx:CohortTx,actor:ProgressionActor,current:StudentState,yearId?:string,context?:PresentationContext):Promise<ProgressionStudent> {
@@ -20,12 +20,13 @@ async function presentStudent(tx:CohortTx,actor:ProgressionActor,current:Student
       ['graduated','alumni'].includes(lifecycle)?'graduated':lifecycle==='completed'?'completed':lifecycle==='withdrawn'?'withdrawn':'exception';
   } else if(decision==='hold'||pending.length) status='held';
   else if(decision==='repeat') status='repeating';
-  else if(item && item.status!=='excluded') status=item.status;
+  else if(item && !['excluded','ready'].includes(item.status)) status=item.status;
   else if(['promoted','repeating'].includes(current.latest?.outcome) && current.latest.academic_year_id!==source?.academic_year_id) status=current.latest.outcome;
   else if(source) status='upcoming';
   let message=pending.length?'A Principal decision is pending.':item?.message??null;
-  if(activeLearner(current.student)&&(current.state.assignments.length!==1||current.state.enrollments.length!==1||!current.enrollment?.application_id)) {
-    status='exception';message='Complete or correct the learner’s current academic enrollment.';
+  if(activeLearner(current.student)) {
+    try { requireCompleteEnrollment(current); }
+    catch(error) {status='exception';message=error instanceof Error?error.message:'Review the current enrollment.';}
   }
   let nextName:string|null=null;
   if(source && ['upcoming','held','repeating','exception'].includes(status)) {
@@ -68,13 +69,16 @@ export async function progressionOverview(tx:CohortTx,actor:ProgressionActor,inp
   const streams=await query(tx,"SELECT id::text,name,class_section_id::text FROM class_streams WHERE tenant_id=$1 AND status='active' AND is_active AND archived_at IS NULL ORDER BY name",actor.tenantId);
   const limit=Math.min(Math.max(Number(input.limit)||25,1),100),offset=Math.max(Number(input.offset)||0,0);
   const scope=`FROM students student
-    LEFT JOIN LATERAL(SELECT * FROM student_class_assignments placement WHERE placement.tenant_id=$1 AND placement.student_id::text=student.id::text
-      ORDER BY (placement.status='active') DESC,placement.created_at DESC LIMIT 1) placement ON TRUE
+    LEFT JOIN LATERAL(SELECT *,COUNT(*) FILTER(WHERE status='active') OVER () AS active_count FROM student_class_assignments placement WHERE placement.tenant_id=$1 AND placement.student_id::text=student.id::text
+      ORDER BY (placement.status='active') DESC,placement.created_at DESC,placement.id DESC LIMIT 1) placement ON TRUE
     LEFT JOIN academic_progression_decisions decision ON decision.tenant_id=$1 AND decision.student_id=student.id::text AND decision.academic_year_id=$2
     LEFT JOIN academic_progression_items item ON item.tenant_id=$1 AND item.student_id=student.id::text AND item.academic_year_id=$2
     LEFT JOIN LATERAL(SELECT outcome,academic_year_id FROM academic_student_transitions transition WHERE transition.tenant_id=$1 AND transition.student_id=student.id::text
       ORDER BY created_at DESC,id DESC LIMIT 1) latest ON TRUE
-    LEFT JOIN LATERAL(SELECT COUNT(*)::int AS count,COUNT(application_id)::int AS complete FROM student_academic_enrollments enrollment
+    LEFT JOIN LATERAL(SELECT COUNT(*)::int AS count,COUNT(application_id)::int AS complete,
+      BOOL_AND(enrollment.class_section_id::text IS NOT DISTINCT FROM placement.class_section_id::text
+        AND enrollment.stream_id::text IS NOT DISTINCT FROM placement.stream_id::text
+        AND enrollment.academic_year_id::text IS NOT DISTINCT FROM placement.academic_year_id::text) AS consistent FROM student_academic_enrollments enrollment
       WHERE enrollment.tenant_id=$1 AND enrollment.student_id::text=student.id::text AND enrollment.status='active') annual ON TRUE
     WHERE student.tenant_id=$1 AND to_jsonb(student)->>'deleted_at' IS NULL AND ($2='' OR EXISTS(SELECT 1 FROM student_class_assignments history WHERE history.tenant_id=$1 AND history.student_id::text=student.id::text AND history.academic_year_id::text=$2)
       OR EXISTS(SELECT 1 FROM student_academic_enrollments enrollment WHERE enrollment.tenant_id=$1 AND enrollment.student_id::text=student.id::text
@@ -84,7 +88,7 @@ export async function progressionOverview(tx:CohortTx,actor:ProgressionActor,inp
     WHEN student.status IN ('transferred','transferred_out') THEN 'transferred' WHEN student.status='withdrawn' THEN 'withdrawn'
     WHEN COALESCE(student.metadata->>'progression_exit_type','')='completed' THEN 'completed' WHEN student.status IN ('graduated','alumni') THEN 'graduated'
     WHEN student.status NOT IN ('active','enrolled') OR lower(COALESCE(to_jsonb(student)->>'student_status',student.status)) NOT IN ('active','enrolled') THEN 'exception'
-    WHEN placement.id IS NULL OR placement.status<>'active' OR annual.count<>1 OR annual.complete<>1 THEN 'exception'
+    WHEN placement.id IS NULL OR placement.status<>'active' OR placement.active_count<>1 OR annual.count<>1 OR annual.complete<>1 OR NOT annual.consistent THEN 'exception'
     WHEN decision.decision='hold' OR EXISTS(SELECT 1 FROM dashboard_approval_requests approval WHERE approval.tenant_id=$1 AND approval.module='student_progression' AND approval.status='PENDING'
       AND approval.metadata->'command'->'students' @> jsonb_build_array(jsonb_build_object('id',student.id::text))) THEN 'held' WHEN decision.decision='repeat' THEN 'repeating'
     WHEN item.status IN ('promoted','repeating','held','exception') THEN item.status

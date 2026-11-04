@@ -1,10 +1,28 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../../database/prisma.service';
+import { lockCohortSchool } from '../../academics/cohort-configuration';
+import { updateRecordAcademics } from '../../admissions/student-record-academics';
 
 @Injectable()
 export class AdmissionsCommandRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async resolveAcademicPlacement(tx:any,tenant:string,className:string,classId?:string,streamName?:string,streamId?:string) {
+    const sections=await tx.$queryRawUnsafe(`SELECT section.*,year.name AS year_name FROM class_sections section
+      JOIN academic_years year ON year.tenant_id=section.tenant_id AND year.id::text=section.academic_year_id::text
+      WHERE section.tenant_id=$1 AND section.status='active' AND section.is_active AND section.archived_at IS NULL
+        AND year.status='active' AND year.archived_at IS NULL AND year.is_current
+        AND (($2::text IS NOT NULL AND section.id::text=$2) OR ($2::text IS NULL AND lower(btrim(section.name))=lower(btrim($3))))`,tenant,classId||null,className);
+    if(sections.length!==1) throw new BadRequestException('Choose one configured class in the current academic year before admission.');
+    const section=sections[0];
+    const streams=await tx.$queryRawUnsafe(`SELECT id::text,name FROM class_streams WHERE tenant_id=$1 AND class_section_id::text=$2
+      AND status='active' AND is_active AND archived_at IS NULL`,tenant,section.id);
+    const matches=streamId?streams.filter((row:any)=>row.id===streamId):streamName?streams.filter((row:any)=>row.name.trim().toLowerCase()===streamName.trim().toLowerCase()):streams;
+    if(matches.length>1||streams.length&&matches.length!==1||!streams.length&&(streamId||streamName&&!['unstreamed','default'].includes(streamName.toLowerCase())))
+      throw new BadRequestException('Choose the learner’s destination stream in Admit Student or Student Progression before completing this placement.');
+    return {...section,stream_id:matches[0]?.id??null,stream_name:matches[0]?.name??'Unstreamed'};
+  }
 
   private async executeSql<T = any>(tenantId: string, query: string, params: any[] = []): Promise<{ rows: T[], rowCount: number }> {
     return this.prisma.executeWithTenant(tenantId, null, async (tx: any) => {
@@ -437,40 +455,23 @@ export class AdmissionsCommandRepository {
     return result.rows[0];
   }
 
-  async assignClassPlacement(tenantId: string, body: any) {
+  async assignClassPlacement(tenantId: string, body: any, actorId: string) {
     const studentId = this.required(body.student_id ?? body.studentId, 'Student');
-    const student = await this.executeSql(tenantId, `
-      SELECT id::text, first_name, last_name, current_class_id, current_stream_id, metadata
-      FROM students
-      WHERE tenant_id = $1
-        AND id = $2::uuid
-      LIMIT 1
-    `, [tenantId, studentId]);
-    const row: any = student.rows[0];
-    if (!row) return null;
-    const className = body.class_name ?? body.assigned_class ?? row.current_class_id ?? row.metadata?.admissions?.class_applying;
-    const streamName = body.stream_name ?? body.assigned_stream ?? row.current_stream_id ?? 'Default';
-    await this.executeSql(tenantId, `
-      UPDATE student_allocations
-      SET is_current = FALSE, updated_at = NOW()
-      WHERE tenant_id = $1 AND student_id = $2::uuid AND is_current = TRUE;
-    `, [tenantId, studentId]);
-    const result = await this.executeSql(tenantId, `
-      INSERT INTO student_allocations (
-        tenant_id, student_id, class_name, stream_name, dormitory_name, transport_route, effective_from, is_current, notes
-      )
-      VALUES ($1, $2::uuid, $3, $4, $5, $6, CURRENT_DATE, TRUE, $7)
-      RETURNING *
-    `, [
-      tenantId,
-      studentId,
-      this.required(className, 'Class name'),
-      this.required(streamName, 'Stream name'),
-      body.dormitory_name ?? null,
-      body.transport_route ?? null,
-      body.notes ?? 'Placed from admissions dashboard',
-    ]);
-    return result.rows[result.rows.length - 1] ?? null;
+    return this.prisma.executeWithTenant(tenantId,actorId,async(tx:any)=>{
+      await lockCohortSchool(tx,tenantId);
+      const [row]=await tx.$queryRawUnsafe(`SELECT student.*,enrollment.class_section_id,enrollment.stream_id,enrollment.academic_year_id,enrollment.class_name,enrollment.stream_name
+        FROM students student LEFT JOIN student_academic_enrollments enrollment ON enrollment.tenant_id=student.tenant_id
+          AND enrollment.student_id::text=student.id::text AND enrollment.status='active'
+        WHERE student.tenant_id=$1 AND student.id::text=$2 FOR UPDATE OF student`,tenantId,studentId);
+      if(!row) return null;
+      const placement=await this.resolveAcademicPlacement(tx,tenantId,body.class_name??body.assigned_class??row.class_name,
+        body.class_section_id,body.stream_name??body.assigned_stream,body.stream_id);
+      await updateRecordAcademics(tx,tenantId,actorId,row,{class_section_id:placement.id,stream_id:placement.stream_id??'',reason:body.notes||'Placed from admissions dashboard'});
+      const [allocation]=await tx.$queryRawUnsafe(`UPDATE student_allocations SET dormitory_name=COALESCE($3,dormitory_name),
+        transport_route=COALESCE($4,transport_route),updated_at=NOW() WHERE tenant_id=$1 AND student_id::text=$2 AND is_current RETURNING *`,
+        tenantId,studentId,body.dormitory_name??null,body.transport_route??null);
+      return allocation??null;
+    });
   }
 
   async linkParent(tenantId: string, body: any) {
@@ -664,6 +665,7 @@ export class AdmissionsCommandRepository {
 
   async admitStudent(tenantId: string, applicationId: string, userId: string) {
     return this.prisma.executeWithTenant(tenantId, userId, async (tx: any) => {
+      await lockCohortSchool(tx,tenantId);
       const query = async <T = any>(sql: string, params: any[] = []): Promise<T[]> => {
         const result = await tx.$queryRawUnsafe(sql, ...params);
         return Array.isArray(result) ? result : [result];
@@ -678,6 +680,7 @@ export class AdmissionsCommandRepository {
                birth_certificate_number,
                nationality,
                class_applying,
+               applying_for_class_id,
                parent_name,
                parent_phone,
                parent_email,
@@ -686,8 +689,8 @@ export class AdmissionsCommandRepository {
                admitted_student_id
         FROM admission_applications
         WHERE tenant_id = $1
-          AND id = $2::uuid
-        LIMIT 1
+          AND id::text = $2
+        LIMIT 1 FOR UPDATE
       `, [tenantId, applicationId]);
       const application = applications[0];
       if (!application) {
@@ -709,8 +712,7 @@ export class AdmissionsCommandRepository {
         .toUpperCase();
       const admissionNumber = `ADM-${new Date().getFullYear()}-${admissionNumberSeed}`;
       const name = this.splitName(application.full_name);
-      const streamName = 'Default';
-      const academicYear = String(new Date().getFullYear());
+      const placement=await this.resolveAcademicPlacement(tx,tenantId,application.class_applying,application.applying_for_class_id);
       const metadata = {
         admissions: {
           application_id: application.id,
@@ -771,17 +773,7 @@ export class AdmissionsCommandRepository {
           $14::jsonb,
           $15::uuid
         )
-        ON CONFLICT (tenant_id, admission_number)
-        DO UPDATE SET
-          first_name = EXCLUDED.first_name,
-          last_name = EXCLUDED.last_name,
-          middle_name = EXCLUDED.middle_name,
-          current_class_id = EXCLUDED.current_class_id,
-          current_stream_id = EXCLUDED.current_stream_id,
-          primary_guardian_name = EXCLUDED.primary_guardian_name,
-          primary_guardian_phone = EXCLUDED.primary_guardian_phone,
-          metadata = students.metadata || EXCLUDED.metadata,
-          updated_at = NOW()
+        ON CONFLICT DO NOTHING
         RETURNING id::text, tenant_id, admission_number, first_name, last_name, middle_name, status
       `, [
         tenantId,
@@ -793,65 +785,15 @@ export class AdmissionsCommandRepository {
         this.normalizeGender(application.gender),
         application.birth_certificate_number,
         application.nationality ?? 'Kenyan',
-        application.class_applying,
-        streamName,
+        placement.id,
+        placement.stream_id,
         application.parent_name,
         application.parent_phone,
         JSON.stringify(metadata),
         actorUserId,
       ]);
       const student = students[0];
-
-      await query(`
-        UPDATE student_allocations
-        SET is_current = FALSE,
-            updated_at = NOW()
-        WHERE tenant_id = $1
-          AND student_id = $2::uuid
-          AND is_current = TRUE
-      `, [tenantId, student.id]);
-
-      const allocations = await query<any>(`
-        INSERT INTO student_allocations (
-          tenant_id,
-          student_id,
-          class_name,
-          stream_name,
-          effective_from,
-          is_current,
-          notes
-        )
-        VALUES ($1, $2::uuid, $3, $4, CURRENT_DATE, TRUE, $5)
-        RETURNING id::text, student_id::text, class_name, stream_name, effective_from, is_current
-      `, [
-        tenantId,
-        student.id,
-        application.class_applying,
-        streamName,
-        `Admitted from application ${application.application_number}`,
-      ]);
-
-      const enrollments = await query<any>(`
-        INSERT INTO student_academic_enrollments (
-          tenant_id,
-          student_id,
-          application_id,
-          class_section_id,
-          class_name,
-          stream_name,
-          academic_year,
-          status
-        )
-        VALUES ($1, $2::uuid, $3::uuid, NULL, $4, $5, $6, 'active')
-        ON CONFLICT (tenant_id, student_id, academic_year)
-        DO UPDATE SET
-          application_id = EXCLUDED.application_id,
-          class_name = EXCLUDED.class_name,
-          stream_name = EXCLUDED.stream_name,
-          status = 'active',
-          updated_at = NOW()
-        RETURNING id::text, student_id::text, application_id::text, class_name, stream_name, academic_year, status
-      `, [tenantId, student.id, application.id, application.class_applying, streamName, academicYear]);
+      if(!student) throw new BadRequestException('This admission number already belongs to a learner. Review the existing student before enrollment.');
 
       const guardianLink = application.parent_email
         ? (await query<any>(`
@@ -888,22 +830,37 @@ export class AdmissionsCommandRepository {
       const updatedApplications = await query<any>(`
         UPDATE admission_applications
         SET status = 'registered',
-            application_status = 'REGISTERED',
+            application_status = 'ADMITTED',
             admitted_student_id = $3,
             updated_at = NOW()
         WHERE tenant_id = $1
-          AND id = $2::uuid
+          AND id::text = $2
         RETURNING id::text, application_number, full_name, class_applying, status, admitted_student_id
       `, [tenantId, application.id, student.id]);
+
+      // The command dashboard uses the same canonical placement/subject writer
+      // as Student Directory, inside this admission transaction.
+      await this.completeAcademicMembership(tx,tenantId,userId,student.id,application.id,placement);
+      const currentAllocations=await query<any>('SELECT * FROM student_allocations WHERE tenant_id=$1 AND student_id::text=$2 AND is_current',[tenantId,student.id]);
+      const currentEnrollments=await query<any>("SELECT * FROM student_academic_enrollments WHERE tenant_id=$1 AND student_id::text=$2 AND status='active'",[tenantId,student.id]);
 
       return {
         student,
         application: updatedApplications[0] ?? { ...application, status: 'registered', admitted_student_id: student.id },
-        allocation: allocations[0] ?? null,
-        academicEnrollment: enrollments[0] ?? null,
+        allocation: currentAllocations[0] ?? null,
+        academicEnrollment: currentEnrollments[0] ?? null,
         guardianLink,
       };
     });
+  }
+
+  private async completeAcademicMembership(tx:any,tenant:string,actor:string,student:string,application:string,placement:any) {
+    await tx.$queryRawUnsafe(`INSERT INTO student_academic_enrollments
+      (tenant_id,student_id,application_id,class_section_id,stream_id,academic_year_id,class_name,stream_name,academic_year,status)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'active') RETURNING id`,tenant,student,application,placement.id,placement.stream_id,
+      placement.academic_year_id,placement.name,placement.stream_name,placement.year_name);
+    await updateRecordAcademics(tx,tenant,actor,{id:student,status:'active',class_section_id:null,stream_id:null},
+      {class_section_id:placement.id,stream_id:placement.stream_id??'',reason:'Admitted from approved application'});
   }
 
   private async readExistingAdmission(
@@ -915,14 +872,14 @@ export class AdmissionsCommandRepository {
       SELECT id::text, tenant_id, admission_number, first_name, last_name, middle_name, status
       FROM students
       WHERE tenant_id = $1
-        AND id = $2::uuid
+        AND id::text = $2
       LIMIT 1
     `, [tenantId, application.admitted_student_id]);
     const allocations = await query<any>(`
       SELECT id::text, student_id::text, class_name, stream_name, effective_from, is_current
       FROM student_allocations
       WHERE tenant_id = $1
-        AND student_id = $2::uuid
+        AND student_id::text = $2
         AND is_current = TRUE
       ORDER BY effective_from DESC, updated_at DESC
       LIMIT 1
@@ -931,7 +888,7 @@ export class AdmissionsCommandRepository {
       SELECT id::text, student_id::text, application_id::text, class_name, stream_name, academic_year, status
       FROM student_academic_enrollments
       WHERE tenant_id = $1
-        AND student_id = $2::uuid
+        AND student_id::text = $2
         AND status = 'active'
       ORDER BY enrolled_at DESC
       LIMIT 1
@@ -1008,15 +965,16 @@ export class AdmissionsCommandRepository {
 
   async approveApplication(tenantId: string, applicationId: string, userId: string) {
     return this.prisma.executeWithTenant(tenantId, userId, async (tx) => {
-      const application = await tx.admissionApplication.findUnique({
-        where: { id: applicationId },
+      await lockCohortSchool(tx,tenantId);
+      const application = await tx.admissionApplication.findFirst({
+        where: { id: applicationId,schoolId:tenantId },
       });
 
       if (!application) {
         throw new Error('Admission application not found');
       }
 
-      if (application.applicationStatus === 'ADMITTED' || application.applicationStatus === 'REJECTED') {
+      if (['ADMITTED','REJECTED','CANCELLED'].includes(application.applicationStatus)) {
         throw new Error('Application is already processed');
       }
 
@@ -1027,6 +985,7 @@ export class AdmissionsCommandRepository {
         .toUpperCase();
       const admissionNumber = `ADM-${new Date().getFullYear()}-${admissionNumberSeed}`;
 
+      const placement=await this.resolveAcademicPlacement(tx,tenantId,application.applyingForClassId,application.applyingForClassId);
       const student = await tx.student.create({
         data: {
           schoolId: tenantId,
@@ -1037,10 +996,11 @@ export class AdmissionsCommandRepository {
           gender: application.gender,
           dateOfBirth: application.dateOfBirth,
           nationality: application.nationality || 'Kenyan',
-          studentStatus: 'ACCEPTED',
+          studentStatus: 'ACTIVE',
           boardingStatus: 'DAY_SCHOLAR',
           admissionDate: new Date(),
-          currentClassId: application.applyingForClassId,
+          currentClassId: placement.id,
+          currentStreamId: placement.stream_id,
           primaryGuardianName: application.guardianName,
           primaryGuardianPhone: application.guardianPhone,
           createdByUserId: userId,
@@ -1048,48 +1008,32 @@ export class AdmissionsCommandRepository {
       });
 
       if (application.guardianName) {
-        const guardian = await tx.parentGuardian.create({
-          data: {
-            schoolId: tenantId,
-            fullName: application.guardianName,
-            relationshipType: (application.guardianRelationship?.toUpperCase() || null) as any,
-            phone: application.guardianPhone,
-            email: application.guardianEmail,
-            occupation: application.guardianOccupation,
-            status: 'ACTIVE',
-          },
-        });
-
-        await tx.studentGuardian.create({
-          data: {
-            schoolId: tenantId,
-            studentId: student.id,
-            guardianId: guardian.id,
-            relationshipType: (application.guardianRelationship?.toUpperCase() || null) as any,
-            isPrimaryContact: true,
-            canPickStudent: true,
-          },
-        });
+        const suppliedRelationship = application.guardianRelationship?.toUpperCase() || 'GUARDIAN';
+        const relationship = ['FATHER','MOTHER','GUARDIAN','SPONSOR','OTHER'].includes(suppliedRelationship)
+          ? suppliedRelationship : 'OTHER';
+        const [guardian] = await tx.$queryRawUnsafe<any[]>(`INSERT INTO parent_guardians
+          (id,school_id,full_name,relationship_type,phone,email,occupation,status,updated_at)
+          VALUES(gen_random_uuid()::text,$1,$2,$3::"GuardianRelationship",$4,$5,$6,'ACTIVE',NOW())
+          ON CONFLICT(school_id,phone) DO UPDATE SET updated_at=NOW()
+          RETURNING id`,tenantId,application.guardianName,relationship,application.guardianPhone,
+        application.guardianEmail,application.guardianOccupation);
+        await tx.$queryRawUnsafe(`INSERT INTO student_guardians
+          (tenant_id,school_id,student_id,guardian_id,display_name,email,phone,relationship,relationship_type,
+           is_primary,is_primary_contact,can_pick_student,status)
+          VALUES($1,$1,$2,$3,$4,$5,$6,$7::text,$7::text::"GuardianRelationship",TRUE,TRUE,TRUE,'invited') RETURNING id`,
+        tenantId,student.id,guardian.id,application.guardianName,application.guardianEmail,
+        application.guardianPhone,relationship);
       }
 
-      await tx.admissionApplication.update({
-        where: { id: applicationId },
-        data: {
-          applicationStatus: 'ADMITTED',
-        },
-      });
+      await tx.$queryRawUnsafe(`UPDATE admission_applications SET application_status='ADMITTED',status='registered',admitted_student_id=$3,
+        approved_at=COALESCE(approved_at,NOW()),updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2 RETURNING id`,tenantId,applicationId,student.id);
+      await this.completeAcademicMembership(tx,tenantId,userId,student.id,applicationId,placement);
 
-      await tx.studentAuditLog.create({
-        data: {
-          schoolId: tenantId,
-          studentId: student.id,
-          action: 'ADMISSION_APPROVED',
-          metadata: {
-            description: `Student ${student.firstName} ${student.lastName} was admitted from application ${application.applicationNumber}.`
-          },
-          performedByUserId: userId,
-        }
-      });
+      await tx.$queryRawUnsafe(`INSERT INTO audit_logs
+        (tenant_id,actor_user_id,action,module,resource_type,resource_id,metadata)
+        VALUES($1,$2::uuid,'admissions.application.approved','admissions','student',$3,$4::jsonb) RETURNING id`,
+      tenantId,userId,student.id,JSON.stringify({application_id:applicationId,
+        description:`Student admitted from application ${application.applicationNumber}.`}));
 
       return student;
     });

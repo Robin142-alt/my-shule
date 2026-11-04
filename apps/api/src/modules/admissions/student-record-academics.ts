@@ -3,7 +3,8 @@ import { CohortTx, ensureCohortContexts, ensureCohortMigration } from '../academ
 import { UpdateStudentRecordDto } from './dto/update-student-record.dto';
 import { normalizeAcademicSystemType } from './repositories/admissions.repository';
 
-export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor: string, student: any, dto: UpdateStudentRecordDto) {
+export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor: string, student: any,
+  dto: Pick<UpdateStudentRecordDto,'class_section_id'|'stream_id'|'subject_ids'|'reason'>) {
   const query = (sql: string, ...values: unknown[]): Promise<any[]> => tx.$queryRawUnsafe(sql, ...values);
   const classId = dto.class_section_id ?? student.class_section_id;
   const streamId = dto.stream_id === undefined ? student.stream_id : dto.stream_id || null;
@@ -74,8 +75,8 @@ export async function updateRecordAcademics(tx: CohortTx, tenant: string, actor:
       VALUES ($1,$1,$2,$3,$4,$5,$6,'active',$7::uuid,$8,$9)`, tenant, student.id, classId, streamId,
     section.academic_year_id, section.academic_level_id, actor, context.cohort_id, context.id);
     await query(`UPDATE student_academic_enrollments SET class_section_id=$3,stream_id=$4,class_name=$5,stream_name=$6,
-      academic_year=$7,cohort_id=$8,cohort_placement_id=$9,updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2`,
-    tenant, enrollment.id, classId, streamId, section.name, section.stream_name || 'Unstreamed', section.year_name, context.cohort_id, context.id);
+      academic_year=$7,cohort_id=$8,cohort_placement_id=$9,academic_year_id=$10,updated_at=NOW() WHERE tenant_id=$1 AND id::text=$2`,
+    tenant, enrollment.id, classId, streamId, section.name, section.stream_name || 'Unstreamed', section.year_name, context.cohort_id, context.id,section.academic_year_id);
     const [allocation] = await query(`UPDATE student_allocations SET is_current=FALSE,updated_at=NOW()
       WHERE tenant_id=$1 AND student_id::text=$2 AND is_current RETURNING *`, tenant, student.id);
     await query(`INSERT INTO student_allocations (tenant_id,student_id,class_name,stream_name,dormitory_name,transport_route,effective_from,is_current,notes)

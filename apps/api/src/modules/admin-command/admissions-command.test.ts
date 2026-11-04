@@ -3,6 +3,32 @@ import test from 'node:test';
 import { RequestContextService } from '../../common/request-context/request-context.service';
 import { AdmissionsCommandService } from './admissions-command.service';
 
+test('application approval refreshes the same school only after canonical admission succeeds', async () => {
+  const context = new RequestContextService();
+  const events: any[] = [];
+  const student = { id: 'learner', firstName: 'Test', lastName: 'Learner', admissionNumber: 'ADM-1' };
+  const service = new AdmissionsCommandService(context, {
+    recordWorkflowAction: async (event: any) => { events.push(event); },
+  } as never, {
+    approveApplication: async (tenant: string, id: string, actor: string) => {
+      assert.equal(tenant, 'school-a');
+      assert.equal(actor, 'officer');
+      if (id === 'rejected') throw new Error('Application is already processed');
+      return student;
+    },
+  } as never, {} as never, {} as never);
+  await assert.rejects(service.approveApplication('application'), /Tenant context/);
+  await context.run({ tenant_id: 'school-a', user_id: 'officer', role: 'admissions_officer' } as never, async () => {
+    assert.equal(await service.approveApplication('application'), student);
+    await assert.rejects(service.approveApplication('rejected'), /already processed/);
+  });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].tenantId, 'school-a');
+  assert.equal(events[0].entityId, student.id);
+  assert.equal(events[0].eventType, 'admissions.student.admitted');
+  assert.ok(events[0].targetRoles.includes('teacher'));
+});
+
 function fixture(link: Record<string, unknown> | null, delivery: Record<string, unknown> = {}) {
   const context = new RequestContextService();
   const calls: Array<{ action: string; args: unknown[] }> = [];

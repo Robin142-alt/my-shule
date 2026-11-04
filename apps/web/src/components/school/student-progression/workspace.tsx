@@ -40,6 +40,7 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
   const [studentDetail, setStudentDetail] = useState<ProgressionStudent | null>(null);
   const [approvalSelection, setApprovalSelection] = useState<{ approval: ProgressionOverview["approvals"][number]; decision: "approved" | "rejected" } | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [outcomes, setOutcomes] = useState<Array<{student_id:string;name:string;status:string;message:string}>>([]);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const runRequest = useRef<{ year: string; id: string } | null>(null);
@@ -65,8 +66,10 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
     void refetch();
   }
   function complete(result: ProgressionCommandResult) {
+    const names=new Map((actionSelection?.students??learners).map(student=>[student.id,`${student.name} · ${student.admission_number}`]));
+    setOutcomes((result.results??[]).map(row=>({...row,name:names.get(row.student_id)??row.student_id})));
     setActionSelection(null); setApprovalSelection(null); setSelectedIds([]); setBulkAction("");
-    setFeedback(result.message); setOperationError(null); refresh();
+    setFeedback(result.status==='failed'?null:result.message); setOperationError(result.status==='failed'?result.message:null); refresh();
   }
   function openAction(action: ProgressionAction, detail: ProgressionStudentDetail, transitionId?: string) {
     setStudentDetail(null); setActionSelection({ action, students: [detail.student], detail, transitionId });
@@ -81,6 +84,10 @@ function ProgressionWorkspaceContent({ tenantId, onOpenCalendar }: { tenantId: s
   }
 
   return <section className={styles.workspace} aria-label="Student progression workspace">
+    {outcomes.length ? <details className={styles.results} open><summary>Latest action results · {outcomes.filter(row=>row.status==='completed').length} completed, {outcomes.filter(row=>row.status==='failed').length} need review</summary>
+      <ul>{outcomes.map(row=><li key={row.student_id}><strong>{row.name}</strong> — {row.status==='failed'?'Needs review':row.status==='skipped'?'Skipped':'Completed'}: {row.message}</li>)}</ul>
+      <button className={styles.button} onClick={()=>setOutcomes([])}>Dismiss results</button>
+    </details> : null}
     <header className={styles.header}>
       <div><div className={styles.eyebrow}>Academic continuity</div><h2 className={styles.title}>Student Progression &amp; Transitions</h2><p className={styles.muted}>Automatic year-end progression, with every learner accounted for.</p></div>
       <div className={styles.actions}>

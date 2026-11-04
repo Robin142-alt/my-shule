@@ -1,11 +1,24 @@
 /** Additive progression state. Canonical academic/financial history is retained. */
 export const PROGRESSION_SCHEMA_SQL = `
+-- Older boarding tables predate the release metadata used by Boarding Master.
+-- Keep existing allocations in place and add the same optional audit columns.
+ALTER TABLE IF EXISTS boarding_allocations ADD COLUMN IF NOT EXISTS released_by uuid,
+  ADD COLUMN IF NOT EXISTS released_at timestamptz, ADD COLUMN IF NOT EXISTS release_reason text;
 ALTER TABLE students DROP CONSTRAINT IF EXISTS ck_students_status;
 ALTER TABLE students ADD CONSTRAINT ck_students_status CHECK(status IN ('applicant','accepted','enrolled','active','inactive','suspended','on_leave','transferred','transferred_out','withdrawn','expelled','graduated','alumni','archived')) NOT VALID;
 CREATE TABLE IF NOT EXISTS academic_progression_activation (
   tenant_id text PRIMARY KEY, activated_at timestamptz NOT NULL DEFAULT NOW(),
   last_checked_at timestamptz, last_error text
 );
+ALTER TABLE academic_progression_activation ADD COLUMN IF NOT EXISTS reconciliation_cursor text NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS academic_year_structure_preparations (
+  tenant_id text NOT NULL, academic_year_id text NOT NULL, version integer NOT NULL DEFAULT 1,
+  summary jsonb NOT NULL DEFAULT '{}'::jsonb, completed_at timestamptz NOT NULL DEFAULT NOW(),
+  PRIMARY KEY(tenant_id,academic_year_id),
+  FOREIGN KEY(tenant_id,academic_year_id) REFERENCES academic_years(tenant_id,id)
+);
+ALTER TABLE academic_year_structure_preparations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE academic_year_structure_preparations FORCE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS academic_progression_runs (
   id text PRIMARY KEY DEFAULT gen_random_uuid()::text, tenant_id text NOT NULL, academic_year_id text NOT NULL,
   status text NOT NULL DEFAULT 'upcoming' CHECK(status IN ('upcoming','running','completed','attention','failed')),
@@ -45,6 +58,9 @@ CREATE TABLE IF NOT EXISTS academic_progression_commands (
   tenant_id text NOT NULL, request_id text NOT NULL, fingerprint text NOT NULL, result jsonb NOT NULL,
   actor_user_id uuid, created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(tenant_id,request_id)
 );
+ALTER TABLE academic_progression_items DROP CONSTRAINT IF EXISTS academic_progression_items_status_check;
+ALTER TABLE academic_progression_items ADD CONSTRAINT academic_progression_items_status_check
+  CHECK(status IN ('ready','promoted','repeating','graduated','completed','held','exception','excluded'));
 CREATE INDEX IF NOT EXISTS ix_progression_items_retry ON academic_progression_items(tenant_id,academic_year_id,status,retry_after);
 ALTER TABLE student_academic_enrollments ADD COLUMN IF NOT EXISTS academic_year_id text;
 CREATE INDEX IF NOT EXISTS ix_annual_enrollment_year_id ON student_academic_enrollments(tenant_id,academic_year_id,student_id);
@@ -64,7 +80,7 @@ ALTER TABLE academic_progression_items FORCE ROW LEVEL SECURITY;
 ALTER TABLE academic_progression_commands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE academic_progression_commands FORCE ROW LEVEL SECURITY;
 DO $$ DECLARE target text; BEGIN
-  FOREACH target IN ARRAY ARRAY['academic_progression_activation','academic_progression_runs','academic_progression_decisions',
+  FOREACH target IN ARRAY ARRAY['academic_year_structure_preparations','academic_progression_activation','academic_progression_runs','academic_progression_decisions',
     'academic_student_transitions','academic_progression_items','academic_progression_commands'] LOOP
     EXECUTE format('DROP POLICY IF EXISTS progression_school_policy ON %I',target);
     EXECUTE format('CREATE POLICY progression_school_policy ON %I USING (tenant_id=current_setting(''app.tenant_id'',true)) WITH CHECK (tenant_id=current_setting(''app.tenant_id'',true))',target);

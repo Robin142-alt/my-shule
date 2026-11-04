@@ -368,6 +368,9 @@ jobs:
         run: |
           node --test dist/apps/api/src/modules/student-progression/progression-policy.test.js dist/apps/api/src/modules/student-progression/progression-store.test.js
           PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand apps/api/test/student-progression.integration-spec.ts
+          for suite in student-progression-repair academic-year-rollover timetable-current-term; do
+            PG_BIN_DIR="$(pg_config --bindir)" node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/test/support/run-integration-with-local-postgres.ts jest --config jest.integration.config.js --runInBand "apps/api/test/$suite.integration-spec.ts"
+          done
 
       - name: Existing-school dashboard reads and Principal operations
         env:

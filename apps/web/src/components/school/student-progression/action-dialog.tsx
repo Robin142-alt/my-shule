@@ -16,14 +16,15 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
   const actionInfo = ACTIONS[action];
   const needsDestination = ["place", "reinstate"].includes(action);
   const needsDetail = action === "subjects" || action === "reverse";
+  const reasonOptional = ["promote", "hold", "repeat", "place", "transfer", "withdraw", "expel"].includes(action);
   const details = useSchoolQuery<ProgressionStudentDetail>(needsDetail ? `/academics/progression/students/${encodeURIComponent(students[0].id)}` : null, { enabled: needsDetail, staleTime: 0 });
   // Keep the displayed form and expected version from the same snapshot. A
   // background refetch must not silently authorise overwriting another edit.
   const [detailSnapshot, setDetailSnapshot] = useState(initialDetail);
   const detail = detailSnapshot ?? details.data;
   const [destinationYear, setDestinationYear] = useState(action === "place" ? students[0].academic_year_id ?? selectedYearId : "");
-  const [classId, setClassId] = useState("");
-  const [streamId, setStreamId] = useState("");
+  const [classId, setClassId] = useState(action === "place" && students.length === 1 ? students[0].class_section_id ?? "" : "");
+  const [streamId, setStreamId] = useState(action === "place" && students.length === 1 ? students[0].stream_id ?? "" : "");
   const [reason, setReason] = useState("");
   const [destinationSchool, setDestinationSchool] = useState("");
   const [subjectIds, setSubjectIds] = useState<string[]>([]);
@@ -54,7 +55,7 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
     if (inFlight.current || stale) return;
     setError(null);
     if (!prepared.current) {
-      if (!reason.trim()) { setError("Enter a reason for this decision."); return; }
+      if (!reasonOptional && !reason.trim()) { setError("Enter a reason for this decision."); return; }
       if (!sourceYearId) { setError("Select the academic year before changing learner records."); return; }
       if (needsDestination && (!classId || !destinationClasses.some((item) => item.id === classId))) { setError("Choose the destination academic year and class."); return; }
       if (needsDestination && destinationStreams.length > 0 && !streamId) { setError("Choose the destination stream."); return; }
@@ -76,6 +77,9 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
       const message = cause instanceof Error ? cause.message : "The action could not be completed. Retry safely.";
       setError(message);
       if (/changed|stale|version|refresh|no longer/i.test(message)) { setStale(true); onRefresh(); }
+      else if (/policy requires a reason|enter a reason|choose|select|configure|conflicting evidence|review.*admission/i.test(message)) {
+        prepared.current = null; setAttempted(false);
+      }
       return;
     } finally { inFlight.current = false; setBusy(false); }
     onComplete(result);
@@ -100,9 +104,10 @@ export function ProgressionActionDialog({ action, students, overview, selectedYe
           <label className={styles.label}>Destination class<select className={styles.input} value={classId} disabled={!destinationYear} onChange={(event) => { setClassId(event.target.value); setStreamId(""); }}><option value="">Choose class</option>{destinationClasses.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.curriculum_model}</option>)}</select></label>
           <label className={styles.label}>Destination stream<select className={styles.input} value={streamId} disabled={!destinationStreams.length} onChange={(event) => setStreamId(event.target.value)}><option value="">{destinationStreams.length ? "Choose stream" : "No stream required"}</option>{destinationStreams.map((stream) => <option key={stream.id} value={stream.id}>{stream.name}</option>)}</select></label>
         </div> : null}
+        {needsDestination && destinationYear && !destinationClasses.length ? <p role="status" className={styles.alert}>No active classes are available for this year. Refresh after the year structure is prepared, or review the year’s class configuration in Academic Foundation.</p> : null}
         {action === "subjects" ? !detail ? <p className={styles.muted}>Loading current subjects…</p> : <div className={styles.subjectList}>{detail.subjects.length ? detail.subjects.map((subject) => <label className={styles.subject} key={subject.id}><input type="checkbox" className={styles.checkbox} checked={subjectIds.includes(subject.id)} disabled={subject.compulsory} onChange={(event) => setSubjectIds((current) => event.target.checked ? [...current, subject.id] : current.filter((id) => id !== subject.id))} /><span>{subject.name} <small>{subject.compulsory ? "Required" : subject.code}</small></span></label>) : <p className={styles.muted}>No subject offerings are configured for this placement. Add the class subjects in Academic Foundation first.</p>}</div> : null}
         {action === "reverse" && detail ? reversible.length ? <label className={styles.label}>Transition to reverse<select className={styles.input} value={reverseId} onChange={(event) => setReverseId(event.target.value)}>{reversible.map((entry) => <option key={entry.id} value={entry.id}>{entry.from_class ?? "Previous placement"} → {entry.to_class ?? entry.outcome} · {displayDate(entry.created_at, overview.timezone)}</option>)}</select></label> : <p className={styles.alert}>No transition can currently be reversed. Review the timeline and use an authorised placement correction where appropriate.</p> : null}
-        <label className={styles.label}>Reason<textarea className={styles.input} rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Briefly record the school decision" /></label>
+        <label className={styles.label}>{reasonOptional ? "Reason (optional)" : "Reason"}<textarea className={styles.input} rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={reasonOptional ? "Add a note if useful; the action is audited automatically" : "Briefly record the school decision"} /></label>
       </fieldset>
       {attempted && !stale ? <p className={styles.muted} style={{ marginTop: 12 }}>Retry checks this same saved request, so an interrupted connection cannot apply it twice.</p> : null}
     </div>

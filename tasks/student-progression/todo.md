@@ -1,5 +1,16 @@
 # Student progression checklist
 
+## November repair acceptance
+
+- [x] Reproduce and safely reconcile enrollment/placement mismatch with immutable evidence and prevention at write paths.
+- [x] Prepare and backfill complete reusable year structure; preserve overrides, expiry, identities and previous years.
+- [x] Make notes optional consistently; preserve school policies and separate Principal approval.
+- [x] Return truthful per-learner results for individual/bulk actions with retry/concurrency protection.
+- [x] Verify automatic promotion, holds/repeaters, CBC/8-4-4 terminal grades and shared module projections.
+- [x] Repair dependent selectors, status/count refresh and desktop/mobile workflows without redesign.
+- [x] Verify independent term timetables and historical academic/financial records.
+- [ ] Pass affected tests/types/builds and production release gates; deploy and record safe production evidence.
+
 - [x] Inspect current production main, calendars, cohorts, admissions, roles, events, history and deployment conventions.
 - [x] Define and test progression calendar/pathway policy and shared API contract.
 - [x] Add tenant-scoped durable transition, decision and annual-run schema.

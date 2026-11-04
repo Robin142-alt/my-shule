@@ -48,13 +48,25 @@ function grade(section: Row): {model:string;stage:string;number:number;key:strin
   } else return null;
   return {model,stage,number,key:`${model}:${stage}:${number}`};
 }
+/** A missing grade may continue the same curriculum stage. Stage changes need
+ * their own subject/pathway configuration, never a copy of the previous stage. */
+export function continuingGradeName(source:Row):string|null {
+  const current=grade(source);
+  if(!current) return null;
+  const {stage,number,model}=current;
+  if(stage==='pp') return number===1?'PP 2':null;
+  if(['CBC','CBE'].includes(model)) return [1,2,4,5,7,8,10,11].includes(number)?`Grade ${number+1}`:null;
+  if(stage==='form') return number<4?`Form ${number+1}`:null;
+  if(stage==='standard') return number<8?`Standard ${number+1}`:null;
+  return null;
+}
 export function resolveNextClass(source: Row, templates: Row[], configuration: Row = {}, repeating=false): {
-  target?: Row; completion?: 'graduated'|'completed'; blocker?: string; nextName?: string;
+  target?: Row; completion?: 'graduated'|'completed'; blocker?: string; nextName?: string; missingGrade?: boolean;
 } {
   const current=grade(source);
   const sameModel = templates.filter(item=>String(item.curriculum_model).toUpperCase()===String(source.curriculum_model).toUpperCase());
   const select=(matches:Row[],nextName:string) => matches.length===1 ? {target:matches[0],nextName}
-    : {blocker:matches.length ? `More than one ${nextName} destination is configured. Resolve the duplicate class.` : `Configure the school’s ${nextName} class or confirm its educational endpoint.`,nextName};
+    : {blocker:matches.length ? `More than one ${nextName} destination is configured. Resolve the duplicate class.` : `Configure the school’s ${nextName} class or confirm its educational endpoint.`,nextName,missingGrade:matches.length===0};
   if (!current) {
     const sequence = Array.isArray(configuration.sequence) ? configuration.sequence.map((item:any)=>String(typeof item==='string'?item:item.name??item.label??'')) : [];
     const index=sequence.findIndex((name:string)=>name===source.grade_level||name===source.name);

@@ -53,6 +53,7 @@ export class StudentProgressionRuntime implements OnApplicationBootstrap, OnModu
               if(await this.modules.findFirstMissingModule(tenant,['academics'])) return;
               const actor={tenantId:tenant,userId:null,role:'system',permissions:['academics:manage-lifecycle'],system:true};
               await this.engine.synchronizeCalendar(actor,now);
+              await this.engine.reconcileCurrentEnrollments(actor);
               const years=await this.prisma.executeWithTenant(tenant,null,async tx=>{
                 await query(tx,'INSERT INTO academic_progression_activation(tenant_id) VALUES($1) ON CONFLICT DO NOTHING RETURNING tenant_id',tenant);
                 const calendar=await progressionCalendar(tx,tenant);

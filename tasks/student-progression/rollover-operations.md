@@ -1,0 +1,19 @@
+# Academic year rollover
+
+The calendar worker prepares year-specific class, stream, subject and staff associations for each school with Academics enabled. Creating a year also prepares its structure. A draft destination stays draft until its calendar becomes current. Manual promotion and the year-end worker use the same placement and curriculum rules.
+
+| School record | Effect of progression |
+| --- | --- |
+| Admissions and Student Directory | Maintain one current assignment and annual enrollment. A school can correct the placement, inspect the transition history and reverse an unchanged latest promotion. |
+| Subjects, teachers and academic leadership | Continue active subject offerings, teaching permissions, class teachers and scoped appointments. Retain destination overrides, removals and explicit end dates. School-wide departments and HODs keep their existing identities. |
+| Attendance, marks, exams, report cards and syllabus | Future work follows current academic membership. Historical entries retain their original learner, class, term and assignment IDs. |
+| Finance, library and stores | The learner keeps the same account identity, including outstanding fees, credits, loans, fines and issues. Library staff can look up an exited borrower’s history. New borrowing requires an eligible learner. |
+| Boarding and transport | Promotion retains active service assignments. Exit releases the current bed and route membership. Reinstatement requires a fresh allocation. |
+| Health, discipline, counselling and guardians | The same learner ID retains the case history and family links. Progression sends a tenant-scoped refresh so readers reload data under their existing access rules. |
+| Timetables and portals | Current timetable reads use the published version for the current term and year. Historical versions remain available by explicit selection. Deputy Principal timetable validation and publishing continue through the timetable workspace. |
+
+When a school first reaches a new grade within a configured stage, a continuing cohort can supply the next grade’s subjects and eligible teachers. An explicit school endpoint, a disabled grade or an existing destination takes precedence. At a stage boundary the system needs destination-grade offerings. When the source stream name is absent, it can continue under that name if destination streams agree on the subject configuration. Only teaching assignments common to those streams can be inferred. Different pathways require an authorized placement decision. Grade 12 and Form 4 complete at year end.
+
+The worker repairs missing identifiers when current placement, annual enrollment and admission identity corroborate one another. A matching immutable transition can corroborate a stale projection. Competing active records or conflicting evidence require review. Repeating the same command returns the recorded result. A recoverable learner error in a bulk command rolls back that learner’s work and reports the outcome alongside successful peers.
+
+For release verification, use `repair-preflight.cjs` with `PROGRESSION_DATABASE_URL` set through the deployment environment. It runs a read-only transaction and prints school-level configuration and integrity counts. Check the deployed revision, API readiness, worker health, the 2027 class and assignment counts, and unresolved progression items. Verify scheduled placements on disposable data. The existing `STUDENT_PROGRESSION_AUTOMATION_ENABLED=false` setting pauses the worker if intervention is required. Reverting an application release leaves audited academic history in the database.
