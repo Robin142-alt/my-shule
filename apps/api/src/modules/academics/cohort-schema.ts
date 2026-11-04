@@ -86,6 +86,7 @@ export const COHORT_SCHEMA_SQL = `
     END LOOP;
     IF to_regclass('public.student_academic_enrollments') IS NOT NULL THEN
       ALTER TABLE student_academic_enrollments ADD COLUMN IF NOT EXISTS stream_id text;
+      ALTER TABLE student_academic_enrollments ADD COLUMN IF NOT EXISTS academic_year_id text;
     END IF;
   END $$;
   ALTER TABLE class_subject_assignments ADD COLUMN IF NOT EXISTS source_assignment_id text;

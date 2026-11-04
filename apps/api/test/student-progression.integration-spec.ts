@@ -332,10 +332,25 @@ describe('Automatic student progression in PostgreSQL',()=>{
         return tx.$queryRawUnsafe(sql,...values);
       })})} as never,
       engine,context,{findFirstMissingModule:async(tenant:string)=>tenant===fixture.foreignSchool?'academics':null} as never);
+    await fixture.q(`INSERT INTO academic_progression_activation(tenant_id,last_error) VALUES($1,'previous failed tick')
+      ON CONFLICT(tenant_id) DO UPDATE SET last_error=EXCLUDED.last_error`,[fixture.school]);
+    await runtime.tick(new Date('2026-10-01T12:00:00Z'));
+    expect((await fixture.q('SELECT last_error FROM academic_progression_activation WHERE tenant_id=$1',[fixture.school]))[0].last_error).toBeNull();
     await runtime.tick(fixture.due);
     expect((await current(student.id))[0].academic_year_id).toBe(`${fixture.school}-2027`);
     expect((await fixture.q("SELECT academic_year_id FROM student_class_assignments WHERE student_id=$1 AND status='active'",[foreign.id]))[0].academic_year_id).toBe(`${fixture.foreignSchool}-2026`);
     runtime.onModuleDestroy();
+  });
+
+  it('shows the current schedule after repair while retaining the earlier failed run counts',async()=>{
+    await fixture.seed();
+    await fixture.q("UPDATE academic_years SET starts_on=starts_on+INTERVAL '100 years',ends_on=ends_on+INTERVAL '100 years' WHERE tenant_id=$1",[fixture.school]);
+    await fixture.q("UPDATE academic_terms SET starts_on=starts_on+INTERVAL '100 years',ends_on=ends_on+INTERVAL '100 years' WHERE tenant_id=$1",[fixture.school]);
+    await fixture.q(`INSERT INTO academic_progression_runs(tenant_id,academic_year_id,status,counts,message)
+      VALUES($1,$2,'attention','{"exception":1}','Previous run needed review')`,[fixture.school,year()]);
+    const view=await engine.overview(actor(),{academic_year_id:year()});
+    expect(view.automation.status).toBe('upcoming');
+    expect(view.runs[0]).toMatchObject({status:'attention',exceptions:1});
   });
 
   it('uses canonical tenant timezone and institution settings without legacy school records',async()=>{

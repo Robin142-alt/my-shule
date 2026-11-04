@@ -300,7 +300,8 @@ describe('Persistent cohort teaching configuration in PostgreSQL', () => {
     const enrollment=await admissions.createStudentAcademicEnrollment(input);
     const [membership]=await q("SELECT * FROM student_class_assignments WHERE student_id='new-learner' AND status='active'");
     expect(membership.cohort_id).toBeTruthy();
-    expect((await q('SELECT cohort_placement_id FROM student_academic_enrollments WHERE id=$1',[enrollment.id]))[0].cohort_placement_id).toBe(membership.cohort_placement_id);
+    expect((await q('SELECT cohort_placement_id,academic_year_id FROM student_academic_enrollments WHERE id=$1',[enrollment.id]))[0])
+      .toEqual({cohort_placement_id:membership.cohort_placement_id,academic_year_id:'2026'});
     expect((await admissions.createStudentAcademicEnrollment(input)).id).toBe(enrollment.id);
     await expect(admissions.createStudentAcademicEnrollment({...input,class_section_id:'2027-7',stream_id:'2027-7-blue',stream_name:'East',academic_year:'2027'})).rejects.toThrow(/already has an enrollment/);
     expect(await q("SELECT id FROM student_academic_enrollments WHERE student_id='new-learner'")).toHaveLength(1);
